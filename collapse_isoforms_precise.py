@@ -2,11 +2,17 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
+	if sys.argv[1][-3:] == 'bed':
+		bed = True
+	else:
+		bed = False
 	maxnum = int(sys.argv[2])
-	minsupport = int(sys.argv[3])
+	minsupport = float(sys.argv[3])
 	outfilename = sys.argv[4]
 except:
 	sys.stderr.write('usage: script.py psl max_tes/tss_threshold min_support outfilename \n')
+	sys.stderr.write('usage: script.py bed max_tes/tss_threshold min_support outfilename \n')
+	sys.stderr.write('if min_support < 1 it will be used as a percentage \n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -20,12 +26,23 @@ def get_junctions(line):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
 
+def get_junctions_bed12(line):
+	junctions = set()
+	chrstart = int(line[1])
+	starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
+	sizes = [int(n) for n in line[10].split(',')[:-1]]
+	if len(starts) == 1:
+		return
+	for b in range(len(starts)-1): # block
+		junctions.add((starts[b]+sizes[b], starts[b+1]))
+	return junctions
+
 def get_start_end(line):
 	starts = [int(n) for n in line[20].split(',')[:-1]]
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
 	return starts[0], starts[-1]+sizes[-1]
 
-def find_best_site(sites):  # sites is a dictionary of key site and value frequency
+def find_best_site(sites, find_tss=True):  # sites is a dictionary of key site and value frequency
 	total = float(sum(list(sites.values())))
 	if total < minsupport:
 		return ''
@@ -38,7 +55,9 @@ def find_best_site(sites):  # sites is a dictionary of key site and value freque
 		if nearby[s] > bestsite[1]:
 			bestsite = (s, nearby[s])
 	# return [bestsite]  # no alternative sites allowed. sorry :c 
-	if total - bestsite[1] < minsupport:  # best
+	if minsupport < 1 and minsupport > 0.5 and bestsite[1]/total >= minsupport:
+		return [bestsite]
+	elif total - bestsite[1] < minsupport:  # best
 		return [bestsite]
 	for s in sites:  # remove bestsite reads
 		if abs(s - bestsite[0]) <= maxnum:
@@ -59,15 +78,60 @@ def find_best_site(sites):  # sites is a dictionary of key site and value freque
 			other_sites.remove(worseothersite)
 			other_sites += [(s, nearby[s])]  # replacing 
 		if not close:
-			other_sites += [(s, nearby[s])]  # adding
-	other_sites = sorted(other_sites, key=lambda x: x[1])[-2:]
+			other_sites += [(s, nearby[s])]  # addingdd AQother_sites = sorted(other_sites, key=lambda x: x[1], reverse=True)
+	other_sites = sorted(other_sites, key=lambda x: x[1], reverse=True)	
+	if len(other_sites) > 1:
+		# print('--')
+		# print(other_sites)
+		if minsupport < 1:
+			other_sites2 = [o for o in other_sites if o[1]/total >= minsupport]
+			if not other_sites2:
+				if find_tss:
+					other_sites2 = sorted(other_sites, key=lambda x: x[0])
+				else:
+					other_sites2 = sorted(other_sites, key=lambda x: x[0], reverse=True)
+				other_sites2 = [other_sites2[0]]
+		else:
+			other_sites2 = [o for o in other_sites if o[1] >= minsupport]
+			bestsite = ''
+			# print(other_sites2)
+			if not other_sites2:
+				if find_tss:
+					other_sites2 = sorted(other_sites, key=lambda x: x[0])
+				else:
+					other_sites2 = sorted(other_sites, key=lambda x: x[0], reverse=True)
+				other_sites2 = [other_sites2[0]]
+			elif len(other_sites2) > 2:
+				if other_sites2[0][1] > other_sites2[1][1]:
+					bestsite = other_sites2[0]
+					other_sites2 = other_sites2[1:]
+			# print(other_sites2, bestsite)
+			if len(other_sites2) >= 2:
+				if other_sites2[0][1] > other_sites2[1][1]:  # second best
+					if bestsite:
+						other_sites2 = [bestsite, other_sites2[0]]
+					else:
+						other_sites2 = [other_sites2[0]]
+				elif other_sites2[0][1] == other_sites2[1][1]:  # no clear best, take the furthest
+					if find_tss:
+						other_sites2 = sorted(other_sites2, key=lambda x: x[0])
+					else:
+						other_sites2 = sorted(other_sites2, key=lambda x: x[0], reverse=True)
+					if bestsite and bestsite != other_sites2[0]:
+						other_sites2 = [bestsite, other_sites2[0]]
+					else:
+						other_sites2 = [other_sites2[0]]
+				else:
+					other_sites2 = other_sites2[:2]
+		# print(other_sites2)
+		other_sites = other_sites2
 	return other_sites
 
 def find_best_site2(sites_tss_all, sites_tes_all):
 	""" sites is a dict of key start site and value frequency, sites_tes are for
 	associated ends and their frequencies
 	sites_tes_all = {tss: {tes: freq}}"""
-	sites_tss = find_best_site(sites_tss_all)
+	sites_tss = find_best_site(sites_tss_all, find_tss = True)
 	if not sites_tss:
 		return ''
 	sepairs = []
@@ -79,7 +143,7 @@ def find_best_site2(sites_tss_all, sites_tes_all):
 					if tes not in specific_tes:
 						specific_tes[tes] = 0
 					specific_tes[tes] += sites_tes_all[tss_][tes]
-		sites_tes = find_best_site(specific_tes)
+		sites_tes = find_best_site(specific_tes, find_tss = False)
 		# if len(sites_tss) > 1:
 		# 	print(tss, specific_tes, tes)
 		for tes in sites_tes:
@@ -108,6 +172,30 @@ def edit_line(line, tss, tes, blocksize=''):
 	line[16] = tes
 	line[18] = ','.join([str(x) for x in bsizes])+','
 	line[20] = ','.join([str(x) for x in bstarts])+','
+	return line
+
+def edit_line_bed12(line, tss, tes, blocksize=''):
+	if blocksize:
+		line[10] = str(blocksize) + ','
+		line[11] = '0,'
+		line[1] = tss
+		line[2] = tes
+		return line
+
+	bsizes = [int(x) for x in line[10].split(',')[:-1]]
+	bstarts = [int(x) for x in line[11].split(',')[:-1]]
+	tstart = int(line[1])  # current chrom start
+	tend = int(line[2])
+	bsizes[0] += tstart - tss
+	bsizes[-1] += tes - tend
+	if bsizes[0] < 0:
+		print(tss, tstart, tend, line)
+		return ''
+	bstarts[0] = tss
+	line[1] = tss
+	line[2] = tes
+	line[10] = ','.join([str(x) for x in bsizes])+','
+	line[11] = ','.join([str(x) - int(line[1]) for x in bstarts])+','
 	return line
 
 def single_exon_pairs(sedict):  # incomplete
@@ -141,9 +229,14 @@ n = 0
 singleexon = {}
 for line in psl:
 	line = tuple(line.rstrip().split('\t'))
-	chrom = line[13]
-	tss, tes = get_start_end(line)
-	junctions = get_junctions(line)
+	if bed:
+		chrom = line[0]
+		tss, tes = int(line[1]), int(line[2])
+		junctions = get_junctions_bed12(line)
+	else:
+		chrom = line[13]
+		tss, tes = get_start_end(line)
+		junctions = get_junctions(line)
 
 	if not junctions:
 		junctions = 'se'  # all single exons will be considered together
@@ -209,11 +302,17 @@ with open(outfilename, 'wt') as outfile:
 				# if tes_[0] < 0 or tss_[0] < 0:
 				# 	print(tes_, tss_)
 				# print(tss_, tes_)
-				templine = edit_line(list(line), tss_, tes_)
+				if bed:
+					templine = edit_line_bed12(list(line), tss_, tes_)
+				else:
+					templine = edit_line(list(line), tss_, tes_)
 				if not templine:
 					continue
 				if i >= 1:
-					templine[9] = templine[9]+'-'+str(i)
+					if bed:
+						templine[3] = templine[3]+'-'+str(i)
+					else:
+						templine[9] = templine[9]+'-'+str(i)
 					writer.writerow(templine + [support])
 				else:
 					writer.writerow(templine + [support])
