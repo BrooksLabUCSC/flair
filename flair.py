@@ -29,7 +29,7 @@ if mode == 'align':
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='', help='Output file name')
 	args = parser.parse_args()
-	
+
 	args.o = args.o if args.o else args.r[:-3]+'sam'
 	if args.m[-8:] != 'minimap2':
 		if args.m[-1] == '/':
@@ -37,11 +37,12 @@ if mode == 'align':
 		else:
 			args.m += '/minimap2'
 
-	mm_out = subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.g, args.r], stdout=subprocess.PIPE)	
+	mm_out = subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.g, args.r], \
+	 stdout=subprocess.PIPE)	
 	minimap2_out = open(args.o, "w")
 	minimap2_out.write(mm_out.stdout.decode('utf-8'))
 	minimap2_out.close()
-	subprocess.call(['python', path+'sam_to_psl.py', args.o, args.o[:-3]+'psl'])
+	subprocess.call(['python', path+'bin/sam_to_psl.py', args.o, args.o[:-3]+'psl'])
 
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
@@ -71,15 +72,21 @@ elif mode == 'correct':
 	args.o = args.o if args.o else 'correction_output'
 
 	sys.stderr.write('Inferring strand for reads in PSL\n')
-	subprocess.call(['python', path+'infer_strand_for_psl.py', args.q, args.a, stranded_psl])
+	subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.a, stranded_psl])
 
 	sys.stderr.write('Correcting reads in {}\n'.format(stranded_psl))
-	subprocess.call(['python', path+'correctSplice.py', '-a', args.a, '-j', args.j, \
+	subprocess.call(['python', path+'bin/correctSplice.py', '-a', args.a, '-j', args.j, \
 	'-g', args.g, '-q', stranded_psl, '-w', args.w, '-m', args.m, '-o', args.o, '-mode', 'closest'])
 
 	sys.stderr.write('Converting output gp to PSL\n')
-	subprocess.call(['python', path+'genePredToPSL.py', stranded_psl, args.o+'/corrected.gp',\
+	subprocess.call(['python', path+'bin/genePredToPSL.py', stranded_psl, args.o+'/corrected.gp',\
+		args.o+'/'+stranded_psl[:-3]+'_corrected_novels.psl'])
+
+	sys.stderr.write('Filtering out reads containing unsupported junctions\n')
+	subprocess.call(['python', path+'bin/remove_novels.py', args.a, \
+		args.o+'/'+stranded_psl[:-3]+'_corrected_novels.psl', \
 		args.o+'/'+stranded_psl[:-3]+'_corrected.psl'])
+	subprocess.call(['rm', args.o+'/'+stranded_psl[:-3]+'_corrected_novels.psl'])
 
 elif mode == 'collapse':
 	parser = argparse.ArgumentParser(description='flair-collapse parse options', \
@@ -109,30 +116,37 @@ elif mode == 'collapse':
 		else:
 			args.m += '/minimap2'
 
-	sys.stderr.write('Removing isoforms containing unsupported junctions\n')
-	# subprocess.call(['python', path+'remove_novels.py', sys.argv[2], '20', '1', sys.argv[3]])
-
 	sys.stderr.write('Collapsing isoforms\n')
-	subprocess.call(['python', path+'collapse_isoforms_precise.py', args.q, args.w, '1', args.q[:-3]+'collapse1.psl'])
-	subprocess.call(['python', path+'psl_to_sequence.py', args.q[:-3]+'collapse1.psl', args.g, args.q[:-3]+'collapse1.fa'])
+	subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', args.q, args.w, '1', \
+		args.q[:-3]+'collapse1.psl'])
+	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'collapse1.psl', \
+		args.g, args.q[:-3]+'collapse1.fa'])
 	
-	sys.stderr.write('Aligning reads to collapsed reference\n')
-	mm_out = subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.q[:-3]+'collapse1.fa', args.r], stdout=subprocess.PIPE)	
+	sys.stderr.write('Aligning reads to first-pass reference\n')
+	mm_out = subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
+		args.q[:-3]+'collapse1.fa', args.r], stdout=subprocess.PIPE)	
 	minimap2_out = open(args.q[:-3]+'collapse1.sam', "w")
 	minimap2_out.write(mm_out.stdout.decode('utf-8'))
 	minimap2_out.close()
-	subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
 
 	# sys.stderr.write('Keeping only primary alignments\n')
 	# print('samtools', 'view', '-h', '-F', '256', '-S', sys.argv[3][:-3]+'sam')
-	# st_out = subprocess.call(['samtools', 'view', '-h', '-F', '256', '-S', sys.argv[3][:-3]+'sam'], stdout=subprocess.PIPE)
+	# st_out = subprocess.call(['samtools', 'view', '-h', '-F', '256', '-S', \
+	# 	sys.argv[3][:-3]+'sam'], stdout=subprocess.PIPE)
 	# samtools_out = open(sys.argv[3][:-3]+'p.sam', "w")
 	# samtools_out.write(st_out.stdout.decode('utf-8'))
 	# samtools_out.close()
 
-	subprocess.call(['python', path+'count_sam_genes.py', args.q[:-3]+'collapse1.sam', args.q[:-3]+'collapse1.counts'])
-	sys.stderr.write('Removing alignment file\n')
-	subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])
+	sys.stderr.write('Counting isoform expression\n')
+	subprocess.call(['python', path+'bin/count_sam_genes.py', args.q[:-3]+'collapse1.sam', \
+		args.q[:-3]+'collapse1.counts'])
+	
 	sys.stderr.write('Filtering isoforms by read coverage\n')
-	subprocess.call(['python', path+'match_counts.py', args.q[:-3]+'collapse1.counts', args.q[:-3]+'collapse1.psl', args.s, args.q[:-3]+'final_isoforms.psl'])
+	subprocess.call(['python', path+'bin/match_counts.py', args.q[:-3]+'collapse1.counts', \
+		args.q[:-3]+'collapse1.psl', args.s, args.q[:-3]+'isoforms.psl'])
+	
+	sys.stderr.write('Removing intermediate files/done!\n')
+	subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
+	subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
+	subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.counts'])

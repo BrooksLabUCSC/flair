@@ -219,7 +219,7 @@ class Junctions():
         """
         if intron in self.istrands:
             if self.istrands[intron] != strand:
-                print >>sys.stderr, "WARNING, strand ambiguity for annotated junction", intron,  self.istrands[intron], strand
+                # print >>sys.stderr, "WARNING, strand ambiguity for annotated junction", intron,  self.istrands[intron], strand
                 self.istrands[intron] = '.'
         else:
             self.istrands[intron] = strand
@@ -337,7 +337,6 @@ def disambiguateJcnStr(chr_seq, start, end):
     elif intron_seq.startswith("GT") and intron_seq.endswith("AT"):
         strand = "-"
     # Priority to 5' splice site since there is more information
-    # there
     elif intron_seq.startswith("GT"):
         strand = "+"
     elif intron_seq.endswith("AC"):
@@ -346,8 +345,8 @@ def disambiguateJcnStr(chr_seq, start, end):
         strand = "+"
     elif intron_seq.startswith("CT"):
         strand = "-"
-    else:
-        print >>sys.stderr, "Cannot find strand for {}-{}".format(start, end)
+    # else:
+        # print >>sys.stderr, "Cannot find strand for {}-{}".format(start, end)
     return strand
 
 def novelValidity(chr_seq, start,side, strand,toprint='', chrom=''):
@@ -384,8 +383,7 @@ def findChr(records, this_chr):
         chr_seq = records[unFormatChr(this_chr)].seq
     else:
         print "Cannot find %s in genome sequence." % this_chr
-        return 'BAD'  # i changed this!! - alison
-        sys.exit(1)
+        return 'BAD'
     return chr_seq
 
 # Main
@@ -411,7 +409,7 @@ cmd = [mrnaToGene, '-noCds', msize, args.query, gpgeno]
 try:
     subprocess.check_call(cmd)
 except subprocess.CalledProcessError:
-    print >>sys.stderr, "Cannot run mrnaToGene correctly, exiting."
+    print >>sys.stderr, "Please have mrnaToGene in your path, exiting."
     sys.exit(1)
 
 # split all input files into chromosomes
@@ -424,7 +422,6 @@ qdir = os.path.join(tmpdir, 'aligns')
 splitByChr(args.junctions, jdir)
 splitByChr(args.annotations, adir)
 chroms = splitByChr(gpgeno, qdir)
-
 
 # read genome fasta
 try:
@@ -461,7 +458,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
             temp = open(os.path.join(jdir, c + '.gp'), 'r')
             temp = open(os.path.join(adir, c + '.gp'), 'r')
         except:
-            print >>sys.stderr, "Chrom not found in junction file."
+            # print >>sys.stderr, "Chrom not found in junction file."
             continue
         with open(os.path.join(jdir, c + '.gp'), 'r') as f:
             for line in f:
@@ -491,7 +488,6 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 hit = GpHit(line.strip())
                 newlefts = []
                 expansions_lefts = []  # a list of lists of newlefts
-                # currentname = [hit.qName]
                 inferredstrand = hit.strand
                 if not hit.lefts:
                     continue
@@ -569,41 +565,42 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                outnv.write("{}:{}\t{}\t{}\t{}\n".format(c, i, alignIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
                splicebed.write(bedline)
 
-        for i in set(allIntrons):
-            alcount = allIntrons.count(i) 
-            jucount = junctionIntrons.count(i)
-            ancount = annotIntrons.count(i)
-            bedline = makeBed(c, chr_seq, i, alcount, outbed, cors_short.istrands)
-            if not ancount and alcount >= args.novelthreshold:
-               outnvu.write("{}:{}\t{}\t{}\t{}\n".format(c, i, allIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
-               splicebed.write(bedline)
+        if args.reportnovel:
+            for i in set(allIntrons):
+                alcount = allIntrons.count(i) 
+                jucount = junctionIntrons.count(i)
+                ancount = annotIntrons.count(i)
+                bedline = makeBed(c, chr_seq, i, alcount, outbed, cors_short.istrands)
+                if not ancount and alcount >= args.novelthreshold:
+                   outnvu.write("{}:{}\t{}\t{}\t{}\n".format(c, i, allIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
+                   splicebed.write(bedline)
 
 if args.expand == 'expand':
     print(expanded)
-sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected))
+# sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected))
 shutil.rmtree(tmpdir)
 
-print('perfect splice sites: {}, corrected splice sites: {}, novel splice support: {}, unable to be corrected: {}'.format(correct, incorrect, novels,unable))
+# print('perfect splice sites: {}, corrected splice sites: {}, novel splice support: {}, unable to be corrected: {}'.format(correct, incorrect, novels,unable))
 
-print textwrap.dedent('''\
+# print textwrap.dedent('''\
 
 
-SUCCESS
+# SUCCESS
 
-These output files were created:
-    novel.txt        contains a list of novel junctions with enough supporting reads
-    novelsplices.bed contains novel junctions
-    junctions.bed    contains all junctions found in the query file. The score field contains the number of alignments with this junction.
-    notfound.txt     is a list of query donor and acceptor sites that could not be found within the allowed wiggle distance
-    multihit.txt     is a list of query donor and acceptor sites that had multiple hits within the allowed wiggle distance
-    corrected.gp     contains all query annotations, splice corrected where possible
+# These output files were created:
+#     novel.txt        contains a list of novel junctions with enough supporting reads
+#     novelsplices.bed contains novel junctions
+#     junctions.bed    contains all junctions found in the query file. The score field contains the number of alignments with this junction.
+#     notfound.txt     is a list of query donor and acceptor sites that could not be found within the allowed wiggle distance
+#     multihit.txt     is a list of query donor and acceptor sites that had multiple hits within the allowed wiggle distance
+#     corrected.gp     contains all query annotations, splice corrected where possible
 
-Notes: 
-   The junctions in junctions.bed are NOT NECESSARILY correct splices. They just represent all remaining alignment gaps after splice correction.
-   Novel junctions are only reported if they are identical in at least 3 annotations. This means that it is possible to miss junctions for which alignments are close but not identical. To see all novel junctions, set --novelthreshold to 1
-   If the bed file contains a period in the strand field, the junction is likely an artifact (for example a misalignment of exon ends or an unfilled gap in an exon)
+# Notes: 
+#    The junctions in junctions.bed are NOT NECESSARILY correct splices. They just represent all remaining alignment gaps after splice correction.
+#    Novel junctions are only reported if they are identical in at least 3 annotations. This means that it is possible to miss junctions for which alignments are close but not identical. To see all novel junctions, set --novelthreshold to 1
+#    If the bed file contains a period in the strand field, the junction is likely an artifact (for example a misalignment of exon ends or an unfilled gap in an exon)
 
-PROGRAM FINISHED
+# PROGRAM FINISHED
 
-        ''')
+#         ''')
 
