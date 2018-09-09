@@ -2,20 +2,22 @@ import sys, csv, re
 
 try:
 	sam = open(sys.argv[1])
-	chromsizefile = open(sys.argv[2])
-	outfilename = sys.argv[3]
+	# chromsizefile = open(sys.argv[2])
+	outfilename = sys.argv[2]
+	if len(sys.argv) > 3:
+		chromsizefile = sys.argv[3]
+	else:
+		chromsizefile = ''
 except:
-	sys.stderr.write('usage: script.py samfile chromsizes outpsl\n')
+	sys.stderr.write('usage: script.py samfile outpsl [chromsizefile]\n')
 	sys.stderr.write('written for minimap sams\n')
 	sys.exit(1)
 
-def cigar_to_blocks(matches):  # parses cigar string matches, returns columns 19 and 20 of psl
-	return 
-
-chromsizes = {}
-for line in chromsizefile:
-	line = line.rstrip().split('\t')
-	chromsizes[line[0]] = line[1]
+if chromsizefile:
+	chromsizes = {}
+	for line in open(chromsizefile):
+		line = line.rstrip().split('\t')
+		chromsizes[line[0]] = line[1]
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
@@ -74,9 +76,11 @@ with open(outfilename, 'wt') as outfile:
 		qend = qconsumed + qstart
 		ncount = seq.count('N')
 		qsize = len(seq)
-		# if qsize == 1:
 		qsize = qsize_backup
-		tsize = chromsizes[tname]  # chromosome length
+		if chromsizefile:
+			tsize = chromsizes[tname]  # chromosome length
+		else:
+			tsize = 0
 		tstart = pos
 		strand = '-' if flag & 0x10 else '+'  # flag&0x10 is 1 when the strand is -
 		blockstarts = [str(pos + s) for s in relblockstarts]

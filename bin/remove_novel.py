@@ -1,9 +1,9 @@
-import sys
+import sys, csv
 
 try:
     gp = open(sys.argv[1])
     psl = open(sys.argv[2])
-    outpsl = open(sys.argv[3])
+    outpsl = sys.argv[3]
 except:
     sys.stderr.write('script.py junctions.gp psl nonovels.psl \n')
     sys.exit(1)
@@ -26,6 +26,8 @@ with open(outpsl, 'wt') as outfile:
     for line in psl:
         line = line.rstrip().split('\t')
         strand, chrom = line[8], line[13]
+        if chrom not in annotated:
+            continue
         starts = [int(n) for n in line[20].split(',')[:-1]]
         sizes = [int(n) for n in line[18].split(',')[:-1]]      
         validjuncs = True
