@@ -31,6 +31,8 @@ if mode == 'align':
 		action='store', dest='o', default='', help='output file name')
 	parser.add_argument('-t', '--threads', type=str, \
 		action='store', dest='t', default='4', help='Minimap2 number of threads (4)')
+	parser.add_argument('-c', '--chromsizes', type=str, \
+		action='store', dest='c', default='', help='Chromosome sizes tab-separated file')
 	args = parser.parse_args()
 
 	args.o = args.o if args.o else args.r[:args.r.rfind('.')+1]+'sam'
@@ -43,7 +45,10 @@ if mode == 'align':
 	sys.stderr.write('Aligning to the genome with minimap2\n')
 	subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o, 'w'))
 
-	subprocess.call(['python', path+'bin/sam_to_psl.py', args.o, args.o[:-3]+'psl'])
+	if args.c:
+		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o, args.o[:-3]+'psl', args.c])
+	else:
+		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o, args.o[:-3]+'psl'])
 
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
