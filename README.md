@@ -14,8 +14,11 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, corre
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
-![flair_workflow](misc/flair_workflow.png) <!-- .element height='60%' width='60%' -->
-It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by individual sample read assignment to isoforms of the combined assembly.
+<!-- ![flair_workflow](misc/flair_workflow.png) -->
+<!-- .element height='60%' width='60%' -->
+<img src='misc/flair_workflow.png' alt='flair workflow' width='200'/>
+
+It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly.
 
 ## <a name="requirements"></a>Requirements
 
@@ -44,7 +47,7 @@ Usage:
 python flair.py correct -a annotated.gp -g genome.fa -q query.psl [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) `psl` of raw reads with strand and gene inferred and (2) `psl` of corrected reads within directory specified by `-o`.
+Outputs (1) `psl` of raw reads with strand inferred and (2) `psl` of corrected reads within directory specified by `-o`.
 
 ### <a name="collapse"></a>flair collapse
 Defines isoforms from correct reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in PSL format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
@@ -66,7 +69,8 @@ To quantify the expression of each isoform for a specific sample for use in othe
 
 ### mark_intron_retention.py
 
-Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) coordinates of 
+Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) `txt` output file name for coordinates of introns found.
+
 Usage:
 ```sh
 python mark_intron_retention.py isoforms.psl isoforms.ir.psl coords.txt
@@ -76,6 +80,7 @@ Outputs (1) an extended `psl` with an additional column containing either values
 ### mark_productivity.py
 
 Requires three positional arguments to classify isoforms according to productivity: (1) reads or isoforms in `psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
+
 Usage:
 ```sh
 python mark_productivity.py psl annotation.gtf genome.fa > productivity.psl
@@ -85,6 +90,7 @@ Outputs an extended `psl` with an additional column containing either values 0, 
 ### find_alt3prime_5prime_ss.py
 
 Requires four positional arguments to identify and calculate significance of alternative 5' and 3' splicing between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for alternative 3' SS, (4) `txt` file output name for alternative 5' SS. See [quantification](#quant) for obtaining (1). 
+
 Usage: 
 ```sh
 python find_alt3prime_5prime_ss.py isoforms.psl colnum alt3.txt alt5.txt 
@@ -94,6 +100,8 @@ Output file format:
 
 ### diff_iso_usage.py
 Requires three positional arguments to identify and calculate significance of alternative 3' and 5' splicing between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for differentially used isoforms. See [quantification](#quant) for obtaining (1). 
+
+Usage:
 ```sh
 python diff_iso_usage.py isoforms.psl colnum diff_isos.txt
 ```

@@ -4,10 +4,7 @@ try:
 	psl = open(sys.argv[1])
 	ref = open(sys.argv[2])
 	outfilename = sys.argv[3]
-	if len(sys.argv) > 4:
-		genepred = True
-	else:
-		genepred = False
+	genepred = len(sys.argv) > 4
 except:
 	sys.stderr.write('usage: script.py psl ref.gtf out.psl\n')
 	sys.stderr.write('usage: script.py psl ref.gp out.psl \'gp\'\n')
@@ -149,5 +146,6 @@ with open(outfilename, 'wt') as outfile:
 			gene = gene_candidates[strands.index(consensus)]
 
 		line[8] = consensus
-		line[9] += '_' + gene
+		if not genepred:
+			line[9] += '_' + gene
 		writer.writerow(line)

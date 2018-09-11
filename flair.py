@@ -70,6 +70,8 @@ elif mode == 'correct':
 		help='window size for correcting splice sites (10)')
 	parser.add_argument('-m', '--mergesize', \
 		action='store', dest='m', default='30', help='merge size for gaps within exons (30)')
+parser.add_argument('-f', '--gtf', default='', \
+		action='store', dest='f', help='GTF annotation file, used for associating gene names to reads')
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='', help='output file name (correction_output)')
 	args = parser.parse_args()
@@ -81,7 +83,10 @@ elif mode == 'correct':
 	args.o = args.o if args.o else 'correction_output'
 
 	sys.stderr.write('Inferring strand for reads in PSL\n')
-	subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.a, stranded_psl, 'gp'])
+	if args.f:
+		subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.f, stranded_psl])
+	else:
+		subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.a, stranded_psl, 'gp'])
 
 	sys.stderr.write('Correcting reads in {}\n'.format(stranded_psl))
 	subprocess.call(['python', path+'bin/correctSplice.py', '-a', args.a, '-j', args.s, \
