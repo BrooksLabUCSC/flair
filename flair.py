@@ -74,7 +74,10 @@ elif mode == 'correct':
 		action='store', dest='o', default='', help='output file name (correction_output)')
 	args = parser.parse_args()
 	args.s = args.s if args.s else args.a
-	stranded_psl = args.q[:args.q.rfind('.')] + '_strand.psl'
+	if '.' in args.q:
+		stranded_psl = args.q[:args.q.rfind('.')] + '_strand.psl'
+	else:
+		stranded_psl = args.q + '_strand.psl'
 	args.o = args.o if args.o else 'correction_output'
 
 	sys.stderr.write('Inferring strand for reads in PSL\n')

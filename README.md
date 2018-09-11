@@ -9,11 +9,12 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, corre
 	- [align](#align)
 	- [correct](#correct)
 	- [collapse](#collapse)
+		- [Quantification](#quant)
 - [Scripts](#scripts)
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
-![flair_workflow](misc/flair_workflow.png) 
+![flair_workflow](misc/flair_workflow.png) <!-- .element height='60%' width='60%' -->
 It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by individual sample read assignment to isoforms of the combined assembly.
 
 ## <a name="requirements"></a>Requirements
@@ -22,7 +23,7 @@ It is recommended to combine all samples together prior to running FLAIR modules
 2. [mRNAtoGene](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/mrnaToGene) in $PATH
 3. [minimap2](https://github.com/lh3/minimap2)
 
-## <a name="modules"></a>flair modules 
+## <a name="modules"></a>FLAIR modules 
 flair.py is a wrapper script with modules for running various processing scripts located in bin/. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
 
 ### <a name="align"></a>flair align
@@ -32,9 +33,9 @@ Usage:
 ```sh
 python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 ```
-run with `--help` for a description of optional arguments.
+run with `--help` for a description of optional arguments. Outputs (1) `.sam` of raw aligned reads and (2) `.psl` of raw aligned reads.
 
-### flair correct
+### <a name="correct"></a>flair correct
 
 Smooths gaps and corrects misaligned splice sites using genome annotations. To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions.
 
@@ -43,9 +44,9 @@ Usage:
 python flair.py correct -a annotated.gp -g genome.fa -q query.psl [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) PSL of raw reads with strand and gene inferred and (2) PSL of corrected reads within directory specified by `-o`
+Outputs (1) `psl` of raw reads with strand and gene inferred and (2) `psl` of corrected reads within directory specified by `-o`.
 
-### flair collapse
+### <a name="collapse"></a>flair collapse
 Defines isoforms from correct reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in PSL format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
 
 Usage:
@@ -53,26 +54,52 @@ Usage:
 python flair.py collapse -r <reads.fq>/<reads.fa> -q <query.psl>/<query.bed12> -g genome.fa [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) extended PSL containing the data-specific isoforms and (2) fasta file of isoform sequences.
+Outputs (1) extended `psl` containing the data-specific isoforms and (2) `fasta` file of isoform sequences.
+
+#### <a name="quant"></a>Quantification
+To quantify the expression of each isoform for a specific sample for use in other scripts:
+1. Align read sequences to the isoform sequences using minimap2 (`--secondary=no` option recommended, alternatively primary alignments can be selectively retained with `samtools view -F 256 -S` on the resulting `sam`)
+2. Count read-isoform assignments - `bin/count_sam_genes.py sam counts.txt`
+3. Append a new column to the isoform file containing the sample-specific isoform expression - `bin/match_counts.py counts.txt isoforms.psl 1 isoforms.out.psl`
 
 ## Scripts
 
+### mark_intron_retention.py
+
+Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) coordinates of 
+Usage:
+```sh
+python mark_intron_retention.py isoforms.psl isoforms.ir.psl coords.txt
+```
+Outputs (1) an extended `psl` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively; (2) `txt` file of intron retentions with format `isoform name` `chrom` `intron 5'` `intron 3'`.
+
+### mark_productivity.py
+
+Requires three positional arguments to classify isoforms according to productivity: (1) reads or isoforms in `psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
+Usage:
+```sh
+python mark_productivity.py psl annotation.gtf genome.fa > productivity.psl
+```
+Outputs an extended `psl` with an additional column containing either values 0, 1, or 2 corresponding to a productive, unproductive (premature stop codon), and lncRNA (no start codon) classifications respectively. 
+
 ### find_alt3prime_5prime_ss.py
 
-Requires four positional arguments to identify and calculate significance of alternative 3' and 5' splicing between two samples using Fisher's exact tests. First, an extended PSL of isoforms containing two extra columns for read counts of each isoform per sample type; second, the column number of the two extra columns (assumed to be last two); third, txt file output name for alternative 3' SS; fourth, txt file output name for alternative 5' SS.
+Requires four positional arguments to identify and calculate significance of alternative 5' and 3' splicing between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for alternative 3' SS, (4) `txt` file output name for alternative 5' SS. See [quantification](#quant) for obtaining (1). 
 Usage: 
 ```sh
 python find_alt3prime_5prime_ss.py isoforms.psl colnum alt3.txt alt5.txt 
 ```
 Output file format:
-`chrom` `intron 3'` `intron 5'` `p-value` `strand` `sample1 intron count` `sample2 intron count` `sample1 alternative introns counts` `sample2 alternative introns counts` `gene name` `SS distance from predominant alternative SS` `predominant alternative SS`
+`chrom` `intron 5'` `intron 3'` `p-value` `strand` `sample1 intron count` `sample2 intron count` `sample1 alternative introns counts` `sample2 alternative introns counts` `gene name` `SS distance from predominant alternative SS` `predominant alternative SS`
 
 ### diff_iso_usage.py
-Requires three positional arguments to identify and calculate significance of alternative 3' and 5' splicing between two samples using Fisher's exact tests. First, an extended PSL of isoforms containing two extra columns for read counts of each isoform per sample type; second, the column number of the two extra columns (assumed to be last two); third, txt file output name for differentially used isoforms.
+Requires three positional arguments to identify and calculate significance of alternative 3' and 5' splicing between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for differentially used isoforms. See [quantification](#quant) for obtaining (1). 
 ```sh
 python diff_iso_usage.py isoforms.psl colnum diff_isos.txt
 ```
 Output file format: 
 `gene name` `isoform name` `p-value` `sample1 isoform count` `sample2 isoform count` `sample1 alternative isoforms for gene count` `sample2 alternative isoforms for gene count` 
 
+### NanoSim_Wrapper.py
 
+A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim_Wrapper.py) written for simulating nanopore transcriptome data using [Nanosim](https://github.com/bcgsc/NanoSim).  
