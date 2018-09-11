@@ -16,7 +16,7 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, corre
 FLAIR can be run optionally with short-read data to help splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
 <!-- ![flair_workflow](misc/flair_workflow.png) -->
 <!-- .element height='60%' width='60%' -->
-<img src='misc/flair_workflow.png' alt='flair workflow' width='200'/>
+<img src='misc/flair_workflow.png' alt='flair workflow' width='600'/>
 
 It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly.
 
@@ -30,7 +30,7 @@ It is recommended to combine all samples together prior to running FLAIR modules
 flair.py is a wrapper script with modules for running various processing scripts located in bin/. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
 
 ### <a name="align"></a>flair align
-Aligns reads to the genome using minimap2, and converts `.sam` output to [.psl](https://genome.ucsc.edu/FAQ/FAQformat.html#format2), the predominant format used in consequent steps. Aligned reads in PSL format can be visualized in IGV; alternatively, the UCSC Genome browser can also be used if a chromosome sizes tab-separated file is provided with `-c`.
+Aligns reads to the genome using minimap2, and converts `.sam` output to [.psl](https://genome.ucsc.edu/FAQ/FAQformat.html#format2), the predominant format used in consequent steps. Aligned reads in 'psl' format can be visualized in IGV; alternatively, the UCSC Genome browser can also be used if a chromosome sizes tab-separated file is provided with `-c`.
 
 Usage:
 ```sh
@@ -50,7 +50,7 @@ run with `--help` for description of optional arguments.
 Outputs (1) `psl` of raw reads with strand inferred and (2) `psl` of corrected reads within directory specified by `-o`.
 
 ### <a name="collapse"></a>flair collapse
-Defines isoforms from correct reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in PSL format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
+Defines isoforms from correct reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in `psl` format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
 
 Usage:
 ```sh
@@ -79,7 +79,14 @@ Outputs (1) an extended `psl` with an additional column containing either values
 
 ### mark_productivity.py
 
-Requires three positional arguments to classify isoforms according to productivity: (1) reads or isoforms in `psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
+Requires three positional arguments to classify isoforms according to productivity: (1) reads or 
+
+
+
+
+
+
+`psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
 
 Usage:
 ```sh
