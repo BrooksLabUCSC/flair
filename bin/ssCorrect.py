@@ -319,7 +319,7 @@ def main():
 	# and to preform coordinate conversions
 	data = BED12(bed)
 
-	statsOut = gzip.open("ssCorrectionInfo.tsv.gz",'w') if not os.path.isfile("ssCorrectionInfo.tsv.gz") else open("ssCorrectionInfo%s.tsv.gz" % random.randint(0,9999),'w')
+	statsOut = open("ssCorrectionInfo.tsv",'w') if not os.path.isfile("ssCorrectionInfo.tsv") else open("ssCorrectionInfo%s.tsv" % random.randint(0,9999),'w')
 
 	for line in tqdm(data.getLine(), total=entries, desc="Correcting junctions") if verbose else data.getLine():
 		junctionCoords = data.bed12toJuncs()
