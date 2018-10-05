@@ -27,16 +27,16 @@ It is recommended to combine all samples together prior to running FLAIR modules
 3. [minimap2](https://github.com/lh3/minimap2)
 
 ## <a name="modules"></a>FLAIR modules 
-flair.py is a wrapper script with modules for running various processing scripts located in bin/. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
+flair.py is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
 
 ### <a name="align"></a>flair align
-Aligns reads to the genome using minimap2, and converts `.sam` output to [.psl](https://genome.ucsc.edu/FAQ/FAQformat.html#format2), the predominant format used in consequent steps. Aligned reads in 'psl' format can be visualized in IGV; alternatively, the UCSC Genome browser can also be used if a chromosome sizes tab-separated file is provided with `-c`.
+Aligns reads to the genome using minimap2, and converts `sam` output to [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2), the predominant format used in consequent steps. Aligned reads in `psl` format can be visualized in IGV; alternatively, the UCSC Genome browser can also be used if a chromosome sizes tab-separated file is provided with `-c`.
 
 Usage:
 ```sh
 python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 ```
-run with `--help` for a description of optional arguments. Outputs (1) `.sam` of raw aligned reads and (2) `.psl` of raw aligned reads.
+run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) `psl` of raw aligned reads.
 
 ### <a name="correct"></a>flair correct
 
@@ -50,7 +50,7 @@ run with `--help` for description of optional arguments.
 Outputs (1) `psl` of raw reads with strand inferred and (2) `psl` of corrected reads within directory specified by `-o`.
 
 ### <a name="collapse"></a>flair collapse
-Defines isoforms from correct reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in `psl` format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
+Defines isoforms from corrected reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in `psl` format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
 
 Usage:
 ```sh
@@ -69,7 +69,7 @@ To quantify the expression of each isoform for a specific sample for use in othe
 
 ### mark_intron_retention.py
 
-Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) `txt` output file name for coordinates of introns found.
+Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) `txt` file output name for coordinates of introns found.
 
 Usage:
 ```sh
@@ -117,4 +117,10 @@ Output file format:
 
 ### NanoSim_Wrapper.py
 
-A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim_Wrapper.py) written for simulating nanopore transcriptome data using [Nanosim](https://github.com/bcgsc/NanoSim).  
+A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim_Wrapper.py) written for simulating nanopore transcriptome data using [Nanosim](https://github.com/bcgsc/NanoSim). 
+
+## Example Files
+Provided in `example_files` are the following:  
+1. `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). This can be run through the FLAIR workflow starting from alignment.
+2. `cll_shortread_junctions.gp`, a genepred-formatted file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
+3. `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.

@@ -43,7 +43,7 @@ if mode == 'align':
 			args.m += '/minimap2'
 
 	sys.stderr.write('Aligning to the genome with minimap2\n')
-	subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o, 'w'))
+	subprocess.call([args.m, '-ax splice ', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o, 'w'))
 
 	if args.c:
 		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o, args.o[:-3]+'psl', args.c])
@@ -70,7 +70,7 @@ elif mode == 'correct':
 		help='window size for correcting splice sites (10)')
 	parser.add_argument('-m', '--mergesize', \
 		action='store', dest='m', default='30', help='merge size for gaps within exons (30)')
-parser.add_argument('-f', '--gtf', default='', \
+	parser.add_argument('-f', '--gtf', default='', \
 		action='store', dest='f', help='GTF annotation file, used for associating gene names to reads')
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='', help='output file name (correction_output)')
@@ -128,7 +128,9 @@ elif mode == 'collapse':
 		action='store', dest='e', help='Report options include\
 		default: only full-length isoforms\
 		comprehensive: default set + partial isoforms\
-		ginormous: comprehensive + single exon isoforms')
+		ginormous: comprehensive + single exon isoforms (default)')
+	parser.add_argument('-o', '--output', default='', \
+		action='store', dest='o', help='Output file name of isoforms')
 	args = parser.parse_args()
 
 	if args.m[-8:] != 'minimap2':
@@ -159,7 +161,7 @@ elif mode == 'collapse':
 		subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 			args.q[:-3]+'collapse1.fa', args.r], stdout=open(args.q[:-3]+'collapse1.sam', "w"))
 	except:
-		sys.stderr.write('Minimap2 error, specify minimap2 path with -m or make sure minimap2 is in your path\n')
+		sys.stderr.write('Possible minimap2 error, specify minimap2 path with -m or make sure minimap2 is in your path\n')
 		sys.exit()
 		
 	sys.stderr.write('Counting isoform expression\n')
@@ -171,8 +173,17 @@ elif mode == 'collapse':
 		args.q[:-3]+'collapse1.psl', args.s, args.q[:-3]+'isoforms.psl'])
 	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'isoforms.psl', \
 		args.g, args.q[:-3]+'isoforms.fa'])
-	if args.q[-3:] != 'psl':
-		subprocess.call(['pslToBed', args.q[:-3]+'isoforms.psl', args.q[:-3]+'isoforms.bed'])
+
+	if not args.o and args.q[-3:] != 'psl':
+		args.o = args.q[:-3]+'isoforms.bed'
+	if args.o:
+		if args.o[-3:] != 'psl':
+			subprocess.call(['pslToBed', args.q[:-3]+'isoforms.psl', args.o])
+		else:
+			subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o])
+			outpath = args.o[:args.o.rfind('/')+1] if '/' in args.o else ''
+			subprocess.call(['mv', args.q[:-3]+'isoforms.fa', outpath + args.q[:-3]+'isoforms.fa'])
+
 	
 	sys.stderr.write('Removing intermediate files/done!\n')
 	subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
