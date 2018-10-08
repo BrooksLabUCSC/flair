@@ -79,14 +79,7 @@ Outputs (1) an extended `psl` with an additional column containing either values
 
 ### mark_productivity.py
 
-Requires three positional arguments to classify isoforms according to productivity: (1) reads or 
-
-
-
-
-
-
-`psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
+Requires three positional arguments to classify isoforms according to productivity: (1) reads or `psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
 
 Usage:
 ```sh
@@ -120,7 +113,7 @@ Output file format:
 A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim_Wrapper.py) written for simulating nanopore transcriptome data using [Nanosim](https://github.com/bcgsc/NanoSim). 
 
 ## Example Files
-Provided in `example_files` are the following:  
-1. `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). This can be run through the FLAIR workflow starting from alignment.
-2. `cll_shortread_junctions.gp`, a genepred-formatted file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
-3. `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.
+We have provided the following [example files](https://users.soe.ucsc.edu/~brooks/FLAIR_example_files/):  
+- `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). This can be run through the FLAIR workflow starting from alignment.
+- `cll_shortread_junctions.gp`, a genepred-formatted file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
+- `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.
