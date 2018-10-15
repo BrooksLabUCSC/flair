@@ -35,7 +35,7 @@ with open(outfilename, 'wt') as outfile:
 		line = line.rstrip()
 		if line.startswith('>'):
 			if not chrom:
-				chrom = line[1:]
+				chrom = line.split()[0][1:]
 				continue
 			if chrom in psldata:
 				for entry in psldata[chrom]:
@@ -48,7 +48,7 @@ with open(outfilename, 'wt') as outfile:
 					if fastq:
 						writer.writerow(['+'])
 						writer.writerow(['@'*len(pulledseq)])
-			chrom = line[1:]
+			chrom = line.split()[0][1:]
 			seq = ''
 		else:
 			seq += line

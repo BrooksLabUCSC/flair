@@ -43,7 +43,7 @@ if mode == 'align':
 			args.m += '/minimap2'
 
 	sys.stderr.write('Aligning to the genome with minimap2\n')
-	subprocess.call([args.m, '-ax splice ', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o, 'w'))
+	subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o, 'w'))
 
 	if args.c:
 		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o, args.o[:-3]+'psl', args.c])
