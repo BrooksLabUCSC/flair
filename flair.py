@@ -72,6 +72,9 @@ elif mode == 'correct':
 		action='store', dest='m', default='30', help='merge size for gaps within exons (30)')
 	parser.add_argument('-f', '--gtf', default='', \
 		action='store', dest='f', help='GTF annotation file, used for associating gene names to reads')
+	parser.add_argument('-n', '--novel', default=False, \
+		action='store_true', dest='n', help='If specified, keep novel, valid splice sites \
+		i.e. those not found in annotation but use GT-AG splice motif (default: not specified)')
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='', help='output file name (correction_output)')
 	args = parser.parse_args()
@@ -96,11 +99,12 @@ elif mode == 'correct':
 	subprocess.call(['python', path+'bin/genePredToPSL.py', stranded_psl, args.o+'/corrected.gp',\
 		args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl'])
 
-	sys.stderr.write('Filtering out reads containing unsupported junctions\n')
-	subprocess.call(['python', path+'bin/remove_novel.py', args.a, \
-		args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl', \
-		args.o+'/'+stranded_psl[:-4]+'_corrected.psl'])
-	subprocess.call(['rm', args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl'])
+	if not args.n:
+		sys.stderr.write('Filtering out reads containing unsupported junctions\n')
+		subprocess.call(['python', path+'bin/remove_novel.py', args.a, \
+			args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl', \
+			args.o+'/'+stranded_psl[:-4]+'_corrected.psl'])
+		subprocess.call(['rm', args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl'])
 
 elif mode == 'collapse':
 	parser = argparse.ArgumentParser(description='flair-collapse parse options', \

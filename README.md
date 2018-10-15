@@ -1,5 +1,5 @@
 # flair
-FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, correction, isoform definition, and alternative splicing analysis of noisy reads. 
+FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, correction, isoform definition, and alternative splicing analysis of noisy reads. FLAIR has primarily been used for nanopore cDNA, native RNA, and PacBio sequencing reads. 
 
 ## Table of Contents
 
@@ -13,12 +13,12 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, corre
 - [Scripts](#scripts)
 
 ## <a name="overview"></a>Overview
-FLAIR can be run optionally with short-read data to help splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
+FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
 <!-- ![flair_workflow](misc/flair_workflow.png) -->
 <!-- .element height='60%' width='60%' -->
 <img src='misc/flair_workflow.png' alt='flair workflow' width='600'/>
 
-It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly.
+It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses.
 
 ## <a name="requirements"></a>Requirements
 
@@ -66,6 +66,8 @@ To quantify the expression of each isoform for a specific sample for use in othe
 3. Append a new column to the isoform file containing the sample-specific isoform expression - `bin/match_counts.py counts.txt isoforms.psl 1 isoforms.out.psl`
 
 ## Scripts
+
+We have also provided standalone scripts for splicing and productivity analysis of quantified isoforms from FLAIR output.
 
 ### mark_intron_retention.py
 
