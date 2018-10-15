@@ -4,27 +4,36 @@ parser = argparse.ArgumentParser(description='collapse parse options', \
 			usage='python collapse_isoforms_precise.py -q <query.psl>/<query.bed> [options]')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('-q', '--query', type=str, default='', required=True, \
-	action='store', dest='q', help='BED12 or PSL file of aligned/corrected reads')
+	action='store', dest='q', help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
 parser.add_argument('-o', '--output', type=str, \
 	action='store', dest='o', default='', help='Specify output file, psl or bed12')
 parser.add_argument('-w', '--window', default=20, type=int, \
 	action='store', dest='w', help='Window size for comparing TSS/TES (20)')
-parser.add_argument('-s', '--support', default=3, type=int, \
-	action='store', dest='s', help='Minimum number of supporting reads for an isoform (3)')
+parser.add_argument('-s', '--support', default=1, type=int, \
+	action='store', dest='s', help='Minimum number of supporting reads for an isoform (1)')
 parser.add_argument('-f', '--gtf', default='', type=str, \
 	action='store', dest='f', help='GTF annotation file for selecting annotated TSS/TES')
 parser.add_argument('-m', '--max_results', default=2, type=int, \
-	action='store', dest='m', help='Maximum number of TSS or TES picked per isoform (2)')
+	action='store', dest='m', help='Maximum number of novel TSS or TES picked per isoform (2)')
+parser.add_argument('-i', '--isoformtss', default=False, \
+	action='store_true', dest='i', help='If specified, TSS/TES for each isoform will be determined \
+	from supporting reads for the isoform, not for all TSS/TES used at the gene level')
 args = parser.parse_args()
 
-max_results, window, minsupport, psl = args.m, args.w, args.s, open(args.q)
+try:
+	max_results, window, minsupport, psl = args.m, args.w, args.s, open(args.q)
+	if args.f:
+		gtf = open(args.f)
+except:
+	sys.stderr.write('Make sure all files (query, GTF) have valid paths and can be opened\n')
+	sys.exit()
 bed = args.q[-3:] != 'psl'
 pslout = True
 if args.o:
 	if args.o[-3:] != 'psl':
 		pslout = False
-else:
-	args.o = args.q[:-3]+'.collapsed.psl'
+else:  # default output name
+	args.o = args.q[:-3]+'collapsed.bed12' if bed else args.q[:-3]+'collapsed.psl'
 
 def get_junctions(line):
 	junctions = set()
@@ -69,37 +78,50 @@ def find_best_tss(sites, total, finding_tss):
 				wnearby[s] += (window - abs(s - s_))/float(window * sites[s_])  # downweighted by distance from this site
 				nearby[s] += sites[s_]
 		if wnearby[s] > bestsite[1]:  # update bestsite if this site has more supporting reads
-			bestsite = (s, wnearby[s], nearby[s])
+			bestsite = (s, wnearby[s], nearby[s], sites[s])
 
 	for s in list(sites.keys()):  # remove reads supporting the bestsite to find alternative TSSs
 		if abs(s - bestsite[0]) <= window:
 			sites.pop(s)
 	return sites, bestsite
 
-def find_tsss(sites, finding_tss=True, max_results = 2):
+def find_tsss(sites, finding_tss=True, max_results=2, chrom=''):
 	""" Finds the best TSSs within Sites. If find_tss is False, some 
 	assumptions are changed to search specifically for TESs. I also assume that the correct 
 	splice site will be the more represented, so measures to filter out degraded reads are 
 	recommended. """
 	remaining = total = float(sum(list(sites.values())))
 	found_tss = []  # TSSs found will be ordered by descending importance
+	novel_tss = 0  # number of novel TSS found
 	while ((minsupport < 1 and minsupport > 0.5 and remaining/total > minsupport) or \
-	remaining >= minsupport) and len(found_tss) < max_results:  # stop cases: bestsite encompasses >50% of all sites OR 
+	remaining >= minsupport):  # stop cases: bestsite encompasses >50% of all sites OR 
 	# no other site would pass the supporting read threshold AND no more results are to be reported
 		sites, bestsite = find_best_tss(sites, total, finding_tss)
 		remaining = sum(list(sites.values()))
-		if bestsite == (0, 0, 0):
+		if bestsite == (0, 0, 0, 0):
 			break
-		found_tss += [bestsite]
+		closest_annotated = 1e15  # just a large number
+		for t in range(bestsite[0]-window, bestsite[0]+window):
+			if t in annotends[chrom] and t - bestsite[0] < closest_annotated - bestsite[0]:
+				closest_annotated = t
+		if closest_annotated < 1e15 and closest_annotated not in found_tss:
+			found_tss += [(closest_annotated, bestsite[1], bestsite[2], bestsite[3])]
+		else:
+			if novel_tss >= max_results:  # limit to max_results number of novel end sites
+				continue
+			if len(found_tss) > max_results:  # if annotated end site(s) have been identified, stop searching
+				break
+			found_tss += [bestsite]
+			novel_tss += 1
 
 	return found_tss  # port over the code that prioritizes annotated start sites
 
-def find_best_sites(sites_tss_all, sites_tes_all):
+def find_best_sites(sites_tss_all, sites_tes_all, chrom=''):
 	""" sites_tss_all = {tss: count}
 	sites_tes_all = {tss: {tes: count}}
 	specific_tes = {tes: count} for a specific set of tss within given window """
 	total = float(sum(list(sites_tss_all.values())))  # number isoforms with these junctions
-	found_tss = find_tsss(sites_tss_all, finding_tss=True, max_results=max_results)
+	found_tss = find_tsss(sites_tss_all, finding_tss=True, max_results=max_results, chrom=chrom)
 	if not found_tss:
 		return ''
 
@@ -113,14 +135,13 @@ def find_best_sites(sites_tss_all, sites_tes_all):
 						specific_tes[tes] = 0
 					specific_tes[tes] += sites_tes_all[tss_][tes]
 
-		found_tes = find_tsss(specific_tes, finding_tss=False, max_results=max_results)
+		found_tes = find_tsss(specific_tes, finding_tss=False, max_results=max_results, chrom=chrom)
 		for tes in found_tes:
-			ends += [(tss[0], tes[0], tes[2])]
+			ends += [(tss[0], tes[0], tes[2], tss[3], tes[3])]
 	return ends
 
 def single_exon_pairs(sedict):
 	""" """
-
 	found_tss = find_tsss(sedict, finding_tss=True, max_results=1)
 	if not found_tss:
 		return ''
@@ -204,6 +225,19 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 	line[11] = ','.join([str(x - int(line[1])) for x in bstarts])+','
 	return line
 
+annotends = {}  # all annotated TSS/TES sites per chromosome
+if args.f:
+	for line in gtf:
+		if line.startswith('#'):
+			continue
+		line = line.rstrip().split('\t')
+		chrom, ty, start, end = line[0], line[2], int(line[3]), int(line[4])
+		if ty == 'transcript':
+			if chrom not in annotends:
+				annotends[chrom] = set()
+			annotends[chrom].add(start)
+			annotends[chrom].add(end)
+
 isoforms, singleexon = {}, {}
 n = 0
 for line in psl:
@@ -249,22 +283,89 @@ for line in psl:
 	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
 
 sys.stderr.write('Read data extracted, collapsing\n')
+
+global quiet
+quiet = True
 with open(args.o, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
+	allends = {}  # counts of TSSs/TESs by chromosome
+	writtenisos = {}
 	for chrom in isoforms:
+		if chrom not in allends:
+			allends[chrom] = {}
+			allends[chrom]['tss'] = {}
+			allends[chrom]['tes'] = {}
+			writtenisos[chrom] = {}
 		for jset in isoforms[chrom]:
+			if jset not in writtenisos[chrom]:
+				writtenisos[chrom][jset] = []
 			line = isoforms[chrom][jset]['line']
-			ends = find_best_sites(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'])
+			ends = find_best_sites(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'], chrom)
 			i = 0
 			name = line[9] if pslout else line[3]
-			for tss, tes, support in ends:
+			for tss, tes, support, tsscount, tescount in ends:
 				if pslout:
-					line = edit_line(list(line), tss, tes)
+					edited_line = edit_line(list(line), tss, tes)
 				else:
-					line = edit_line_bed12(list(line), tss, tes)
+					edited_line = edit_line_bed12(list(line), tss, tes)
 				if i >= 1:
 					if pslout:  # to avoid redundant names for isoforms with the same junctions
-						line[9] = name+'-'+str(i)	
+						edited_line[9] = name+'-'+str(i)	
 					else:
-						line[3] = name+'-'+str(i)
-				writer.writerow(line)
+						edited_line[3] = name+'-'+str(i)
+				if args.i:
+					writer.writerow(edited_line)
+				else:
+					writtenisos[chrom][jset] += [edited_line]
+					allends[chrom]['tss'][tss] = tsscount
+					allends[chrom]['tes'][tes] = tescount
+				i += 1
+
+	if args.i:
+		sys.exit()
+	isoforms = 0
+	for chrom in writtenisos:
+		for jset in writtenisos[chrom]:
+			jsetends = set()
+			for line in writtenisos[chrom][jset]:  # adjust isoform TSS/TES using allends dict
+				if bed:
+					tss, tes = int(line[1]), int(line[2])
+				else:
+					tss, tes = get_start_end(line)
+				for t in range(tss-window, tss+window):
+					if t in allends[chrom]['tss']:
+						if allends[chrom]['tss'][t] > allends[chrom]['tss'][tss]:
+							tss = t
+						elif allends[chrom]['tss'][t] == allends[chrom]['tss'][tss] and \
+						t < tss:
+							tss = t
+
+				for t in range(tes-window, tes+window):
+					if t in allends[chrom]['tes']:
+						if allends[chrom]['tes'][t] > allends[chrom]['tes'][tes]:
+							tes = t
+						elif allends[chrom]['tes'][t] == allends[chrom]['tes'][tes] and \
+						t > tes:
+							tes = t
+				if (tss,tes) not in jsetends:
+					jsetends.add((tss,tes))
+					if bed:
+						line = edit_line_bed12(list(line), tss, tes)	
+					else:
+						line = edit_line(list(line), tss, tes)
+					writer.writerow(line)
+
+
+
+	# senames = {}
+	# for chrom in singleexon:
+	# 	pairs = single_exon_pairs(singleexon[chrom])
+	# 	i = 0
+	# 	for p in pairs:
+	# 		tss, tes, support = p
+	# 		if pslout:
+	# 			line = edit_line(list(line), tss, tes)
+	# 		else:
+	# 			line = edit_line_bed12(list(line), tss, tes)
+	# 		writer.writerow(line + [support])
+

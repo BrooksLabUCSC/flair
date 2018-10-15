@@ -176,7 +176,7 @@ for line in genome:
 	line = line.rstrip()
 	if line.startswith('>'):
 		if not chrom:
-			chrom = line[1:]
+			chrom = line.split()[0][1:]
 			continue
 		if chrom in psldata:
 			for entry in psldata[chrom]:
@@ -211,7 +211,7 @@ for line in genome:
 					continue
 				valid_transcripts += 1
 				bestprot = bestprot[bestprot.find('M'):]
-				protquery = bestprot[:-(55/3)]  # everything up from N terminal to 55 nt upstream of last exon-exon nucleotide
+				protquery = bestprot[:-int(55/3)]  # everything up from N terminal to 55 nt upstream of last exon-exon nucleotide
 				if 'Z' in protquery:  # Z meaning a stop codon
 					print('\t'.join(entry+['1']))
 					unproductive += 1
