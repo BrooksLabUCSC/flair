@@ -117,5 +117,5 @@ A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim
 ## Example Files
 We have provided the following [example files](https://users.soe.ucsc.edu/~brooks/FLAIR_example_files/):  
 - `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). This can be run through the FLAIR workflow starting from alignment.
-- `cll_shortread_junctions.gp`, a genepred-formatted file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
+- `cll_shortread_junctions.gp`, a [genepred-formatted](https://genome.ucsc.edu/FAQ/FAQformat.html#format9) file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
 - `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.

@@ -43,7 +43,7 @@ def get_junctions(line):
 		return
 	for b in range(len(starts)-1):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
-	return junctions
+	return junctions, starts[0], starts[-1]+sizes[-1], (starts[0]+sizes[0], starts[-1])
 
 def get_junctions_bed12(line):
 	junctions = set()
@@ -54,7 +54,7 @@ def get_junctions_bed12(line):
 		return
 	for b in range(len(starts)-1):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
-	return junctions
+	return junctions, (starts[0]+sizes[0], starts[-1])
 
 def get_start_end(line):
 	starts = [int(n) for n in line[20].split(',')[:-1]]
@@ -85,7 +85,7 @@ def find_best_tss(sites, total, finding_tss):
 			sites.pop(s)
 	return sites, bestsite
 
-def find_tsss(sites, finding_tss=True, max_results=2, chrom=''):
+def find_tsss(sites, finding_tss=True, max_results=2, chrom='', junccoord=''):
 	""" Finds the best TSSs within Sites. If find_tss is False, some 
 	assumptions are changed to search specifically for TESs. I also assume that the correct 
 	splice site will be the more represented, so measures to filter out degraded reads are 
@@ -101,9 +101,13 @@ def find_tsss(sites, finding_tss=True, max_results=2, chrom=''):
 		if bestsite == (0, 0, 0, 0):
 			break
 		closest_annotated = 1e15  # just a large number
-		for t in range(bestsite[0]-window, bestsite[0]+window):
-			if t in annotends[chrom] and t - bestsite[0] < closest_annotated - bestsite[0]:
-				closest_annotated = t
+		if annotends:  # args.f supplied
+			for t in range(bestsite[0]-window, bestsite[0]+window):
+				if t in annotends[chrom] and t - bestsite[0] < closest_annotated - bestsite[0]:
+					closest_annotated = t
+			if finding_tss and closest_annotated >= junccoord[0] or \
+			not finding_tss and closest_annotated <= junccoord[1]:
+				closest_annotated = 1e15  # annotated site was invalid
 		if closest_annotated < 1e15 and closest_annotated not in found_tss:
 			found_tss += [(closest_annotated, bestsite[1], bestsite[2], bestsite[3])]
 		else:
@@ -116,12 +120,14 @@ def find_tsss(sites, finding_tss=True, max_results=2, chrom=''):
 
 	return found_tss  # port over the code that prioritizes annotated start sites
 
-def find_best_sites(sites_tss_all, sites_tes_all, chrom=''):
+def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom=''):
 	""" sites_tss_all = {tss: count}
 	sites_tes_all = {tss: {tes: count}}
-	specific_tes = {tes: count} for a specific set of tss within given window """
+	specific_tes = {tes: count} for a specific set of tss within given window
+	junccoord is coordinate of the isoform's first splice site and last splice site"""
 	total = float(sum(list(sites_tss_all.values())))  # number isoforms with these junctions
-	found_tss = find_tsss(sites_tss_all, finding_tss=True, max_results=max_results, chrom=chrom)
+	found_tss = find_tsss(sites_tss_all, finding_tss=True, max_results=max_results, \
+		chrom=chrom, junccoord=junccoord)
 	if not found_tss:
 		return ''
 
@@ -135,7 +141,8 @@ def find_best_sites(sites_tss_all, sites_tes_all, chrom=''):
 						specific_tes[tes] = 0
 					specific_tes[tes] += sites_tes_all[tss_][tes]
 
-		found_tes = find_tsss(specific_tes, finding_tss=False, max_results=max_results, chrom=chrom)
+		found_tes = find_tsss(specific_tes, finding_tss=False, max_results=max_results, chrom=chrom, \
+			junccoord=junccoord)
 		for tes in found_tes:
 			ends += [(tss[0], tes[0], tes[2], tss[3], tes[3])]
 	return ends
@@ -223,6 +230,8 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 	line[2] = line[7] = tes
 	line[10] = ','.join([str(x) for x in bsizes])+','
 	line[11] = ','.join([str(x - int(line[1])) for x in bstarts])+','
+	if '-' in line[10] or ',0' in line[10]:
+		print(bsizes)
 	return line
 
 annotends = {}  # all annotated TSS/TES sites per chromosome
@@ -238,18 +247,17 @@ if args.f:
 			annotends[chrom].add(start)
 			annotends[chrom].add(end)
 
-isoforms, singleexon = {}, {}
+isoforms, singleexon = {}, {}  # spliced isoforms and single exon isoforms
 n = 0
 for line in psl:
 	line = tuple(line.rstrip().split('\t'))
 	if bed:
 		chrom = line[0]
 		tss, tes = int(line[1]), int(line[2])
-		junctions = get_junctions_bed12(line)
+		junctions, junccoord = get_junctions_bed12(line)
 	else:
 		chrom = line[13]
-		tss, tes = get_start_end(line)
-		junctions = get_junctions(line)
+		junctions, tss, tes, junccoord = get_junctions(line)
 
 	if not junctions:  # single-exon isoforms 
 		if chrom not in singleexon:
@@ -273,6 +281,7 @@ for line in psl:
 		isoforms[chrom][junctions] = {}
 		isoforms[chrom][junctions]['tss'] = {}
 		isoforms[chrom][junctions]['line'] = line
+		isoforms[chrom][junctions]['junccoord'] = junccoord
 		isoforms[chrom][junctions]['tss_tes'] = {}
 	if tss not in isoforms[chrom][junctions]['tss']:
 		isoforms[chrom][junctions]['tss'][tss] = 0  #[0, []] tss usage count, list of ends
@@ -300,7 +309,9 @@ with open(args.o, 'wt') as outfile:
 			if jset not in writtenisos[chrom]:
 				writtenisos[chrom][jset] = []
 			line = isoforms[chrom][jset]['line']
-			ends = find_best_sites(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'], chrom)
+			junccoord = isoforms[chrom][jset]['junccoord']
+			ends = find_best_sites(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'], \
+				junccoord, chrom)
 			i = 0
 			name = line[9] if pslout else line[3]
 			for tss, tes, support, tsscount, tescount in ends:
@@ -315,12 +326,12 @@ with open(args.o, 'wt') as outfile:
 						edited_line[3] = name+'-'+str(i)
 				if args.i:
 					writer.writerow(edited_line)
-				else:
+				else:  # all isoforms will go through a second pass to homogenize novel ends
 					writtenisos[chrom][jset] += [edited_line]
 					allends[chrom]['tss'][tss] = tsscount
 					allends[chrom]['tes'][tes] = tescount
 				i += 1
-
+ 
 	if args.i:
 		sys.exit()
 	isoforms = 0
@@ -350,10 +361,10 @@ with open(args.o, 'wt') as outfile:
 				if (tss,tes) not in jsetends:
 					jsetends.add((tss,tes))
 					if bed:
-						line = edit_line_bed12(list(line), tss, tes)	
+						newline = edit_line_bed12(list(line), tss, tes)
 					else:
-						line = edit_line(list(line), tss, tes)
-					writer.writerow(line)
+						newline = edit_line(list(line), tss, tes)
+					writer.writerow(newline)
 
 
 
