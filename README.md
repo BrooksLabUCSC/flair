@@ -40,7 +40,7 @@ run with `--help` for a description of optional arguments. Outputs (1) `sam` of 
 
 ### <a name="correct"></a>flair correct
 
-Smooths gaps and corrects misaligned splice sites using genome annotations. To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions.
+Smooths gaps and corrects misaligned splice sites using genome annotations. Splice sites that are novel (i.e. not present in existing annotation) and valid (contain GT-AG splice motif) can be selectively retained with `-n`. To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions.
 
 Usage:
 ```sh
@@ -50,7 +50,7 @@ run with `--help` for description of optional arguments.
 Outputs (1) `psl` of raw reads with strand inferred and (2) `psl` of corrected reads within directory specified by `-o`.
 
 ### <a name="collapse"></a>flair collapse
-Defines isoforms from corrected reads. If a GTF is provided with `-f`, isoforms that match isoforms in existing annotation will be named using the Ensembl ID in existing annotation. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. Isoforms in `psl` format can be visualized again in IGV, or the UCSC genome browser if columns 22, number of supporting reads, is removed. 
+Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF is with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. Isoforms in `psl` format can be visualized again in IGV, or the UCSC genome browser if columns after 21 (1-indexed) are removed. 
 
 Usage:
 ```sh
@@ -119,3 +119,6 @@ We have provided the following [example files](https://users.soe.ucsc.edu/~brook
 - `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). This can be run through the FLAIR workflow starting from alignment.
 - `cll_shortread_junctions.gp`, a [genepred-formatted](https://genome.ucsc.edu/FAQ/FAQformat.html#format9) file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
 - `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.
+
+Other downloads:
+- [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz)

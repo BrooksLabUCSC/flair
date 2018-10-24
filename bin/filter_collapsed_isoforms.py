@@ -38,6 +38,12 @@ def overlap(coords0, coords1, tol=1):
 	coords0, coords1 = sorted([coords0, coords1], key = lambda x: x[0])
 	return (coords0[0] < coords1[0] and coords1[0] < coords0[1] - tol)
 
+def exon_overlap(coords0, coords1, left=True, tol=1):
+	len0, len1 = coords0[1] - coords0[0], coords1[1] - coords1[0]
+	if left:
+		return coords0[1] == coords1[1] and (len0 - tol) < len1
+	return coords0[0] == coords1[0] and (len0 - tol) < len1
+
 def contained(coords0, coords1):
 	return coords1[0] <= coords0[0] and coords1[1] >= coords0[1]  # complete coverage of coords0 by coords1
 
@@ -58,31 +64,43 @@ def bin_search(query, data):
 		else:  # found
 			break
 	return i
-
+	
 isoforms = {}
 allevents = {}
-for line in psl:
-	line = line.rstrip().split()
-	chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])  # psl
-	sizes = [int(n) for n in line[18].split(',')[:-1]]
-	starts = [int(n) for n in line[20].split(',')[:-1]]
-	junctions = get_junctions_psl(starts, sizes)
-	exons = get_exons_psl(starts, sizes)
-	j = str(sorted(list(junctions)))
-	if chrom not in isoforms:
-		isoforms[chrom] = {}
-		allevents[chrom] = {}
-		allevents[chrom]['alljunctions'] = set()
-		allevents[chrom]['allexons'] = set()
-	if '-' in name[-4:]:
-		name = name[:name.rfind('-')]
-	if name not in isoforms[chrom]:
-		isoforms[chrom][name] = {}
-		isoforms[chrom][name]['line'] = [line]
-		isoforms[chrom][name]['jset'] = junctions
-		isoforms[chrom][name]['exons'] = exons
-		allevents[chrom]['alljunctions'].update(junctions)
-		allevents[chrom]['allexons'].update(exons)
+jcn_to_name = {}
+if sys.argv[1][-3:] == 'bed':
+	for line in psl:
+		line = line.rstrip().split()
+
+else:
+	for line in psl:
+		line = line.rstrip().split()
+		chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+		sizes = [int(n) for n in line[18].split(',')[:-1]]
+		starts = [int(n) for n in line[20].split(',')[:-1]]
+		junctions = get_junctions_psl(starts, sizes)
+		exons = get_exons_psl(starts, sizes)
+		jname = str(sorted(list(junctions)))
+		if chrom not in isoforms:
+			isoforms[chrom] = {}
+			allevents[chrom] = {}
+			allevents[chrom]['alljunctions'] = set()
+			allevents[chrom]['allexons'] = set()
+			jcn_to_name[chrom] = {}
+		# if '-' in name[-4:]:
+		# 	name = name[:name.rfind('-')]
+		if name not in isoforms[chrom]:
+			isoforms[chrom][name] = {}
+			isoforms[chrom][name]['line'] = [line]
+			isoforms[chrom][name]['jset'] = junctions
+			isoforms[chrom][name]['jname'] = jname
+			isoforms[chrom][name]['exons'] = exons
+			allevents[chrom]['alljunctions'].update(junctions)
+			allevents[chrom]['allexons'].update(exons)
+			for j in junctions:
+				if j not in jcn_to_name[chrom]:
+					jcn_to_name[chrom][j] = set()
+				jcn_to_name[chrom][j].add(name)
 
 keepisoforms = []
 for chrom in isoforms:
@@ -97,24 +115,35 @@ for chrom in isoforms:
 			if mode == 'comprehensive':  # all spliced subsets allowed
 				keepisoforms += isoforms[chrom][n]['line']
 				continue
-			issubset = set()
-			for n_ in isoforms[chrom]:  # compare with all others
+			similar_isos = set()
+			for j in isoforms[chrom][n]['jset']:
+				similar_isos.update(jcn_to_name[chrom][j])
+
+			issubset = [0, 0]  # first exon is a subset, last exon is a subset
+			subset_juncs = set()  # if true, will be populated with introns of other isoforms
+			exons = sorted(list(isoforms[chrom][n]['exons']),key=lambda x: x[0])
+			first_exon, last_exon = exons[0], exons[1]
+			for n_ in similar_isos:  # compare with all similar
 				if n == n_:
 					continue
-				elif isoforms[chrom][n]['jset'] < isoforms[chrom][n_]['jset']:
-					issubset.update(isoforms[chrom][n_]['jset'])
-					break
-			if issubset: 
+				elif isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
+				len(isoforms[chrom][n]['jname']) < len(isoforms[chrom][n_]['jname']):
+					for exon in list(isoforms[chrom][n_]['exons']):
+						if exon_overlap(first_exon, exon, tol=10):
+							issubset[0] = 1
+						elif exon_overlap(last_exon, exon, left=False, tol=10):
+							issubset[1] = 1
+					subset_juncs.update(isoforms[chrom][n_]['jset'])
+					
+			if sum(issubset) != 2:  # see if first/last exon overlaps a junction 
 				ir = False
 				for exon in sorted(list(isoforms[chrom][n]['exons'])):
-					for junction in sorted(list(issubset)):
-						if overlap(exon, junction, 5):
+					for junction in sorted(list(subset_juncs)):
+						if overlap(exon, junction, 10):
 							ir = True
 							break
 				if ir:  # if there is intron retention, it is not considered a subset isoform
 					keepisoforms += isoforms[chrom][n]['line']
-			else:  # full set of splice junctions
-				keepisoforms += isoforms[chrom][n]['line']
 		else:  # single exon isoforms
 			exon = list(isoforms[chrom][n]['exons'])[0]
 			i = bin_search(exon, alljunctions)

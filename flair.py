@@ -1,7 +1,6 @@
 """ AD Tang 2018 """
 
 import sys, argparse, subprocess, csv
-# from subprocess import Popen, PIPE
 
 if len(sys.argv) > 1 and sys.argv[1] == 'align':
 	mode = 'align'
@@ -21,12 +20,11 @@ if mode == 'align':
 	parser.add_argument('align')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', \
-		type=str, required=True, \
-		help='FastA/FastQ files of raw reads')
+		type=str, required=True, help='FastA/FastQ files of raw reads')
 	required.add_argument('-g', '--genome', action='store', dest='g', \
 		type=str, required=True, help='FastA of reference genome')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
-		action='store', dest='m', help='path to minimap2')
+		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='', help='output file name')
 	parser.add_argument('-t', '--threads', type=str, \
@@ -55,28 +53,27 @@ elif mode == 'correct':
 				usage='python flair.py correct -a annotated.gp -g genome.fa -q query.psl [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
-	required.add_argument('-a', '--annotation', action='store', dest='a', \
-		type=str, required=True, \
-		help='genepred format splice junctions from annotation')
-	parser.add_argument('-s', '--shortread', action='store', dest='s', \
-		type=str, default='', \
+	required.add_argument('-a', '--annotation', action='store', dest='a', type=str, \
+		required=True, help='genepred format splice junctions from annotation')
+	parser.add_argument('-s', '--shortread', action='store', dest='s', type=str, default='', \
 		help='genepred format splice junctions from short-read sequencing, consider merging with annotated junctions')
 	required.add_argument('-g', '--genome', action='store', dest='g', \
 		type=str, required=True, help='fasta of reference genome')
 	required.add_argument('-q', '--query', type=str, default='', required=True, \
 		action='store', dest='q', help='uncorrected PSL file')
-	parser.add_argument('-w', '--window', \
-		action='store', dest='w', default='10', \
-		help='window size for correcting splice sites (10)')
+	parser.add_argument('-w', '--window', action='store', dest='w', default='10', \
+		help='window size for correcting splice sites (W=10)')
 	parser.add_argument('-m', '--mergesize', \
-		action='store', dest='m', default='30', help='merge size for gaps within exons (30)')
+		action='store', dest='m', default='30', help='merge size for gaps within exons (M=30)')
 	parser.add_argument('-f', '--gtf', default='', \
 		action='store', dest='f', help='GTF annotation file, used for associating gene names to reads')
 	parser.add_argument('-n', '--novel', default=False, \
-		action='store_true', dest='n', help='If specified, keep novel, valid splice sites \
+		action='store_true', dest='n', help='when specified, keep novel, valid splice sites \
 		i.e. those not found in annotation but use GT-AG splice motif (default: not specified)')
+	parser.add_argument('-r', '--rna', default=False, \
+		action='store_true', dest='r', help='specify if using native RNA data (default: not specified)')
 	parser.add_argument('-o', '--output', \
-		action='store', dest='o', default='', help='output file name (correction_output)')
+		action='store', dest='o', default='', help='output file directory (correction_output)')
 	args = parser.parse_args()
 	args.s = args.s if args.s else args.a
 	if '.' in args.q:
@@ -85,25 +82,35 @@ elif mode == 'correct':
 		stranded_psl = args.q + '_strand.psl'
 	args.o = args.o if args.o else 'correction_output'
 
-	sys.stderr.write('Inferring strand for reads in PSL\n')
-	if args.f:
-		subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.f, stranded_psl])
-	else:
-		subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.a, stranded_psl, 'gp'])
+	precorrection = args.q  # filename
 
-	sys.stderr.write('Correcting reads in {}\n'.format(stranded_psl))
+	if not args.r:  # since rna is already stranded, can skip strand inference
+		sys.stderr.write('Inferring strand for reads in PSL\n')
+		if args.f:  # this step also appends a gene name
+			subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.f, stranded_psl])
+		else:
+			subprocess.call(['python', path+'bin/infer_strand_for_psl.py', args.q, args.a, stranded_psl, 'gp'])
+		precorrection = stranded_psl
+
+	sys.stderr.write('Correcting reads in {}\n'.format(precorrection))
 	subprocess.call(['python', path+'bin/correctSplice.py', '-a', args.a, '-j', args.s, \
-	'-g', args.g, '-q', stranded_psl, '-w', args.w, '-m', args.m, '-o', args.o, '-mode', 'closest'])
+	'-g', args.g, '-q', precorrection, '-w', args.w, '-m', args.m, '-o', args.o, '-mode', 'closest'])
 
 	sys.stderr.write('Converting output gp to PSL\n')
-	subprocess.call(['python', path+'bin/genePredToPSL.py', stranded_psl, args.o+'/corrected.gp',\
-		args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl'])
+	postcorrection = args.o+'/'+precorrection[:-4]
+	subprocess.call(['python', path+'bin/genePredToPSL.py', precorrection, args.o+'/corrected.gp',\
+		postcorrection+'_corrected_novels.psl'])
+
+	if args.r:
+		subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
+			postcorrection+'_corrected_novels.psl', args.a, postcorrection+'_corrected_novels_named.psl'])
+		subprocess.call(['mv', postcorrection+'_corrected_novels_named.psl', postcorrection+'_corrected_novels.psl'])
 
 	if not args.n:
 		sys.stderr.write('Filtering out reads containing unsupported junctions\n')
 		subprocess.call(['python', path+'bin/remove_novel.py', args.a, \
-			args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl', \
-			args.o+'/'+stranded_psl[:-4]+'_corrected.psl'])
+			postcorrection+'_corrected_novels.psl', \
+			postcorrection+'_corrected.psl'])
 		subprocess.call(['rm', args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl'])
 
 elif mode == 'collapse':
@@ -112,29 +119,37 @@ elif mode == 'collapse':
 	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', \
-		type=str, required=True, \
-		help='FastA/FastQ files of raw reads')
+		type=str, required=True, help='FastA/FastQ files of raw reads')
 	required.add_argument('-q', '--query', type=str, default='', required=True, \
 		action='store', dest='q', help='PSL file of aligned/corrected reads')
 	required.add_argument('-g', '--genome', action='store', dest='g', \
-		type=str, required=True, help='fasta of reference genome')
+		type=str, required=True, help='FastA of reference genome')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
-		action='store', dest='m', help='path to minimap2')
+		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-t', '--threads', type=str, \
-		action='store', dest='t', default='4', help='Minimap2 number of threads (4)')
+		action='store', dest='t', default='4', help='minimap2 number of threads (T=4)')
+	parser.add_argument('-p', '--promoters', \
+		action='store', dest='p', default='', help='promoter regions bed file to identify full-length reads')
+	parser.add_argument('-b', '--bedtools', \
+		action='store', dest='b', default='bedtools', help='bedtools executable path, provide if promoter regions specified')
 	parser.add_argument('-w', '--window', default='20', \
-		action='store', dest='w', help='Window size for comparing TSS/TES (20)')
+		action='store', dest='w', help='window size for comparing TSS/TES (W=20)')
 	parser.add_argument('-s', '--support', default='3', \
-		action='store', dest='s', help='Minimum number of supporting reads for an isoform (3)')
+		action='store', dest='s', help='minimum number of supporting reads for an isoform (S=3)')
 	parser.add_argument('-f', '--gtf', default='', \
 		action='store', dest='f', help='GTF annotation file, used for renaming annotated isoforms')
-	parser.add_argument('-e', '--report', default='default', \
-		action='store', dest='e', help='Report options include\
-		default: only full-length isoforms\
-		comprehensive: default set + partial isoforms\
-		ginormous: comprehensive + single exon isoforms (default)')
+	parser.add_argument('-n', '--no_redundant', default=False, \
+		action='store', dest='n', help='Report options include: \
+		none: best TSSs/TESs chosen for each unique set of splice junctions \
+		longest: one TSS/TES chosen to maximize length \
+		best_only: one best TSS/TES used in conjunction chosen (default: none)')
+	parser.add_argument('-e', '--filter', default='default', \
+		action='store', dest='e', help='Report options include: \
+		default--full-length isoforms only \
+		comprehensive--default set + partial isoforms \
+		ginormous--comprehensive + single exon subset isoforms (E=default)')
 	parser.add_argument('-o', '--output', default='', \
-		action='store', dest='o', help='Output file name of isoforms')
+		action='store', dest='o', help='output file name for FLAIR isoforms')
 	args = parser.parse_args()
 
 	if args.m[-8:] != 'minimap2':
@@ -143,10 +158,20 @@ elif mode == 'collapse':
 		else:
 			args.m += '/minimap2'
 
+	precollapse = args.q  # filename
+	if args.p:
+		sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
+		subprocess.call(['python', path+'bin/pull_starts.py', args.q, args.q[:-3]+'tss.bed'])
+		subprocess.call([args.b, 'intersect', '-a', args.q[:-3]+'tss.bed', '-b', args.p], \
+			stdout=open(args.q[:-3]+'promoter_intersect.bed', 'w'))
+		subprocess.call(['python', path+'bin/psl_reads_from_bed.py', args.q[:-3]+'promoter_intersect.bed', \
+			args.q, args.q[:-3]+'promotersupported.psl'])
+		precollapse = args.q[:-3]+'promotersupported.psl'
+
 	sys.stderr.write('Collapsing isoforms\n')
-	subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', args.q, \
-		'-w', args.w, '-s', '1', '-o', args.q[:-3]+'collapse1.psl'])
-	sys.stderr.write('Filtering isoforms\n')
+	subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
+		'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'collapse1.psl'])
+	sys.stderr.write('Filtering isoforms\n')  # filter more
 	subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'collapse1.psl', \
 		args.e, args.q[:-3]+'collapse1.filtered.psl'])
 	subprocess.call(['mv', args.q[:-3]+'collapse1.filtered.psl', args.q[:-3]+'collapse1.psl'])
@@ -187,10 +212,12 @@ elif mode == 'collapse':
 			subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o])
 			outpath = args.o[:args.o.rfind('/')+1] if '/' in args.o else ''
 			subprocess.call(['mv', args.q[:-3]+'isoforms.fa', outpath + args.q[:-3]+'isoforms.fa'])
-
 	
 	sys.stderr.write('Removing intermediate files/done!\n')
+	subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
+	subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.counts'])
+

@@ -6,18 +6,27 @@ required = parser.add_argument_group('required named arguments')
 required.add_argument('-q', '--query', type=str, default='', required=True, \
 	action='store', dest='q', help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
 parser.add_argument('-o', '--output', type=str, \
-	action='store', dest='o', default='', help='Specify output file, psl or bed12')
+	action='store', dest='o', default='', help='specify output file, psl or bed12')
 parser.add_argument('-w', '--window', default=20, type=int, \
-	action='store', dest='w', help='Window size for comparing TSS/TES (20)')
+	action='store', dest='w', help='window size for grouping TSS/TES (20)')
 parser.add_argument('-s', '--support', default=1, type=int, \
-	action='store', dest='s', help='Minimum number of supporting reads for an isoform (1)')
+	action='store', dest='s', help='minimum number of supporting reads for an isoform (1)')
 parser.add_argument('-f', '--gtf', default='', type=str, \
 	action='store', dest='f', help='GTF annotation file for selecting annotated TSS/TES')
 parser.add_argument('-m', '--max_results', default=2, type=int, \
-	action='store', dest='m', help='Maximum number of novel TSS or TES picked per isoform (2)')
+	action='store', dest='m', help='maximum number of novel TSS or TES picked per isoform (2)')
+parser.add_argument('-n', '--no_redundant', default='none', \
+	action='store', dest='n', help='Report options include: \
+	none: best TSSs/TESs chosen for each unique set of splice junctions; \
+	longest: TSS/TES chosen to maximize length; \
+	best_only: best TSS/TES used in conjunction chosen; \
+	longest/best_only override max_results argument immediately before output \
+	resulting in one isoform per unique set of splice junctions (default: not specified)')
 parser.add_argument('-i', '--isoformtss', default=False, \
-	action='store_true', dest='i', help='If specified, TSS/TES for each isoform will be determined \
-	from supporting reads for the isoform, not for all TSS/TES used at the gene level')
+	action='store_true', dest='i', help='when specified, TSS/TES for each isoform will be determined \
+	from supporting reads for individual isoforms, not from the gene level (default: not specified)')
+parser.add_argument('--quiet', default=False, \
+	action='store_true', dest='quiet', help='suppress output to stderr')
 args = parser.parse_args()
 
 try:
@@ -219,6 +228,9 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 		return line
 
 	bsizes = [int(x) for x in line[10].split(',')[:-1]]
+
+	oldbsizes = bsizes
+
 	bstarts = [int(x) for x in line[11].split(',')[:-1]]
 	tstart = int(line[1])  # current chrom start
 	tend = int(line[2])
@@ -230,8 +242,6 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 	line[2] = line[7] = tes
 	line[10] = ','.join([str(x) for x in bsizes])+','
 	line[11] = ','.join([str(x - int(line[1])) for x in bstarts])+','
-	if '-' in line[10] or ',0' in line[10]:
-		print(bsizes)
 	return line
 
 annotends = {}  # all annotated TSS/TES sites per chromosome
@@ -248,7 +258,6 @@ if args.f:
 			annotends[chrom].add(end)
 
 isoforms, singleexon = {}, {}  # spliced isoforms and single exon isoforms
-n = 0
 for line in psl:
 	line = tuple(line.rstrip().split('\t'))
 	if bed:
@@ -275,6 +284,7 @@ for line in psl:
 		continue
 
 	junctions = str(sorted(list(junctions)))  # hashable but still unique
+
 	if chrom not in isoforms:
 		isoforms[chrom] = {}
 	if junctions not in isoforms[chrom]:
@@ -291,10 +301,9 @@ for line in psl:
 		isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
 	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
 
-sys.stderr.write('Read data extracted, collapsing\n')
+if not args.quiet:
+	sys.stderr.write('Read data extracted, collapsing\n')
 
-global quiet
-quiet = True
 with open(args.o, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	allends = {}  # counts of TSSs/TESs by chromosome
@@ -312,8 +321,27 @@ with open(args.o, 'wt') as outfile:
 			junccoord = isoforms[chrom][jset]['junccoord']
 			ends = find_best_sites(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'], \
 				junccoord, chrom)
-			i = 0
 			name = line[9] if pslout else line[3]
+
+			if args.i and args.n == 'longest':
+				tss = sorted(ends, key=lambda x: x[0])[0][0]
+				tes = sorted(ends, key=lambda x: x[1])[-1][1]
+				if pslout:
+					edited_line = edit_line(list(line), tss, tes)
+				else:
+					edited_line = edit_line_bed12(list(line), tss, tes)
+				writer.writerow(edited_line)
+				continue  # 1 isoform per unique set of junctions
+			if args.i and args.n == 'best_only':
+				tss, tes = sorted(ends, key=lambda x: x[2])[-1][:2]
+				if pslout:
+					edited_line = edit_line(list(line), tss, tes)
+				else:
+					edited_line = edit_line_bed12(list(line), tss, tes)
+				writer.writerow(edited_line)
+				continue
+
+			i = 0
 			for tss, tes, support, tsscount, tescount in ends:
 				if pslout:
 					edited_line = edit_line(list(line), tss, tes)
@@ -327,47 +355,14 @@ with open(args.o, 'wt') as outfile:
 				if args.i:
 					writer.writerow(edited_line)
 				else:  # all isoforms will go through a second pass to homogenize novel ends
-					writtenisos[chrom][jset] += [edited_line]
+					if args.n == 'best_only':
+						writtenisos[chrom][jset] += [edited_line + [support, junccoord]]
+					else:
+						writtenisos[chrom][jset] += [edited_line + [junccoord]]
 					allends[chrom]['tss'][tss] = tsscount
 					allends[chrom]['tes'][tes] = tescount
 				i += 1
  
-	if args.i:
-		sys.exit()
-	isoforms = 0
-	for chrom in writtenisos:
-		for jset in writtenisos[chrom]:
-			jsetends = set()
-			for line in writtenisos[chrom][jset]:  # adjust isoform TSS/TES using allends dict
-				if bed:
-					tss, tes = int(line[1]), int(line[2])
-				else:
-					tss, tes = get_start_end(line)
-				for t in range(tss-window, tss+window):
-					if t in allends[chrom]['tss']:
-						if allends[chrom]['tss'][t] > allends[chrom]['tss'][tss]:
-							tss = t
-						elif allends[chrom]['tss'][t] == allends[chrom]['tss'][tss] and \
-						t < tss:
-							tss = t
-
-				for t in range(tes-window, tes+window):
-					if t in allends[chrom]['tes']:
-						if allends[chrom]['tes'][t] > allends[chrom]['tes'][tes]:
-							tes = t
-						elif allends[chrom]['tes'][t] == allends[chrom]['tes'][tes] and \
-						t > tes:
-							tes = t
-				if (tss,tes) not in jsetends:
-					jsetends.add((tss,tes))
-					if bed:
-						newline = edit_line_bed12(list(line), tss, tes)
-					else:
-						newline = edit_line(list(line), tss, tes)
-					writer.writerow(newline)
-
-
-
 	# senames = {}
 	# for chrom in singleexon:
 	# 	pairs = single_exon_pairs(singleexon[chrom])
@@ -379,4 +374,64 @@ with open(args.o, 'wt') as outfile:
 	# 		else:
 	# 			line = edit_line_bed12(list(line), tss, tes)
 	# 		writer.writerow(line + [support])
+
+	if args.i:
+		sys.exit()
+
+	isoforms = 0
+	for chrom in writtenisos:
+		for jset in writtenisos[chrom]:
+			jsetends = set()
+			endpair = [1e15, 0, 0]  # only applies if no_redundant was specified
+			for line in writtenisos[chrom][jset]:  # adjust isoform TSS/TES using allends dict
+				if bed:
+					tss, tes = int(line[1]), int(line[2])
+				else:
+					tss, tes = get_start_end(line)
+				junccoord = line[-1]
+				for t in range(tss-window, tss+window):
+					if t in allends[chrom]['tss']:
+						t_support = allends[chrom]['tss'][t]  # comparison tss
+						tss_support = allends[chrom]['tss'][tss]  # current best tss
+						if (t_support > tss_support and t < junccoord[0]) or \
+						(t_support == tss_support and t < tss):
+							tss = t
+							support = line[-2]
+
+				for t in range(tes-window, tes+window):
+					if t in allends[chrom]['tes']:
+						t_support = allends[chrom]['tes'][t]  # comparison tes
+						tes_support = allends[chrom]['tes'][tes]  # current best tes
+						if (t_support > tes_support and t > junccoord[1]) or \
+						(t_support == tes_support and t > tes):
+							tes = t
+							support = line[-2]  # only used for best_only option
+
+				if (tss,tes) not in jsetends:
+					jsetends.add((tss,tes))
+					if args.n == 'best_only':
+						endpair = [tss, tes, support] if endpair[2] < support else endpair
+					elif args.n == 'longest':
+						endpair[0] = tss if tss < endpair[0] else endpair[0]
+						endpair[1] = tes if tes > endpair[1] else endpair[1]
+					else:
+						if bed:
+							newline = edit_line_bed12(list(line), tss, tes)
+						else:
+							newline = edit_line(list(line), tss, tes)
+						writer.writerow(newline[:-1])
+
+			if endpair[0] != 1e15:
+				if bed:
+					newline = edit_line_bed12(list(line), endpair[0], endpair[1])
+				else:
+					newline = edit_line(list(line), endpair[0], endpair[1])
+				if args.n == 'best_only':
+					writer.writerow(newline[:-2])
+				else:
+					writer.writerow(newline[:-1])		
+
+
+
+
 
