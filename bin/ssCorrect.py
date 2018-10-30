@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+from __future__ import print_function
 
 ########################################################################
 # File: ssCorrect.py
@@ -24,6 +23,7 @@ from multiprocessing import Pool
 from intervaltree import Interval, IntervalTree
 import random
 from tqdm import *
+
 
 ########################################################################
 # CommandLine
@@ -53,12 +53,14 @@ class CommandLine(object) :
                                              epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
-                                             usage = '%(prog)s -b reads.bed -g annotations.gtf -j other_junctions.bed')
+                                             usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed')
         # Add args
-        self.parser.add_argument('-b', "--bedFile", action = 'store', required=True, help='Input reads in bed12 format.')
+        self.parser.add_argument('-i', "--input_bed", action = 'store', required=True, help='Input reads in bed12 format.')
         self.parser.add_argument('-g', "--gtf", action = 'store', required=False, help='Gencode annotation file.')
         self.parser.add_argument('-j', "--junctionsBed", default=None, action = 'store', required=False, help='Junction bed file.')
         self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
+        self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
+        
         self.parser.add_argument('--report_junctions', action = 'store', required=False, default= "norm", choices=['strict', 'norm', 'all'],
                                                                                         help = """Choose which types of nanopore splice sites to report:
                                                                                                 "strict" - SS must be in gtf or junctionsBed, and have a single closest hit.
@@ -291,12 +293,13 @@ def main():
 
     # Command Line Stuff...
     myCommandLine = CommandLine()
-    bed = myCommandLine.args['bedFile']
+    bed = myCommandLine.args['input_bed']
     gtf = myCommandLine.args['gtf']
     otherJuncs = myCommandLine.args['junctionsBed']
     wiggle = myCommandLine.args['wiggleWindow']
     threads = myCommandLine.args['threads']
     report = myCommandLine.args['report_junctions']
+    keepZero = myCommandLine.args['keepZero']
     
 
     # There are a few functions that evaluate what verbose is defined as.
@@ -327,10 +330,18 @@ def main():
 
     for line in tqdm(data.getLine(), total=entries, desc="Correcting junctions") if verbose else data.getLine():
         junctionCoords = data.bed12toJuncs()
-        if len(junctionCoords)<1:
-            continue
 
-        ch, st, end = data.chrom, data.start, data.end
+        ch, st, end, blocks = data.chrom, data.start, data.end, data.exons
+
+        if int(data.exons) == 1:
+            
+            if keepZero:
+                print(data.chrom, data.start, data.end, data.name[:7], 
+                data.score, data.strand, data.c1, data.c2, data.color,
+                data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t")
+            else:
+                continue
+
         leftHits = [resolveHits(x[0],ssDB[ch][x[0]]) for x in junctionCoords]
         rightHits = [resolveHits(x[1], ssDB[ch][x[1]]) for x in junctionCoords]
 
