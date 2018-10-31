@@ -1,5 +1,5 @@
 # flair
-FLAIR (Full-Length Alternative Isoform analysis of RNA) for the alignment, correction, isoform definition, and alternative splicing analysis of noisy reads. FLAIR has primarily been used for nanopore cDNA, native RNA, and PacBio sequencing reads. 
+FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isoform definition, and alternative splicing analysis of noisy reads. FLAIR has primarily been used for nanopore cDNA, native RNA, and PacBio sequencing reads. 
 
 ## Table of Contents
 
@@ -23,8 +23,9 @@ It is recommended to combine all samples together prior to running FLAIR modules
 ## <a name="requirements"></a>Requirements
 
 1. python v2.7+
-2. [mRNAtoGene](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/mrnaToGene) in $PATH
-3. [minimap2](https://github.com/lh3/minimap2)
+2. python modules: intervaltree, 
+3. [mRNAtoGene](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/mrnaToGene) in $PATH
+4. [minimap2](https://github.com/lh3/minimap2)
 
 ## <a name="modules"></a>FLAIR modules 
 flair.py is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
@@ -121,4 +122,4 @@ We have provided the following [example files](https://users.soe.ucsc.edu/~brook
 - `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.
 
 Other downloads:
-- [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz)
+- [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz) to supplement in FLAIR-collapse for better TSS-calling

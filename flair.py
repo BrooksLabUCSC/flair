@@ -96,7 +96,7 @@ elif mode == 'correct':
 	subprocess.call(['python', path+'bin/correctSplice.py', '-a', args.a, '-j', args.s, \
 	'-g', args.g, '-q', precorrection, '-w', args.w, '-m', args.m, '-o', args.o, '-mode', 'closest'])
 
-	sys.stderr.write('Converting output gp to PSL\n')
+	sys.stderr.write('Converting output gp to psl\n')
 	postcorrection = args.o+'/'+precorrection[:-4]
 	subprocess.call(['python', path+'bin/genePredToPSL.py', precorrection, args.o+'/corrected.gp',\
 		postcorrection+'_corrected_novels.psl'])
@@ -111,7 +111,7 @@ elif mode == 'correct':
 		subprocess.call(['python', path+'bin/remove_novel.py', args.a, \
 			postcorrection+'_corrected_novels.psl', \
 			postcorrection+'_corrected.psl'])
-		subprocess.call(['rm', args.o+'/'+stranded_psl[:-4]+'_corrected_novels.psl'])
+		subprocess.call(['rm', postcorrection+'_corrected_novels.psl'])
 
 elif mode == 'collapse':
 	parser = argparse.ArgumentParser(description='flair-collapse parse options', \
@@ -138,10 +138,10 @@ elif mode == 'collapse':
 		action='store', dest='s', help='minimum number of supporting reads for an isoform (S=3)')
 	parser.add_argument('-f', '--gtf', default='', \
 		action='store', dest='f', help='GTF annotation file, used for renaming annotated isoforms')
-	parser.add_argument('-n', '--no_redundant', default=False, \
+	parser.add_argument('-n', '--no_redundant', default='none', \
 		action='store', dest='n', help='Report options include: \
-		none: best TSSs/TESs chosen for each unique set of splice junctions \
-		longest: one TSS/TES chosen to maximize length \
+		none: best TSSs/TESs chosen for each unique set of splice junctions; \
+		longest: one TSS/TES chosen to maximize length; \
 		best_only: one best TSS/TES used in conjunction chosen (default: none)')
 	parser.add_argument('-e', '--filter', default='default', \
 		action='store', dest='e', help='Report options include: \

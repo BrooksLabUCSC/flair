@@ -490,6 +490,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 expansions_lefts = []  # a list of lists of newlefts
                 inferredstrand = hit.strand
                 if not hit.lefts:
+                    hit.doPrint(outgp)
                     continue
                 for i in hit.lefts:
                     cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts, chr_seq, inferredstrand)

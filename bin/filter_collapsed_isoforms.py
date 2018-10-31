@@ -17,16 +17,17 @@ def get_junctions_psl(starts, sizes):
 			junctions.add((starts[b]+sizes[b], starts[b+1]))
 		return junctions
 
-def get_junctions_bed12(line):
+def get_junction_exon_bed12(line):
 	junctions = set()
+	exons = set()
 	chrstart = int(line[1])
 	starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
 	sizes = [int(n) for n in line[10].split(',')[:-1]]
-	if len(starts) == 1:
-		return
-	for b in range(len(starts)-1):
-		junctions.add((starts[b]+sizes[b], starts[b+1]))
-	return junctions
+	if len(starts) != 1:
+		for b in range(len(starts)-1):
+			junctions.add((starts[b]+sizes[b], starts[b+1]))
+			exons.add((starts[b], starts[b]+sizes[b]))
+		return junctions
 
 def get_exons_psl(starts, sizes):
 	exons = []
@@ -44,12 +45,13 @@ def exon_overlap(coords0, coords1, left=True, tol=1):
 		return coords0[1] == coords1[1] and (len0 - tol) < len1
 	return coords0[0] == coords1[0] and (len0 - tol) < len1
 
-def contained(coords0, coords1):
-	return coords1[0] <= coords0[0] and coords1[1] >= coords0[1]  # complete coverage of coords0 by coords1
+def contained(coords0, coords1, tol=0):  # complete coverage of coords0 by coords1
+	return coords1[0] <= coords0[0]+tol and coords1[1] >= coords0[1]-tol
 
 def bin_search(query, data):
-	""" Query is coordinates. Binary search for the query in data, which is a list of coordinates.
-	Finishes when an overlapping value of query and data exists and returns the index in data. """
+	""" Query is a coordinate interval. Binary search for the query in sorted data, 
+	which is a list of coordinates. Finishes when an overlapping value of query and 
+	data exists and returns the index in data. """
 	i = int(round(len(data)/2))  # binary search prep
 	lower, upper = 0, len(data)
 	while True:
@@ -65,38 +67,35 @@ def bin_search(query, data):
 			break
 	return i
 	
-isoforms = {}
-allevents = {}
-jcn_to_name = {}
-if sys.argv[1][-3:] == 'bed':
-	for line in psl:
-		line = line.rstrip().split()
+isoforms, allevents, jcn_to_name = {}, {}, {}
 
-else:
-	for line in psl:
-		line = line.rstrip().split()
-		chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+for line in psl:
+	line = line.rstrip().split()
+	if sys.argv[1][-3:] != 'psl':  # untested but it's just two lines so should be ok?
+		chrom, name = line[0], line[3]
+		junctions, exons  = get_junction_exon_bed12(line)
+	else:
+		chrom, name = line[13], line[9]
 		sizes = [int(n) for n in line[18].split(',')[:-1]]
 		starts = [int(n) for n in line[20].split(',')[:-1]]
 		junctions = get_junctions_psl(starts, sizes)
 		exons = get_exons_psl(starts, sizes)
-		jname = str(sorted(list(junctions)))
-		if chrom not in isoforms:
-			isoforms[chrom] = {}
-			allevents[chrom] = {}
-			allevents[chrom]['alljunctions'] = set()
-			allevents[chrom]['allexons'] = set()
-			jcn_to_name[chrom] = {}
-		# if '-' in name[-4:]:
-		# 	name = name[:name.rfind('-')]
-		if name not in isoforms[chrom]:
-			isoforms[chrom][name] = {}
-			isoforms[chrom][name]['line'] = [line]
+	if chrom not in isoforms:
+		isoforms[chrom] = {}
+		allevents[chrom] = {}
+		allevents[chrom]['alljunctions'] = set()
+		allevents[chrom]['allexons'] = set()
+		jcn_to_name[chrom] = {}
+	if name not in isoforms[chrom]:
+		isoforms[chrom][name] = {}
+		isoforms[chrom][name]['line'] = [line]
+		isoforms[chrom][name]['exons'] = exons
+		if junctions:  # multi-exon isoform
 			isoforms[chrom][name]['jset'] = junctions
-			isoforms[chrom][name]['jname'] = jname
-			isoforms[chrom][name]['exons'] = exons
 			allevents[chrom]['alljunctions'].update(junctions)
 			allevents[chrom]['allexons'].update(exons)
+			jname = str(sorted(list(junctions)))
+			isoforms[chrom][name]['jname'] = jname
 			for j in junctions:
 				if j not in jcn_to_name[chrom]:
 					jcn_to_name[chrom][j] = set()
@@ -111,7 +110,7 @@ for chrom in isoforms:
 		if mode == 'ginormous':  # currently includes all
 			keepisoforms += isoforms[chrom][n]['line']
 			continue
-		if len(isoforms[chrom][n]['jset']) >= 1:  # multi-exon isoforms
+		if 'jset' in isoforms[chrom][n]:  # multi-exon isoforms
 			if mode == 'comprehensive':  # all spliced subsets allowed
 				keepisoforms += isoforms[chrom][n]['line']
 				continue
@@ -134,8 +133,7 @@ for chrom in isoforms:
 						elif exon_overlap(last_exon, exon, left=False, tol=10):
 							issubset[1] = 1
 					subset_juncs.update(isoforms[chrom][n_]['jset'])
-					
-			if sum(issubset) != 2:  # see if first/last exon overlaps a junction 
+			if sum(issubset) == 1:  # see if first/last exon overlaps a junction 
 				ir = False
 				for exon in sorted(list(isoforms[chrom][n]['exons'])):
 					for junction in sorted(list(subset_juncs)):
@@ -144,6 +142,8 @@ for chrom in isoforms:
 							break
 				if ir:  # if there is intron retention, it is not considered a subset isoform
 					keepisoforms += isoforms[chrom][n]['line']
+			elif sum(issubset) == 0:
+				keepisoforms += isoforms[chrom][n]['line']
 		else:  # single exon isoforms
 			exon = list(isoforms[chrom][n]['exons'])[0]
 			i = bin_search(exon, alljunctions)
@@ -152,14 +152,13 @@ for chrom in isoforms:
 				if contained(exon, j):
 					iscontained = True
 					break
-			if iscontained:  # boolean: exon is completely contained within a splice junction
+			if iscontained:  # boolean: exon is contained within a splice junction
 				keepisoforms += isoforms[chrom][n]['line']
 				continue
-
 			i = bin_search(exon, allexons)
-			iscontained = False  # boolean: exon completely contained in another exon
+			iscontained = False  # boolean: exon contained in another exon
 			for e in allexons[i-2:i+2]:
-				if contained(exon, e):
+				if contained(exon, e, 5):
 					iscontained = True
 					break
 			if not iscontained:
