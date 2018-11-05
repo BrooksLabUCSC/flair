@@ -6,8 +6,12 @@ try:
 	if sys.argv[2] != 'ginormous' and sys.argv[2] != 'comprehensive':
 		mode = 'default'  # all typos will report default
 	pslout = sys.argv[3]
+	if len(sys.argv) > 4:
+		tol = int(sys.argv[4])
+	else:
+		tol = 10
 except:
-	print('usage: script.py collapsed.psl [default/comprehensive/ginormous] filtered.psl')
+	print('usage: script.py collapsed.psl (default/comprehensive/ginormous) filtered.psl [tolerance]')
 	sys.exit()
 
 def get_junctions_psl(starts, sizes):
@@ -128,16 +132,16 @@ for chrom in isoforms:
 				elif isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
 				len(isoforms[chrom][n]['jname']) < len(isoforms[chrom][n_]['jname']):
 					for exon in list(isoforms[chrom][n_]['exons']):
-						if exon_overlap(first_exon, exon, tol=10):
+						if exon_overlap(first_exon, exon, tol=tol):
 							issubset[0] = 1
-						elif exon_overlap(last_exon, exon, left=False, tol=10):
+						elif exon_overlap(last_exon, exon, left=False, tol=tol):
 							issubset[1] = 1
 					subset_juncs.update(isoforms[chrom][n_]['jset'])
 			if sum(issubset) == 1:  # see if first/last exon overlaps a junction 
 				ir = False
 				for exon in sorted(list(isoforms[chrom][n]['exons'])):
 					for junction in sorted(list(subset_juncs)):
-						if overlap(exon, junction, 10):
+						if overlap(exon, junction, tol):
 							ir = True
 							break
 				if ir:  # if there is intron retention, it is not considered a subset isoform
@@ -163,7 +167,6 @@ for chrom in isoforms:
 					break
 			if not iscontained:
 				keepisoforms += isoforms[chrom][n]['line']
-
 
 with open(pslout, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')

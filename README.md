@@ -23,7 +23,7 @@ It is recommended to combine all samples together prior to running FLAIR modules
 ## <a name="requirements"></a>Requirements
 
 1. python v2.7+
-2. python modules: intervaltree, 
+2. python modules: intervaltree, Bio, tqdm
 3. [mRNAtoGene](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/mrnaToGene) in $PATH
 4. [minimap2](https://github.com/lh3/minimap2)
 
