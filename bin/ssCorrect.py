@@ -333,10 +333,12 @@ def main():
 
         ch, st, end, blocks = data.chrom, data.start, data.end, data.exons
 
+        readID = data.name[:17]
+
         if int(data.exons) == 1:
             
             if keepZero:
-                print(data.chrom, data.start, data.end, data.name[:7], 
+                print(data.chrom, data.start, data.end, readID,
                 data.score, data.strand, data.c1, data.c2, data.color,
                 data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t")
             else:
@@ -350,18 +352,18 @@ def main():
 
         if len(correctedJuncs)>0:
             exons, sizes, starts = juncsToBed12(data.start,data.end,correctedJuncs)
-            print(data.chrom, data.start, data.end, data.name[:7], 
+            print(data.chrom, data.start, data.end, readID, 
                 data.score, data.strand, data.c1, data.c2, data.color,
                 exons, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t")
 
         for i in zip(leftHits,rightHits):
             left,right = i
             if data.strand == "+":
-                print(data.name[:7], ch, "\t".join(map(str,left)), "5'", data.strand, sep="\t", file=statsOut)
-                print(data.name[:7], ch, "\t".join(map(str,right)), "3'", data.strand, sep="\t", file=statsOut)
+                print(readID, ch, "\t".join(map(str,left)), "5'", data.strand, sep="\t", file=statsOut)
+                print(readID, ch, "\t".join(map(str,right)), "3'", data.strand, sep="\t", file=statsOut)
             else:
-                print(data.name[:7], ch, "\t".join(map(str,left)), "3'",data.strand,  sep="\t", file=statsOut)
-                print(data.name[:7], ch, "\t".join(map(str,right)), "5'",data.strand, sep="\t", file=statsOut)
+                print(readID, ch, "\t".join(map(str,left)), "3'",data.strand,  sep="\t", file=statsOut)
+                print(readID, ch, "\t".join(map(str,right)), "5'",data.strand, sep="\t", file=statsOut)
 
     statsOut.close()
 
