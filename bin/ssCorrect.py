@@ -19,7 +19,9 @@ from __future__ import print_function
 
 import os, sys
 import numpy as np
+import multiprocessing
 from multiprocessing import Pool
+from contextlib import closing
 from intervaltree import Interval, IntervalTree
 import random
 from tqdm import *
@@ -53,21 +55,24 @@ class CommandLine(object) :
                                              epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
-                                             usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed')
+                                             usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
         # Add args
         self.parser.add_argument('-i', "--input_bed", action = 'store', required=True, help='Input reads in bed12 format.')
         self.parser.add_argument('-g', "--gtf", action = 'store', required=False, help='Gencode annotation file.')
-        self.parser.add_argument('-j', "--junctionsBed", default=None, action = 'store', required=False, help='Junction bed file.')
+        self.parser.add_argument('-j', "--junctionsBed", default=None, action = 'store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
         self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
-        self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
+        self.parser.add_argument('-o', "--output_fname", action = 'store', required=True, help='Output file name.')
         
-        self.parser.add_argument('--report_junctions', action = 'store', required=False, default= "norm", choices=['strict', 'norm', 'all'],
-                                                                                        help = """Choose which types of nanopore splice sites to report:
-                                                                                                "strict" - SS must be in gtf or junctionsBed, and have a single closest hit.
-                                                                                                "norm" - SS must be in gtf or junctionsBed (tie for closest hit is random).
-                                                                                                "all" - SS can be in gtf, junctionsBed, or unique to nanopore data.""")
-        self.parser.add_argument('-p', "--threads", action = 'store', required=False, default = 2, help='Num threads.')
+        # (Under Development!!!)
+        #self.parser.add_argument('--report_junctions', action = 'store', required=False, default= "norm", choices=['strict', 'norm', 'all'],
+        #                                                                                help = """Choose which types of nanopore splice sites to report:
+        #                                                                                        "strict" - SS must be in gtf or junctionsBed, and have a single closest hit.
+        #                                                                                        "norm" - SS must be in gtf or junctionsBed (tie for closest hit is random).
+        #                                                                                        "all" - SS can be in gtf, junctionsBed, or unique to nanopore data.""")
+        self.parser.add_argument('-p', "--threads", action = 'store', required=False, type=int, default = 2, help='Number of threads.')
+        self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
+        self.parser.add_argument("--cleanup", action = 'store_false', required=False, default = True, help='Remove teomprary files with correction info.')
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -117,7 +122,9 @@ class BED12(object):
                 cols = entry.rstrip().split()
                 self.chrom, self.start, self.end, self.name = cols[0], int(cols[1]), int(cols[2]), cols[3]
                 self.score, self.strand, self.c1, self.c2 = int(cols[4]), cols[5], int(cols[6]), int(cols[7])
-                self.color, self.exons, self.sizes, self.starts = cols[8], int(cols[9]), [int(x) for x in cols[10].split(",")[:-1]], [int(x) for x in cols[11].split(",")[:-1]] 
+                self.color, self.exons = cols[8], int(cols[9]),  
+                self.sizes =  [int(x) for x in cols[10].split(",")[:-1]] if cols[10][-1] == "," else [int(x) for x in (cols[10]+",").split(",")[:-1]]
+                self.starts = [int(x) for x in cols[11].split(",")[:-1]] if cols[10][-1] == "," else [int(x) for x in (cols[11]+",").split(",")[:-1]]
                 yield cols
 
     def bed12toJuncs(self):
@@ -182,9 +189,9 @@ def juncsToBed12(start, end, coords):
         return 1, [end-start], [0] 
 
 
-def buildOtherDB(ssDB, spliceSites, bedJuncs, wiggle):
+def buildOtherDB(ssdb, spliceSites, bedJuncs, wiggle):
 
-    ss = ssDB
+    ss = ssdb
     lineNum = 0
     with open(bedJuncs,'r') as bedLines:
         for i in bedLines:
@@ -192,7 +199,7 @@ def buildOtherDB(ssDB, spliceSites, bedJuncs, wiggle):
 
 
     with open(bedJuncs,'r') as bedLines:
-        for line in tqdm(bedLines, total=lineNum, desc="Adding juncs from juncs.bed to interval tree") if verbose else bedLines:
+        for line in tqdm(bedLines, total=lineNum, desc="Adding juncs from juncs.bed to interval tree", dynamic_ncols=True) if verbose else bedLines:
             cols = line.rstrip().split()
             if len(cols)<4:
                 print("Other junctions.bed misformatted. Expecting at least 4 cols, got %s" % len(cols), file=sys.stderr)
@@ -239,7 +246,7 @@ def buildGTFDB(file, wiggle):
                 exons[key].append((c1,c2))
 
     txnList = list(exons.keys())            
-    for exonInfo in tqdm(txnList, total=len(txnList), desc="Building junction interval tree from GTF") if verbose else txnList:
+    for exonInfo in tqdm(txnList, total=len(txnList), desc="Building junction interval tree from GTF", dynamic_ncols=True) if verbose else txnList:
         chrom, txn, strand = exonInfo
         coords = exons[exonInfo]
 
@@ -251,9 +258,15 @@ def buildGTFDB(file, wiggle):
 
         for pos,x in enumerate(coords,0):
 
+            
             if pos+1 == len(coords): break
+            
+            #if (chrom,x[1]) in junctionSet and (chrom,coords[pos+1][0]-1) in junctionSet: continue
+                
             junctionSet.add((chrom,x[1]))
             junctionSet.add((chrom,coords[pos+1][0]-1))
+
+            
             
             # Need to add +1 to x[1], otherwise i catch the end/begining of the exon.
 
@@ -286,49 +299,15 @@ def resolveHits(spliceSite, hits):
         return(ssCord,spliceSite,spliceSite-ssCord,refType) 
     
 
-def main():
-    '''
-    maine
-    '''
 
-    # Command Line Stuff...
-    myCommandLine = CommandLine()
-    bed = myCommandLine.args['input_bed']
-    gtf = myCommandLine.args['gtf']
-    otherJuncs = myCommandLine.args['junctionsBed']
-    wiggle = myCommandLine.args['wiggleWindow']
-    threads = myCommandLine.args['threads']
-    report = myCommandLine.args['report_junctions']
-    keepZero = myCommandLine.args['keepZero']
+def ssCorrect(chrom, bedFile, fileSize, procNum):
     
-
-    # There are a few functions that evaluate what verbose is defined as.
-    # Instead of passing it around, just global it.
-    global verbose
-    verbose = myCommandLine.args['quiet']
-
-    # Build interval tree with user splice site input data.
-    ssDB, spliceSites = buildGTFDB(gtf, wiggle)
-
-    if otherJuncs != None: ssDB = buildOtherDB(ssDB, spliceSites, otherJuncs, wiggle)
+    data = BED12(bedFile)
     
-
-    # Check how large bed file to be correctd is.
-    entries = 0
-    with open(bed) as f:
-        for l in f:
-            entries += 1
-            continue
-
-
-    # BED12 has some built in functions
-    # for formally defining elemnts of a bed12
-    # and to preform coordinate conversions
-    data = BED12(bed)
-
-    statsOut = open("ssCorrectionInfo.tsv",'w') if not os.path.isfile("ssCorrectionInfo.tsv") else open("ssCorrectionInfo%s.tsv" % random.randint(0,9999),'w')
-
-    for line in tqdm(data.getLine(), total=entries, desc="Correcting junctions") if verbose else data.getLine():
+    statsOut = open("%s_ssCorrectionInfo.tsv" % chrom,'w')
+    tempOut = open("%s_corrected.bed" % chrom ,'w')
+    
+    for line in tqdm(data.getLine(), total=fileSize, desc="Working on %s" % chrom, position=procNum,dynamic_ncols=True) if verbose else data.getLine():
         junctionCoords = data.bed12toJuncs()
 
         ch, st, end, blocks = data.chrom, data.start, data.end, data.exons
@@ -340,7 +319,7 @@ def main():
             if keepZero:
                 print(data.chrom, data.start, data.end, readID,
                 data.score, data.strand, data.c1, data.c2, data.color,
-                data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t")
+                data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t",file=tempOut)
             else:
                 continue
 
@@ -354,7 +333,7 @@ def main():
             exons, sizes, starts = juncsToBed12(data.start,data.end,correctedJuncs)
             print(data.chrom, data.start, data.end, readID, 
                 data.score, data.strand, data.c1, data.c2, data.color,
-                exons, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t")
+                exons, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t",file=tempOut)
 
         for i in zip(leftHits,rightHits):
             left,right = i
@@ -365,7 +344,92 @@ def main():
                 print(readID, ch, "\t".join(map(str,left)), "3'",data.strand,  sep="\t", file=statsOut)
                 print(readID, ch, "\t".join(map(str,right)), "5'",data.strand, sep="\t", file=statsOut)
 
+    os.remove("%s_reads.temp.bed" % chrom)
     statsOut.close()
+    tempOut.close()
+    return ("%s_ssCorrectionInfo.tsv" % chrom, "%s_corrected.bed" % chrom)
+
+
+def runCMD(x):
+    chrom, bedFile, fileSize, procNum = x
+    
+    return ssCorrect(chrom, bedFile, fileSize,procNum)
+
+def main():
+    '''
+    maine
+    '''
+
+    # Command Line Stuff...
+    myCommandLine = CommandLine()
+    bed           = myCommandLine.args['input_bed']
+    gtf           = myCommandLine.args['gtf']
+    otherJuncs    = myCommandLine.args['junctionsBed']
+    wiggle        = myCommandLine.args['wiggleWindow']
+    threads       = myCommandLine.args['threads']
+    out           = myCommandLine.args['output_fname']
+    cleanup       = myCommandLine.args['cleanup']
+
+    global keepZero
+    keepZero      = myCommandLine.args['keepZero']
+    
+    #report        = myCommandLine.args['report_junctions']
+
+    # There are a few functions that evaluate what verbose is defined as.
+    # Instead of passing it around, just global it.
+    global verbose
+    verbose = myCommandLine.args['quiet']
+
+    # Build interval tree with user splice site input data.
+    global ssDB
+    ssDB, spliceSites = buildGTFDB(gtf, wiggle)
+
+    if otherJuncs != None: ssDB = buildOtherDB(ssDB, spliceSites, otherJuncs, wiggle)
+
+    # Split bed by CHROMOSOME!!!!!
+    # and Check how large bed file to be correctd is.
+    fileDict = dict()
+    fileSizeDict = dict()
+    with open(bed) as f:
+        for l in f:
+            chrom = l.split()[0]
+            if chrom not in ssDB:
+                print("WARNING: %s not found in junction databse. Skipping..." % chrom, file=sys.stderr)
+                continue
+            if chrom not in fileDict:
+                fileDict[chrom] = open("%s_reads.temp.bed" % chrom,'w')
+                fileSizeDict[chrom] = 0
+            print(l.rstrip(), file=fileDict[chrom])
+            fileSizeDict[chrom] += 1
+            continue
+
+    cmdList = list()
+    files = sorted(list(fileDict.keys()))
+    for num,key in enumerate(files,1):
+        cmdList.append((key, "%s_reads.temp.bed" % key, fileSizeDict[key], num))
+        fileDict[key].close()   
+
+    
+    
+    # BED12 has some built in functions
+    # for formally defining elemnts of a bed12
+    # and to preform coordinate conversions
+
+    finalFiles = list()
+    with closing(Pool(threads)) as p:
+        for i in tqdm(p.imap(runCMD, cmdList), total=len(cmdList), desc="Correcting junctions per chromosome", position=0,dynamic_ncols=True) if verbose else p.imap(runCMD, cmdList):
+            finalFiles.append(i)
+     
+    with open(out,'w') as outF:
+        for i in tqdm(finalFiles, total=len(finalFiles), desc="Writing corrected juncs to %s" % out, dynamic_ncols=True) if verbose else finalFiles:
+            stats,corrected = i
+            with open(corrected) as lines:
+                [print(x.rstrip(), file=outF) for x in lines]
+            os.remove(corrected)
+            if cleanup:
+                os.remove(stats)
+            
+
 
 if __name__ == "__main__":
     main()
