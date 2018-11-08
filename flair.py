@@ -39,7 +39,6 @@ if mode == 'align':
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
-
 	sys.stderr.write('Aligning to the genome with minimap2\n')
 	subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o, 'w'))
 
@@ -214,8 +213,9 @@ elif mode == 'collapse':
 			subprocess.call(['mv', args.q[:-3]+'isoforms.fa', outpath + args.q[:-3]+'isoforms.fa'])
 	
 	sys.stderr.write('Removing intermediate files/done!\n')
-	subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
-	subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
+	if args.p:
+		subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
+		subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
 	subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])

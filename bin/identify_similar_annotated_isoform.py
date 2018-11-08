@@ -57,7 +57,7 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	prev_start = start
 	prev_end = end
 
-annotated_juncs[chrom] += [junctions]
+annotated_juncs[chrom] += [(junctions, this_transcript)]
 novel, total = 0, 0
 seenjunctions = {}
 transcript_counts = {}
@@ -69,6 +69,11 @@ with open(outfilename, 'wt') as outfile:
 		if chrom not in annotated_juncs:
 			continue
 		junctions = get_junctions(line)
+		# if chrom not in seenjunctions:
+		# 	seenjunctions[chrom] = []
+		# elif junctions in seenjunctions[chrom]:
+		# 	continue
+		# seenjunctions[chrom] += [junctions]
 		total += 1
 		subset = False
 		transcript = ''
@@ -101,5 +106,5 @@ with open(outfilename, 'wt') as outfile:
 					line[9] = transcript + '_' + name + '-' + str(transcript_counts[transcript])
 			writer.writerow(line)
 			line[9] = name
-# sys.stderr.write('{} out of {} isoforms are novel\n'.format(novel, total))
+sys.stderr.write('{} out of {} isoforms are novel\n'.format(novel, total))
 
