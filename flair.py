@@ -213,11 +213,11 @@ elif mode == 'collapse':
 			subprocess.call(['mv', args.q[:-3]+'isoforms.fa', outpath + args.q[:-3]+'isoforms.fa'])
 	
 	sys.stderr.write('Removing intermediate files/done!\n')
-	if args.p:
-		subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
-		subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.counts'])
+	# if args.p:
+	# 	subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
+	# 	subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
+	# subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
+	# subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
+	# subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])
+	# subprocess.call(['rm', args.q[:-3]+'collapse1.counts'])
 
