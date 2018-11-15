@@ -124,8 +124,9 @@ class BED12(object):
                 self.score, self.strand, self.c1, self.c2 = int(cols[4]), cols[5], int(cols[6]), int(cols[7])
                 self.color, self.exons = cols[8], int(cols[9]),  
                 self.sizes =  [int(x) for x in cols[10].split(",")[:-1]] if cols[10][-1] == "," else [int(x) for x in (cols[10]+",").split(",")[:-1]]
-                self.starts = [int(x) for x in cols[11].split(",")[:-1]] if cols[10][-1] == "," else [int(x) for x in (cols[11]+",").split(",")[:-1]]
+                self.starts = [int(x) for x in cols[11].split(",")[:-1]] if cols[11][-1] == "," else [int(x) for x in (cols[11]+",").split(",")[:-1]]
                 yield cols
+
 
     def bed12toJuncs(self):
         '''
@@ -153,7 +154,9 @@ class BED12(object):
             exons.append((c1,c2))
         return exons
 
-     
+    def determinType(self):
+        pass
+
 
 ########################################################################
 # Functions
@@ -166,12 +169,13 @@ def juncsToBed12(start, end, coords):
     end = integer
     coords = list formatted like so [(j1_left,j1_right),(j2_left,j2_right)]
     '''
-    
+    novelFlag = False
     sizes, starts = [],[]
     # initial start is 0
     if len(coords) > 0:
         for num,junc in enumerate(coords,0):
-            ss1, ss2 = junc
+            ss1, ss2, novel1, novel2 = junc
+            if novel1 or novel2: novelFlag = True
             if num == 0:
                 st = 0
                 size = abs(start-ss1)
@@ -184,108 +188,137 @@ def juncsToBed12(start, end, coords):
         size =  end - (st + start)
         starts.append(st)
         sizes.append(size)
-        return len(starts), sizes, starts
+        return len(starts), sizes, starts, novelFlag
     else:
-        return 1, [end-start], [0] 
+        return 1, [end-start], [0], novelFlag 
 
 
-def buildOtherDB(ssdb, spliceSites, bedJuncs, wiggle):
+def buildOtherDB(acceptors, donors, spliceSites, bedJuncs, wiggle, proc):
 
-    ss = ssdb
+    
     lineNum = 0
+
     with open(bedJuncs,'r') as bedLines:
+        lineNum +=1
+        cols = next(bedLines).split()
+
         for i in bedLines:
             lineNum += 1
 
+    # guess what kind of bedFile
+    if cols[-1] == "+" or cols[-1] == "-":
+        # normal bed
+        reverseSS = "-"
+        strandCol = -1
+        starOffset = 0
 
+    elif len(cols) == 12:
+        # bed12
+        bedType   = "bed12"
+        print("ERROR: Bed12 not currently supported for other_juncs.bed. Please convert to bed6. Exiting.", file=sys.stderr)
+
+    elif cols[3] == "0" or cols[3] == "1" or cols[3] == "2":
+        # star junc.tab
+        reverseSS = "2"
+        strandCol = 3
+        starOffset = 1
+
+    else:
+        print("ERROR: Cannot find strand info for %s. Is this bed6 or STAR_juncs.tab file? Exit." % bedJuncs, file=sys.stderr)
+
+    proc += 1 
     with open(bedJuncs,'r') as bedLines:
-        for line in tqdm(bedLines, total=lineNum, desc="Adding juncs from juncs.bed to interval tree", dynamic_ncols=True) if verbose else bedLines:
+        for line in tqdm(bedLines, total=lineNum, desc="Adding splice sites from %s  to interval tree" % bedJuncs, dynamic_ncols=True, position = proc) if verbose else bedLines:
             cols = line.rstrip().split()
-            if len(cols)<4:
-                print("Other junctions.bed misformatted. Expecting at least 4 cols, got %s" % len(cols), file=sys.stderr)
-        
-            chrom, c1, c2, strand = cols[0], int(cols[1]), int(cols[2]), cols[-1]
-            
-            
+            chrom, c1, c2, strand = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol]
+            if strand == reverseSS: c1,c2 = c2,c1
 
-            if chrom not in ss:
-                ss[chrom] = IntervalTree()
+            if chrom not in donors:
+                donors[chrom] = IntervalTree()
+                acceptors[chrom] = IntervalTree()
 
             if (chrom,c1) not in spliceSites:
-                ss[chrom][c1-wiggle:c1+wiggle] = ('other',c1, strand)
+                donors[chrom][c1-wiggle:c1+wiggle] = ('other',c1, strand)
             if (chrom,c2) not in spliceSites:
-                ss[chrom][c2-wiggle:c2+wiggle] = ('other',c2, strand)
-    return ss
+                acceptors[chrom][c2-wiggle:c2+wiggle] = ('other',c2, strand)
+    return donors, acceptors
 
-def buildGTFDB(file, wiggle):
+def buildGTFDB(file, wiggle, proc):
 
-    ss = dict()
-    exons = dict()
+    exons       = dict()
     junctionSet = set()
 
-    if verbose: print("reading gtf %s" % (file), file=sys.stderr) 
+    if verbose: print("reading gtf %s ..." % (file), file=sys.stderr) 
 
     with open(file,'r') as lines:
         for l in lines:
-            if l[0] == "#":
+            if l[0] == "#": # skip header lines
                 continue
 
             cols = l.split("\t")
 
             if "exon" == cols[2]:
                 
-                chrom, c1, c2, strand =  cols[0], int(cols[3]), int(cols[4]), cols[6]
-                
-                #if c2-c1 < 50:
-                #    continue
+                # -1 for 1 to 0 based conversion
+                chrom, c1, c2, strand =  cols[0], int(cols[3])-1, int(cols[4]), cols[6]
 
+                #txn info is in the SECOND position of the shoutout column
                 txn = cols[-1].split(";")[1].split()[-1].replace('"','')
                 key = (chrom, txn, strand)
                 if key not in exons:
                     exons[key] = list()
-                exons[key].append((c1,c2))
+                exons[key].append(c1)
+                exons[key].append(c2)
 
-    txnList = list(exons.keys())            
-    for exonInfo in tqdm(txnList, total=len(txnList), desc="Building junction interval tree from GTF", dynamic_ncols=True) if verbose else txnList:
+    txnList = list(exons.keys())
+    proc += 1            
+    for exonInfo in tqdm(txnList, total=len(txnList), desc="Building junction interval tree from GTF", dynamic_ncols=True, position=proc) if verbose else txnList:
         chrom, txn, strand = exonInfo
+
         coords = exons[exonInfo]
+        
+        # assume lowest and highest as TSS and TES, and remove them
+        coords.sort()
+        coords = coords[1:-1]
 
-        #if strand == "-":
-        #    coords = coords[::-1]
+        if len(coords)<2: continue
 
-        if chrom not in ss:
-            ss[chrom] = IntervalTree()
-
-        for pos,x in enumerate(coords,0):
-
+        if chrom not in donors: #make the interval tree
+            donors[chrom]    = IntervalTree()
+            acceptors[chrom] = IntervalTree()
+        
+        for pos in range(0,len(coords)-1,2):
+            c1 = coords[pos]
+            c2 = coords[pos+1]
             
-            if pos+1 == len(coords): break
+            if strand == "-": c1,c2 = c2,c1 
             
-            #if (chrom,x[1]) in junctionSet and (chrom,coords[pos+1][0]-1) in junctionSet: continue
-                
-            junctionSet.add((chrom,x[1]))
-            junctionSet.add((chrom,coords[pos+1][0]-1))
+            if (chrom,c1) not in junctionSet:
+                donors[chrom][c1-wiggle:c1+wiggle] = ('gtf',c1,strand)
+                junctionSet.add((chrom,c1))
+            if (chrom,c2) not in junctionSet:
+                acceptors[chrom][c2-wiggle:c2+wiggle] = ('gtf',c2,strand)
+                junctionSet.add((chrom,c2))
+   
+    return donors, acceptors, junctionSet
 
-            
-            
-            # Need to add +1 to x[1], otherwise i catch the end/begining of the exon.
-
-            ss[chrom][x[1]-wiggle:x[1]+wiggle] = ('gtf',x[1],strand)
-            ss[chrom][coords[pos+1][0]-wiggle-1:coords[pos+1][0]+wiggle-1] = ('gtf',coords[pos+1][0]-1,strand)
-
-    return ss, junctionSet
-
-def resolveHits(spliceSite, hits):
+def resolveHits(spliceSite, hits, read):
     hits = list(hits)
 
 
-    if len(hits)<1:
-        #print("no hit",spliceSite)
-        return (np.nan, spliceSite, np.nan, np.nan)
+    if read == "30e93c3f-28c2-4b3":
+        print(hits)
+        print(spliceSite)
 
-    elif len(hits)<2:
-        return(hits[0].data[1],spliceSite,spliceSite-hits[0].data[1], hits[0].data[0])
+    if len(hits)<1:
+        # novel
+        return (spliceSite, spliceSite, np.nan, np.nan, True)
+
+    elif len(hits) == 1:
+        # single closest hit
+        return (hits[0].data[1],spliceSite,spliceSite-hits[0].data[1], hits[0].data[0], False)
     else:
+        # multi hit
         distances = [(abs(spliceSite-hit.data[1]),hit.data[1],hit.data[0]) for hit in hits]
         sortedDist = sorted(distances,key=lambda x: x[0])
         top, second = sortedDist[0], sortedDist[1]
@@ -296,58 +329,81 @@ def resolveHits(spliceSite, hits):
         else:
             distance, ssCord, refType = top
 
-        return(ssCord,spliceSite,spliceSite-ssCord,refType) 
+        return (ssCord,spliceSite,spliceSite-ssCord,refType, False)
     
 
 
 def ssCorrect(chrom, bedFile, fileSize, procNum):
     
-    data = BED12(bedFile)
-    
-    statsOut = open("%s_ssCorrectionInfo.tsv" % chrom,'w')
-    tempOut = open("%s_corrected.bed" % chrom ,'w')
-    
+    data         = BED12(bedFile)
+    statsOut     = open("%s_ssCorrectionInfo.tsv" % chrom,'w')
+    tempOut      = open("%s_corrected.bed" % chrom ,'w')
+    tempNovelOut = open("%s_uncorrected.bed" % chrom ,'w')
+
     for line in tqdm(data.getLine(), total=fileSize, desc="Working on %s" % chrom, position=procNum,dynamic_ncols=True) if verbose else data.getLine():
         junctionCoords = data.bed12toJuncs()
 
-        ch, st, end, blocks = data.chrom, data.start, data.end, data.exons
+        ch, st, end, blocks, strand = data.chrom, data.start, data.end, data.exons, data.strand
+        readID = data.name[:18]
 
-        readID = data.name[:17]
 
-        if int(data.exons) == 1:
-            
+        if ch in donors and ch in acceptors:
+            if strand == "-":
+                hits = [ (resolveHits(x[0],donors[ch][x[0]],readID), resolveHits(x[1], acceptors[ch][x[1]],readID))
+                                 for x in junctionCoords]
+            else:
+                hits = [ (resolveHits(x[0],acceptors[ch][x[0]],readID), resolveHits(x[1], donors[ch][x[1]],readID))
+                                 for x in junctionCoords]
+
+            correctedJuncs = [(x[0][0],x[1][0],x[0][-1],x[1][-1]) for x in hits]
+        else:
+            # un annotated reference chrom/contig
+            if len(junctionCoords) < 1:
+                if keepZero:
+                     print(data.chrom, data.start, data.end, readID, 
+                        data.score, data.strand, data.c1, data.c2, data.color,
+                        data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t",file=tempNovelOut)
+            else:
+                print(data.chrom, data.start, data.end, readID, 
+                    data.score, data.strand, data.c1, data.c2, data.color,
+                    data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t",file=tempNovelOut)
+            continue
+
+        if len(junctionCoords) < 1:
             if keepZero:
                 print(data.chrom, data.start, data.end, readID,
                 data.score, data.strand, data.c1, data.c2, data.color,
                 data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t",file=tempOut)
+            continue
+
+        else:
+
+            exons, sizes, starts, novelJuncs = juncsToBed12(data.start,data.end,correctedJuncs)
+            if novelJuncs:
+                print(data.chrom, data.start, data.end, readID, 
+                    data.score, data.strand, data.c1, data.c2, data.color,
+                    exons, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t",file=tempNovelOut)
+
             else:
-                continue
+                print(data.chrom, data.start, data.end, readID, 
+                    data.score, data.strand, data.c1, data.c2, data.color,
+                    exons, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t",file=tempOut)
 
-        leftHits = [resolveHits(x[0],ssDB[ch][x[0]]) for x in junctionCoords]
-        rightHits = [resolveHits(x[1], ssDB[ch][x[1]]) for x in junctionCoords]
+            for i in hits:
+                left,right = i
 
-        correctedJuncs = [(x[0][0],x[1][0]) for x in zip(leftHits,rightHits)
-                            if x[0][0] != np.nan and x[1][0] != np.nan]
-
-        if len(correctedJuncs)>0:
-            exons, sizes, starts = juncsToBed12(data.start,data.end,correctedJuncs)
-            print(data.chrom, data.start, data.end, readID, 
-                data.score, data.strand, data.c1, data.c2, data.color,
-                exons, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t",file=tempOut)
-
-        for i in zip(leftHits,rightHits):
-            left,right = i
-            if data.strand == "+":
-                print(readID, ch, "\t".join(map(str,left)), "5'", data.strand, sep="\t", file=statsOut)
-                print(readID, ch, "\t".join(map(str,right)), "3'", data.strand, sep="\t", file=statsOut)
-            else:
-                print(readID, ch, "\t".join(map(str,left)), "3'",data.strand,  sep="\t", file=statsOut)
-                print(readID, ch, "\t".join(map(str,right)), "5'",data.strand, sep="\t", file=statsOut)
+                if data.strand == "+":
+                    print(readID, ch, "\t".join(map(str,left)), "5'", data.strand, sep="\t", file=statsOut)
+                    print(readID, ch, "\t".join(map(str,right)), "3'", data.strand,  sep="\t", file=statsOut)
+                else:
+                    print(readID, ch, "\t".join(map(str,left)), "3'",data.strand,  sep="\t", file=statsOut)
+                    print(readID, ch, "\t".join(map(str,right)), "5'",data.strand, sep="\t", file=statsOut)
 
     os.remove("%s_reads.temp.bed" % chrom)
     statsOut.close()
     tempOut.close()
-    return ("%s_ssCorrectionInfo.tsv" % chrom, "%s_corrected.bed" % chrom)
+    tempNovelOut.close()
+    return ("%s_ssCorrectionInfo.tsv" % chrom, "%s_corrected.bed" % chrom, "%s_uncorrected.bed" % chrom)
 
 
 def runCMD(x):
@@ -370,6 +426,9 @@ def main():
     out           = myCommandLine.args['output_fname']
     cleanup       = myCommandLine.args['cleanup']
 
+    # keep track of process number
+    proc = -1
+
     global keepZero
     keepZero      = myCommandLine.args['keepZero']
     
@@ -381,32 +440,34 @@ def main():
     verbose = myCommandLine.args['quiet']
 
     # Build interval tree with user splice site input data.
-    global ssDB
-    ssDB, spliceSites = buildGTFDB(gtf, wiggle)
+    global donors, acceptors
+    donors, acceptors = dict(), dict()
+    donors, acceptors, spliceSites = buildGTFDB(gtf, wiggle, proc)
 
-    if otherJuncs != None: ssDB = buildOtherDB(ssDB, spliceSites, otherJuncs, wiggle)
+    if otherJuncs != None: donors, acceptors = buildOtherDB(donors, acceptors, spliceSites, otherJuncs, wiggle, proc)
+
+
 
     # Split bed by CHROMOSOME!!!!!
     # and Check how large bed file to be correctd is.
     fileDict = dict()
     fileSizeDict = dict()
+    proc += 1
     with open(bed) as f:
-        for l in f:
+        for l in tqdm(f, desc="Splitting isoforms by chrom for multiprocessing", position=proc,dynamic_ncols=True) if verbose else f:
             chrom = l.split()[0]
-            if chrom not in ssDB:
-                print("WARNING: %s not found in junction databse. Skipping..." % chrom, file=sys.stderr)
-                continue
             if chrom not in fileDict:
                 fileDict[chrom] = open("%s_reads.temp.bed" % chrom,'w')
                 fileSizeDict[chrom] = 0
             print(l.rstrip(), file=fileDict[chrom])
             fileSizeDict[chrom] += 1
-            continue
+            
 
     cmdList = list()
     files = sorted(list(fileDict.keys()))
-    for num,key in enumerate(files,1):
-        cmdList.append((key, "%s_reads.temp.bed" % key, fileSizeDict[key], num))
+    for key in files:
+        proc += 1
+        cmdList.append((key, "%s_reads.temp.bed" % key, fileSizeDict[key], proc))
         fileDict[key].close()   
 
     
@@ -416,15 +477,21 @@ def main():
     # and to preform coordinate conversions
 
     finalFiles = list()
+    proc += 1
     with closing(Pool(threads)) as p:
-        for i in tqdm(p.imap(runCMD, cmdList), total=len(cmdList), desc="Correcting junctions per chromosome", position=0,dynamic_ncols=True) if verbose else p.imap(runCMD, cmdList):
+        for i in tqdm(p.imap(runCMD, cmdList), total=len(cmdList), desc="Correcting junctions per chromosome", position=proc,dynamic_ncols=True) if verbose else p.imap(runCMD, cmdList):
             finalFiles.append(i)
-     
+    proc += 1
+
+    allUncorrected = open("uncorrected_%s" % out, 'w')
     with open(out,'w') as outF:
-        for i in tqdm(finalFiles, total=len(finalFiles), desc="Writing corrected juncs to %s" % out, dynamic_ncols=True) if verbose else finalFiles:
-            stats,corrected = i
+        for i in tqdm(finalFiles, total=len(finalFiles), desc="Writing corrected juncs to %s" % out, dynamic_ncols=True, position = proc) if verbose else finalFiles:
+            stats,corrected, uncorrected = i
             with open(corrected) as lines:
                 [print(x.rstrip(), file=outF) for x in lines]
+            with open(uncorrected) as lines:
+                [print(x.rstrip(), file=allUncorrected) for x in lines]
+            os.remove(uncorrected)
             os.remove(corrected)
             if cleanup:
                 os.remove(stats)
