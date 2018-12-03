@@ -306,10 +306,6 @@ def resolveHits(spliceSite, hits, read):
     hits = list(hits)
 
 
-    if read == "30e93c3f-28c2-4b3":
-        print(hits)
-        print(spliceSite)
-
     if len(hits)<1:
         # novel
         return (spliceSite, spliceSite, np.nan, np.nan, True)
@@ -348,7 +344,7 @@ def ssCorrect(chrom, bedFile, fileSize, procNum):
 
 
         if ch in donors and ch in acceptors:
-            if strand == "-":
+            if strand == "+":
                 hits = [ (resolveHits(x[0],donors[ch][x[0]],readID), resolveHits(x[1], acceptors[ch][x[1]],readID))
                                  for x in junctionCoords]
             else:
@@ -362,7 +358,12 @@ def ssCorrect(chrom, bedFile, fileSize, procNum):
                 if keepZero:
                      print(data.chrom, data.start, data.end, readID, 
                         data.score, data.strand, data.c1, data.c2, data.color,
+                        data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t",file=tempOut)
+                else:
+                     print(data.chrom, data.start, data.end, readID, 
+                        data.score, data.strand, data.c1, data.c2, data.color,
                         data.exons, "%s," % data.sizes[0], "%s," % data.starts[0], sep="\t",file=tempNovelOut)
+                    
             else:
                 print(data.chrom, data.start, data.end, readID, 
                     data.score, data.strand, data.c1, data.c2, data.color,
