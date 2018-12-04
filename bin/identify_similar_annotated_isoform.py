@@ -30,7 +30,10 @@ def get_junctions_bed12(line):
 	return junctions
 
 prev_transcript = ''
-annotated_juncs = {}
+# annotated_juncs = {}  # chrom: [(junctions, transcript_name), ... ]
+junc_to_tn = {}  # chrom: {intron: [transcript_names], ... }
+tn_to_juncs = {}  # chrom: {transcript_name: (junction1, junction2), ... }
+
 
 for line in gtf:  # extract all exons from the gtf, keep exons grouped by transcript
 	if line.startswith('#'):
@@ -39,15 +42,24 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
 	if ty != 'exon':
 		continue
-	if chrom not in annotated_juncs:
-		annotated_juncs[chrom] = []
+	if chrom not in junc_to_tn:
+		# annotated_juncs[chrom] = []
+		junc_to_tn[chrom] = {}
+		tn_to_juncs[chrom] = {}
 	this_transcript = line[8][line[8].find('transcript_id')+15:line[8].find('gene_type')-3]  # p specific to gencode v24
 	this_transcript = line[8][line[8].find('transcript_id')+15:]
 	this_transcript = this_transcript[:this_transcript.find('"')]
 
 	if this_transcript != prev_transcript:
 		if prev_transcript:
-			annotated_juncs[chrom] += [(junctions, prev_transcript)]
+			# annotated_juncs[chrom] += [(junctions, prev_transcript)]
+			tn_to_juncs[chrom][prev_transcript] = junctions
+			for j in junctions:
+				if j not in junc_to_tn[chrom]:
+					junc_to_tn[chrom][j] = set()
+				junc_to_tn[chrom][j].add(prev_transcript)
+
+
 		junctions = set()
 		prev_transcript = this_transcript
 	elif strand == '-':
@@ -56,8 +68,11 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 		junctions.add((prev_end, start))
 	prev_start = start
 	prev_end = end
+# annotated_juncs[chrom] += [(junctions, this_transcript)]
+tn_to_juncs[chrom][this_transcript] = junctions
+for j in junctions:
+	junc_to_tn[chrom][j] = this_transcript
 
-annotated_juncs[chrom] += [(junctions, this_transcript)]
 novel, total = 0, 0
 seenjunctions = {}
 transcript_counts = {}
@@ -66,7 +81,7 @@ with open(outfilename, 'wt') as outfile:
 	for line in psl:
 		line = line.rstrip().split('\t')
 		chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
-		if chrom not in annotated_juncs:
+		if chrom not in junc_to_tn:
 			continue
 		junctions = get_junctions(line)
 		# if chrom not in seenjunctions:
@@ -77,11 +92,21 @@ with open(outfilename, 'wt') as outfile:
 		total += 1
 		subset = False
 		transcript = ''
-		name = line[9]
-		for j,t in annotated_juncs[chrom]:
-			if junctions == j:
-				transcript = t
-				break
+
+		# for j,t in annotated_juncs[chrom]:
+		# 	if junctions == j:
+		# 		transcript = t
+		# 		break
+		if junctions:
+			matches = set()
+			for j in junctions:
+				if j in junc_to_tn[chrom]:
+					matches.update(junc_to_tn[chrom][j])
+			for t in matches:
+				if tn_to_juncs[chrom][t] == junctions:
+					transcript = t  # annotated transcript identified
+					break
+
 		if transcript not in transcript_counts:
 			transcript_counts[transcript] = 0
 		else:
@@ -90,7 +115,7 @@ with open(outfilename, 'wt') as outfile:
 		if not transcript:
 			novel += 1
 			writer.writerow(line)
-		else:  # annotated transcript identified
+		else:
 			if '-' in name[-3:]:
 				name = name[:name.rfind('-')]
 			if transcript_counts[transcript] == 0:

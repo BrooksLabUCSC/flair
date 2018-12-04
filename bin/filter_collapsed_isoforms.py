@@ -50,7 +50,7 @@ def exon_overlap(coords0, coords1, left=True, tol=1):
 	return coords0[0] == coords1[0] and (len0 - tol) < len1
 
 def contained(coords0, coords1, tol=0):  # complete coverage of coords0 by coords1
-	return coords1[0] <= coords0[0]+tol and coords1[1] >= coords0[1]-tol
+	return coords0[1] > coords1[0] and coords1[0] <= coords0[0]+tol and coords1[1] >= coords0[1]-tol
 
 def bin_search(query, data):
 	""" Query is a coordinate interval. Binary search for the query in sorted data, 
@@ -107,7 +107,7 @@ for line in psl:
 
 keepisoforms = []
 for chrom in isoforms:
-	sys.stderr.write(chrom+'\n')
+	# sys.stderr.write(chrom+'\n')
 	alljunctions = sorted(list(allevents[chrom]['alljunctions']), key=lambda x: x[0])
 	allexons = sorted(list(allevents[chrom]['allexons']), key=lambda x: x[0])
 	for n in isoforms[chrom]:
