@@ -122,7 +122,7 @@ def add_se(sedict, tss, tes, line):
 						newlocus['tss_tes'][tss][tes] += 1
 					else:
 						newlocus['tss_tes'][tss][tes] = loci[oldlocus]['tss_tes'][tss][tes]
-				oldlocus = loci.keys()[0]
+				oldlocus = list(loci.keys())[0]
 				loci[oldlocus]['tss_tes'].update(newlocus['tss_tes'])  # add this locus to the other locus
 				loci[oldlocus]['tss'].update(newlocus['tss'])
 				newcoord = oldlocus[0] if oldlocus[0] < coord[0] else coord[0],\

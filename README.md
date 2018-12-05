@@ -16,7 +16,7 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
 <!-- ![flair_workflow](misc/flair_workflow_snaked.png) -->
 <!-- .element height='75%' width='75%' -->
-<img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='600'/>
+<img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='650'/>
 
 It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. It is also good to note that bed12 and PSL can be converted easily using kentUtils bedToPsl or pslToBed.
 
@@ -48,7 +48,7 @@ Usage:
 python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) `bed12` of corrected reads and (2) `bed12` of reads that weren't able to be corrected.
+Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
 
 ### <a name="collapse"></a>flair collapse
 Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. This can help with sorting for/against annotated isoforms just by `grep [-v] ENST`. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if columns after 21 (1-indexed) are removed. 
