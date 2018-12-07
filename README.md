@@ -14,44 +14,44 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
-<!-- ![flair_workflow](misc/flair_workflow.png) -->
-<!-- .element height='60%' width='60%' -->
-<img src='misc/flair_workflow.png' alt='flair workflow' width='600'/>
+<!-- ![flair_workflow](misc/flair_workflow_snaked.png) -->
+<!-- .element height='75%' width='75%' -->
+<img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='650'/>
 
-It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses.
+It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. It is also good to note that bed12 and PSL can be converted easily using kentUtils bedToPsl or pslToBed.
 
 ## <a name="requirements"></a>Requirements
 
-1. python v2.7+
-2. python modules: intervaltree, Bio, tqdm
-3. [mRNAtoGene](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/mrnaToGene) in $PATH
-4. [minimap2](https://github.com/lh3/minimap2)
+1. python v2.7+ and python modules: intervaltree, Bio, tqdm, pysam
+2. bedtools, samtools
+3. [minimap2](https://github.com/lh3/minimap2)
 
 ## <a name="modules"></a>FLAIR modules 
 flair.py is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
 
 ### <a name="align"></a>flair align
-Aligns reads to the genome using minimap2, and converts `sam` output to [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2), the predominant format used in consequent steps. Aligned reads in `psl` format can be visualized in IGV; alternatively, the UCSC Genome browser can also be used if a chromosome sizes tab-separated file is provided with `-c`.
+Aligns reads to the genome using minimap2, and converts the aligned minimap2 `sam` output to [BED12](https://genome.ucsc.edu/FAQ/FAQformat.html#format14) and optionally [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2). Aligned reads in `psl` format can be visualized in IGV or the UCSC Genome browser.
+
+Alternatively, the user can align the reads themselves with their aligner of choice and convert `bam` output to `bed12` using `bin/bam2Bed12.py` to supply for flair-correct.
 
 Usage:
 ```sh
 python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 ```
-run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) `psl` of raw aligned reads.
+run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads (2) `psl` of raw aligned reads and (3) smoothed `bed12` file of aligned reads.
 
 ### <a name="correct"></a>flair correct
-
-Smooths gaps and corrects misaligned splice sites using genome annotations. Splice sites that are novel (i.e. not present in existing annotation) and valid (contain GT-AG splice motif) can be selectively retained with `-n`. To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions.
+Smooths gaps and corrects misaligned splice sites using genome annotations. To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions. Alternatively, splice junctions from STAR 2-pass alignment of short-reads can also be supplied for junctions.
 
 Usage:
 ```sh
-python flair.py correct -a annotated.gp -g genome.fa -q query.psl [options]
+python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) `psl` of raw reads with strand inferred and (2) `psl` of corrected reads within directory specified by `-o`.
+Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
 
 ### <a name="collapse"></a>flair collapse
-Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF is with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. Isoforms in `psl` format can be visualized again in IGV, or the UCSC genome browser if columns after 21 (1-indexed) are removed. 
+Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. This can help with sorting for/against annotated isoforms just by `grep [-v] ENST`. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if columns after 21 (1-indexed) are removed. 
 
 Usage:
 ```sh
@@ -118,8 +118,8 @@ A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim
 ## Example Files
 We have provided the following [example files](https://users.soe.ucsc.edu/~brooks/FLAIR_example_files/):  
 - `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). This can be run through the FLAIR workflow starting from alignment.
-- `cll_shortread_junctions.gp`, a [genepred-formatted](https://genome.ucsc.edu/FAQ/FAQformat.html#format9) file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional.
-- `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step.
+- `cll_shortread_junctions.gp`, a [genepred-formatted](https://genome.ucsc.edu/FAQ/FAQformat.html#format9) file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional (deprecated)
+- `gencode_v24_complete.gp`, splice junctions from GENCODE v24 annotation that is supplied to the correction step (deprecated)
 
 Other downloads:
-- [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz) to supplement in FLAIR-collapse for better TSS-calling
+- [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz) to supplement in FLAIR-collapse for better TSS-calling for GM12878 cells
