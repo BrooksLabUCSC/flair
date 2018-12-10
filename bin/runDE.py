@@ -19,6 +19,7 @@ from __future__ import print_function
 
 import os, sys
 import pandas as pd
+import numpy as np
 
 ########################################################################
 # CommandLine
@@ -54,6 +55,8 @@ class CommandLine(object) :
                                     help='Input dir containing files.')
         self.parser.add_argument("--outdir"    , action = 'store', required=True, 
                                     help='Output dir to write files.')
+        self.parser.add_argument("--filter"    , action = 'store', required=False, default = 20, type=int,
+                                    help='Output file name prefix.')
         self.parser.add_argument("--group1"    , action = 'store', required=True, 
                                     help='Sample group 1.')
         self.parser.add_argument("--group2"    , action = 'store', required=True, 
@@ -73,7 +76,48 @@ class CommandLine(object) :
             self.args = vars(self.parser.parse_args(inOpts))
 
 
+
+
+def makeDir(out):
+    try:
+        os.mkdir("./%s" % out)
+    except:
+        #exists
+        pass
+
+def checkSamples(samples):
+    samples = samples.split(",")
+    if len(samples)<3:
+        print("Error. At least 3 samples for each condition required. Exit.",file=sys.stderr)
+        sys.exit(1)
+    return samples
+
+
+def filesToDF(f, thresh):
+    
+    data = dict()
+    for num,i in enumerate(f,0):
+        with open(i) as l:
+            for line in l:
+                name, count = line.rstrip().split()
+                count = int(count) 
+                if name not in data:
+                    data[name] = np.zeros(len(f))
+                data[name][num] += count
+
+    indices         = np.asarray(list(data.keys()))
+    values          = np.asarray([data[x] for x in indices], dtype=int)
+    filtered        = values[np.min(values, axis=1) > thresh]
+    filteredIndices = indices[np.min(values, axis=1) > thresh]
+    print(len(filtered),len(values),len(filteredIndices))
+    df = pd.DataFrame(filtered,columns=f)
+    df['ids'] = filteredIndices
+    df = df.set_index('ids')
+    return df
+
 # main
+
+
 
 def main():
     '''
@@ -90,20 +134,14 @@ def main():
     batch      = myCommandLine.args['batch']  
     files      = myCommandLine.args['files']
     prefix     = myCommandLine.args['out_prefix']
+    sFilter    = myCommandLine.args['filter']
 
-    try:
-        os.mkdir("./%s" % outdir)
-    except:
-        #exists
-        pass
+    makeDir(outdir)
 
-    files = files.split(",")
-    if len(files)<3:
-        print("Error. At least 3 samples for each condition required. Exit.",file=sys.stderr)
-        sys.exit(1)
+    files = checkSamples(files)
 
-    
-            
+    df = filesToDF(files, sFilter)
+      
     # DO DESEQ2
     from rpy2 import robjects
     from rpy2.robjects import r,pandas2ri, Formula
@@ -115,19 +153,19 @@ def main():
     for f in files:
         if group1 in f:
             if batch in f:
-                data.append((f,f,group1,'1'))
+                data.append((f,group1,'1'))
             else:
-                data.append((f,f,group1,'2'))
+                data.append((f,group1,'2'))
         else:
             if batch in f:
-                data.append((f,f,group2,'1'))
+                data.append((f,group2,'1'))
             else:
-                data.append((f,f,group2,'2'))
+                data.append((f,group2,'2'))
 
     # Make the Data Frame
     pydf = pd.DataFrame(data)
-    pydf.columns = ['sampleName','fileName','condition','batch']
-
+    pydf.columns = ['sampleName','condition','batch']
+    pydf = pydf.set_index('sampleName')
     # Convert pandas to R data frame.
     sampleTable = pandas2ri.py2ri(pydf)
 
@@ -143,9 +181,13 @@ def main():
     grdevices = importr('grDevices')
     qqman     = importr('qqman')
 
-    dds = deseq.DESeqDataSetFromHTSeqCount(sampleTable = sampleTable,
-                                            directory = workingdir,
-                                            design= design)
+    # dds = deseq.DESeqDataSetFromHTSeqCount(sampleTable = sampleTable,
+    #                                         directory = workingdir,
+    #                                         design= design)
+
+    dds = deseq.DESeqDataSetFromMatrix(countData = df,
+                                        colData = sampleTable,
+                                        design = design)
     dds = deseq.DESeq(dds)
     
     # get results; orient the results for groupA vs B
@@ -167,7 +209,7 @@ def main():
     percentVar = robjects.r['attr'](pcaData, "percentVar")
 
     # arrange 
-    grdevices.pdf(file="./%s/%s_%s_vs_%s_%s_plots.pdf" % (outdir,prefix,group1,group2,str(batch)))
+    grdevices.pdf(file="./%s/%s_%s_vs_%s_%s_%s_cutoff_plots.pdf" % (outdir,prefix,group1,group2,str(batch),sFilter))
 
 
     x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
@@ -182,10 +224,17 @@ def main():
             ggplot2.coord_fixed()
     pp.plot()
 
-    plotMA(res, ylim=robjects.IntVector((-10,10)), main="MA-plot results")
-    plotMA(resLFC, ylim=robjects.IntVector((-10,10)), main="MA-plot LFCSrrhinkage")
+    plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
+    #plotMA(res, main="MA-plot results")
+    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrrhinkage")
+    #plotMA(resLFC, main="MA-plot LFCSrrhinkage")
     plotQQ(resdf.rx2('pvalue'), main="pvalue QQ")
     plotQQ(reslfc.rx2('pvalue'), main="LFCSrhinkage pvalue QQ")
+    hh = ggplot2.ggplot(resdf) + \
+            ggplot2.aes_string(x="pvalue") + \
+            ggplot2.geom_histogram() + \
+            ggplot2.theme_classic() 
+    hh.plot()
     plotDisp(dds, main="Dispersion Estimates")
     grdevices.dev_off()
 
