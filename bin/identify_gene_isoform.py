@@ -4,6 +4,7 @@ try:
 	psl = open(sys.argv[1])
 	gtf = open(sys.argv[2])
 	outfilename = sys.argv[3]
+	
 	isbed = sys.argv[1][-3:].lower() != 'psl' 
 except:
 	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed \n')
@@ -122,6 +123,7 @@ with open(outfilename, 'wt') as outfile:
 			chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
 		if chrom not in junc_to_tn:
 			continue
+		total += 1
 
 		gene_hits = {}
 		if not junctions:
@@ -159,10 +161,9 @@ with open(outfilename, 'wt') as outfile:
 
 		if not transcript:
 			novel += 1
-			newname = gene + '_here_' + name
+			newname = name + '_' + gene
 		else:
-			newname = gene + '_here_' + transcript
-			writer.writerow(line)
+			newname = transcript + '_' + gene
 
 		if newname not in name_counts:
 			name_counts[newname] = 0
@@ -176,6 +177,5 @@ with open(outfilename, 'wt') as outfile:
 			line[9] = newname
 		writer.writerow(line)
 
-		total += 1
 # sys.stderr.write('{} out of {} isoforms have novel splice junction chains\n'.format(novel, total))
 

@@ -10,6 +10,9 @@ with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for line in psl:
 		line = line.rstrip().split('\t')
+		if line[20].count(',') == 1:
+			writer.writerow([line[13], int(line[15]), int(line[15]), line[9]])
+			writer.writerow([line[13], int(line[16]), int(line[16]), line[9]])
 		if line[8] == '+':
 			start = int(line[15])
 		elif line[8] == '-':

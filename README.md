@@ -8,6 +8,7 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 - [FlAIR modules](#modules)
 	- [align](#align)
 	- [correct](#correct)
+		- [short-read junctions](#short)
 	- [collapse](#collapse)
 		- [Quantification](#quant)
 - [Scripts](#scripts)
@@ -32,7 +33,7 @@ flair.py is a wrapper script with modules for running various processing scripts
 ### <a name="align"></a>flair align
 Aligns reads to the genome using minimap2, and converts the aligned minimap2 `sam` output to [BED12](https://genome.ucsc.edu/FAQ/FAQformat.html#format14) and optionally [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2). Aligned reads in `psl` format can be visualized in IGV or the UCSC Genome browser.
 
-Alternatively, the user can align the reads themselves with their aligner of choice and convert `bam` output to `bed12` using `bin/bam2Bed12.py` to supply for flair-correct.
+Alternatively, the user can align the reads themselves with their aligner of choice and convert `bam` output to `bed12` using `bin/bam2Bed12.py` to supply for flair-correct. This step smooths gaps in the alignment.
 
 Usage:
 ```sh
@@ -41,7 +42,7 @@ python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads (2) `psl` of raw aligned reads and (3) smoothed `bed12` file of aligned reads.
 
 ### <a name="correct"></a>flair correct
-Smooths gaps and corrects misaligned splice sites using genome annotations. To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions. Alternatively, splice junctions from STAR 2-pass alignment of short-reads can also be supplied for junctions.
+Corrects misaligned splice sites using genome annotations.
 
 Usage:
 ```sh
@@ -49,6 +50,17 @@ python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [opti
 ```
 run with `--help` for description of optional arguments.
 Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
+
+#### <a name="short"></a>Short-read junctions
+To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions. 
+
+Usage:
+```sh
+python junctionsFromSam.py -s shortreads.sam -n outname -o outdir
+```
+the file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`.
+
+Alternatively, splice junctions from STAR 2-pass alignment (`SJ.out.tab`) of short-reads can also be supplied for junctions.
 
 ### <a name="collapse"></a>flair collapse
 Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. This can help with sorting for/against annotated isoforms just by `grep [-v] ENST`. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if columns after 21 (1-indexed) are removed. 

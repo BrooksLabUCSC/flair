@@ -45,11 +45,11 @@ if mode == 'align':
 		else:
 			args.m += '/minimap2'
 	sys.stderr.write('Aligning to the genome with minimap2\n')
-	# try:
-	# 	subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))
-	# except:
-	# 	sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
-	# 	sys.exit()
+	try:
+		subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))
+	except:
+		sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
+		sys.exit()
 
 	sys.stderr.write('Converting output sam\n')
 	if args.p and args.c:
@@ -157,52 +157,49 @@ elif mode == 'collapse':
 
 	sys.stderr.write('Collapsing isoforms\n')
 	subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-		'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'collapse1.psl'])
+		'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl'])
 	sys.stderr.write('Filtering isoforms\n')  # filter more
-	subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'collapse1.psl', \
-		args.e, args.q[:-3]+'collapse1.filtered.psl'])
-	subprocess.call(['mv', args.q[:-3]+'collapse1.filtered.psl', args.q[:-3]+'collapse1.psl'])
+	subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'firstpass.psl', \
+		args.e, args.q[:-3]+'firstpass.filtered.psl'])
+	subprocess.call(['mv', args.q[:-3]+'firstpass.filtered.psl', args.q[:-3]+'firstpass.psl'])
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
 		subprocess.call(['python', path+'bin/identify_similar_annotated_isoform.py', \
-			args.q[:-3]+'collapse1.psl', args.f, args.q[:-3]+'collapse1.renamed.psl'])
-		subprocess.call(['mv', args.q[:-3]+'collapse1.renamed.psl', args.q[:-3]+'collapse1.psl'])
+			args.q[:-3]+'firstpass.psl', args.f, args.q[:-3]+'firstpass.renamed.psl'])
+		subprocess.call(['mv', args.q[:-3]+'firstpass.renamed.psl', args.q[:-3]+'firstpass.psl'])
 
-	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'collapse1.psl', \
-		args.g, args.q[:-3]+'collapse1.fa'])
+	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'firstpass.psl', \
+		args.g, args.q[:-3]+'firstpass.fa'])
 	
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
 	try:
 		subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
-			args.q[:-3]+'collapse1.fa', args.r], stdout=open(args.q[:-3]+'collapse1.sam', "w"))
-		subprocess.call([args.sam, 'view', '-q', '1', '-S', args.q[:-3]+'collapse1.sam'], stdout=open(args.q[:-3]+'collapse1.q1.sam', "w"))
+			args.q[:-3]+'firstpass.fa', args.r], stdout=open(args.q[:-3]+'firstpass.sam', "w"))
+		subprocess.call([args.sam, 'view', '-q', '1', '-S', args.q[:-3]+'firstpass.sam'], stdout=open(args.q[:-3]+'firstpass.q1.sam', "w"))
 	except:
 		sys.stderr.write('Possible minimap2/samtools error, specify paths or make sure they are in $PATH\n')
 		sys.exit()
 		
 	sys.stderr.write('Counting isoform expression\n')
-	subprocess.call(['python', path+'bin/count_sam_genes.py', args.q[:-3]+'collapse1.q1.sam', \
-		args.q[:-3]+'collapse1.q1.counts'])
+	subprocess.call(['python', path+'bin/count_sam_genes.py', args.q[:-3]+'firstpass.q1.sam', \
+		args.q[:-3]+'firstpass.q1.counts'])
 	
 	sys.stderr.write('Filtering isoforms by read coverage\n')
-	subprocess.call(['python', path+'bin/match_counts.py', args.q[:-3]+'collapse1.q1.counts', \
-		args.q[:-3]+'collapse1.psl', args.s, args.q[:-3]+'isoforms.psl'])
+	subprocess.call(['python', path+'bin/match_counts.py', args.q[:-3]+'firstpass.q1.counts', \
+		args.q[:-3]+'firstpass.psl', args.s, args.q[:-3]+'isoforms.psl'])
 	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'isoforms.psl', \
 		args.g, args.q[:-3]+'isoforms.fa'])
 
-	# if args.o[-3:] != 'psl':
-	# 	subprocess.call(['pslToBed', args.q[:-3]+'isoforms.psl', args.o])
-	# outpath = args.o[:args.o.rfind('/')+1] if '/' in args.o else ''
 	subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o+'.isoforms.psl'])
 	subprocess.call(['mv', args.q[:-3]+'isoforms.fa', args.o+'.isoforms.fa'])
 	
-	sys.stderr.write('Removing intermediate files/done!\n')
+	sys.stderr.write('Removing intermediate files/done\n')
 	if args.p:
 		subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
 		subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
-	# subprocess.call(['rm', args.q[:-3]+'collapse1.psl'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.fa'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.sam'])
-	subprocess.call(['rm', args.q[:-3]+'collapse1.q1.counts'])
+	# subprocess.call(['rm', args.q[:-3]+'firstpass.psl'])
+	subprocess.call(['rm', args.q[:-3]+'firstpass.fa'])
+	subprocess.call(['rm', args.q[:-3]+'firstpass.sam'])
+	subprocess.call(['rm', args.q[:-3]+'firstpass.q1.counts'])
 
