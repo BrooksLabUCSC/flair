@@ -23,7 +23,7 @@ It is recommended to combine all samples together prior to running FLAIR modules
 
 ## <a name="requirements"></a>Requirements
 
-1. python v2.7+ and python modules: intervaltree, Bio, tqdm, pysam
+1. python v2.7+ and python modules: intervaltree, tqdm, pysam
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
 

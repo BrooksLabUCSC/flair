@@ -35,8 +35,8 @@ if mode == 'align':
 	parser.add_argument('-c', '--chromsizes', type=str, \
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file, used for converting sam to \
 		genome-browser compatible psl file')
-	parser.add_argument('-p', '--psl', \
-		action='store', dest='p', default='', help='also output sam-converted psl')
+	parser.add_argument('-p', '--psl', action='store_true', dest='p', help='also output sam-converted psl')
+	parser.add_argument('-v1.9', '--version1.9', action='store_true', dest='v', help='specify if samtools version 1.9')
 	args = parser.parse_args()
 
 	if args.m[-8:] != 'minimap2':
@@ -57,7 +57,10 @@ if mode == 'align':
 	elif args.p:
 		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl'])
 	subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], stdout=open(args.o+'.unsorted.bam', 'w'))
-	subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', args.o])
+	if args.v:
+		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', '-o', args.o])
+	else:
+		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'unsorted.bam', args.o])
 	subprocess.call([args.sam, 'index', args.o+'.bam'])
 	subprocess.call(['python', path+'bin/bam2Bed12.py', '-i', args.o+'.bam'], stdout=open(args.o+'.bed', 'w'))
 
