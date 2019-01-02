@@ -95,7 +95,7 @@ elif mode == 'correct':
 		subprocess.call(['python', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
 			'-w', args.w, '--keepZero', '-p', args.t, '-o', args.o+'.corrected.bed'])
 
-	subprocess.call([path+'bin/bedToPsl', args.c, args.o+'.corrected.bed', args.o+'.corrected.unnamed.psl'])
+	subprocess.call([path+'bin/bed_to_psl.py', args.c, args.o+'.corrected.bed', args.o+'.corrected.unnamed.psl'])
 
 	subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
 		args.o+'.corrected.unnamed.psl', args.f, args.o+'.corrected.psl'])

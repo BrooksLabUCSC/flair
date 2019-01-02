@@ -39,7 +39,7 @@ Usage:
 ```sh
 python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 ```
-run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads (2) `psl` of raw aligned reads and (3) smoothed `bed12` file of aligned reads.
+run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
 Corrects misaligned splice sites using genome annotations.
@@ -60,14 +60,14 @@ python junctionsFromSam.py -s shortreads.sam -n outname -o outdir
 ```
 the file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`.
 
-Alternatively, splice junctions from STAR 2-pass alignment (`SJ.out.tab`) of short-reads can also be supplied for junctions.
+Alternatively, splice junctions from STAR 2-pass alignment of short-reads (`SJ.out.tab`) can also be supplied for junctions.
 
 ### <a name="collapse"></a>flair collapse
 Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. This can help with sorting for/against annotated isoforms just by `grep [-v] ENST`. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if columns after 21 (1-indexed) are removed. 
 
 Usage:
 ```sh
-python flair.py collapse -r <reads.fq>/<reads.fa> -q <query.psl>/<query.bed12> -g genome.fa [options]
+python flair.py collapse -r <reads.fq>/<reads.fa> -q query.psl -g genome.fa [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs (1) extended `psl` containing the data-specific isoforms and (2) `fasta` file of isoform sequences.
