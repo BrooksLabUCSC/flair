@@ -8,13 +8,6 @@ except:
     print('usage: script.py bedfile chromsizes pslfile')
     sys.exit()
 
-def get_junctions_psl(starts, sizes):
-    junctions = set()
-    if len(starts) != 1:
-        for b in range(len(starts)-1):
-            junctions.add((starts[b]+sizes[b], starts[b+1]))
-        return junctions
-
 chromsizes = {}
 for line in chromsizesfile:
     line = line.rstrip().split('\t')

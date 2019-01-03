@@ -6,7 +6,7 @@ required = parser.add_argument_group('required named arguments')
 required.add_argument('-q', '--query', type=str, default='', required=True, \
 	action='store', dest='q', help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
 parser.add_argument('-o', '--output', type=str, \
-	action='store', dest='o', default='', help='specify output file, psl or bed12')
+	action='store', dest='o', default='', help='specify output file, should agree with query file type')
 parser.add_argument('-w', '--window', default=20, type=int, \
 	action='store', dest='w', help='window size for grouping TSS/TES (20)')
 parser.add_argument('-s', '--support', default=1, type=int, \
@@ -16,12 +16,12 @@ parser.add_argument('-f', '--gtf', default='', type=str, \
 parser.add_argument('-m', '--max_results', default=2, type=int, \
 	action='store', dest='m', help='maximum number of novel TSS or TES picked per isoform (2)')
 parser.add_argument('-n', '--no_redundant', default='none', \
-	action='store', dest='n', help='Report options include: \
-	none: best TSSs/TESs chosen for each unique set of splice junctions; \
+	action='store', dest='n', help='For each unique splice junction chain, report options include: \
+	none: multiple best TSSs/TESs chosen for each unique set of splice junctions, see M; \
 	longest: TSS/TES chosen to maximize length; \
-	best_only: best TSS/TES used in conjunction chosen; \
+	best_only: single best TSS/TES used in conjunction chosen; \
 	longest/best_only override max_results argument immediately before output \
-	resulting in one isoform per unique set of splice junctions (default: not specified)')
+	resulting in one isoform per unique set of splice junctions (default: none)')
 parser.add_argument('-i', '--isoformtss', default=False, \
 	action='store_true', dest='i', help='when specified, TSS/TES for each isoform will be determined \
 	from supporting reads for individual isoforms, not from the gene level (default: not specified)')
@@ -70,6 +70,54 @@ def get_start_end(line):
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
 	return starts[0], starts[-1]+sizes[-1]
 
+def overlap(coord0, coord1, tol=1):
+	coord0, coord1 = sorted([coord0, coord1], key = lambda x: x[0])
+	return (coord0[0] < coord1[0] and coord1[0] < coord0[1] - tol)
+
+def add_se(sedict, tss, tes, line):
+	loci = {}  # altered loci
+	sedict_coords = list(sedict.keys())
+	for coord in sedict_coords:  # coordinates of a locus of single exon reads
+		if overlap((tss, tes), coord, 5):
+			if tss not in sedict[coord]['tss']:
+				sedict[coord]['tss'][tss] = 0
+			if tss not in sedict[coord]['tss_tes']:
+				sedict[coord]['tss_tes'][tss] = {}
+			if tes not in sedict[coord]['tss_tes'][tss]:
+				sedict[coord]['tss_tes'][tss][tes] = 0
+			if not loci:
+				sedict[coord]['tss'][tss] += 1  # add tss/tes data to existing locus
+				sedict[coord]['tss_tes'][tss][tes] += 1
+				newcoord = tss if tss < coord[0] else coord[0], tes if tes > coord[1] else coord[1]
+				loci[newcoord] = sedict.pop(coord)
+			else:
+				newlocus = sedict.pop(coord)
+				oldlocus = list(loci.keys())[0]  # previous locus the tss/tes overlapped with
+				if tss in newlocus['tss']:
+					newlocus['tss'][tss] += 1
+					if tes in newlocus['tss_tes'][tss]:
+						newlocus['tss_tes'][tss][tes] += 1
+					else:
+						newlocus['tss_tes'][tss][tes] = loci[oldlocus]['tss_tes'][tss][tes] + 1
+				loci[oldlocus]['tss_tes'].update(newlocus['tss_tes'])  # combine previous and current loci
+				loci[oldlocus]['tss'].update(newlocus['tss'])
+				newcoord = oldlocus[0] if oldlocus[0] < coord[0] else coord[0],\
+					oldlocus[1] if oldlocus[1] > coord[1] else coord[1]  # combined locus name
+				loci[newcoord] = loci.pop(oldlocus)  # add all info under combined locus name\
+	if loci:
+		sedict.update(loci)
+	else:  # define new locus
+		locus = (tss,tes)
+		sedict[locus] = {}
+		sedict[locus]['tss'] = {}
+		sedict[locus]['tss'][tss] = 1
+		sedict[locus]['tss_tes'] = {}
+		sedict[locus]['tss_tes'][tss] = {}
+		sedict[locus]['tss_tes'][tss][tes] = 1
+		sedict[locus]['line'] = line
+		sedict[locus]['bounds'] = (tss, tes)
+	return sedict
+
 def find_best_tss(sites, total, finding_tss):
 	nearby = dict.fromkeys(sites, 0)  # key site, value number of supporting reads window
 	wnearby = dict.fromkeys(sites, 0)  # key site, value weighted number of supporting reads window
@@ -93,55 +141,6 @@ def find_best_tss(sites, total, finding_tss):
 		if abs(s - bestsite[0]) <= window:
 			sites.pop(s)
 	return sites, bestsite
-
-def overlap(coord0, coord1, tol=1):
-	coord0, coord1 = sorted([coord0, coord1], key = lambda x: x[0])
-	return (coord0[0] < coord1[0] and coord1[0] < coord0[1] - tol)
-
-def add_se(sedict, tss, tes, line):
-	added = False
-	loci = {}
-	for coord in sedict.keys():
-		if overlap((tss, tes), coord, 5):
-			if tss not in sedict[coord]['tss']:
-				sedict[coord]['tss'][tss] = 0
-			if tss not in sedict[coord]['tss_tes']:
-				sedict[coord]['tss_tes'][tss] = {}
-			if tes not in sedict[coord]['tss_tes'][tss]:
-				sedict[coord]['tss_tes'][tss][tes] = 0
-			if not added:
-				sedict[coord]['tss'][tss] += 1  # tss/tes pair fit in this locus
-				sedict[coord]['tss_tes'][tss][tes] += 1
-				loci[coord] = sedict.pop(coord)
-				newcoord = tss if tss < coord[0] else coord[0], tes if tes > coord[1] else coord[1]
-			else:
-				newlocus = sedict.pop(coord)  # this locus overlaps with another locus
-				if tss in newlocus['tss']:
-					newlocus['tss'][tss] += 1  # add tss/tes pair to this locus
-					if tes in newlocus['tss_tes'][tss]:
-						newlocus['tss_tes'][tss][tes] += 1
-					else:
-						newlocus['tss_tes'][tss][tes] = loci[oldlocus]['tss_tes'][tss][tes]
-				oldlocus = list(loci.keys())[0]
-				loci[oldlocus]['tss_tes'].update(newlocus['tss_tes'])  # add this locus to the other locus
-				loci[oldlocus]['tss'].update(newlocus['tss'])
-				newcoord = oldlocus[0] if oldlocus[0] < coord[0] else coord[0],\
-					oldlocus[1] if oldlocus[1] > coord[1] else coord[1]  # combined locus name
-				loci[newcoord] = loci.pop(oldlocus)  # add all info under combined locus name
-			sedict.update(loci)
-			added = True
-	if not added:
-		locus = (tss,tes)
-		sedict[locus] = {}
-		sedict[locus]['tss'] = {}
-		sedict[locus]['tss'][tss] = 1
-		sedict[locus]['tss_tes'] = {}
-		sedict[locus]['tss_tes'][tss] = {}
-		sedict[locus]['tss_tes'][tss][tes] = 1
-		sedict[locus]['line'] = line
-		sedict[locus]['bounds'] = (tss, tes)
-	return sedict
-
 
 def find_tsss(sites, finding_tss=True, max_results=2, chrom='', junccoord=''):
 	""" Finds the best TSSs within Sites. If find_tss is False, some 
@@ -204,30 +203,6 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 			ends += [(tss[0], tes[0], tes[2], tss[3], tes[3])]
 	return ends
 
-def single_exon_pairs(sedict, chrom):
-	""" Collapse specifically for single-exon isoforms. """
-	found_tss = find_tsss(sedict['tss'], finding_tss=True, max_results=1e8, chrom=chrom)
-	if not found_tss:
-		return ''
-	pairs = []
-	sites_tes_all = sedict['tss_tes']
-	for tss in found_tss:
-		specific_tes = {}  # the specific end sites associated with this tss
-		for tss_ in sites_tes_all:
-			if abs(tss_ - tss[0]) <= window:
-				for tes in sites_tes_all[tss_]:
-					if tes not in specific_tes:
-						specific_tes[tes] = 0
-					specific_tes[tes] += sites_tes_all[tss_][tes]
-		found_tes = find_tsss(specific_tes, finding_tss=False, max_results=1, chrom=chrom)
-		for tes in found_tes:
-			if tss[0] in tss_to_line[chrom]:
-				line = tss_to_line[chrom][tss[0]]
-			else:
-				line = tss_to_line[chrom][tss[4]]
-			pairs += [(tss[0], tes[0], tes[2], line)]
-	return pairs
-
 def edit_line(line, tss, tes, blocksize=''):
 	if blocksize:
 		line[18] = str(blocksize) + ','
@@ -258,9 +233,6 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 		return line
 
 	bsizes = [int(x) for x in line[10].split(',')[:-1]]
-
-	oldbsizes = bsizes
-
 	bstarts = [int(x) for x in line[11].split(',')[:-1]]
 	tstart = int(line[1])  # current chrom start
 	tend = int(line[2])
@@ -274,7 +246,7 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 	line[11] = ','.join([str(x - int(line[1])) for x in bstarts])+','
 	return line
 
-annotends = {}  # all annotated TSS/TES sites per chromosome
+annotends = {}  # all annotated TSS/TES sites per chromosome from GTF
 if args.f:
 	for line in gtf:
 		if line.startswith('#'):
@@ -321,13 +293,12 @@ for line in psl:
 		isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
 	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
 
+
 if not args.quiet:
 	sys.stderr.write('Read data extracted, collapsing\n')
 
 with open(args.o, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
-	allends = {}  # counts of TSSs/TESs by chromosome
-	writtenisos = {}
 
 	senames = {}
 	for chrom in singleexon:
@@ -346,13 +317,15 @@ with open(args.o, 'wt') as outfile:
 					edited_line = edit_line(list(line), tss, tes, tes-tss)
 				else:
 					edited_line = edit_line_bed12(list(line), tss, tes, tes-tss)
-				if i >= 1:
-					if pslout:  # to avoid redundant names for isoforms with the same junctions
+				if i >= 1: # to avoid redundant names for isoforms from the same general locus
+					if pslout:
 						edited_line[9] = name+'-'+str(i)	
 					else:
 						edited_line[3] = name+'-'+str(i)
 				writer.writerow(edited_line)
 
+	allends = {}  # counts of all TSSs/TESs by chromosome
+	writtenisos = {}  # isoforms to be written
 	for chrom in isoforms:
 		if chrom not in allends:
 			allends[chrom] = {}
@@ -364,8 +337,8 @@ with open(args.o, 'wt') as outfile:
 				writtenisos[chrom][jset] = []
 			line = isoforms[chrom][jset]['line']
 			junccoord = isoforms[chrom][jset]['junccoord']
-			ends = find_best_sites(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'], \
-				junccoord, chrom)
+			ends = find_best_sites(isoforms[chrom][jset]['tss'], \
+				isoforms[chrom][jset]['tss_tes'], junccoord, chrom)
 
 			if args.i and args.n == 'longest':
 				tss = sorted(ends, key=lambda x: x[0])[0][0]
@@ -391,8 +364,8 @@ with open(args.o, 'wt') as outfile:
 					edited_line = edit_line(list(line), tss, tes)
 				else:
 					edited_line = edit_line_bed12(list(line), tss, tes)
-				if i >= 1:
-					if pslout:  # to avoid redundant names for isoforms with the same junctions
+				if i >= 1:  # to avoid redundant names for isoforms with the same junctions
+					if pslout:
 						edited_line[9] = name+'-'+str(i)	
 					else:
 						edited_line[3] = name+'-'+str(i)
@@ -462,8 +435,4 @@ with open(args.o, 'wt') as outfile:
 					writer.writerow(newline[:-2])
 				else:
 					writer.writerow(newline[:-1])		
-
-
-
-
 

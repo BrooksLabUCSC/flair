@@ -19,7 +19,7 @@ FLAIR can be run optionally with short-read data to help increase splice site ac
 <!-- .element height='75%' width='75%' -->
 <img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='650'/>
 
-It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. It is also good to note that bed12 and PSL can be converted easily using kentUtils bedToPsl or pslToBed.
+It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. It is also good to note that bed12 and PSL can be converted easily using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed.
 
 ## <a name="requirements"></a>Requirements
 
