@@ -20,8 +20,13 @@ from __future__ import print_function
 import os, sys
 from multiprocessing import Pool
 from tqdm import *
-from subprocess import Popen
+import subprocess
 import shutil
+
+scriptPath = os.path.realpath(__file__)
+path = "/".join(scriptPath.split("/")[:-1])
+helperScript = path + "/" + "ssPrep.py"
+
 ########################################################################
 # CommandLine
 ########################################################################
@@ -191,13 +196,19 @@ def runCMD(x):
 
     prefix,juncs,reads, rs = x
     
+    
     if rs:
-        p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
+        
+        p = subprocess.Popen("%s %s -i %s -j %s -o %s --correctStrand" % (sys.executable, helperScript, reads,juncs,prefix), shell=True)
+        #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
         p.wait()
         return
     else:
-        p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s" % (reads,juncs,prefix), shell=True)
+        
+        p = subprocess.Popen("%s %s -i %s -j %s -o %s " % (sys.executable, helperScript, reads,juncs,prefix), shell=True)
+        #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
         p.wait()
+        
         return
 
 def main():
@@ -247,7 +258,7 @@ def main():
             if chrom not in chromosomes:
                 if chrom not in skippedChroms:
                     skippedChroms.add(chrom)
-                    print("%s not found in annotations. Skipping chromosome..." % chrom, file=sys.stderr)
+                    tqdm.write("Reference sequence not found in annotations, skipping: %s" % (chrom), file=sys.stderr)
                     continue
             else:
                 if chrom not in outDict:
