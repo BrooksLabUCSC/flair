@@ -66,7 +66,7 @@ class CommandLine(object) :
         self.parser.add_argument('-p', "--threads", action = 'store', required=False, type=int, default = 2, help='Number of threads.')
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
-        self.parser.add_argument("--cleanup", action = 'store_false', required=False, default = True, help='Remove teomprary files with correction info.')
+        self.parser.add_argument("--keepTemp", action = 'store_false', required=False, default = True, help='Keep temporary/intermediate files.')
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -114,7 +114,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes):
 
  
     with open(bedJuncs,'r') as bedLines:
-        for line in tqdm(bedLines, total=lineNum, desc="Adding splice sites from %s  to interval tree" % bedJuncs, dynamic_ncols=True) if verbose else bedLines:
+        for line in bedLines:
             cols = line.rstrip().split()
             chrom, c1, c2, strand = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol]
             chromosomes.add(chrom)
@@ -165,7 +165,7 @@ def gtfToSSBed(file):
     txnList = list(exons.keys()) 
     juncs = dict()
 
-    for exonInfo in tqdm(txnList, total=len(txnList), desc="Splitting junctions by chromosome", dynamic_ncols=True) if verbose else txnList:
+    for exonInfo in tqdm(txnList, total=len(txnList), desc="Splitting junctions from GTF by chromosome", dynamic_ncols=True) if verbose else txnList:
         chrom, txn, strand = exonInfo
 
         if chrom not in juncs:
@@ -224,7 +224,7 @@ def main():
     wiggle        = myCommandLine.args['wiggleWindow']
     threads       = myCommandLine.args['threads']
     outFile       = myCommandLine.args['output_fname']
-    cleanup       = myCommandLine.args['cleanup']
+    cleanup       = myCommandLine.args['keepTemp']
     resolveStrand = myCommandLine.args['correctStrand']
 
     # There are a few functions that evaluate what verbose is defined as.
@@ -240,7 +240,7 @@ def main():
 
 
     annotations = dict()
-    for chrom, data in tqdm(juncs.items(), desc="Preparing annoated junctions for correction.", total=len(list(juncs.keys())), dynamic_ncols=True) if verbose else juncs.items():
+    for chrom, data in tqdm(juncs.items(), desc="Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True) if verbose else juncs.items():
         annotations[chrom] = "%s_known_juncs.bed" % chrom
         with open("%s_known_juncs.bed" % chrom,"w") as out:
             for k,v in data.items():
@@ -252,7 +252,7 @@ def main():
     readDict = dict()
     with open(bed) as lines:
         outDict = dict()
-        for line in tqdm(lines, desc="Preparing reads for correction.", dynamic_ncols=True) if verbose else lines:
+        for line in tqdm(lines, desc="Preparing reads for correction", dynamic_ncols=True) if verbose else lines:
             cols  = line.rstrip().split()
             chrom = cols[0]
             if chrom not in chromosomes:
