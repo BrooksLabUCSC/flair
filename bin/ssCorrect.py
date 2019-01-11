@@ -258,7 +258,7 @@ def main():
             if chrom not in chromosomes:
                 if chrom not in skippedChroms:
                     skippedChroms.add(chrom)
-                    tqdm.write("Reference sequence not found in annotations, skipping: %s" % (chrom), file=sys.stderr)
+                    if verbose: tqdm.write("Reference sequence not found in annotations, skipping: %s" % (chrom), file=sys.stderr)
                     continue
             else:
                 if chrom not in outDict:
