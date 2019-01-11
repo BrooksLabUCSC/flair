@@ -66,6 +66,7 @@ class CommandLine(object) :
         self.parser.add_argument('-p', "--threads", action = 'store', required=False, type=int, default = 2, help='Number of threads.')
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
+        self.parser.add_argument("--progress", action = 'store_true', required=False, default = False, help='Display progress')
         self.parser.add_argument("--keepTemp", action = 'store_false', required=False, default = True, help='Keep temporary/intermediate files.')
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
@@ -82,7 +83,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes):
 
     
     lineNum = 0
-    if verbose: print("Processing additional junction file  %s ..." % (bedJuncs), file=sys.stderr) 
+    if verbose: print("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs), file=sys.stderr) 
 
     with open(bedJuncs) as l:
         for num,ll in enumerate(l,0):
@@ -165,7 +166,7 @@ def gtfToSSBed(file):
     txnList = list(exons.keys()) 
     juncs = dict()
 
-    for exonInfo in tqdm(txnList, total=len(txnList), desc="Splitting junctions from GTF by chromosome", dynamic_ncols=True) if verbose else txnList:
+    for exonInfo in tqdm(txnList, total=len(txnList), desc="Step 1/5: Splitting junctions from GTF by chromosome", dynamic_ncols=True, position=1) if progress else txnList:
         chrom, txn, strand = exonInfo
 
         if chrom not in juncs:
@@ -232,6 +233,8 @@ def main():
     global verbose
     verbose = myCommandLine.args['quiet']
 
+    global progress
+    progress = myCommandLine.args['progress']
     # Convert gtf to bed and split by cromosome.
     juncs, chromosomes = gtfToSSBed(gtf)
 
@@ -240,7 +243,7 @@ def main():
 
 
     annotations = dict()
-    for chrom, data in tqdm(juncs.items(), desc="Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True) if verbose else juncs.items():
+    for chrom, data in tqdm(juncs.items(), desc="Step 3/5: Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True, position=1) if progress else juncs.items():
         annotations[chrom] = "%s_known_juncs.bed" % chrom
         with open("%s_known_juncs.bed" % chrom,"w") as out:
             for k,v in data.items():
@@ -252,7 +255,7 @@ def main():
     readDict = dict()
     with open(bed) as lines:
         outDict = dict()
-        for line in tqdm(lines, desc="Preparing reads for correction", dynamic_ncols=True) if verbose else lines:
+        for line in tqdm(lines, desc="Step 4/5: Preparing reads for correction", dynamic_ncols=True, position=1) if progress else lines:
             cols  = line.rstrip().split()
             chrom = cols[0]
             if chrom not in chromosomes:
@@ -276,7 +279,7 @@ def main():
         cmds.append((chrom,juncs,reads, resolveStrand))
 
     p = Pool(threads)
-    for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Correcting Splice Sites", dynamic_ncols=True) if verbose else p.imap(runCMD,cmds):
+    for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if progress else p.imap(runCMD,cmds):
         pass
 
     with open("%s_all_inconsistent.bed" % outFile,'wb') as inconsistent:
@@ -296,6 +299,6 @@ def main():
                 os.remove("%s_corrected.bed" % chrom)
     
 
-
+    print("\n")
 if __name__ == "__main__":
     main()
