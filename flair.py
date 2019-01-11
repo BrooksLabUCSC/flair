@@ -29,12 +29,14 @@ if mode == 'align':
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='flair.aligned', help='output file name base')
 	parser.add_argument('-t', '--threads', type=str, \
-		action='store', dest='t', default='4', help='Minimap2 number of threads (4)')
+		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
 	parser.add_argument('-sam', '--samtools', \
 		action='store', dest='sam', default='samtools', help='samtools executable path if not in $PATH')
 	parser.add_argument('-c', '--chromsizes', type=str, \
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file, used for converting sam to \
 		genome-browser compatible psl file')
+	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to use \
+		native-RNA specific alignment parameters for minimap2')
 	parser.add_argument('-p', '--psl', action='store_true', dest='p', help='also output sam-converted psl')
 	parser.add_argument('-v1.9', '--version1.9', action='store_true', dest='v', help='specify if samtools version 1.9')
 	args = parser.parse_args()
@@ -44,23 +46,33 @@ if mode == 'align':
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
-	sys.stderr.write('Aligning to the genome with minimap2\n')
+
 	try:
-		subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))
+		if args.n:
+			subprocess.call([args.m, '-ax', 'splice', '-uf', '-k14', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))			
+		else:
+			subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))
 	except:
 		sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
 		sys.exit()
 
-	sys.stderr.write('Converting output sam\n')
-	if args.p and args.c:
+	if args.p and args.c:  # sam to psl if desired
 		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl', args.c])
 	elif args.p:
 		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl'])
-	subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], stdout=open(args.o+'.unsorted.bam', 'w'))
-	if args.v:
+	
+	sys.stderr.write('Converting sam output to bed\n')
+	if subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], stdout=open(args.o+'.unsorted.bam', 'w')):
+		# calls samtools view, if an error code that != 0 results, then exit out of flair.py
+		sys.stderr.write('Possible issue with samtools executable\n')
+		sys.exit()
+
+	if args.v:  # samtools verison 1.9
 		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', '-o', args.o])
-	else:
-		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'unsorted.bam', args.o])
+	elif subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'unsorted.bam', args.o]):
+		sys.stderr.write('If using samtools v1.9, please specify -v1.9 argument\n')
+		sys.exit()
+
 	subprocess.call([args.sam, 'index', args.o+'.bam'])
 	subprocess.call(['python', path+'bin/bam2Bed12.py', '-i', args.o+'.bam'], stdout=open(args.o+'.bed', 'w'))
 
@@ -77,29 +89,29 @@ elif mode == 'correct':
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
 	parser.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
 		help='bed format splice junctions from short-read sequencing')
+	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to keep\
+		the strand of a read consistent after correction')
 	parser.add_argument('-t', '--threads', type=str, \
-		action='store', dest='t', default='4', help='splice site correct script number of threads (4)')
+		action='store', dest='t', default='4', help='splice site correction script number of threads (4)')
 	parser.add_argument('-w', '--window', action='store', dest='w', default='10', \
 		help='window size for correcting splice sites (W=10)')
-	# parser.add_argument('-r', '--rna', default=False, \
-	# 	action='store_true', dest='r', help='specify if using native RNA data (default: not specified)')
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='flair', help='output name base')
 	args = parser.parse_args()
 
-	# sys.stderr.write('Correcting reads in {}\n'.format(args.q))
+	correction_cmd = ['python', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
+			'-w', args.w, '-p', args.t, '-o', args.o, '--quiet', '--progress']
+	if not args.n:
+		correction_cmd += ['--correctStrand']
 	if args.j:
-		subprocess.call(['python', path+'bin/ssCorrect.py', '-j', args.j, '-i', args.q, '-g', args.f, \
-			'-w', args.w, '--keepZero', '-p', args.t, '-o', args.o+'.corrected.bed'])
-	else:
-		subprocess.call(['python', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
-			'-w', args.w, '--keepZero', '-p', args.t, '-o', args.o+'.corrected.bed'])
+		correction_cmd += ['-j', args.j]
+	subprocess.call(correction_cmd)
 
-	subprocess.call([path+'bin/bed_to_psl.py', args.c, args.o+'.corrected.bed', args.o+'.corrected.unnamed.psl'])
+	subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', args.o+'_all_corrected.unnamed.psl'])
 
 	subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
-		args.o+'.corrected.unnamed.psl', args.f, args.o+'.corrected.psl'])
-	subprocess.call(['rm', args.o+'.corrected.unnamed.psl'])
+		args.o+'_all_corrected.unnamed.psl', args.f, args.o+'_all_corrected.psl'])
+	subprocess.call(['rm', args.o+'_all_corrected.unnamed.psl'])
 
 elif mode == 'collapse':
 	parser = argparse.ArgumentParser(description='flair-collapse parse options', \
@@ -137,7 +149,7 @@ elif mode == 'collapse':
 		action='store', dest='e', help='Report options include: \
 		default--full-length isoforms only \
 		comprehensive--default set + partial isoforms \
-		ginormous--comprehensive + single exon subset isoforms (E=default)')
+		ginormous--comprehensive + single exon subset isoforms')
 	parser.add_argument('-o', '--output', default='flair.collapse', \
 		action='store', dest='o', help='output file name base for FLAIR isoforms')
 	args = parser.parse_args()
@@ -159,17 +171,21 @@ elif mode == 'collapse':
 		precollapse = args.q[:-3]+'promotersupported.psl'
 
 	sys.stderr.write('Collapsing isoforms\n')
-	subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-		'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl'])
+	if subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
+		'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl']):
+		sys.exit()
+
 	sys.stderr.write('Filtering isoforms\n')  # filter more
-	subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'firstpass.psl', \
-		args.e, args.q[:-3]+'firstpass.filtered.psl'])
+	if subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'firstpass.psl', \
+		args.e, args.q[:-3]+'firstpass.filtered.psl']):
+		sys.exit()
 	subprocess.call(['mv', args.q[:-3]+'firstpass.filtered.psl', args.q[:-3]+'firstpass.psl'])
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
-		subprocess.call(['python', path+'bin/identify_similar_annotated_isoform.py', \
-			args.q[:-3]+'firstpass.psl', args.f, args.q[:-3]+'firstpass.renamed.psl'])
+		if subprocess.call(['python', path+'bin/identify_similar_annotated_isoform.py', \
+			args.q[:-3]+'firstpass.psl', args.f, args.q[:-3]+'firstpass.renamed.psl']):
+			sys.exit()
 		subprocess.call(['mv', args.q[:-3]+'firstpass.renamed.psl', args.q[:-3]+'firstpass.psl'])
 
 	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'firstpass.psl', \

@@ -15,15 +15,13 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
-<!-- ![flair_workflow](misc/flair_workflow_snaked.png) -->
-<!-- .element height='75%' width='75%' -->
-<img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='650'/>
+<img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='680'/>
 
-It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. It is also good to note that bed12 and PSL can be converted easily using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed.
+It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. It is also good to note that bed12 and PSL can be converted easily using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py`.
 
 ## <a name="requirements"></a>Requirements
 
-1. python v2.7+ and python modules: intervaltree, tqdm, pysam
+1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
 

@@ -5,7 +5,7 @@ try:
     bed = open(sys.argv[2])
     outfilename = sys.argv[3]
 except:
-    print('usage: script.py bedfile chromsizes pslfile')
+    print('usage: script.py chromsizes bedfile pslfile')
     sys.exit()
 
 chromsizes = {}
