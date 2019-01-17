@@ -68,7 +68,7 @@ if mode == 'align':
 		sys.exit()
 
 	if args.v:  # samtools verison 1.9
-		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', '-o', args.o])
+		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', '-o', args.o+'.bam'])
 	elif subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'unsorted.bam', args.o]):
 		sys.stderr.write('If using samtools v1.9, please specify -v1.9 argument\n')
 		sys.exit()
