@@ -65,7 +65,7 @@ def get_sequence_after_pos(entry, seq, pos, strand='+'):
 	if strand == '+':
 		if len(blocksizes) > 1:
 			blocksizes = blocksizes[:-1]  # because of the last exon exon junction rule
-			blockstarts = blockstarts[:-1]
+			blockstarts = blockstarts[:-1]  # this also prevents assessment of single exon transcripts
 		pull = False
 		for start, size in zip(blockstarts, blocksizes):
 			if pull:
@@ -168,9 +168,9 @@ for line in gtf:
 	tss[chrom][strand] += [int(start)]
 
 unproductive = 0
-valid_transcripts = 0
+valid_transcripts = 0.
 seq, chrom = '', ''
-noM = 0
+noM = 0  # no start codon
 
 for line in genome:
 	line = line.rstrip()
@@ -191,7 +191,7 @@ for line in genome:
 				elif strand == '+':
 					forseq = get_sequence_after_pos(entry, seq, pos-1)
 					bestprot = translate_seq(forseq)
-				elif strand == '.':
+				elif strand == '.':  # infer strand based on ORF length...
 					revseq = revcomp(get_sequence_after_pos(entry, seq, max(pos), '-'))
 					bestprotrev = translate_seq(revseq)
 					forseq = get_sequence_after_pos(entry, seq, min(pos)-1)
@@ -202,8 +202,9 @@ for line in genome:
 					else:
 						bestprot = bestprotfor
 						entry[8] = '+'
+
 				if not bestprot:  # single exon transcript
-					print('\t'.join(entry+['2']))  # single exon transcript, can't be assessed
+					print('\t'.join(entry+['2']))  # single exon transcript, can't be assessed using existing method
 					continue
 				if not bestprot or bestprot[0] != 'M':
 					noM += 1
@@ -217,12 +218,12 @@ for line in genome:
 					unproductive += 1
 					continue
 				print('\t'.join(entry+['0']))
-		chrom = line[1:]
+		chrom = line.split()[0][1:]
 		seq = ''
 	else:
 		seq += line
 
 # sys.stderr.write('# reads with no M: ' + str(noM)+'\n')
 # sys.stderr.write('valid transcripts # ' + str(valid_transcripts)+'\n')
-sys.stderr.write('Unproductive proportion estimate ' + str(unproductive / float(valid_transcripts)) + '\n')
+sys.stderr.write('Unproductive proportion estimate ' + str(unproductive / (valid_transcripts + unproductive)) + '\n')
 

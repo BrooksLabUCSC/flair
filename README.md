@@ -88,7 +88,7 @@ Usage:
 ```sh
 python mark_intron_retention.py isoforms.psl isoforms.ir.psl coords.txt
 ```
-Outputs (1) an extended `psl` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively; (2) `txt` file of intron retentions with format `isoform name` `chrom` `intron 5'` `intron 3'`.
+Outputs (1) an extended `psl` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively; (2) `txt` file of intron retentions with format `isoform name` `chrom` `intron 5'` `intron 3'`. Please ensure that the chromosome names in
 
 ### mark_productivity.py
 

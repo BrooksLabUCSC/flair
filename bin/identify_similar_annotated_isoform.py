@@ -131,5 +131,5 @@ with open(outfilename, 'wt') as outfile:
 					line[9] = transcript + '_' + name + '-' + str(transcript_counts[transcript])
 			writer.writerow(line)
 			line[9] = name
-sys.stderr.write('{} out of {} isoforms have novel splice junction chains\n'.format(novel, total))
+# sys.stderr.write('{} out of {} isoforms have novel splice junction chains\n'.format(novel, total))
 
