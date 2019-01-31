@@ -9,9 +9,14 @@ elif len(sys.argv) > 1 and sys.argv[1] == 'correct':
 	mode = 'correct'
 elif len(sys.argv) > 1 and sys.argv[1] == 'collapse':
 	mode = 'collapse'
+elif len(sys.argv) > 1 and sys.argv[1] == 'quantify':
+	mode = 'quantify'
+elif len(sys.argv) > 1 and sys.argv[1] == 'diffExp':
+	mode = 'diffExp'
+
 else:
 	sys.stderr.write('usage: python flair.py <mode> --help \n')
-	sys.stderr.write('modes: align, correct, collapse\n')
+	sys.stderr.write('modes: align, correct, collapse, quantify, diffExp\n')
 	sys.exit()
 
 path = sys.argv[0][:sys.argv[0].rfind('/')+1] if '/' in sys.argv[0] else ''
@@ -221,4 +226,110 @@ elif mode == 'collapse':
 	subprocess.call(['rm', args.q[:-3]+'firstpass.fa'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.sam'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.q1.counts'])
+
+elif mode == 'quantify':
+	parser = argparse.ArgumentParser(description='flair-quantify parse options', \
+				usage='python flair.py quantify -r reads_manifest.tsv -g genome.fa [options]')
+	parser.add_argument('quantify')
+	required = parser.add_argument_group('required named arguments')
+	required.add_argument('-r', '--reads_manifest', action='store', dest='r', \
+		type=str, required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
+	required.add_argument('-i', '--isoforms', action='store', dest='i', \
+		type=str, required=True, help='FastA of FLAIR collapsed isoforms')
+	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
+		action='store', dest='m', help='path to minimap2 if not in $PATH')
+	parser.add_argument('-t', '--threads', type=str, \
+		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
+	args = parser.parse_args()
+
+	try:
+		import numpy as np
+	except:
+		sys.stderr.write('Numpy import error. Please pip install numpy. Exiting.\n')
+		sys.exit(1)
+
+	if args.m[-8:] != 'minimap2':
+		if args.m[-1] == '/':
+			args.m += 'minimap2'
+		else:
+			args.m += '/minimap2'
+
+
+	samData = list()
+	with open(args.r) as lines:
+		for line in lines:
+			cols = line.rstrip().split('\t')
+			if len(cols)<4:
+				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
+				sys.exit(1)
+			sample, group, batch, readFile = cols
+			readFileRoot = readFile.split("/")[-1]
+			samData.append(cols + [readFileRoot + '.sam'])
+		
+		samData.sort(key=lambda x: x[1], reverse=True)
+
+		for num,sample in enumerate(samData,0):
+			sys.stderr.write("Step 1/3. Aligning sample %s_%s: %s/%s \r" % (sample[0],sample[2],num+1,len(samData)))
+			try:
+				subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.i, sample[-2]], stdout=open(sample[-1], 'w'), stderr=open(sample[-1]+".mm2_Stderr.txt", 'w'))			
+			except:
+				sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
+				sys.exit()
+			sys.stderr.flush()
+
+	countData = dict()
+	for num,data in enumerate(samData):
+		sample, group, batch, readFile, samOut = data
+		sys.stderr.write("Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r" % (sample,batch,num+1,len(samData)))
+		with open(samOut) as lines:
+			for line in lines:
+				if line[0] == "@": continue
+				cols = line.split()
+				aFlag,iso,mapq = cols[1],cols[2],cols[4]
+
+				if aFlag == "16" or aFlag == "0": pass
+				else: continue
+				if iso not in countData: countData[iso] = np.zeros(len(samData))
+				countData[iso][num] += 1 
+
+		sys.stderr.flush()
+		#os.remove(samOut)
+	sys.stderr.write("Step 3/3. Writing counts to count_matrix.tsv \r")
+	countMatrix = open("count_matrix.tsv",'w')
+
+	countMatrix.write("ids\t%s\n" % "\t".join(["_".join(x[:3]) for x in samData]))
+
+	features = sorted(list(countData.keys()))
+	for f in features:
+		
+		countMatrix.write("%s\t%s\n" % (f,"\t".join(str(x) for x in countData[f])))
+	countMatrix.close()
+	sys.stderr.flush()
+	sys.stderr.write("\n")
+
+elif mode == 'diffExp':
+	parser = argparse.ArgumentParser(description='flair-quantify parse options', \
+				usage='python flair.py diffExp -q count_matrix.tsv -o out_dir [options]')
+	parser.add_argument('quantify')
+	required = parser.add_argument_group('required named arguments')
+	
+	required.add_argument('-q', '--qant_matrix', action='store', dest='q', \
+		type=str, required=True, help='FastA of FLAIR collapsed isoforms')
+	required.add_argument('--out_dir', action='store', dest='o', \
+		type=str, required=True, help='Output directory for tables and plots.')
+	required.add_argument('--exp_thresh', action='store', dest='e', \
+		type=int, required=False, default=10, help='Read count expression threshold. Isoforms in which both conditions contain less than N reads are filtered out (Default N=10)')
+
+	args = parser.parse_args()
+
+	scriptsBin = "/".join(os.path.realpath(__file__).split("/")[:-1])  + "/bin/"
+	runDE      = scriptsBin + "deFLAIR.py"
+
+	#try:
+	subprocess.call([sys.executable, runDE, '--filter', str(args.e), '--outDir', args.o, '--matrix', args.q], stderr=open("diffExp_stderr_out.txt",'w'))			
+	#except:
+	#	sys.stderr.write("Misformatted or missing quant table. See manual for quant_matrix formatting. Exit. \n")
+	#	sys.exit(1)
+
+
 
