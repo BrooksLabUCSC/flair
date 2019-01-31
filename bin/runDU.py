@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 ########################################################################
-# File: runDE.py
-#  executable: runDE.py
+# File: runDU.py
+#  executable: runDU.py
 # Purpose: 
 #
 #          
@@ -50,13 +50,12 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' runDE.py - a rpy2 convenience tool to run DESeq2.',
+        self.parser = argparse.ArgumentParser(description = ' runDU.py - a rpy2 convenience tool to run DRIMseq.',
                                              epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
                                              usage = '%(prog)s ')
         # Add args
-        
         self.parser.add_argument("--group1"    , action = 'store', required=True, 
                                     help='Sample group 1.')
         self.parser.add_argument("--group2"    , action = 'store', required=True, 
@@ -72,15 +71,14 @@ class CommandLine(object) :
         self.parser.add_argument("--formula"    , action = 'store', required=True, 
                                     help='Formula design matrix.')
 
+
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
             self.args = vars(self.parser.parse_args(inOpts))
 
+
 # main
-
-
-
 def main():
     '''
     maine
@@ -97,94 +95,81 @@ def main():
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
 
-
-
-
-    # make the quant DF
-    quantDF  = pd.read_table(matrix, header=0, sep='\t', index_col=0)
-    df = pandas2ri.py2ri(quantDF)
-    #print(df.head())
-    # import formula
-    formulaDF     = pd.read_csv(formula,header=0, sep="\t",index_col=0)
-    sampleTable = pandas2ri.py2ri(formulaDF)
-
-    design = Formula("~ batch + condition")
-    #print(sampleTable)
-
-    # import DESeq2
+    # import
     from rpy2.robjects.packages import importr
     import rpy2.robjects.lib.ggplot2 as ggplot2
     methods   = importr('methods')
-    deseq     = importr('DESeq2')
-    grdevices = importr('grDevices')
-    qqman     = importr('qqman')
+    drim      = importr('DRIMSeq')
 
+    # get quant table and formula table
+    quantDF  = pd.read_table(matrix, header=0, sep='\t', index_col=0)
+    df       = pandas2ri.py2ri(quantDF)
 
+    formulaDF = pd.read_csv(formula,header=0, sep="\t")
 
-    dds = deseq.DESeqDataSetFromMatrix(countData = df,
-                                        colData = sampleTable,
-                                        design = design)
+    pydf      = pandas2ri.py2ri(formulaDF)
 
-    dds  = deseq.DESeq(dds)
-    cont = robjects.r["grep"]("condition",robjects.r['resultsNames'](dds),value=True)
-    #print(cont)
-    # get results; orient the results for groupA vs B
-    res = deseq.results(dds, name=cont)
-    # results with shrinkage
-    resLFC = deseq.lfcShrink(dds, coef=cont, type="apeglm")
-    resdf  = robjects.r['as.data.frame'](res)
+    # Convert pandas to R data frame.
+    samples = pydf
+    counts  = df
+    #print(counts.head())
+    #print(samples)
+
+    # DRIMSEQ part.
+    # Forumla
+    R.assign('batch', samples.rx2('batch'))
+    R.assign('condition', samples.rx2('condition'))
+    R.assign('counts', counts)
+    R.assign('samples',samples)
+
+    R('data <- dmDSdata(counts = counts, samples = samples)')
+    R('filtered <- dmFilter(data, min_samps_gene_expr = 3, min_samps_feature_expr = 3, min_gene_expr = 15, min_feature_expr = 5)')
+    R('design_full <- model.matrix(~ batch + condition, data = samples(filtered))')
+    R('set.seed(123)')
+
+    R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(4))')
+    R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(4))')
+    R('d <- dmTest(d, coef = "conditionMUT", verbose = 1, BPPARAM=BiocParallel::MulticoreParam(4))')
+    res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
+    #print(res)
+
+    resOut =  "./%s/%s_%s_v_%s_drimseq2_results.tsv" % (outdir,prefix,group1,group2)
+
+    res.to_csv(resOut, sep='\t')
+    sys.exit(1)
+
+    R('library(stageR)')
+    R('pScreen <- results(d)$pvalue')
+    R('names(pScreen) <- results(d)$gene_id')
+    ## Assign transcript-level pvalues to the confirmation stage
+    R('pConfirmation <- matrix(results(d, level = "feature")$pvalue, ncol = 1)')
+    R('rownames(pConfirmation) <- results(d, level = "feature")$feature_id')
+    ## Create the gene-transcript mapping
+    R('tx2gene <- results(d, level = "feature")[, c("feature_id", "gene_id")]')
+    ## Create the stageRTx object and perform the stage-wise analysis
+    R('stageRObj <- stageRTx(pScreen = pScreen, pConfirmation = pConfirmation, pScreenAdjusted = FALSE, tx2gene = tx2gene)')
+    R('stageRObj <- stageWiseAdjustment(object = stageRObj, method = "dtu", alpha = 0.05)')
+    R('getSignificantGenes(stageRObj)')
+    R('getSignificantTx(stageRObj)')
+    R('padj <- getAdjustedPValues(stageRObj, order = TRUE, onlySignificantGenes = FALSE)')
+    R('head(padj)')
+    #     # import plotting
+    # plotMA    = robjects.r['plotData']
+    # plotPrec  = robjects.r['plotPrecision']
+    # plotQQ    = robjects.r['qq']
     
-    R.assign('res', res)
-    
-    reslfc  = robjects.r['as.data.frame'](resLFC)
-
-    # plot MA and PC stats for the user
-    plotMA    = robjects.r['plotMA']
-    plotDisp  = robjects.r['plotDispEsts']
-    plotPCA   = robjects.r['plotPCA']
-    plotQQ    = robjects.r['qq']
-    
-    vsd       = robjects.r['vst'](dds, blind=robjects.r['F'])
-    # get pca data
-    pcaData    = plotPCA(vsd, intgroup=robjects.StrVector(("condition", "batch")), returnData=robjects.r['T'])
-    percentVar = robjects.r['attr'](pcaData, "percentVar")
-
-    # arrange 
-    grdevices.pdf(file="./%s/%s_QCplots_%s_v_%s.pdf" % (outdir,prefix,group1,group2))
-
-
-    x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
-    y = "PC2: %s" % int(percentVar[1]*100) + "%% variance"
-
-    pp = ggplot2.ggplot(pcaData) + \
-            ggplot2.aes_string(x="PC1", y="PC2", color="condition", shape="batch") + \
-            ggplot2.geom_point(size=3) + \
-            robjects.r['xlab'](x) + \
-            robjects.r['ylab'](y) + \
-            ggplot2.theme_classic() + \
-            ggplot2.coord_fixed()
-    pp.plot()
-
-    plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
-    #plotMA(res, main="MA-plot results")
-    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrrhinkage")
-    #plotMA(resLFC, main="MA-plot LFCSrrhinkage")
-    plotQQ(resdf.rx2('pvalue'), main="pvalue QQ")
-    plotQQ(reslfc.rx2('pvalue'), main="LFCSrhinkage pvalue QQ")
-    hh = ggplot2.ggplot(resdf) + \
-            ggplot2.aes_string(x="pvalue") + \
-            ggplot2.geom_histogram() + \
-            ggplot2.theme_classic() 
-    hh.plot()
-    plotDisp(dds, main="Dispersion Estimates")
-    grdevices.dev_off()
-
-
-    lfcOut =  "./%s/%s_%s_v_%s_deseq2_results_shrinkage.tsv" % (outdir,prefix,group1,group2)
-    resOut =  "./%s/%s_%s_v_%s_deseq2_results.tsv" % (outdir,prefix,group1,group2)
-
-    robjects.r['write.table'](reslfc, file=lfcOut, quote=False, sep="\t")
-    robjects.r['write.table'](resdf, file=resOut, quote=False, sep="\t")
+    # # arrange 
+    # pltFName = './%s/%s_%s_vs_%s_%s_%s_cutoff_plots.pdf' % (outdir,prefix,group1,group2,str(batch),sFilter)
+    # R.assign('fname',pltFName)
+    # R('pdf(file=fname)')
+    # R('plotData(filtered)')
+    # R('ggp <- plotPrecision(d)')
+    # R('ggp + geom_point(size = 4, alpha=0.3)')
+    # R('plotPValues(d)')
+    # R('dev.off()')
+    # grdevices.pdf(file="./%s/%s_%s_vs_%s_%s_%s_cutoff_plots.pdf" % (outdir,prefix,group1,group2,str(batch),sFilter))
+    # qqman(res['pvalue'])
+    # grdevices.dev_off()
 
 
 if __name__ == "__main__":
