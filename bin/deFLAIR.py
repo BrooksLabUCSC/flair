@@ -262,12 +262,12 @@ def main():
     
     formulaDF.to_csv( formulaMatrixFile, sep='\t')
 
-    # subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
-    #                     "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
-    #                     "--prefix", "dge", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w"))
-    # subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
-    #                     "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
-    #                     "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
+    subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
+                        "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
+                        "--prefix", "dge", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w"))
+    subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
+                        "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
+                        "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
     subprocess.call([sys.executable, runDU, "--group1", groups[0], "--group2", groups[-1], 
                         "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
                         "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
