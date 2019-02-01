@@ -43,7 +43,7 @@ if mode == 'align':
 	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to use \
 		native-RNA specific alignment parameters for minimap2')
 	parser.add_argument('-p', '--psl', action='store_true', dest='p', help='also output sam-converted psl')
-	parser.add_argument('-v1.9', '--version1.9', action='store_true', dest='v', help='specify if samtools version 1.9')
+	parser.add_argument('-v1.3', '--version1.3', action='store_true', dest='v', help='specify if samtools version 1.3+')
 	args = parser.parse_args()
 
 	if args.m[-8:] != 'minimap2':
@@ -72,10 +72,10 @@ if mode == 'align':
 		sys.stderr.write('Possible issue with samtools executable\n')
 		sys.exit()
 
-	if args.v:  # samtools verison 1.9
+	if args.v:  # samtools verison 1.3+
 		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', '-o', args.o+'.bam'])
-	elif subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'unsorted.bam', args.o]):
-		sys.stderr.write('If using samtools v1.9, please specify -v1.9 argument\n')
+	elif subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', args.o]):
+		sys.stderr.write('If using samtools v1.3+, please specify -v1.3 argument\n')
 		sys.exit()
 
 	subprocess.call([args.sam, 'index', args.o+'.bam'])
@@ -142,7 +142,7 @@ elif mode == 'collapse':
 	parser.add_argument('-sam', '--samtools', \
 		action='store', dest='sam', default='samtools', help='samtools executable path if not in $PATH')
 	parser.add_argument('-w', '--window', default='20', \
-		action='store', dest='w', help='window size for comparing TSS/TES (W=20)')
+		action='store', dest='w', help='window size for comparing TSS/TES (W=100)')
 	parser.add_argument('-s', '--support', default='3', \
 		action='store', dest='s', help='minimum number of supporting reads for an isoform (S=3)')
 	parser.add_argument('-n', '--no_redundant', default='none', \

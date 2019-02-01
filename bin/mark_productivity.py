@@ -121,14 +121,17 @@ def find_tss_pos(entry, tss):  # tss is a dictionary
 		return -1
 	oldstrand = strand
 	if oldstrand == '.':
-		strand = '-'
+		strand = '-'  # try both strands, start with '-' first
+	elif strand not in tss[chrom]:  # there is assigned strand but no tss on that chromosome strand
+		return -1
+
 	for pos in tss[chrom][strand]:
 		if entrys <= pos and pos <= entrye:
 			for size, start in zip(blocksizes, blockstarts):
 				if start <= pos and pos <= start + size: 
 					pos_candidates += [pos]
 	if oldstrand == '.':
-		strand = '+'
+		strand = '+'  # try other strand
 		for pos in tss[chrom][strand]:
 			if entrys <= pos and pos <= entrye:
 				for size, start in zip(blocksizes, blockstarts):
