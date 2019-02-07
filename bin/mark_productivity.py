@@ -122,7 +122,7 @@ def find_tss_pos(entry, tss):  # tss is a dictionary
 	oldstrand = strand
 	if oldstrand == '.':
 		strand = '-'  # try both strands, start with '-' first
-	elif strand not in tss[chrom]:  # there is assigned strand but no tss on that chromosome strand
+	elif strand not in tss[chrom]:  # there is assigned strand but no start codon on that chromosome strand
 		return -1
 
 	for pos in tss[chrom][strand]:
@@ -156,7 +156,7 @@ for entry in psl:
 	else:
 		psldata[entry[13]] = [entry]
 
-tss = {}
+tss = {}  # start codons
 for line in gtf:
 	if line.startswith('#'):
 		continue

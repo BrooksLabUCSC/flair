@@ -4,7 +4,7 @@ try:
 	psl = open(sys.argv[1])
 	ref = open(sys.argv[2])
 	outfilename = sys.argv[3]
-	genepred = sys.argv[2][-3:] != 'gtf'
+	genepred = sys.argv[2][-3:].lower() == 'gp'
 except:
 	sys.stderr.write('usage: script.py psl ref.gtf/ref.gp isos_matched.psl \n')
 	sys.exit(1)

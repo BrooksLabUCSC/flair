@@ -24,7 +24,7 @@ It is recommended to combine all samples together prior to running FLAIR modules
 
 ## <a name="requirements"></a>Requirements
 
-1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam
+1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam v0.8.4+
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
 
@@ -36,16 +36,16 @@ Aligns reads to the genome using minimap2, and converts the aligned minimap2 `sa
 
 Alternatively, the user can align the reads themselves with their aligner of choice and convert `bam` output to `bed12` using `bin/bam2Bed12.py` to supply for flair-correct. This step smooths gaps in the alignment.
 
-Usage:
+**Usage:**
 ```sh
 python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 ```
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations.
+Corrects misaligned splice sites using genome annotations. Please note that the genome annotation and genome sequences must be compatible.
 
-Usage:
+**Usage:**
 ```sh
 python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [options]
 ```
@@ -55,7 +55,7 @@ Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able t
 #### <a name="short"></a>Short-read junctions
 To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions. 
 
-Usage:
+**Usage:**
 ```sh
 python junctionsFromSam.py -s shortreads.sam -n outname -o outdir
 ```
