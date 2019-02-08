@@ -91,11 +91,19 @@ else:
 			# annotated_juncs[chrom] = []
 			all_juncs[chrom] = {}
 			all_se[chrom] = []
-		this_transcript = line[8][line[8].find('transcript_id')+15:]
-		this_transcript = this_transcript[:this_transcript.find('"')]
 
-		prev_gene = line[8][line[8].find('gene_id')+9:]
-		prev_gene = prev_gene[:prev_gene.find('"')]
+		if 'gene_id' in line[8]:
+			prev_gene = line[8][line[8].find('gene_id')+9:]
+			prev_gene = prev_gene[:prev_gene.find('"')]
+			this_transcript = line[8][line[8].find('transcript_id')+15:]
+			this_transcript = this_transcript[:this_transcript.find('"')]
+		elif 'GeneID' in line[8]:
+			prev_gene = line[8][line[8].find('GeneID'):]
+			prev_gene = prev_gene[:prev_gene.find(',')]
+			this_transcript = line[8][line[8].find('transcript_id')+14:]
+		else:
+			sys.stderr.write('GTF format info column gene and transcript ids not recognized\n')
+			sys.exit(1)
 
 		if this_transcript != prev_transcript:
 			if prev_transcript:

@@ -43,7 +43,7 @@ python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations. Please note that the genome annotation and genome sequences must be compatible.
+Corrects misaligned splice sites using genome annotations. Please note that the genome annotation and genome sequences must be compatible, and `gtf` format is preferred over `gff` for annotation.
 
 **Usage:**
 ```sh
