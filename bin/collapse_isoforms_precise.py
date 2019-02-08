@@ -496,10 +496,6 @@ with open(args.o, 'wt') as outfile:
 		sys.exit()
 	isoforms = None
 
-	for tes in allends['chr6']['tes']:
-		if tes < (36569936 + window) and tes > (36569936 - window):
-			print(tes, allends['chr6']['tes'][tes])
-
 	for chrom in towrite:
 		for jset in towrite[chrom]:
 			jsetends = set()
@@ -520,22 +516,15 @@ with open(args.o, 'wt') as outfile:
 							support = t_support
 
 				tes_support = allends[chrom]['tes'][tes]  # current tes
-				oldtes = tes
-				if tes == 36570029:
-					print(tes_support)
+
 				for t in range(tes-window, tes+window):
 					if t in allends[chrom]['tes']:
 						t_support = allends[chrom]['tes'][t]  # comparison tes
-						if oldtes == 36570029:
-							print(t_support, t)
+
 						if (t_support > tes_support and t > junccoord[1]) or \
 						(t_support == tes_support and t > tes):
 							tes = t
 							tes_support = t_support  # only used for best_only option
-				if oldtes == 36570029:
-					print(tes, tes_support)
-				if tes == 36570029:
-					print('this weirdo tes got corrected to 36570029', oldtes, line)
 
 
 				if (tss,tes) not in jsetends:
