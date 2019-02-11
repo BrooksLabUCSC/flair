@@ -97,8 +97,8 @@ else:
 			prev_gene = prev_gene[:prev_gene.find('"')]
 			this_transcript = line[8][line[8].find('transcript_id')+15:]
 			this_transcript = this_transcript[:this_transcript.find('"')]
-		elif 'GeneID' in line[8]:
-			prev_gene = line[8][line[8].find('GeneID'):]
+		elif 'geneid' in line[8].lower():
+			prev_gene = line[8][line[8].find('geneid'):]
 			prev_gene = prev_gene[:prev_gene.find(',')]
 			this_transcript = line[8][line[8].find('transcript_id')+14:]
 		else:

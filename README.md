@@ -53,7 +53,7 @@ run with `--help` for description of optional arguments.
 Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
 
 #### <a name="short"></a>Short-read junctions
-To use short-read splice sites to aid with correction, use [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions. 
+To use short-read splice sites to aid with correction, one option is [junctionsFromSam.py](https://github.com/BrooksLabUCSC/labtools/blob/master/junctionsFromSam.py) to extract splice junctions from short-read alignments.
 
 **Usage:**
 ```sh
@@ -64,30 +64,24 @@ the file that can be supplied to flair-correct with `-j` is in the output file `
 Alternatively, splice junctions from STAR 2-pass alignment of short-reads (`SJ.out.tab`) can also be supplied for junctions.
 
 ### <a name="collapse"></a>flair collapse
-Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their Ensembl ID. This can help with sorting for/against annotated isoforms just by `grep [-v] ENST`. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if columns after 21 (1-indexed) are removed. 
+Defines isoforms from corrected reads. By default, redundant isoforms (those that are proper subsets of another isoform in the set) are filtered out, an option that can be toggled with `-e`. As FLAIR does not use annotations to define isoforms, within a set of reads that define an isoform, FLAIR will pick the name of a read to be the isoform name. It is recommended to provide a GTF with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their `gene_id`s. This can help with sorting for/against annotated isoforms just by `grep [-v] ENST`. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if any extra columns after column 21 (1-indexed) are removed. 
 
-Usage:
+**Usage:**
 ```sh
 python flair.py collapse -r <reads.fq>/<reads.fa> -q query.psl -g genome.fa [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs (1) extended `psl` containing the data-specific isoforms and (2) `fasta` file of isoform sequences.
 
-#### <a name="quant"></a>Quantification
-To quantify the expression of each isoform for a specific sample for use in other scripts:
-1. Align read sequences to the isoform sequences using minimap2 (`--secondary=no` option recommended, alternatively primary alignments can be selectively retained with `samtools view -F 256 -S` on the resulting `sam`)
-2. Count read-isoform assignments - `bin/count_sam_genes.py sam counts.txt`
-3. Append a new column to the isoform file containing the sample-specific isoform expression - `bin/match_counts.py counts.txt isoforms.psl 1 isoforms.out.psl`
-
 ### <a name="quantify"></a>flair quantify
 Convenience function to quantifying FLAIR isoform usage across samples using minimap2. 
 
-**Usage**:
+**Usage:**
 ```sh
 python flair.py quantify -r reads_manifest.tsv -i isoforms.fasta [options]
 ```
 
-**Inputs**: <br>
+**Inputs:**
 (1) `reads_manifest.tsv` is a tab-delimited file containing sample_name, condition, batch\*, and path to reads.fq/fq.
 For exmaple:
 ```tsv
@@ -98,11 +92,11 @@ sample4	conditionB	batch1	./sample4_reads.fq
 sample5	conditionB	batch1	./sample5_reads.fq
 sample6	conditionB	batch2	./sample6_reads.fq
 ```
-\* The batch descriptor is used in the downstream diffExp analysis to model unintended variability due to secondary factors such as batch or sequencing replicate. If unsure about this option, leave this column defines as `batch1` for all samples.
+\* The batch descriptor is used in the downstream diffExp analysis to model unintended variability due to secondary factors such as batch or sequencing replicate. If unsure about this option, leave this column defined as `batch1` for all samples.
 
 (2) `isoforms.fasta` contains FLAIR collapsed isoforms produced by the [`flair collapse`](#collapse) module.
 
-**Outputs**<br>
+**Outputs:**
 (1) `count_matrix.tsv` which is a tab-delimited file containing isoform counts for each sample. For example:
 
 ```tsv
@@ -111,8 +105,19 @@ ids	samp1_conditionA_batch1	samp2_conditionA_batch1 samp3_conditionA_batch2	...
 0042d216-6b08_ENSG00000101940.13	32.0	14.0 	25.0	...
 ```
 
+#### <a name="append"></a>appending counts to a psl
+After running `flair quantify`, the counts matrix can be appended to the isoforms from `flair collapse` to produce a `psl` compatible with the standalone [scripts](#scripts). Please note that these scripts are made for pairwise comparisons, and the counts are appended in the order they appear in `count_matrix.tsv`.
+
+**Inputs:**
+(1) `isoforms.psl` from `flair collapse`, `count_matrix.tsv` from `flair quantify`, and `output.psl` output file.
+
+**Usage:**
+```sh
+python append_counts_to_psl.py isoforms.psl counts_matrix.tsv output.psl
+```
+
 ### <a name="diffExp"></a>flair diffExp
-Preforms differential isoform expression, differential gene expression and, differential isoform usage analyses. This module required additional python modules and R packages which are described below: 
+Performs differential isoform expression, differential gene expression, and differential isoform usage analyses. This module required additional python modules and R packages which are described below: 
 
 #### Additional Requirements
 1. python v2.7+ and python modules: pandas, numpy, rpy2
@@ -122,18 +127,18 @@ Preforms differential isoform expression, differential gene expression and, diff
 5. [DRIMseq](http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html)
 6. [stageR](http://bioconductor.org/packages/release/bioc/html/stageR.html)
 
-**Usage**:
+**Usage:**
 ```sh
 python flair.py diffExp -q count_matrix.tsv -o output_directory [options]
 ```
 
-**Inputs**: <br>
-(1) `count_matrix.tsv` is a tab-delimited file generated by the [`flair quantify`](#quantify) module.<br>
+**Inputs:**
+(1) `count_matrix.tsv` is a tab-delimited file generated by the [`flair quantify`](#quantify) module.
 
-**Outputs**<br>
+**Outputs:**
 (1) Files contained in the `output_directory` are tables and plots generated from the various R-packages used in this analysis, including raw deseq2/drimseq output tables with foldChange, isoform frequency and adjusted pvalues. 
 
-## Scripts
+##  <a name="scripts"></a>Scripts
 
 We have also provided standalone scripts for splicing and productivity analysis of quantified isoforms from FLAIR output.
 
@@ -141,7 +146,7 @@ We have also provided standalone scripts for splicing and productivity analysis 
 
 Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) `txt` file output name for coordinates of introns found.
 
-Usage:
+**Usage:**
 ```sh
 python mark_intron_retention.py isoforms.psl isoforms.ir.psl coords.txt
 ```
@@ -151,7 +156,7 @@ Outputs (1) an extended `psl` with an additional column containing either values
 
 Requires three positional arguments to classify isoforms according to productivity: (1) reads or `psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
 
-Usage:
+**Usage:**
 ```sh
 python mark_productivity.py psl annotation.gtf genome.fa > productivity.psl
 ```
@@ -159,9 +164,9 @@ Outputs an extended `psl` with an additional column containing either values 0, 
 
 ### find_alt3prime_5prime_ss.py
 
-Requires two positional arguments to identify and calculate significance of alternative 5' and 3' splicing between two samples using Fisher's exact tests, and two arguments specifying output files: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for alternative 3' SS, (4) `txt` file output name for alternative 5' SS. See [quantification](#quant) for obtaining (1). 
+Requires two positional arguments to identify and calculate significance of alternative 5' and 3' splicing between two samples using Fisher's exact tests, and two arguments specifying output files: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for alternative 3' SS, (4) `txt` file output name for alternative 5' SS. See [appending counts to a psl](#append) for obtaining (1). 
 
-Usage: 
+**Usage:**
 ```sh
 python find_alt3prime_5prime_ss.py isoforms.psl annotation.gtf colnum alt_acceptor.txt alt_donor.txt 
 ```
@@ -169,9 +174,9 @@ Output file format:
 `chrom` `intron 5' coordinate` `intron 3' coordinate` `p-value` `strand` `sample1 intron count` `sample2 intron count` `sample1 alternative introns counts` `sample2 alternative introns counts` `isoform name` `canonical SS distance from predominant alternative SS` `canonical SS`
 
 ### diff_iso_usage.py
-Requires three positional arguments to identify and calculate significance of alternative iosoform usage between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for differentially used isoforms. See [quantification](#quant) for obtaining (1). 
+Requires three positional arguments to identify and calculate significance of alternative iosoform usage between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for differentially used isoforms. See [appending counts to a psl](#append) for obtaining (1). 
 
-Usage:
+**Usage:**
 ```sh
 python diff_iso_usage.py isoforms.psl colnum diff_isos.txt
 ```
