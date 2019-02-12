@@ -1,7 +1,6 @@
 """ ADT, CMS """
 
 import sys, argparse, subprocess, os
-from subprocess import Popen, PIPE
 
 if len(sys.argv) > 1 and sys.argv[1] == 'align':
 	mode = 'align'
@@ -31,7 +30,7 @@ if mode == 'align':
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-o', '--output', \
-		action='store', dest='o', default='flair.aligned', help='output file name base')
+		action='store', dest='o', default='flair.aligned', help='output file name base (default: flair.aligned)')
 	parser.add_argument('-t', '--threads', type=str, \
 		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
@@ -54,9 +53,11 @@ if mode == 'align':
 
 	try:
 		if args.n:
-			subprocess.call([args.m, '-ax', 'splice', '-uf', '-k14', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))			
+			subprocess.call([args.m, '-ax', 'splice', '-uf', '-k14', '-t', args.t, '--secondary=no', args.g, args.r], \
+				stdout=open(args.o+'.sam', 'w'))			
 		else:
-			subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w'))
+			subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], \
+				stdout=open(args.o+'.sam', 'w'))
 	except:
 		sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
 		sys.exit()
@@ -67,8 +68,8 @@ if mode == 'align':
 		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl'])
 	
 	sys.stderr.write('Converting sam output to bed\n')
-	if subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], stdout=open(args.o+'.unsorted.bam', 'w')):
-		# calls samtools view, if an error code that != 0 results, then exit out of flair.py
+	if subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], \
+		stdout=open(args.o+'.unsorted.bam', 'w')):  # calls samtools view, exit if an error code that != 0 results
 		sys.stderr.write('Possible issue with samtools executable\n')
 		sys.exit()
 
@@ -94,14 +95,14 @@ elif mode == 'correct':
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
 	parser.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
 		help='bed format splice junctions from short-read sequencing')
-	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to keep\
+	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to keep \
 		the strand of a read consistent after correction')
 	parser.add_argument('-t', '--threads', type=str, action='store', dest='t', default='4', \
 		help='splice site correction script number of threads (4)')
 	parser.add_argument('-w', '--window', action='store', dest='w', default='10', \
 		help='window size for correcting splice sites (W=10)')
 	parser.add_argument('-o', '--output', \
-		action='store', dest='o', default='flair', help='output name base')
+		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	args = parser.parse_args()
 
 	correction_cmd = ['python', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
@@ -112,7 +113,8 @@ elif mode == 'correct':
 		correction_cmd += ['-j', args.j]
 	subprocess.call(correction_cmd)
 
-	subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', args.o+'_all_corrected.unnamed.psl'])
+	subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
+		args.o+'_all_corrected.unnamed.psl'])
 
 	subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
 		args.o+'_all_corrected.unnamed.psl', args.f, args.o+'_all_corrected.psl'])
@@ -141,7 +143,7 @@ elif mode == 'collapse':
 		help='bedtools executable path, provide if promoter regions specified')
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='samtools executable path if not in $PATH')
-	parser.add_argument('-w', '--window', default='20', action='store', dest='w', \
+	parser.add_argument('-w', '--window', default='100', action='store', dest='w', \
 		help='window size for comparing TSS/TES (W=100)')
 	parser.add_argument('-s', '--support', default='3', action='store', dest='s', \
 		help='minimum number of supporting reads for an isoform (S=3)')
@@ -156,7 +158,7 @@ elif mode == 'collapse':
 		comprehensive--default set + partial isoforms; \
 		ginormous--comprehensive + single exon subset isoforms')
 	parser.add_argument('-o', '--output', default='flair.collapse', \
-		action='store', dest='o', help='output file name base for FLAIR isoforms')
+		action='store', dest='o', help='output file name base for FLAIR isoforms (default: flair.collapse)')
 	args = parser.parse_args()
 
 	if args.m[-8:] != 'minimap2':
@@ -200,7 +202,7 @@ elif mode == 'collapse':
 	try:
 		subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 			args.q[:-3]+'firstpass.fa', args.r], stdout=open(args.q[:-3]+'firstpass.sam', "w"))
-		subprocess.call([args.sam, 'view', '-q', '1', '-S', args.q[:-3]+'firstpass.sam'], \
+		subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', args.q[:-3]+'firstpass.sam'], \
 			stdout=open(args.q[:-3]+'firstpass.q1.sam', "w"))
 	except:
 		sys.stderr.write('Possible minimap2/samtools error, specify paths or make sure they are in $PATH\n')
@@ -223,7 +225,7 @@ elif mode == 'collapse':
 	if args.p:
 		subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
 		subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
-	# subprocess.call(['rm', args.q[:-3]+'firstpass.psl'])
+	subprocess.call(['rm', args.q[:-3]+'firstpass.psl'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.fa'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.sam'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.q1.counts'])
@@ -330,7 +332,8 @@ elif mode == 'diffExp':
 	runDE      = scriptsBin + "deFLAIR.py"
 
 	#try:
-	subprocess.call([sys.executable, runDE, '--filter', str(args.e), '--outDir', args.o, '--matrix', args.q], stderr=open("diffExp_stderr_out.txt",'w'))			
+	subprocess.call([sys.executable, runDE, '--filter', str(args.e), '--outDir', args.o, '--matrix', args.q], \
+		stderr=open("diffExp_stderr_out.txt",'w'))			
 	#except:
 	#	sys.stderr.write("Misformatted or missing quant table. See manual for quant_matrix formatting. Exit. \n")
 	#	sys.exit(1)
