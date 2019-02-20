@@ -108,7 +108,10 @@ def main():
     formulaDF     = pd.read_csv(formula,header=0, sep="\t",index_col=0)
     sampleTable = pandas2ri.py2ri(formulaDF)
 
-    design = Formula("~ batch + condition")
+    if "batch" in list(formulaDF):
+        design = Formula("~ batch + condition")
+    else:
+        design = Formula("~ condition")
     #print(sampleTable)
 
     # import DESeq2
@@ -146,9 +149,13 @@ def main():
     
     vsd       = robjects.r['vst'](dds, blind=robjects.r['F'])
     # get pca data
-    pcaData    = plotPCA(vsd, intgroup=robjects.StrVector(("condition", "batch")), returnData=robjects.r['T'])
-    percentVar = robjects.r['attr'](pcaData, "percentVar")
-
+    if "batch" in list(formulaDF):
+        pcaData    = plotPCA(vsd, intgroup=robjects.StrVector(("condition", "batch")), returnData=robjects.r['T'])
+        percentVar = robjects.r['attr'](pcaData, "percentVar")
+    else:
+        print(vsd)
+        pcaData    = plotPCA(vsd, intgroup="condition", returnData=robjects.r['T'])
+        percentVar = robjects.r['attr'](pcaData, "percentVar")
     # arrange 
     grdevices.pdf(file="./%s/%s_QCplots_%s_v_%s.pdf" % (outdir,prefix,group1,group2))
 
@@ -156,15 +163,24 @@ def main():
     x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
     y = "PC2: %s" % int(percentVar[1]*100) + "%% variance"
 
-    pp = ggplot2.ggplot(pcaData) + \
-            ggplot2.aes_string(x="PC1", y="PC2", color="condition", shape="batch") + \
-            ggplot2.geom_point(size=3) + \
-            robjects.r['xlab'](x) + \
-            robjects.r['ylab'](y) + \
-            ggplot2.theme_classic() + \
-            ggplot2.coord_fixed()
-    pp.plot()
-
+    if "batch" in list(formulaDF):
+        pp = ggplot2.ggplot(pcaData) + \
+                ggplot2.aes_string(x="PC1", y="PC2", color="condition", shape="batch") + \
+                ggplot2.geom_point(size=3) + \
+                robjects.r['xlab'](x) + \
+                robjects.r['ylab'](y) + \
+                ggplot2.theme_classic() + \
+                ggplot2.coord_fixed()
+        pp.plot()
+    else:
+        pp = ggplot2.ggplot(pcaData) + \
+                ggplot2.aes_string(x="PC1", y="PC2", color="condition") + \
+                ggplot2.geom_point(size=3) + \
+                robjects.r['xlab'](x) + \
+                robjects.r['ylab'](y) + \
+                ggplot2.theme_classic() + \
+                ggplot2.coord_fixed()
+        pp.plot()
     plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
     #plotMA(res, main="MA-plot results")
     plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrrhinkage")
