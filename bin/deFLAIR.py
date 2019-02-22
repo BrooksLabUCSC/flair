@@ -140,12 +140,15 @@ class Gene(object) :
 def separateTables(f, thresh, samples, groups):
 
     genes, isoforms = dict(), dict()
-
+    duplicateID = 1
 
     with open(f) as lines:
         next(lines)
         for line in lines:
-            data = line.rstrip().split()
+
+            data = line.rstrip().split("\t")
+            if len(data)<6:
+                continue
             name = data[0]
             counts = np.asarray(data[1:], dtype=float)
             iso, gene   = name, name.split("_")[-1]
@@ -167,8 +170,10 @@ def separateTables(f, thresh, samples, groups):
                 isoforms[iso].exp = counts
 
             else:
-                sys.stderr.write("Duplicate isoform entry %s. Remove isoform duplicate IDs. Exit.\n")
-                sys.exit(1)
+                duplicateID += 1
+                iso = iso + "-" + str(duplicateID)
+                isoforms[iso] = Isoform(iso)
+                isoforms[iso].exp = counts
 
             isoformObj = isoforms[iso]
             isoformObj.parent = geneObj
@@ -241,19 +246,29 @@ def main():
     groups  = [x.split("_")[1] for x in header]
     batches = [x.split("_")[-1] for x in header]
 
+    
+
+
     # Create output directory.
     makeDir(outDir)
 
     # Convert count tables to dataframe and update isoform objects.
     genes, isoforms = separateTables(quantTable, sFilter, samples, groups)
 
-    # Compute percent isoform usgae
-    [o.computeUsage() for i,o in isoforms.items()]
+    ## Compute percent isoform usgae
+    #[o.computeUsage() for i,o in isoforms.items()]
 
-    header        = ['sample_id','condition','batch']
-    formulaMatrix = [[x,y,z] for x,y,z in zip(samples,groups,batches)]
-    formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
-    formulaDF     = formulaDF.set_index('sample_id')
+    if len(set(batches)) > 1:
+        header        = ['sample_id','condition','batch']
+        formulaMatrix = [[x,y,z] for x,y,z in zip(samples,groups,batches)]
+        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
+        formulaDF     = formulaDF.set_index('sample_id')
+    else:
+        header        = ['sample_id','condition']
+        formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
+        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
+        formulaDF     = formulaDF.set_index('sample_id')
+
 
     formulaMatrixFile = "formula_matrix.tsv"
     isoMatrixFile     = "filtered_iso_counts_ds2.tsv"
@@ -268,9 +283,9 @@ def main():
     subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
                         "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
                         "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
-    subprocess.call([sys.executable, runDU, "--group1", groups[0], "--group2", groups[-1], 
-                        "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
-                        "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
+    # subprocess.call([sys.executable, runDU, "--group1", groups[0], "--group2", groups[-1], 
+    #                     "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
+    #                     "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
 
 
 if __name__ == "__main__":
