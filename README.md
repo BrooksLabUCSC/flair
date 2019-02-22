@@ -18,9 +18,9 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
-<img src='misc/flair_workflow_snaked.png' alt='flair workflow' width='680'/>
+<img src='misc/flair_workflow_compartmentalized.png' alt='flair workflow' width='680'/>
 
-It is recommended to combine all samples together prior to running FLAIR modules for isoform assembly, followed by read assignment of each sample individually to isoforms of the combined assembly for downstream analyses. Samples can also be combined prior to flair-collapse by concatenating corrected read `psl` files together. 
+It is recommended to combine all samples together prior to running flair-collapse for isoform assembly by concatenating corrected read `psl` files together. Following the creation of an isoform reference from flair-collapse, consequent steps will assign reads from each sample individually to isoforms of the combined assembly for downstream analyses.
 
 It is also good to note that bed12 and PSL can be converted using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py`.
 
