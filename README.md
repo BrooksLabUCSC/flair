@@ -5,7 +5,7 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 
 - [Overview](#overview)
 - [Requirements](#requirements)
-- [FlAIR modules](#modules)
+- [FLAIR modules](#modules)
 	- [align](#align)
 	- [correct](#correct)
 		- [short-read junctions](#short)
@@ -31,7 +31,7 @@ It is also good to note that bed12 and PSL can be converted using [kentUtils](ht
 3. [minimap2](https://github.com/lh3/minimap2)
 
 ## <a name="modules"></a>FLAIR modules 
-flair.py is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
+`flair.py` is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
 
 ### <a name="align"></a>flair align
 Aligns reads to the genome using minimap2, and converts the aligned minimap2 `sam` output to [BED12](https://genome.ucsc.edu/FAQ/FAQformat.html#format14) and optionally [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2). Aligned reads in `psl` format can be visualized in IGV or the UCSC Genome browser.
@@ -67,7 +67,9 @@ Alternatively, STAR 2-pass alignment of short reads produces a splice junction f
 
 
 ### <a name="collapse"></a>flair collapse
-Defines isoforms from corrected reads. If there are multiple samples to be compared, the corrected reads `psl` files should be concatenated prior to running flair-collapse if they haven't been already. As FLAIR does not use annotations to collapse isoforms, FLAIR will pick the name of a read that shares the same splice junction chain as the isoform to be the isoform name. It is recommended to still provide an annotation with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their `transcript_id`s. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if any extra columns after column 21 are removed. 
+Defines high-confidence isoforms from corrected reads. As FLAIR does not use annotations to collapse isoforms, FLAIR will pick the name of a read that shares the same splice junction chain as the isoform to be the isoform name. It is recommended to still provide an annotation with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their 'transcript_id's. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if any extra columns after column 21 are removed. 
+
+If there are multiple samples to be compared, the corrected reads `psl` files should be concatenated prior to running flair-collapse. In addition, all raw reads should be concatenated into a single file or given as a comma-separated list for `-r`.
 
 **Usage:**
 ```sh
@@ -109,10 +111,10 @@ ids	samp1_conditionA_batch1	samp2_conditionA_batch1 samp3_conditionA_batch2	...
 ```
 
 #### <a name="append"></a>Appending counts to a psl
-To use the standalone [scripts](#scripts), the counts matrix can be appended to the isoforms from `flair collapse` after quantification. Please note that these scripts are made for pairwise comparisons, and the counts are appended in the order they appear in `count_matrix.tsv`. For differential isoform expression analysis between multiple samples with replicates, proceed to `flair diffExp`.
+To use the standalone [scripts](#scripts) such as `diff_iso_usage.py`, the counts matrix can be appended to the isoforms from flair-collapse after quantification. Please note that these scripts are made for pairwise comparisons, and the counts are appended in the order they appear in `count_matrix.tsv`. For differential isoform expression analysis between multiple samples with 3 or more replicates, proceed directly to flair-diffExp after flair-quantify.
 
 **Inputs:**</br>
-(1) `isoforms.psl` from `flair collapse`, `count_matrix.tsv` from `flair quantify`, and `output.psl` output file.
+(1) `isoforms.psl` from flair-collapse, `count_matrix.tsv` from flair-quantify, and `output.psl` output filename.
 
 **Usage:**
 ```sh
@@ -143,11 +145,11 @@ python flair.py diffExp -q count_matrix.tsv -o output_directory [options]
 
 ## <a name="scripts"></a>Scripts
 
-We have also provided standalone scripts for splicing and productivity analysis of quantified isoforms from FLAIR output.
+We have also provided standalone scripts for splicing and productivity analysis of quantified isoforms from flair-collapse output.
 
 ### mark_intron_retention.py
 
-Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` file output name, (3) `txt` file output name for coordinates of introns found.
+Requires three positional arguments to identify intron retentions in isoforms: (1) a `psl` of isoforms, (2) `psl` output filename, (3) `txt` output filename for coordinates of introns found.
 
 **Usage:**
 ```sh
@@ -167,7 +169,7 @@ Outputs an extended `psl` with an additional column containing either values 0, 
 
 ### find_alt3prime_5prime_ss.py
 
-Requires two positional arguments to identify and calculate significance of alternative 5' and 3' splicing between two samples using Fisher's exact tests, and two arguments specifying output files: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for alternative 3' SS, (4) `txt` file output name for alternative 5' SS. See [appending counts to a psl](#append) for obtaining (1). 
+Requires two positional arguments to identify and calculate significance of alternative 5' and 3' splicing between two samples using Fisher's exact tests, and two arguments specifying output files: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` output filename for alternative 3' SS events, (4) `txt` output filename for alternative 5' SS events. See [appending counts to a psl](#append) for obtaining (1). 
 
 **Usage:**
 ```sh
@@ -177,11 +179,11 @@ Output file format:
 `chrom` `intron 5' coordinate` `intron 3' coordinate` `p-value` `strand` `sample1 intron count` `sample2 intron count` `sample1 alternative introns counts` `sample2 alternative introns counts` `isoform name` `canonical SS distance from predominant alternative SS` `canonical SS`
 
 ### diff_iso_usage.py
-Requires three positional arguments to identify and calculate significance of alternative iosoform usage between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of the two extra columns (assumed to be last two), (3) `txt` file output name for differentially used isoforms. See [appending counts to a psl](#append) for obtaining (1).
+Requires three positional arguments to identify and calculate significance of alternative isoform usage between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of expression values for the first condition, (3) the 0-indexed column number of expression values for the second condition, (4) `txt` output filename that assigns a p-value for each isoform. The more differentially used the isoforms are between the first and second condition, the lower the p-value. See [appending counts to a psl](#append) for obtaining (1).
 
 **Usage:**
 ```sh
-python diff_iso_usage.py isoforms.psl colnum diff_isos.txt
+python diff_iso_usage.py isoforms.psl colnum1 colnum2 diff_isos.txt
 ```
 Output file format: 
 `gene name` `isoform name` `p-value` `sample1 isoform count` `sample2 isoform count` `sample1 alternative isoforms for gene count` `sample2 alternative isoforms for gene count` 
