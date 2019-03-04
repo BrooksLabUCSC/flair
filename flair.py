@@ -249,6 +249,7 @@ elif mode == 'quantify':
 
 	try:
 		import numpy as np
+		import codecs
 	except:
 		sys.stderr.write('Numpy import error. Please pip install numpy. Exiting.\n')
 		sys.exit(1)
@@ -260,7 +261,7 @@ elif mode == 'quantify':
 			args.m += '/minimap2'
 
 	samData = list()
-	with open(args.r) as lines:
+	with codecs.open(args.r, "r", encoding='utf-8', errors='ignore' ) as lines:
 		for line in lines:
 			cols = line.rstrip().split('\t')
 			if len(cols)<4:
@@ -298,7 +299,7 @@ elif mode == 'quantify':
 				countData[iso][num] += 1 
 
 		sys.stderr.flush()
-		#os.remove(samOut)
+
 	sys.stderr.write("Step 3/3. Writing counts to count_matrix.tsv \r")
 	countMatrix = open(args.o,'w')
 
@@ -313,15 +314,17 @@ elif mode == 'quantify':
 	sys.stderr.write("\n")
 
 elif mode == 'diffExp':
-	parser = argparse.ArgumentParser(description='flair-quantify parse options', \
+	parser = argparse.ArgumentParser(description='flair-diffExp parse options', \
 		usage='python flair.py diffExp -q count_matrix.tsv --out_dir out_dir [options]')
-	parser.add_argument('quantify')
+	parser.add_argument('diffExp')
 	required = parser.add_argument_group('required named arguments')
 	
-	required.add_argument('-q', '--qant_matrix', action='store', dest='q', \
-		type=str, required=True, help='FastA of FLAIR collapsed isoforms')
+	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
+		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
 	required.add_argument('--out_dir', action='store', dest='o', \
 		type=str, required=True, help='Output directory for tables and plots.')
+	required.add_argument('--threads', action='store', dest='t', \
+		type=int, required=False, default=4, help='Number of threads for parallel DRIM-Seq.')
 	parser.add_argument('-e', '--exp_thresh', action='store', dest='e', type=int, required=False, \
 		default=10, help='Read count expression threshold. Isoforms in which \
 		both conditions contain less than N reads are filtered out (Default N=10)')
@@ -331,12 +334,9 @@ elif mode == 'diffExp':
 	scriptsBin = "/".join(os.path.realpath(__file__).split("/")[:-1])  + "/bin/"
 	runDE      = scriptsBin + "deFLAIR.py"
 
-	#try:
-	subprocess.call([sys.executable, runDE, '--filter', str(args.e), '--outDir', args.o, '--matrix', args.q], \
-		stderr=open("diffExp_stderr_out.txt",'w'))			
-	#except:
-	#	sys.stderr.write("Misformatted or missing quant table. See manual for quant_matrix formatting. Exit. \n")
-	#	sys.exit(1)
+
+	subprocess.call([sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads', str(args.t), '--outDir', args.o, '--matrix', args.q])
+
 
 
 

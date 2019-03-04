@@ -20,11 +20,16 @@ from __future__ import print_function
 import os, sys
 import pandas as pd
 import numpy as np
+
 from rpy2 import robjects
 from rpy2.robjects import r,pandas2ri, Formula
 from rpy2.robjects.lib import grid
 pandas2ri.activate()
 R = robjects.r
+
+import warnings
+from rpy2.rinterface import RRuntimeWarning
+warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 ########################################################################
 # CommandLine
@@ -70,6 +75,8 @@ class CommandLine(object) :
                                     help='Specify file prefix.')
         self.parser.add_argument("--formula"    , action = 'store', required=True, 
                                     help='Formula design matrix.')
+        self.parser.add_argument("--threads"    , type=int, action = 'store',default=4, required=False, 
+                                    help='Number of threads for running DRIM-Seq. BBPARAM')
 
 
         if inOpts is None :
@@ -94,6 +101,9 @@ def main():
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
+    threads    = myCommandLine.args['threads']
+
+    print("running DRIMSEQ %s" % prefix, file=sys.stderr)
 
     # import
     from rpy2.robjects.packages import importr
@@ -112,28 +122,26 @@ def main():
     # Convert pandas to R data frame.
     samples = pydf
     counts  = df
-    #print(counts.head())
-    #print(samples)
 
     # DRIMSEQ part.
     # Forumla
-
     if "batch" in list(formulaDF): R.assign('batch', samples.rx2('batch'))
     R.assign('condition', samples.rx2('condition'))
     R.assign('counts', counts)
     R.assign('samples',samples)
+    R.assign('numThread', threads)
     R.assign("cooef", "condition%s" % group2)
     R('data <- dmDSdata(counts = counts, samples = samples)')
-    R('filtered <- dmFilter(data, min_samps_gene_expr = 6, min_samps_feature_expr = 3, min_gene_expr = 10, min_feature_expr = 5, min_feature_prop=0.1)')
+    R('filtered <- dmFilter(data, min_samps_gene_expr = 6, min_samps_feature_expr = 3, min_gene_expr = 10, min_feature_expr = 5, min_feature_prop=0.05)')
     if "batch" in list(formulaDF): 
         R('design_full <- model.matrix(~ batch + condition, data = samples(filtered))')
     else: 
         R('design_full <- model.matrix(~ condition, data = samples(filtered))')
     R('set.seed(123)')
 
-    R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(4))')
-    R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(4))')
-    R('d <- dmTest(d, coef = cooef, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(4))')
+    R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
+    R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
+    R('d <- dmTest(d, coef = cooef, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     #print(res)
 
