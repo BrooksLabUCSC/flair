@@ -167,6 +167,12 @@ elif mode == 'collapse':
 		else:
 			args.m += '/minimap2'
 
+	if ',' in args.r:
+		subprocess.call(['cat'] + args.r.split(','), stdout=open('temp_reads', 'w'))
+		reads_file = 'temp_reads'
+	else:
+		reads_file = args.r
+
 	precollapse = args.q  # filename
 	if args.p:
 		sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
@@ -201,7 +207,7 @@ elif mode == 'collapse':
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
 	try:
 		subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
-			args.q[:-3]+'firstpass.fa', args.r], stdout=open(args.q[:-3]+'firstpass.sam', "w"))
+			args.q[:-3]+'firstpass.fa', reads_file], stdout=open(args.q[:-3]+'firstpass.sam', "w"))
 		subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', args.q[:-3]+'firstpass.sam'], \
 			stdout=open(args.q[:-3]+'firstpass.q1.sam', "w"))
 	except:
@@ -225,7 +231,9 @@ elif mode == 'collapse':
 	if args.p:
 		subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
 		subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
-	subprocess.call(['rm', args.q[:-3]+'firstpass.psl'])
+	if reads_file == 'temp_reads':
+		subprocess.call(['rm', reads_file])
+	# subprocess.call(['rm', args.q[:-3]+'firstpass.psl'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.fa'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.sam'])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.q1.counts'])

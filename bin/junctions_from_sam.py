@@ -120,7 +120,7 @@ class JcnInfo:
         self.intron_start = intron_start
         self.intron_end = intron_end 
 
-    def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, multiJcnBlock=None):
+    def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):
         # Check that name, chromosome, strand are the same
         if not chr.startswith("chr"):
             chr = "chr" + chr
@@ -134,7 +134,8 @@ class JcnInfo:
             sys.exit(1)
         
         if self.strand != strand and self.strand != '.':
-            print("Warning: Junction reads aligning to both strands for %s. Setting strand to '.'" % self.name)
+            if verbosity:
+                print("Warning: Junction reads aligning to both strands for %s. Setting strand to '.'" % self.name)
             self.strand = "."
 
         if self.intron_start != intron_start:
@@ -225,6 +226,11 @@ def main():
                                   that correspond to junctions that will be
                                   kept regardless of the confidence score.""",
                           default=None)
+    opt_parser.add_option("-v",
+                          dest="verbose",
+                          action='store_true',
+                          help="""Will run the program with junction strand ambiguity messages""",
+                          default=False)
     # opt_parser.add_option("-o",
     #                       dest="output_dir",
     #                       type="string",
@@ -516,6 +522,7 @@ def main():
                                                            downstr_len,
                                                            chr_start + upstr_len,
                                                            chr_start + upstr_len + intron_len - 1,
+                                                           options.verbose,
                                                            intron_info[2])
                     else:
                         jcn2JcnInfo[jcn_str] = JcnInfo(jcn_str,

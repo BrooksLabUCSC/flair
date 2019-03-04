@@ -3,10 +3,11 @@ import scipy.stats as sps
 
 try:
 	psl = open(sys.argv[1])
-	col = int(sys.argv[2])  # 25
-	outfilename = sys.argv[3]
+	col1 = int(sys.argv[2])  # 25
+	col2 = int(sys.argv[3])
+	outfilename = sys.argv[4]
 except:
-	sys.stderr.write('usage: script.py isoforms.psl colnum diff_isos.txt\n')
+	sys.stderr.write('usage: script.py isoforms.psl colnum1 colnum2 diff_isos.txt\n')
 	sys.exit()
 
 counts = {}
@@ -14,7 +15,7 @@ counts = {}
 for line in psl:
 	line = line.rstrip().split('\t')
 	if '_' not in line[9]:
-		sys.stderr.write('Please run bin/infer_strand_for_psl.py first,\
+		sys.stderr.write('Please run bin/identify_annotated_gene.py first,\
 			necessary for grouping isoforms into genes.\n')
 		sys.exit()
 	gene = line[9][line[9].rfind('_')+1:]
@@ -24,12 +25,12 @@ for line in psl:
 		gene = gene[:gene.rfind('.')]
 	if gene not in counts:
 		counts[gene] = {}
-	if line[col] == 'NA':
-		line[col] = 0
-	if line[col+1] == 'NA':
-		line[col+1] = 0
+	if line[col1] == 'NA':
+		line[col1] = 0
+	if line[col2] == 'NA':
+		line[col2] = 0
 
-	counts[gene][line[9]] = [float(line[col]), float(line[col+1])]
+	counts[gene][line[9]] = [float(line[col1]), float(line[col2])]
 
 
 with open(outfilename, 'wt') as outfile:
@@ -51,7 +52,12 @@ with open(outfilename, 'wt') as outfile:
 			generes += [[gene, iso, sps.fisher_exact(ctable)[1]] + \
 						 ctable[0] + ctable[1]]
 		if not generes:
+			writer.writerow([gene, iso, 'NA'] + ctable[0] + ctable[1])
 			continue
-		generes = sorted(generes, key=lambda x: x[2])
-		writer.writerow(generes[0])  # biggest differential for this gene
+
+		for res in generes:
+			writer.writerow(res)
+
+		# generes = sorted(generes, key=lambda x: x[2])
+		# writer.writerow(generes[0])  # biggest differential for this gene
 

@@ -24,4 +24,4 @@ with open(outfilename, 'wt') as outfile:
 		else:
 			count = 0
 		if count >= min_reads:
-			writer.writerow(line+[count])
+			writer.writerow(line)
