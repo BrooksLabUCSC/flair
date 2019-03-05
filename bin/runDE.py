@@ -20,11 +20,17 @@ from __future__ import print_function
 import os, sys
 import pandas as pd
 import numpy as np
+
+
 from rpy2 import robjects
 from rpy2.robjects import r,pandas2ri, Formula
 from rpy2.robjects.lib import grid
 pandas2ri.activate()
 R = robjects.r
+
+import warnings
+from rpy2.rinterface import RRuntimeWarning
+warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 ########################################################################
 # CommandLine
@@ -97,22 +103,22 @@ def main():
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
 
-
-
+    print("running DESEQ2 %s" % prefix, file=sys.stderr)
 
     # make the quant DF
     quantDF  = pd.read_table(matrix, header=0, sep='\t', index_col=0)
     df = pandas2ri.py2ri(quantDF)
-    #print(df.head())
+
     # import formula
     formulaDF     = pd.read_csv(formula,header=0, sep="\t",index_col=0)
     sampleTable = pandas2ri.py2ri(formulaDF)
+
 
     if "batch" in list(formulaDF):
         design = Formula("~ batch + condition")
     else:
         design = Formula("~ condition")
-    #print(sampleTable)
+   
 
     # import DESeq2
     from rpy2.robjects.packages import importr
@@ -124,30 +130,32 @@ def main():
 
 
 
-    dds = deseq.DESeqDataSetFromMatrix(countData = df,
-                                        colData = sampleTable,
-                                        design = design)
+    ### RUN DESEQ2 ###
+    R.assign('df', df)
+    R.assign('sampleTable', sampleTable)
+    R.assign('design',design)
+    R('dds <- DESeqDataSetFromMatrix(countData = df, colData = sampleTable, design = design)')
+    R('dds <- DESeq(dds)')
+    R('name <- grep("condition", resultsNames(dds), value=TRUE)')
 
-    dds  = deseq.DESeq(dds)
-    cont = robjects.r["grep"]("condition",robjects.r['resultsNames'](dds),value=True)
-    #print(cont)
-    # get results; orient the results for groupA vs B
-    res = deseq.results(dds, name=cont)
-    # results with shrinkage
-    resLFC = deseq.lfcShrink(dds, coef=cont, type="apeglm")
-    resdf  = robjects.r['as.data.frame'](res)
-    
-    R.assign('res', res)
-    
-    reslfc  = robjects.r['as.data.frame'](resLFC)
+    ###
+    ###
+    # Get Results and shrinkage values
+    res    = R('results(dds, name=name)')
+    resLFC = R('lfcShrink(dds, coef=name)')
+    vsd    = R('vst(dds,blind=FALSE)')
+    resdf  = robjects.r['as.data.frame'](res) 
+    reslfc = robjects.r['as.data.frame'](resLFC)
+    dds    = R('dds')
 
+    
+    ### Plotting section ###
     # plot MA and PC stats for the user
     plotMA    = robjects.r['plotMA']
     plotDisp  = robjects.r['plotDispEsts']
     plotPCA   = robjects.r['plotPCA']
     plotQQ    = robjects.r['qq']
     
-    vsd       = robjects.r['vst'](dds, blind=robjects.r['F'])
     # get pca data
     if "batch" in list(formulaDF):
         pcaData    = plotPCA(vsd, intgroup=robjects.StrVector(("condition", "batch")), returnData=robjects.r['T'])
@@ -158,7 +166,6 @@ def main():
         percentVar = robjects.r['attr'](pcaData, "percentVar")
     # arrange 
     grdevices.pdf(file="./%s/%s_QCplots_%s_v_%s.pdf" % (outdir,prefix,group1,group2))
-
 
     x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
     y = "PC2: %s" % int(percentVar[1]*100) + "%% variance"
@@ -171,7 +178,7 @@ def main():
                 robjects.r['ylab'](y) + \
                 ggplot2.theme_classic() + \
                 ggplot2.coord_fixed()
-        pp.plot()
+
     else:
         pp = ggplot2.ggplot(pcaData) + \
                 ggplot2.aes_string(x="PC1", y="PC2", color="condition") + \
@@ -180,21 +187,18 @@ def main():
                 robjects.r['ylab'](y) + \
                 ggplot2.theme_classic() + \
                 ggplot2.coord_fixed()
-        pp.plot()
+    pp.plot()
     plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
-    #plotMA(res, main="MA-plot results")
-    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrrhinkage")
-    #plotMA(resLFC, main="MA-plot LFCSrrhinkage")
-    plotQQ(resdf.rx2('pvalue'), main="pvalue QQ")
+    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrhinkage")    
     plotQQ(reslfc.rx2('pvalue'), main="LFCSrhinkage pvalue QQ")
     hh = ggplot2.ggplot(resdf) + \
             ggplot2.aes_string(x="pvalue") + \
             ggplot2.geom_histogram() + \
-            ggplot2.theme_classic() 
+            ggplot2.theme_classic() + \
+            ggplot2.ggtitle("pvalue distribution")
     hh.plot()
     plotDisp(dds, main="Dispersion Estimates")
     grdevices.dev_off()
-
 
     lfcOut =  "./%s/%s_%s_v_%s_deseq2_results_shrinkage.tsv" % (outdir,prefix,group1,group2)
     resOut =  "./%s/%s_%s_v_%s_deseq2_results.tsv" % (outdir,prefix,group1,group2)

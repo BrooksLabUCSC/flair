@@ -21,6 +21,8 @@ import os, sys
 import pandas as pd
 import numpy as np
 import subprocess 
+import codecs 
+import errno
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
@@ -65,6 +67,8 @@ class CommandLine(object) :
                                     help='Isoforms with less than specified read count for either Condition A or B are filtered (Default: 10 reads)')
         self.parser.add_argument("--matrix"    , action = 'store', required=True, 
                                     help='Count matrix from FLAIR quantify.')
+        self.parser.add_argument("--threads"    , type=int, action = 'store', required=False, default=4, 
+                                    help='Number of threads for running DRIM-Seq.')
 
 
         if inOpts is None :
@@ -141,14 +145,23 @@ def separateTables(f, thresh, samples, groups):
 
     genes, isoforms = dict(), dict()
     duplicateID = 1
+    
 
-    with open(f) as lines:
-        next(lines)
-        for line in lines:
+
+    with codecs.open(f, "r", encoding='utf-8', errors='ignore' ) as lines:
+        cols = next(lines).split("\t")
+
+        if len(cols)<7:
+            print("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols),file=sys.stderr)
+            sys.exit(1)
+
+        for num, line in enumerate(lines):
 
             data = line.rstrip().split("\t")
-            if len(data)<6:
-                continue
+            if len(data)<7:
+                print("** Error. Found %s columns in matrix on line %s, expected >6. Exiting." % (len(data), num),file=sys.stderr)
+                sys.exit(1)
+
             name = data[0]
             counts = np.asarray(data[1:], dtype=float)
             iso, gene   = name, name.split("_")[-1]
@@ -217,12 +230,6 @@ def separateTables(f, thresh, samples, groups):
 
     return genes, isoforms
 
-def makeDir(out):
-    try:
-        os.mkdir("./%s" % out)
-    except:
-        #exists
-        pass
 
 
 def main():
@@ -237,32 +244,61 @@ def main():
     outDir     = myCommandLine.args['outDir']
     quantTable = myCommandLine.args['matrix']
     sFilter    = myCommandLine.args['filter']
+    threads    = myCommandLine.args['threads']
 
     # Get sample data info
     with open(quantTable) as l:
         header = next(l).split()[1:]
 
-    samples = header
+    samples = ["%s_%s" % (h,num) for num,h in enumerate(header)]
     groups  = [x.split("_")[1] for x in header]
     batches = [x.split("_")[-1] for x in header]
+    combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
 
-    
+
+    from collections import Counter
+    groupCounts = Counter(groups)
+    if len(list(groupCounts.keys()))<2:
+        print("** Error. diffExp requires >2 condition groups. Maybe group name formatting is incorrect. Exiting." , file=sys.stderr)
+        sys.exit(1)
+    elif min(list(groupCounts.values()))<3: 
+        print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates." , file=sys.stderr)
+        sys.exit(1)
+    elif set(groups).intersection(set(batches)):
+        print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix." , file=sys.stderr)
+        sys.exit(1)
+    elif sum([1 if x.isdigit() else 0 for x in groups])>0 or sum([1 if x.isdigit() else 0 for x in batches])>0:
+        print("** Error. Sample group/condition or batch names are required to be strings not integers. Pleace change formtting." , file=sys.stderr)
+        sys.exit(1)
 
 
     # Create output directory.
-    makeDir(outDir)
-
+    if not os.path.exists(outDir):
+        try:
+            os.makedirs(outDir, 0o700)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+    else:
+        print("** Error. Name '%s' already exists. Choose another name for out_dir" % outDir, file=sys.stderr)
+        sys.exit(1)
     # Convert count tables to dataframe and update isoform objects.
     genes, isoforms = separateTables(quantTable, sFilter, samples, groups)
 
-    ## Compute percent isoform usgae
-    #[o.computeUsage() for i,o in isoforms.items()]
+    # checks linear combination
+    if len(combos) == 2:
+        header        = ['sample_id','condition']
+        formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
+        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
+        formulaDF     = formulaDF.set_index('sample_id')
 
-    if len(set(batches)) > 1:
+
+    elif len(set(batches)) > 1:
         header        = ['sample_id','condition','batch']
         formulaMatrix = [[x,y,z] for x,y,z in zip(samples,groups,batches)]
         formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
         formulaDF     = formulaDF.set_index('sample_id')
+
     else:
         header        = ['sample_id','condition']
         formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
@@ -277,15 +313,20 @@ def main():
     
     formulaDF.to_csv( formulaMatrixFile, sep='\t')
 
-    subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
-                        "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
-                        "--prefix", "dge", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w"))
-    subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
-                        "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
-                        "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
-    # subprocess.call([sys.executable, runDU, "--group1", groups[0], "--group2", groups[-1], 
-    #                     "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
-    #                     "--prefix", "die", "--formula", formulaMatrixFile], stderr=open("%s/dge_stderr.txt" % outDir,"w+"))
+    with open("%s/dge_stderr.txt" % outDir,"w") as out1:
+        
+        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
+                            "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
+                            "--prefix", "dge", "--formula", formulaMatrixFile], stderr=out1)
+        
+        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
+                            "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
+                            "--prefix", "die", "--formula", formulaMatrixFile], stderr=out1)
+        
+        subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1], 
+                             "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
+                             "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
+        
 
 
 if __name__ == "__main__":
