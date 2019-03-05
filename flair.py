@@ -226,6 +226,9 @@ elif mode == 'collapse':
 
 	subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o+'.isoforms.psl'])
 	subprocess.call(['mv', args.q[:-3]+'isoforms.fa', args.o+'.isoforms.fa'])
+	subprocess.call(['python', path+'bin/psl_to_gtf.py', args.o+'.isoforms.psl'], \
+		stdout=open(args.o+'.isoforms.gtf', 'w'))
+	subprocess.call(['python', path+'bin/fasta_seq_lengths.py', args.o+'.isoforms.fa', args.o+'.isoforms.fa.sizes'])
 	
 	sys.stderr.write('Removing intermediate files/done\n')
 	if args.p:
