@@ -132,16 +132,19 @@ def main():
     R.assign('numThread', threads)
     R.assign("cooef", "condition%s" % group2)
     R('data <- dmDSdata(counts = counts, samples = samples)')
-    R('filtered <- dmFilter(data, min_samps_gene_expr = 6, min_samps_feature_expr = 3, min_gene_expr = 10, min_feature_expr = 5, min_feature_prop=0.05)')
+    R('filtered <- dmFilter(data, min_samps_gene_expr = 6, min_samps_feature_expr = 3, min_gene_expr = 15, min_feature_expr = 5)')
     if "batch" in list(formulaDF): 
-        R('design_full <- model.matrix(~ batch + condition, data = samples(filtered))')
+        R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
     else: 
         R('design_full <- model.matrix(~ condition, data = samples(filtered))')
     R('set.seed(123)')
 
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
-    R('d <- dmTest(d, coef = cooef, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
+    
+    R('contrast <- c(0, 1)')
+
+    R('d <- dmTest(d, contrast = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     #print(res)
 
