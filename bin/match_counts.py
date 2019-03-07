@@ -6,6 +6,7 @@ try:
 	psl = open(sys.argv[2])
 	min_reads = int(sys.argv[3])
 	outfilename = sys.argv[4]  # sample_expression_pca_mtsf1.pdf
+	append = len(sys.argv) > 5
 except:
 	sys.stderr.write('usage: script.py countsfile psl_to_append_counts min_read_threshold outfilename\n')
 	sys.exit()
@@ -24,4 +25,7 @@ with open(outfilename, 'wt') as outfile:
 		else:
 			count = 0
 		if count >= min_reads:
-			writer.writerow(line)
+			if append:
+				writer.writerow(line + [count])
+			else:
+				writer.writerow(line)

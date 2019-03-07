@@ -18,17 +18,19 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
+
 <img src='misc/flair_workflow_compartmentalized.png' alt='flair workflow' width='680'/>
 
 It is recommended to combine all samples together prior to running flair-collapse for isoform assembly by concatenating corrected read `psl` files together. Following the creation of an isoform reference from flair-collapse, consequent steps will assign reads from each sample individually to isoforms of the combined assembly for downstream analyses.
 
-It is also good to note that bed12 and PSL can be converted using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py`.
+It is also good to note that `bed12` and `PSL` can be converted using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py`.
 
 ## <a name="requirements"></a>Requirements
 
 1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam v0.8.4+
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
+4. [salmon](https://combine-lab.github.io/salmon/getting_started/)
 
 ## <a name="modules"></a>FLAIR modules 
 `flair.py` is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
@@ -76,7 +78,7 @@ If there are multiple samples to be compared, the corrected reads `psl` files sh
 python flair.py collapse -r <reads.fq>/<reads.fa> -q query.psl -g genome.fa [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) extended `psl` containing the data-specific isoforms and (2) `fasta` file of isoform sequences.
+Outputs the high-confidence isoforms in (1) extended `*isoforms.psl`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. Intermediate files are also output for debugging purposes.
 
 ### <a name="quantify"></a>flair quantify
 Convenience function to quantifying FLAIR isoform usage across samples using minimap2. 
@@ -87,7 +89,7 @@ python flair.py quantify -r reads_manifest.tsv -i isoforms.fasta [options]
 ```
 
 **Inputs:**</br>
-(1) `reads_manifest.tsv` is a tab-delimited file containing sample_name, condition, batch\*, and path to reads.fq/fq.
+(1) `reads_manifest.tsv` is a tab-delimited file containing sample_name, condition, batch\*, and path to reads.fq/fa.
 For exmaple:
 ```tsv
 sample1	conditionA	batch1	./sample1_reads.fq
@@ -97,7 +99,7 @@ sample4	conditionB	batch1	./sample4_reads.fq
 sample5	conditionB	batch1	./sample5_reads.fq
 sample6	conditionB	batch2	./sample6_reads.fq
 ```
-\* The batch descriptor is used in the downstream diffExp analysis to model unintended variability due to secondary factors such as batch or sequencing replicate. If unsure about this option, leave this column defined as `batch1` for all samples.
+\* The batch descriptor is used in the downstream flair-diffExp analysis to model unintended variability due to secondary factors such as batch or sequencing replicate. If unsure about this option, leave this column defined as `batch1` for all samples.
 
 (2) `isoforms.fasta` contains FLAIR collapsed isoforms produced by the [`flair collapse`](#collapse) module.
 
@@ -109,6 +111,8 @@ ids	samp1_conditionA_batch1	samp2_conditionA_batch1 samp3_conditionA_batch2	...
 0042c9e7-b993_ENSG00000131368.3	237.0	156.0	165.0	150.0	...
 0042d216-6b08_ENSG00000101940.13	32.0	14.0 	25.0	...
 ```
+
+If isoform quantification in TPM is desired, the counts matrix can be converted using `bin/counts_to_tpm.py`. 
 
 #### <a name="append"></a>Appending counts to a psl
 To use the standalone [scripts](#scripts) such as `diff_iso_usage.py`, the counts matrix can be appended to the isoforms from flair-collapse after quantification. Please note that these scripts are made for pairwise comparisons, and the counts are appended in the order they appear in `count_matrix.tsv`. For differential isoform expression analysis between multiple samples with 3 or more replicates, proceed directly to flair-diffExp after flair-quantify.
@@ -179,7 +183,7 @@ Output file format:
 `chrom` `intron 5' coordinate` `intron 3' coordinate` `p-value` `strand` `sample1 intron count` `sample2 intron count` `sample1 alternative introns counts` `sample2 alternative introns counts` `isoform name` `canonical SS distance from predominant alternative SS` `canonical SS`
 
 ### diff_iso_usage.py
-Requires three positional arguments to identify and calculate significance of alternative isoform usage between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of expression values for the first condition, (3) the 0-indexed column number of expression values for the second condition, (4) `txt` output filename that assigns a p-value for each isoform. The more differentially used the isoforms are between the first and second condition, the lower the p-value. See [appending counts to a psl](#append) for obtaining (1).
+Requires four positional arguments to identify and calculate significance of alternative isoform usage between two samples using Fisher's exact tests: (1) an extended `psl` of isoforms containing two extra columns for read counts of each isoform per sample type, (2) the 0-indexed column number of expression values for the first condition, (3) the 0-indexed column number of expression values for the second condition, (4) `txt` output filename that assigns a p-value for each isoform. The more differentially used the isoforms are between the first and second condition, the lower the p-value. See [appending counts to a psl](#append) for obtaining (1).
 
 **Usage:**
 ```sh
