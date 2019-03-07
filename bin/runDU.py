@@ -148,7 +148,9 @@ def main():
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     #print(res)
 
-    resOut =  "./%s/%s_%s_v_%s_drimseq2_results.tsv" % (outdir,prefix,group1,group2)
+    data_folder = os.path.join(os.getcwd(), outdir)
+    resOut = os.path.join(data_folder, "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix,group1,group2))
+    
 
     res.to_csv(resOut, sep='\t')
     sys.exit(1)

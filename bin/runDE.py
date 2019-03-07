@@ -165,7 +165,12 @@ def main():
         pcaData    = plotPCA(vsd, intgroup="condition", returnData=robjects.r['T'])
         percentVar = robjects.r['attr'](pcaData, "percentVar")
     # arrange 
-    grdevices.pdf(file="./%s/%s_QCplots_%s_v_%s.pdf" % (outdir,prefix,group1,group2))
+
+
+    data_folder = os.path.join(os.getcwd(), outdir)
+    qcOut = os.path.join(data_folder, "%s_QCplots_%s_v_%s.pdf"  % (prefix,group1,group2))
+    
+    grdevices.pdf(file=qcOut)
 
     x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
     y = "PC2: %s" % int(percentVar[1]*100) + "%% variance"
@@ -200,9 +205,11 @@ def main():
     plotDisp(dds, main="Dispersion Estimates")
     grdevices.dev_off()
 
-    lfcOut =  "./%s/%s_%s_v_%s_deseq2_results_shrinkage.tsv" % (outdir,prefix,group1,group2)
-    resOut =  "./%s/%s_%s_v_%s_deseq2_results.tsv" % (outdir,prefix,group1,group2)
 
+    data_folder = os.path.join(os.getcwd(), outdir)
+    lfcOut = os.path.join(data_folder, "%s_%s_v_%s_deseq2_results_shrinkage.tsv"  % (prefix,group1,group2))
+    resOut = os.path.join(data_folder, "%s_%s_v_%s_deseq2_results.tsv"  % (prefix,group1,group2))
+   
     robjects.r['write.table'](reslfc, file=lfcOut, quote=False, sep="\t")
     robjects.r['write.table'](resdf, file=resOut, quote=False, sep="\t")
 
