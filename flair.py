@@ -87,11 +87,11 @@ elif mode == 'correct':
 		usage='python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
-	required.add_argument('-f', '--gtf', default='', \
+	required.add_argument('-f', '--gtf', default='', required=True, \
 		action='store', dest='f', help='GTF annotation file, used for associating gene names to reads')
 	required.add_argument('-q', '--query', type=str, default='', required=True, \
 		action='store', dest='q', help='uncorrected bed12 file')
-	required.add_argument('-c', '--chromsizes', type=str, \
+	required.add_argument('-c', '--chromsizes', type=str, required=True, \
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
 	parser.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
 		help='bed format splice junctions from short-read sequencing')
@@ -136,7 +136,7 @@ elif mode == 'collapse':
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-t', '--threads', type=str, \
-		action='store', dest='t', default='4', help='minimap2 number of threads (T=4)')
+		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
 	parser.add_argument('-p', '--promoters', action='store', dest='p', default='', \
 		help='promoter regions bed file to identify full-length reads')
 	parser.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools', \
@@ -144,19 +144,19 @@ elif mode == 'collapse':
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='samtools executable path if not in $PATH')
 	parser.add_argument('-w', '--window', default='100', action='store', dest='w', \
-		help='window size for comparing TSS/TES (W=100)')
+		help='window size for comparing TSS/TES (100)')
 	parser.add_argument('-s', '--support', default='3', action='store', dest='s', \
-		help='minimum number of supporting reads for an isoform (S=3)')
+		help='minimum number of supporting reads for an isoform (3)')
 	parser.add_argument('-n', '--no_redundant', default='none', action='store', dest='n', \
 		help='For each unique splice junction chain, report options include: \
 		none: best TSSs/TESs chosen for each unique set of splice junctions; \
 		longest: single TSS/TES chosen to maximize length; \
-		best_only: single most supported TSS/TES used in conjunction chosen (default: none)')
+		best_only: single most supported TSS/TES used in conjunction chosen (none)')
 	parser.add_argument('-e', '--filter', default='default', action='store', dest='e', \
 		help='Report options include: \
 		default--full-length isoforms only; \
 		comprehensive--default set + partial isoforms; \
-		ginormous--comprehensive + single exon subset isoforms')
+		ginormous--comprehensive + single exon subset isoforms (default)')
 	parser.add_argument('-o', '--output', default='flair.collapse', \
 		action='store', dest='o', help='output file name base for FLAIR isoforms (default: flair.collapse)')
 	args = parser.parse_args()
@@ -228,7 +228,6 @@ elif mode == 'collapse':
 	subprocess.call(['mv', args.q[:-3]+'isoforms.fa', args.o+'.isoforms.fa'])
 	subprocess.call(['python', path+'bin/psl_to_gtf.py', args.o+'.isoforms.psl'], \
 		stdout=open(args.o+'.isoforms.gtf', 'w'))
-	subprocess.call(['python', path+'bin/fasta_seq_lengths.py', args.o+'.isoforms.fa', args.o+'.isoforms.fa.sizes'])
 	
 	sys.stderr.write('Removing intermediate files/done\n')
 	if args.p:
@@ -254,8 +253,16 @@ elif mode == 'quantify':
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-t', '--threads', type=str, \
 		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
+	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
+		help='specify a samtools executable path if not in $PATH if --quality is also used')
+	parser.add_argument('--quality', type=str, action='store', dest='quality', default='0', \
+		help='minimum MAPQ of read assignment to an isoform. If using salmon, all primary alignments are used by default (0)')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output name (counts_matrix.tsv)')
+	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
+		default='', help='Path to salmon executable, specify if salmon quantification is desired')
+	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False, \
+		help='specify this flag to output additional file with expression in TPM')
 	args = parser.parse_args()
 
 	try:
@@ -293,25 +300,45 @@ elif mode == 'quantify':
 				sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
 				sys.exit()
 			sys.stderr.flush()
+			if args.quality != '0':
+				subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
+					stdout=open(sample[-1]+'qual.sam', 'w'))
+				subprocess.call(['mv', sample[-1]+'qual.sam', sample[-1]])
 
 	countData = dict()
 	for num,data in enumerate(samData):
 		sample, group, batch, readFile, samOut = data
 		sys.stderr.write("Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r" % (sample,batch,num+1,len(samData)))
-		with open(samOut) as lines:
-			for line in lines:
-				if line[0] == "@": continue
-				cols = line.split()
-				aFlag,iso,mapq = cols[1],cols[2],cols[4]
 
-				if aFlag == "16" or aFlag == "0": pass
-				else: continue
+		if not args.salmon:
+			with open(samOut) as lines:
+				for line in lines:
+					if line[0] == "@": continue
+					cols = line.split()
+					aFlag,iso,mapq = cols[1],cols[2],cols[4]
+
+					if aFlag == "16" or aFlag == "0": pass
+					else: continue
+					if iso not in countData: countData[iso] = np.zeros(len(samData))
+					countData[iso][num] += 1 
+		else:
+			subprocess.call([args.salmon, 'quant', '-t', args.i, '-o', 'temp_salmon', \
+				'-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))
+			salmonOut = open('temp_salmon/quant.sf')
+			salmonOut.readline()  # header
+			for line in salmonOut:
+				line = line.rstrip().split('\t')
+				iso, tpm, numreads = line[0], line[3], line[4]
 				if iso not in countData: countData[iso] = np.zeros(len(samData))
-				countData[iso][num] += 1 
-
+				if args.tpm:
+					countData[iso][num] = tpm
+				else:
+					countData[iso][num] = numreads
+			subprocess.call(['rm', 'salmon_stderr.txt'])
+			# subprocess.call(['rm', '-rf', 'temp_salmon'])
 		sys.stderr.flush()
 
-	sys.stderr.write("Step 3/3. Writing counts to count_matrix.tsv \r")
+	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o))
 	countMatrix = open(args.o,'w')
 
 	countMatrix.write("ids\t%s\n" % "\t".join(["_".join(x[:3]) for x in samData]))
@@ -323,6 +350,10 @@ elif mode == 'quantify':
 	countMatrix.close()
 	sys.stderr.flush()
 	sys.stderr.write("\n")
+
+	if args.tpm and not args.salmon:
+		subprocess.call(['python', path+'bin/fasta_seq_lengths.py', args.i, args.i+'.sizes'])
+		subprocess.call(['python', path+'bin/counts_to_tpm.py', args.i+'.sizes', args.o, args.o+'.tpm'])
 
 elif mode == 'diffExp':
 	parser = argparse.ArgumentParser(description='flair-diffExp parse options', \

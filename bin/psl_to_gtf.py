@@ -27,7 +27,9 @@ for line in psl:
 		gene_id = name[name.find('_')+1:]
 	if '-' in gene_id:
 		gene_id = gene_id[:gene_id.find('-')]
-	transcript_id = name[:name.rfind('_')]	
+	transcript_id = name[:name.rfind('_')]
+	if ';' in transcript_id:
+		transcript_id = transcript_id.replace(';', ':')
 
 	for b in range(len(tstarts)):
 		exon_assignment = transcript_id + '_' + str(b)

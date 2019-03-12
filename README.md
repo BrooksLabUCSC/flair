@@ -30,7 +30,6 @@ It is also good to note that `bed12` and `PSL` can be converted using [kentUtils
 1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam v0.8.4+
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
-4. [salmon](https://combine-lab.github.io/salmon/getting_started/)
 
 ## <a name="modules"></a>FLAIR modules 
 `flair.py` is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
@@ -81,7 +80,7 @@ run with `--help` for description of optional arguments.
 Outputs the high-confidence isoforms in (1) extended `*isoforms.psl`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. Intermediate files are also output for debugging purposes.
 
 ### <a name="quantify"></a>flair quantify
-Convenience function to quantifying FLAIR isoform usage across samples using minimap2. 
+Convenience function to quantifying FLAIR isoform usage across samples using minimap2. If isoform quantification in TPM is desired, please use the `--tpm` option. If the user prefer [salmon](https://combine-lab.github.io/salmon/getting_started/) to quantify transcripts using their nanopore reads, please specify a path to salmon using `--salmon`. For all options run flair-quantify with `--help`.
 
 **Usage:**
 ```sh
@@ -112,18 +111,16 @@ ids	samp1_conditionA_batch1	samp2_conditionA_batch1 samp3_conditionA_batch2	...
 0042d216-6b08_ENSG00000101940.13	32.0	14.0 	25.0	...
 ```
 
-If isoform quantification in TPM is desired, the counts matrix can be converted using `bin/counts_to_tpm.py`. 
-
 #### <a name="append"></a>Appending counts to a psl
 To use the standalone [scripts](#scripts) such as `diff_iso_usage.py`, the counts matrix can be appended to the isoforms from flair-collapse after quantification. Please note that these scripts are made for pairwise comparisons, and the counts are appended in the order they appear in `count_matrix.tsv`. For differential isoform expression analysis between multiple samples with 3 or more replicates, proceed directly to flair-diffExp after flair-quantify.
-
-**Inputs:**</br>
-(1) `isoforms.psl` from flair-collapse, `count_matrix.tsv` from flair-quantify, and `output.psl` output filename.
 
 **Usage:**
 ```sh
 python append_counts_to_psl.py isoforms.psl counts_matrix.tsv output.psl
 ```
+
+**Inputs:**</br>
+(1) `isoforms.psl` from flair-collapse, `count_matrix.tsv` from flair-quantify, and `output.psl` output filename.
 
 ### <a name="diffExp"></a>flair diffExp
 Performs differential isoform expression, differential gene expression, and differential isoform usage analyses. This module required additional python modules and R packages which are described below: 

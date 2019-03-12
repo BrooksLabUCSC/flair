@@ -14,7 +14,7 @@ for line in sizefile:
 	line = line.rstrip().split('\t')
 	sizes[line[0]] = float(line[1])
 
-header = counts_matrix.readline().split('\t')
+header = counts_matrix.readline().rstrip().split('\t')
 num_samples = len(header[1:])
 matrix_data = [header]
 all_rpk = [0] * num_samples
