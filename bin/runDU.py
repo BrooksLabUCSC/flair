@@ -142,9 +142,9 @@ def main():
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     
-    R('contrast <- c(0, 1)')
+    R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
 
-    R('d <- dmTest(d, contrast = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
+    R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     #print(res)
 
