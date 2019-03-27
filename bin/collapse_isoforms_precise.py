@@ -185,7 +185,7 @@ def run_add_se(chrom):
 def find_best_tss(sites, finding_tss):
 	nearby = dict.fromkeys(sites, 0)  # key site, value number of supporting reads window
 	wnearby = dict.fromkeys(sites, 0)  # key site, value weighted number of supporting reads window
-	bestsite = (0, 0, 0)  # TSS position, number of supporting reads, weighted supporting reads
+	bestsite = (0, 0, 0, 0)  # TSS position, number of supporting reads, weighted supporting reads
 	if finding_tss:
 		orderedsites = sorted(list(sites.keys()))  # this prioritizes the longer in case of ties
 	else:
@@ -214,13 +214,14 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 	remaining = float(sum(list(sites.values())))  # number isoforms with these junctions
 	found_tss = []  # TSSs found will be ordered by descending importance
 	novel_tss = 0  # number of novel TSS found
+	used_annotated = set()
 	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport):  
 		sites, bestsite = find_best_tss(sites, finding_tss)
 		used = remaining - sum(list(sites.values()))
+		remaining = sum(list(sites.values()))
 		if minsupport < 1 and (used/(total) < minsupport or used < 3) and len(found_tss) >= 1:
 		# found at minimum the best site, and this site did not surpass minsupport percentage of reads
 			break
-		remaining = sum(list(sites.values()))
 		closest_annotated = 1e15  # just a large number
 		if annotends:  # args.f supplied
 			for t in range(bestsite[0]-window, bestsite[0]+window):
@@ -229,7 +230,10 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 			if junccoord and (finding_tss and closest_annotated >= junccoord[0] or \
 			not finding_tss and closest_annotated <= junccoord[1]):
 				closest_annotated = 1e15  # annotated site was invalid
-		if closest_annotated < 1e15 and closest_annotated not in found_tss:
+		if closest_annotated in used_annotated:
+			continue
+		elif closest_annotated < 1e15:
+			used_annotated.add(closest_annotated)
 			found_tss += [(closest_annotated, bestsite[1], bestsite[2], bestsite[3], bestsite[0])]
 		else:
 			if novel_tss >= max_results:  # limit to max_results number of novel end sites
@@ -286,10 +290,12 @@ def run_se_collapse(chrom):
 			else:
 				edited_line = edit_line_bed12(list(line), tss, tes, tes-tss)
 			if i >= 1:  # to avoid redundant names for isoforms from the same general locus
+				if '_' in name:
+					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				if pslout:
-					edited_line[9] = name+'-'+str(i)	
+					edited_line[9] = newname
 				else:
-					edited_line[3] = name+'-'+str(i)
+					edited_line[3] = newname
 			towrite += [edited_line]
 	return towrite
 
@@ -505,6 +511,11 @@ for line in psl:
 	if tes not in isoforms[chrom][junctions]['tss_tes'][tss]:
 		isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
 	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
+	if 'd617' in line[9]:
+		f = junctions
+		c = chrom
+
+print(isoforms[c][f])
 
 if not args.quiet:
 	sys.stderr.write('Read data extracted\n')

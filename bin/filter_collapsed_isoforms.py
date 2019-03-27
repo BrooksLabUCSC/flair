@@ -125,7 +125,7 @@ for chrom in isoforms:
 			issubset = [0, 0]  # first exon is a subset, last exon is a subset
 			subset_juncs = set()  # if true, will be populated with introns of other isoforms
 			exons = sorted(list(isoforms[chrom][n]['exons']),key=lambda x: x[0])
-			first_exon, last_exon = exons[0], exons[1]
+			first_exon, last_exon = exons[0], exons[-1]
 			for n_ in similar_isos:  # compare with all similar
 				if n == n_:
 					continue
@@ -134,19 +134,10 @@ for chrom in isoforms:
 					for exon in list(isoforms[chrom][n_]['exons']):
 						if exon_overlap(first_exon, exon, tol=tol):
 							issubset[0] = 1
-						elif exon_overlap(last_exon, exon, left=False, tol=tol):
+						if exon_overlap(last_exon, exon, left=False, tol=tol):
 							issubset[1] = 1
 					subset_juncs.update(isoforms[chrom][n_]['jset'])
-			if sum(issubset) == 1:  # see if first/last exon overlaps a junction 
-				ir = False
-				for exon in sorted(list(isoforms[chrom][n]['exons'])):
-					for junction in sorted(list(subset_juncs)):
-						if overlap(exon, junction, tol):
-							ir = True
-							break
-				if ir:  # if there is intron retention, it is not considered a subset isoform
-					keepisoforms += isoforms[chrom][n]['line']
-			elif sum(issubset) == 0:
+			if sum(issubset) != 2:
 				keepisoforms += isoforms[chrom][n]['line']
 		else:  # single exon isoforms
 			exon = list(isoforms[chrom][n]['exons'])[0]

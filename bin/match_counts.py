@@ -14,7 +14,7 @@ except:
 
 for line in countsfile:
 	line = line.rstrip().split('\t')
-	counts[line[0]] = int(line[1])
+	counts[line[0]] = float(line[1])
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')

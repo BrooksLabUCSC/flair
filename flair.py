@@ -105,7 +105,7 @@ elif mode == 'correct':
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	args = parser.parse_args()
 
-	correction_cmd = ['python', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
+	correction_cmd = ['python3', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
 			'-w', args.w, '-p', args.t, '-o', args.o, '--quiet', '--progress']
 	if not args.n:
 		correction_cmd += ['--correctStrand']
@@ -113,8 +113,10 @@ elif mode == 'correct':
 		correction_cmd += ['-j', args.j]
 	subprocess.call(correction_cmd)
 
-	subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
-		args.o+'_all_corrected.unnamed.psl'])
+	sys.stderr.write('Adding gene names to read names in psl file\n')
+	if subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
+		args.o+'_all_corrected.unnamed.psl']):
+		sys.exit()
 
 	subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
 		args.o+'_all_corrected.unnamed.psl', args.f, args.o+'_all_corrected.psl'])
@@ -167,12 +169,6 @@ elif mode == 'collapse':
 		else:
 			args.m += '/minimap2'
 
-	if ',' in args.r:
-		subprocess.call(['cat'] + args.r.split(','), stdout=open('temp_reads', 'w'))
-		reads_file = 'temp_reads'
-	else:
-		reads_file = args.r
-
 	precollapse = args.q  # filename
 	if args.p:
 		sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
@@ -203,29 +199,34 @@ elif mode == 'collapse':
 
 	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'firstpass.psl', \
 		args.g, args.q[:-3]+'firstpass.fa'])
-	
+
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
+	reads_files = args.r.split(',')
+	count_files = []
 	try:
-		subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
-			args.q[:-3]+'firstpass.fa', reads_file], stdout=open(args.q[:-3]+'firstpass.sam', "w"))
-		subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', args.q[:-3]+'firstpass.sam'], \
-			stdout=open(args.q[:-3]+'firstpass.q1.sam', "w"))
+		for r in reads_files:
+			subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
+				args.q[:-3]+'firstpass.fa', r], stdout=open(r+'.firstpass.sam', "w"))
+			subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', r+'.firstpass.sam'], \
+				stdout=open(r+'.firstpass.q1.sam', "w"))
+			subprocess.call(['python', path+'bin/count_sam_genes.py', r+'.firstpass.q1.sam', \
+				r+'.firstpass.q1.counts'])
+			count_files += [r+'.firstpass.q1.counts']
+			subprocess.call(['rm', r+'.firstpass.sam'])
 	except:
 		sys.stderr.write('Possible minimap2/samtools error, specify paths or make sure they are in $PATH\n')
 		sys.exit()
-		
-	sys.stderr.write('Counting isoform expression\n')
-	subprocess.call(['python', path+'bin/count_sam_genes.py', args.q[:-3]+'firstpass.q1.sam', \
-		args.q[:-3]+'firstpass.q1.counts'])
-	
+
+	subprocess.call(['python', path+'bin/combine_counts.py'] + count_files + [args.q[:-3]+'firstpass.q1.counts'])
 	sys.stderr.write('Filtering isoforms by read coverage\n')
 	subprocess.call(['python', path+'bin/match_counts.py', args.q[:-3]+'firstpass.q1.counts', \
 		args.q[:-3]+'firstpass.psl', args.s, args.q[:-3]+'isoforms.psl'])
 	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'isoforms.psl', \
 		args.g, args.q[:-3]+'isoforms.fa'])
 
-	subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o+'.isoforms.psl'])
-	subprocess.call(['mv', args.q[:-3]+'isoforms.fa', args.o+'.isoforms.fa'])
+	if args.q[:-3] != args.o:
+		subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o+'.isoforms.psl'])
+		subprocess.call(['mv', args.q[:-3]+'isoforms.fa', args.o+'.isoforms.fa'])
 	subprocess.call(['python', path+'bin/psl_to_gtf.py', args.o+'.isoforms.psl'], \
 		stdout=open(args.o+'.isoforms.gtf', 'w'))
 	
@@ -233,12 +234,10 @@ elif mode == 'collapse':
 	if args.p:
 		subprocess.call(['rm', args.q[:-3]+'promoter_intersect.bed'])
 		subprocess.call(['rm', args.q[:-3]+'promotersupported.psl'])
-	if reads_file == 'temp_reads':
-		subprocess.call(['rm', reads_file])
 	# subprocess.call(['rm', args.q[:-3]+'firstpass.psl'])
+	for c in count_files:
+		subprocess.call(['rm', c])
 	subprocess.call(['rm', args.q[:-3]+'firstpass.fa'])
-	subprocess.call(['rm', args.q[:-3]+'firstpass.sam'])
-	subprocess.call(['rm', args.q[:-3]+'firstpass.q1.counts'])
 
 elif mode == 'quantify':
 	parser = argparse.ArgumentParser(description='flair-quantify parse options', \
@@ -279,7 +278,8 @@ elif mode == 'quantify':
 			args.m += '/minimap2'
 
 	samData = list()
-	with codecs.open(args.r, "r", encoding='utf-8', errors='ignore' ) as lines:
+	with codecs.open(args.r, "r", encoding='utf-8', errors='ignore') as lines:
+
 		for line in lines:
 			cols = line.rstrip().split('\t')
 			if len(cols)<4:
@@ -290,7 +290,6 @@ elif mode == 'quantify':
 			samData.append(cols + [readFileRoot + '.sam'])
 		
 		samData.sort(key=lambda x: x[1], reverse=True)
-
 		for num,sample in enumerate(samData,0):
 			sys.stderr.write("Step 1/3. Aligning sample %s_%s: %s/%s \r" % (sample[0],sample[2],num+1,len(samData)))
 			try:
@@ -301,8 +300,9 @@ elif mode == 'quantify':
 				sys.exit()
 			sys.stderr.flush()
 			if args.quality != '0':
-				subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
-					stdout=open(sample[-1]+'qual.sam', 'w'))
+				if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
+					stdout=open(sample[-1]+'qual.sam', 'w')):
+					sys.exit(1)
 				subprocess.call(['mv', sample[-1]+'qual.sam', sample[-1]])
 
 	countData = dict()

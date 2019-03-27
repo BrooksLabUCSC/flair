@@ -1,0 +1,21 @@
+import sys, csv
+
+try:
+	file1 = open(sys.argv[1])
+except:
+	sys.stderr.write('usage: script.py countsfile1 countsfile2 [...] outfilename\n')
+	sys.exit()
+
+counts = {}
+for fle in sys.argv[1:-1]:
+	for line in open(fle):
+		line = line.rstrip().split('\t')
+		if line[0] not in counts:
+			counts[line[0]] = 0
+		counts[line[0]] += float(line[1])
+
+
+with open(sys.argv[-1], 'wt') as outfile:
+	writer = csv.writer(outfile, delimiter='\t')
+	for transcript in counts:
+		writer.writerow([transcript, counts[transcript]])
