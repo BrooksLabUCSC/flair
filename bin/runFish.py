@@ -79,7 +79,7 @@ def getQuant(x):
             cols = i.rstrip().split()
             vals = np.asarray(cols[1:], dtype=float)
             gid = re.search("(ENSG[^\.]+|chr[^\-]+)",cols[0]).group(1)
-            tid = cols[0].split("_")[0].replace(";",":")
+            tid = cols[0]
 
             if gid not in gQ:
                 gQ[gid] = np.zeros(len(samples))
@@ -114,8 +114,14 @@ def fishAS(ioe, gQ, iQ, s, outPrefix):
             inclusionVal = np.asarray([iQ.get(x,np.zeros(numSamples)) for x in inclusionTxn]).sum(axis=0)
             exclusionVal = np.asarray([iQ.get(x,np.zeros(numSamples)) for x in exclusionTxn]).sum(axis=0)
 
+            if inclusionVal.min() < 25:
+                continue
+            if exclusionVal.min() < 25:
+                continue
+
             sumCount = inclusionVal + exclusionVal
-            if sumCount.min() < 20:
+            psi = inclusionVal / sumCount
+            if sumCount.min()<35:
                 continue
 
 
@@ -129,7 +135,7 @@ def fishAS(ioe, gQ, iQ, s, outPrefix):
                 inclVal1, inclVal2 = inclusionVal[i], inclusionVal[j]
                 table = [[inclVal1, inclVal2],[exclVal1, exclVal2]]
                 pval  = sps.fisher_exact(table)[1]
-                pvalues[key].append((event,inclVal1, exclVal1, inclVal2, exclVal2, pval))
+                pvalues[key].append((event,inclVal1, exclVal1+incVal1, inclVal2, exclVal2+incVal2, pval))
     return pvalues
 # main
 
@@ -155,7 +161,7 @@ def main():
     for sample, plist in pvalues.items():
         corrected = sm.multipletests([x[-1] for x in plist], method='hs')[1]
         with open("%s_%s_fishersP.tsv" % (outPrefix,sample), 'w') as out1:
-            print("event","samp1_inclusion", "samp1_exclusion", "samp2_inclusion", "sampe2_exclusion", "pvalue", "bh.adj.pval", sep="\t", file=out1)
+            print("event","samp1_inclusion", "samp1_total", "samp2_inclusion", "sampe2_total", "pvalue", "bh.adj.pval", sep="\t", file=out1)
             [print("\t".join(map(str,x)),corrected[num],sep="\t", file=out1) for num,x in enumerate(plist)]
 
 
