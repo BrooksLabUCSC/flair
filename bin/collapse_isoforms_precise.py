@@ -292,6 +292,8 @@ def run_se_collapse(chrom):
 			if i >= 1:  # to avoid redundant names for isoforms from the same general locus
 				if '_' in name:
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
+				else:
+					newname = name+'-'+str(i)
 				if pslout:
 					edited_line[9] = newname
 				else:
@@ -338,10 +340,14 @@ def run_find_best_sites(chrom):
 			else:
 				edited_line = edit_line_bed12(list(line), tss, tes)
 			if i >= 1:  # to avoid redundant names for isoforms with the same junctions
-				if pslout:
-					edited_line[9] = name+'-'+str(i)	
+				if '_' in name:
+					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
-					edited_line[3] = name+'-'+str(i)
+					newname = name+'-'+str(i)
+				if pslout:
+					edited_line[9] = newname
+				else:
+					edited_line[3] = newname
 			if args.i:
 				towrite[chrom][jset] += [edited_line]
 			else:  # all isoforms will go through a second pass to homogenize ends
@@ -407,7 +413,6 @@ def run_find_best_sites(chrom):
 				newline = edit_line(list(line), endpair[0], endpair[1])
 			if args.n == 'best_only':
 				new_towrite[chrom][jset] += [newline[:-2]]
-				writer.writerow(newline[:-2])
 			else:
 				new_towrite[chrom][jset] += [newline[:-1]]
 	return new_towrite
@@ -511,11 +516,6 @@ for line in psl:
 	if tes not in isoforms[chrom][junctions]['tss_tes'][tss]:
 		isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
 	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
-	if 'd617' in line[9]:
-		f = junctions
-		c = chrom
-
-print(isoforms[c][f])
 
 if not args.quiet:
 	sys.stderr.write('Read data extracted\n')
@@ -556,128 +556,8 @@ with open(args.o, 'wt') as outfile:
 		p.terminate()
 	isoforms = None
 
-	# allends = {}  # counts of all TSSs/TESs by chromosome
-	# towrite = {}  # isoforms to be written
-	# for ends in res:
-	# 	allends.update(ends)
-	# 	towrite.update(isos)
-
 	for towrite in res:
 		for chrom in towrite:
 			for jset in towrite[chrom]:
 				for iso in towrite[chrom][jset]:
 					writer.writerow(iso)
-	sys.exit()
-
-
-	# allends = {}  # counts of all TSSs/TESs by chromosome
-	# towrite = {}  # isoforms to be written
-	# for chrom in isoforms:
-	# 	if chrom not in allends:
-	# 		allends[chrom] = {}
-	# 		allends[chrom]['tss'] = {}
-	# 		allends[chrom]['tes'] = {}
-	# 		towrite[chrom] = {}
-	# 	for jset in isoforms[chrom]:
-	# 		if jset not in towrite[chrom]:
-	# 			towrite[chrom][jset] = []
-	# 		line = isoforms[chrom][jset]['line']
-	# 		junccoord = isoforms[chrom][jset]['junccoord']
-	# 		ends = find_best_sites(isoforms[chrom][jset]['tss'], \
-	# 			isoforms[chrom][jset]['tss_tes'], junccoord, chrom)
-
-	# 		if args.i and args.n == 'longest':
-	# 			tss = sorted(ends, key=lambda x: x[0])[0][0]  # smallest
-	# 			tes = sorted(ends, key=lambda x: x[1])[-1][1]  # largest
-	# 			if pslout:
-	# 				writer.writerow(edit_line(list(line), tss, tes))
-	# 			else:
-	# 				writer.writerow(edit_line_bed12(list(line), tss, tes))
-	# 			continue
-	# 		if args.i and args.n == 'best_only':
-	# 			tss, tes = sorted(ends, key=lambda x: x[2])[-1][:2]
-	# 			if pslout:
-	# 				writer.writerow(edit_line(list(line), tss, tes))
-	# 			else:
-	# 				writer.writerow(edit_line_bed12(list(line), tss, tes))
-	# 			continue  # 1 isoform per unique set of junctions
-
-	# 		i = 0
-	# 		name = line[9] if pslout else line[3]
-	# 		for tss, tes, support, tsscount, tescount in ends:
-	# 			if pslout:
-	# 				edited_line = edit_line(list(line), tss, tes)
-	# 			else:
-	# 				edited_line = edit_line_bed12(list(line), tss, tes)
-	# 			if i >= 1:  # to avoid redundant names for isoforms with the same junctions
-	# 				if pslout:
-	# 					edited_line[9] = name+'-'+str(i)	
-	# 				else:
-	# 					edited_line[3] = name+'-'+str(i)
-	# 			if args.i:
-	# 				writer.writerow(edited_line)
-	# 			else:  # all isoforms will go through a second pass to homogenize ends
-	# 				if args.n == 'best_only':
-	# 					towrite[chrom][jset] += [edited_line + [support, junccoord]]
-	# 				else:  # longest
-	# 					towrite[chrom][jset] += [edited_line + [junccoord]]
-	# 				if tss not in allends[chrom]['tss']:
-	# 					allends[chrom]['tss'][tss] = 0
-	# 				allends[chrom]['tss'][tss] += tsscount
-	# 				if tes not in allends[chrom]['tes']:
-	# 					allends[chrom]['tes'][tes] = 0
-	# 				allends[chrom]['tes'][tes] = tescount
-	# 			i += 1
-	# if args.i:
-	# 	sys.exit()
-	# isoforms = None
-
-	for chrom in towrite:
-		for jset in towrite[chrom]:
-			jsetends = set()
-			endpair = [1e15, 0, 0]  # only applies if no_redundant was specified
-			for line in towrite[chrom][jset]:  # adjust isoform TSS/TES using allends dict
-				if bed:
-					tss, tes = int(line[1]), int(line[2])
-				else:
-					tss, tes = int(line[15]), int(line[16])
-				junccoord = line[-1]
-				tss_support = allends[chrom]['tss'][tss]  # current tss
-				for t in range(tss+window, tss-window, -1):
-					if t in allends[chrom]['tss']:
-						t_support = allends[chrom]['tss'][t]  # comparison tss
-						if (t_support > tss_support and t < junccoord[0]) or \
-						(t_support == tss_support and t < tss):
-							tss, support = t, t_support
-
-				tes_support = allends[chrom]['tes'][tes]  # current tes
-				for t in range(tes-window, tes+window):
-					if t in allends[chrom]['tes']:
-						t_support = allends[chrom]['tes'][t]  # comparison tes
-						if (t_support > tes_support and t > junccoord[1]) or \
-						(t_support == tes_support and t > tes):
-							tes, tes_support = t, t_support
-
-				if (tss,tes) not in jsetends:
-					jsetends.add((tss,tes))
-					if args.n == 'best_only':
-						endpair = [tss, tes, support] if endpair[2] < tss_support else endpair
-					elif args.n == 'longest':
-						endpair[0] = tss if tss < endpair[0] else endpair[0]
-						endpair[1] = tes if tes > endpair[1] else endpair[1]
-					else:
-						if bed:
-							newline = edit_line_bed12(list(line), tss, tes)
-						else:
-							newline = edit_line(list(line), tss, tes)
-						writer.writerow(newline[:-1])
-			if endpair[0] != 1e15:  # write best_only or longest option isoforms
-				if bed:
-					newline = edit_line_bed12(list(line), endpair[0], endpair[1])
-				else:
-					newline = edit_line(list(line), endpair[0], endpair[1])
-				if args.n == 'best_only':
-					writer.writerow(newline[:-2])
-				else:
-					writer.writerow(newline[:-1])		
-

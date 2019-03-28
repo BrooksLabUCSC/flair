@@ -26,7 +26,10 @@ for line in psl:
 	else:
 		gene_id = name[name.find('_')+1:]
 	if '-' in gene_id:
+		transcript_flag = gene_id[gene_id.find('-'):]
+		transcript_id += transcript_flag
 		gene_id = gene_id[:gene_id.find('-')]
+
 	transcript_id = name[:name.rfind('_')]
 	if ';' in transcript_id:
 		transcript_id = transcript_id.replace(';', ':')

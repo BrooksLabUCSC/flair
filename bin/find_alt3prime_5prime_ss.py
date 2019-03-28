@@ -22,7 +22,7 @@ def pslreader(psl, index=0, fiveprimeon=False):
 	for line in psl:
 		line = line.rstrip().split('\t')
 		chrom, name, strand, start, end = line[13], line[9], line[8], int(line[15]), int(line[16])
-		count0, count1 = int(line[colnum]), int(line[colnum + 1])
+		count0, count1 = float(line[colnum]), float(line[colnum + 1])
 		chrom = strand + chrom  # stranded comparisons
 		sizes = [int(n) for n in line[18].split(',')[:-1]]
 		starts = [int(n) for n in line[20].split(',')[:-1]]
@@ -38,8 +38,8 @@ def pslreader(psl, index=0, fiveprimeon=False):
 				junctiondict[chrom][fiveprime] = {}  # 5' end anchor
 			if threeprime not in junctiondict[chrom][fiveprime]:
 				junctiondict[chrom][fiveprime][threeprime] = [0,0, name]
-			junctiondict[chrom][fiveprime][threeprime][0] += float(count0)
-			junctiondict[chrom][fiveprime][threeprime][1] += float(count1)
+			junctiondict[chrom][fiveprime][threeprime][0] += count0
+			junctiondict[chrom][fiveprime][threeprime][1] += count1
 	return junctiondict
 
 def find_altss(alljuncs, writer, fiveprimeon=False):  # comments are for alt3' splicing
