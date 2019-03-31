@@ -3,11 +3,12 @@ import scipy.stats as sps
 
 try:
 	psl = open(sys.argv[1])
-	colnum = int(sys.argv[2])
-	outfilename3 = sys.argv[3]
-	outfilename5 = sys.argv[4]
+	colnum1 = int(sys.argv[2])
+	colnum2 = int(sys.argv[3])
+	outfilename3 = sys.argv[4]
+	outfilename5 = sys.argv[5]
 except:
-	print('usage: script.py isoforms.psl colnum alt_acceptor.txt alt_donor.txt')
+	print('usage: script.py isoforms.psl colnum1 colnum2 alt_acceptor.txt alt_donor.txt')
 	sys.exit()
 
 def get_junctions_psl(starts, sizes):
@@ -22,7 +23,7 @@ def pslreader(psl, index=0, fiveprimeon=False):
 	for line in psl:
 		line = line.rstrip().split('\t')
 		chrom, name, strand, start, end = line[13], line[9], line[8], int(line[15]), int(line[16])
-		count0, count1 = float(line[colnum]), float(line[colnum + 1])
+		count0, count1 = float(line[colnum1]), float(line[colnum2])
 		chrom = strand + chrom  # stranded comparisons
 		sizes = [int(n) for n in line[18].split(',')[:-1]]
 		starts = [int(n) for n in line[20].split(',')[:-1]]

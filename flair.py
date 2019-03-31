@@ -180,9 +180,14 @@ elif mode == 'collapse':
 		precollapse = args.q[:-3]+'promotersupported.psl'
 
 	sys.stderr.write('Collapsing isoforms\n')
-	if subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-		'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl']):
-		sys.exit()
+	if args.f:
+		if subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
+			'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl', '-f', args.f]):
+			sys.exit()
+	else:
+		if subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
+			'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl']):
+			sys.exit()
 
 	sys.stderr.write('Filtering isoforms\n')  # filter more
 	if subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'firstpass.psl', \
@@ -301,9 +306,9 @@ elif mode == 'quantify':
 			sys.stderr.flush()
 			if args.quality != '0':
 				if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
-					stdout=open(sample[-1]+'qual.sam', 'w')):
+					stdout=open(sample[-1]+'.qual.sam', 'w')):
 					sys.exit(1)
-				subprocess.call(['mv', sample[-1]+'qual.sam', sample[-1]])
+				subprocess.call(['mv', sample[-1]+'.qual.sam', sample[-1]])
 
 	countData = dict()
 	for num,data in enumerate(samData):
