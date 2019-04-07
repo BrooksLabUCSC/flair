@@ -13,10 +13,9 @@ except:
 
 def get_junctions_psl(starts, sizes):
 	junctions = set()
-	if len(starts) != 1:
-		for b in range(len(starts)-1):
-			junctions.add((starts[b]+sizes[b], starts[b+1]))
-		return junctions
+	for b in range(len(starts)-1):
+		junctions.add((starts[b]+sizes[b], starts[b+1]))
+	return junctions
 
 def pslreader(psl, index=0, fiveprimeon=False):
 	junctiondict = {}
@@ -114,9 +113,3 @@ alljuncs = pslreader(open(sys.argv[1]), fiveprimeon=True)
 with open(outfilename5, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	find_altss(alljuncs, writer, fiveprimeon=True)
-
-
-
-
-
-
