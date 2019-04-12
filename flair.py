@@ -105,7 +105,7 @@ elif mode == 'correct':
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	args = parser.parse_args()
 
-	correction_cmd = ['python3', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
+	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
 			'-w', args.w, '-p', args.t, '-o', args.o, '--quiet', '--progress']
 	if not args.n:
 		correction_cmd += ['--correctStrand']
@@ -114,11 +114,11 @@ elif mode == 'correct':
 	subprocess.call(correction_cmd)
 
 	sys.stderr.write('Adding gene names to read names in psl file\n')
-	if subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
+	if subprocess.call([sys.executable, path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
 		args.o+'_all_corrected.unnamed.psl']):
 		sys.exit()
 
-	subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
+	subprocess.call([sys.executable, path+'bin/identify_annotated_gene.py', \
 		args.o+'_all_corrected.unnamed.psl', args.f, args.o+'_all_corrected.psl'])
 	subprocess.call(['rm', args.o+'_all_corrected.unnamed.psl'])
 
