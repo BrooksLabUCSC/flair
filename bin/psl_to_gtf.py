@@ -19,6 +19,10 @@ for line in psl:
 			bin/identify_gene_isoform.py prior for best results\n')
 		sys.exit()
 
+	transcript_id = name[:name.rfind('_')]
+	if ';' in transcript_id:
+		transcript_id = transcript_id.replace(';', ':')
+
 	if 'ENSG' in name:
 		gene_id = name[name.find('ENSG'):]
 	elif 'chr' in name:
@@ -30,13 +34,20 @@ for line in psl:
 		transcript_id += transcript_flag
 		gene_id = gene_id[:gene_id.find('-')]
 
-	transcript_id = name[:name.rfind('_')]
-	if ';' in transcript_id:
-		transcript_id = transcript_id.replace(';', ':')
-
+	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\
+				.format(gene_id, transcript_id)
+	print('\t'.join([chrom, 'FLAIR', 'transcript', line[15], line[16], '.', strand, '.', \
+		]))
+	# if strand == '-':  # to list exons in 5'->3'
+	# 	for b in range(len(tstarts)):  # exon number
+	# 		bi = len(tstarts) - 1 - b  # block index
+	# 		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
+	# 						.format(gene_id, transcript_id, b)
+	# 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[bi]+1), \
+	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, str(score), endstring]))			
+	# else:
 	for b in range(len(tstarts)):
-		exon_assignment = transcript_id + '_' + str(b)
-		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_assignment \"{}\";'\
-				.format(gene_id, transcript_id, exon_assignment)
-		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]), \
+		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
+				.format(gene_id, transcript_id, b)
+		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1), \
 			str(tstarts[b]+bsizes[b]), '.', strand, str(score), endstring]))

@@ -63,9 +63,9 @@ if mode == 'align':
 		sys.exit()
 
 	if args.p and args.c:  # sam to psl if desired
-		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl', args.c])
+		subprocess.call([sys.executable, path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl', args.c])
 	elif args.p:
-		subprocess.call(['python', path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl'])
+		subprocess.call([sys.executable, path+'bin/sam_to_psl.py', args.o+'.sam', args.o+'.psl'])
 	
 	sys.stderr.write('Converting sam output to bed\n')
 	if subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], \
@@ -80,7 +80,7 @@ if mode == 'align':
 		sys.exit()
 
 	subprocess.call([args.sam, 'index', args.o+'.bam'])
-	subprocess.call(['python', path+'bin/bam2Bed12.py', '-i', args.o+'.bam'], stdout=open(args.o+'.bed', 'w'))
+	subprocess.call([sys.executable, path+'bin/bam2Bed12.py', '-i', args.o+'.bam'], stdout=open(args.o+'.bed', 'w'))
 
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
@@ -105,7 +105,7 @@ elif mode == 'correct':
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	args = parser.parse_args()
 
-	correction_cmd = ['python3', path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
+	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
 			'-w', args.w, '-p', args.t, '-o', args.o, '--quiet', '--progress']
 	if not args.n:
 		correction_cmd += ['--correctStrand']
@@ -114,11 +114,11 @@ elif mode == 'correct':
 	subprocess.call(correction_cmd)
 
 	sys.stderr.write('Adding gene names to read names in psl file\n')
-	if subprocess.call(['python', path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
+	if subprocess.call([sys.executable, path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
 		args.o+'_all_corrected.unnamed.psl']):
 		sys.exit()
 
-	subprocess.call(['python', path+'bin/identify_annotated_gene.py', \
+	subprocess.call([sys.executable, path+'bin/identify_annotated_gene.py', \
 		args.o+'_all_corrected.unnamed.psl', args.f, args.o+'_all_corrected.psl'])
 	subprocess.call(['rm', args.o+'_all_corrected.unnamed.psl'])
 
@@ -172,37 +172,37 @@ elif mode == 'collapse':
 	precollapse = args.q  # filename
 	if args.p:
 		sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
-		subprocess.call(['python', path+'bin/pull_starts.py', args.q, args.q[:-3]+'tss.bed'])
+		subprocess.call([sys.executable, path+'bin/pull_starts.py', args.q, args.q[:-3]+'tss.bed'])
 		subprocess.call([args.b, 'intersect', '-a', args.q[:-3]+'tss.bed', '-b', args.p], \
 			stdout=open(args.q[:-3]+'promoter_intersect.bed', 'w'))
-		subprocess.call(['python', path+'bin/psl_reads_from_bed.py', args.q[:-3]+'promoter_intersect.bed', \
+		subprocess.call([sys.executable, path+'bin/psl_reads_from_bed.py', args.q[:-3]+'promoter_intersect.bed', \
 			args.q, args.q[:-3]+'promotersupported.psl'])
 		precollapse = args.q[:-3]+'promotersupported.psl'
 
 	sys.stderr.write('Collapsing isoforms\n')
+
+	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
+			'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl']
 	if args.f:
-		if subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-			'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl', '-f', args.f]):
-			sys.exit()
-	else:
-		if subprocess.call(['python', path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-			'-w', args.w, '-s', '1', '-n', args.n, '-o', args.q[:-3]+'firstpass.psl']):
-			sys.exit()
+		collapse_cmd += ['-f', args.f]
+
+	if subprocess.call(collapse_cmd):
+		sys.exit()
 
 	sys.stderr.write('Filtering isoforms\n')  # filter more
-	if subprocess.call(['python', path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'firstpass.psl', \
+	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.q[:-3]+'firstpass.psl', \
 		args.e, args.q[:-3]+'firstpass.filtered.psl']):
 		sys.exit()
 	subprocess.call(['mv', args.q[:-3]+'firstpass.filtered.psl', args.q[:-3]+'firstpass.psl'])
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
-		if subprocess.call(['python', path+'bin/identify_similar_annotated_isoform.py', \
+		if subprocess.call([sys.executable, path+'bin/identify_similar_annotated_isoform.py', \
 			args.q[:-3]+'firstpass.psl', args.f, args.q[:-3]+'firstpass.renamed.psl']):
 			sys.exit()
 		subprocess.call(['mv', args.q[:-3]+'firstpass.renamed.psl', args.q[:-3]+'firstpass.psl'])
 
-	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'firstpass.psl', \
+	subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.q[:-3]+'firstpass.psl', \
 		args.g, args.q[:-3]+'firstpass.fa'])
 
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
@@ -214,7 +214,7 @@ elif mode == 'collapse':
 				args.q[:-3]+'firstpass.fa', r], stdout=open(r+'.firstpass.sam', "w"))
 			subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', r+'.firstpass.sam'], \
 				stdout=open(r+'.firstpass.q1.sam', "w"))
-			subprocess.call(['python', path+'bin/count_sam_genes.py', r+'.firstpass.q1.sam', \
+			subprocess.call([sys.executable, path+'bin/count_sam_genes.py', r+'.firstpass.q1.sam', \
 				r+'.firstpass.q1.counts'])
 			count_files += [r+'.firstpass.q1.counts']
 			subprocess.call(['rm', r+'.firstpass.sam'])
@@ -222,17 +222,17 @@ elif mode == 'collapse':
 		sys.stderr.write('Possible minimap2/samtools error, specify paths or make sure they are in $PATH\n')
 		sys.exit()
 
-	subprocess.call(['python', path+'bin/combine_counts.py'] + count_files + [args.q[:-3]+'firstpass.q1.counts'])
+	subprocess.call([sys.executable, path+'bin/combine_counts.py'] + count_files + [args.q[:-3]+'firstpass.q1.counts'])
 	sys.stderr.write('Filtering isoforms by read coverage\n')
-	subprocess.call(['python', path+'bin/match_counts.py', args.q[:-3]+'firstpass.q1.counts', \
+	subprocess.call([sys.executable, path+'bin/match_counts.py', args.q[:-3]+'firstpass.q1.counts', \
 		args.q[:-3]+'firstpass.psl', args.s, args.q[:-3]+'isoforms.psl'])
-	subprocess.call(['python', path+'bin/psl_to_sequence.py', args.q[:-3]+'isoforms.psl', \
+	subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.q[:-3]+'isoforms.psl', \
 		args.g, args.q[:-3]+'isoforms.fa'])
 
 	if args.q[:-3] != args.o:
 		subprocess.call(['mv', args.q[:-3]+'isoforms.psl', args.o+'.isoforms.psl'])
 		subprocess.call(['mv', args.q[:-3]+'isoforms.fa', args.o+'.isoforms.fa'])
-	subprocess.call(['python', path+'bin/psl_to_gtf.py', args.o+'.isoforms.psl'], \
+	subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.psl'], \
 		stdout=open(args.o+'.isoforms.gtf', 'w'))
 	
 	sys.stderr.write('Removing intermediate files/done\n')
@@ -357,8 +357,8 @@ elif mode == 'quantify':
 	sys.stderr.write("\n")
 
 	if args.tpm and not args.salmon:
-		subprocess.call(['python', path+'bin/fasta_seq_lengths.py', args.i, args.i+'.sizes'])
-		subprocess.call(['python', path+'bin/counts_to_tpm.py', args.i+'.sizes', args.o, args.o+'.tpm'])
+		subprocess.call([sys.executable, path+'bin/fasta_seq_lengths.py', args.i, args.i+'.sizes'])
+		subprocess.call([sys.executable, path+'bin/counts_to_tpm.py', args.i+'.sizes', args.o, args.o+'.tpm'])
 
 elif mode == 'diffExp':
 	parser = argparse.ArgumentParser(description='flair-diffExp parse options', \
@@ -368,13 +368,13 @@ elif mode == 'diffExp':
 	
 	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
 		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
-	required.add_argument('--out_dir', action='store', dest='o', \
+	required.add_argument('-o', '--out_dir', action='store', dest='o', \
 		type=str, required=True, help='Output directory for tables and plots.')
-	required.add_argument('--threads', action='store', dest='t', \
+	required.add_argument('-t', '--threads', action='store', dest='t', \
 		type=int, required=False, default=4, help='Number of threads for parallel DRIM-Seq.')
 	parser.add_argument('-e', '--exp_thresh', action='store', dest='e', type=int, required=False, \
 		default=10, help='Read count expression threshold. Isoforms in which \
-		both conditions contain less than N reads are filtered out (Default N=10)')
+		both conditions contain fewer than E reads are filtered out (Default E=10)')
 
 	args = parser.parse_args()
 
