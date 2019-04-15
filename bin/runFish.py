@@ -79,12 +79,13 @@ def getQuant(x):
             cols = i.rstrip().split()
             vals = np.asarray(cols[1:], dtype=float)
             gid = re.search("(ENSG[^\.]+|chr[^\-]+)",cols[0]).group(1)
-            tid = cols[0]
+            tid = cols[0].split("_")[0]
 
             if gid not in gQ:
                 gQ[gid] = np.zeros(len(samples))
             gQ[gid] = gQ[gid] + vals
             iQ[tid] = vals
+
     return gQ, iQ, samples
 
 
@@ -110,20 +111,12 @@ def fishAS(ioe, gQ, iQ, s, outPrefix):
                 # has to to with isoform TES/TSS
                 continue
 
-
+            
             inclusionVal = np.asarray([iQ.get(x,np.zeros(numSamples)) for x in inclusionTxn]).sum(axis=0)
             exclusionVal = np.asarray([iQ.get(x,np.zeros(numSamples)) for x in exclusionTxn]).sum(axis=0)
 
-            if inclusionVal.min() < 25:
-                continue
-            if exclusionVal.min() < 25:
-                continue
-
             sumCount = inclusionVal + exclusionVal
             psi = inclusionVal / sumCount
-            if sumCount.min()<35:
-                continue
-
 
             for combo in sampleCombos:
                 i,j = combo
@@ -133,9 +126,17 @@ def fishAS(ioe, gQ, iQ, s, outPrefix):
 
                 exclVal1, exclVal2 = exclusionVal[i], exclusionVal[j]
                 inclVal1, inclVal2 = inclusionVal[i], inclusionVal[j]
+                
+                if exclVal1 + inclVal1 < 35 or exclVal2 + inclVal2 < 35:
+                    continue
+                if exclVal1<25 and exclVal2<25:
+                    continue
+                if inclVal1<25 and inclVal2<25:
+                    continue
+
                 table = [[inclVal1, inclVal2],[exclVal1, exclVal2]]
                 pval  = sps.fisher_exact(table)[1]
-                pvalues[key].append((event,inclVal1, exclVal1+incVal1, inclVal2, exclVal2+incVal2, pval))
+                pvalues[key].append((event,inclVal1, exclVal1+inclVal1, inclVal2, exclVal2+inclVal2, pval))
     return pvalues
 # main
 
