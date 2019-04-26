@@ -40,7 +40,7 @@ try:
 		gtf = open(args.f)
 except:
 	sys.stderr.write('Make sure all files (query, GTF) have valid paths and can be opened\n')
-	sys.exit()
+	sys.exit(1)
 bed = args.q[-3:].lower() != 'psl'
 pslout = True
 if args.o:
@@ -233,12 +233,14 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		if closest_annotated in used_annotated:
 			continue
 		elif closest_annotated < 1e15:
+			if len(found_tss) >= max_results:
+				break
 			used_annotated.add(closest_annotated)
 			found_tss += [(closest_annotated, bestsite[1], bestsite[2], bestsite[3], bestsite[0])]
 		else:
 			if novel_tss >= max_results:  # limit to max_results number of novel end sites
 				continue
-			if len(found_tss) > max_results:  # if annotated end site(s) have been identified, stop searching
+			if len(found_tss) >= max_results:  # if annotated end site(s) have been identified, stop searching
 				break
 			found_tss += [bestsite]
 			novel_tss += 1
@@ -284,7 +286,6 @@ def run_se_collapse(chrom):
 			senames[name] = 0
 		for tss, tes, support, tsscount, tescount in ends:
 			i = senames[name]
-			senames[name] += 1
 			if pslout:
 				edited_line = edit_line(list(line), tss, tes, tes-tss)
 			else:
@@ -298,6 +299,7 @@ def run_se_collapse(chrom):
 					edited_line[9] = newname
 				else:
 					edited_line[3] = newname
+			senames[name] += 1
 			towrite += [edited_line]
 	return towrite
 
@@ -308,7 +310,6 @@ def run_find_best_sites(chrom):
 	allends[chrom]['tes'] = {}
 	towrite = {}  # isoforms to be written
 	towrite[chrom] = {}
-
 	for jset in isoforms[chrom]:  # unique splice junction chain
 		towrite[chrom][jset] = []
 		line = isoforms[chrom][jset]['line']
@@ -361,7 +362,8 @@ def run_find_best_sites(chrom):
 				if tes not in allends[chrom]['tes']:
 					allends[chrom]['tes'][tes] = 0
 				allends[chrom]['tes'][tes] = tescount
-			i += 1	
+			if args.n != 'best_only' and args.n != 'longest':
+				i += 1
 	if args.i:
 		return towrite
 

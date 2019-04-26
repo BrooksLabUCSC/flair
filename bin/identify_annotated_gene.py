@@ -12,7 +12,7 @@ except:
 def get_junctions(line):
 	junctions = set()
 	starts = [int(n) + 1 for n in line[20].split(',')[:-1]]
-	sizes = [int(n) - 1 for n in line[18].split(',')[:-1]]  # for indexing pupropses
+	sizes = [int(n) - 1 for n in line[18].split(',')[:-1]]  # for indexing purposes
 	if len(starts) == 1:
 		return
 	for b in range(len(starts)-1): # block
@@ -132,6 +132,7 @@ with open(outfilename, 'wt') as outfile:
 		line = line.rstrip().split('\t')
 		chrom = line[13]
 		if chrom not in all_juncs:
+			writer.writerow(line + '_chromnotinreference')  # chrom not in the reference
 			continue
 		junctions = get_junctions(line)
 

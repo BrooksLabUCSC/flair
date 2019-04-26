@@ -259,7 +259,7 @@ def main():
     from collections import Counter
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys()))<2:
-        print("** Error. diffExp requires >2 condition groups. Maybe group name formatting is incorrect. Exiting." , file=sys.stderr)
+        print("** Error. diffExp requires >1 condition group. Maybe group name formatting is incorrect. Exiting." , file=sys.stderr)
         sys.exit(1)
     elif min(list(groupCounts.values()))<3: 
         print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates." , file=sys.stderr)
@@ -268,7 +268,7 @@ def main():
         print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix." , file=sys.stderr)
         sys.exit(1)
     elif sum([1 if x.isdigit() else 0 for x in groups])>0 or sum([1 if x.isdigit() else 0 for x in batches])>0:
-        print("** Error. Sample group/condition or batch names are required to be strings not integers. Pleace change formtting." , file=sys.stderr)
+        print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting." , file=sys.stderr)
         sys.exit(1)
 
 
