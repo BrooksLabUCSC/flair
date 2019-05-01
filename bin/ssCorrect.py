@@ -236,11 +236,17 @@ def main():
     global progress
     progress = myCommandLine.args['progress']
     # Convert gtf to bed and split by cromosome.
-    juncs, chromosomes = gtfToSSBed(gtf)
+    # Convert gtf to bed and split by cromosome.
+    if gtf != None: juncs, chromosomes = gtfToSSBed(gtf)
 
     # Do the same for the other juncs file.
     if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes)
 
+
+    # added to allow annotations not to be used. 
+    if len(list(juncs))<1:
+        print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
+        sys.exit(1)
 
     annotations = dict()
     for chrom, data in tqdm(juncs.items(), desc="Step 3/5: Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True, position=1) if progress else juncs.items():
