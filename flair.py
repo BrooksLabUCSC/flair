@@ -110,7 +110,7 @@ elif mode == 'correct':
 	args = parser.parse_args()
 
 	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
-			'-w', args.w, '-p', args.t, '-o', args.o, '--quiet', '--progress']
+			'-w', args.w, '-p', args.t, '-o', args.o, '--progress']
 	if not args.n:
 		correction_cmd += ['--correctStrand']
 	if args.j:

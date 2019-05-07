@@ -57,6 +57,7 @@ class CommandLine(object) :
         self.parser.add_argument('-j', "--juncs",  action = 'store', required=True, help='KnownJunction.bed.')
         self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
         self.parser.add_argument('-o', "--output_fname", action = 'store', required=True, help='Output file name.')
+        self.parser.add_argument("--workingDir", action = 'store', required=True, help='Working directory.')
         self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         
@@ -246,11 +247,11 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
 
 
 
-def correctReads(bed, intTree, ssData, filePrefix, correctStrand):
+def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
     ''' Builds read and splice site objects '''
 
-    inconsistent = open("%s_inconsistent.bed" % filePrefix,'w')
-    corrected = open("%s_corrected.bed" % filePrefix,'w')
+    inconsistent = open(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix),'w')
+    corrected = open(os.path.join(wDir,"%s_corrected.bed" % filePrefix),'w')
 
     bedObj = BED12(bed)
     for line in bedObj.getLine():
@@ -373,11 +374,13 @@ def main():
 
     resolveStrand = myCommandLine.args['correctStrand']
 
+    workingDir    = myCommandLine.args['workingDir']
+
     # Build interval tree of known juncs
     intTree, ssData = buildIntervalTree(knownJuncs, wiggle)
 
     # Build read objects.
-    correctReads(bed, intTree, ssData, out, resolveStrand)
+    correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
 
             
 

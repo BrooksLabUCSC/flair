@@ -22,6 +22,7 @@ from multiprocessing import Pool
 from tqdm import *
 import subprocess
 import shutil
+import uuid
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
@@ -57,17 +58,21 @@ class CommandLine(object) :
                                              prefix_chars = '-', 
                                              usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
         # Add args
-        self.parser.add_argument('-i', "--input_bed", action = 'store', required=True, help='Input reads in bed12 format.')
-        self.parser.add_argument('-g', "--gtf", action = 'store', required=False, help='Gencode annotation file.')
-        self.parser.add_argument('-j', "--junctionsBed", default=None, action = 'store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
+        self.parser.add_argument('-i', '--input_bed', action = 'store', required=True, help='Input reads in bed12 format.')
+        self.parser.add_argument('-g', '--gtf', action = 'store', required=False, help='Gencode annotation file.')
+        self.parser.add_argument('-j', '--junctionsBed', default=None, action = 'store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
         self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
-        self.parser.add_argument('-o', "--output_fname", action = 'store', required=True, help='Output file name.')
+        self.parser.add_argument('-o', '--output_fname', action = 'store', required=True, help='Output file name.')
+
         self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
-        self.parser.add_argument('-p', "--threads", action = 'store', required=False, type=int, default = 2, help='Number of threads.')
+        self.parser.add_argument('-p', '--threads', action = 'store', required=False, type=int, default = 2, help='Number of threads.')
+        self.parser.add_argument('--progress', action = 'store_true', required=False, default = False, help='Display progress')
+        self.parser.add_argument('--tempDir', action = 'store', required=False, default = None,   help='Output directory for temporary files.')
+        self.parser.add_argument('--keepTemp', action = 'store_true', required=False, default = False, help='Keep temporary/intermediate files.')
+        
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
-        self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
-        self.parser.add_argument("--progress", action = 'store_true', required=False, default = False, help='Display progress')
-        self.parser.add_argument("--keepTemp", action = 'store_false', required=False, default = True, help='Keep temporary/intermediate files.')
+        #self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
+        
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -141,7 +146,6 @@ def gtfToSSBed(file):
     # First: get all exons per transcript.
     exons = dict()
     chromosomes = set()
-    if verbose: print("Prepping gtf %s ..." % (file), file=sys.stderr) 
     with open(file,'r') as lines:
         for l in lines:
             if l[0] == "#": # skip header lines
@@ -166,7 +170,7 @@ def gtfToSSBed(file):
     txnList = list(exons.keys()) 
     juncs = dict()
 
-    for exonInfo in tqdm(txnList, total=len(txnList), desc="Step 1/5: Splitting junctions from GTF by chromosome", dynamic_ncols=True, position=1) if progress else txnList:
+    for exonInfo in tqdm(txnList, total=len(txnList), desc="Step 1/5: Splitting junctions from GTF by chromosome", dynamic_ncols=True, position=1) if verbose else txnList:
         chrom, txn, strand = exonInfo
 
         if chrom not in juncs:
@@ -195,18 +199,18 @@ def gtfToSSBed(file):
 def runCMD(x):
 
 
-    prefix,juncs,reads, rs = x
+    tDir, prefix,juncs,reads, rs = x
     
     
     if rs:
         
-        p = subprocess.Popen("%s %s -i %s -j %s -o %s --correctStrand" % (sys.executable, helperScript, reads,juncs,prefix), shell=True)
+        p = subprocess.Popen("%s %s -i %s -j %s -o %s --correctStrand --workingDir %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir), shell=True)
         #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
         p.wait()
         return
     else:
         
-        p = subprocess.Popen("%s %s -i %s -j %s -o %s " % (sys.executable, helperScript, reads,juncs,prefix), shell=True)
+        p = subprocess.Popen("%s %s -i %s -j %s -o %s --workingDir %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir), shell=True)
         #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
         p.wait()
         
@@ -225,16 +229,27 @@ def main():
     wiggle        = myCommandLine.args['wiggleWindow']
     threads       = myCommandLine.args['threads']
     outFile       = myCommandLine.args['output_fname']
-    cleanup       = myCommandLine.args['keepTemp']
+    keepTemp      = myCommandLine.args['keepTemp']
     resolveStrand = myCommandLine.args['correctStrand']
+    tempDirName   = myCommandLine.args['tempDir']
+
+
+    # make temp dir for dumping
+    if tempDirName == None:
+        tempDirName = "tmp_%s" % str(uuid.uuid4())
+    try:
+        current_directory = os.getcwd()
+        tempDir = os.path.join(current_directory, tempDirName)
+        os.mkdir(tempDir)
+    except OSError:  
+        print ("Creation of the directory %s failed" % tempDirName)
+        sys.exit(1)
 
     # There are a few functions that evaluate what verbose is defined as.
     # Instead of passing it around, just global it.
     global verbose
-    verbose = myCommandLine.args['quiet']
+    verbose = myCommandLine.args['progress']
 
-    global progress
-    progress = myCommandLine.args['progress']
     # Convert gtf to bed and split by cromosome.
     # Convert gtf to bed and split by cromosome.
     if gtf != None: juncs, chromosomes = gtfToSSBed(gtf)
@@ -249,9 +264,9 @@ def main():
         sys.exit(1)
 
     annotations = dict()
-    for chrom, data in tqdm(juncs.items(), desc="Step 3/5: Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True, position=1) if progress else juncs.items():
-        annotations[chrom] = "%s_known_juncs.bed" % chrom
-        with open("%s_known_juncs.bed" % chrom,"w") as out:
+    for chrom, data in tqdm(juncs.items(), desc="Step 3/5: Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True, position=1) if verbose else juncs.items():
+        annotations[chrom] = os.path.join(tempDir,"%s_known_juncs.bed" % chrom)
+        with open(os.path.join(tempDir,"%s_known_juncs.bed" % chrom),"w") as out:
             for k,v in data.items():
                 annotation = v
                 c1, c2, strand = k
@@ -261,18 +276,18 @@ def main():
     readDict = dict()
     with open(bed) as lines:
         outDict = dict()
-        for line in tqdm(lines, desc="Step 4/5: Preparing reads for correction", dynamic_ncols=True, position=1) if progress else lines:
+        for line in tqdm(lines, desc="Step 4/5: Preparing reads for correction", dynamic_ncols=True, position=1) if verbose else lines:
             cols  = line.rstrip().split()
             chrom = cols[0]
             if chrom not in chromosomes:
                 if chrom not in skippedChroms:
                     skippedChroms.add(chrom)
-                    if verbose: tqdm.write("Reference sequence not found in annotations, skipping: %s" % (chrom), file=sys.stderr)
+                    #if verbose: tqdm.write("Reference sequence not found in annotations, skipping: %s" % (chrom), file=sys.stderr)
                     continue
             else:
                 if chrom not in outDict:
-                    readDict[chrom] = "%s_temp_reads.bed" % chrom
-                    outDict[chrom] = open("%s_temp_reads.bed" % chrom,'w')
+                    readDict[chrom] = os.path.join(tempDir,"%s_temp_reads.bed" % chrom)
+                    outDict[chrom] = open(os.path.join(tempDir,"%s_temp_reads.bed" % chrom),'w')
                 print(line.rstrip(),file=outDict[chrom])
 
     cmds = list()
@@ -282,28 +297,29 @@ def main():
 
         outDict[chrom].close()
          
-        cmds.append((chrom,juncs,reads, resolveStrand))
+        cmds.append((tempDir, chrom, juncs,reads, resolveStrand))
 
     p = Pool(threads)
-    for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if progress else p.imap(runCMD,cmds):
+    for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if verbose else p.imap(runCMD,cmds):
         pass
 
     with open("%s_all_inconsistent.bed" % outFile,'wb') as inconsistent:
         for chrom in readDict:
-            with open("%s_inconsistent.bed" % chrom,'rb') as fd:
+            with open(os.path.join(tempDir, "%s_inconsistent.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, inconsistent, 1024*1024*10)
-            if cleanup:
-                os.remove(annotations[chrom])
-                os.remove(readDict[chrom])
-                os.remove("%s_inconsistent.bed" % chrom)
+
     
     with open("%s_all_corrected.bed" % outFile,'wb') as corrected:
         for chrom in readDict:
-            with open("%s_corrected.bed" % chrom,'rb') as fd:
+            with open(os.path.join(tempDir, "%s_corrected.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, corrected, 1024*1024*10)
-            if cleanup:
-                os.remove("%s_corrected.bed" % chrom)
-    
+    if keepTemp:
+        pass
+    else:
+        try:
+            shutil.rmtree(tempDir)
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror), file=sys.stderr)
 
     print("\n")
 if __name__ == "__main__":
