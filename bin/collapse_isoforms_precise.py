@@ -223,7 +223,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		# found at minimum the best site, and this site did not surpass minsupport percentage of reads
 			break
 		closest_annotated = 1e15  # just a large number
-		if annotends:  # args.f supplied
+		if annotends and chrom in annotends:  # args.f supplied
 			for t in range(bestsite[0]-window, bestsite[0]+window):
 				if t in annotends[chrom] and (t - bestsite[0]) < (closest_annotated - bestsite[0]):
 					closest_annotated = t

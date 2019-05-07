@@ -6,6 +6,8 @@ try:
 	outfilename = sys.argv[3]
 except:
 	sys.stderr.write('usage: script.py psl gtf isos_matched.psl \n')
+	sys.stderr.write('renames if there is an exact splice junction chain match, \
+		disregards differences in TSS/TES\n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -84,19 +86,11 @@ with open(outfilename, 'wt') as outfile:
 		if chrom not in junc_to_tn:
 			continue
 		junctions = get_junctions(line)
-		# if chrom not in seenjunctions:
-		# 	seenjunctions[chrom] = []
-		# elif junctions in seenjunctions[chrom]:
-		# 	continue
-		# seenjunctions[chrom] += [junctions]
+
 		total += 1
 		subset = False
 		transcript = ''
 
-		# for j,t in annotated_juncs[chrom]:
-		# 	if junctions == j:
-		# 		transcript = t
-		# 		break
 		if junctions:
 			matches = set()
 			for j in junctions:
@@ -107,15 +101,15 @@ with open(outfilename, 'wt') as outfile:
 					transcript = t  # annotated transcript identified
 					break
 
-		if transcript not in transcript_counts:
-			transcript_counts[transcript] = 0
-		else:
-			transcript_counts[transcript] += 1
 
 		if not transcript:
 			novel += 1
 			writer.writerow(line)
 		else:
+			if transcript not in transcript_counts:
+				transcript_counts[transcript] = 0
+			else:
+				transcript_counts[transcript] += 1
 			if '-' in name[-3:]:
 				name = name[:name.rfind('-')]
 			if transcript_counts[transcript] == 0:
