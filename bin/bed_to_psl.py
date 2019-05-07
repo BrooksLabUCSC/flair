@@ -21,9 +21,15 @@ with open(outfilename, 'wt') as outfile:
         blocknum, blocksizes, relblockstarts = line[9:]
         sizes = [int(n) for n in blocksizes.split(',')[:-1]]
         starts = [int(n) for n in relblockstarts.split(',')[:-1]]
+        qstart, qend = starts[0], starts[-1]+sizes[-1]
         blockstarts = ','.join([str(int(start)+relstart) for relstart in starts]) + ','
+        qblockstarts = ''
+        qbs = 0
+        for s in sizes:
+            qblockstarts += str(qbs) + ','
+            qbs += s
         pslline = [0] * 8
-        pslline += [strand, name, sum(sizes), 0, sum(sizes)]
+        pslline += [strand, name, qend-qstart, qstart, qend]
         pslline += [chrom, chromsizes[chrom], start, end]
-        pslline += [blocknum, blocksizes, relblockstarts, blockstarts]
+        pslline += [blocknum, blocksizes, qblockstarts, blockstarts]
         writer.writerow(pslline)

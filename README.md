@@ -13,8 +13,10 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 	- [quantify](#quantify)
 		- [appending counts to a psl](#append)
 	- [diffExp](#diffExp)
-
 - [Scripts](#scripts)
+- [Docker](#docker)
+- [Example Files](#exfiles)
+
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
@@ -50,7 +52,7 @@ Corrects misaligned splice sites using genome annotations. Please note that the 
 
 **Usage:**
 ```sh
-python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [options]
+python flair.py correct -f annotation.gtf -c chromsizes -q query.bed12 [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
@@ -193,7 +195,15 @@ Output file format:
 
 A wrapper [script](https://github.com/BrooksLabUCSC/labtools/blob/master/NanoSim_Wrapper.py) written for simulating nanopore transcriptome data using [Nanosim](https://github.com/bcgsc/NanoSim). 
 
-## Example Files
+
+## Docker <a name="docker"></a>
+If the user wishes to run FLAIR using [docker](https://docs.docker.com/) instead of cloning this repository, the following commands can be used:
+`docker pull quay.io/brookslab/flair`
+`docker run -w /usr/data -v [your_path_to_data]:/usr/data  -t -d [image_id]`
+`docker exec [container_id] python3 /usr/local/flair/flair.py [your_command]`
+
+
+## Example Files <a name="exfiles"></a>
 We have provided the following [example files](https://users.soe.ucsc.edu/~brooks/FLAIR_example_files/):  
 - `na12878.cdna.200k.fa`, containing 200,000 nanopore cDNA sequencing reads subsampled from the [Native RNA Consortium](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md). Running these reads through the align, correct, and collapse modules should take no more than 10 minutes with 4 threads and can be a way to quickly check that steps of FLAIR are working
 - `cll_shortread_junctions.gp`, a [genepred-formatted](https://genome.ucsc.edu/FAQ/FAQformat.html#format9) file of splice junctions observed from short read sequencing of CLL samples that can be used in the correction step. Junctions from short read sequencing are optional (deprecated)
@@ -202,3 +212,5 @@ We have provided the following [example files](https://users.soe.ucsc.edu/~brook
 Other downloads:
 - [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz) to supplement in FLAIR-collapse for better TSS-calling for GM12878 cells
 - [Native RNA Pass reads](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md) Running these 10 million nanopore reads from `fastq` through flair align, correct, and collapse modules to assembled isoforms with 8 threads requires ~3.5 hours (includes ~2.5 hours of minimap2 alignment)
+
+
