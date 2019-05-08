@@ -2,7 +2,6 @@ import sys, csv, re
 
 try:
 	sam = open(sys.argv[1])
-	# chromsizefile = open(sys.argv[2])
 	outfilename = sys.argv[2]
 	if len(sys.argv) > 3:
 		chromsizefile = sys.argv[3]

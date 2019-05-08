@@ -5,8 +5,8 @@ try:
     bed = open(sys.argv[2])
     outfilename = sys.argv[3]
 except:
-    print('usage: script.py chromsizes bedfile pslfile')
-    sys.exit()
+    sys.stderr.write('usage: script.py chromsizes bedfile pslfile\n')
+    sys.exit(1)
 
 chromsizes = {}
 for line in chromsizesfile:
@@ -21,15 +21,26 @@ with open(outfilename, 'wt') as outfile:
         blocknum, blocksizes, relblockstarts = line[9:]
         sizes = [int(n) for n in blocksizes.split(',')[:-1]]
         starts = [int(n) for n in relblockstarts.split(',')[:-1]]
-        qstart, qend = starts[0], starts[-1]+sizes[-1]
         blockstarts = ','.join([str(int(start)+relstart) for relstart in starts]) + ','
-        qblockstarts = ''
-        qbs = 0
+        
+        qblockstarts, qbs = '', 0
         for s in sizes:
             qblockstarts += str(qbs) + ','
             qbs += s
-        pslline = [0] * 8
+        qstart, qend = starts[0], qbs
+
+        tNumInsert, tBaseInsert = 0, 0
+        for i in range(len(starts)-1):
+            gap_size = starts[i+1] - (starts[i]+sizes[i])
+            if gap_size:
+                tNumInsert += 1
+                tBaseInsert += gap_size
+
+        pslline = [sum(sizes)] + [0]*5 + [tNumInsert, tBaseInsert]
         pslline += [strand, name, qend-qstart, qstart, qend]
-        pslline += [chrom, chromsizes[chrom], start, end]
+        if chrom not in chromsizes:
+            pslline += [chrom, 0, start, end]
+        else:
+            pslline += [chrom, chromsizes[chrom], start, end]
         pslline += [blocknum, blocksizes, qblockstarts, blockstarts]
         writer.writerow(pslline)

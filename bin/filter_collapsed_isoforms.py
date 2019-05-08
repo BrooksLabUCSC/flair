@@ -12,7 +12,7 @@ try:
 		tol = 10
 except:
 	print('usage: script.py collapsed.psl (default/comprehensive/ginormous) filtered.psl [tolerance]')
-	sys.exit()
+	sys.exit(1)
 
 def get_junctions_psl(starts, sizes):
 	junctions = set()
