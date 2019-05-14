@@ -1,6 +1,6 @@
 """ ADT, CMS """
 
-import sys, argparse, subprocess, os
+import sys, argparse, subprocess, os, tempfile
 
 if len(sys.argv) > 1 and sys.argv[1] == 'align':
 	mode = 'align'
@@ -192,9 +192,11 @@ elif mode == 'collapse':
 	precollapse = args.q  # filename
 	if args.p:
 		sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
-		subprocess.call([sys.executable, path+'bin/pull_starts.py', args.q, args.o+'.tss.bed'])
-		subprocess.call([args.b, 'intersect', '-a', args.o+'.tss.bed', '-b', args.p], \
-			stdout=open(args.o+'.promoter_intersect.bed', 'w'))
+		if subprocess.call([sys.executable, path+'bin/pull_starts.py', args.q, args.o+'.tss.bed']):
+			sys.exit(1)
+		if subprocess.call([args.b, 'intersect', '-a', args.o+'.tss.bed', '-b', args.p], \
+			stdout=open(args.o+'.promoter_intersect.bed', 'w')):
+			sys.exit(1)
 		subprocess.call([sys.executable, path+'bin/psl_reads_from_bed.py', args.o+'.promoter_intersect.bed', \
 			args.q, args.o+'.promotersupported.psl'])
 		precollapse = args.o+'.promotersupported.psl'  # filename of promoter-supported, corrected reads
@@ -230,7 +232,7 @@ elif mode == 'collapse':
 	filenum = 0
 	try:
 		for r in reads_files:  # align reads to first-pass isoforms
-			alignout = 'temp_'+str(filenum)+'.firstpass'
+			alignout = tempfile.NamedTemporaryFile().name+'.firstpass'
 			if args.salmon:
 				subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
 					stdout=open(alignout+'.sam', "w"))
@@ -269,7 +271,7 @@ elif mode == 'collapse':
 		map_files, alignment_psls = [], []
 		filenum = 0
 		for r in reads_files:  # align reads to high-confidence isoforms
-			alignout = 'temp_'+str(filenum)+'.stringent'
+			alignout = tempfile.NamedTemporaryFile().name+'.stringent'
 			subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 				args.o+'.isoforms.fa', r], stdout=open(alignout+'.sam', 'w'))
 			subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', alignout+'.sam'], \
@@ -344,8 +346,8 @@ elif mode == 'quantify':
 
 	samData = list()
 	with codecs.open(args.r, "r", encoding='utf-8', errors='ignore') as lines:
-
 		for line in lines:
+
 			cols = line.rstrip().split('\t')
 			if len(cols)<4:
 				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
@@ -357,14 +359,11 @@ elif mode == 'quantify':
 		samData.sort(key=lambda x: x[1], reverse=True)
 		for num,sample in enumerate(samData,0):
 			sys.stderr.write("Step 1/3. Aligning sample %s_%s: %s/%s \r" % (sample[0],sample[2],num+1,len(samData)))
-			try:
-				if args.salmon:
-					subprocess.call([args.m, '-a', '-t', args.t, args.i, sample[-2]], \
-						stdout=open(sample[-1], 'w'), stderr=open(sample[-1]+".mm2_Stderr.txt", 'w'))
-				else:
-					subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', args.i, sample[-2]], \
-						stdout=open(sample[-1], 'w'), stderr=open(sample[-1]+".mm2_Stderr.txt", 'w'))			
-			except:
+			mm2_command = [args.m, '-a', '-t', args.t, args.i, sample[-2]]
+			if not args.salmon:
+				mm2_command += ['--secondary=no']
+			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'), \
+				stderr=open(sample[-1]+'.mm2_Stderr.txt', 'w')):
 				sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
 				sys.exit(1)
 			sys.stderr.flush()
