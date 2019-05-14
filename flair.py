@@ -189,6 +189,7 @@ elif mode == 'collapse':
 		else:
 			args.m += '/minimap2'
 
+	intermediate, temporary = [], []
 	precollapse = args.q  # filename
 	if args.p:
 		sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
@@ -200,6 +201,7 @@ elif mode == 'collapse':
 		subprocess.call([sys.executable, path+'bin/psl_reads_from_bed.py', args.o+'.promoter_intersect.bed', \
 			args.q, args.o+'.promotersupported.psl'])
 		precollapse = args.o+'.promotersupported.psl'  # filename of promoter-supported, corrected reads
+		intermediate += [args.o+'.tss.bed', args.o+'.promotersupported.psl', args.o+'.promoter_intersect.bed']
 
 	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
 			'-m', str(args.max_ends), '-w', args.w, '-s', '1', '-n', args.n, '-o', args.o+'.firstpass.unfiltered.psl']
@@ -236,11 +238,13 @@ elif mode == 'collapse':
 			if args.salmon:
 				subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
 					stdout=open(alignout+'.sam', "w"))
-				subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  'temp_'+str(filenum), \
+				subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  alignout+'.salmon', \
 					'-p', args.t, '-l', 'U', '-a', alignout+'.sam'], stderr=open('salmon_stderr.txt', 'w'))
-				count_files += ['temp_'+str(filenum)+'/quant.sf']
+				
+				count_files += [alignout+'.salmon/quant.sf']
 				subprocess.call(['rm', 'salmon_stderr.txt'])
-				align_files += [alignout+'.sam', 'temp_'+str(filenum)]
+				align_files += [alignout+'.sam', alignout+'.salmon/quant.sf']
+				temporary += [alignout+'.salmon']
 			else:
 				subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 					args.o+'.firstpass.fa', r], stdout=open(alignout+'.sam', "w"))
@@ -285,6 +289,7 @@ elif mode == 'collapse':
 
 		subprocess.call(['cat'] + map_files, stdout=open(args.o+'.stringent.map', 'w'))
 		subprocess.call(['cat'] + alignment_psls, stdout=open(args.o+'.stringent.q1.sam.psl', 'w'))
+		intermediate += [args.o+'.stringent.q1.sam.psl', args.o+'.stringent.map']
 		subprocess.call(['rm'] + map_files + alignment_psls)
 		subprocess.call([sys.executable, path+'bin/filter_stringent_support.py', args.o+'.isoforms.psl', \
 			args.o+'.stringent.q1.sam.psl', args.s, args.o+'.isoforms.stringent.psl',  \
@@ -294,17 +299,12 @@ elif mode == 'collapse':
 		subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.stringent.psl'], \
 			stdout=open(args.o+'.isoforms.stringent.gtf', 'w'))
 
+	subprocess.call(['rm', '-rf'] + temporary)
 	if not args.keep_intermediate:
 		sys.stderr.write('Removing intermediate files/done\n')
-		if args.p:
-			subprocess.call(['rm', args.o+'.tss.bed'])
-			subprocess.call(['rm', args.o+'.promoter_intersect.bed'])
-			subprocess.call(['rm', args.o+'.promotersupported.psl'])
 		subprocess.call(['rm', args.o+'.firstpass.unfiltered.psl'])
 		subprocess.call(['rm', args.o+'.firstpass.fa', args.o+'.firstpass.q1.counts', args.o+'.firstpass.psl'])
-		subprocess.call(['rm', '-r'] + align_files)
-		if args.stringent:
-			subprocess.call(['rm', args.o+'.stringent.q1.sam.psl', args.o+'.stringent.map'])
+		subprocess.call(['rm', '-rf'] + align_files + intermediate)
 
 elif mode == 'quantify':
 	parser = argparse.ArgumentParser(description='flair-quantify parse options', \
@@ -362,8 +362,10 @@ elif mode == 'quantify':
 			mm2_command = [args.m, '-a', '-t', args.t, args.i, sample[-2]]
 			if not args.salmon:
 				mm2_command += ['--secondary=no']
-			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'), \
-				stderr=open(sample[-1]+'.mm2_Stderr.txt', 'w')):
+			try:
+				subprocess.call(mm2_command, stdout=open(sample[-1], 'w'), \
+					stderr=open(sample[-1]+'.mm2_Stderr.txt', 'w'))
+			except:
 				sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
 				sys.exit(1)
 			sys.stderr.flush()
@@ -372,6 +374,7 @@ elif mode == 'quantify':
 					stdout=open(sample[-1]+'.qual.sam', 'w')):
 					sys.exit(1)
 				subprocess.call(['mv', sample[-1]+'.qual.sam', sample[-1]])
+			subprocess.call(['rm', sample[-1]+'.mm2_Stderr.txt'])
 
 	countData = dict()
 	for num,data in enumerate(samData):
@@ -390,9 +393,9 @@ elif mode == 'quantify':
 					if iso not in countData: countData[iso] = np.zeros(len(samData))
 					countData[iso][num] += 1 
 		else:
-			subprocess.call([args.salmon, 'quant', '-t', args.i, '-o', 'temp_salmon', \
+			subprocess.call([args.salmon, 'quant', '-t', args.i, '-o', samOut[:-4]+'.salmon', \
 				'-p', args.t, '-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))
-			salmonOut = open('temp_salmon/quant.sf')
+			salmonOut = open(samOut[:-4]+'.salmon/quant.sf')
 			salmonOut.readline()  # header
 			for line in salmonOut:
 				line = line.rstrip().split('\t')
@@ -403,7 +406,8 @@ elif mode == 'quantify':
 				else:
 					countData[iso][num] = numreads
 			subprocess.call(['rm', 'salmon_stderr.txt'])
-			# subprocess.call(['rm', '-rf', 'temp_salmon'])
+			subprocess.call(['rm', '-rf', samOut[:-4]+'.salmon'])
+		subprocess.call(['rm', samOut])
 		sys.stderr.flush()
 
 	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o))
