@@ -353,7 +353,7 @@ elif mode == 'quantify':
 				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
 				sys.exit(1)
 			sample, group, batch, readFile = cols
-			readFileRoot = readFile.split("/")[-1]
+			readFileRoot = tempfile.NamedTemporaryFile().name
 			samData.append(cols + [readFileRoot + '.sam'])
 		
 		samData.sort(key=lambda x: x[1], reverse=True)
