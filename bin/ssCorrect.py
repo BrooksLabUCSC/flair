@@ -252,6 +252,7 @@ def main():
 
     # Convert gtf to bed and split by cromosome.
     # Convert gtf to bed and split by cromosome.
+    juncs = dict() # initialize juncs for adding to db
     if gtf != None: juncs, chromosomes = gtfToSSBed(gtf)
 
     # Do the same for the other juncs file.
@@ -259,7 +260,7 @@ def main():
 
 
     # added to allow annotations not to be used. 
-    if len(list(juncs))<1:
+    if len(list(juncs.keys()))<1:
         print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
         sys.exit(1)
 
