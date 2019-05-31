@@ -23,7 +23,7 @@ else:
 path = sys.argv[0][:sys.argv[0].rfind('/')+1] if '/' in sys.argv[0] else ''
 if mode == 'align':
 	parser = argparse.ArgumentParser(description='flair-align parse options', \
-		usage='python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]')
+		usage='python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
 	parser.add_argument('align')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', \
@@ -88,17 +88,18 @@ if mode == 'align':
 	
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
-		usage='python flair.py correct -f annotation.gtf -c chromsizes.tsv -q query.bed12 [options]')
+		usage='python flair.py correct -c chromsizes.tsv -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
-	required.add_argument('-f', '--gtf', default='', required=True, \
-		action='store', dest='f', help='GTF annotation file, used for associating gene names to reads')
+	atleastone = parser.add_argument_group('at least one of the following arguments is required')
 	required.add_argument('-q', '--query', type=str, default='', required=True, \
 		action='store', dest='q', help='uncorrected bed12 file')
 	required.add_argument('-c', '--chromsizes', type=str, required=True, \
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
-	parser.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
+	atleastone.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
 		help='bed format splice junctions from short-read sequencing')
+	atleastone.add_argument('-f', '--gtf', default='', \
+		action='store', dest='f', help='GTF annotation file')
 	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to keep \
 		the strand of a read consistent after correction')
 	parser.add_argument('-t', '--threads', type=str, action='store', dest='t', default='4', \
@@ -108,29 +109,29 @@ elif mode == 'correct':
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	args = parser.parse_args()
-
-	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, '-g', args.f, \
+	if not args.j and not args.f:
+		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
+		sys.exit(1)
+	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, \
 			'-w', args.w, '-p', args.t, '-o', args.o, '--progress']
 	if not args.n:
 		correction_cmd += ['--correctStrand']
 	if args.j:
 		correction_cmd += ['-j', args.j]
+	if args.f:
+		correction_cmd += ['-g', args.f]
+
 	if subprocess.call(correction_cmd):
 		sys.stderr.write('Correction command did not exit with success status\n')
 		sys.exit(1)
 
-	sys.stderr.write('Adding gene names to read names in psl file\n')
 	if subprocess.call([sys.executable, path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
-		args.o+'_all_corrected.unnamed.psl']):
+		args.o+'_all_corrected.psl']):
 		sys.exit(1)
-
-	subprocess.call([sys.executable, path+'bin/identify_annotated_gene.py', \
-		args.o+'_all_corrected.unnamed.psl', args.f, args.o+'_all_corrected.psl'])
-	subprocess.call(['rm', args.o+'_all_corrected.unnamed.psl'])
 
 elif mode == 'collapse':
 	parser = argparse.ArgumentParser(description='flair-collapse parse options', \
-		usage='python flair.py correct -r <reads.fq>/<reads.fa> -q <query.psl>/<query.bed12> -g genome.fa [options]')
+		usage='python flair.py collapse -g genome.fa -r <reads.fq>/<reads.fa> -q <query.psl>|<query.bed12> [options]')
 	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', \
@@ -140,7 +141,7 @@ elif mode == 'collapse':
 	required.add_argument('-g', '--genome', action='store', dest='g', \
 		type=str, required=True, help='FastA of reference genome')
 	parser.add_argument('-f', '--gtf', default='', action='store', dest='f', \
-		help='GTF annotation file, used for renaming annotated isoforms')
+		help='GTF annotation file, used for identifying annotated isoforms')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-t', '--threads', type=str, \
@@ -214,12 +215,12 @@ elif mode == 'collapse':
 
 	sys.stderr.write('Filtering isoforms\n')  # filter more
 	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.o+'.firstpass.unfiltered.psl', \
-		args.e, args.o+'.firstpass.psl']):
+		args.e, args.o+'.firstpass.psl', args.w]):
 		sys.exit(1)
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
-		if subprocess.call([sys.executable, path+'bin/identify_similar_annotated_isoform.py', \
+		if subprocess.call([sys.executable, path+'bin/identify_gene_isoform.py', \
 			args.o+'.firstpass.psl', args.f, args.o+'.firstpass.named.psl']):
 			sys.exit(1)
 		subprocess.call(['mv', args.o+'.firstpass.named.psl', args.o+'.firstpass.psl'])
@@ -231,13 +232,17 @@ elif mode == 'collapse':
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
 	reads_files = args.r.split(',')
 	count_files, align_files = [], []
-	filenum = 0
 	try:
 		for r in reads_files:  # align reads to first-pass isoforms
 			alignout = tempfile.NamedTemporaryFile().name+'.firstpass'
 			if args.salmon:
-				subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
-					stdout=open(alignout+'.sam', "w"))
+				if subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
+					stdout=open(alignout+'.sam', "w")):
+					sys.exit(1)
+				if subprocess.call([args.sam, 'view', '-F', '4', '-h', '-S', alignout+'.sam'], \
+					stdout=open(alignout+'.mapped.sam')):
+					sys.exit(1)
+				subprocess.call(['mv', alignout+'.mapped.sam', alignout+'.sam'])
 				subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  alignout+'.salmon', \
 					'-p', args.t, '-l', 'U', '-a', alignout+'.sam'], stderr=open('salmon_stderr.txt', 'w'))
 				
@@ -246,15 +251,15 @@ elif mode == 'collapse':
 				align_files += [alignout+'.sam', alignout+'.salmon/quant.sf']
 				temporary += [alignout+'.salmon']
 			else:
-				subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
-					args.o+'.firstpass.fa', r], stdout=open(alignout+'.sam', "w"))
+				if subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
+					args.o+'.firstpass.fa', r], stdout=open(alignout+'.sam', "w")):
+					sys.exit(1)
 				subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', alignout+'.sam'], \
 					stdout=open(alignout+'.q1.sam', 'w'))
 				subprocess.call([sys.executable, path+'bin/count_sam_genes.py', alignout+'.q1.sam', \
 					alignout+'.q1.counts'])
 				count_files += [alignout+'.q1.counts']
 				align_files = [alignout+'.sam', alignout+'.q1.sam']
-			filenum += 1
 	except:
 		sys.stderr.write('Possible minimap2/samtools error, specify paths or make sure they are in $PATH\n')
 		sys.exit(1)
@@ -353,7 +358,8 @@ elif mode == 'quantify':
 				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
 				sys.exit(1)
 			sample, group, batch, readFile = cols
-			readFileRoot = tempfile.NamedTemporaryFile().name
+			# readFileRoot = tempfile.NamedTemporaryFile().name
+			readFileRoot = readFile[readFile.rfind('/')+1:]
 			samData.append(cols + [readFileRoot + '.sam'])
 		
 		samData.sort(key=lambda x: x[1], reverse=True)

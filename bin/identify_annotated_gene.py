@@ -130,13 +130,18 @@ with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for line in psl:
 		line = line.rstrip().split('\t')
+
+		if ';' in line[9][-3:]:
+			line[9] = line[9][:line[9].rfind(';')]
+
 		chrom = line[13]
 		if chrom not in all_juncs:
-			writer.writerow(line + '_chromnotinreference')  # chrom not in the reference
+			line[9] += '_chromnotinreference'
+			writer.writerow(line)  # chrom not in the reference
 			continue
 		junctions = get_junctions(line)
 
-		if '_EN' in line[9]:  # already annotated
+		if '_EN' in line[9] or '_chr' in line[9] or '_chrom' in line[9]:  # already annotated
 			writer.writerow(line)
 			continue
 

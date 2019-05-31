@@ -43,16 +43,16 @@ Alternatively, the user can align the reads themselves with their aligner of cho
 
 **Usage:**
 ```sh
-python flair.py align -r <reads.fq>/<reads.fa> -g genome.fa [options]
+python flair.py align -g genome.fa -r <reads.fq>\|<reads.fa> [options]
 ```
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation.
+Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation.
 
 **Usage:**
 ```sh
-python flair.py correct -f annotation.gtf -c chromsizes -q query.bed12 [options]
+python flair.py correct -c chromsizes -q query.bed12 [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
@@ -62,24 +62,24 @@ To use short-read splice sites to aid with correction, one option is `bin/juncti
 
 **Usage:**
 ```sh
-python junctions_from_sam.py -s <shortreads.sam>/<shortreads.bam> -n outname
+python junctions_from_sam.py -s <shortreads.sam>\|<shortreads.bam> -n outname
 ```
 the file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file.
 
-Alternatively, STAR 2-pass alignment of short reads produces a splice junction file (`SJ.out.tab`) that can also be supplied for to flair-correct. We recommend filtering out reads with few uniquely mapping reads (column 7).
+Alternatively, the `-j` argument for flair-correct can also be generated using STAR. STAR 2-pass alignment of short reads produces a compatible splice junction file (`SJ.out.tab`). We recommend filtering out junctions with few uniquely mapping reads (column 7).
 
 
 ### <a name="collapse"></a>flair collapse
 Defines high-confidence isoforms from corrected reads. As FLAIR does not use annotations to collapse isoforms, FLAIR will pick the name of a read that shares the same splice junction chain as the isoform to be the isoform name. It is recommended to still provide an annotation with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to their 'transcript_id's. Again, isoforms in `psl` format can be visualized in IGV or the UCSC genome browser if any extra columns after column 21 are removed. 
 
-If there are multiple samples to be compared, the corrected reads `psl` files should be concatenated prior to running flair-collapse. In addition, all raw reads should be concatenated into a single file or given as a comma-separated list for `-r`.
+If there are multiple samples to be compared, the flair-corrected read `psl` files should be concatenated prior to running flair-collapse. In addition, all raw reads should be concatenated into a single file or given as a comma-separated list for `-r`.
 
 **Usage:**
 ```sh
-python flair.py collapse -r <reads.fq>/<reads.fa> -q query.psl -g genome.fa [options]
+python flair.py collapse -g genome.fa -r <reads.fq>\|<reads.fa> -q query.psl [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs the high-confidence isoforms in (1) extended `*isoforms.psl`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. Intermediate files are also output for debugging purposes.
+Outputs the high-confidence isoforms in several formats: (1) `*isoforms.psl`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. Intermediate files are removed, but can be output for debugging purposes by supplying the argument `--keep_intermediate`.
 
 ### <a name="quantify"></a>flair quantify
 Convenience function to quantifying FLAIR isoform usage across samples using minimap2. If isoform quantification in TPM is desired, please use the `--tpm` option. If the user prefer [salmon](https://combine-lab.github.io/salmon/getting_started/) to quantify transcripts using their nanopore reads, please specify a path to salmon using `--salmon`. For all options run flair-quantify with `--help`.

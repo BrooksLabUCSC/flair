@@ -24,6 +24,10 @@ for line in alignment:  # reads aligned to the isoforms sam-turned-psl
 	line = line.rstrip().split('\t')
 	read, isoform = line[9], line[13]  # names
 
+	if isoform not in iso_read:
+		iso_read[isoform] = []
+	elif len(iso_read[isoform]) > minsupport:
+		continue
 	blocksizes = [int(n) for n in line[18].split(',')[:-1]]
 	blockstarts = [int(n) for n in line[20].split(',')[:-1]]
 	read_start, read_end = blockstarts[0], blockstarts[-1]+blocksizes[-1]
@@ -47,8 +51,6 @@ for line in alignment:  # reads aligned to the isoforms sam-turned-psl
 	coverage = sum(blocksizes) / isoform_length
 	# coverage = proportion of bases of the isoform that the read covers
 
-	if isoform not in iso_read:
-		iso_read[isoform] = []
 	if right_coverage and left_coverage and coverage > 0.8:  
 		iso_read[isoform] += [[read, isoform, coverage]]
 

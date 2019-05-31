@@ -9,7 +9,7 @@ try:
 	if len(sys.argv) > 4:
 		tol = int(sys.argv[4])
 	else:
-		tol = 10
+		tol = 100
 except:
 	print('usage: script.py collapsed.psl (default/comprehensive/ginormous) filtered.psl [tolerance]')
 	sys.exit(1)
@@ -31,7 +31,9 @@ def get_junction_exon_bed12(line):
 		for b in range(len(starts)-1):
 			junctions.add((starts[b]+sizes[b], starts[b+1]))
 			exons.add((starts[b], starts[b]+sizes[b]))
-		return junctions
+		return junctions, exons
+	exons.add((starts[0], starts[0]+sizes[0]))
+	return junctions, exons
 
 def get_exons_psl(starts, sizes):
 	exons = []

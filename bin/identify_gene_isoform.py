@@ -51,10 +51,10 @@ def bin_search(query, data):
 			break
 	return i
 
-def contained(coords0, coords1, tol=0):
+def overlapping_bases(coords0, coords1):
 	""" complete coverage of coords0 by coords1, and coords0 can be tol larger.
 	if coords0 is contained by coords1, then return the number of overlapping basepairs """
-	if coords0[1] > coords1[0] and coords1[0] <= coords0[0]+tol and coords1[1] >= coords0[1]-tol:
+	if coords0[1] > coords1[0] and coords1[1] > coords0[0]:
 		return min(coords1[1], coords0[1]) - max(coords1[0], coords0[0])
 	return
 
@@ -115,25 +115,43 @@ with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for line in psl:
 		line = line.rstrip().split('\t')
+		total += 1
 		if isbed:
 			junctions = get_junctions_bed12(line)
 			chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
 		else:
 			junctions = get_junctions(line)
 			chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
-		if chrom not in junc_to_tn:
+		
+		if chrom not in junc_to_tn:  # chrom not in reference file
+			if ';' in name:
+				name = name[:name.find(';')]
+			if name not in name_counts:
+				name_counts[name] = 0
+			else:
+				name_counts[name] += 1
+				name = name + '-' + str(name_counts[name])
+
+			newname = name + '_noReference'
+			if isbed:
+				line[3] = newname
+			else:
+				line[9] = newname
+			writer.writerow(line)
 			continue
-		total += 1
 
 		gene_hits = {}
 		if not junctions:
 			exon = (start, end)
 			i = bin_search(exon, all_se[chrom])
-			iscontained = False  # boolean: single-exon gene matches another s-e gene
+			first = True
 			for e in all_se[chrom][i-2:i+2]:
-				overlap = contained(exon, e, 20)
+				overlap = overlapping_bases(exon, e)
 				if overlap:
-					gene_hits[e[2]] = float(overlap)/(exon[1]-exon[0])  # gene name, % overlap
+					proportion = float(overlap)/(exon[1]-exon[0])  # base coverage of long-read isoform
+					proportion2 = float(overlap)/(e[1]-e[0])  # base coverage of the annotated isoform
+					if proportion > 0.5 and proportion2 > 0.8:
+						gene_hits[e[2]] = proportion
 		else:
 			for j in junctions:
 				if j in all_juncs[chrom]:
@@ -161,15 +179,17 @@ with open(outfilename, 'wt') as outfile:
 
 		if not transcript:
 			novel += 1
+			if ';' in name:
+				name = name[:name.find(';')]
+		else:
+			name = transcript
+
+		if name not in name_counts:
+			name_counts[name] = 0
 			newname = name + '_' + gene
 		else:
-			newname = transcript + '_' + gene
-
-		if newname not in name_counts:
-			name_counts[newname] = 0
-		else:
-			name_counts[newname] += 1
-			newname = newname + '-' + str(name_counts[newname])
+			name_counts[name] += 1
+			newname = name + '-' + str(name_counts[name]) + '_' + gene
 
 		if isbed:
 			line[3] = newname
