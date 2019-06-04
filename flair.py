@@ -96,6 +96,8 @@ elif mode == 'correct':
 		action='store', dest='q', help='uncorrected bed12 file')
 	required.add_argument('-c', '--chromsizes', type=str, required=True, \
 		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
+	required.add_argument('-g', '--genome', action='store', dest='g', \
+		type=str, required=True, help='FastA of reference genome')
 	atleastone.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
 		help='bed format splice junctions from short-read sequencing')
 	atleastone.add_argument('-f', '--gtf', default='', \
@@ -113,7 +115,7 @@ elif mode == 'correct':
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
 		sys.exit(1)
 	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, \
-			'-w', args.w, '-p', args.t, '-o', args.o, '--progress']
+			'-w', args.w, '-p', args.t, '-o', args.o, '--progress', '-f', args.g]
 	if not args.n:
 		correction_cmd += ['--correctStrand']
 	if args.j:

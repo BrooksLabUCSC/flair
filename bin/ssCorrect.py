@@ -23,6 +23,7 @@ from tqdm import *
 import subprocess
 import shutil
 import uuid
+import pybedtools
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
@@ -63,6 +64,7 @@ class CommandLine(object) :
         self.parser.add_argument('-j', '--junctionsBed', default=None, action = 'store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
         self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
         self.parser.add_argument('-o', '--output_fname', action = 'store', required=True, help='Output file name.')
+        self.parser.add_argument('-f', '--genome_fasta', action = 'store', required=True, help='Bedtools indexed genome fasta.')
 
         self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
         self.parser.add_argument('-p', '--threads', action = 'store', required=False, type=int, default = 2, help='Number of threads.')
@@ -199,18 +201,17 @@ def gtfToSSBed(file):
 def runCMD(x):
 
 
-    tDir, prefix,juncs,reads, rs = x
-    
+    tDir, prefix,juncs,reads, rs, f = x
     
     if rs:
         
-        p = subprocess.Popen("%s %s -i %s -j %s -o %s --correctStrand --workingDir %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir), shell=True)
+        p = subprocess.Popen("%s %s -i %s -j %s -o %s --correctStrand --workingDir %s -f %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir, f), shell=True)
         #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
         p.wait()
         return
     else:
         
-        p = subprocess.Popen("%s %s -i %s -j %s -o %s --workingDir %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir), shell=True)
+        p = subprocess.Popen("%s %s -i %s -j %s -o %s --workingDir %s -f %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir, f), shell=True)
         #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
         p.wait()
         
@@ -232,6 +233,16 @@ def main():
     keepTemp      = myCommandLine.args['keepTemp']
     resolveStrand = myCommandLine.args['correctStrand']
     tempDirName   = myCommandLine.args['tempDir']
+    genomeFasta   = myCommandLine.args['genome_fasta']
+
+    if os.path.isfile(genomeFasta+".fai"):
+        pass
+    else:
+        testString =  """
+            chrX 1    100   feature1  0 +
+        """
+        test = pybedtools.BedTool(testString, from_string=True)
+        a = test.sequence(fi=genomeFasta)
 
 
     # make temp dir for dumping
@@ -252,7 +263,7 @@ def main():
 
     # Convert gtf to bed and split by cromosome.
     # Convert gtf to bed and split by cromosome.
-    juncs = dict() # initialize juncs for adding to db
+    juncs, chromosomes  = dict(), set() # initialize juncs for adding to db
     if gtf != None: juncs, chromosomes = gtfToSSBed(gtf)
 
     # Do the same for the other juncs file.
@@ -268,8 +279,9 @@ def main():
     for chrom, data in tqdm(juncs.items(), desc="Step 3/5: Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True, position=1) if verbose else juncs.items():
         annotations[chrom] = os.path.join(tempDir,"%s_known_juncs.bed" % chrom)
         with open(os.path.join(tempDir,"%s_known_juncs.bed" % chrom),"w") as out:
-            for k,v in data.items():
-                annotation = v
+            sortedData = sorted(list(data.keys()), key=lambda item: item[0])
+            for k in sortedData:
+                annotation = data[k]
                 c1, c2, strand = k
                 print(chrom,c1,c2,annotation,".",strand, sep="\t", file=out)
 
@@ -298,7 +310,7 @@ def main():
 
         outDict[chrom].close()
          
-        cmds.append((tempDir, chrom, juncs,reads, resolveStrand))
+        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta))
 
     p = Pool(threads)
     for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if verbose else p.imap(runCMD,cmds):

@@ -19,9 +19,8 @@ from __future__ import print_function
 
 import os, sys
 from kerneltree import IntervalTree
-import numpy as np
 from tqdm import *
-
+import pybedtools
 
 ########################################################################
 # CommandLine
@@ -51,12 +50,13 @@ class CommandLine(object) :
                                              epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
-                                             usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
+                                             usage = '%(prog)s -i reads.bed -j known_junctions.bed -o out_file.bed --working_dir dir')
         # Add args
         self.parser.add_argument('-i', "--input_bed", action = 'store', required=True, help='Input reads in bed12 format.')
         self.parser.add_argument('-j', "--juncs",  action = 'store', required=True, help='KnownJunction.bed.')
         self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
         self.parser.add_argument('-o', "--output_fname", action = 'store', required=True, help='Output file name.')
+        self.parser.add_argument('-f', "--genome_fasta", action = 'store', required=True, help='Genome Fasta.')
         self.parser.add_argument("--workingDir", action = 'store', required=True, help='Working directory.')
         self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
@@ -213,8 +213,6 @@ def juncsToBed12(start, end, coords):
 
 
 
-
-
 def ssCorrrect(c,strand,ssType,intTree,ssData):
     '''
     correct un-annotated splice sites.
@@ -258,7 +256,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
         juncs  = bedObj.bed12toJuncs()
         strand = bedObj.strand 
         c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
-
+        
         newJuncs  = list()
         ssTypes   = list()
         ssStrands = set()
@@ -271,11 +269,12 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             if c2 not in ssData:
                 ssData = ssCorrrect(c2,strand,c2Type,intTree,ssData)
 
+
             c1Obj, c2Obj = ssData[c1], ssData[c2]
 
             c1Corr = ssData[c1].ssCorr.coord
             c2Corr = ssData[c2].ssCorr.coord
-            
+
             ssTypes   = [ssData[c1].ssCorr.ssType ,ssData[c2].ssCorr.ssType]
             ssStrands.add(ssData[c1].ssCorr.strand)
             ssStrands.add(ssData[c2].ssCorr.strand)
@@ -284,7 +283,8 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
                 # Either two donors or two acceptors or both none.
                 novelSS = True
 
-            newJuncs.append((c1Corr,c2Corr))        
+            newJuncs.append((c1Corr,c2Corr)) 
+
         blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
         
         if correctStrand:
@@ -312,19 +312,58 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
     corrected.close()
     inconsistent.close()
 
-def buildIntervalTree(juncs, wiggle):
+def buildIntervalTree(juncs, wiggle, fasta):
     ''' Builds read and splice site objects '''
     x = IntervalTree()
     data = dict()
+
+    ### strand juncs
+    dinucDict = dict() 
+    a = pybedtools.BedTool(juncs)
+    seq = a.sequence(fi=fasta, s=True, tab=True,fullHeader=True)
+    with open(seq.seqfn) as fileObj:
+        for line in fileObj:
+            name, seq = line.split()
+            coords = name.split(":")[-1]
+            coords,strand = coords.rstrip(")").split("(")
+            c1,c2 = list(map(int, coords.split("-")))
+            if strand == "+":
+                donor,acceptor = seq[:2],seq[-2:]
+            else:
+                donor,acceptor = seq[-2:],seq[:2]
+
+            #if donor == acceptor or donor in ['TT','CC','AG','TA']:
+            #    continue
+
+
+            if c1 not in dinucDict:
+                dinucDict[c1] = (strand,donor)
+            else:
+                if dinucDict[c1][-1] == "GT":
+                    pass
+                elif donor == "GT":
+                     dinucDict[c1] = (strand,donor)
+            if c2 not in dinucDict:
+                dinucDict[c2] = (strand,acceptor)
+            else:
+                if dinucDict[c2][-1] == "AG":
+                    pass
+                elif donor == "AG":
+                    dinucDict[c2] = (strand,acceptor)
+                      
+
 
     with open(juncs) as lines:
         for line in lines:
             cols     = line.rstrip().split()
             c1, c2   = int(cols[1]), int(cols[2])
             strand   = cols[-1]
+            
+            if dinucDict[c1][0] != strand or dinucDict[c2][0] != strand:
+                continue
+
             annoType = cols[3]
             c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
-
 
             # add c1 first
             if c1 not in data:
@@ -368,7 +407,8 @@ def main():
     myCommandLine = CommandLine()
     bed           = myCommandLine.args['input_bed']
     knownJuncs    = myCommandLine.args['juncs']
-    
+    fa            = myCommandLine.args['genome_fasta']
+
     wiggle        = myCommandLine.args['wiggleWindow']
     out           = myCommandLine.args['output_fname']
 
@@ -377,7 +417,7 @@ def main():
     workingDir    = myCommandLine.args['workingDir']
 
     # Build interval tree of known juncs
-    intTree, ssData = buildIntervalTree(knownJuncs, wiggle)
+    intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
 
     # Build read objects.
     correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
