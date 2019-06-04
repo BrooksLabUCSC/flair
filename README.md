@@ -29,7 +29,7 @@ It is also good to note that `bed12` and `PSL` can be converted using [kentUtils
 
 ## <a name="requirements"></a>Requirements
 
-1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam v0.8.4+
+1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pysam v0.8.4+, pybedtools
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
 
@@ -43,26 +43,26 @@ Alternatively, the user can align the reads themselves with their aligner of cho
 
 **Usage:**
 ```sh
-python flair.py align -g genome.fa -r <reads.fq>\|<reads.fa> [options]
+python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]
 ```
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation.
+Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Inputs are (1) tab-separated chromosome sizes file, (2) genome sequence, (3) aligned reads bed file, (4/5) genome annotation and/or short read splice junctions. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation.
 
 **Usage:**
 ```sh
-python flair.py correct -c chromsizes -q query.bed12 [options]
+python flair.py correct -c chromsizes -g genome.fa -q query.bed12 [-f annotation.gtf]V[-j introns.tab] [options]
 ```
 run with `--help` for description of optional arguments.
-Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
+Outputs (1) `*_all_corrected.bed` of corrected reads, (2) `*_all_inconsistent.bed` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
 
 #### <a name="short"></a>Short-read junctions
 To use short-read splice sites to aid with correction, one option is `bin/junctions_from_sam.py` to extract splice junctions from short-read alignments. The `-s` option accepts either `sam` or `bam` files, and if there are multiple sams/bams they can be provided in a comma-separated list.
 
 **Usage:**
 ```sh
-python junctions_from_sam.py -s <shortreads.sam>\|<shortreads.bam> -n outname
+python junctions_from_sam.py -s <shortreads.sam>|<shortreads.bam> -n outname
 ```
 the file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file.
 
@@ -76,7 +76,7 @@ If there are multiple samples to be compared, the flair-corrected read `psl` fil
 
 **Usage:**
 ```sh
-python flair.py collapse -g genome.fa -r <reads.fq>\|<reads.fa> -q query.psl [options]
+python flair.py collapse -g genome.fa -r <reads.fq>|<reads.fa> -q query.psl [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs the high-confidence isoforms in several formats: (1) `*isoforms.psl`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. Intermediate files are removed, but can be output for debugging purposes by supplying the argument `--keep_intermediate`.
