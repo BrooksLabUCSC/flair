@@ -163,6 +163,7 @@ def gtfToSSBed(file):
                 #txn info is in the SECOND position of the shoutout column
                 txn = cols[-1].split(";")[1].split()[-1].replace('"','')
                 key = (chrom, txn, strand)
+
                 if key not in exons:
                     exons[key] = list()
                 exons[key].append(c1)
@@ -178,7 +179,7 @@ def gtfToSSBed(file):
         if chrom not in juncs:
             juncs[chrom] = dict()
 
-        coords = exons[exonInfo]
+        coords = list(exons[exonInfo])
         
         # assume lowest and highest as TSS and TES, and remove them
         coords.sort()
@@ -186,15 +187,18 @@ def gtfToSSBed(file):
 
         # Coords is list of exons, so a list less than 2 is a single exon gene.
         if len(coords)<2: continue
-        
-        
 
         for pos in range(0,len(coords)-1,2):
             c1 = coords[pos]
             c2 = coords[pos+1]
-            
+
+          
+
+            if abs(c2 - c1) <= 5:
+                continue
+
             juncs[chrom][(c1,c2,strand)] = "gtf"
-   
+
     return juncs, chromosomes
 
    
@@ -285,6 +289,7 @@ def main():
                 c1, c2, strand = k
                 print(chrom,c1,c2,annotation,".",strand, sep="\t", file=out)
 
+    sortedData = None
     skippedChroms = set()
     readDict = dict()
     with open(bed) as lines:
@@ -311,7 +316,8 @@ def main():
         outDict[chrom].close()
          
         cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta))
-
+    juncs = None
+    annotations = None
     p = Pool(threads)
     for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if verbose else p.imap(runCMD,cmds):
         pass

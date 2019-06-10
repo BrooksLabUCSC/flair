@@ -320,13 +320,17 @@ def buildIntervalTree(juncs, wiggle, fasta):
     ### strand juncs
     dinucDict = dict() 
     a = pybedtools.BedTool(juncs)
-    seq = a.sequence(fi=fasta, s=True, tab=True,fullHeader=True)
+    seq = a.sequence(fi=fasta, s=True, tab=True, fullHeader=True)
     with open(seq.seqfn) as fileObj:
         for line in fileObj:
             name, seq = line.split()
-            coords = name.split(":")[-1]
-            coords,strand = coords.rstrip(")").split("(")
-            c1,c2 = list(map(int, coords.split("-")))
+            
+            coords,strand = name.split("(")
+            
+            strand = strand.rstrip(")")
+            coords = coords.split(":")[-1]
+            c1, c2 = list(map(int, coords.split("-")))
+
             if strand == "+":
                 donor,acceptor = seq[:2],seq[-2:]
             else:
@@ -334,6 +338,9 @@ def buildIntervalTree(juncs, wiggle, fasta):
 
             #if donor == acceptor or donor in ['TT','CC','AG','TA']:
             #    continue
+
+            #if name == "both" or name == "gtf":
+
 
 
             if c1 not in dinucDict:
@@ -415,7 +422,7 @@ def main():
     resolveStrand = myCommandLine.args['correctStrand']
 
     workingDir    = myCommandLine.args['workingDir']
-
+    
     # Build interval tree of known juncs
     intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
 
