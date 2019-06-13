@@ -59,6 +59,8 @@ class CommandLine(object) :
         self.parser.add_argument('-f', "--genome_fasta", action = 'store', required=True, help='Genome Fasta.')
         self.parser.add_argument("--workingDir", action = 'store', required=True, help='Working directory.')
         self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
+        self.parser.add_argument('--check_file', action = 'store', required=False, default = False, help='Write file for print_check')
+        
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         
         
@@ -341,8 +343,6 @@ def buildIntervalTree(juncs, wiggle, fasta):
 
             #if name == "both" or name == "gtf":
 
-
-
             if c1 not in dinucDict:
                 dinucDict[c1] = (strand,donor)
             else:
@@ -422,13 +422,22 @@ def main():
     resolveStrand = myCommandLine.args['correctStrand']
 
     workingDir    = myCommandLine.args['workingDir']
+
+    checkFname    = myCommandLine.args['check_file']
     
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s. Output file path: %s" % (bed, wiggle, knownJuncs, fa, os.path.join(workingDir,"%s_(corrected|inconsistent).bed" % out)), file=fo)
+
+
     # Build interval tree of known juncs
     intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
 
+       
+
     # Build read objects.
     correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
-
+       
             
 
 

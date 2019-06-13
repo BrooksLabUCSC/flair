@@ -110,6 +110,9 @@ elif mode == 'correct':
 		help='window size for correcting splice sites (W=10)')
 	parser.add_argument('-o', '--output', \
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
+	parser.add_argument('--print_check', \
+		action='store_true', dest='p', default=False, help='Print err.txt with step checking.')
+
 	args = parser.parse_args()
 	if not args.j and not args.f:
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
@@ -127,6 +130,8 @@ elif mode == 'correct':
 		correction_cmd += ['-j', args.j]
 	if args.f:
 		correction_cmd += ['-g', args.f]
+	if args.p:
+		correction_cmd += ['--print_check']
 
 	if subprocess.call(correction_cmd):
 		sys.stderr.write('Correction command did not exit with success status\n')

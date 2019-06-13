@@ -71,6 +71,7 @@ class CommandLine(object) :
         self.parser.add_argument('--progress', action = 'store_true', required=False, default = False, help='Display progress')
         self.parser.add_argument('--tempDir', action = 'store', required=False, default = None,   help='Output directory for temporary files.')
         self.parser.add_argument('--keepTemp', action = 'store_true', required=False, default = False, help='Keep temporary/intermediate files.')
+        self.parser.add_argument('--print_check', action = 'store_true', required=False, default = False, help='Print workflow checking')
         
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         #self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
@@ -121,6 +122,10 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes):
         print("ERROR: Cannot find strand info for %s. Is this bed6 or STAR_juncs.tab file? Exit." % bedJuncs, file=sys.stderr)
 
  
+    if printErr: 
+        with open(printErrFname,'a+') as fo:
+            print("** Adding other juncs, assuming file is %s" % "bed6" if strandCol == -1 else "STAR", file=fo)
+
     with open(bedJuncs,'r') as bedLines:
         for line in bedLines:
             cols = line.rstrip().split()
@@ -138,6 +143,10 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes):
                 juncs[chrom][key] = "both"
             else:
                 juncs[chrom][key] = "sr"
+
+    if printErr: 
+        with open(printErrFname,'a+') as fo:
+            print("** GTF Juncs + other juncs now total %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 
     return juncs, chromosomes
 
@@ -169,6 +178,11 @@ def gtfToSSBed(file):
                 exons[key].append(c1)
                 exons[key].append(c2)
 
+    if printErr: 
+        with open(printErrFname,'a+') as fo:
+            print("** Read GTF. Got %s transcripts" % len(list(exons.keys())), file=fo)
+            print("** Getting introns...Read GTF", file=fo)
+
     # Second: get junction and splice sites from transcript exons.
     txnList = list(exons.keys()) 
     juncs = dict()
@@ -192,34 +206,35 @@ def gtfToSSBed(file):
             c1 = coords[pos]
             c2 = coords[pos+1]
 
-          
-
             if abs(c2 - c1) <= 5:
                 continue
 
             juncs[chrom][(c1,c2,strand)] = "gtf"
 
+    if printErr: 
+        with open(printErrFname,'a+') as fo:
+            print("** Created %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
     return juncs, chromosomes
 
    
 def runCMD(x):
 
 
-    tDir, prefix,juncs,reads, rs, f = x
-    
+    tDir, prefix,juncs,reads, rs, f, err, errFname = x
+    cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f)
     if rs:
-        
-        p = subprocess.Popen("%s %s -i %s -j %s -o %s --correctStrand --workingDir %s -f %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir, f), shell=True)
-        #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
-        p.wait()
-        return
-    else:
-        
-        p = subprocess.Popen("%s %s -i %s -j %s -o %s --workingDir %s -f %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir, f), shell=True)
-        #p = Popen("python3  ~/bin/flair_stabel/bin/ssPrep.py -i %s -j %s -o %s --correctStrand" % (reads,juncs,prefix), shell=True)
-        p.wait()
-        
-        return
+        cmd += "--correctStrand "
+    if err:
+        cmd += "--check_file %s " % errFname
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, perr = p.communicate()
+
+    if perr:
+        if err:
+            with open(errFname,"a+") as fo:
+                print('** Unsuccessful correction for chromosome %s' % prefix, err.decode(), file=fo)
+        sys.exit(1)
+    return
 
 def main():
     '''
@@ -263,9 +278,12 @@ def main():
     # There are a few functions that evaluate what verbose is defined as.
     # Instead of passing it around, just global it.
     global verbose
-    verbose = myCommandLine.args['progress']
+    global printErrFname
+    global printErr
+    verbose  = myCommandLine.args['progress']
+    printErr = myCommandLine.args['print_check']
+    printErrFname = "err_%s.txt" % tempDirName
 
-    # Convert gtf to bed and split by cromosome.
     # Convert gtf to bed and split by cromosome.
     juncs, chromosomes  = dict(), set() # initialize juncs for adding to db
     if gtf != None: juncs, chromosomes = gtfToSSBed(gtf)
@@ -315,7 +333,13 @@ def main():
 
         outDict[chrom].close()
          
-        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta))
+        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta, printErr, printErrFname))
+
+    if printErr: 
+        with open(printErrFname,'a+') as fo:
+            print("** Prepared correct commands for %s read files" % len(cmds), file=fo)
+
+
     juncs = None
     annotations = None
     p = Pool(threads)
