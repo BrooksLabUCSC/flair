@@ -250,6 +250,11 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
 def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
     ''' Builds read and splice site objects '''
 
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Creating temporary correction files for chromosome %s: %s & %s" % (currentChr, os.path.join(wDir, "%s_inconsistent.bed" % filePrefix), os.path.join(wDir,"%s_corrected.bed" % filePrefix)), file=fo)
+
+
     inconsistent = open(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix),'w')
     corrected = open(os.path.join(wDir,"%s_corrected.bed" % filePrefix),'w')
 
@@ -313,13 +318,34 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
                     blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
     corrected.close()
     inconsistent.close()
+    
+    inc = os.path.isfile(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix))
+    cor = os.path.isfile(os.path.join(wDir, "%s_corrected.bed" % filePrefix))
+
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Checking inc/corr files for chromsome %s: %s %s" % (currentChr,inc,cor), file=fo)
+
+
+
+
+
 
 def buildIntervalTree(juncs, wiggle, fasta):
     ''' Builds read and splice site objects '''
+
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Initializing int tree for chromosome %s" % (currentChr), file=fo)
+
     x = IntervalTree()
     data = dict()
 
     ### strand juncs
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Checking SS motifs for chromosome %s" % (currentChr), file=fo)
+
     dinucDict = dict() 
     a = pybedtools.BedTool(juncs)
     seq = a.sequence(fi=fasta, s=True, tab=True, fullHeader=True)
@@ -359,6 +385,9 @@ def buildIntervalTree(juncs, wiggle, fasta):
                     dinucDict[c2] = (strand,acceptor)
                       
 
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Checked %s splice sites for chromosome %s... Adding to int tree" % (len(list(dinucDict.keys())),currentChr), file=fo)
 
     with open(juncs) as lines:
         for line in lines:
@@ -379,7 +408,7 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 ss.ssCorr = ss
         
                 # SS window
-                c1S, c1E = c1-wiggle, c1+wiggle
+                c1S, c1E = max(c1-wiggle,1), c1+wiggle
                 
                 # Add to tree and object to data
                 data[c1] = ss
@@ -402,6 +431,9 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 x.add(c2S,c2E,c2)
             else:
                 data[c2].support.add(annoType)
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** Tree Initilized. %s data points added for chromosome %s." % (len(list(data.keys())),currentChr), file=fo)
 
     return x, data
 
@@ -423,17 +455,19 @@ def main():
 
     workingDir    = myCommandLine.args['workingDir']
 
+
+    global checkFname
+    global currentChr
+    currentChr    = out
     checkFname    = myCommandLine.args['check_file']
     
     if checkFname: 
         with open(checkFname,'a+') as fo:
-            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s. Output file path: %s" % (bed, wiggle, knownJuncs, fa, os.path.join(workingDir,"%s_(corrected|inconsistent).bed" % out)), file=fo)
+            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (bed, wiggle, knownJuncs, fa), file=fo)
 
 
     # Build interval tree of known juncs
     intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
-
-       
 
     # Build read objects.
     correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)

@@ -227,12 +227,13 @@ def runCMD(x):
     if err:
         cmd += "--check_file %s " % errFname
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, perr = p.communicate()
+    #out, perr = p.communicate()
+    std, perr = p.communicate()
 
     if perr:
         if err:
             with open(errFname,"a+") as fo:
-                print('** Unsuccessful correction for chromosome %s' % prefix, err.decode(), file=fo)
+                print('** Unsuccessful correction for chromosome %s' % prefix, perr.decode(), file=fo)
         sys.exit(1)
     return
 
