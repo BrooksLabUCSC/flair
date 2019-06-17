@@ -469,9 +469,18 @@ def main():
     # Build interval tree of known juncs
     intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
 
+    if checkFname: 
+        with open(checkFname,'a+') as fo:
+            print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncs, bed), file=fo)
     # Build read objects.
-    correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
-       
+    try:
+        correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
+    except:
+        if checkFname: 
+            with open(checkFname,'a+') as fo:
+                print("** correctReads FAILED for %s" % (bed), file=fo)
+        sys.exit(1)
+
             
 
 
