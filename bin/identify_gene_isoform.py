@@ -102,9 +102,10 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	prev_gene = prev_gene[:prev_gene.find('"')]
 	prev_exon = (start, end, prev_gene)
 
-tn_to_juncs[chrom][this_transcript] = junctions
-for j in junctions:
-	junc_to_tn[chrom][j] = this_transcript
+if chrom in tn_to_juncs:  # add last entry
+	tn_to_juncs[chrom][this_transcript] = junctions
+	for j in junctions:
+		junc_to_tn[chrom][j] = this_transcript
 
 for chrom in all_se:
 	all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])

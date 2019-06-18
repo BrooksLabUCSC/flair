@@ -13,7 +13,7 @@ elif len(sys.argv) > 1 and sys.argv[1] == 'quantify':
 elif len(sys.argv) > 1 and sys.argv[1] == 'diffExp':
 	mode = 'diffExp'
 elif len(sys.argv) > 1 and sys.argv[1] == '--version':
-	sys.stderr.write('FLAIR v1.3.0\n')
+	sys.stderr.write('FLAIR v1.4.0\n')
 	sys.exit(1)
 else:
 	sys.stderr.write('usage: python flair.py <mode> --help \n')
@@ -156,8 +156,8 @@ elif mode == 'collapse':
 		help='GTF annotation file, used for identifying annotated isoforms')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
-	parser.add_argument('-t', '--threads', type=str, \
-		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
+	parser.add_argument('-t', '--threads', type=int, \
+		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('-p', '--promoters', action='store', dest='p', default='', \
 		help='promoter regions bed file to identify full-length reads')
 	parser.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools', \
@@ -168,6 +168,8 @@ elif mode == 'collapse':
 		help='window size for comparing TSS/TES (100)')
 	parser.add_argument('-s', '--support', default='3', action='store', dest='s', \
 		help='minimum number of supporting reads for an isoform (3)')
+	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
+		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used (1)')
 	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent', \
 		help='''specify if all supporting reads need to be full-length \
 		(80%% coverage and spanning 25 bp of the first and last exons)''')
@@ -201,6 +203,8 @@ elif mode == 'collapse':
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
+
+	args.t, args.quality = str(args.t), str(args.quality)
 
 	intermediate, temporary = [], []
 	precollapse = args.q  # filename
@@ -266,7 +270,7 @@ elif mode == 'collapse':
 				if subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 					args.o+'.firstpass.fa', r], stdout=open(alignout+'.sam', "w")):
 					sys.exit(1)
-				subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', alignout+'.sam'], \
+				subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', alignout+'.sam'], \
 					stdout=open(alignout+'.q1.sam', 'w'))
 				subprocess.call([sys.executable, path+'bin/count_sam_genes.py', alignout+'.q1.sam', \
 					alignout+'.q1.counts'])
@@ -290,7 +294,6 @@ elif mode == 'collapse':
 	if args.stringent:  # filtering for isoforms from the high-confidence set with full-length supporting reads
 		sys.stderr.write('Applying stringent filtering\n')
 		map_files, alignment_psls = [], []
-		filenum = 0
 		for r in reads_files:  # align reads to high-confidence isoforms
 			alignout = tempfile.NamedTemporaryFile().name+'.stringent'
 			subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
@@ -302,7 +305,6 @@ elif mode == 'collapse':
 			map_files += [alignout+'.q1.map']
 			alignment_psls += [alignout+'.q1.sam.psl']
 			align_files += [alignout+'.sam', alignout+'.q1.sam']
-			filenum += 1
 
 		subprocess.call(['cat'] + map_files, stdout=open(args.o+'.stringent.map', 'w'))
 		subprocess.call(['cat'] + alignment_psls, stdout=open(args.o+'.stringent.q1.sam.psl', 'w'))
@@ -339,7 +341,7 @@ elif mode == 'quantify':
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='specify a samtools executable path if not in $PATH if --quality is also used')
 	parser.add_argument('--quality', type=str, action='store', dest='quality', default='0', \
-		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used by default (0)')
+		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used (0)')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output name (counts_matrix.tsv)')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
@@ -370,8 +372,8 @@ elif mode == 'quantify':
 				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
 				sys.exit(1)
 			sample, group, batch, readFile = cols
-			# readFileRoot = tempfile.NamedTemporaryFile().name
-			readFileRoot = readFile[readFile.rfind('/')+1:]
+			readFileRoot = tempfile.NamedTemporaryFile().name
+			# readFileRoot = readFile[readFile.rfind('/')+1:]
 			samData.append(cols + [readFileRoot + '.sam'])
 		
 		samData.sort(key=lambda x: x[1], reverse=True)
@@ -381,8 +383,10 @@ elif mode == 'quantify':
 			if not args.salmon:
 				mm2_command += ['--secondary=no']
 			try:
-				subprocess.call(mm2_command, stdout=open(sample[-1], 'w'), \
-					stderr=open(sample[-1]+'.mm2_Stderr.txt', 'w'))
+				if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'), \
+					stderr=open(sample[-1]+'.mm2_Stderr.txt', 'w')):
+					sys.stderr.write('Check stderr files\n')
+					sys.exit(1)
 			except:
 				sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
 				sys.exit(1)
@@ -392,8 +396,7 @@ elif mode == 'quantify':
 					stdout=open(sample[-1]+'.qual.sam', 'w')):
 					sys.exit(1)
 				subprocess.call(['mv', sample[-1]+'.qual.sam', sample[-1]])
-			subprocess.call(['rm', sample[-1]+'.mm2_Stderr.txt'])
-
+			subprocess.call([sys.executable, path+'bin/sam_to_map.py', sample[-1], sample[-1]+'.map'])
 	countData = dict()
 	for num,data in enumerate(samData):
 		sample, group, batch, readFile, samOut = data
