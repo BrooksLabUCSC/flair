@@ -88,7 +88,7 @@ if mode == 'align':
 	
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
-		usage='python flair.py correct -c chromsizes.tsv -g genome.fa -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
+		usage='python flair.py correct -c chromsizes.tsv -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('at least one of the following arguments is required')
@@ -117,8 +117,6 @@ elif mode == 'correct':
 	if not args.j and not args.f:
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
 		sys.exit(1)
-
-
 	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, \
 			'-w', args.w, '-p', args.t, '-o', args.o, '--progress', '-f', args.g]
 	if not args.n:
