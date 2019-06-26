@@ -5,6 +5,7 @@ try:
 	outfilename = sys.argv[2]
 except:
 	sys.stderr.write('usage: script.py sam outfile\n')
+	sys.exit(1)
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')

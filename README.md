@@ -37,7 +37,7 @@ It is also good to note that `bed12` and `PSL` can be converted using [kentUtils
 `flair.py` is a wrapper script with modules for running various processing scripts located in `bin/`. Modules are assumed to be run in order (align, correct, collapse), but the user can forgo the wrapper if a more custom build is desired. 
 
 ### <a name="align"></a>flair align
-Aligns reads to the genome using minimap2, and converts the aligned minimap2 `sam` output to [BED12](https://genome.ucsc.edu/FAQ/FAQformat.html#format14) and optionally [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2). Aligned reads in `psl` format can be visualized in IGV or the UCSC Genome browser.
+Aligns reads to the genome using minimap2, and converts the aligned minimap2 `sam` output to [BED12](https://genome.ucsc.edu/FAQ/FAQformat.html#format14) and optionally [PSL](https://genome.ucsc.edu/FAQ/FAQformat.html#format2). Aligned reads in `psl` format can be visualized in IGV or the UCSC Genome browser. As for which human reference genome to use, Heng Li has written a [blog post](https://lh3.github.io/2017/11/13/which-human-reference-genome-to-use) on this.
 
 Alternatively, the user can align the reads themselves with their aligner of choice and convert sorted `bam` output to `bed12` using `bin/bam2Bed12.py` to supply for flair-correct. This step smooths gaps in the alignment.
 
