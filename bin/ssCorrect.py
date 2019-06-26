@@ -227,15 +227,8 @@ def runCMD(x):
     if err:
         cmd += "--check_file %s " % errFname
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    #out, perr = p.communicate()
     std, perr = p.communicate()
-
-    if perr:
-        if err:
-            with open(errFname,"a+") as fo:
-                print('** Unsuccessful correction for chromosome %s' % prefix, perr.decode(), file=fo)
-        sys.exit(1)
-    return
+    return perr
 
 def main():
     '''
@@ -344,8 +337,13 @@ def main():
     juncs = None
     annotations = None
     p = Pool(threads)
+    childErrs = set()
     for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if verbose else p.imap(runCMD,cmds):
-        pass
+        childErrs.add(i)
+    if len(childErrs)>1:
+        print(childErrs,file=sys.stderr)
+        sys.exit(1)
+
 
     with open("%s_all_inconsistent.bed" % outFile,'wb') as inconsistent:
         for chrom in readDict:
