@@ -341,62 +341,11 @@ def buildIntervalTree(juncs, wiggle, fasta):
     x = IntervalTree()
     data = dict()
 
-    ### strand juncs
-    if checkFname: 
-        with open(checkFname,'a+') as fo:
-            print("** Checking SS motifs for chromosome %s" % (currentChr), file=fo)
-
-    dinucDict = dict() 
-    a = pybedtools.BedTool(juncs)
-    seq = a.sequence(fi=fasta, s=True, tab=True, fullHeader=True)
-    with open(seq.seqfn) as fileObj:
-        for line in fileObj:
-            name, seq = line.split()
-            
-            coords,strand = name.split("(")
-            
-            strand = strand.rstrip(")")
-            coords = coords.split(":")[-1]
-            c1, c2 = list(map(int, coords.split("-")))
-
-            if strand == "+":
-                donor,acceptor = seq[:2],seq[-2:]
-            else:
-                donor,acceptor = seq[-2:],seq[:2]
-
-            #if donor == acceptor or donor in ['TT','CC','AG','TA']:
-            #    continue
-
-            #if name == "both" or name == "gtf":
-
-            if c1 not in dinucDict:
-                dinucDict[c1] = (strand,donor)
-            else:
-                if dinucDict[c1][-1] == "GT":
-                    pass
-                elif donor == "GT":
-                     dinucDict[c1] = (strand,donor)
-            if c2 not in dinucDict:
-                dinucDict[c2] = (strand,acceptor)
-            else:
-                if dinucDict[c2][-1] == "AG":
-                    pass
-                elif donor == "AG":
-                    dinucDict[c2] = (strand,acceptor)
-                      
-
-    if checkFname: 
-        with open(checkFname,'a+') as fo:
-            print("** Checked %s splice sites for chromosome %s... Adding to int tree" % (len(list(dinucDict.keys())),currentChr), file=fo)
-
     with open(juncs) as lines:
         for line in lines:
             cols     = line.rstrip().split()
             c1, c2   = int(cols[1]), int(cols[2])
             strand   = cols[-1]
-            
-            if dinucDict[c1][0] != strand or dinucDict[c2][0] != strand:
-                continue
 
             annoType = cols[3]
             c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
@@ -424,7 +373,7 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 ss.ssCorr = ss
         
                 # SS window
-                c2S, c2E = c2-wiggle, c2+wiggle
+                c2S, c2E = max(c2-wiggle,1), c2+wiggle
                 
                 # Add to tree and object to data
                 data[c2] = ss

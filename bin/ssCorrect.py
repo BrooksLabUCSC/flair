@@ -87,12 +87,12 @@ class CommandLine(object) :
 ########################################################################
 
 
-def addOtherJuncs(juncs, bedJuncs, chromosomes):
+def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
 
     
     lineNum = 0
-    if verbose: print("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs), file=sys.stderr) 
-
+    if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
+    
     with open(bedJuncs) as l:
         for num,ll in enumerate(l,0):
             cols = ll.rstrip().split()
@@ -126,23 +126,63 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes):
         with open(printErrFname,'a+') as fo:
             print("** Adding other juncs, assuming file is %s" % "bed6" if strandCol == -1 else "STAR", file=fo)
 
+    tempJuncs = list()
     with open(bedJuncs,'r') as bedLines:
         for line in bedLines:
             cols = line.rstrip().split()
             chrom, c1, c2, strand = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol]
-            chromosomes.add(chrom)
+            
+            if c2-c1 < 5:
+                continue
+
             if starOffset:
                 if strand == "1": strand = "+"
                 elif strand == "2": strand = "-"
                 else: continue
 
-            if chrom not in juncs:
-                juncs[chrom] = dict()
+            chromosomes.add(chrom)
             key = (c1, c2, strand)
             if key in juncs[chrom]:
                 juncs[chrom][key] = "both"
-            else:
-                juncs[chrom][key] = "sr"
+                continue
+            tempJuncs.append((chrom,c1,c2,"%s,%s,%s,%s" % (chrom,c1,c2,strand),0,strand))
+
+    try:
+        btJuncs = pybedtools.BedTool(tempJuncs)
+        dinucSeq = btJuncs.sequence(fi=fa, s=True, tab=True, name=True)
+        with open(dinucSeq.seqfn) as fileObj:
+            for i in fileObj:
+                header,seq = i.rstrip().split()
+                chrom,c1,c2,strand = header.split(",")
+                c1,c2 = int(c1),int(c2)
+                key = (c1,c2, strand)
+                known1,known2 = known.get((chrom,c1),None),known.get((chrom,c2),None)
+
+                if known1 != None:
+                    if known1 != strand:
+                        continue
+                    else:
+                        pass
+                else:
+                    pass
+
+                if known2 != None:
+                    if known2 != strand:
+                        continue
+                    else:
+                        pass
+                else:
+                    pass
+
+                fivePrime = seq[:2]
+                if key not in juncs[chrom]:
+                    juncs[chrom][key] = "sr"
+                elif fivePrime == "GT":
+                    juncs[chrom][key] = "sr"
+
+    except Exception as e:
+        print(e,"Splice site motif filtering failed. Check pybedtools and bedtools is properly install and in $PATH",file=sys.stderr)
+        sys.exit(1)
 
     if printErr: 
         with open(printErrFname,'a+') as fo:
@@ -150,7 +190,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes):
 
     return juncs, chromosomes
 
-def gtfToSSBed(file):
+def gtfToSSBed(file, knownSS):
     ''' Convenience function, reformats GTF to bed'''
 
 
@@ -210,11 +250,13 @@ def gtfToSSBed(file):
                 continue
 
             juncs[chrom][(c1,c2,strand)] = "gtf"
+            knownSS[(chrom, c1)] = strand
+            knownSS[(chrom, c2)] = strand
 
     if printErr: 
         with open(printErrFname,'a+') as fo:
             print("** Created %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
-    return juncs, chromosomes
+    return juncs, chromosomes, knownSS
 
    
 def runCMD(x):
@@ -279,13 +321,13 @@ def main():
     printErrFname = "err_%s.txt" % tempDirName
 
     # Convert gtf to bed and split by cromosome.
-    juncs, chromosomes  = dict(), set() # initialize juncs for adding to db
-    if gtf != None: juncs, chromosomes = gtfToSSBed(gtf)
+    juncs, chromosomes, knownSS  = dict(), set(), dict() # initialize juncs for adding to db
+    if gtf != None: juncs, chromosomes, knownSS = gtfToSSBed(gtf, knownSS)
 
     # Do the same for the other juncs file.
-    if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes)
-
-
+    if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes, genomeFasta, knownSS)
+    knownSS = dict()
+    
     # added to allow annotations not to be used. 
     if len(list(juncs.keys()))<1:
         print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
