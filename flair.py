@@ -118,9 +118,6 @@ elif mode == 'correct':
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
 		sys.exit(1)
 
-	if not os.path.isfile(args.g+'.fai'):
-		sys.stderr.write('Please index your genome: samtools faidx your_genome.fa\n')
-		sys.exit(1)
 
 	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q, \
 			'-w', args.w, '-p', args.t, '-o', args.o, '--progress', '-f', args.g]
