@@ -2,13 +2,18 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
+	isbed = sys.argv[1][-3:].lower() != 'psl' 
 	gtf = open(sys.argv[2])
 	outfilename = sys.argv[3]
-	
-	isbed = sys.argv[1][-3:].lower() != 'psl' 
+	if len(sys.argv) > 4:
+		proportion_annotated_covered = float(sys.argv[4])
+	else:
+		proportion_annotated_covered = 0.8
 except:
-	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed \n')
+	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion_a] \n')
 	sys.stderr.write('changes the name for each entry in psl/bed to the isoform and gene\n')
+	sys.stderr.write('proportion_a should be a decimal < 1 specifying the proportion of an \n \
+		annotated single-exon gene a FLAIR isoform has to cover, (default=0.8)\n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -53,10 +58,27 @@ def bin_search(query, data):
 
 def overlapping_bases(coords0, coords1):
 	""" complete coverage of coords0 by coords1, and coords0 can be tol larger.
-	if coords0 is contained by coords1, then return the number of overlapping basepairs """
+	if coords0 is contained by coords1, then return the number of 
+	overlapping basepairs """
 	if coords0[1] > coords1[0] and coords1[1] > coords0[0]:
 		return min(coords1[1], coords0[1]) - max(coords1[0], coords0[0])
 	return
+
+def update_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
+	tn_to_juncs, all_se):
+	if chrom not in junc_to_tn:
+		junc_to_tn[chrom] = {}
+		tn_to_juncs[chrom] = {}
+		all_se[chrom] = []
+	if not junctions:
+		all_se[chrom] += [prev_exon]
+	else:
+		tn_to_juncs[chrom][prev_transcript] = junctions
+		for j in junctions:
+			if j not in junc_to_tn[chrom]:
+				junc_to_tn[chrom][j] = set()
+			junc_to_tn[chrom][j].add(prev_transcript)
+	return junc_to_tn, tn_to_juncs, all_se
 
 prev_transcript, prev_exon = '', ''
 junc_to_tn = {}  # chrom: {intron: [transcript_names], ... }
@@ -71,26 +93,19 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
 	if ty != 'exon':
 		continue
-	if chrom not in junc_to_tn:
-		junc_to_tn[chrom] = {}
-		tn_to_juncs[chrom] = {}
-		all_se[chrom] = []
-		all_juncs[chrom] = {}
 	this_transcript = line[8][line[8].find('transcript_id')+15:]
 	this_transcript = this_transcript[:this_transcript.find('"')]
 
+	if chrom not in all_juncs:
+		all_juncs[chrom] = {}
+
 	if this_transcript != prev_transcript:
 		if prev_transcript:
-			if not junctions:  # single exon gene
-				all_se[chrom] += [prev_exon]
-			tn_to_juncs[chrom][prev_transcript] = junctions
-			for j in junctions:
-				if j not in junc_to_tn[chrom]:
-					junc_to_tn[chrom][j] = set()
-				junc_to_tn[chrom][j].add(prev_transcript)
+			junc_to_tn, tn_to_juncs, all_se = update_dicts(chrom, junctions, prev_transcript, \
+				prev_exon, junc_to_tn, tn_to_juncs, all_se)
 		junctions = set()
 		prev_transcript = this_transcript
-	elif strand == '-':
+	elif strand == '-' and end < prev_start:
 		junctions.add((end, prev_start))
 		all_juncs[chrom][(end, prev_start)] = prev_gene
 	else:
@@ -102,10 +117,9 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	prev_gene = prev_gene[:prev_gene.find('"')]
 	prev_exon = (start, end, prev_gene)
 
-if chrom in tn_to_juncs:  # add last entry
-	tn_to_juncs[chrom][this_transcript] = junctions
-	for j in junctions:
-		junc_to_tn[chrom][j] = this_transcript
+if ty == 'exon' and prev_transcript:
+	junc_to_tn, tn_to_juncs, all_se = update_dicts(chrom, junctions, prev_transcript, \
+		prev_exon, junc_to_tn, tn_to_juncs, all_se)
 
 for chrom in all_se:
 	all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
@@ -123,7 +137,7 @@ with open(outfilename, 'wt') as outfile:
 		else:
 			junctions = get_junctions(line)
 			chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
-		
+
 		if chrom not in junc_to_tn:  # chrom not in reference file
 			if ';' in name:
 				name = name[:name.find(';')]
@@ -149,9 +163,9 @@ with open(outfilename, 'wt') as outfile:
 			for e in all_se[chrom][i-2:i+2]:
 				overlap = overlapping_bases(exon, e)
 				if overlap:
-					proportion = float(overlap)/(exon[1]-exon[0])  # base coverage of long-read isoform
-					proportion2 = float(overlap)/(e[1]-e[0])  # base coverage of the annotated isoform
-					if proportion > 0.5 and proportion2 > 0.8:
+					proportion = float(overlap)/(exon[1]-exon[0])  # base coverage of long-read isoform by the annotated isoform
+					proportion2 = float(overlap)/(e[1]-e[0])  # base coverage of the annotated isoform by the long-read isoform
+					if proportion > 0.5 and proportion2 > proportion_annotated_covered:
 						gene_hits[e[2]] = proportion
 		else:
 			for j in junctions:
@@ -177,7 +191,6 @@ with open(outfilename, 'wt') as outfile:
 				if tn_to_juncs[chrom][t] == junctions:
 					transcript = t  # annotated transcript identified
 					break
-
 		if not transcript:
 			novel += 1
 			if ';' in name:
@@ -199,4 +212,3 @@ with open(outfilename, 'wt') as outfile:
 		writer.writerow(line)
 
 # sys.stderr.write('{} out of {} isoforms have novel splice junction chains\n'.format(novel, total))
-

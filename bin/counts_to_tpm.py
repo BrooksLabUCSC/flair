@@ -1,18 +1,23 @@
 import sys, csv
 
 try:
-	sizefile = open(sys.argv[1])
-	counts_matrix = open(sys.argv[2])
-	outfilename = sys.argv[3]
+	counts_matrix = open(sys.argv[1])
+	outfilename = sys.argv[2]
+	if len(sys.argv) > 3:
+		sizefile = open(sys.argv[3])
+	else:
+		sizefile = ''
 except:
-	sys.stderr.write('usage: script.py fasta.sizes counts_matrix.tsv count_matrix.tpm.tsv\n')
+	sys.stderr.write('usage: script.py counts_matrix.tsv count_matrix.tpm.tsv [iso.sizes]\n')
 	sys.stderr.write('convenience script for obtaining a file of isoform sizes: bin/fasta_seq_lengths.py\n')
+	sys.stderr.write('if no isoform size file is provided, no length normalization will be done (just reads per million)\n')
 	sys.exit()
 
 sizes = {}
-for line in sizefile:
-	line = line.rstrip().split('\t')
-	sizes[line[0]] = float(line[1])
+if sizefile:
+	for line in sizefile:
+		line = line.rstrip().split('\t')
+		sizes[line[0]] = float(line[1])
 
 header = counts_matrix.readline().rstrip().split('\t')
 num_samples = len(header[1:])
@@ -21,7 +26,10 @@ all_rpk = [0] * num_samples
 for line in counts_matrix:
 	line = line.rstrip().split('\t')
 	isoform_id = line[0]
-	rpk = [float(count)/sizes[isoform_id] for count in line[1:]]
+	if sizes:
+		rpk = [float(count)/sizes[isoform_id] for count in line[1:]]
+	else:
+		rpk = [float(count) for count in line[1:]]
 	for n in range(num_samples):
 		all_rpk[n] += rpk[n]
 	matrix_data += [[isoform_id] + rpk]

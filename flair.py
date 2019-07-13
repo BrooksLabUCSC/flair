@@ -440,8 +440,7 @@ elif mode == 'quantify':
 	sys.stderr.write("\n")
 
 	if args.tpm and not args.salmon:
-		subprocess.call([sys.executable, path+'bin/fasta_seq_lengths.py', args.i, args.i+'.sizes'])
-		subprocess.call([sys.executable, path+'bin/counts_to_tpm.py', args.i+'.sizes', args.o, args.o+'.tpm'])
+		subprocess.call([sys.executable, path+'bin/counts_to_tpm.py', args.o, args.o+'.tpm'])
 
 elif mode == 'diffExp':
 	parser = argparse.ArgumentParser(description='flair-diffExp parse options', \
