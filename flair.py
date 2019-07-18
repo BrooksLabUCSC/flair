@@ -189,6 +189,8 @@ elif mode == 'collapse':
 		read assignments to firstpass isoforms (default: not specified)''')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
+	parser.add_argument('--temp_dir', default='', \
+		action='store', dest='temp_dir', help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
 	parser.add_argument('-o', '--output', default='flair.collapse', \
 		action='store', dest='o', help='output file name base for FLAIR isoforms (default: flair.collapse)')
 	args = parser.parse_args()
@@ -245,7 +247,11 @@ elif mode == 'collapse':
 	count_files, align_files = [], []
 	try:
 		for r in reads_files:  # align reads to first-pass isoforms
-			alignout = tempfile.NamedTemporaryFile().name+'.firstpass'
+			tempfile_name = tempfile.NamedTemporaryFile().name
+			if args.temp_dir == '':
+				alignout = tempfile_name+'.firstpass'
+			else:
+				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/')+1:]+'.firstpass'
 			if args.salmon:
 				if subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
 					stdout=open(alignout+'.sam', "w")):
@@ -343,6 +349,8 @@ elif mode == 'quantify':
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False, \
 		help='specify this flag to output additional file with expression in TPM')
+	parser.add_argument('--temp_dir', default='', \
+		action='store', dest='temp_dir', help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
 	args = parser.parse_args()
 
 	try:
@@ -367,7 +375,11 @@ elif mode == 'quantify':
 				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
 				sys.exit(1)
 			sample, group, batch, readFile = cols
+
 			readFileRoot = tempfile.NamedTemporaryFile().name
+			if args.temp_dir != '':
+				readFileRoot = args.temp_dir + '/' + readFileRoot[readFileRoot.rfind('/')+1:]
+
 			# readFileRoot = readFile[readFile.rfind('/')+1:]
 			samData.append(cols + [readFileRoot + '.sam'])
 		
