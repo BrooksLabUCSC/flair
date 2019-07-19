@@ -253,11 +253,12 @@ def predict(bed, starts, isoDict):
             for start in o.starts:
                 exon,startPos = start
                 relativeStart = getStartRelPos(startPos,exon,exons,o)
-                fiveUTR,rest  = o.sequence[:relativeStart], o.sequence[relativeStart:]
+                fiveUTR,rest  = o.sequence[:relativeStart], o.sequence[relativeStart:].upper()
                 
                 # Next find first stop codon
                 for i in range(0, len(rest), 3):
                     codon = rest[i:i+3]
+
                     if rest[i:i+3] in stops:
                         break
 
