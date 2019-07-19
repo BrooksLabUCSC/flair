@@ -256,17 +256,19 @@ def predict(bed, starts, isoDict):
                 fiveUTR,rest  = o.sequence[:relativeStart], o.sequence[relativeStart:].upper()
                 
                 # Next find first stop codon
+                stopReached = False
                 for i in range(0, len(rest), 3):
                     codon = rest[i:i+3]
 
                     if rest[i:i+3] in stops:
+                        stopReached = True
                         break
 
                 # i is the last position after going through all codons and breaking at a stop
                 # is a stop was never reached then i should represent the last NT in the entire seq
                 # therefore, i+3 should be longer than the entire potential orf is a stop was never reached.
                 # lets call these nonstop, or nst for now.
-                if i+3 >= len(rest):
+                if not stopReached:
                     orfEndPos = len(fiveUTR)+i
                     o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], orfEndPos-relativeStart, relativeStart])  
                     #o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], relativeStart])  
