@@ -132,6 +132,9 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
             cols = line.rstrip().split()
             chrom, c1, c2, strand = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol]
             
+            if chrom not in juncs:
+                juncs[chrom] = dict()
+
             if c2-c1 < 5:
                 continue
 
