@@ -24,6 +24,7 @@ import subprocess
 import shutil
 import uuid
 import pybedtools
+import re
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
@@ -213,7 +214,9 @@ def gtfToSSBed(file, knownSS):
                 chrom, c1, c2, strand =  cols[0], int(cols[3])-1, int(cols[4]), cols[6]
                 chromosomes.add(chrom)
                 #txn info is in the SECOND position of the shoutout column
-                txn = cols[-1].split(";")[1].split()[-1].replace('"','')
+                txn = re.search('transcript_id "([^\"]+)"', l).group(1)#
+                #cols[-1].split(";")[1].split()[-1].replace('"','')
+                
                 key = (chrom, txn, strand)
 
                 if key not in exons:
