@@ -43,12 +43,12 @@ Alternatively, the user can align the reads themselves with their aligner of cho
 
 **Usage:**
 ```sh
-python flair.py align -g genome.fa -r <reads.fq>\|<reads.fa> [options]
+python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]
 ```
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation.
+Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation. Bedtools must be in your $PATH for flair-correct to run properly.
 
 **Usage:**
 ```sh
@@ -62,7 +62,7 @@ To use short-read splice sites to aid with correction, one option is `bin/juncti
 
 **Usage:**
 ```sh
-python junctions_from_sam.py -s <shortreads.sam>\|<shortreads.bam> -n outname
+python junctions_from_sam.py -s <shortreads.sam>|<shortreads.bam> -n outname
 ```
 the file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file.
 
@@ -76,7 +76,7 @@ If there are multiple samples to be compared, the flair-corrected read `psl` fil
 
 **Usage:**
 ```sh
-python flair.py collapse -g genome.fa -r <reads.fq>\|<reads.fa> -q query.psl [options]
+python flair.py collapse -g genome.fa -r <reads.fq>|<reads.fa> -q query.psl [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs the high-confidence isoforms in several formats: (1) `*isoforms.psl`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. Intermediate files are removed, but can be output for debugging purposes by supplying the argument `--keep_intermediate`.
@@ -160,15 +160,15 @@ python mark_intron_retention.py isoforms.psl isoforms.ir.psl coords.txt
 ```
 Outputs (1) an extended `psl` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively; (2) `txt` file of intron retentions with format `isoform name` `chrom` `intron 5'` `intron 3'`. 
 
-### mark_productivity.py
+### predictProductivity.py
 
-Requires three positional arguments to classify isoforms according to productivity: (1) reads or `psl` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences.
+Annotated start codons from the annotation are used to identify the longest ORF for each isoform for predicting isoform productivity. Requires three arguments to classify isoforms according to productivity: (1) isoforms in `psl` or `bed` format, (2) `gtf` genome annotation, (3) `fasta` genome sequences. Bedtools must be in your $PATH for predictProductivity.py to run properly.
 
 **Usage:**
 ```sh
-python mark_productivity.py psl annotation.gtf genome.fa > productivity.psl
+python predictProductivity.py -i isoforms.psl|isoforms.bed -f annotation.gtf -g genome.fa --longestORF > productivity.bed
 ```
-Outputs an extended `psl` with an additional column containing either values 0, 1, or 2 corresponding to a productive, unproductive (premature stop codon), and lncRNA (no start codon) categories respectively. 
+Outputs a bed file with either the values `PRO` (productive), `PTC` (premature termination codon, i.e. unproductive), `NGO` (no start codon), or `NST` (has start codon but no stop codon) appended to the end of the isoform name. When isoforms are visualized in the UCSC genome browser or IGV, the isoforms will be colored accordingly and have thinner UTRs.
 
 ### find_alt3prime_5prime_ss.py
 

@@ -9,14 +9,17 @@ try:
 		outfilename2 = sys.argv[5]
 	else:
 		outfilename2 = ''
+	calculate_all = len(sys.argv) > 6
 except:
-	sys.stderr.write('usage: script.py alignment.sam.psl isoforms.psl minsupport out_isoforms.psl [out_assignments.txt]\n')
+	sys.stderr.write('usage: script.py isoforms.psl alignment.sam.psl minsupport out_isoforms.psl [out_assignments.txt] [calculate_all]\n')
 	sys.exit(1)
 
 isoform_info = {}
 for line in isoforms:
 	line = line.rstrip().split('\t')
 	blocksizes = [float(n) for n in line[18].split(',')[:-1]]
+	print(line)
+	sys.exit()
 	isoform_info[line[9]] = [sum(blocksizes), blocksizes[0], blocksizes[-1], line]
 
 iso_read = {}  # isoform-read assignments for reads that span 25bp of the first and last exon
@@ -26,7 +29,7 @@ for line in alignment:  # reads aligned to the isoforms sam-turned-psl
 
 	if isoform not in iso_read:
 		iso_read[isoform] = []
-	elif len(iso_read[isoform]) > minsupport:
+	elif len(iso_read[isoform]) > minsupport and not calculate_all:
 		continue
 	blocksizes = [int(n) for n in line[18].split(',')[:-1]]
 	blockstarts = [int(n) for n in line[20].split(',')[:-1]]

@@ -251,6 +251,8 @@ elif mode == 'collapse':
 			if args.temp_dir == '':
 				alignout = tempfile_name+'.firstpass'
 			else:
+				if not os.path.isdir(args.temp_dir):
+					subprocess.call(['mkdir', args.temp_dir])
 				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/')+1:]+'.firstpass'
 			if args.salmon:
 				if subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
@@ -278,7 +280,7 @@ elif mode == 'collapse':
 				count_files += [alignout+'.q1.counts']
 				align_files = [alignout+'.sam', alignout+'.q1.sam']
 	except:
-		sys.stderr.write('Possible minimap2/samtools error, specify paths or make sure they are in $PATH\n')
+		sys.stderr.write('Possible minimap2/samtools error, please check that all file, directory, and executable paths exist\n')
 		sys.exit(1)
 
 	subprocess.call([sys.executable, path+'bin/combine_counts.py'] + count_files + [args.o+'.firstpass.q1.counts'])
@@ -378,6 +380,8 @@ elif mode == 'quantify':
 
 			readFileRoot = tempfile.NamedTemporaryFile().name
 			if args.temp_dir != '':
+				if not os.path.isdir(args.temp_dir):
+					subprocess.call(['mkdir', args.temp_dir])
 				readFileRoot = args.temp_dir + '/' + readFileRoot[readFileRoot.rfind('/')+1:]
 
 			# readFileRoot = readFile[readFile.rfind('/')+1:]
@@ -395,7 +399,7 @@ elif mode == 'quantify':
 					sys.stderr.write('Check stderr files\n')
 					sys.exit(1)
 			except:
-				sys.stderr.write('Possible minimap2 error, specify executable path with -m\n')
+				sys.stderr.write('Possible minimap2 error, please check that all file, directory, and executable paths exist\n')
 				sys.exit(1)
 			sys.stderr.flush()
 			if args.quality != '0':

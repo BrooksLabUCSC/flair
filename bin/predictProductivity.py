@@ -138,7 +138,7 @@ def getSeqs(bed, genome):
     with open(bt.seqfn) as entries:
         for entry in entries:
             read,seq  = entry.split()
-            
+
             data = read.split("_")
             iso,gene = data[0], data[-1]
             if iso not in isoDict:
