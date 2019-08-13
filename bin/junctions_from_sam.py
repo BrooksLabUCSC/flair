@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # preProcess_getASEventReadCounts.py
-# Author: Angela Brooks, Alison Tang
+# Author: Angela Brooks, Alison Tang (modifications for FLAIR)
 # Program Completion Date:
 # Modification Date(s):
 # Copyright (c) 2011, Angela Brooks. anbrooks@gmail.com
@@ -28,6 +28,7 @@ import optparse
 import os
 import pdb
 import math
+import re
 
 import pysam
 import gzip
@@ -362,6 +363,7 @@ def main():
             if cigar == "*":
                 continue
 
+
             tags = sam_elems[11:]
             if unique_only:
                 isMultiFlag = isMultiMapped(tags)
@@ -402,6 +404,10 @@ def main():
                 hardclipFlag = True
                 continue
 
+            if '=' in cigar:
+                cigar = extended_to_simple_cigar(cigar)
+                m_count = cigar.count('M')
+
             # Check if it is a genome read
             if m_count == 1: # A GENOME READ
                 pass
@@ -426,7 +432,6 @@ def main():
 
             else: # A JUNCTION READ 
                 n_count = cigar.count("N")
-
 
                 if n_count == 0:
                     print("Expecting a junction read: %s" % cigar)
@@ -604,7 +609,6 @@ def main():
             junction_bed_file.write(bed_line)
 
     junction_bed_file.close()
-
     # Print out junction to read file for paired end reads
     # if paired_end_exists:
     #     for jcn_str in jcn2pairedReads:
@@ -687,7 +691,32 @@ def convertFlag(flag):
         return "-"
     else:
         return "+"
-            
+
+def extended_to_simple_cigar(cigar):
+    matches = re.findall(r'([0-9]+)([A-Z]|=)', cigar)
+    newcigar = ''
+    prevop = '='
+    prevnum = 0
+    for m in matches:
+        num, op = int(m[0]), m[1]
+        if op not in ['=', 'X', 'N']:
+            sys.stderr.write('Unexpectted operator in extended cigar:{}\n'.format(cigar))
+            sys.exit()
+        if op in ['=', 'X'] and prevop in ['=', 'X']:
+            prevnum += num
+        else:
+            if prevop != 'N':
+                newcigar += str(prevnum)+'M'
+            else:
+                newcigar += str(prevnum)+'N'
+            prevnum = num
+            prevop = op
+    if prevop != 'N':
+        newcigar += str(prevnum)+'M'
+    else:
+        newcigar += str(prevnum)+'N'
+    return newcigar
+
 def formatLine(line):
     line = line.replace("\r","")
     line = line.replace("\n","")

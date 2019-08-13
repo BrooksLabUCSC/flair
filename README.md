@@ -16,7 +16,7 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 - [Scripts](#scripts)
 - [Docker](#docker)
 - [Example Files](#exfiles)
-
+- [Cite FLAIR](#cite)
 
 ## <a name="overview"></a>Overview
 FLAIR can be run optionally with short-read data to help increase splice site accuracy of the long read splice junctions. FLAIR uses multiple alignment steps and splice site filters to increase confidence in the set of isoforms defined from noisy data. FLAIR was designed to be able to sense subtle splicing changes in nanopore data from [Tang et al. (2018)](https://www.biorxiv.org/content/early/2018/09/06/410183). Please read for more description of some methods.
@@ -25,7 +25,7 @@ FLAIR can be run optionally with short-read data to help increase splice site ac
 
 It is recommended to combine all samples together prior to running flair-collapse for isoform assembly by concatenating corrected read `psl` files together. Following the creation of an isoform reference from flair-collapse, consequent steps will assign reads from each sample individually to isoforms of the combined assembly for downstream analyses.
 
-It is also good to note that `bed12` and `PSL` can be converted using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py`.
+It is also good to note that `bed12` and `PSL` can be converted using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py` and `bin/psl_to_bed.py`.
 
 ## <a name="requirements"></a>Requirements
 
@@ -52,7 +52,7 @@ Corrects misaligned splice sites using genome annotations and/or short-read spli
 
 **Usage:**
 ```sh
-python flair.py correct -c chromsizes -q query.bed12 [options]
+python flair.py correct -c chromsizes -q query.bed12 -g genome.fa [options]
 ```
 run with `--help` for description of optional arguments.
 Outputs (1) `bed12` of corrected reads, (2) `bed12` of reads that weren't able to be corrected, (3) `psl` of corrected reads to be supplied in flair-collapse.
@@ -168,7 +168,7 @@ Annotated start codons from the annotation are used to identify the longest ORF 
 ```sh
 python predictProductivity.py -i isoforms.psl|isoforms.bed -f annotation.gtf -g genome.fa --longestORF > productivity.bed
 ```
-Outputs a bed file with either the values `PRO` (productive), `PTC` (premature termination codon, i.e. unproductive), `NGO` (no start codon), or `NST` (has start codon but no stop codon) appended to the end of the isoform name. When isoforms are visualized in the UCSC genome browser or IGV, the isoforms will be colored accordingly and have thinner UTRs.
+Outputs a bed file with either the values `PRO` (productive), `PTC` (premature termination codon, i.e. unproductive), `NGO` (no start codon), or `NST` (has start codon but no stop codon) appended to the end of the isoform name. When isoforms are visualized in the UCSC genome browser or IGV, the isoforms will be colored accordingly and have thinner exons for the UTRs.
 
 ### find_alt3prime_5prime_ss.py
 
@@ -212,5 +212,10 @@ We have provided the following [example files](https://users.soe.ucsc.edu/~brook
 Other downloads:
 - [promoter BED file](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz) to supplement in FLAIR-collapse for better TSS-calling for GM12878 cells
 - [Native RNA Pass reads](https://github.com/nanopore-wgs-consortium/NA12878/blob/master/RNA.md) Running these 10 million nanopore reads from `fastq` through flair align, correct, and collapse modules to assembled isoforms with 8 threads requires ~3.5 hours (includes ~2.5 hours of minimap2 alignment)
+
+## Cite FLAIR <a name="cite"></a>
+If you use FLAIR in your publication, please cite with the bioRxiv for now:
+>Tang, A. D. et al. Full-length transcript characterization of SF3B1 mutation in chronic lymphocytic leukemia reveals downregulation of retained introns. 
+>bioRxiv 410183 (2018). doi:10.1101/410183
 
 

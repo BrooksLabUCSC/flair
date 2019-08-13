@@ -18,8 +18,6 @@ isoform_info = {}
 for line in isoforms:
 	line = line.rstrip().split('\t')
 	blocksizes = [float(n) for n in line[18].split(',')[:-1]]
-	print(line)
-	sys.exit()
 	isoform_info[line[9]] = [sum(blocksizes), blocksizes[0], blocksizes[-1], line]
 
 iso_read = {}  # isoform-read assignments for reads that span 25bp of the first and last exon

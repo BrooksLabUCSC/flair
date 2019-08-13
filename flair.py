@@ -253,7 +253,7 @@ elif mode == 'collapse':
 			else:
 				if not os.path.isdir(args.temp_dir):
 					subprocess.call(['mkdir', args.temp_dir])
-				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/')+1:]+'.firstpass'
+				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/'):]+'/.firstpass'
 			if args.salmon:
 				if subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
 					stdout=open(alignout+'.sam', "w")):
@@ -298,7 +298,10 @@ elif mode == 'collapse':
 		sys.stderr.write('Applying stringent filtering\n')
 		map_files, alignment_psls = [], []
 		for r in reads_files:  # align reads to high-confidence isoforms
-			alignout = tempfile.NamedTemporaryFile().name+'.stringent'
+			tempfile_name = tempfile.NamedTemporaryFile().name
+			alignout = tempfile_name+'.stringent'
+			if args.temp_dir != '':
+				alignout = args.temp_dir + '/' +tempfile_name[tempfile_name.rfind('/'):]+'/.stringent'
 			subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 				args.o+'.isoforms.fa', r], stdout=open(alignout+'.sam', 'w'))
 			subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', alignout+'.sam'], \
