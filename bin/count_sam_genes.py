@@ -22,6 +22,7 @@ for line in sam:
 	if read not in reads:
 		reads[read] = {}
 		reads[read]['cigar'] = cigar
+		reads[read]['transcript'] = set()
 		reads[read]['transcript'] = [transcript]
 	else:
 		reads[read]['transcript'] += [transcript]
@@ -29,7 +30,7 @@ for line in sam:
 transcripts = {}  # counts
 for r in reads:
 	t = reads[r]['transcript']
-	if len(t) == 1:
+	if len(set(t)) == 1:
 		if t[0] not in transcripts:
 			transcripts[t[0]] = {}
 			transcripts[t[0]]['counts'] = 0

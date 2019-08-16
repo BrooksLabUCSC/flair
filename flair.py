@@ -2,16 +2,18 @@
 
 import sys, argparse, subprocess, os, tempfile
 
-if len(sys.argv) > 1 and sys.argv[1] == 'align':
+if len(sys.argv) > 1 and sys.argv[1] == 'align' or sys.argv[1] == '1':
 	mode = 'align'
-elif len(sys.argv) > 1 and sys.argv[1] == 'correct':
+elif len(sys.argv) > 1 and sys.argv[1] == 'correct' or sys.argv[1] == '2':
 	mode = 'correct'
-elif len(sys.argv) > 1 and sys.argv[1] == 'collapse':
+elif len(sys.argv) > 1 and sys.argv[1] == 'collapse' or sys.argv[1] == '3':
 	mode = 'collapse'
-elif len(sys.argv) > 1 and sys.argv[1] == 'quantify':
+elif len(sys.argv) > 1 and sys.argv[1] == 'quantify' or sys.argv[1] == '4':
 	mode = 'quantify'
-elif len(sys.argv) > 1 and sys.argv[1] == 'diffExp':
+elif len(sys.argv) > 1 and sys.argv[1].lower() == 'diffexp' or sys.argv[1] == '5':
 	mode = 'diffExp'
+elif len(sys.argv) > 1 and sys.argv[1].lower() == 'diffsplice' or sys.argv[1] == '6':
+	mode = 'diffSplice'
 elif len(sys.argv) > 1 and sys.argv[1] == '--version':
 	sys.stderr.write('FLAIR v1.4.0\n')
 	sys.exit(1)
@@ -189,8 +191,8 @@ elif mode == 'collapse':
 		read assignments to firstpass isoforms (default: not specified)''')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
-	parser.add_argument('--temp_dir', default='', \
-		action='store', dest='temp_dir', help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
+	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir', \
+		help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
 	parser.add_argument('-o', '--output', default='flair.collapse', \
 		action='store', dest='o', help='output file name base for FLAIR isoforms (default: flair.collapse)')
 	args = parser.parse_args()
@@ -354,8 +356,8 @@ elif mode == 'quantify':
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False, \
 		help='specify this flag to output additional file with expression in TPM')
-	parser.add_argument('--temp_dir', default='', \
-		action='store', dest='temp_dir', help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
+	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir', \
+		help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
 	args = parser.parse_args()
 
 	try:
@@ -471,7 +473,7 @@ elif mode == 'diffExp':
 		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
 	required.add_argument('-o', '--out_dir', action='store', dest='o', \
 		type=str, required=True, help='Output directory for tables and plots.')
-	required.add_argument('-t', '--threads', action='store', dest='t', \
+	parser.add_argument('-t', '--threads', action='store', dest='t', \
 		type=int, required=False, default=4, help='Number of threads for parallel DRIM-Seq.')
 	parser.add_argument('-e', '--exp_thresh', action='store', dest='e', type=int, required=False, \
 		default=10, help='Read count expression threshold. Isoforms in which \
@@ -483,7 +485,35 @@ elif mode == 'diffExp':
 	runDE      = scriptsBin + "deFLAIR.py"
 
 
-	subprocess.call([sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads', str(args.t), '--outDir', args.o, '--matrix', args.q])
+	subprocess.call([sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads', str(args.t), '--outDir', \
+		args.o, '--matrix', args.q])
+
+
+elif mode == 'diffSplice':
+	parser = argparse.ArgumentParser(description='flair-diffSplice parse options', \
+		usage='python flair.py diffSplice -i isoforms.bed|isoforms.psl -q count_matrix.tsv [options]')
+	parser.add_argument('diffExp')
+	required = parser.add_argument_group('required named arguments')
+	
+	required.add_argument('-i', '--isoforms', action='store', dest='i', required=True, \
+		type=str, help='isoforms in bed or psl format')
+	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
+		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
+	parser.add_argument('-o', '--output', action='store', dest='o', default= 'flair.diffsplice', \
+		type=str, required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
+	# required.add_argument('-t', '--threads', action='store', dest='t', \
+	# 	type=int, required=False, default=4, help='Number of threads for parallel DRIM-Seq.')
+	args = parser.parse_args()
+
+	if args.i[-3:].lower() == 'psl':
+		subprocess.call([sys.executable, path+'bin/psl_to_bed.py', args.i, args.i+'.bed'])
+		args.i = args.i+'.bed'
+
+	subprocess.call([sys.executable, path+'bin/call_ir.py', args.i, args.o+'.ir.events.quant.tsv',args.q])
+	subprocess.call([sys.executable, path+'bin/call_alt3prime_5prime_ss.py', args.i, args.o+'.alt3.events.quant.tsv',args.o+'.alt5.events.quant.tsv',args.q])
+	subprocess.call([sys.executable, path+'bin/es_as.py', args.i], stdout=open(args.o+'.es.events.tsv','w'))
+	subprocess.call([sys.executable, path+'bin/es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'], \
+		stdout=open(args.o+'.es.events.quant.tsv','w'))
 
 
 
