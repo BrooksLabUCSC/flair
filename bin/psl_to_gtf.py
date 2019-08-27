@@ -2,6 +2,7 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
+	force = len(sys.argv) > 2 and 'force' in sys.argv[2]
 except:
 	sys.stderr.write('usage: script.py pslfile > outfile.gtf \n')
 	sys.stderr.write('Entry name must contain underscore-delimited transcriptid and geneid like so:\
@@ -14,24 +15,28 @@ for line in psl:
 	tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
 	bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
 	
-	if '_' not in name:
-		sys.stderr.write('Please first run bin/identify_annotated_gene.py or \
-			bin/identify_gene_isoform.py prior for best results\n')
-		sys.exit()
+	if '_' not in name and not force:
+		sys.stderr.write('No GTF conversion was done. Please run bin/identify_gene_isoform.py first\n')
+		sys.stderr.write('for best results, or run with --force\n')
+		sys.exit(1)
 
-	transcript_id = name[:name.rfind('_')]
-	if ';' in transcript_id:
-		transcript_id = transcript_id.replace(';', ':')
+	if ';' in name:
+		name = name.replace(';', ':')
+
+	transcript_id = name if '_' not in name else name[:name.rfind('_')]
 
 	if 'ENSG' in name:
 		gene_id = name[name.find('ENSG'):]
 	elif 'chr' in name:
 		gene_id = name[name.find('chr'):]
-	else:
+	elif '_' in name:
 		gene_id = name[name.find('_')+1:]
+	else:  # force
+		gene_id = name
 	if '-' in gene_id:
 		transcript_flag = gene_id[gene_id.find('-'):]
-		transcript_id += transcript_flag
+		if transcript_flag not in transcript_id[-3:]:
+			transcript_id += transcript_flag
 		gene_id = gene_id[:gene_id.find('-')]
 
 	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\

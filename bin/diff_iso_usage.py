@@ -2,36 +2,42 @@ import sys, csv
 import scipy.stats as sps
 
 try:
-	psl = open(sys.argv[1])
-	col1 = int(sys.argv[2])  # 25
-	col2 = int(sys.argv[3])
+	counts_matrix = open(sys.argv[1])
+	colname1 = sys.argv[2]
+	colname2 = sys.argv[3]
 	outfilename = sys.argv[4]
 except:
-	sys.stderr.write('usage: script.py isoforms.psl colnum1 colnum2 diff_isos.txt\n')
+	sys.stderr.write('usage: script.py counts_matrix colname1 colname2 diff_isos.txt\n')
 	sys.exit()
 
-counts = {}
+header = counts_matrix.readline().rstrip().split('\t')
 
-for line in psl:
+if colname1 in header:
+	col1 = header.index(colname1)
+else:
+	sys.stderr.write('Could not find {} in {}\n'.format(colname1, ' '.join(header)))
+	sys.exit(1)
+
+if colname2 in header:
+	col2 = header.index(colname2)
+else:
+	sys.stderr.write('Could not find {} in {}\n'.format(colname2, ' '.join(header)))
+	sys.exit(1)
+
+counts = {}
+for line in counts_matrix:
 	line = line.rstrip().split('\t')
-	if '_' not in line[9]:
-		sys.stderr.write('Please run bin/identify_annotated_gene.py first,\
-			necessary for grouping isoforms into genes.\n')
-		sys.exit()
-	gene = line[9][line[9].rfind('_')+1:]
-	if '-' in gene:
-		gene = gene[:gene.find('-')]
-	if gene.count('.') == 2:
-		gene = gene[:gene.rfind('.')]
+	iso_gene, count1, count2 = line[0], float(line[col1]), float(line[col2])
+	if '_' not in iso_gene:
+		sys.stderr.write('Please run bin/identify_annotated_gene.py first so that isoforms\
+			can be grouped by their parent genes\n')
+		sys.exit(1)
+	iso = iso_gene[:iso_gene.rfind('_')]
+	gene = iso_gene[iso_gene.rfind('_')+1:]
 	if gene not in counts:
 		counts[gene] = {}
-	if line[col1] == 'NA':
-		line[col1] = 0
-	if line[col2] == 'NA':
-		line[col2] = 0
-
-	counts[gene][line[9]] = [float(line[col1]), float(line[col2])]
-
+	if count1 != 0 and counts2 != 0:
+		counts[gene][iso] = [count1, count2] 
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')

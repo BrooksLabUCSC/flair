@@ -77,7 +77,7 @@ isoforms, allevents, jcn_to_name = {}, {}, {}
 
 for line in psl:
 	line = line.rstrip().split()
-	if sys.argv[1][-3:] != 'psl':  # untested but it's just two lines so should be ok?
+	if sys.argv[1][-3:] != 'psl':
 		chrom, name = line[0], line[3]
 		junctions, exons  = get_junction_exon_bed12(line)
 	else:

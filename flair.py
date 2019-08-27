@@ -78,6 +78,19 @@ if mode == 'align':
 		sys.stderr.write('Possible issue with samtools executable\n')
 		sys.exit(1)
 
+	if not args.v:  # samtools version is < 1.3 or unspecified --> detect version
+		ver = subprocess.Popen([args.sam], stderr=subprocess.PIPE, universal_newlines=True)
+		for line in ver.stderr:
+			if 'Version:' in line:
+				v = line.rstrip()[line.find('Version:')+9:line.find('Version:')+12]
+				try:
+					if float(v) >= 1.3:
+						sys.stderr.write('Samtools version >= 1.3 detected\n')
+						args.v = True
+						break
+				except:
+					sys.stderr.write('Could not detect samtools version, will assume < 1.3\n')
+
 	if args.v:  # samtools verison 1.3+
 		subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', '-o', args.o+'.bam'])
 	elif subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', args.o]):
@@ -150,7 +163,7 @@ elif mode == 'collapse':
 	required.add_argument('-g', '--genome', action='store', dest='g', \
 		type=str, required=True, help='FastA of reference genome')
 	parser.add_argument('-f', '--gtf', default='', action='store', dest='f', \
-		help='GTF annotation file, used for identifying annotated isoforms')
+		help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-t', '--threads', type=int, \

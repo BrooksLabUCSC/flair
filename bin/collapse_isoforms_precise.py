@@ -41,13 +41,14 @@ try:
 except:
 	sys.stderr.write('Make sure all files (query, GTF) have valid paths and can be opened\n')
 	sys.exit(1)
+
 bed = args.q[-3:].lower() != 'psl'
-pslout = True
 if args.o:
-	if args.o[-3:].lower() != 'psl':
-		pslout = False
+	if args.o[-3:].lower() != args.q[-3:].lower():
+		sys.stderr.write('Make sure input and output file extensions agree (psl preferred for collapse)\n')
+		sys.exit(1)
 else:  # default output name
-	args.o = args.q[:-3]+'collapsed.bed12' if bed else args.q[:-3]+'collapsed.psl'
+	args.o = args.q[:-3]+'collapsed.bed' if bed else args.q[:-3]+'collapsed.psl'
 
 def get_junctions(line):
 	starts = [int(n) for n in line[20].split(',')[:-1]]
@@ -281,12 +282,12 @@ def run_se_collapse(chrom):
 		locus_info = singleexon[chrom][locus]
 		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'], \
 			locus_info['bounds'], chrom, max_results=max_results)
-		name = line[9] if pslout else line[3]
+		name = line[3] if bed else line[9]
 		if name not in senames:
 			senames[name] = 0
 		for tss, tes, support, tsscount, tescount in ends:
 			i = senames[name]
-			if pslout:
+			if not bed:
 				edited_line = edit_line(list(line), tss, tes, tes-tss)
 			else:
 				edited_line = edit_line_bed12(list(line), tss, tes, tes-tss)
@@ -295,7 +296,7 @@ def run_se_collapse(chrom):
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
 					newname = name+'-'+str(i)
-				if pslout:
+				if not bed:
 					edited_line[9] = newname
 				else:
 					edited_line[3] = newname
@@ -320,23 +321,23 @@ def run_find_best_sites(chrom):
 		if args.i and args.n == 'longest':
 			tss = sorted(jset_ends, key=lambda x: x[0])[0][0]  # smallest
 			tes = sorted(jset_ends, key=lambda x: x[1])[-1][1]  # largest
-			if pslout:
+			if not bed:
 				towrite[chrom][jset] += [edit_line(list(line), tss, tes)]
 			else:
 				towrite[chrom][jset] += [edit_line_bed12(list(line), tss, tes)]
 			continue
 		if args.i and args.n == 'best_only':
 			tss, tes = sorted(jset_ends, key=lambda x: x[2])[-1][:2]
-			if pslout:
+			if not bed:
 				towrite[chrom][jset] += [edit_line(list(line), tss, tes)]
 			else:
 				towrite[chrom][jset] += [edit_line_bed12(list(line), tss, tes)]
 			continue  # 1 isoform per unique set of junctions
 
 		i = 0
-		name = line[9] if pslout else line[3]
+		name = line[9] if not bed else line[3]
 		for tss, tes, support, tsscount, tescount in jset_ends:
-			if pslout:
+			if not bed:
 				edited_line = edit_line(list(line), tss, tes)
 			else:
 				edited_line = edit_line_bed12(list(line), tss, tes)
@@ -345,7 +346,7 @@ def run_find_best_sites(chrom):
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
 					newname = name+'-'+str(i)
-				if pslout:
+				if not bed:
 					edited_line[9] = newname
 				else:
 					edited_line[3] = newname

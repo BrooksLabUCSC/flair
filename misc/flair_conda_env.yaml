@@ -1,0 +1,31 @@
+name: flair_env
+channels:
+  - bioconda
+  - conda
+  - Quantopian
+  - conda-forge
+  - r
+dependencies:
+  - python=3.6.5   # or 2.7
+  - numpy=1.9.*
+  - Cython
+  - pandas
+  - rpy2
+  - tqdm
+  - ncls
+  - samtools
+  - bedtools
+  - pybedtools
+  - minimap2
+  - intervaltree
+  - pysam
+  - R
+  - r-ggplot2=2.2.1
+  - r-qqman
+  - bioconductor-deseq2
+  - bioconductor-deseq2
+  - bioconductor-drimseq
+  - bioconductor-stager
+  - pip
+  - pip:
+    - kerneltree
