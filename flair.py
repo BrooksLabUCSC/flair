@@ -522,8 +522,7 @@ elif mode == 'diffSplice':
 		subprocess.call([sys.executable, path+'bin/psl_to_bed.py', args.i, args.i+'.bed'])
 		args.i = args.i+'.bed'
 
-	subprocess.call([sys.executable, path+'bin/call_ir.py', args.i, args.o+'.ir.events.quant.tsv',args.q])
-	subprocess.call([sys.executable, path+'bin/call_alt3prime_5prime_ss.py', args.i, args.o+'.alt3.events.quant.tsv',args.o+'.alt5.events.quant.tsv',args.q])
+	subprocess.call([sys.executable, path+'bin/call_diffsplice_events.py', args.i, args.o, args.q])
 	subprocess.call([sys.executable, path+'bin/es_as.py', args.i], stdout=open(args.o+'.es.events.tsv','w'))
 	subprocess.call([sys.executable, path+'bin/es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'], \
 		stdout=open(args.o+'.es.events.quant.tsv','w'))

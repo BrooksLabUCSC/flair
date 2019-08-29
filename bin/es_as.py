@@ -1,6 +1,6 @@
+from __future__ import print_function
 import os, sys
 import re
-
 
 
 class Gene(object):
@@ -76,14 +76,21 @@ class Gene(object):
 			for num,j in enumerate(self.isoforms[i]):
 				acceptor,donor = j[self.acceptor],j[self.donor]
 
-				if num == 0:
-					#this exon cannot be skipped, so just continue
+				if num == 1 and len(self.isoforms[i]) == 2:
+					# two-exon isoform, only add the splice junction and not the exons
+					if acceptor not in self.spliceSites:
+						self.spliceSites[acceptor] = SpliceSite(acceptor,"acceptor")
+					previousDonor = self.isoforms[i][num-1][self.donor]
+					if previousDonor not in self.spliceSites:
+						self.spliceSites[donor] = SpliceSite(previousDonor,"donor")
+					j1 = (self.spliceSites[previousDonor], self.spliceSites[acceptor])
+					if j1 not in self.knownJuncs:
+						self.knownJuncs[j1] = set()
+					self.knownJuncs[j1].add(i)
 					continue
-
-				if num+2 > len(self.isoforms[i]):
-					# this exon also cannot be skipped, so just continue
+				elif num == 0 or num + 2 > len(self.isoforms[i]):
+					# first or last exons cannot be skipped, continue
 					continue
-
 
 				previousDonor = self.isoforms[i][num-1][self.donor]
 				nextAcceptor = self.isoforms[i][num+1][self.acceptor]
@@ -134,18 +141,18 @@ class Gene(object):
 	def findSkippedExonsV1(self):
 		'''
 		'''
+
 		for e,obj in self.exonGraph.items():
 			donor,acceptor = obj.donor, obj.acceptor
 			if donor == None or acceptor == None:
 				# first or last exon
 				continue
-
 			inclusionIsos = set()
 			exclusionIsos = set()
 			for juncs in obj.inclusionJuncs:
 				j1,j2 = juncs
 				if j1 in self.knownJuncs and j2 in self.knownJuncs:
-					inclusionIsos = inclusionIsos.union(self.knownJuncs[j1])
+					inclusionIsos = inclusionIsos.union(self.knownJuncs[j1].intersection(self.knownJuncs[j2]))
 				if (j1[0],j2[-1]) in self.knownJuncs:
 					exclusionIsos = exclusionIsos.union(self.knownJuncs[j1[0],j2[-1]])
 			print("%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.strand, len(inclusionIsos),len(exclusionIsos), ",".join(inclusionIsos),",".join(exclusionIsos), sep="\t")
@@ -283,7 +290,6 @@ def bed12toExons(start,starts,sizes):
 def main():
 
 	flairIsoforms = sys.argv[1]
-	#skippedExon = (35988548,35988583)
 	genes = dict()
 	with open(flairIsoforms) as fin:
 		for line in fin:
@@ -303,8 +309,7 @@ def main():
 	
 	for geneID, gobj in genes.items():
 		gobj.buildGraphv2()
-		#print(gobj.exonGraph)
 		gobj.findSkippedExonsV1()
-if __name__ == "__main__":
 
+if __name__ == "__main__":
 	main()

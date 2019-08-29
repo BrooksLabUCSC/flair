@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os, sys
 import numpy as np
 
@@ -12,6 +13,7 @@ with open(sys.argv[1]) as fin1:
 
 
 with open(sys.argv[2]) as fin2:
+    print('\t'.join(['feature_id', 'coordinate']+header[1:]+['isoform_ids']))
     for line in fin2:
         cols = line.rstrip().split()
         if int(cols[3]) == 0:
@@ -30,8 +32,8 @@ with open(sys.argv[2]) as fin2:
         if minVal < 1:
             continue
 
-        print("%s_inc" % exon ,exon,"\t".join(str(x) for x in incVals),sep="\t")
-        print("%s_exc" % exon ,exon,"\t".join(str(x) for x in excVals),sep="\t")
+        print("inclusion_%s" % exon,exon,"\t".join(str(x) for x in incVals),incIsos,sep="\t")
+        print("exclusion_%s" % exon,exon,"\t".join(str(x) for x in excVals),excIsos,sep="\t")
 
         #print(exon,"\t".join("%.2f" % x for x in incVals/totVals))
 

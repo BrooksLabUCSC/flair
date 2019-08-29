@@ -15,8 +15,10 @@ with open(bed, 'wt') as outfile:
 			sys.exit(2)
 		chrom, name, start, end = line[13], line[9], line[15], line[16]
 		strand, blocksizes = line[8], line[18]
-		relstarts = ','.join([str(int(n) - int(start)) for n in line[20].split(',')[:-1]]) + ','
-		writer.writerow([chrom, start, end, name, '1000', strand, start, end, blocksizes, relstarts])
+		starts = line[20].split(',')[:-1]
+		relstarts = ','.join([str(int(n) - int(start)) for n in starts]) + ','
+		writer.writerow([chrom, start, end, name, '1000', strand, start, end, '0,0,0', \
+			str(len(starts)), blocksizes, relstarts])
 
 
 
