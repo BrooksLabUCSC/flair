@@ -10,10 +10,10 @@ try:
 	else:
 		proportion_annotated_covered = 0.8
 except:
-	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion_a] \n')
-	sys.stderr.write('changes the name for each entry in psl/bed to the isoform and gene\n')
-	sys.stderr.write('proportion_a should be a decimal < 1 specifying the proportion of an \n \
-		annotated single-exon gene a FLAIR isoform has to cover, (default=0.8)\n')
+	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion] \n')
+	sys.stderr.write('purpose: changes the name for each entry in psl/bed to the isoform and gene\n')
+	sys.stderr.write("""optional argument: proportion should be a decimal < 1 specifying the \% of an
+		annotated single-exon gene a FLAIR isoform has to cover (default=0.8)\n""")
 	sys.exit(1)
 
 def get_junctions(line):
@@ -81,10 +81,11 @@ def update_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
 	return junc_to_tn, tn_to_juncs, all_se
 
 prev_transcript, prev_exon = '', ''
-junc_to_tn = {}  # chrom: {intron: [transcript_names], ... }
-tn_to_juncs = {}  # chrom: {transcript_name: (junction1, junction2), ... }
-all_se = {}
-all_juncs = {}  # matches a splice junction to gene name
+junc_to_tn = {}  # matches intron to transcript; chrom: {intron: [transcripts], ... }
+tn_to_juncs = {}  # matches transcript to intron; i.e. chrom: {transcript_name: (junction1, junction2), ... }
+all_se = {}  # all single exon genes
+junc_to_gene = {}  # matches a splice junction (i.e. an intron) to gene name
+gene_unique_juncs = {}  # matches a gene to its set of unique splice junctions
 
 for line in gtf:  # extract all exons from the gtf, keep exons grouped by transcript
 	if line.startswith('#'):
@@ -96,21 +97,33 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	this_transcript = line[8][line[8].find('transcript_id')+15:]
 	this_transcript = this_transcript[:this_transcript.find('"')]
 
-	if chrom not in all_juncs:
-		all_juncs[chrom] = {}
+	if chrom not in junc_to_gene:
+		junc_to_gene[chrom] = {}
 
 	if this_transcript != prev_transcript:
 		if prev_transcript:
-			junc_to_tn, tn_to_juncs, all_se = update_dicts(chrom, junctions, prev_transcript, \
-				prev_exon, junc_to_tn, tn_to_juncs, all_se)
+			junc_to_tn, tn_to_juncs, all_se = update_dicts(chrom, junctions, \
+				prev_transcript, prev_exon, junc_to_tn, tn_to_juncs, all_se)
 		junctions = set()
 		prev_transcript = this_transcript
 	elif strand == '-' and end < prev_start:
-		junctions.add((end, prev_start))
-		all_juncs[chrom][(end, prev_start)] = prev_gene
+		j = (end, prev_start)
+		junctions.add(j)
+		if prev_gene not in gene_unique_juncs:
+			gene_unique_juncs[prev_gene] = set()
+		gene_unique_juncs[prev_gene].add(j)
+		if j not in junc_to_gene[chrom]:
+			junc_to_gene[chrom][j] = set()
+		junc_to_gene[chrom][j].add(prev_gene)
 	else:
-		junctions.add((prev_end, start))
-		all_juncs[chrom][(prev_end, start)] = prev_gene
+		j = (prev_end, start)
+		junctions.add(j)
+		if prev_gene not in gene_unique_juncs:
+			gene_unique_juncs[prev_gene] = set()
+		gene_unique_juncs[prev_gene].add(j)
+		if j not in junc_to_gene[chrom]:
+			junc_to_gene[chrom][j] = set()
+		junc_to_gene[chrom][j].add(prev_gene)
 
 	prev_start, prev_end = start, end
 	prev_gene = line[8][line[8].find('gene_id')+9:]
@@ -169,16 +182,19 @@ with open(outfilename, 'wt') as outfile:
 						gene_hits[e[2]] = proportion
 		else:
 			for j in junctions:
-				if j in all_juncs[chrom]:
-					gene = all_juncs[chrom][j]
-					if gene not in gene_hits:
-						gene_hits[gene] = 0
-					gene_hits[gene] += 1  # gene name, number of hits
+				if j in junc_to_gene[chrom]:
+					for gene in junc_to_gene[chrom][j]:
+						if gene not in gene_hits:
+							gene_hits[gene] = 0
+						gene_hits[gene] += 1  # gene name, number of hits
 
 		if not gene_hits:  # gene name will just be a chromosome locus
 			gene = chrom + ':' + str(start)[:-3] + '000'
 		else:  # gene name will be whichever gene the entry has more shared junctions with
 			genes = sorted(gene_hits.items(), key=lambda x: x[1])
+			if len(genes) > 2 and genes[-1][0] == genes[-2][0]: # tie
+				if len(gene_unique_juncs[genes[-2]]) < len(gene_unique_juncs[genes[-1]]):
+					genes[-1] = genes[-2]
 			gene = genes[-1][0]
 
 		transcript = ''
@@ -191,11 +207,15 @@ with open(outfilename, 'wt') as outfile:
 				if tn_to_juncs[chrom][t] == junctions:
 					transcript = t  # annotated transcript identified
 					break
+		if gene and gene not in name:
+			print(name, gene)
 		if not transcript:
 			novel += 1
 			if ';' in name:
 				name = name[:name.find(';')]
 		else:
+			if transcript and transcript not in name:
+				print(name, transcript)
 			name = transcript
 
 		if name not in name_counts:

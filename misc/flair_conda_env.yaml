@@ -26,6 +26,8 @@ dependencies:
   - bioconductor-deseq2
   - bioconductor-drimseq
   - bioconductor-stager
+  - matplotlib
+  - seaborn
   - pip
   - pip:
     - kerneltree
