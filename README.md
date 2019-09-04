@@ -155,28 +155,28 @@ python flair.py diffSplice -i isoforms.bed|isoforms.psl -q count_matrix.tsv [opt
 For a complex splicing example, please note the 2 alternative 3' SS, 3 intron retention, and 4 exon skipping events in the following set of isoforms that flair-diffSplice would call and the isoforms that are considered to include or exclude the each event:</br>
 <img src='https://people.ucsc.edu/~atang14/flair/toy.isoforms.coord.png' alt='isoforms' width='780'/></br>
 ```tsv
-a3ss_feature_id		coordinate					sample1	sample2	...	isoform_ids
+a3ss_feature_id		coordinate			sample1	sample2	...	isoform_ids
 inclusion_chr1:80	chr1:80-400_chr1:80-450		75.0	35.0	...	a,e
-exclusion_chr1:80	chr1:80-400_chr1:80-450		3.0		13.0	...	c
-inclusion_chr1:500	chr1:500-680_chr1:500-700	4.0		18.0	...	d
+exclusion_chr1:80	chr1:80-400_chr1:80-450		3.0	13.0	...	c
+inclusion_chr1:500	chr1:500-680_chr1:500-700	4.0	18.0	...	d
 exclusion_chr1:500	chr1:500-680_chr1:500-700	70.0	17.0	...	e
 ```
 ```tsv
-ir_feature_id			coordinate		sample1	sample2	...	isoform_ids
+ir_feature_id		coordinate	sample1	sample2	...	isoform_ids
 inclusion_chr1:500-680	chr1:500-680	46.0	13.0	...	g
-exclusion_chr1:500-680	chr1:500-680	4.0		18.0	...	d
+exclusion_chr1:500-680	chr1:500-680	4.0	18.0	...	d
 inclusion_chr1:500-700	chr1:500-700	46.0	13.0	...	g
 exclusion_chr1:500-700	chr1:500-700	70.0	17.0	...	e
 inclusion_chr1:250-450	chr1:250-450	50.0	31.0	...	d,g
 exclusion_chr1:250-450	chr1:250-450	80.0	17.0	...	b
 ```
 ```tsv
-es_feature_id			coordinate		sample1	sample2	...	isoform_ids
+es_feature_id		coordinate	sample1	sample2	...	isoform_ids
 inclusion_chr1:450-500	chr1:450-500	83.0	30.0	...	b,c
 exclusion_chr1:450-500	chr1:450-500	56.0	15.0	...	f
 inclusion_chr1:200-250	chr1:200-250	80.0	17.0	...	b
-exclusion_chr1:200-250	chr1:200-250	3.0		13.0	...	c
-inclusion_chr1:200-500	chr1:200-500	4.0		18.0	...	d
+exclusion_chr1:200-250	chr1:200-250	3.0	13.0	...	c
+inclusion_chr1:200-500	chr1:200-500	4.0	18.0	...	d
 exclusion_chr1:200-500	chr1:200-500	22.0	15.0	...	h
 inclusion_chr1:400-500	chr1:400-500	75.0	35.0	...	e,a
 exclusion_chr1:400-500	chr1:400-500	56.0	15.0	...	f

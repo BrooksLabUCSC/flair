@@ -64,7 +64,7 @@ def overlapping_bases(coords0, coords1):
 		return min(coords1[1], coords0[1]) - max(coords1[0], coords0[0])
 	return
 
-def update_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
+def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
 	tn_to_juncs, all_se):
 	if chrom not in junc_to_tn:
 		junc_to_tn[chrom] = {}
@@ -79,6 +79,16 @@ def update_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
 				junc_to_tn[chrom][j] = set()
 			junc_to_tn[chrom][j].add(prev_transcript)
 	return junc_to_tn, tn_to_juncs, all_se
+
+def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene)
+	junctions.add(j)
+	if prev_gene not in gene_unique_juncs:
+		gene_unique_juncs[prev_gene] = set()
+	gene_unique_juncs[gene].add(j)
+	if j not in junc_to_gene[chrom]:
+		junc_to_gene[chrom][j] = set()
+	junc_to_gene[chrom][j].add(gene)
+	return junctions, gene_unique_juncs, junc_to_gene
 
 prev_transcript, prev_exon = '', ''
 junc_to_tn = {}  # matches intron to transcript; chrom: {intron: [transcripts], ... }
@@ -102,28 +112,16 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 
 	if this_transcript != prev_transcript:
 		if prev_transcript:
-			junc_to_tn, tn_to_juncs, all_se = update_dicts(chrom, junctions, \
+			junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, \
 				prev_transcript, prev_exon, junc_to_tn, tn_to_juncs, all_se)
 		junctions = set()
 		prev_transcript = this_transcript
 	elif strand == '-' and end < prev_start:
-		j = (end, prev_start)
-		junctions.add(j)
-		if prev_gene not in gene_unique_juncs:
-			gene_unique_juncs[prev_gene] = set()
-		gene_unique_juncs[prev_gene].add(j)
-		if j not in junc_to_gene[chrom]:
-			junc_to_gene[chrom][j] = set()
-		junc_to_gene[chrom][j].add(prev_gene)
+		junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom, \
+			(end, prev_start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
 	else:
-		j = (prev_end, start)
-		junctions.add(j)
-		if prev_gene not in gene_unique_juncs:
-			gene_unique_juncs[prev_gene] = set()
-		gene_unique_juncs[prev_gene].add(j)
-		if j not in junc_to_gene[chrom]:
-			junc_to_gene[chrom][j] = set()
-		junc_to_gene[chrom][j].add(prev_gene)
+		junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom, \
+			(prev_end, start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
 
 	prev_start, prev_end = start, end
 	prev_gene = line[8][line[8].find('gene_id')+9:]
@@ -192,7 +190,7 @@ with open(outfilename, 'wt') as outfile:
 			gene = chrom + ':' + str(start)[:-3] + '000'
 		else:  # gene name will be whichever gene the entry has more shared junctions with
 			genes = sorted(gene_hits.items(), key=lambda x: x[1])
-			if len(genes) > 2 and genes[-1][0] == genes[-2][0]: # tie
+			if len(genes) > 1 and genes[-1][0] == genes[-2][0]: # tie
 				if len(gene_unique_juncs[genes[-2]]) < len(gene_unique_juncs[genes[-1]]):
 					genes[-1] = genes[-2]
 			gene = genes[-1][0]
@@ -207,15 +205,12 @@ with open(outfilename, 'wt') as outfile:
 				if tn_to_juncs[chrom][t] == junctions:
 					transcript = t  # annotated transcript identified
 					break
-		if gene and gene not in name:
-			print(name, gene)
+
 		if not transcript:
 			novel += 1
 			if ';' in name:
 				name = name[:name.find(';')]
 		else:
-			if transcript and transcript not in name:
-				print(name, transcript)
 			name = transcript
 
 		if name not in name_counts:

@@ -36,7 +36,7 @@ for line in counts_matrix:
 	gene = iso_gene[iso_gene.rfind('_')+1:]
 	if gene not in counts:
 		counts[gene] = {}
-	if count1 != 0 and counts2 != 0:
+	if count1 != 0 and count2 != 0:
 		counts[gene][iso] = [count1, count2] 
 
 with open(outfilename, 'wt') as outfile:
