@@ -80,7 +80,7 @@ def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
 			junc_to_tn[chrom][j].add(prev_transcript)
 	return junc_to_tn, tn_to_juncs, all_se
 
-def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene)
+def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene):
 	junctions.add(j)
 	if prev_gene not in gene_unique_juncs:
 		gene_unique_juncs[prev_gene] = set()
@@ -129,7 +129,7 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 	prev_exon = (start, end, prev_gene)
 
 if ty == 'exon' and prev_transcript:
-	junc_to_tn, tn_to_juncs, all_se = update_dicts(chrom, junctions, prev_transcript, \
+	junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, prev_transcript, \
 		prev_exon, junc_to_tn, tn_to_juncs, all_se)
 
 for chrom in all_se:
