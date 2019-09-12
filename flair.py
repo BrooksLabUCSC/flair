@@ -268,7 +268,7 @@ elif mode == 'collapse':
 			else:
 				if not os.path.isdir(args.temp_dir):
 					subprocess.call(['mkdir', args.temp_dir])
-				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/'):]+'/.firstpass'
+				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/'):]+'.firstpass'
 			if args.salmon:
 				if subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
 					stdout=open(alignout+'.sam', "w")):
@@ -294,8 +294,8 @@ elif mode == 'collapse':
 					alignout+'.q1.counts'])
 				count_files += [alignout+'.q1.counts']
 				align_files = [alignout+'.sam', alignout+'.q1.sam']
-	except:
-		sys.stderr.write('Possible minimap2/samtools error, please check that all file, directory, and executable paths exist\n')
+	except Exception as e:
+		sys.stderr.write(str(e)+'\n\n\nPossible minimap2/samtools error, please check that all file, directory, and executable paths exist\n')
 		sys.exit(1)
 
 	subprocess.call([sys.executable, path+'bin/combine_counts.py'] + count_files + [args.o+'.firstpass.q1.counts'])
