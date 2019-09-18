@@ -274,7 +274,7 @@ elif mode == 'collapse':
 					stdout=open(alignout+'.sam', "w")):
 					sys.exit(1)
 				if subprocess.call([args.sam, 'view', '-F', '4', '-h', '-S', alignout+'.sam'], \
-					stdout=open(alignout+'.mapped.sam')):
+					stdout=open(alignout+'.mapped.sam', 'w')):
 					sys.exit(1)
 				subprocess.call(['mv', alignout+'.mapped.sam', alignout+'.sam'])
 				subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  alignout+'.salmon', \

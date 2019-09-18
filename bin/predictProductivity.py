@@ -139,9 +139,9 @@ def getSeqs(bed, genome):
         for entry in entries:
             read,seq  = entry.split()
 
-            data = read.split("_")
-            iso,gene = data[0], data[-1]
-            if iso not in isoDict:
+            iso = read[:read.rfind('_')]
+            gene = read[read.rfind('_')+1:]
+            if read not in isoDict:
                 isoDict[read] = Isoform(iso,gene,seq)
     return isoDict
 

@@ -323,9 +323,9 @@ def main():
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
                             "--prefix", "die", "--formula", formulaMatrixFile], stderr=out1)
         
-        subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1], 
-                             "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
-                             "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
+        # subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1], 
+        #                      "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
+        #                      "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
         
 
 

@@ -220,7 +220,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		sites, bestsite = find_best_tss(sites, finding_tss)
 		used = remaining - sum(list(sites.values()))
 		remaining = sum(list(sites.values()))
-		if minsupport < 1 and (used/(total) < minsupport or used < 3) and len(found_tss) >= 1:
+		if minsupport < 1 and (used/(total) < minsupport or used < 4) and len(found_tss) >= 1:
 		# found at minimum the best site, and this site did not surpass minsupport percentage of reads
 			break
 		closest_annotated = 1e15  # just a large number

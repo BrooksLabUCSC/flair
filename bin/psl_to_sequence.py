@@ -4,7 +4,7 @@ try:
 	psl = open(sys.argv[1])
 	genome = open(sys.argv[2])
 	outfilename = sys.argv[3]
-	if outfilename[-2:] == 'fq' or outfilename[-5:] == 'fastq':
+	if outfilename[-2:].lower() == 'fq' or outfilename[-5:].lower() == 'fastq':
 		fastq = True
 	else:
 		fastq = False

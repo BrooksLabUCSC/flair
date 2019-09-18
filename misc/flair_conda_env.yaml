@@ -14,7 +14,7 @@ dependencies:
   - tqdm
   - ncls
   - samtools
-  - bedtools
+  - bedtools=2.25.0
   - pybedtools
   - minimap2
   - intervaltree
