@@ -10,7 +10,7 @@ dependencies:
   - numpy=1.9.*
   - Cython
   - pandas
-  - rpy2
+  - rpy2=2.9.*
   - tqdm
   - ncls
   - samtools
