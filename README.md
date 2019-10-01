@@ -30,7 +30,7 @@ It is also good to note that `bed12` and `PSL` can be converted using [kentUtils
 
 ## <a name="requirements"></a>Requirements
 
-1. python v2.7+ and python modules: Cython, intervaltree, kerneltree, tqdm, pybedtools, pysam v0.8.4+
+1. python v2.7+ and python modules: intervaltree, kerneltree, tqdm, pybedtools, pysam v0.8.4+
 2. bedtools, samtools
 3. [minimap2](https://github.com/lh3/minimap2)
 
@@ -49,7 +49,7 @@ python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Please note that the genome annotation and genome sequences must be compatible, and `gtf` is preferred over `gff` for annotation. Bedtools must be in your $PATH for flair-correct to run properly.
+Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Based on common user issues we have encountered, for flair-correct to run properly, please ensure/note that (1) the genome annotation and genome sequences are compatible, (2) `gtf` is preferred over `gff` for annotation and annotations that do not split single exons into multiple entries are ideal, (3) Bedtools is in your $PATH, and (4) kerneltree is properly installed (you may need to install Cython first). You may also want to refer to the [installation requirements](#requirements) or using the [conda environment](#condaenv) for flair.
 
 **Usage:**
 ```sh
@@ -103,7 +103,7 @@ sample6	conditionB	batch2	./sample6_reads.fq
 ```
 \* The batch descriptor is used in the downstream flair-diffExp analysis to model unintended variability due to secondary factors such as batch or sequencing replicate. If unsure about this option, leave this column defined as `batch1` for all samples.
 
-(2) `isoforms.fasta` contains FLAIR collapsed isoforms produced by the [`flair collapse`](#collapse) module.
+(2) `isoforms.fasta` contains FLAIR collapsed isoforms produced by the [`flair-collapse`](#collapse) module.
 
 **Outputs:**</br>
 (1) `count_matrix.tsv` which is a tab-delimited file containing isoform counts for each sample. For example:
@@ -142,7 +142,7 @@ Calls alternative splicing events from isoforms. Currently we support the follow
 
 **Usage:**
 ```sh
-python flair.py diffSplice -i isoforms.bed|isoforms.psl -q count_matrix.tsv [options]
+python flair.py diffSplice -i <isoforms.bed>|<isoforms.psl> -q count_matrix.tsv [options]
 ```
 
 **Inputs:**</br>
@@ -193,7 +193,7 @@ Annotated start codons from the annotation are used to identify the longest ORF 
 
 **Usage:**
 ```sh
-python predictProductivity.py -i isoforms.psl|isoforms.bed -g annotation.gtf -f genome.fa --longestORF > productivity.bed
+python predictProductivity.py -i <isoforms.bed>|<isoforms.psl> -g annotation.gtf -f genome.fa --longestORF > productivity.bed
 ```
 Outputs a bed file with either the values `PRO` (productive), `PTC` (premature termination codon, i.e. unproductive), `NGO` (no start codon), or `NST` (has start codon but no stop codon) appended to the end of the isoform name. When isoforms are visualized in the UCSC genome browser or IGV, the isoforms will be colored accordingly and have thinner exons for the UTRs.
 
@@ -203,9 +203,9 @@ Requires three positional arguments to identify intron retentions in isoforms: (
 
 **Usage:**
 ```sh
-python mark_intron_retention.py isoforms.psl isoforms.ir.psl coords.txt
+python mark_intron_retention.py <isoforms.psl>|<isoforms.bed> out_isoforms.psl out_coords.txt
 ```
-Outputs (1) an extended `psl` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively; (2) `txt` file of intron retentions with format `isoform name` `chromosome` `intron 5' coordinate` `intron 3' coordinate`. Note: A psl file with more than column 21 columns will not be displayed in the genome browser, but can be displayed in IGV.
+Outputs (1) an extended `psl` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively; (2) `txt` file of intron retentions with format `isoform name` `chromosome` `intron 5' coordinate` `intron 3' coordinate`. Note: A psl or bed file with more additional columns will not be displayed in the genome browser, but can be displayed in IGV.
 
 ### <a name="diffisoscript"></a>diff_iso_usage.py
 Requires four positional arguments to identify and calculate significance of alternative isoform usage between two samples using Fisher's exact tests: (1) count_matrix.tsv from flair-quantify, (2) the name of the column of the first sample, (3) the name of the column of the second sample, (4) `txt` output filename containing the p-value associated with differential isoform usage for each isoform. The more differentially used the isoforms are between the first and second condition, the lower the p-value.
@@ -222,7 +222,7 @@ Visualization script for FLAIR isoform structures and the percent usage of each 
 
 **Usage:**
 ```sh
-python plot_isoform_usage.py isoforms.psl|isoforms.bed count_matrix.tsv gene_name 
+python plot_isoform_usage.py <isoforms.psl>|<isoforms.bed> count_matrix.tsv gene_name 
 ```
 
 Outputs (1) gene_name_isoforms.png of isoform structures and (2) gene_name_usage.png of isoform usage by sample. 
@@ -256,7 +256,7 @@ Users can run FLAIR within the conda environment provided in `misc/flair_conda_e
 
 ## Example Files <a name="exfiles"></a>
 We have provided the following example files [here](https://people.ucsc.edu/~atang14/flair/example_files/):  
-- `star.firstpass.gm12878.junctions.3.tab`, a file of splice junctions observed from short read sequencing of GM18278 that can be used in the correction step with `-j`. Junctions with fewer than 3 uniquely mapping reads are filtered out
+- `star.firstpass.gm12878.junctions.3.tab`, a file of splice junctions observed from short read sequencing of GM18278 that can be used in the correction step with `-j`. Junctions with fewer than 3 uniquely mapping reads have been filtered out
 - `promoter.gencode.v27.20.bed`, promoter regions determined from [ENCODE promoter chromatin states for GM12878](http://hgdownload.cse.ucsc.edu/goldenPath/hg18/encodeDCC/wgEncodeBroadHmm/wgEncodeBroadHmmGm12878HMM.bed.gz) and 20 bp around annotated TSS in GENCODE v27. Can be supplied to flair-collapse with `-p` to build the initial firstpass set with only reads with start positions falling within these regions
 
 Other downloads:

@@ -299,15 +299,15 @@ def main():
 			starts = starts.rstrip(",").split(",")
 			sizes = sizes.rstrip(",").split(",")
 
-			geneID = re.search('(ENSG[^\.]+|chr\S+)',iso).group(1)
+			geneID = iso[iso.rfind('_')+1:]
 			exons = bed12toExons(start,starts,sizes)
 			
-			if geneID not in genes:
-				genes[geneID] = Gene(geneID, chrom, strand)
-			geneObj = genes[geneID]
+			if chrom not in genes:
+				genes[chrom] = Gene(geneID, chrom, strand)
+			geneObj = genes[chrom]
 			geneObj.isoforms[iso] = exons
 	
-	for geneID, gobj in genes.items():
+	for chrom, gobj in genes.items():
 		gobj.buildGraphv2()
 		gobj.findSkippedExonsV1()
 

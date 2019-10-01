@@ -4,9 +4,15 @@ try:
 	sam = open(sys.argv[1])
 	outfilename = sys.argv[2]
 	if len(sys.argv) > 3:
-		chromsizefile = sys.argv[3]
+		if sys.argv[3] == 'quick':
+			quick = True
+			chromsizefile = ''
+		else:
+			quick = False
+			chromsizefile = sys.argv[3]
 	else:
 		chromsizefile = ''
+
 except:
 	sys.stderr.write('usage: script.py samfile outpsl [chromsizefile]\n')
 	sys.stderr.write('written for minimap sams\n')
@@ -23,11 +29,11 @@ with open(outfilename, 'wt') as outfile:
 	for line in sam:
 		if line.startswith('@'):
 			continue
-		line = line.rstrip().split('\t')
-		qname, flag, tname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], int(line[3]), line[5], line[9], line[10]
+		line = line.split('\t')
+		tname = line[2]
 		if tname == '*':
 			continue
-		pos = pos - 1
+		qname, flag, pos, cigar, seq, qual = line[0], int(line[1]), int(line[3]) - 1, line[5], line[9], line[10]
 		matches = re.findall('([0-9]+)([A-Z])', cigar)
 		matchlen = mismatches = relstart = qstart = qconsumed = 0
 		blocksizes, relblockstarts, qstarts = [], [], []
@@ -71,7 +77,20 @@ with open(outfilename, 'wt') as outfile:
 					relstart += num
 				qsize_backup += num  # technically does not consume q but useful when comparing a read's secondary alignments
 			else:
-					sys.stderr.write(op + '\n')
+				sys.stderr.write(op + ' unrecognized\n')
+				sys.exit(1)
+
+		blockstarts = ','.join([str(pos + s) for s in relblockstarts]) + ','
+		blocksizes = ','.join([str(s) for s in blocksizes]) + ','
+		if quick:
+			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, 0, qname, 0, 0, 0, \
+				tname, 0, 0, 0, 0, blocksizes, 0, blockstarts])
+			continue
+
+		blockcount = len(relblockstarts)
+		relblockstarts = ','.join([str(s) for s in relblockstarts]) + ','
+		qstarts = ','.join([str(qstart + s) for s in qstarts]) + ','
+
 		qend = qconsumed + qstart
 		ncount = seq.count('N')
 		qsize = len(seq)
@@ -82,13 +101,8 @@ with open(outfilename, 'wt') as outfile:
 			tsize = 0
 		tstart = pos
 		strand = '-' if flag & 0x10 else '+'  # flag&0x10 is 1 when the strand is -
-		blockstarts = [str(pos + s) for s in relblockstarts]
-		blockcount = len(blockstarts)
-		qstarts = ','.join([str(qstart + s) for s in qstarts]) + ','
-		blocksizes = ','.join([str(s) for s in blocksizes]) + ','
-		relblockstarts = ','.join([str(s) for s in relblockstarts]) + ','
-		blockstarts = ','.join(blockstarts) + ','
 		mismatches = qbaseinsert = qnuminsert = tnuminsert = tbaseinsert = 0
 		writer.writerow([matchlen, mismatches, 0, ncount, qnuminsert, qbaseinsert, \
 			tnuminsert, tbaseinsert, strand, qname, qsize, qstart, qend, \
 			tname, tsize, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
+

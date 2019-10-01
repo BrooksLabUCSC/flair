@@ -11,7 +11,7 @@ parser.add_argument('-o', '--output', type=str, action='store', \
 parser.add_argument('-w', '--window', default=100, type=int, \
 	action='store', dest='w', help='window size for grouping TSS/TES (20)')
 parser.add_argument('-s', '--support', default=0.25, type=float, action='store', \
-	dest='s', help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.25)')
+	dest='s', help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
 parser.add_argument('-f', '--gtf', default='', type=str, \
 	action='store', dest='f', help='GTF annotation file for selecting annotated TSS/TES')
 parser.add_argument('-m', '--max_results', default=2, type=int, action='store', dest='m', \
@@ -25,6 +25,8 @@ parser.add_argument('-n', '--no_redundant', default='none', action='store', dest
 	best_only: single best TSS/TES used in conjunction chosen; \
 	longest/best_only override max_results argument immediately before output \
 	resulting in one isoform per unique set of splice junctions (default: none)')
+parser.add_argument('-c', '--clean', default=False, action='store_false', dest='c', \
+	help='Specify this to not append read support to the end of each entry (default: not specified)')
 parser.add_argument('-i', '--isoformtss', default=False, action='store_true', dest='i', \
 	help='when specified, TSS/TES for each isoform will be determined from supporting reads \
 	for individual isoforms (default: not specified, determined at the gene level)')
@@ -45,7 +47,7 @@ except:
 bed = args.q[-3:].lower() != 'psl'
 if args.o:
 	if args.o[-3:].lower() != args.q[-3:].lower():
-		sys.stderr.write('Make sure input and output file extensions agree (psl preferred for collapse)\n')
+		sys.stderr.write('Make sure input and output file extensions agree\n')
 		sys.exit(1)
 else:  # default output name
 	args.o = args.q[:-3]+'collapsed.bed' if bed else args.q[:-3]+'collapsed.psl'
@@ -72,8 +74,13 @@ def get_junctions_bed12(line):
 	return junctions, (starts[0]+sizes[0], starts[-1])
 
 def overlap(coord0, coord1, tol=0):
-	coord0, coord1 = sorted([coord0, coord1], key = lambda x: x[0])
-	return (coord0[0] <= coord1[0] and coord1[0] <= coord0[1] - tol)
+	if coord1[0] < coord0[0]:
+		coord0, coord1 = coord1, coord0
+	isoverlap = coord0[0] <= coord1[0] and coord1[0] <= coord0[1] - tol
+	if isoverlap:
+		return isoverlap, (min(coord0[1], coord1[1]) - coord1[0])/(coord0[1] - coord0[0])# + \
+			#(coord0[1] - coord1[0])/(coord1[1] - coord1[0]) / 2
+	return isoverlap, 0
 
 def bin_search(query, data):
 	""" Query is a coordinate interval. Approximate binary search for the query in sorted data, 
@@ -183,10 +190,75 @@ def run_add_se(chrom):
 			all_se_by_chrom[chrom][se]['line'], sekeys[chrom], all_se_by_chrom[chrom][se]['count'])
 	return sedict
 
-def find_best_tss(sites, finding_tss):
-	nearby = dict.fromkeys(sites, 0)  # key site, value number of supporting reads window
-	wnearby = dict.fromkeys(sites, 0)  # key site, value weighted number of supporting reads window
-	bestsite = (0, 0, 0, 0)  # TSS position, number of supporting reads, weighted supporting reads
+def iterative_add_se(sedict, chrom, group, se):
+	tss, tes = se[0], se[1]
+	support = all_se_by_chrom[chrom][se]['count']
+	if group not in sedict[chrom]:
+		sedict[chrom][group] = {}
+		sedict[chrom][group]['tss'] = {}
+		sedict[chrom][group]['tss_tes'] = {}
+		sedict[chrom][group]['bounds'] = [float(tss), float(tes), support]
+		sedict[chrom][group]['line'] = all_se_by_chrom[chrom][se]['line']
+		sedict[chrom][group]['strand'] = {}
+	else:  # calculate mean tss and tes of this group
+		if tss > sedict[chrom][group]['bounds'][1] or tes > sedict[chrom][group]['bounds'][1] + window:
+			return sedict, False
+		sedict[chrom][group]['bounds'][2] += support
+		sedict[chrom][group]['bounds'][0] = sedict[chrom][group]['bounds'][0] + \
+			support*(tss - sedict[chrom][group]['bounds'][0])/sedict[chrom][group]['bounds'][2]
+		sedict[chrom][group]['bounds'][1] = sedict[chrom][group]['bounds'][1] + \
+			support*(tes - sedict[chrom][group]['bounds'][1])/sedict[chrom][group]['bounds'][2]
+
+	strand = all_se_by_chrom[chrom][se]['line'][5] if bed else all_se_by_chrom[chrom][se]['line'][8]
+	if strand not in sedict[chrom][group]['strand']:
+		sedict[chrom][group]['strand'][strand] = 0
+	sedict[chrom][group]['strand'][strand] += 1 
+
+	if tss not in sedict[chrom][group]['tss']:
+		sedict[chrom][group]['tss'][tss] = 0
+		sedict[chrom][group]['tss_tes'][tss] = {}
+	sedict[chrom][group]['tss'][tss] += support
+
+	if tes not in sedict[chrom][group]['tss_tes'][tss]:
+		sedict[chrom][group]['tss_tes'][tss][tes] = 0
+	sedict[chrom][group]['tss_tes'][tss][tes] += support
+	return sedict, True
+
+def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes that reads are sorted
+	group = 0  # group number
+	sedict = {}
+	sedict[chrom] = {}
+	se_ordered = all_se_by_chrom[chrom].keys()
+	se_ordered = sorted(se_ordered, key = lambda x: x[1])
+	se_ordered = sorted(se_ordered, key = lambda x: x[0])
+	sedict, added = iterative_add_se(sedict, chrom, group, se_ordered[0])
+	for se in se_ordered[1:]:
+		overlapped_loci = []
+		overlapped_intervals = []
+		things = []
+		for g in reversed(range(max(0, group-6), group+1)):
+			isoverlap, coverage = overlap(se, sedict[chrom][g]['bounds'])
+			if isoverlap:
+				overlapped_loci += [(g, coverage)]
+			else:
+				break
+
+		overlapped_loci = sorted(overlapped_loci, key = lambda x: x[1], reverse=True)
+		added = False
+		for loci in overlapped_loci:
+			g = loci[0]
+			sedict, added = iterative_add_se(sedict, chrom, g, se)
+			if added:
+				break
+		if not added:
+			group += 1
+			sedict, added = iterative_add_se(sedict, chrom, group, se)
+	return sedict
+
+def find_best_tss(sites, finding_tss, remove_used):
+	nearby = dict.fromkeys(sites, 0)  # key: site, value: number of supporting reads in window
+	wnearby = dict.fromkeys(sites, 0)  # key: site, value: weighted number of supporting reads in window
+	bestsite = [0, 0, 0, 0]  # TSS position, wnearby value, nearby value, number of supporting reads
 	if finding_tss:
 		orderedsites = sorted(list(sites.keys()))  # this prioritizes the longer in case of ties
 	else:
@@ -200,51 +272,45 @@ def find_best_tss(sites, finding_tss):
 				wnearby[s] += (window - abs(s - s_))/float(window * sites[s_])  # downweighted by distance from this site
 				nearby[s] += sites[s_]
 		if wnearby[s] > bestsite[1]:  # update bestsite if this site has more supporting reads
-			bestsite = (s, wnearby[s], nearby[s], sites[s])
+			bestsite = [s, wnearby[s], nearby[s], sites[s]]
 
-	for s in list(sites.keys()):  # remove reads supporting the bestsite to find alternative TSSs
-		if abs(s - bestsite[0]) <= window:
-			sites.pop(s)
+	if remove_used:
+		for s in list(sites.keys()):  # remove reads supporting the bestsite to find alternative TSSs
+			if abs(s - bestsite[0]) <= window:
+				sites.pop(s)
 	return sites, bestsite
 
-def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord=''):
+def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord='', remove_used=True):
 	""" Finds the best TSSs within Sites. If find_tss is False, some 
 	assumptions are changed to search specifically for TESs. I also assume that the correct 
 	splice site will be the more represented, so measures to filter out degraded reads are 
 	recommended. """
 	remaining = float(sum(list(sites.values())))  # number isoforms with these junctions
-	found_tss = []  # TSSs found will be ordered by descending importance
-	novel_tss = 0  # number of novel TSS found
+	found_tss = []  # TSSs found
 	used_annotated = set()
-	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport):  
-		sites, bestsite = find_best_tss(sites, finding_tss)
-		used = remaining - sum(list(sites.values()))
-		remaining = sum(list(sites.values()))
-		if minsupport < 1 and (used/(total) < minsupport or used < 4) and len(found_tss) >= 1:
-		# found at minimum the best site, and this site did not surpass minsupport percentage of reads
+	avg = remaining/ (len(sites))
+	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport) and \
+			len(found_tss) < max_results:  
+		sites, bestsite = find_best_tss(sites, finding_tss, remove_used)
+		newremaining = sum(list(sites.values()))
+		used = remaining - newremaining
+		remaining = newremaining
+		if len(found_tss) >= 1 and (args.n == 'best_only' or \
+			(minsupport < 1 and (used/total) < minsupport or bestsite[3] < 4 or used < avg)):
+		# second+ end site called stringently
 			break
 		closest_annotated = 1e15  # just a large number
 		if annotends and chrom in annotends:  # args.f supplied
 			for t in range(bestsite[0]-window, bestsite[0]+window):
-				if t in annotends[chrom] and (t - bestsite[0]) < (closest_annotated - bestsite[0]):
+				if t in annotends[chrom] and abs(t - bestsite[0]) < abs(closest_annotated - bestsite[0]) and \
+					(junccoord and (finding_tss and t <= junccoord[0] or not finding_tss and t >= junccoord[1])):
 					closest_annotated = t
-			if junccoord and (finding_tss and closest_annotated >= junccoord[0] or \
-			not finding_tss and closest_annotated <= junccoord[1]):
-				closest_annotated = 1e15  # annotated site was invalid
-		if closest_annotated in used_annotated:
-			continue
-		elif closest_annotated < 1e15:
+		if closest_annotated < 1e15:
 			if len(found_tss) >= max_results:
 				break
-			used_annotated.add(closest_annotated)
-			found_tss += [(closest_annotated, bestsite[1], bestsite[2], bestsite[3], bestsite[0])]
+			found_tss += [[closest_annotated] + bestsite[1:4]]
 		else:
-			if novel_tss >= max_results:  # limit to max_results number of novel end sites
-				continue
-			if len(found_tss) >= max_results:  # if annotated end site(s) have been identified, stop searching
-				break
 			found_tss += [bestsite]
-			novel_tss += 1
 	return found_tss
 
 def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_results=max_results):
@@ -271,26 +337,47 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 		found_tes = find_tsss(specific_tes, total, finding_tss=False, max_results=max_results, chrom=chrom, \
 			junccoord=junccoord)
 		for tes in found_tes:
-			ends += [(tss[0], tes[0], tes[2], tss[3], tes[3])]
+			ends += [[tss[0], tes[0], max(tss[3], tes[3]), tss[3], tes[3]]]
 	return ends
 
 def run_se_collapse(chrom):
 	senames = {}
 	towrite = []
+	used_ends = {}
+	all_se_starts = {}
+	all_se_ends = {}
 	for locus in singleexon[chrom]:
-		line = singleexon[chrom][locus]['line']
+		line = list(singleexon[chrom][locus]['line'])
 		locus_info = singleexon[chrom][locus]
 		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'], \
-			locus_info['bounds'], chrom, max_results=max_results)
+			locus_info['bounds'], chrom, max_results=1)
 		name = line[3] if bed else line[9]
 		if name not in senames:
 			senames[name] = 0
+		strand = sorted(singleexon[chrom][locus]['strand'].items(),key=lambda x: x[1])[-1][1]
 		for tss, tes, support, tsscount, tescount in ends:
+			if (tss, tes) not in used_ends:
+				used_ends[(tss, tes)] = len(towrite)
+			else:
+				if not args.c:
+					towrite[used_ends[(tss, tes)]][-1] += support
+				continue
+			if tss not in all_se_starts:
+				all_se_starts[tss] = 0
+			if tes not in all_se_ends:
+				all_se_ends[tes] = 0
+			all_se_starts[tss] += support
+			all_se_ends[tes] += support
+
 			i = senames[name]
 			if not bed:
-				edited_line = edit_line(list(line), tss, tes, tes-tss)
+				edited_line = edit_line(line, tss, tes, tes-tss)
+				edited_line[5] = strand
 			else:
-				edited_line = edit_line_bed12(list(line), tss, tes, tes-tss)
+				edited_line = edit_line_bed12(line, tss, tes, tes-tss)
+				edited_line[8] = strand
+			if not args.c:
+				edited_line += [support]
 			if i >= 1:  # to avoid redundant names for isoforms from the same general locus
 				if '_' in name:
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
@@ -302,6 +389,42 @@ def run_se_collapse(chrom):
 					edited_line[3] = newname
 			senames[name] += 1
 			towrite += [edited_line]
+
+	if args.i:
+		return towrite
+	new_towrite = []
+	used_ends = {}
+	for line in towrite:
+		line = list(line)
+		if bed:
+			tss, tes = int(line[1]), int(line[2])
+		else:
+			tss, tes = int(line[15]), int(line[16])
+		tss_support = all_se_starts[tss]  # current tss
+		for t in reversed(range(tss-window, tss+window)):
+			if t in all_se_starts:
+				t_support = all_se_starts[t]  # comparison tss
+				if t_support > tss_support:
+					tss, tss_support = t, t_support
+		tes_support = all_se_ends[tes]  # current tes
+		for t in range(tes-window, tes+window):
+			if t in all_se_ends:
+				t_support = all_se_ends[t]  # comparison tes
+				if t_support > tes_support:
+					tes, tes_support = t, t_support
+		if (tss, tes) not in used_ends:
+			used_ends[(tss, tes)] = len(new_towrite)
+		else:
+			if not args.c:
+				new_towrite[used_ends[(tss, tes)]][-1] += line[-1]  # support
+			continue
+		if bed:
+			newline = edit_line_bed12(line, tss, tes)
+		else:
+			newline = edit_line(line, tss, tes)
+		new_towrite += [newline]
+	return new_towrite
+
 	return towrite
 
 def run_find_best_sites(chrom):
@@ -313,7 +436,7 @@ def run_find_best_sites(chrom):
 	towrite[chrom] = {}
 	for jset in isoforms[chrom]:  # unique splice junction chain
 		towrite[chrom][jset] = []
-		line = isoforms[chrom][jset]['line']
+		line = list(isoforms[chrom][jset]['line'])
 		junccoord = isoforms[chrom][jset]['junccoord']
 		jset_ends = find_best_sites(isoforms[chrom][jset]['tss'], \
 			isoforms[chrom][jset]['tss_tes'], junccoord, chrom)
@@ -321,26 +444,32 @@ def run_find_best_sites(chrom):
 		if args.i and args.n == 'longest':
 			tss = sorted(jset_ends, key=lambda x: x[0])[0][0]  # smallest
 			tes = sorted(jset_ends, key=lambda x: x[1])[-1][1]  # largest
+			if not args.c:
+				line += [sum(tss[3],tes[3])/2.]
 			if not bed:
-				towrite[chrom][jset] += [edit_line(list(line), tss, tes)]
+				towrite[chrom][jset] += [edit_line(line, tss, tes)]
 			else:
-				towrite[chrom][jset] += [edit_line_bed12(list(line), tss, tes)]
+				towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
 			continue
 		if args.i and args.n == 'best_only':
-			tss, tes = sorted(jset_ends, key=lambda x: x[2])[-1][:2]
+			tss, tes = jset_ends[0][:2]
+			if not args.c:
+				line += [jset_ends[0][3]]
 			if not bed:
-				towrite[chrom][jset] += [edit_line(list(line), tss, tes)]
+				towrite[chrom][jset] += [edit_line(line, tss, tes)]
 			else:
-				towrite[chrom][jset] += [edit_line_bed12(list(line), tss, tes)]
+				towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
 			continue  # 1 isoform per unique set of junctions
 
 		i = 0
 		name = line[9] if not bed else line[3]
 		for tss, tes, support, tsscount, tescount in jset_ends:
 			if not bed:
-				edited_line = edit_line(list(line), tss, tes)
+				edited_line = edit_line(line, tss, tes)
 			else:
-				edited_line = edit_line_bed12(list(line), tss, tes)
+				edited_line = edit_line_bed12(line, tss, tes)
+			if not args.c:
+				edited_line += [support]
 			if i >= 1:  # to avoid redundant names for isoforms with the same junctions
 				if '_' in name:
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
@@ -352,36 +481,34 @@ def run_find_best_sites(chrom):
 					edited_line[3] = newname
 			if args.i:
 				towrite[chrom][jset] += [edited_line]
-			else:  # all isoforms will go through a second pass to homogenize ends
-				if args.n == 'best_only':
-					towrite[chrom][jset] += [edited_line + [support, junccoord]]
-				else:  # longest
-					towrite[chrom][jset] += [edited_line + [junccoord]]
+			else:  # all isoforms will go through another pass to homogenize ends
+				towrite[chrom][jset] += [edited_line + [junccoord]]
 				if tss not in allends[chrom]['tss']:
 					allends[chrom]['tss'][tss] = 0
 				allends[chrom]['tss'][tss] += tsscount
 				if tes not in allends[chrom]['tes']:
 					allends[chrom]['tes'][tes] = 0
 				allends[chrom]['tes'][tes] = tescount
-			if args.n != 'best_only' and args.n != 'longest':
+			if args.n != 'longest':
 				i += 1
 	if args.i:
 		return towrite
 
-	new_towrite = {}  # pass 2 through all isoforms, moving tss/tes to be more uniform within a gene
+	new_towrite = {}  # another pass through all isoforms, moving tss/tes to be more uniform within a gene
 	new_towrite[chrom] = {}
 	for jset in towrite[chrom]:
 		new_towrite[chrom][jset] = []
 		jsetends = set()
 		endpair = [1e15, 0, 0]  # only applies if no_redundant was specified
 		for line in towrite[chrom][jset]:  # adjust isoform TSS/TES using allends dict
+			line = list(line)
+			junccoord = line[-1]
 			if bed:
 				tss, tes = int(line[1]), int(line[2])
 			else:
 				tss, tes = int(line[15]), int(line[16])
-			junccoord = line[-1]
 			tss_support = allends[chrom]['tss'][tss]  # current tss
-			for t in range(tss+window, tss-window, -1):
+			for t in reversed(range(tss-window, tss+window)):
 				if t in allends[chrom]['tss']:
 					t_support = allends[chrom]['tss'][t]  # comparison tss
 					if (t_support > tss_support and t < junccoord[0]) or \
@@ -405,23 +532,21 @@ def run_find_best_sites(chrom):
 					endpair[1] = tes if tes > endpair[1] else endpair[1]
 				else:
 					if bed:
-						newline = edit_line_bed12(list(line), tss, tes)
+						newline = edit_line_bed12(line, tss, tes)
 					else:
-						newline = edit_line(list(line), tss, tes)
+						newline = edit_line(line, tss, tes)
 					new_towrite[chrom][jset] += [newline[:-1]]
 		if endpair[0] != 1e15:  # write best_only or longest option isoforms
 			if bed:
-				newline = edit_line_bed12(list(line), endpair[0], endpair[1])
+				newline = edit_line_bed12(line, endpair[0], endpair[1])
 			else:
-				newline = edit_line(list(line), endpair[0], endpair[1])
-			if args.n == 'best_only':
-				new_towrite[chrom][jset] += [newline[:-2]]
-			else:
-				new_towrite[chrom][jset] += [newline[:-1]]
+				newline = edit_line(line, endpair[0], endpair[1])
+			new_towrite[chrom][jset] += [newline[:-1]]
 	return new_towrite
 
 def edit_line(line, tss, tes, blocksize=''):
-	if blocksize:
+	line = list(line)
+	if blocksize:  # single exon transcript
 		line[18] = str(blocksize) + ','
 		line[20] = str(tss) + ','
 		line[15] = tss
@@ -441,6 +566,7 @@ def edit_line(line, tss, tes, blocksize=''):
 	return line
 
 def edit_line_bed12(line, tss, tes, blocksize=''):
+	line = list(line)
 	if blocksize:
 		line[10] = str(blocksize) + ','
 		line[11] = '0,'
@@ -468,7 +594,7 @@ if args.f:
 		if line.startswith('#'):
 			continue
 		line = line.rstrip().split('\t')
-		chrom, ty, start, end = line[0], line[2], int(line[3]), int(line[4])
+		chrom, ty, start, end = line[0], line[2], int(line[3]) - 1, int(line[4])
 		if ty == 'transcript':
 			if chrom not in annotends:
 				annotends[chrom] = set()
@@ -529,7 +655,7 @@ for chrom in all_se_by_chrom:
 chrom_names = [chrom for chrom,num in sorted(chrom_names, key=lambda x: x[1], reverse=True)]
 if __name__ == '__main__':
 	p = Pool(args.t)
-	res = p.map(run_add_se, chrom_names)
+	res = p.map(run_iterative_add_se, chrom_names)
 	p.terminate()
 all_se_by_chrom = None
 

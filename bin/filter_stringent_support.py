@@ -2,6 +2,7 @@ import sys, csv
 
 try:
 	isoforms = open(sys.argv[1])
+	isbed = sys.argv[1][-3:].lower() != 'psl'
 	alignment = open(sys.argv[2])
 	minsupport = int(sys.argv[3])
 	outfilename = sys.argv[4]
@@ -17,8 +18,13 @@ except:
 isoform_info = {}
 for line in isoforms:
 	line = line.rstrip().split('\t')
-	blocksizes = [float(n) for n in line[18].split(',')[:-1]]
-	isoform_info[line[9]] = [sum(blocksizes), blocksizes[0], blocksizes[-1], line]
+	if isbed:
+		blocksizes = [int(n) for n in line[10].split(',')[:-1]]
+		name = line[3]
+	else:
+		blocksizes = [float(n) for n in line[18].split(',')[:-1]]
+		name = line[9]
+	isoform_info[name] = [sum(blocksizes), blocksizes[0], blocksizes[-1], line]
 
 iso_read = {}  # isoform-read assignments for reads that span 25bp of the first and last exon
 for line in alignment:  # reads aligned to the isoforms sam-turned-psl
@@ -37,17 +43,21 @@ for line in alignment:  # reads aligned to the isoforms sam-turned-psl
 	isoform_length, first_blocksize, last_blocksize = info[0:3]
 
 	right_coverage = left_coverage = False
-	if first_blocksize < 25:
-		if read_start < 2:
+	if len(blocksizes) == 1:  # single exon transcript
+		if read_start < 25 and read_end > isoform_length - 25:
+			right_coverage = left_coverage = True
+	else:
+		if first_blocksize < 25:
+			if read_start < 2:
+				left_coverage = True
+		elif read_start <= (first_blocksize - 25):
 			left_coverage = True
-	elif read_start <= (first_blocksize - 25):
-		left_coverage = True
 
-	if last_blocksize < 25:
-		if (isoform_length - read_end) < 2:
+		if last_blocksize < 25:
+			if (isoform_length - read_end) < 2:
+				right_coverage = True
+		if (isoform_length-last_blocksize + 25) <= read_end:
 			right_coverage = True
-	if (isoform_length-last_blocksize + 25) <= read_end:
-		right_coverage = True
 
 	coverage = sum(blocksizes) / isoform_length
 	# coverage = proportion of bases of the isoform that the read covers

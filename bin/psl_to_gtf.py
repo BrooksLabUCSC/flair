@@ -2,6 +2,7 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
+	isbed = sys.argv[1][-3:].lower() != 'psl'
 	force = len(sys.argv) > 2 and 'force' in sys.argv[2]
 except:
 	sys.stderr.write('usage: script.py pslfile > outfile.gtf \n')
@@ -11,9 +12,15 @@ except:
 
 for line in psl:
 	line = line.rstrip().split('\t')
-	chrom, strand, score, name = line[13], line[8], line[0], line[9]
-	tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
-	bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
+	if isbed:
+		start = int(line[1])
+		chrom, strand, score, name, start = line[0], line[5], line[4], line[3], int(line[1])
+		tstarts = [int(n) + start for n in line[11].split(',')[:-1]]
+		bsizes = [int(n) for n in line[10].split(',')[:-1]]
+	else:
+		chrom, strand, score, name = line[13], line[8], line[0], line[9]
+		tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
+		bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
 	
 	if '_' not in name and not force:
 		sys.stderr.write('No GTF conversion was done. Please run bin/identify_gene_isoform.py first\n')

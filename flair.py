@@ -2,17 +2,17 @@
 
 import sys, argparse, subprocess, os, tempfile
 
-if len(sys.argv) > 1 and sys.argv[1] == 'align' or sys.argv[1] == '1':
+if len(sys.argv) > 1 and (sys.argv[1] == 'align' or sys.argv[1] == '1'):
 	mode = 'align'
-elif len(sys.argv) > 1 and sys.argv[1] == 'correct' or sys.argv[1] == '2':
+elif len(sys.argv) > 1 and (sys.argv[1] == 'correct' or sys.argv[1] == '2'):
 	mode = 'correct'
-elif len(sys.argv) > 1 and sys.argv[1] == 'collapse' or sys.argv[1] == '3':
+elif len(sys.argv) > 1 and (sys.argv[1] == 'collapse' or sys.argv[1] == '3'):
 	mode = 'collapse'
-elif len(sys.argv) > 1 and sys.argv[1] == 'quantify' or sys.argv[1] == '4':
+elif len(sys.argv) > 1 and (sys.argv[1] == 'quantify' or sys.argv[1] == '4'):
 	mode = 'quantify'
-elif len(sys.argv) > 1 and sys.argv[1].lower() == 'diffexp' or sys.argv[1] == '5':
+elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'diffexp' or sys.argv[1] == '5'):
 	mode = 'diffExp'
-elif len(sys.argv) > 1 and sys.argv[1].lower() == 'diffsplice' or sys.argv[1] == '6':
+elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'diffsplice' or sys.argv[1] == '6'):
 	mode = 'diffSplice'
 elif len(sys.argv) > 1 and sys.argv[1] == '--version':
 	sys.stderr.write('FLAIR v1.4.0\n')
@@ -22,7 +22,7 @@ else:
 	sys.stderr.write('modes: align, correct, collapse, quantify, diffExp\n')
 	sys.exit(1)
 
-path = sys.argv[0][:sys.argv[0].rfind('/')+1] if '/' in sys.argv[0] else ''
+path = '/'.join(os.path.realpath(__file__).split("/")[:-1])+'/'
 if mode == 'align':
 	parser = argparse.ArgumentParser(description='flair-align parse options', \
 		usage='python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
@@ -153,7 +153,7 @@ elif mode == 'correct':
 
 elif mode == 'collapse':
 	parser = argparse.ArgumentParser(description='flair-collapse parse options', \
-		usage='python flair.py collapse -g genome.fa -r <reads.fq>/<reads.fa> -q <query.psl>|<query.bed12> [options]')
+		usage='python flair.py collapse -g genome.fa -r <reads.fq>/<reads.fa> -q <query.psl>|<query.bed> [options]')
 	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', \
@@ -171,7 +171,7 @@ elif mode == 'collapse':
 	parser.add_argument('-p', '--promoters', action='store', dest='p', default='', \
 		help='promoter regions bed file to identify full-length reads')
 	parser.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools', \
-		help='bedtools executable path, provide if promoter regions specified')
+		help='bedtools executable path, provide if promoter regions specified and bedtools is not in $PATH')
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='samtools executable path if not in $PATH')
 	parser.add_argument('-w', '--window', default='100', action='store', dest='w', \
@@ -195,8 +195,9 @@ elif mode == 'collapse':
 		help='maximum number of TSS/TES picked per isoform (2)')
 	parser.add_argument('-e', '--filter', default='default', action='store', dest='e', \
 		help='''Report options include:
-		default--full-length isoforms only;
-		comprehensive--default set + subset isoforms;
+		nosubset--any isoforms that are a proper set of another isoform are removed;
+		default--subset isoforms are removed based on support;
+		comprehensive--default set + all subset isoforms;
 		ginormous--comprehensive set + single exon subset isoforms''')
 	parser.add_argument('--keep_intermediate', default=False, action='store_true', dest='keep_intermediate', \
 		help='''specify if intermediate files are to be kept for debugging. 
@@ -218,6 +219,14 @@ elif mode == 'collapse':
 
 	args.t, args.quality = str(args.t), str(args.quality)
 
+	if not os.path.exists(args.q):
+		sys.stderr.write('Query file path does not exist\n')
+		sys.exit(1)
+	if os.stat(args.q).st_size == 0:
+		sys.stderr.write('Query file is empty\n')
+		sys.exit(1)
+	suffix = args.q[-3:]  # bed or psl
+
 	intermediate, temporary = [], []
 	precollapse = args.q  # filename
 	if args.p:
@@ -228,32 +237,31 @@ elif mode == 'collapse':
 			stdout=open(args.o+'.promoter_intersect.bed', 'w')):
 			sys.exit(1)
 		subprocess.call([sys.executable, path+'bin/psl_reads_from_bed.py', args.o+'.promoter_intersect.bed', \
-			args.q, args.o+'.promotersupported.psl'])
-		precollapse = args.o+'.promotersupported.psl'  # filename of promoter-supported, corrected reads
-		intermediate += [args.o+'.tss.bed', args.o+'.promotersupported.psl', args.o+'.promoter_intersect.bed']
+			args.q, args.o+'.promotersupported.'+suffix])
+		precollapse = args.o+'.promotersupported.'+suffix  # filename of promoter-supported, corrected reads
+		intermediate += [args.o+'.tss.bed', args.o+'.promotersupported.'+suffix, args.o+'.promoter_intersect.bed']
 
 	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-			'-m', str(args.max_ends), '-w', args.w, '-s', '1', '-n', args.n, '-o', args.o+'.firstpass.unfiltered.psl']
+			'-m', str(args.max_ends), '-w', args.w, '-n', args.n, '-o', args.o+'.firstpass.unfiltered.'+suffix]
 	if args.f:
 		collapse_cmd += ['-f', args.f]
 	if args.i:
 		collapse_cmd += ['-i']
 	if subprocess.call(collapse_cmd):
 		sys.exit(1)
-
-	sys.stderr.write('Filtering isoforms\n')  # filter more
-	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.o+'.firstpass.unfiltered.psl', \
-		args.e, args.o+'.firstpass.psl', args.w]):
+	sys.stderr.write('Filtering isoforms\n')  # filtering out subset isoforms with fewer reads
+	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.o+'.firstpass.unfiltered.'+suffix, \
+		args.e, args.o+'.firstpass.'+suffix, args.w]):
 		sys.exit(1)
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
 		if subprocess.call([sys.executable, path+'bin/identify_gene_isoform.py', \
-			args.o+'.firstpass.psl', args.f, args.o+'.firstpass.named.psl']):
+			args.o+'.firstpass.'+suffix, args.f, args.o+'.firstpass.named.l.'+suffix]):
 			sys.exit(1)
-		subprocess.call(['mv', args.o+'.firstpass.named.psl', args.o+'.firstpass.psl'])
+		subprocess.call(['cp', args.o+'.firstpass.named.l.'+suffix, args.o+'.firstpass.'+suffix])
 
-	if subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.firstpass.psl', \
+	if subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.firstpass.'+suffix, \
 		args.g, args.o+'.firstpass.fa']):
 		sys.exit(1)
 
@@ -293,7 +301,7 @@ elif mode == 'collapse':
 				subprocess.call([sys.executable, path+'bin/count_sam_genes.py', alignout+'.q1.sam', \
 					alignout+'.q1.counts'])
 				count_files += [alignout+'.q1.counts']
-				align_files = [alignout+'.sam', alignout+'.q1.sam']
+				align_files += [alignout+'.sam', alignout+'.q1.sam']
 	except Exception as e:
 		sys.stderr.write(str(e)+'\n\n\nPossible minimap2/samtools error, please check that all file, directory, and executable paths exist\n')
 		sys.exit(1)
@@ -303,10 +311,10 @@ elif mode == 'collapse':
 
 	sys.stderr.write('Filtering isoforms by read coverage\n')
 	subprocess.call([sys.executable, path+'bin/match_counts.py', args.o+'.firstpass.q1.counts', \
-		args.o+'.firstpass.psl', args.s, args.o+'.isoforms.psl'])
-	subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.psl', \
+		args.o+'.firstpass.'+suffix, args.s, args.o+'.isoforms.'+suffix])
+	subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.'+suffix, \
 		args.g, args.o+'.isoforms.fa'])
-	subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.psl'], \
+	subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.'+suffix], \
 		stdout=open(args.o+'.isoforms.gtf', 'w'))
 
 	if args.stringent:  # filtering for isoforms from the high-confidence set with full-length supporting reads
@@ -316,12 +324,12 @@ elif mode == 'collapse':
 			tempfile_name = tempfile.NamedTemporaryFile().name
 			alignout = tempfile_name+'.stringent'
 			if args.temp_dir != '':
-				alignout = args.temp_dir + '/' +tempfile_name[tempfile_name.rfind('/'):]+'/.stringent'
+				alignout = args.temp_dir + '/' +tempfile_name[tempfile_name.rfind('/'):]+'.stringent'
 			subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
 				args.o+'.isoforms.fa', r], stdout=open(alignout+'.sam', 'w'))
 			subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', alignout+'.sam'], \
 				stdout=open(alignout+'.q1.sam', "w"))
-			subprocess.call([sys.executable, path+'bin/sam_to_psl.py', alignout+'.q1.sam', alignout+'.q1.sam.psl'])
+			subprocess.call([sys.executable, path+'bin/sam_to_psl.py', alignout+'.q1.sam', alignout+'.q1.sam.psl', 'quick'])
 			subprocess.call([sys.executable, path+'bin/sam_to_map.py', alignout+'.q1.sam', alignout+'.q1.map'])
 			map_files += [alignout+'.q1.map']
 			alignment_psls += [alignout+'.q1.sam.psl']
@@ -331,19 +339,19 @@ elif mode == 'collapse':
 		subprocess.call(['cat'] + alignment_psls, stdout=open(args.o+'.stringent.q1.sam.psl', 'w'))
 		intermediate += [args.o+'.stringent.q1.sam.psl', args.o+'.stringent.map']
 		subprocess.call(['rm'] + map_files + alignment_psls)
-		subprocess.call([sys.executable, path+'bin/filter_stringent_support.py', args.o+'.isoforms.psl', \
-			args.o+'.stringent.q1.sam.psl', args.s, args.o+'.isoforms.stringent.psl',  \
+		subprocess.call([sys.executable, path+'bin/filter_stringent_support.py', args.o+'.isoforms.'+suffix, \
+			args.o+'.stringent.q1.sam.psl', args.s, args.o+'.isoforms.stringent.'+suffix,  \
 			args.o+'.isoforms.stringent.map'])
-		subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.stringent.psl', \
+		subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.stringent.'+suffix, \
 			args.g, args.o+'.isoforms.stringent.fa'])
-		subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.stringent.psl'], \
+		subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.stringent.'+suffix], \
 			stdout=open(args.o+'.isoforms.stringent.gtf', 'w'))
 
-	subprocess.call(['rm', '-rf'] + temporary)
+	subprocess.call(['rm', '-rf'] + temporary + [args.o+'.firstpass.fa'])
 	if not args.keep_intermediate:
 		sys.stderr.write('Removing intermediate files/done\n')
-		subprocess.call(['rm', args.o+'.firstpass.unfiltered.psl'])
-		subprocess.call(['rm', args.o+'.firstpass.fa', args.o+'.firstpass.q1.counts', args.o+'.firstpass.psl'])
+		subprocess.call(['rm', args.o+'.firstpass.unfiltered.'+suffix])
+		subprocess.call(['rm', args.o+'.firstpass.q1.counts', args.o+'.firstpass.'+suffix])
 		subprocess.call(['rm', '-rf'] + align_files + intermediate)
 
 elif mode == 'quantify':
@@ -494,7 +502,7 @@ elif mode == 'diffExp':
 
 	args = parser.parse_args()
 
-	scriptsBin = "/".join(os.path.realpath(__file__).split("/")[:-1])  + "/bin/"
+	scriptsBin = path + "bin/"
 	runDE      = scriptsBin + "deFLAIR.py"
 
 

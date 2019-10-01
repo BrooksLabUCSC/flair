@@ -2,6 +2,7 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
+	isbed = sys.argv[1][-3:].lower() != 'psl'
 	genome = open(sys.argv[2])
 	outfilename = sys.argv[3]
 	if outfilename[-2:].lower() == 'fq' or outfilename[-5:].lower() == 'fastq':
@@ -9,20 +10,25 @@ try:
 	else:
 		fastq = False
 except:
-	sys.stderr.write('usage: script.py psl genome.fa outfilename\n')
+	sys.stderr.write('usage: script.py psl|bed genome.fa outfilename\n')
 	sys.exit(1)
 
 psldata = {}
-for line in psl:
+for line in psl:  # or bed
 	line = line.rstrip().split('\t')
-	if line[13] in psldata:
-		psldata[line[13]] += [line]
-	else:
-		psldata[line[13]] = [line]
+	chrom = line[0] if isbed else line[13]
+	if chrom not in psldata:
+		psldata[chrom] = []
+	psldata[chrom] += [line]
 
 def get_sequence(entry, seq):
-	blocksizes = [int(x) for x in entry[18].split(',')[:-1]]
-	blockstarts = [int(x) for x in entry[20].split(',')[:-1]]
+	if isbed:
+		start = int(entry[1])
+		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
+		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+	else:
+		blocksizes = [int(n) for n in entry[18].split(',')[:-1]]
+		blockstarts = [int(n) for n in entry[20].split(',')[:-1]]
 	pulledseq = ''
 	for block in range(len(blockstarts)):
 		pulledseq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
@@ -37,12 +43,13 @@ with open(outfilename, 'wt') as outfile:
 			if not chrom:
 				chrom = line.split()[0][1:]
 				continue
-			if chrom in psldata:
+			if chrom in psldata:  # or bed
 				for entry in psldata[chrom]:
+					name = entry[3] if isbed else entry[9]
 					if fastq:
-						writer.writerow(['@' + entry[9]])
+						writer.writerow(['@' + name])
 					else:
-						writer.writerow(['>' + entry[9]])
+						writer.writerow(['>' + name])
 					pulledseq = get_sequence(entry, seq)
 					writer.writerow([pulledseq])
 					if fastq:
@@ -52,12 +59,14 @@ with open(outfilename, 'wt') as outfile:
 			seq = ''
 		else:
 			seq += line
-	if chrom in psldata:
+
+	if chrom in psldata:  # last chromosome
 		for entry in psldata[chrom]:
+			name = entry[3] if isbed else entry[9]
 			if fastq:
-				writer.writerow(['@'+entry[9]])
+				writer.writerow(['@'+name])
 			else:
-				writer.writerow(['>'+entry[9]])
+				writer.writerow(['>'+name])
 			pulledseq = get_sequence(entry,seq)
 			writer.writerow([pulledseq])
 			if fastq:

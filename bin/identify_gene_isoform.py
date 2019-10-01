@@ -12,8 +12,8 @@ try:
 except:
 	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion] \n')
 	sys.stderr.write('purpose: changes the name for each entry in psl/bed to the isoform and gene\n')
-	sys.stderr.write("""optional argument: proportion should be a decimal < 1 specifying the \% of an
-		annotated single-exon gene a FLAIR isoform has to cover (default=0.8)\n""")
+	sys.stderr.write('optional argument: proportion should be a decimal < 1 specifying the % of an' +
+		'annotated single-exon gene a FLAIR isoform has to cover (default=0.8)\n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -135,13 +135,11 @@ if ty == 'exon' and prev_transcript:
 for chrom in all_se:
 	all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
 
-novel, total = 0, 0
 name_counts = {}  # to avoid redundant names
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for line in psl:
 		line = line.rstrip().split('\t')
-		total += 1
 		if isbed:
 			junctions = get_junctions_bed12(line)
 			chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
@@ -184,15 +182,23 @@ with open(outfilename, 'wt') as outfile:
 					for gene in junc_to_gene[chrom][j]:
 						if gene not in gene_hits:
 							gene_hits[gene] = 0
-						gene_hits[gene] += 1  # gene name, number of hits
+						gene_hits[gene] += 1  # gene name, number of junctions this isoform shares with this gene
 
 		if not gene_hits:  # gene name will just be a chromosome locus
 			gene = chrom + ':' + str(start)[:-3] + '000'
 		else:  # gene name will be whichever gene the entry has more shared junctions with
-			genes = sorted(gene_hits.items(), key=lambda x: x[1])
-			if len(genes) > 1 and genes[-1][0] == genes[-2][0]: # tie
-				if len(gene_unique_juncs[genes[-2]]) < len(gene_unique_juncs[genes[-1]]):
-					genes[-1] = genes[-2]
+			genes = sorted(gene_hits.items(), key=lambda x: x[1])  # sort by number of junctions shared with gene
+			if len(genes) > 1 and len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size 
+				genes = sorted(genes, key=lambda x: x[0])
+				genes = sorted(genes, key=lambda x: x[1])
+				g = genes[-1], len(gene_unique_juncs[genes[-1][0]])
+				for i in reversed(range(len(genes)-1)):
+					if genes[i][1] == g[0][1]:
+						if len(gene_unique_juncs[genes[i][0]]) < g[1]:
+							g = genes[i], len(gene_unique_juncs[genes[i][0]])
+					else:
+						break
+				genes[-1] = g[0]
 			gene = genes[-1][0]
 
 		transcript = ''
@@ -201,13 +207,12 @@ with open(outfilename, 'wt') as outfile:
 			for j in junctions:
 				if j in junc_to_tn[chrom]:
 					matches.update(junc_to_tn[chrom][j])
-			for t in matches:
+			for t in sorted(list(matches)):
 				if tn_to_juncs[chrom][t] == junctions:
 					transcript = t  # annotated transcript identified
 					break
 
 		if not transcript:
-			novel += 1
 			if ';' in name:
 				name = name[:name.find(';')]
 		else:
@@ -225,5 +230,3 @@ with open(outfilename, 'wt') as outfile:
 		else:
 			line[9] = newname
 		writer.writerow(line)
-
-# sys.stderr.write('{} out of {} isoforms have novel splice junction chains\n'.format(novel, total))

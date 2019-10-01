@@ -2,10 +2,11 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
+	isbed = sys.argv[1][-3:].lower() != 'psl'
 	outfilename = sys.argv[2]
 	txtout = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py pslfile psl_out txt_out\n')
+	sys.stderr.write('usage: script.py in.psl|in.bed out_isoforms.psl out_introns.txt\n')
 	sys.exit(1)
 
 def overlap(coords0, coords1):
@@ -15,9 +16,14 @@ def overlap(coords0, coords1):
 isoforms = {}
 for line in psl:
 	line = line.rstrip().split('\t')
-	chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
-	blocksizes = [int(x) for x in line[18].split(',')[:-1]]
-	blockstarts = [int(x) for x in line[20].split(',')[:-1]]
+	if isbed:
+		chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
+		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
+		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+	else:
+		chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+		blocksizes = [int(n) for n in line[18].split(',')[:-1]]
+		blockstarts = [int(n) for n in line[20].split(',')[:-1]]
 	if chrom not in isoforms:
 		isoforms[chrom] = {}
 	isoforms[chrom][name] = {}

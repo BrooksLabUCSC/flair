@@ -18,7 +18,7 @@ with open(outfilename, 'wt') as outfile:
     for line in bed:
         line = line.rstrip().split('\t')
         chrom, start, end, name, score, strand = line[:6]
-        blocknum, blocksizes, relblockstarts = line[9:]
+        blocknum, blocksizes, relblockstarts = line[9:12]
         sizes = [int(n) for n in blocksizes.split(',')[:-1]]
         starts = [int(n) for n in relblockstarts.split(',')[:-1]]
         blockstarts = ','.join([str(int(start)+relstart) for relstart in starts]) + ','
@@ -43,4 +43,5 @@ with open(outfilename, 'wt') as outfile:
         else:
             pslline += [chrom, chromsizes[chrom], start, end]
         pslline += [blocknum, blocksizes, qblockstarts, blockstarts]
+        pslline += line[12:]
         writer.writerow(pslline)

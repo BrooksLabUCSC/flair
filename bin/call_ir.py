@@ -46,8 +46,8 @@ for line in psl:
 	if iso_counts and name not in iso_counts:
 		continue
 	if isbed:
-		starts = [int(n) + start for n in line[11].split(',')[:-1]]
-		sizes = [int(n) for n in line[10].split(',')[:-1]]
+		blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
+		blocksizes = [int(n) for n in line[10].split(',')[:-1]]
 	else:
 		blocksizes = [int(x) for x in line[18].split(',')[:-1]]
 		blockstarts = [int(x) for x in line[20].split(',')[:-1]]
