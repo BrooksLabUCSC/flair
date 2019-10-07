@@ -28,7 +28,7 @@ class Gene(object):
 				acceptor,donor = j[self.acceptor],j[self.donor]
 
 				if num == 0:
-					#this exon cannot be skipped, so just continue
+					# this exon cannot be skipped, so just continue
 					continue
 
 				if num+2 > len(self.isoforms[i]):
@@ -51,7 +51,7 @@ class Gene(object):
 				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor] 
 				previousDonor = self.spliceSites[previousDonor]
 				nextAcceptor = self.spliceSites[nextAcceptor]
-			
+
 				acceptor.up.add(previousDonor)
 				acceptor.down.add(donor)
 
@@ -72,7 +72,6 @@ class Gene(object):
 
 		isos = sorted(list(self.isoforms.keys()))
 		for i in isos:
-
 			for num,j in enumerate(self.isoforms[i]):
 				acceptor,donor = j[self.acceptor],j[self.donor]
 
@@ -82,13 +81,13 @@ class Gene(object):
 						self.spliceSites[acceptor] = SpliceSite(acceptor,"acceptor")
 					previousDonor = self.isoforms[i][num-1][self.donor]
 					if previousDonor not in self.spliceSites:
-						self.spliceSites[donor] = SpliceSite(previousDonor,"donor")
+						self.spliceSites[previousDonor] = SpliceSite(previousDonor,"donor")
 					j1 = (self.spliceSites[previousDonor], self.spliceSites[acceptor])
 					if j1 not in self.knownJuncs:
 						self.knownJuncs[j1] = set()
 					self.knownJuncs[j1].add(i)
 					continue
-				elif num == 0 or num + 2 > len(self.isoforms[i]):
+				elif num == 0 or num + 1 >= len(self.isoforms[i]):
 					# first or last exons cannot be skipped, continue
 					continue
 
@@ -155,7 +154,8 @@ class Gene(object):
 					inclusionIsos = inclusionIsos.union(self.knownJuncs[j1].intersection(self.knownJuncs[j2]))
 				if (j1[0],j2[-1]) in self.knownJuncs:
 					exclusionIsos = exclusionIsos.union(self.knownJuncs[j1[0],j2[-1]])
-			print("%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.strand, len(inclusionIsos),len(exclusionIsos), ",".join(inclusionIsos),",".join(exclusionIsos), sep="\t")
+			print("%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.strand, len(inclusionIsos), \
+				len(exclusionIsos), ",".join(inclusionIsos),",".join(exclusionIsos), sep="\t")
 			#print(self.chrom, "\t".join(str(x) for x in sorted([acceptor.name,donor.name])), "%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.name, self.strand, sep="\t")
 
 
