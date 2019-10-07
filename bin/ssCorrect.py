@@ -3,9 +3,9 @@ from __future__ import print_function
 ########################################################################
 # File: ssCorrect.py
 #  executable: ssCorrect.py
-# Purpose: 
+# Purpose:
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 05/01/2018 Created
 #
@@ -37,17 +37,17 @@ helperScript = path + "/" + "ssPrep.py"
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
-    
+    myCommandLine.args['option']
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -55,9 +55,9 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' ssCorrect.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null',
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
         # Add args
         self.parser.add_argument('-i', '--input_bed', action = 'store', required=True, help='Input reads in bed12 format.')
@@ -73,10 +73,10 @@ class CommandLine(object) :
         self.parser.add_argument('--tempDir', action = 'store', required=False, default = None,   help='Output directory for temporary files.')
         self.parser.add_argument('--keepTemp', action = 'store_true', required=False, default = False, help='Keep temporary/intermediate files.')
         self.parser.add_argument('--print_check', action = 'store_true', required=False, default = False, help='Print workflow checking')
-        
+
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
         #self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
-        
+
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -90,15 +90,15 @@ class CommandLine(object) :
 
 def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
 
-    
+
     lineNum = 0
     if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
-    
+
     with open(bedJuncs) as l:
         for num,ll in enumerate(l,0):
             cols = ll.rstrip().split()
             if num >10:
-                break 
+                break
 
 
     # guess what kind of bedFile
@@ -111,7 +111,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
     elif len(cols) == 12:
         # bed12
         bedType   = "bed12"
-        print("ERROR: Bed12 not currently supported for other_juncs.bed. Please convert to bed6. Exiting.", file=sys.stderr)
+        raise Exception("Bed12 not currently supported for other_juncs.bed. Please convert to bed6.")
 
     elif cols[3] == "0" or cols[3] == "1" or cols[3] == "2":
         # star junc.tab
@@ -120,10 +120,10 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
         starOffset = 1
 
     else:
-        print("ERROR: Cannot find strand info for %s. Is this bed6 or STAR_juncs.tab file? Exit." % bedJuncs, file=sys.stderr)
+        raise Exception("Cannot find strand info for %s. Is this bed6 or STAR_juncs.tab file?" % bedJuncs)
 
- 
-    if printErr: 
+
+    if printErr:
         with open(printErrFname,'a+') as fo:
             print("** Adding other juncs, assuming file is %s" % "bed6" if strandCol == -1 else "STAR", file=fo)
 
@@ -132,7 +132,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
         for line in bedLines:
             cols = line.rstrip().split()
             chrom, c1, c2, strand = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol]
-            
+
             if chrom not in juncs:
                 juncs[chrom] = dict()
 
@@ -188,7 +188,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
         print(e,"Splice site motif filtering failed. Check pybedtools and bedtools is properly install and in $PATH",file=sys.stderr)
         sys.exit(1)
 
-    if printErr: 
+    if printErr:
         with open(printErrFname,'a+') as fo:
             print("** GTF Juncs + other juncs now total %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 
@@ -209,14 +209,14 @@ def gtfToSSBed(file, knownSS):
             cols = l.split("\t")
 
             if "exon" == cols[2]:
-                
+
                 # -1 for 1 to 0 based conversion
                 chrom, c1, c2, strand =  cols[0], int(cols[3])-1, int(cols[4]), cols[6]
                 chromosomes.add(chrom)
                 #txn info is in the SECOND position of the shoutout column
                 txn = re.search('transcript_id "([^\"]+)"', l).group(1)#
                 #cols[-1].split(";")[1].split()[-1].replace('"','')
-                
+
                 key = (chrom, txn, strand)
 
                 if key not in exons:
@@ -224,13 +224,13 @@ def gtfToSSBed(file, knownSS):
                 exons[key].append(c1)
                 exons[key].append(c2)
 
-    if printErr: 
+    if printErr:
         with open(printErrFname,'a+') as fo:
             print("** Read GTF. Got %s transcripts" % len(list(exons.keys())), file=fo)
             print("** Getting introns...Read GTF", file=fo)
 
     # Second: get junction and splice sites from transcript exons.
-    txnList = list(exons.keys()) 
+    txnList = list(exons.keys())
     juncs = dict()
 
     for exonInfo in tqdm(txnList, total=len(txnList), desc="Step 1/5: Splitting junctions from GTF by chromosome", dynamic_ncols=True, position=1) if verbose else txnList:
@@ -240,7 +240,7 @@ def gtfToSSBed(file, knownSS):
             juncs[chrom] = dict()
 
         coords = list(exons[exonInfo])
-        
+
         # assume lowest and highest as TSS and TES, and remove them
         coords.sort()
         coords = coords[1:-1]
@@ -259,12 +259,12 @@ def gtfToSSBed(file, knownSS):
             knownSS[(chrom, c1)] = strand
             knownSS[(chrom, c2)] = strand
 
-    if printErr: 
+    if printErr:
         with open(printErrFname,'a+') as fo:
             print("** Created %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
     return juncs, chromosomes, knownSS
 
-   
+
 def runCMD(x):
 
 
@@ -313,7 +313,7 @@ def main():
         current_directory = os.getcwd()
         tempDir = os.path.join(current_directory, tempDirName)
         os.mkdir(tempDir)
-    except OSError:  
+    except OSError:
         print ("Creation of the directory %s failed" % tempDirName)
         sys.exit(1)
 
@@ -333,8 +333,8 @@ def main():
     # Do the same for the other juncs file.
     if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes, genomeFasta, knownSS)
     knownSS = dict()
-    
-    # added to allow annotations not to be used. 
+
+    # added to allow annotations not to be used.
     if len(list(juncs.keys()))<1:
         print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
         sys.exit(1)
@@ -374,10 +374,10 @@ def main():
         reads = readDict[chrom]
 
         outDict[chrom].close()
-         
+
         cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta, printErr, printErrFname))
 
-    if printErr: 
+    if printErr:
         with open(printErrFname,'a+') as fo:
             print("** Prepared correct commands for %s read files" % len(cmds), file=fo)
 
@@ -398,7 +398,7 @@ def main():
             with open(os.path.join(tempDir, "%s_inconsistent.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, inconsistent, 1024*1024*10)
 
-    
+
     with open("%s_all_corrected.bed" % outFile,'wb') as corrected:
         for chrom in readDict:
             with open(os.path.join(tempDir, "%s_corrected.bed" % chrom),'rb') as fd:
