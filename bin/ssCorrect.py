@@ -159,6 +159,10 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
                 header,seq = i.rstrip().split()
                 chrom,c1,c2,strand = header.split(",")
                 c1,c2 = int(c1),int(c2)
+                if "+" in strand:
+                    strand = strand[strand.rfind('+')]
+                elif "-" in strand:
+                    strand = strand[strand.rfind('-')]
                 key = (c1,c2, strand)
                 known1,known2 = known.get((chrom,c1),None),known.get((chrom,c2),None)
 
