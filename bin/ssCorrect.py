@@ -93,6 +93,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
 
     lineNum = 0
     if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
+    cols = None
 
     with open(bedJuncs) as l:
         for num,ll in enumerate(l,0):
@@ -102,6 +103,9 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
 
 
     # guess what kind of bedFile
+    if cols is None:
+        raise Exception("Empty junctions BED file, not supported")
+
     if cols[-1] == "+" or cols[-1] == "-":
         # normal bed
         reverseSS = "-"
