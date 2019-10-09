@@ -258,6 +258,7 @@ elif mode == 'collapse':
 		sys.stderr.write('Renaming isoforms\n')
 		if subprocess.call([sys.executable, path+'bin/identify_gene_isoform.py', \
 			args.o+'.firstpass.'+suffix, args.f, args.o+'.firstpass.named.'+suffix]):
+			sys.exit(1)
 		subprocess.call(['mv', args.o+'.firstpass.named.'+suffix, args.o+'.firstpass.'+suffix])
 
 	if subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.firstpass.'+suffix, \
