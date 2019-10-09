@@ -47,12 +47,13 @@ with open(outfilename, 'wt') as outfile:
 		for iso in counts[gene]:
 			thesecounts = counts[gene][iso]
 			othercounts = [0, 0]
+			ctable = [thesecounts, othercounts]
 			for iso_ in counts[gene]:  # count up for all other isoforms of this gene
 				if iso_ == iso:
 					continue
 				othercounts[0] += counts[gene][iso_][0]
 				othercounts[1] += counts[gene][iso_][1]
-			ctable = [thesecounts, othercounts]
+			ctable[1] = othercounts
 			if ctable[0][0] + ctable[1][0] == 0 or ctable[0][1] + ctable[1][1] == 0 or not sum(ctable[1]):
 				continue
 			generes += [[gene, iso, sps.fisher_exact(ctable)[1]] + \
