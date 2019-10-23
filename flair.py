@@ -29,7 +29,7 @@ if mode == 'align':
 	parser.add_argument('align')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', \
-		type=str, required=True, help='FastA/FastQ files of raw reads')
+		nargs='+', type=str, required=True, help='FastA/FastQ files of raw reads')
 	required.add_argument('-g', '--genome', action='store', dest='g', \
 		type=str, required=True, help='FastA of reference genome')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
@@ -61,7 +61,7 @@ if mode == 'align':
 		if args.n and subprocess.call([args.m, '-ax', 'splice', '-uf', '-k14', '-t', args.t, \
 			'--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w')):
 			sys.exit(1)
-		elif subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g, args.r], \
+		elif subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g]+args.r, \
 				stdout=open(args.o+'.sam', 'w')):
 			sys.exit(1)
 	except:
