@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	psl = open(sys.argv[1])
@@ -127,7 +127,7 @@ for chrom in all_se:
 	all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in psl:
 		line = line.rstrip().split('\t')
 

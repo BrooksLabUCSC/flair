@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	countsfile = open(sys.argv[1])
@@ -17,7 +17,7 @@ for line in countsfile:
 	counts[line[0]] = float(line[1])
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in psl:
 		line = line.rstrip().split('\t')
 		name = line[3] if isbed else line[9]

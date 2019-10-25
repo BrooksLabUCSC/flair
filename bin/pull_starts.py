@@ -1,4 +1,5 @@
-import sys, csv, argparse
+import sys, csv, argparse, os
+
 try:
 	psl = open(sys.argv[1])
 	isbed = sys.argv[1][-3:].lower() != 'psl'
@@ -9,7 +10,7 @@ except:
 	sys.exit(1)
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in psl:
 		line = line.rstrip().split('\t')
 		if isbed:

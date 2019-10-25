@@ -1,4 +1,4 @@
-import sys, csv, re
+import sys, csv, re, os
 
 try:
 	sam = open(sys.argv[1])
@@ -12,9 +12,10 @@ try:
 			chromsizefile = sys.argv[3]
 	else:
 		chromsizefile = ''
+		quick = False
 
 except:
-	sys.stderr.write('usage: script.py samfile outpsl [chromsizefile]\n')
+	sys.stderr.write('usage: script.py samfile outpsl [chromsizefile|"quick"]\n')
 	sys.stderr.write('written for minimap sams\n')
 	sys.exit(1)
 
@@ -25,7 +26,7 @@ if chromsizefile:
 		chromsizes[line[0]] = line[1]
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in sam:
 		if line.startswith('@'):
 			continue
@@ -43,7 +44,26 @@ with open(outfilename, 'wt') as outfile:
 		tnuminsert = 0
 		tbaseinsert = 0  # deletion
 		qsize_backup = 0
-		for m in matches:
+
+		num, op = int(matches[0][0]), matches[0][1]
+		if op == 'H':  # check for H and S at beginning of cigar 
+			looplist = matches[1:]
+			qstart = num
+			relstart += num
+			qsize_backup += num   # technically does not consume q but useful when comparing a read's secondary alignments
+		else:
+			looplist = matches
+
+		num, op = int(looplist[0][0]), looplist[0][1]
+		if op == 'S':
+			if not qstart and not matchlen:
+				qstart = num
+			qsize_backup += num
+			looplist = looplist[1:]
+		else:
+			looplist = looplist
+
+		for m in looplist:  # does not check for H and S 
 			num, op = int(m[0]), m[1]
 			if op == 'M':  # consumes reference
 				blocksizes += [num]
@@ -59,23 +79,16 @@ with open(outfilename, 'wt') as outfile:
 				mismatches += num
 				tend += num
 				qnuminsert += num
+			elif op == 'N':  # consumes reference
+				tend += num
+				relstart += num
+			elif quick:
+				continue
 			elif op == 'I':
 				qconsumed += num
 				tbaseinsert += num
 				tnuminsert += 1
 				qsize_backup += num
-			elif op == 'N':  # consumes reference
-				tend += num
-				relstart += num
-			elif op == 'S':
-				if not qstart and not matchlen:
-					qstart = num
-				qsize_backup += num
-			elif op == 'H':
-				if not qstart and not matchlen:
-					qstart = num
-					relstart += num
-				qsize_backup += num  # technically does not consume q but useful when comparing a read's secondary alignments
 			else:
 				sys.stderr.write(op + ' unrecognized\n')
 				sys.exit(1)
@@ -86,6 +99,18 @@ with open(outfilename, 'wt') as outfile:
 			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, 0, qname, 0, 0, 0, \
 				tname, 0, 0, 0, 0, blocksizes, 0, blockstarts])
 			continue
+
+		num, op = int(matches[-1][0]), matches[-1][1]
+		if op == 'H':  # check for H and S at the end of cigar 
+			looplist = matches[:-1]
+			qsize_backup += num   # technically does not consume q but useful when comparing a read's secondary alignments
+		else:
+			looplist = matches
+
+		num, op = int(looplist[-1][0]), looplist[-1][1]
+		if op == 'S':
+			qsize_backup += num
+
 
 		blockcount = len(relblockstarts)
 		relblockstarts = ','.join([str(s) for s in relblockstarts]) + ','

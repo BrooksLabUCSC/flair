@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
     chromsizesfile = open(sys.argv[1])
@@ -14,7 +14,7 @@ for line in chromsizesfile:
     chromsizes[line[0]] = line[1]
 
 with open(outfilename, 'wt') as outfile:
-    writer = csv.writer(outfile, delimiter='\t')
+    writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
     for line in bed:
         line = line.rstrip().split('\t')
         chrom, start, end, name, score, strand = line[:6]

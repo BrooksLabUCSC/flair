@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	psl = open(sys.argv[1])
@@ -35,7 +35,7 @@ def get_sequence(entry, seq):
 	return pulledseq
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	seq, chrom = '', ''
 	for line in genome:
 		line = line.rstrip()

@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	counts_matrix = open(sys.argv[1])
@@ -37,7 +37,7 @@ for line in counts_matrix:
 all_rpk = [rpk/1e6 for rpk in all_rpk]
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(matrix_data[0])
 	for line in matrix_data[1:]:
 		for n in range(num_samples):

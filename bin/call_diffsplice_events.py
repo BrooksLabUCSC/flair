@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	psl = open(sys.argv[1])
@@ -151,17 +151,17 @@ for line in psl:
 			ir_junctions[chrom][j]['exclusion']['counts'][c] += iso_counts[name][c]
 
 with open(outfilenamebase+'.alt3.events.quant.tsv', 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
 	find_altss(a3_junctions, writer)
 
 with open(outfilenamebase+'.alt5.events.quant.tsv', 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
 	find_altss(a5_junctions, writer, search_threeprime=False)
 
 with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
 	for chrom in ir_junctions:
 		# for strand in junctions[chrom]:

@@ -1,4 +1,4 @@
-import sys, csv, argparse, math
+import sys, csv, argparse, math, os
 from multiprocessing import Pool
 
 parser = argparse.ArgumentParser(description='collapse parse options', \
@@ -667,7 +667,7 @@ if not args.quiet:
 	sys.stderr.write('Single-exon genes grouped, collapsing\n')
 
 with open(args.o, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
 	if __name__ == '__main__':
 		p = Pool(args.t)

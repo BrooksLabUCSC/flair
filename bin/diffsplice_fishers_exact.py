@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 import scipy.stats as sps
 
 try:
@@ -37,7 +37,7 @@ for line in events_quant:
 
 features_sorted = sorted(events.keys())
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(header+[colname1+'-'+colname2+'_pval'])
 	for feature in features_sorted:
 		for line in events[feature]['entries']:

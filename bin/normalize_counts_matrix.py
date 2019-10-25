@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 import numpy as np
 
 try:
@@ -69,7 +69,7 @@ for sample in counts:
 
 
 with open(outmatrix, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(['ids'] + headers)
 	for i in range(len(ids)):  # i is line number
 		row = [ids[i]]

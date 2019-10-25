@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	sam = open(sys.argv[1])
@@ -8,7 +8,7 @@ except:
 	sys.exit(1)
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in sam:
 		line = line.rstrip().split('\t')
 		if not line[0].startswith('@') and line[2] != '*':

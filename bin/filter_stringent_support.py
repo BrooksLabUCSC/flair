@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	isoforms = open(sys.argv[1])
@@ -66,7 +66,7 @@ for line in alignment:  # reads aligned to the isoforms sam-turned-psl
 		iso_read[isoform] += [[read, isoform, coverage]]
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for iso in iso_read:
 		supporting = iso_read[iso]  # supporting reads
 		if len(supporting) >= minsupport:
@@ -74,7 +74,7 @@ with open(outfilename, 'wt') as outfile:
 
 if outfilename2:  # map file
 	with open(outfilename2, 'wt') as outfile:
-		writer = csv.writer(outfile, delimiter='\t')
+		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 		for iso in iso_read:
 			supporting = iso_read[iso]
 			if len(supporting) >= minsupport:

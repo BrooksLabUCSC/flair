@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	psl = open(sys.argv[1])
@@ -17,11 +17,11 @@ isoforms = {}
 for line in psl:
 	line = line.rstrip().split('\t')
 	if isbed:
-		chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
-		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
-		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+		chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
+		blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
+		blocksizes = [int(n) for n in line[10].split(',')[:-1]]
 	else:
-		chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+		chrom, name, start, end, strand = line[13], line[9], int(line[15]), int(line[16]), line[8]
 		blocksizes = [int(n) for n in line[18].split(',')[:-1]]
 		blockstarts = [int(n) for n in line[20].split(',')[:-1]]
 	if chrom not in isoforms:
@@ -29,12 +29,14 @@ for line in psl:
 	isoforms[chrom][name] = {}
 	isoforms[chrom][name]['entry'] = line
 	isoforms[chrom][name]['sizes'] = blocksizes
+	isoforms[chrom][name]['strand'] = strand
 	isoforms[chrom][name]['starts'] = blockstarts
 	isoforms[chrom][name]['range'] = start, end
 	isoforms[chrom][name]['ir'] = False  # detection of intron retention event
 
 introncoords = set()
 allcoords = set()
+
 for chrom in isoforms:
 	for iname0 in isoforms[chrom]:
 		for iname1 in isoforms[chrom]:  # compare with all other isoforms to find IR
@@ -50,14 +52,14 @@ for chrom in isoforms:
 					prev5 = start1+size1
 					continue
 				for start0, size0 in zip(starts0, sizes0):
-					allcoords.add((chrom, str(prev5), (start1), isoforms[chrom][iname1]['entry'][8]))
+					allcoords.add((chrom, str(prev5), (start1), isoforms[chrom][iname1]['strand']))
 					if start0 < prev5 + 10 and start0+size0 > start1-10:  # if isoform 0 has exon where isoform 1 has intron
 						isoforms[chrom][iname0]['ir'] = True
-						introncoords.add((chrom, str(prev5), (start1), isoforms[chrom][iname0]['entry'][8]))
+						introncoords.add((chrom, str(prev5), (start1), isoforms[chrom][iname0]['strand']))
 				prev5 = start1+size1
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for chrom in isoforms:
 		for name in isoforms[chrom]:
 			if isoforms[chrom][name]['ir']:
@@ -66,7 +68,7 @@ with open(outfilename, 'wt') as outfile:
 				writer.writerow(isoforms[chrom][name]['entry'] + [0])
 
 with open(txtout, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for intron in introncoords:
 		writer.writerow(intron)
 

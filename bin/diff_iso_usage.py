@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 import scipy.stats as sps
 
 try:
@@ -40,7 +40,7 @@ for line in counts_matrix:
 		counts[gene][iso] = [count1, count2] 
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	geneordered = sorted(counts.keys())
 	for gene in geneordered:
 		generes = []

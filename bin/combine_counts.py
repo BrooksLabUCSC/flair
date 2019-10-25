@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	file1 = open(sys.argv[1])
@@ -22,6 +22,6 @@ for fle in sys.argv[1:-1]:
 			counts[line[0]] += float(line[1])
 
 with open(sys.argv[-1], 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for transcript in counts:
 		writer.writerow([transcript, counts[transcript]])

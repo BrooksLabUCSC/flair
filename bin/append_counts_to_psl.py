@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	psl = open(sys.argv[1])
@@ -15,7 +15,7 @@ for line in tsv:
 	counts[line[0]] = line[1:]
 
 with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in psl:
 		line = line.rstrip().split('\t')
 		if line[9] in counts:

@@ -19,7 +19,7 @@ elif len(sys.argv) > 1 and sys.argv[1] == '--version':
 	sys.exit(1)
 else:
 	sys.stderr.write('usage: python flair.py <mode> --help \n')
-	sys.stderr.write('modes: align, correct, collapse, quantify, diffExp\n')
+	sys.stderr.write('modes: align, correct, collapse, quantify, diffExp, diffSplice\n')
 	sys.exit(1)
 
 path = '/'.join(os.path.realpath(__file__).split("/")[:-1])+'/'
@@ -49,8 +49,11 @@ if mode == 'align':
 		help='also output sam-converted psl')
 	parser.add_argument('-v1.3', '--version1.3', action='store_true', dest='v', \
 		help='specify if samtools version 1.3+')
+	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
+		help='minimum MAPQ of read alignment to the genome (1)')
 	args = parser.parse_args()
 
+	args.quality = str(args.quality)
 	if args.m[-8:] != 'minimap2':
 		if args.m[-1] == '/':
 			args.m += 'minimap2'
@@ -58,9 +61,10 @@ if mode == 'align':
 			args.m += '/minimap2'
 
 	try:
-		if args.n and subprocess.call([args.m, '-ax', 'splice', '-uf', '-k14', '-t', args.t, \
+		if args.n:
+			if subprocess.call([args.m, '-ax', 'splice', '-uf', '-k14', '-t', args.t, \
 			'--secondary=no', args.g, args.r], stdout=open(args.o+'.sam', 'w')):
-			sys.exit(1)
+				sys.exit(1)
 		elif subprocess.call([args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g]+args.r, \
 				stdout=open(args.o+'.sam', 'w')):
 			sys.exit(1)
@@ -73,6 +77,13 @@ if mode == 'align':
 		sys.exit(1)
 	
 	sys.stderr.write('Converting sam output to bed\n')
+	if args.quality != '0':
+		if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', args.o+'.sam'], \
+		stdout=open(alignout+'.q.sam', 'w')):
+			sys.stderr.write('Possible issue with samtools executable\n')
+			sys.exit(1)
+		subprocess.call(['mv', args.o+'.q.sam', args.o+'.sam'])
+
 	if subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'], \
 		stdout=open(args.o+'.unsorted.bam', 'w')):  # calls samtools view, exit if an error code that != 0 results
 		sys.stderr.write('Possible issue with samtools executable\n')
@@ -103,20 +114,20 @@ if mode == 'align':
 	
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
-		usage='python flair.py correct -c chromsizes.tsv -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
+		usage='python flair.py correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('at least one of the following arguments is required')
 	required.add_argument('-q', '--query', type=str, default='', required=True, \
 		action='store', dest='q', help='uncorrected bed12 file')
-	required.add_argument('-c', '--chromsizes', type=str, required=True, \
-		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
 	required.add_argument('-g', '--genome', action='store', dest='g', \
 		type=str, required=True, help='FastA of reference genome')
 	atleastone.add_argument('-j', '--shortread', action='store', dest='j', type=str, default='', \
 		help='bed format splice junctions from short-read sequencing')
 	atleastone.add_argument('-f', '--gtf', default='', \
 		action='store', dest='f', help='GTF annotation file')
+	parser.add_argument('-c', '--chromsizes', type=str, \
+		action='store', dest='c', default='', help='chromosome sizes tab-separated file')
 	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, help='specify this flag to keep \
 		the strand of a read consistent after correction')
 	parser.add_argument('-t', '--threads', type=str, action='store', dest='t', default='4', \
@@ -147,7 +158,7 @@ elif mode == 'correct':
 		sys.stderr.write('Correction command did not exit with success status\n')
 		sys.exit(1)
 
-	if subprocess.call([sys.executable, path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
+	if args.c and subprocess.call([sys.executable, path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed', \
 		args.o+'_all_corrected.psl']):
 		sys.exit(1)
 
@@ -178,8 +189,6 @@ elif mode == 'collapse':
 		help='window size for comparing TSS/TES (100)')
 	parser.add_argument('-s', '--support', default='3', action='store', dest='s', \
 		help='minimum number of supporting reads for an isoform (3)')
-	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
-		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used (1)')
 	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent', \
 		help='''specify if all supporting reads need to be full-length \
 		(80%% coverage and spanning 25 bp of the first and last exons)''')
@@ -193,12 +202,16 @@ elif mode == 'collapse':
 		for individual isoforms (default: not specified, determined at the gene level)')
 	parser.add_argument('--max_ends', default=2, action='store', dest='max_ends', \
 		help='maximum number of TSS/TES picked per isoform (2)')
+	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends', \
+		help='specify if reads are generated from a long read method with minimal fragmentation')
 	parser.add_argument('-e', '--filter', default='default', action='store', dest='e', \
 		help='''Report options include:
 		nosubset--any isoforms that are a proper set of another isoform are removed;
 		default--subset isoforms are removed based on support;
 		comprehensive--default set + all subset isoforms;
 		ginormous--comprehensive set + single exon subset isoforms''')
+	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
+		help='minimum MAPQ of read assignment to an isoform (1)')
 	parser.add_argument('--keep_intermediate', default=False, action='store_true', dest='keep_intermediate', \
 		help='''specify if intermediate files are to be kept for debugging. 
 		Intermediate files include: promoter-supported reads file, 
@@ -249,10 +262,12 @@ elif mode == 'collapse':
 		collapse_cmd += ['-i']
 	if subprocess.call(collapse_cmd):
 		sys.exit(1)
+
 	sys.stderr.write('Filtering isoforms\n')  # filtering out subset isoforms with fewer reads
 	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.o+'.firstpass.unfiltered.'+suffix, \
 		args.e, args.o+'.firstpass.'+suffix, args.w]):
 		sys.exit(1)
+	intermediate += args.o+'.firstpass.unfiltered.'+suffix
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
@@ -268,90 +283,69 @@ elif mode == 'collapse':
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
 	reads_files = args.r.split(',')
 	count_files, align_files = [], []
-	try:
-		for r in reads_files:  # align reads to first-pass isoforms
-			tempfile_name = tempfile.NamedTemporaryFile().name
-			if args.temp_dir == '':
-				alignout = tempfile_name+'.firstpass'
-			else:
-				if not os.path.isdir(args.temp_dir):
-					subprocess.call(['mkdir', args.temp_dir])
-				alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/'):]+'.firstpass'
-			if args.salmon:
-				if subprocess.call([args.m, '-a', '-t', args.t, args.o+'.firstpass.fa', r], \
-					stdout=open(alignout+'.sam', "w")):
-					sys.exit(1)
-				if subprocess.call([args.sam, 'view', '-F', '4', '-h', '-S', alignout+'.sam'], \
-					stdout=open(alignout+'.mapped.sam', 'w')):
-					sys.exit(1)
-				subprocess.call(['mv', alignout+'.mapped.sam', alignout+'.sam'])
-				subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  alignout+'.salmon', \
-					'-p', args.t, '-l', 'U', '-a', alignout+'.sam'], stderr=open('salmon_stderr.txt', 'w'))
-				
-				count_files += [alignout+'.salmon/quant.sf']
-				subprocess.call(['rm', 'salmon_stderr.txt'])
-				align_files += [alignout+'.sam', alignout+'.salmon/quant.sf']
-				temporary += [alignout+'.salmon']
-			else:
-				if subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
-					args.o+'.firstpass.fa', r], stdout=open(alignout+'.sam', "w")):
-					sys.exit(1)
-				subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', alignout+'.sam'], \
-					stdout=open(alignout+'.q1.sam', 'w'))
-				subprocess.call([sys.executable, path+'bin/count_sam_genes.py', alignout+'.q1.sam', \
-					alignout+'.q1.counts'])
-				count_files += [alignout+'.q1.counts']
-				align_files += [alignout+'.sam', alignout+'.q1.sam']
-	except Exception as e:
-		sys.stderr.write(str(e)+'\n\n\nPossible minimap2/samtools error, please check that all file, directory, and executable paths exist\n')
-		sys.exit(1)
 
-	subprocess.call([sys.executable, path+'bin/combine_counts.py'] + count_files + [args.o+'.firstpass.q1.counts'])
+	for r in reads_files:  # align reads to first-pass isoforms
+		tempfile_name = tempfile.NamedTemporaryFile().name
+		if args.temp_dir == '':
+			alignout = tempfile_name+'.firstpass'
+		else:
+			if not os.path.isdir(args.temp_dir):
+				subprocess.call(['mkdir', args.temp_dir])
+			alignout = args.temp_dir + '/' + tempfile_name[tempfile_name.rfind('/'):]+'.firstpass'
+
+		try:
+			if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4', args.o+'.firstpass.fa', r], \
+				stdout=open(alignout+'.sam', "w")):
+				sys.exit(1)
+		except Exception as e:
+			sys.stderr.write(str(e)+'\n\n\nMinimap2 error, please check that all file, directory, and executable paths exist\n')
+			sys.exit(1)
+
+		if args.salmon:
+			if subprocess.call([args.sam, 'view', '-F', '4', '-h', '-S', alignout+'.sam'], \
+				stdout=open(alignout+'.mapped.sam', 'w')):
+				sys.exit(1)
+			subprocess.call(['mv', alignout+'.mapped.sam', alignout+'.sam'])
+			subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  alignout+'.salmon', \
+				'-p', args.t, '-l', 'U', '-a', alignout+'.sam'], stderr=open('salmon_stderr.txt', 'w'))
+			
+			count_files += [alignout+'.salmon/quant.sf']
+			subprocess.call(['rm', 'salmon_stderr.txt'])
+			align_files += [alignout+'.sam', alignout+'.salmon/quant.sf']
+			temporary += [alignout+'.salmon']
+		else:
+			if args.quality != '0' and not args.trust_ends:
+				subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', alignout+'.sam'], \
+					stdout=open(alignout+'.q.sam', 'w'))
+				align_Files += [alignout+'.sam']
+			else:
+				subprocess.call(['mv', alignout+'.sam', alignout+'.q.sam'])
+			count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', alignout+'.q.sam', \
+				'-o', alignout+'.q.counts', '-t', args.t, '--quality', args.quality]
+			if args.stringent:
+				count_cmd += ['--stringent', '-i', args.o+'.firstpass.'+suffix]
+			if args.trust_ends:
+				count_cmd += ['--trust_ends']
+			subprocess.call(count_cmd)
+			count_files += [alignout+'.q.counts']
+			align_files += [alignout+'.q.sam']
+
+	subprocess.call([sys.executable, path+'bin/combine_counts.py'] + count_files + [args.o+'.firstpass.q.counts'])
 	subprocess.call(['rm'] + count_files)
 
 	sys.stderr.write('Filtering isoforms by read coverage\n')
-	subprocess.call([sys.executable, path+'bin/match_counts.py', args.o+'.firstpass.q1.counts', \
+	subprocess.call([sys.executable, path+'bin/match_counts.py', args.o+'.firstpass.q.counts', \
 		args.o+'.firstpass.'+suffix, args.s, args.o+'.isoforms.'+suffix])
 	subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.'+suffix, \
 		args.g, args.o+'.isoforms.fa'])
-	subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.'+suffix], \
-		stdout=open(args.o+'.isoforms.gtf', 'w'))
-
-	if args.stringent:  # filtering for isoforms from the high-confidence set with full-length supporting reads
-		sys.stderr.write('Applying stringent filtering\n')
-		map_files, alignment_psls = [], []
-		for r in reads_files:  # align reads to high-confidence isoforms
-			tempfile_name = tempfile.NamedTemporaryFile().name
-			alignout = tempfile_name+'.stringent'
-			if args.temp_dir != '':
-				alignout = args.temp_dir + '/' +tempfile_name[tempfile_name.rfind('/'):]+'.stringent'
-			subprocess.call([args.m, '-a', '-t', args.t, '--secondary=no', \
-				args.o+'.isoforms.fa', r], stdout=open(alignout+'.sam', 'w'))
-			subprocess.call([args.sam, 'view', '-q', '1', '-h', '-S', alignout+'.sam'], \
-				stdout=open(alignout+'.q1.sam', "w"))
-			subprocess.call([sys.executable, path+'bin/sam_to_psl.py', alignout+'.q1.sam', alignout+'.q1.sam.psl', 'quick'])
-			subprocess.call([sys.executable, path+'bin/sam_to_map.py', alignout+'.q1.sam', alignout+'.q1.map'])
-			map_files += [alignout+'.q1.map']
-			alignment_psls += [alignout+'.q1.sam.psl']
-			align_files += [alignout+'.sam', alignout+'.q1.sam']
-
-		subprocess.call(['cat'] + map_files, stdout=open(args.o+'.stringent.map', 'w'))
-		subprocess.call(['cat'] + alignment_psls, stdout=open(args.o+'.stringent.q1.sam.psl', 'w'))
-		intermediate += [args.o+'.stringent.q1.sam.psl', args.o+'.stringent.map']
-		subprocess.call(['rm'] + map_files + alignment_psls)
-		subprocess.call([sys.executable, path+'bin/filter_stringent_support.py', args.o+'.isoforms.'+suffix, \
-			args.o+'.stringent.q1.sam.psl', args.s, args.o+'.isoforms.stringent.'+suffix,  \
-			args.o+'.isoforms.stringent.map'])
-		subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.stringent.'+suffix, \
-			args.g, args.o+'.isoforms.stringent.fa'])
-		subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.stringent.'+suffix], \
-			stdout=open(args.o+'.isoforms.stringent.gtf', 'w'))
+	if args.f:
+		subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.'+suffix], \
+			stdout=open(args.o+'.isoforms.gtf', 'w'))
 
 	subprocess.call(['rm', '-rf'] + temporary + [args.o+'.firstpass.fa'])
 	if not args.keep_intermediate:
 		sys.stderr.write('Removing intermediate files/done\n')
-		subprocess.call(['rm', args.o+'.firstpass.unfiltered.'+suffix])
-		subprocess.call(['rm', args.o+'.firstpass.q1.counts', args.o+'.firstpass.'+suffix])
+		subprocess.call(['rm', args.o+'.firstpass.q.counts', args.o+'.firstpass.'+suffix])
 		subprocess.call(['rm', '-rf'] + align_files + intermediate)
 
 elif mode == 'quantify':
@@ -365,18 +359,20 @@ elif mode == 'quantify':
 		type=str, required=True, help='FastA of FLAIR collapsed isoforms')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
-	parser.add_argument('-t', '--threads', type=str, \
-		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
+	parser.add_argument('-t', '--threads', type=int, \
+		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='specify a samtools executable path if not in $PATH if --quality is also used')
-	parser.add_argument('--quality', type=str, action='store', dest='quality', default='0', \
-		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used (0)')
+	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
+		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used (1)')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output name (counts_matrix.tsv)')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False, \
 		help='specify this flag to output additional file with expression in TPM')
+	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends', \
+		help='specify if reads are generated from a long read method with minimal fragmentation')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir', \
 		help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
 	args = parser.parse_args()
@@ -393,6 +389,7 @@ elif mode == 'quantify':
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
+	args.t, args.quality = str(args.t), str(args.quality)
 
 	samData = list()
 	with codecs.open(args.r, "r", encoding='utf-8', errors='ignore') as lines:
@@ -412,44 +409,43 @@ elif mode == 'quantify':
 
 			# readFileRoot = readFile[readFile.rfind('/')+1:]
 			samData.append(cols + [readFileRoot + '.sam'])
-		
-		samData.sort(key=lambda x: x[1], reverse=True)
+
 		for num,sample in enumerate(samData,0):
 			sys.stderr.write("Step 1/3. Aligning sample %s_%s: %s/%s \r" % (sample[0],sample[2],num+1,len(samData)))
-			mm2_command = [args.m, '-a', '-t', args.t, args.i, sample[-2]]
-			if not args.salmon:
-				mm2_command += ['--secondary=no']
+			mm2_command = [args.m, '-a', '-N', '4', '-t', args.t, args.i, sample[-2]]
 			try:
 				if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'), \
 					stderr=open(sample[-1]+'.mm2_Stderr.txt', 'w')):
-					sys.stderr.write('Check stderr files\n')
+					sys.stderr.write('Check .mm2_Stderr.txt file\n')
 					sys.exit(1)
 			except:
 				sys.stderr.write('Possible minimap2 error, please check that all file, directory, and executable paths exist\n')
 				sys.exit(1)
 			sys.stderr.flush()
-			if args.quality != '0':
+
+			if args.quality != '0' and not args.trust_ends and not args.salmon:
 				if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
 					stdout=open(sample[-1]+'.qual.sam', 'w')):
 					sys.exit(1)
 				subprocess.call(['mv', sample[-1]+'.qual.sam', sample[-1]])
-			subprocess.call([sys.executable, path+'bin/sam_to_map.py', sample[-1], sample[-1]+'.map'])
+
 	countData = dict()
 	for num,data in enumerate(samData):
 		sample, group, batch, readFile, samOut = data
 		sys.stderr.write("Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r" % (sample,batch,num+1,len(samData)))
 
 		if not args.salmon:
-			with open(samOut) as lines:
-				for line in lines:
-					if line[0] == "@": continue
-					cols = line.split()
-					aFlag,iso,mapq = cols[1],cols[2],cols[4]
-
-					if aFlag == "16" or aFlag == "0": pass
-					else: continue
-					if iso not in countData: countData[iso] = np.zeros(len(samData))
-					countData[iso][num] += 1 
+			count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', samOut, \
+				'-o', samOut+'.counts.txt', '-t', args.t, '--quality', args.quality]
+			if args.trust_ends:
+				count_cmd += ['--trust_ends']
+			subprocess.call(count_cmd)
+			for line in open(samOut+'.counts.txt'):
+				line = line.rstrip().split('\t')
+				iso, numreads = line[0], line[1]
+				if iso not in countData: countData[iso] = np.zeros(len(samData))
+				countData[iso][num] = numreads
+			subprocess.call(['rm', samOut+'.counts.txt'])
 		else:
 			subprocess.call([args.salmon, 'quant', '-t', args.i, '-o', samOut[:-4]+'.salmon', \
 				'-p', args.t, '-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))

@@ -1,4 +1,4 @@
-import sys, csv
+import sys, csv, os
 
 try:
 	psl = open(sys.argv[1])
@@ -8,7 +8,7 @@ except:
 	sys.exit(1)
 
 with open(bed, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t')
+	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in psl:
 		line = line.rstrip().split('\t')
 		if len(line) < 20:  # input was a bed file
