@@ -442,10 +442,11 @@ def run_find_best_sites(chrom):
 			isoforms[chrom][jset]['tss_tes'], junccoord, chrom)
 
 		if args.i and args.n == 'longest':
-			tss = sorted(jset_ends, key=lambda x: x[0])[0][0]  # smallest
-			tes = sorted(jset_ends, key=lambda x: x[1])[-1][1]  # largest
+			tss_sorted = sorted(jset_ends, key=lambda x: x[0])[0]  # smallest left coord
+			tes_sorted = sorted(jset_ends, key=lambda x: x[1])[-1]  # largest right coord 
 			if not args.c:
-				line += [sum(tss[3],tes[3])/2.]
+				line += [(tss_sorted[3]+tes_sorted[3])/2.]
+			tss, tes = tss_sorted[0], tes_sorted[-1]
 			if not bed:
 				towrite[chrom][jset] += [edit_line(line, tss, tes)]
 			else:
