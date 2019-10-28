@@ -317,7 +317,7 @@ elif mode == 'collapse':
 			if args.quality != '0' and not args.trust_ends:
 				subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', alignout+'.sam'], \
 					stdout=open(alignout+'.q.sam', 'w'))
-				align_Files += [alignout+'.sam']
+				align_files += [alignout+'.sam']
 			else:
 				subprocess.call(['mv', alignout+'.sam', alignout+'.q.sam'])
 			count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', alignout+'.q.sam', \
