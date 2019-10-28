@@ -25,7 +25,7 @@ parser.add_argument('-n', '--no_redundant', default='none', action='store', dest
 	best_only: single best TSS/TES used in conjunction chosen; \
 	longest/best_only override max_results argument immediately before output \
 	resulting in one isoform per unique set of splice junctions (default: none)')
-parser.add_argument('-c', '--clean', default=False, action='store_false', dest='c', \
+parser.add_argument('-c', '--clean', default=False, action='store_true', dest='c', \
 	help='Specify this to not append read support to the end of each entry (default: not specified)')
 parser.add_argument('-i', '--isoformtss', default=False, action='store_true', dest='i', \
 	help='when specified, TSS/TES for each isoform will be determined from supporting reads \
@@ -446,7 +446,7 @@ def run_find_best_sites(chrom):
 			tes_sorted = sorted(jset_ends, key=lambda x: x[1])[-1]  # largest right coord 
 			if not args.c:
 				line += [(tss_sorted[3]+tes_sorted[3])/2.]
-			tss, tes = tss_sorted[0], tes_sorted[-1]
+			tss, tes = tss_sorted[0], tes_sorted[1]
 			if not bed:
 				towrite[chrom][jset] += [edit_line(line, tss, tes)]
 			else:
