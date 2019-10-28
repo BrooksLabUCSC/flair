@@ -41,7 +41,7 @@ if mode == 'align':
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='samtools executable path if not in $PATH')
 	parser.add_argument('-c', '--chromsizes', type=str, action='store', dest='c', default='', \
-		help='''chromosome sizes tab-separated file, used for converting sam to genome-browser 
+		help='''chromosome sizes tab-separated file, used for converting sam to genome-browser
 		compatible psl file''')
 	parser.add_argument('-n', '--nvrna', action='store_true', dest='n', default=False, \
 		help='specify this flag to use native-RNA specific alignment parameters for minimap2')
@@ -75,7 +75,7 @@ if mode == 'align':
 	if args.p and subprocess.call([sys.executable, path+'bin/sam_to_psl.py', args.o+'.sam', \
 		args.o+'.psl', args.c]):
 		sys.exit(1)
-	
+
 	sys.stderr.write('Converting sam output to bed\n')
 	if args.quality != '0':
 		if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', args.o+'.sam'], \
@@ -111,7 +111,7 @@ if mode == 'align':
 	subprocess.call([args.sam, 'index', args.o+'.bam'])
 	subprocess.call([sys.executable, path+'bin/bam2Bed12.py', '-i', args.o+'.bam'], stdout=open(args.o+'.bed', 'w'))
 	subprocess.call(['rm', args.o+'.unsorted.bam'])
-	
+
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
 		usage='python flair.py correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
@@ -213,8 +213,8 @@ elif mode == 'collapse':
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
 		help='minimum MAPQ of read assignment to an isoform (1)')
 	parser.add_argument('--keep_intermediate', default=False, action='store_true', dest='keep_intermediate', \
-		help='''specify if intermediate files are to be kept for debugging. 
-		Intermediate files include: promoter-supported reads file, 
+		help='''specify if intermediate files are to be kept for debugging.
+		Intermediate files include: promoter-supported reads file,
 		read assignments to firstpass isoforms (default: not specified)''')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
@@ -267,7 +267,7 @@ elif mode == 'collapse':
 	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.o+'.firstpass.unfiltered.'+suffix, \
 		args.e, args.o+'.firstpass.'+suffix, args.w]):
 		sys.exit(1)
-	intermediate += args.o+'.firstpass.unfiltered.'+suffix
+	intermediate += [args.o+'.firstpass.unfiltered.'+suffix]
 
 	if args.f:
 		sys.stderr.write('Renaming isoforms\n')
@@ -308,7 +308,7 @@ elif mode == 'collapse':
 			subprocess.call(['mv', alignout+'.mapped.sam', alignout+'.sam'])
 			subprocess.call([args.salmon, 'quant', '-t', args.o+'.firstpass.fa', '-o',  alignout+'.salmon', \
 				'-p', args.t, '-l', 'U', '-a', alignout+'.sam'], stderr=open('salmon_stderr.txt', 'w'))
-			
+
 			count_files += [alignout+'.salmon/quant.sf']
 			subprocess.call(['rm', 'salmon_stderr.txt'])
 			align_files += [alignout+'.sam', alignout+'.salmon/quant.sf']
@@ -341,7 +341,6 @@ elif mode == 'collapse':
 	if args.f:
 		subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.'+suffix], \
 			stdout=open(args.o+'.isoforms.gtf', 'w'))
-
 	subprocess.call(['rm', '-rf'] + temporary + [args.o+'.firstpass.fa'])
 	if not args.keep_intermediate:
 		sys.stderr.write('Removing intermediate files/done\n')
@@ -471,7 +470,7 @@ elif mode == 'quantify':
 
 	features = sorted(list(countData.keys()))
 	for f in features:
-		
+
 		countMatrix.write("%s\t%s\n" % (f,"\t".join(str(x) for x in countData[f])))
 	countMatrix.close()
 	sys.stderr.flush()
@@ -485,7 +484,7 @@ elif mode == 'diffExp':
 		usage='python flair.py diffExp -q count_matrix.tsv --out_dir out_dir [options]')
 	parser.add_argument('diffExp')
 	required = parser.add_argument_group('required named arguments')
-	
+
 	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
 		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
 	required.add_argument('-o', '--out_dir', action='store', dest='o', \
@@ -511,7 +510,7 @@ elif mode == 'diffSplice':
 		usage='python flair.py diffSplice -i isoforms.bed|isoforms.psl -q count_matrix.tsv [options]')
 	parser.add_argument('diffExp')
 	required = parser.add_argument_group('required named arguments')
-	
+
 	required.add_argument('-i', '--isoforms', action='store', dest='i', required=True, \
 		type=str, help='isoforms in bed or psl format')
 	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
@@ -530,7 +529,3 @@ elif mode == 'diffSplice':
 	subprocess.call([sys.executable, path+'bin/es_as.py', args.i], stdout=open(args.o+'.es.events.tsv','w'))
 	subprocess.call([sys.executable, path+'bin/es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'], \
 		stdout=open(args.o+'.es.events.quant.tsv','w'))
-
-
-
-
