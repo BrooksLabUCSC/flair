@@ -146,7 +146,6 @@ def count_transcripts_for_reads(read_names):
 
 		# sort by highest number of base matches
 		ranked_transcripts = sorted(transcript_coverage.items(), key=lambda x: x[1][0])
-		# print(ranked_transcripts)
 		best_t, best_t_info = ranked_transcripts[0]
 		for t, t_info in ranked_transcripts[1:]:
 			if t_info[0] + args.w < best_t_info[0]:
@@ -159,7 +158,6 @@ def count_transcripts_for_reads(read_names):
 		if best_t not in counts:
 			counts[best_t] = 0
 		counts[best_t] += 1
-		print('\t'.join([r, best_t]))
 	return counts
 
 terminal_exons = {}  # first last exons of the firstpass flair reference transcriptome

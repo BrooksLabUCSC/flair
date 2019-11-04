@@ -53,7 +53,6 @@ with open(outfilename, 'wt') as outfile:
 			qsize_backup += num   # technically does not consume q but useful when comparing a read's secondary alignments
 		else:
 			looplist = matches
-
 		num, op = int(looplist[0][0]), looplist[0][1]
 		if op == 'S':
 			if not qstart and not matchlen:
@@ -89,7 +88,10 @@ with open(outfilename, 'wt') as outfile:
 				tbaseinsert += num
 				tnuminsert += 1
 				qsize_backup += num
+			elif op == 'H' or op == 'S':
+				break
 			else:
+				sys.stderr.write(cigar+'\n')
 				sys.stderr.write(op + ' unrecognized\n')
 				sys.exit(1)
 

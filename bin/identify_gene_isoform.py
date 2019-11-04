@@ -164,7 +164,9 @@ with open(outfilename, 'wt') as outfile:
 			writer.writerow(line)
 			continue
 
+		things = {}
 		gene_hits = {}
+		se_gene_tiebreaker = {}
 		if not junctions:
 			exon = (start, end)
 			i = bin_search(exon, all_se[chrom])
@@ -175,7 +177,11 @@ with open(outfilename, 'wt') as outfile:
 					proportion = float(overlap)/(exon[1]-exon[0])  # base coverage of long-read isoform by the annotated isoform
 					proportion2 = float(overlap)/(e[1]-e[0])  # base coverage of the annotated isoform by the long-read isoform
 					if proportion > 0.5 and proportion2 > proportion_annotated_covered:
+						if e[2] in gene_hits: # gene name
+							if proportion <= gene_hits[e[2]]:
+								continue
 						gene_hits[e[2]] = proportion
+						se_gene_tiebreaker[e[2]] = proportion2
 		else:
 			for j in junctions:
 				if j in junc_to_gene[chrom]:
@@ -191,14 +197,24 @@ with open(outfilename, 'wt') as outfile:
 			if len(genes) > 1 and len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size 
 				genes = sorted(genes, key=lambda x: x[0])
 				genes = sorted(genes, key=lambda x: x[1])
-				g = genes[-1], len(gene_unique_juncs[genes[-1][0]])
-				for i in reversed(range(len(genes)-1)):
-					if genes[i][1] == g[0][1]:
-						if len(gene_unique_juncs[genes[i][0]]) < g[1]:
-							g = genes[i], len(gene_unique_juncs[genes[i][0]])
-					else:
-						break
-				genes[-1] = g[0]
+				if not junctions:
+					g = genes[-1], se_gene_tiebreaker[genes[-1][0]]
+					for i in reversed(range(len(genes)-1)):
+						if genes[i][1] == g[0][1]:
+							if se_gene_tiebreaker[genes[i][0]] > g[1]:
+								g = genes[i], se_gene_tiebreaker[genes[i][0]]
+						else:
+							break
+					genes[-1] = g[0]
+				else:
+					g = genes[-1], len(gene_unique_juncs[genes[-1][0]])
+					for i in reversed(range(len(genes)-1)):
+						if genes[i][1] == g[0][1]:
+							if len(gene_unique_juncs[genes[i][0]]) < g[1]:
+								g = genes[i], len(gene_unique_juncs[genes[i][0]])
+						else:
+							break
+					genes[-1] = g[0]
 			gene = genes[-1][0]
 
 		transcript = ''
