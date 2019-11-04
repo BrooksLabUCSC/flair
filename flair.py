@@ -79,7 +79,7 @@ if mode == 'align':
 	sys.stderr.write('Converting sam output to bed\n')
 	if args.quality != '0':
 		if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', args.o+'.sam'], \
-		stdout=open(alignout+'.q.sam', 'w')):
+		stdout=open(args.o+'.q.sam', 'w')):
 			sys.stderr.write('Possible issue with samtools executable\n')
 			sys.exit(1)
 		subprocess.call(['mv', args.o+'.q.sam', args.o+'.sam'])
