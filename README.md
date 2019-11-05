@@ -73,7 +73,7 @@ Alternatively, the `-j` argument for flair-correct can also be generated using S
 ### <a name="collapse"></a>flair collapse
 Defines high-confidence isoforms from corrected reads. As FLAIR does not use annotations to collapse isoforms, FLAIR will pick the name of a read that shares the same splice junction chain as the isoform to be the isoform name. It is recommended to still provide an annotation with `-f`, which is used to rename FLAIR isoforms that match isoforms in existing annotation according to the transcript_id field in the gtf. Similar isoform names ending with `-1` or more have identical splice junction chains and differ only by their TSS/TES. 
 
-If there are multiple samples to be compared, the flair-corrected read `psl` files should be concatenated prior to running flair-collapse. In addition, all raw reads should be concatenated into a single file or given as a comma-separated list for `-r`.
+If there are multiple samples to be compared, the flair-corrected read `psl` files should be concatenated prior to running flair-collapse. In addition, all raw read fastq/fasta files should either be specified after `-r` with space/comma separators or concatenated into a single file.
 
 **Usage:**
 ```sh

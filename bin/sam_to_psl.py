@@ -53,6 +53,7 @@ with open(outfilename, 'wt') as outfile:
 			qsize_backup += num   # technically does not consume q but useful when comparing a read's secondary alignments
 		else:
 			looplist = matches
+
 		num, op = int(looplist[0][0]), looplist[0][1]
 		if op == 'S':
 			if not qstart and not matchlen:
