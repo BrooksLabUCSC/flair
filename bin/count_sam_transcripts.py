@@ -22,8 +22,10 @@ parser.add_argument('--quality', default=1, type=int, action='store', dest='qual
 	help='minimum quality threshold to consider if ends are to be trusted (1)')
 parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends', \
 	help='specify if reads are generated from a long read method with minimal fragmentation')
-args = parser.parse_args()
+parser.add_argument('--generate_map', default='', action='store', type=str, dest='generate_map', \
+	help='''specify an output path for a txt file of which isoform each read is assigned to''')
 
+args = parser.parse_args()
 try:
 	sam = open(args.sam)
 	outfilename = args.output
@@ -64,7 +66,8 @@ def is_stringent(tname, blocksizes, blockstarts):
 	return right_coverage and left_coverage and coverage > 0.8
 
 def count_transcripts_for_reads(read_names):
-	counts = {}
+	counts = {}  # isoform to counts
+	isoform_read = {}  # isoform and their supporting read ids 
 	for r in read_names:
 		transcripts = reads[r]  # all potential transcripts this read is assigned to
 		if not args.stringent and len(set(transcripts)) == 1:  # only one possible transcript
@@ -72,7 +75,9 @@ def count_transcripts_for_reads(read_names):
 				if reads[r][t]['quality'] != 0:
 					if t not in counts:
 						counts[t] = 0
+						isoform_read[t] = []
 					counts[t] += 1
+					isoform_read[t] += [r]
 					break
 			continue
 
@@ -85,7 +90,9 @@ def count_transcripts_for_reads(read_names):
 			t = ordered_transcripts[-1][0]
 			if t not in counts:
 				counts[t] = 0
+				isoform_read[t] = []
 			counts[t] += 1
+			isoform_read[t] += [r]
 			continue
 
 		if not args.trust_ends:  # ignore multiple mappers
@@ -157,8 +164,10 @@ def count_transcripts_for_reads(read_names):
 				best_t, best_t_info = t, t_info
 		if best_t not in counts:
 			counts[best_t] = 0
+			isoform_read[best_t] = []
 		counts[best_t] += 1
-	return counts
+		isoform_read[best_t] += [r]
+	return counts, isoform_read
 
 terminal_exons = {}  # first last exons of the firstpass flair reference transcriptome
 if args.stringent:
@@ -214,11 +223,27 @@ if __name__ == '__main__':
 	counts = p.map(count_transcripts_for_reads, grouped_reads)
 	p.terminate()
 
-	merged_counts = Counter(counts[0])
+	merged_counts = Counter(counts[0][0])
 	for res in counts[1:]:
-		merged_counts += Counter(res)
+		merged_counts += Counter(res[0])
 
 	with open(outfilename, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 		for t in merged_counts:
 			writer.writerow([t, merged_counts[t]])
+
+	if args.generate_map:
+		merged_map = {}
+		for res in counts:
+			for i in res[1]:
+				if i not in merged_map:
+					merged_map[i] = []
+				merged_map[i] += res[1][i]
+
+		with open(args.generate_map, 'wt') as outfile:
+			writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+			for i in merged_map:
+				writer.writerow([i, ','.join(merged_map[i])])
+
+
+

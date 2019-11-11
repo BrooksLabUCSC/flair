@@ -31,7 +31,7 @@ if mode == 'align':
 	required.add_argument('-r', '--reads', action='store', dest='r', \
 		nargs='+', type=str, required=True, help='FastA/FastQ files of raw reads')
 	required.add_argument('-g', '--genome', action='store', dest='g', \
-		type=str, required=True, help='FastA of reference genome')
+		type=str, required=True, help='FastA of reference genome, can be minimap2 indexed')
 	parser.add_argument('-m', '--minimap2', type=str, default='minimap2', \
 		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-o', '--output', \
@@ -216,6 +216,9 @@ elif mode == 'collapse':
 		help='''specify if intermediate files are to be kept for debugging.
 		Intermediate files include: promoter-supported reads file,
 		read assignments to firstpass isoforms (default: not specified)''')
+	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map', \
+		help='''specify this argument if a txt file of which isoform each read is assigned to should be
+		generated. note: only works if the quantification method is not using salmon (default: not specified)''')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir', \
@@ -231,6 +234,8 @@ elif mode == 'collapse':
 			args.m += '/minimap2'
 
 	args.t, args.quality = str(args.t), str(args.quality)
+	if args.trust_ends:
+		args.quality = '0'
 
 	if not os.path.exists(args.q):
 		sys.stderr.write('Query file path does not exist\n')
@@ -282,7 +287,6 @@ elif mode == 'collapse':
 		sys.exit(1)
 
 	sys.stderr.write('Aligning reads to first-pass isoform reference\n')
-	print(args.r)
 	if ',' in args.r[0]:
 		args.r = args.r[0].split(',')
 	count_files, align_files = [], []
@@ -317,7 +321,7 @@ elif mode == 'collapse':
 		align_files += [alignout+'.sam', alignout+'.salmon/quant.sf']
 		temporary += [alignout+'.salmon', 'salmon_stderr.txt']
 	else:
-		if args.quality != '0' and not args.trust_ends:
+		if args.quality != '0':
 			subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', alignout+'.sam'], \
 				stdout=open(alignout+'.q.sam', 'w'))
 			align_files += [alignout+'.sam']
@@ -329,6 +333,8 @@ elif mode == 'collapse':
 			count_cmd += ['--stringent', '-i', args.o+'.firstpass.'+suffix]
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
+		if args.generate_map:
+			count_cmd += ['--generate_map', args.o+'.isoform.read.map.txt']
 		subprocess.call(count_cmd)
 		count_file = alignout+'.q.counts'
 		align_files += [alignout+'.q.sam']

@@ -3,7 +3,7 @@ import sys, csv, math, os
 try:
 	psl = open(sys.argv[1])
 	isbed = sys.argv[1][-3:].lower() != 'psl' 
-	mode = sys.argv[2] if sys.argv[2] not in ['ginormous', 'comprehensive', 'nosubset'] else default # all typos will report default
+	mode = sys.argv[2] if sys.argv[2] in ['ginormous', 'comprehensive', 'nosubset'] else 'default' # all typos will report default
 	pslout = sys.argv[3]
 	tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
 except:
