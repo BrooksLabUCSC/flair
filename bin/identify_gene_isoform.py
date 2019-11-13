@@ -155,8 +155,8 @@ with open(outfilename, 'wt') as outfile:
 			else:
 				name_counts[name] += 1
 				name = name + '-' + str(name_counts[name])
-
-			newname = name + '_noReference'
+			noref = chrom + ':' + str(start)[:-3] + '000'
+			newname = name + noref
 			if isbed:
 				line[3] = newname
 			else:

@@ -15,6 +15,9 @@ try:
         outfilebase = genename
 except:
     sys.stderr.write('python script.py isoforms.psl|.bed counts_matrix.tsv genename [outfilenamebase]\n')
+    sys.stderr.write('''The most highly expressed isoforms across all the samples will be plotted. 
+        The minor isoforms are aggregated into a gray bar. You can toggle minreads or color_palette to
+        plot more isoforms\n''')
     sys.exit(1)
 
 def parse_psl(psl, names=False, plotany=False, keepiso=set()):
@@ -145,7 +148,7 @@ def plot_blocks(data, panel, names, height=.5, l=0.8):
         di += 1
 
 
-hex_colors = ['#ba748a', '#3498db', "#34495e"] # "#2ecc71", "#e74c3c"]
+hex_colors = ['#ba748a', '#3498db', "#34495e"]
 name_colors = ['windows blue', 'faded green', 'dusty purple', 'amber']
 color_palette = sns.xkcd_palette(name_colors) + sns.color_palette(hex_colors)  # or your preferred color palette
 gray = sns.xkcd_palette(["greyish"])
@@ -175,11 +178,11 @@ for line in counts_matrix:
     counts = [float(x) for x in line[1:]]
     if all(x < minreads for x in counts):
         for i in range(len(sample_ids)):
-            gray_bar[0][i+1] += counts[i]   # add to gray bar
+            gray_bar[0][i+1] += counts[i]   # add to gray bar bc expression is too low
         for i in range(len(sample_ids)):
             totals[i] += counts[i]
         continue
-    proportions += [[line[0]]+counts+[sum(counts)]]  # could get moved to gray bar
+    proportions += [[line[0]]+counts+[sum(counts)]]
 
 colori = 0
 proportions = sorted(proportions, key=lambda x: x[-1], reverse=True)  # sort by expression
@@ -189,7 +192,7 @@ for i in range(len(proportions)):
     counts = p[1:-1]
     for i in range(len(sample_ids)):
         totals[i] += counts[i]
-    if colori == len(color_palette):  # add to gray bar
+    if colori == len(color_palette):  # add to gray bar bc colors ran out
         for i in range(len(sample_ids)):
             gray_bar[0][i+1] += counts[i]
         continue
@@ -200,7 +203,7 @@ for i in range(len(proportions)):
 proportions = [gray_bar[0]] + proportions_color
 
 if len(proportions) == 1:
-    sys.stderr.write('Needs more than 1 isoform with sufficient representation\n')
+    sys.stderr.write('Needs more than 1 isoform with sufficient representation, try toggling minreads\n')
     sys.exit()
 
 proportions = sorted(proportions, key=lambda x:x[1])[::-1]
@@ -252,7 +255,7 @@ isoforms, lower, upper, strand, names = parse_psl(psl,keepiso=keepiso)
 isoforms = sorted(isoforms,key=lambda x: x[3], reverse=True)  # sort by productivity
 packed = pack(isoforms, rev=False, tosort=False)
 
-plot_blocks(packed, panel, names, l=1)  # plot as is
+plot_blocks(packed, panel, names, l=1)
 
 # plt.savefig(genename+'_bars.pdf', transparent=True, dpi=600)  # uncomment to output as pdf
 plt.savefig(outfilebase+'_isoforms.png', dpi=600)
