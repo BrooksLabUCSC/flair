@@ -18,7 +18,7 @@ for line in psl:
 		tstarts = [int(n) + start for n in line[11].split(',')[:-1]]
 		bsizes = [int(n) for n in line[10].split(',')[:-1]]
 	else:
-		chrom, strand, score, name = line[13], line[8], line[0], line[9]
+		chrom, strand, score, name, start = line[13], line[8], line[0], line[9], int(line[15])
 		tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
 		bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
 	
@@ -37,7 +37,7 @@ for line in psl:
 	elif 'chr' in name:
 		gene_id = name[name.find('chr'):]
 	elif '_' in name:
-		gene_id = name[name.find('_')+1:]
+		gene_id = name[name.rfind('_')+1:]
 	else:  # force
 		gene_id = name
 	if '-' in gene_id:
@@ -48,7 +48,7 @@ for line in psl:
 
 	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\
 				.format(gene_id, transcript_id)
-	print('\t'.join([chrom, 'FLAIR', 'transcript', line[15], line[16], '.', strand, '.', \
+	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start), str(tstarts[-1]+bsizes[-1]) , '.', strand, '.', \
 		endstring]))
 	# if strand == '-':  # to list exons in 5'->3'
 	# 	for b in range(len(tstarts)):  # exon number
