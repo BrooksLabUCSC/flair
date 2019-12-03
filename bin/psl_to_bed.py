@@ -19,6 +19,3 @@ with open(bed, 'wt') as outfile:
 		relstarts = ','.join([str(int(n) - int(start)) for n in starts]) + ','
 		writer.writerow([chrom, start, end, name, '1000', strand, start, end, '0,0,0', \
 			str(len(starts)), blocksizes, relstarts])
-
-
-
