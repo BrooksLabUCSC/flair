@@ -48,7 +48,7 @@ for line in psl:
 
 	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\
 				.format(gene_id, transcript_id)
-	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start), str(tstarts[-1]+bsizes[-1]) , '.', strand, '.', \
+	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
 		endstring]))
 	# if strand == '-':  # to list exons in 5'->3'
 	# 	for b in range(len(tstarts)):  # exon number
