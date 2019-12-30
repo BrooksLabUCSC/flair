@@ -284,6 +284,23 @@ def bed12toExons(start,starts,sizes):
     return exons
 
 
+def parse_gene_id(iso_gene):
+	if '_chr' in iso_gene:
+		gene = iso_gene[iso_gene.rfind('_chr')+1:]
+	elif '_XM' in iso_gene:
+		gene = iso_gene[iso_gene.rfind('_XM')+1:]
+	elif '_XR' in iso_gene:
+		gene = iso_gene[iso_gene.rfind('_XR')+1:]
+	elif '_NM' in iso_gene:
+		gene = iso_gene[iso_gene.rfind('_NM')+1:]
+	elif '_NR' in iso_gene:
+		gene = iso_gene[iso_gene.rfind('_NR')+1:]
+	elif '_R2_' in iso_gene:
+		gene = iso_gene[iso_gene.rfind('_R2_')+1:]
+	else:
+		gene = iso_gene[iso_gene.rfind('_')+1:]
+	return gene
+
 #### main ####
 
 
@@ -299,7 +316,7 @@ def main():
 			starts = starts.rstrip(",").split(",")
 			sizes = sizes.rstrip(",").split(",")
 
-			geneID = iso[iso.rfind('_')+1:]
+			geneID = parse_gene_id(iso)
 			exons = bed12toExons(start,starts,sizes)
 			
 			if chrom not in genes:

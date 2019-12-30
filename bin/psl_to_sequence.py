@@ -26,13 +26,22 @@ def get_sequence(entry, seq):
 		start = int(entry[1])
 		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
 		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+		strand = entry[5]
 	else:
 		blocksizes = [int(n) for n in entry[18].split(',')[:-1]]
 		blockstarts = [int(n) for n in entry[20].split(',')[:-1]]
+		strand = entry[8]
 	pulledseq = ''
 	for block in range(len(blockstarts)):
 		pulledseq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
+	if strand == '-':
+		pulledseq = revcomp(pulledseq)
 	return pulledseq
+
+def revcomp(seq):
+	seq = seq.replace('A', 'X').replace('T', 'A').replace('X', 'T')
+	seq = seq.replace('G', 'X').replace('C', 'G').replace('X', 'C')
+	return seq[::-1]
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

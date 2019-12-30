@@ -2,6 +2,8 @@ import sys, argparse, re, csv, math, os
 from multiprocessing import Pool
 from collections import Counter
 
+import datetime
+
 parser = argparse.ArgumentParser(description='for counting transcript abundances after aligning reads' +\
 			' to transcripts; for multiple mappers, only the best alignment for each read is used', \
 			usage='python -s samfile -o outputfile')
@@ -72,7 +74,7 @@ def count_transcripts_for_reads(read_names):
 		transcripts = reads[r]  # all potential transcripts this read is assigned to
 		if not args.stringent and len(set(transcripts)) == 1:  # only one possible transcript
 			for t in transcripts:
-				if reads[r][t]['quality'] != 0:
+				if reads[r][t]['qual'] != 0:
 					if t not in counts:
 						counts[t] = 0
 						isoform_read[t] = []
@@ -81,12 +83,12 @@ def count_transcripts_for_reads(read_names):
 					break
 			continue
 
-		ordered_transcripts = sorted(transcripts.items(), key=lambda x: transcripts[x[0]]['quality'])
+		ordered_transcripts = sorted(transcripts.items(), key=lambda x: transcripts[x[0]]['qual'])
 
 		# based on mapq, if the read aligns better to one transcript than the other candidates
-		if (not args.stringent and ordered_transcripts[-1][1]['quality'] > ordered_transcripts[-2][1]['quality'] \
-			and ordered_transcripts[-1][1]['quality'] > 7) or \
-			(not args.trust_ends and ordered_transcripts[-1][1]['quality'] > 0):
+		if (not args.stringent and ordered_transcripts[-1][1]['qual'] > ordered_transcripts[-2][1]['qual'] \
+			and ordered_transcripts[-1][1]['qual'] > 7) or \
+			(not args.trust_ends and ordered_transcripts[-1][1]['qual'] > 0):
 			t = ordered_transcripts[-1][0]
 			if t not in counts:
 				counts[t] = 0
@@ -101,7 +103,7 @@ def count_transcripts_for_reads(read_names):
 		# {transcript: (sum_matches, unmapped_left, unmapped_right, softclip_left, softclip_right)}
 		transcript_coverage = {}
 		for t, t_info in ordered_transcripts:
-			cigar, pos = t_info['cigar'], t_info['startpos']
+			cigar, pos = t_info['cig'], t_info['pos']
 			relstart = 0
 			blocksizes, relblockstarts = [], []
 
@@ -184,9 +186,12 @@ if args.stringent:
 		terminal_exons[name]['right_size'] = blocksizes[-1]
 		terminal_exons[name]['left_pos'] = left
 		terminal_exons[name]['right_pos'] = right
-
+print( datetime.datetime.now(), 'making reads dict')
+global transcript_lengths
+global reads
 transcript_lengths = {}
 reads = {}
+
 for line in sam:
 	if line.startswith('@'):
 		if line.startswith('@SQ'):
@@ -201,9 +206,11 @@ for line in sam:
 	if read not in reads:
 		reads[read] = {}
 	reads[read][transcript] = {}
-	reads[read][transcript]['cigar'] = cigar
-	reads[read][transcript]['quality'] = quality  # mapq
-	reads[read][transcript]['startpos'] = pos
+	reads[read][transcript]['cig'] = cigar
+	reads[read][transcript]['qual'] = quality  # mapq
+	reads[read][transcript]['pos'] = pos  # startpos
+
+print( datetime.datetime.now(), 'making grouped reads dict')
 
 if __name__ == '__main__':
 
@@ -218,14 +225,17 @@ if __name__ == '__main__':
 			new_i = i + groupsize
 			grouped_reads += [allread_names[i:new_i]]
 			i = new_i
+	print( datetime.datetime.now(), 'pooling now')
 
 	p = Pool(args.t)
 	counts = p.map(count_transcripts_for_reads, grouped_reads)
 	p.terminate()
+	print( datetime.datetime.now(), 'done pooling, counting now')
 
 	merged_counts = Counter(counts[0][0])
 	for res in counts[1:]:
 		merged_counts += Counter(res[0])
+
 
 	with open(outfilename, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

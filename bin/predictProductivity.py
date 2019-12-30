@@ -128,6 +128,29 @@ def getStarts(gtf):
            
     return starts
 
+def split_iso_gene(iso_gene):
+    if '_chr' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_chr')]
+        gene = iso_gene[iso_gene.rfind('_chr')+1:]
+    elif '_XM' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_XM')]
+        gene = iso_gene[iso_gene.rfind('_XM')+1:]
+    elif '_XR' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_XR')]
+        gene = iso_gene[iso_gene.rfind('_XR')+1:]
+    elif '_NM' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_NM')]
+        gene = iso_gene[iso_gene.rfind('_NM')+1:]
+    elif '_NR' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_NR')]
+        gene = iso_gene[iso_gene.rfind('_NR')+1:]
+    elif '_R2_' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_R2_')]
+        gene = iso_gene[iso_gene.rfind('_R2_')+1:]
+    else:
+        iso = iso_gene[:iso_gene.rfind('_')]
+        gene = iso_gene[iso_gene.rfind('_')+1:]
+    return iso, gene
 
 def getSeqs(bed, genome):
 
@@ -138,9 +161,7 @@ def getSeqs(bed, genome):
     with open(bt.seqfn) as entries:
         for entry in entries:
             read,seq  = entry.split()
-
-            iso = read[:read.rfind('_')]
-            gene = read[read.rfind('_')+1:]
+            iso, gene = split_iso_gene(read)
             if read not in isoDict:
                 isoDict[read] = Isoform(iso,gene,seq)
     return isoDict

@@ -10,6 +10,30 @@ except:
 	 ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n')
 	sys.exit(1)
 
+def split_iso_gene(iso_gene):
+	if '_chr' in iso_gene:
+		iso = iso_gene[:iso_gene.rfind('_chr')]
+		gene = iso_gene[iso_gene.rfind('_chr')+1:]
+	elif '_XM' in iso_gene:
+		iso = iso_gene[:iso_gene.rfind('_XM')]
+		gene = iso_gene[iso_gene.rfind('_XM')+1:]
+	elif '_XR' in iso_gene:
+		iso = iso_gene[:iso_gene.rfind('_XR')]
+		gene = iso_gene[iso_gene.rfind('_XR')+1:]
+	elif '_NM' in iso_gene:
+		iso = iso_gene[:iso_gene.rfind('_NM')]
+		gene = iso_gene[iso_gene.rfind('_NM')+1:]
+	elif '_NR' in iso_gene:
+		iso = iso_gene[:iso_gene.rfind('_NR')]
+		gene = iso_gene[iso_gene.rfind('_NR')+1:]
+	elif '_R2_' in iso_gene:
+		iso = iso_gene[:iso_gene.rfind('_R2_')]
+		gene = iso_gene[iso_gene.rfind('_R2_')+1:]		
+	else:
+		iso = iso_gene[:iso_gene.rfind('_')]
+		gene = iso_gene[iso_gene.rfind('_')+1:]
+	return iso, gene
+
 for line in psl:
 	line = line.rstrip().split('\t')
 	if isbed:
@@ -30,21 +54,7 @@ for line in psl:
 	if ';' in name:
 		name = name.replace(';', ':')
 
-	transcript_id = name if '_' not in name else name[:name.rfind('_')]
-
-	if 'ENSG' in name:
-		gene_id = name[name.find('ENSG'):]
-	elif 'chr' in name:
-		gene_id = name[name.find('chr'):]
-	elif '_' in name:
-		gene_id = name[name.rfind('_')+1:]
-	else:  # force
-		gene_id = name
-	if '-' in gene_id:
-		transcript_flag = gene_id[gene_id.find('-'):]
-		if transcript_flag not in transcript_id[-3:]:
-			transcript_id += transcript_flag
-		gene_id = gene_id[:gene_id.find('-')]
+	transcript_id, gene_id = split_iso_gene(name)
 
 	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\
 				.format(gene_id, transcript_id)
