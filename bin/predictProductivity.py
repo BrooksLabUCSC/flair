@@ -83,9 +83,8 @@ class Isoform(object) :
     
     ''' 
 
-    def __init__(self, tid=None, gid=None, seq=None):
-        self.tid = tid
-        self.gid = gid
+    def __init__(self, name=None, seq=None):
+        self.name = name
         self.pro = "UNK"
         self.chrom = ""
 
@@ -154,16 +153,16 @@ def split_iso_gene(iso_gene):
 
 def getSeqs(bed, genome):
 
-
     isoDict = dict()
     bt = pybedtools.BedTool(bed)
     bt.sequence(fi=genome, tab=True, s=True, split=True, name=True)
     with open(bt.seqfn) as entries:
         for entry in entries:
             read,seq  = entry.split()
-            iso, gene = split_iso_gene(read)
+            read = read.split("(")[0]
+            
             if read not in isoDict:
-                isoDict[read] = Isoform(iso,gene,seq)
+                isoDict[read] = Isoform(read,seq)
     return isoDict
 
 
