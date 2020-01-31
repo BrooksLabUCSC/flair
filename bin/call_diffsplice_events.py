@@ -158,6 +158,7 @@ for line in psl:
 		a5_junctions = update_altsplice_dict(a5_junctions, threeprime, fiveprime, \
 			exon_end, exon_start, sample_names, iso_counts, search_threeprime=False)
 
+		j = (j[0], j[1])  # IR junctions do not need the flanking exon info from get_junctions_psl
 		if j not in ir_junctions[chrom]:  # ir detection
 			ir_junctions[chrom][j] = {}
 			ir_junctions[chrom][j]['exclusion'] = {}
@@ -180,11 +181,11 @@ with open(outfilenamebase+'.alt5.events.quant.tsv', 'wt') as outfile:
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
 	find_altss(a5_junctions, writer, search_threeprime=False)
 
+seen_j = set()
 with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
 	for chrom in ir_junctions:
-		# for strand in junctions[chrom]:
 		for j in ir_junctions[chrom]:
 			for iname in isoforms[chrom]:  # compare with all other isoforms to find IR
 				if iname in ir_junctions[chrom][j]['exclusion']['isos']:  # is an exclusion isoform
@@ -213,7 +214,7 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 			[','.join(ir_junctions[chrom][j]['inclusion']['isos'])] )
 			writer.writerow(['exclusion_'+event, event] + ir_junctions[chrom][j]['exclusion']['counts'] +\
 			[','.join(ir_junctions[chrom][j]['exclusion']['isos'])] )
-		ir_junctions[chrom] = 0
+		ir_junctions[chrom] = None
 
 
 

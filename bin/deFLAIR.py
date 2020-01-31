@@ -46,9 +46,9 @@ class CommandLine(object) :
     myCommandLine.args['option'] 
     
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -85,11 +85,11 @@ class CommandLine(object) :
 class Isoform(object) :
     '''
     Object to handle isoform related data.
-    
+
     attributes:
-        
+
     methods:
-    
+
     ''' 
 
     def __init__(self, tid=None, gid=None):
@@ -120,11 +120,11 @@ class Isoform(object) :
 class Gene(object) :
     '''
     Object to handle gene related data.
-    
+
     attributes:
-        
+
     methods:
-    
+
     ''' 
 
     def __init__(self, gid=None):
@@ -145,7 +145,7 @@ def separateTables(f, thresh, samples, groups):
 
     genes, isoforms = dict(), dict()
     duplicateID = 1
-    
+
 
 
     with codecs.open(f, "r", encoding='utf-8', errors='ignore' ) as lines:
@@ -215,7 +215,7 @@ def separateTables(f, thresh, samples, groups):
 
     geneDF  = pd.DataFrame(filteredGeneVals,columns=samples, index=filteredGeneIDs)
     isoDF = pd.DataFrame(filteredIsoVals,columns=samples, index=filteredIsoIDs)
-    
+
 
     geneDF.to_csv("filtered_gene_counts_ds2.tsv", sep="\t")
     isoDF.to_csv("filtered_iso_counts_ds2.tsv", sep="\t")
@@ -310,7 +310,7 @@ def main():
     isoMatrixFile     = "filtered_iso_counts_ds2.tsv"
     geneMatrixFile    = "filtered_gene_counts_ds2.tsv"
     drimMatrixFile    = "filtered_iso_counts_drim.tsv"
-    
+
     formulaDF.to_csv( formulaMatrixFile, sep='\t')
 
     with open("%s/dge_stderr.txt" % outDir,"w") as out1:
@@ -318,15 +318,15 @@ def main():
         subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
                             "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
                             "--prefix", "dge", "--formula", formulaMatrixFile], stderr=out1)
-        
+
         subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
                             "--prefix", "die", "--formula", formulaMatrixFile], stderr=out1)
-        
+
         subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1], 
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
                              "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
-        
+
 
 
 if __name__ == "__main__":

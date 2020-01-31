@@ -97,7 +97,7 @@ def main():
     outdir     = myCommandLine.args['outDir']
     group1     = myCommandLine.args['group1']
     group2     = myCommandLine.args['group2']
-    batch      = myCommandLine.args['batch']
+    batch      = myCommandLine.args['batch']  
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
@@ -131,32 +131,21 @@ def main():
     R.assign('samples',samples)
     R.assign('numThread', threads)
     R.assign("cooef", "condition%s" % group2)
-
-    R("rna_extraction_batch <- c('o','ugg','o','o','o','t')")
-    R("sequencing_batch <- c('b1','b1','b2','b1','b2','b1')")
-    R("thing <- c('a','a','a','b','b','b')")
-    R("write.table(counts,'drim_counts.tsv',sep='\t',quote=F,row.names=F)")
-    sys.exit()  # added 190710
     R('data <- dmDSdata(counts = counts, samples = samples)')
-    R('filtered <- dmFilter(data, min_samps_gene_expr = 4, min_samps_feature_expr = 2, min_gene_expr = 50, min_feature_expr = 15)')
+    R('filtered <- dmFilter(data, min_samps_gene_expr = 6, min_samps_feature_expr = 3, min_gene_expr = 15, min_feature_expr = 5)')
     if "batch" in list(formulaDF): 
-        # R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
-        R('design_full <- model.matrix(~ rna_extraction_batch + sequencing_batch + thing)')
-
-    # else: 
-    #     R('design_full <- model.matrix(~ condition, data = samples(filtered))')
+        R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
+    else: 
+        R('design_full <- model.matrix(~ condition, data = samples(filtered))')
     R('set.seed(123)')
-    R("write.table(design_full,quote=F,sep='\t',row.names=F)")
+
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     
-    # R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
-    # R('contrast')
-    # R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
-    R("d <- dmTest(d, coef = 'thingb', verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))")
+    R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
 
+    R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
-    #print(res)
 
     data_folder = os.path.join(os.getcwd(), outdir)
     resOut = os.path.join(data_folder, "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix,group1,group2))

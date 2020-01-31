@@ -2,13 +2,13 @@
 
 import sys, argparse, subprocess, os, tempfile
 
-if len(sys.argv) > 1 and (sys.argv[1] == 'align' or sys.argv[1] == '1'):
+if len(sys.argv) > 1 and (sys.argv[1].lower() == 'align' or sys.argv[1] == '1'):
 	mode = 'align'
-elif len(sys.argv) > 1 and (sys.argv[1] == 'correct' or sys.argv[1] == '2'):
+elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'correct' or sys.argv[1] == '2'):
 	mode = 'correct'
-elif len(sys.argv) > 1 and (sys.argv[1] == 'collapse' or sys.argv[1] == '3'):
+elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'collapse' or sys.argv[1] == '3'):
 	mode = 'collapse'
-elif len(sys.argv) > 1 and (sys.argv[1] == 'quantify' or sys.argv[1] == '4'):
+elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'quantify' or sys.argv[1] == '4'):
 	mode = 'quantify'
 elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'diffexp' or sys.argv[1] == '5'):
 	mode = 'diffExp'
@@ -269,8 +269,8 @@ elif mode == 'collapse':
 		sys.exit(1)
 
 	sys.stderr.write('Filtering isoforms\n')  # filtering out subset isoforms with fewer reads
-	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', args.o+'.firstpass.unfiltered.'+suffix, \
-		args.e, args.o+'.firstpass.'+suffix, args.w]):
+	if subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms.py', \
+		args.o+'.firstpass.unfiltered.'+suffix, args.e, args.o+'.firstpass.'+suffix, args.w]):
 		sys.exit(1)
 
 	intermediate += [args.o+'.firstpass.unfiltered.'+suffix]
@@ -372,7 +372,8 @@ elif mode == 'quantify':
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='specify a samtools executable path if not in $PATH if --quality is also used')
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
-		help='minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are used (1)')
+		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are 
+		used (1)''')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output name (counts_matrix.tsv)')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
@@ -382,7 +383,8 @@ elif mode == 'quantify':
 	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends', \
 		help='specify if reads are generated from a long read method with minimal fragmentation')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir', \
-		help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
+		help='''directory to put temporary files. use "./" to indicate current directory 
+		(default: python tempfile directory)''')
 	args = parser.parse_args()
 
 	try:
@@ -427,7 +429,8 @@ elif mode == 'quantify':
 					sys.stderr.write('Check {} file\n'.format(sample[-1]+'.mm2_Stderr.txt'))
 					sys.exit(1)
 			except:
-				sys.stderr.write('Possible minimap2 error, please check that all file, directory, and executable paths exist\n')
+				sys.stderr.write('''Possible minimap2 error, please check that all file, directory, 
+					and executable paths exist\n''')
 				sys.exit(1)
 			sys.stderr.flush()
 
@@ -452,8 +455,9 @@ elif mode == 'quantify':
 				line = line.rstrip().split('\t')
 				iso, numreads = line[0], line[1]
 				if iso not in countData: countData[iso] = np.zeros(len(samData))
+				print(iso, numreads)
 				countData[iso][num] = numreads
-			subprocess.call(['rm', samOut+'.counts.txt'])
+			# subprocess.call(['rm', samOut+'.counts.txt'])
 		else:
 			subprocess.call([args.salmon, 'quant', '-t', args.i, '-o', samOut[:-4]+'.salmon', \
 				'-p', args.t, '-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))
@@ -469,7 +473,7 @@ elif mode == 'quantify':
 					countData[iso][num] = numreads
 			subprocess.call(['rm', 'salmon_stderr.txt'])
 			subprocess.call(['rm', '-rf', samOut[:-4]+'.salmon'])
-		subprocess.call(['rm', samOut])
+		# subprocess.call(['rm', samOut])
 		sys.stderr.flush()
 
 	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o))
@@ -479,8 +483,8 @@ elif mode == 'quantify':
 
 	features = sorted(list(countData.keys()))
 	for f in features:
-
 		countMatrix.write("%s\t%s\n" % (f,"\t".join(str(x) for x in countData[f])))
+
 	countMatrix.close()
 	sys.stderr.flush()
 	sys.stderr.write("\n")
@@ -510,7 +514,8 @@ elif mode == 'diffExp':
 	runDE      = scriptsBin + "deFLAIR.py"
 
 
-	subprocess.call([sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads', str(args.t), '--outDir', \
+	subprocess.call([sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads', \
+		str(args.t), '--outDir',
 		args.o, '--matrix', args.q])
 
 
@@ -524,10 +529,24 @@ elif mode == 'diffSplice':
 		type=str, help='isoforms in bed or psl format')
 	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
 		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
-	parser.add_argument('-o', '--output', action='store', dest='o', default= 'flair.diffsplice', \
-		type=str, required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
-	# required.add_argument('-t', '--threads', action='store', dest='t', \
-	# 	type=int, required=False, default=4, help='Number of threads for parallel DRIM-Seq.')
+	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.diffsplice', type=str, \
+		required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
+	# parser.add_argument('--test', action='store_true', dest='test', \
+	# 	required=False, default=False, help='Run DRIM-Seq statistical testing')
+	# parser.add_argument('-t', '--threads', action='store', dest='t', \
+	# 	type=int, required=False, default=1, help='Number of threads DRIM-Seq (1)')
+	# parser.add_argument('--drim1', action='store', dest='drim1', type=int, required=False, default=4, \
+	# 	help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion 
+	# 	for DRIM-Seq testing; events with too few samples are filtered out and not tested (4)''')
+	# parser.add_argument('--drim2', action='store', dest='drim2', type=int, required=False, default=2, \
+	# 	help='''The minimum number of samples expressing the inclusion of an AS event; 
+	# 	 events with too few samples are filtered out and not tested (2)''')
+	# parser.add_argument('--drim3', action='store', dest='drim3', type=int, required=False, default=25, \
+	# 	help='''The minimum number of reads covering an AS event inclusion/exclusion for DRIM-Seq testing,
+	# 	 events with too few samples are filtered out and not tested (4)''')
+	# parser.add_argument('--drim3', action='store', dest='drim3', type=int, required=False, default=15, \
+	# 	help='''The minimum number of reads covering an AS event inclusion for DRIM-Seq testing,
+	# 	 events with too few samples are filtered out and not tested (15)''')
 	args = parser.parse_args()
 
 	if args.i[-3:].lower() == 'psl':
@@ -538,3 +557,6 @@ elif mode == 'diffSplice':
 	subprocess.call([sys.executable, path+'bin/es_as.py', args.i], stdout=open(args.o+'.es.events.tsv','w'))
 	subprocess.call([sys.executable, path+'bin/es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'], \
 		stdout=open(args.o+'.es.events.quant.tsv','w'))
+
+
+

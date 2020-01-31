@@ -49,7 +49,7 @@ python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]
 run with `--help` for a description of optional arguments. Outputs (1) `sam` of raw aligned reads and (2) smoothed `bed12` file of aligned reads to be supplied to flair-correct.
 
 ### <a name="correct"></a>flair correct
-Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Based on common user issues we have encountered, for flair-correct to run properly, please ensure/note that (1) the genome annotation and genome sequences are compatible, (2) `gtf` is preferred over `gff` for annotation and annotations that do not split single exons into multiple entries are ideal, (3) Bedtools is in your $PATH, and (4) kerneltree is properly installed (you may need to install Cython first). You may also want to refer to the [installation requirements](#requirements) or using the [conda environment](#condaenv) for flair.
+Corrects misaligned splice sites using genome annotations and/or short-read splice junctions. Based on common user issues we have encountered, for flair-correct to run properly, please ensure/note that (1) the genome annotation and genome sequences are compatible, (2) `gtf` is preferred over `gff` for annotation and annotations that do not split single exons into multiple entries are ideal, (3) Bedtools is in your $PATH, and (4) kerneltree is properly installed (you may need to install Cython first). You may also want to refer to the [installation requirements](#requirements) and/or use the [conda environment](#condaenv) for flair.
 
 **Usage:**
 ```sh
@@ -65,7 +65,7 @@ To use short-read splice sites to aid with correction, one option is `bin/juncti
 ```sh
 python junctions_from_sam.py -s <shortreads.sam>|<shortreads.bam> -n outname
 ```
-the file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file.
+The file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file. If you wanted to do the filter out junctions with fewer than 3 short reads, you could use `awk '{ if ($5 >= 3) { print } }' outname.sj_junctions.bed > outname.filtered.bed`.
 
 Alternatively, the `-j` argument for flair-correct can also be generated using STAR. STAR 2-pass alignment of short reads produces a compatible splice junction file (`SJ.out.tab`). We recommend filtering out junctions with few uniquely mapping reads (column 7).
 
