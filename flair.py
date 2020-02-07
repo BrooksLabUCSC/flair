@@ -494,16 +494,16 @@ elif mode == 'quantify':
 
 elif mode == 'diffExp':
 	parser = argparse.ArgumentParser(description='flair-diffExp parse options', \
-		usage='python flair.py diffExp -q count_matrix.tsv --out_dir out_dir [options]')
+		usage='python flair.py diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
 	parser.add_argument('diffExp')
 	required = parser.add_argument_group('required named arguments')
 
-	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
+	required.add_argument('-q', '--counts_matrix', action='store', dest='q', \
 		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
 	required.add_argument('-o', '--out_dir', action='store', dest='o', \
 		type=str, required=True, help='Output directory for tables and plots.')
 	parser.add_argument('-t', '--threads', action='store', dest='t', \
-		type=int, required=False, default=4, help='Number of threads for parallel DRIM-Seq.')
+		type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq.')
 	parser.add_argument('-e', '--exp_thresh', action='store', dest='e', type=int, required=False, \
 		default=10, help='Read count expression threshold. Isoforms in which \
 		both conditions contain fewer than E reads are filtered out (Default E=10)')
@@ -521,32 +521,40 @@ elif mode == 'diffExp':
 
 elif mode == 'diffSplice':
 	parser = argparse.ArgumentParser(description='flair-diffSplice parse options', \
-		usage='python flair.py diffSplice -i isoforms.bed|isoforms.psl -q count_matrix.tsv [options]')
+		usage='python flair.py diffSplice -i isoforms.bed|isoforms.psl -q counts_matrix.tsv [options]')
 	parser.add_argument('diffExp')
 	required = parser.add_argument_group('required named arguments')
 
 	required.add_argument('-i', '--isoforms', action='store', dest='i', required=True, \
 		type=str, help='isoforms in bed or psl format')
-	required.add_argument('-q', '--count_matrix', action='store', dest='q', \
-		type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
+	required.add_argument('-q', '--counts_matrix', action='store', dest='q', \
+		type=str, required=True, help='tab-delimited isoform count matrix from flair quantify module')
 	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.diffsplice', type=str, \
 		required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
-	# parser.add_argument('--test', action='store_true', dest='test', \
-	# 	required=False, default=False, help='Run DRIM-Seq statistical testing')
-	# parser.add_argument('-t', '--threads', action='store', dest='t', \
-	# 	type=int, required=False, default=1, help='Number of threads DRIM-Seq (1)')
-	# parser.add_argument('--drim1', action='store', dest='drim1', type=int, required=False, default=4, \
-	# 	help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion 
-	# 	for DRIM-Seq testing; events with too few samples are filtered out and not tested (4)''')
-	# parser.add_argument('--drim2', action='store', dest='drim2', type=int, required=False, default=2, \
-	# 	help='''The minimum number of samples expressing the inclusion of an AS event; 
-	# 	 events with too few samples are filtered out and not tested (2)''')
-	# parser.add_argument('--drim3', action='store', dest='drim3', type=int, required=False, default=25, \
-	# 	help='''The minimum number of reads covering an AS event inclusion/exclusion for DRIM-Seq testing,
-	# 	 events with too few samples are filtered out and not tested (4)''')
-	# parser.add_argument('--drim3', action='store', dest='drim3', type=int, required=False, default=15, \
-	# 	help='''The minimum number of reads covering an AS event inclusion for DRIM-Seq testing,
-	# 	 events with too few samples are filtered out and not tested (15)''')
+	parser.add_argument('--test', action='store_true', dest='test', \
+		required=False, default=False, help='Run DRIMSeq statistical testing')
+	parser.add_argument('-t', '--threads', action='store', dest='t', \
+		type=int, required=False, default=1, help='Number of threads DRIMSeq (1)')
+	parser.add_argument('--drim1', action='store', dest='drim1', type=int, required=False, default=6, \
+		help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion 
+		for DRIMSeq testing; events with too few samples are filtered out and not tested (6)''')
+	parser.add_argument('--drim2', action='store', dest='drim2', type=int, required=False, default=3, \
+		help='''The minimum number of samples expressing the inclusion of an AS event; 
+		 events with too few samples are filtered out and not tested (3)''')
+	parser.add_argument('--drim3', action='store', dest='drim3', type=int, required=False, default=15, \
+		help='''The minimum number of reads covering an AS event inclusion/exclusion for DRIMSeq testing,
+		 events with too few samples are filtered out and not tested (15)''')
+	parser.add_argument('--drim4', action='store', dest='drim4', type=int, required=False, default=5, \
+		help='''The minimum number of reads covering an AS event inclusion for DRIMSeq testing,
+		 events with too few samples are filtered out and not tested (5)''')
+	parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False, \
+		help='''If specified with --test, DRIMSeq will perform batch correction''')
+	parser.add_argument('--conditionA', action='store', dest='conditionA', required=False, default='', \
+		help='''Specify one condition corresponding to samples in the counts_matrix to be compared against
+		condition2; by default, the first two unique conditions are used''')
+	parser.add_argument('--conditionB', action='store', dest='conditionB', required=False, default='', \
+		help='''Specify one condition corresponding to samples in the counts_matrix to be compared against
+		condition1''')
 	args = parser.parse_args()
 
 	if args.i[-3:].lower() == 'psl':
@@ -557,6 +565,24 @@ elif mode == 'diffSplice':
 	subprocess.call([sys.executable, path+'bin/es_as.py', args.i], stdout=open(args.o+'.es.events.tsv','w'))
 	subprocess.call([sys.executable, path+'bin/es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'], \
 		stdout=open(args.o+'.es.events.quant.tsv','w'))
+	subprocess.call(['rm', args.o+'.es.events.tsv'])
 
+
+	if args.test or args.drim1 or args.drim2 or args.drim4 or args.drim4:
+		sys.stderr.write('DRIMSeq testing for each AS event type\n')
+		drim1, drim2, drim3, drim4 = [str(x) for x in [args.drim1, args.drim2, args.drim3, args.drim4]]
+		ds_command = [sys.executable, path+'bin/runDS.py', '--threads', str(args.t), \
+			'--drim1', drim1, '--drim2', drim2, '--drim3', drim3, '--drim4', drim4]
+		if args.batch:
+			ds_command += ['--batch']
+		if args.conditionA:
+			if not args.conditionB:
+				sys.stderr.write('Both conditionA and conditionB must be specified, or both left unspecified\n')
+				sys.exit(1)
+			ds_command += ['--conditionA', args.conditionA, '--conditionB',  args.conditionB]
+		subprocess.call(ds_command + ['--matrix', args.o+'.es.events.quant.tsv', '--prefix', args.o+'_es'])
+		subprocess.call(ds_command + ['--matrix', args.o+'.alt5.events.quant.tsv', '--prefix', args.o+'_alt5'])
+		subprocess.call(ds_command + ['--matrix', args.o+'.alt3.events.quant.tsv', '--prefix', args.o+'_alt3'])
+		subprocess.call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'_ir'])
 
 
