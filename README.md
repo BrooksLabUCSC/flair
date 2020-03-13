@@ -107,13 +107,14 @@ sample6	conditionB	batch2	./sample6_reads.fq
 (2) `isoforms.fasta` contains FLAIR collapsed isoforms produced by the [`flair-collapse`](#collapse) module.
 
 **Outputs:**</br>
-(1) `counts_matrix.tsv` which is a tab-delimited file containing isoform counts for each sample. For example:
+(1) `counts_matrix.tsv` which is a tab-delimited file containing isoform counts for each sample. In the output, the values in the manifest file are concatenated with underscores so please do not use underscores in the manifest file. For example:
 
 ```tsv
 ids	samp1_conditionA_batch1	samp2_conditionA_batch1 samp3_conditionA_batch2	...
 0042c9e7-b993_ENSG00000131368.3	237.0	156.0	165.0	150.0	...
 0042d216-6b08_ENSG00000101940.13	32.0	14.0 	25.0	...
 ```
+
 
 ### <a name="diffExp"></a>flair diffExp
 Performs differential isoform expression, differential gene expression, and differential isoform usage analyses between multiple samples with 3 or more replicates. For differential isoform usage analysis between samples without replicates, please use the [diff_iso_usage.py](#diffisoscript) standalone script. This module requires additional python modules and R packages which are described below: 

@@ -16,7 +16,6 @@ from __future__ import print_function
 # Hot Imports & Global Variable
 ########################################################################
 
-
 import os, sys
 import pandas as pd
 import numpy as np
@@ -77,14 +76,12 @@ class CommandLine(object) :
                                     help='Specify file prefix.')
         self.parser.add_argument("--formula"    , action = 'store', required=True, 
                                     help='Formula design matrix.')
-
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
             self.args = vars(self.parser.parse_args(inOpts))
 
 # main
-
 
 
 def main():

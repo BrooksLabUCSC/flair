@@ -144,7 +144,8 @@ def main():
 
     # subset the counts_matrix for only the samples with condA/B
     quantDF  = quantDF[['feature_id', 'coordinate'] + list(formulaDF['sample_id']) + ['isoform_ids']]
-    quantDF.columns = ['feature_id', 'gene_id'] + list(quantDF.columns[2:])  # rename coordinate column name to gene_id
+    # rename coordinate column name to gene_id
+    quantDF.columns = ['feature_id', 'gene_id'] + list(quantDF.columns[2:])
 
     # add a pseudocount of 1 to each event in each sample
     for col in list(formulaDF['sample_id']):
@@ -172,18 +173,17 @@ def main():
         R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
     else: 
         R('design_full <- model.matrix(~ condition, data = samples(filtered))')
+
     R('set.seed(123)')
 
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
     R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
-
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
 
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
-
     # pltFName = '%s_%s_v_%s_pval_histogram.pdf' % (prefix,conditionA,conditionB)
     # R.assign('fname', pltFName)
     # R('pdf(file=fname)')

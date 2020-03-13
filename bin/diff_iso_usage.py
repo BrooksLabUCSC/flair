@@ -56,8 +56,7 @@ for line in counts_matrix:
 	iso, gene = split_iso_gene(iso_gene)
 	if gene not in counts:
 		counts[gene] = {}
-	if count1 != 0 and count2 != 0:
-		counts[gene][iso] = [count1, count2] 
+	counts[gene][iso] = [count1, count2] 
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
@@ -68,6 +67,8 @@ with open(outfilename, 'wt') as outfile:
 			thesecounts = counts[gene][iso]
 			othercounts = [0, 0]
 			ctable = [thesecounts, othercounts]
+			if thesecounts[0] == 0 or thesecounts[1] == 0:  # do not test this isoform
+				continue
 			for iso_ in counts[gene]:  # count up for all other isoforms of this gene
 				if iso_ == iso:
 					continue

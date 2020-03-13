@@ -3,9 +3,9 @@ from __future__ import print_function
 ########################################################################
 # File: runDU.py
 #  executable: runDU.py
-# Purpose: 
+# Purpose:
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 12/05/2018 Created
 #
@@ -38,17 +38,17 @@ warnings.filterwarnings("ignore", category=RRuntimeWarning)
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
-    
+    myCommandLine.args['option']
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -56,26 +56,26 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' runDU.py - a rpy2 convenience tool to run DRIMseq.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null',
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s ')
         # Add args
-        self.parser.add_argument("--group1"    , action = 'store', required=True, 
+        self.parser.add_argument("--group1"    , action = 'store', required=True,
                                     help='Sample group 1.')
-        self.parser.add_argument("--group2"    , action = 'store', required=True, 
+        self.parser.add_argument("--group2"    , action = 'store', required=True,
                                     help='Sample group 2.')
         self.parser.add_argument("--batch"     , action = 'store', required=False, default=None,
                                     help='Secondary sample attribute (used in design matrix).')
         self.parser.add_argument("--matrix"     , action = 'store', required=True,
                                     help='Input count files.')
-        self.parser.add_argument("--outDir"    , action = 'store', required=True, 
+        self.parser.add_argument("--outDir"    , action = 'store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--prefix"    , action = 'store', required=True, 
+        self.parser.add_argument("--prefix"    , action = 'store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument("--formula"    , action = 'store', required=True, 
+        self.parser.add_argument("--formula"    , action = 'store', required=True,
                                     help='Formula design matrix.')
-        self.parser.add_argument("--threads"    , type=int, action = 'store',default=4, required=False, 
+        self.parser.add_argument("--threads"    , type=int, action = 'store',default=4, required=False,
                                     help='Number of threads for running DRIM-Seq. BBPARAM')
 
 
@@ -97,7 +97,7 @@ def main():
     outdir     = myCommandLine.args['outDir']
     group1     = myCommandLine.args['group1']
     group2     = myCommandLine.args['group2']
-    batch      = myCommandLine.args['batch']  
+    batch      = myCommandLine.args['batch']
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
@@ -131,17 +131,18 @@ def main():
     R.assign('samples',samples)
     R.assign('numThread', threads)
     R.assign("cooef", "condition%s" % group2)
+
     R('data <- dmDSdata(counts = counts, samples = samples)')
     R('filtered <- dmFilter(data, min_samps_gene_expr = 6, min_samps_feature_expr = 3, min_gene_expr = 15, min_feature_expr = 5)')
-    if "batch" in list(formulaDF): 
+    if "batch" in list(formulaDF):
         R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
-    else: 
+    else:
         R('design_full <- model.matrix(~ condition, data = samples(filtered))')
     R('set.seed(123)')
 
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
-    
+
     R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
 
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
@@ -149,7 +150,7 @@ def main():
 
     data_folder = os.path.join(os.getcwd(), outdir)
     resOut = os.path.join(data_folder, "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix,group1,group2))
-    
+
 
     res.to_csv(resOut, sep='\t')
     sys.exit(1)
@@ -173,8 +174,8 @@ def main():
     # plotMA    = robjects.r['plotData']
     # plotPrec  = robjects.r['plotPrecision']
     # plotQQ    = robjects.r['qq']
-    
-    # # arrange 
+
+    # # arrange
     # pltFName = './%s/%s_%s_vs_%s_%s_%s_cutoff_plots.pdf' % (outdir,prefix,group1,group2,str(batch),sFilter)
     # R.assign('fname',pltFName)
     # R('pdf(file=fname)')

@@ -5,7 +5,7 @@ from __future__ import print_function
 #  executable: diaFLAIR.py
 # Purpose: wrapper for Differential Isoform Analyses
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 01/17/2019 Created
 #
@@ -20,8 +20,8 @@ from __future__ import print_function
 import os, sys
 import pandas as pd
 import numpy as np
-import subprocess 
-import codecs 
+import subprocess
+import codecs
 import errno
 
 scriptPath = os.path.realpath(__file__)
@@ -38,13 +38,13 @@ predictProd = path + "/" + "predictProductivity"
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
-    
+    myCommandLine.args['option']
+
     methods:
 
     '''
@@ -56,20 +56,22 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' deFLAIR.py - a rpy2 convenience tool to run DESeq2.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null',
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s --manifest manifest.txt --workingdir dir_name --outdir out_dir --filter N')
         # Add args
-        self.parser.add_argument("--outDir"    , action = 'store', required=True, 
+        self.parser.add_argument("--outDir"    , action = 'store', required=True,
                                     help='Write to specified output directory.')
         self.parser.add_argument("--filter"    , action = 'store', required=False, default = 10, type=int,
                                     help='Isoforms with less than specified read count for either Condition A or B are filtered (Default: 10 reads)')
-        self.parser.add_argument("--matrix"    , action = 'store', required=True, 
+        self.parser.add_argument("--matrix"    , action = 'store', required=True,
                                     help='Count matrix from FLAIR quantify.')
-        self.parser.add_argument("--threads"    , type=int, action = 'store', required=False, default=4, 
+        self.parser.add_argument("--threads"    , type=int, action = 'store', required=False, default=4,
                                     help='Number of threads for running DRIM-Seq.')
-
+        self.parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of', \
+            required=False, help='''Specify this argument to force overwriting of
+            an existing output directory for tables and plots.''')
 
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
@@ -90,7 +92,7 @@ class Isoform(object) :
 
     methods:
 
-    ''' 
+    '''
 
     def __init__(self, tid=None, gid=None):
         self.name = tid
@@ -104,7 +106,7 @@ class Isoform(object) :
 
         self.deseq2FC = float()
         self.deltaIPU = float()
-        
+
 
     def computeUsage(self):
 
@@ -125,7 +127,7 @@ class Gene(object) :
 
     methods:
 
-    ''' 
+    '''
 
     def __init__(self, gid=None):
         self.transcripts = list()
@@ -134,7 +136,7 @@ class Gene(object) :
         self.exp  = None
 
         self.deseq2AdjP  = float()
-      
+
         self.deseq2FC = float()
 
 ########################################################################
@@ -175,7 +177,7 @@ def separateTables(f, thresh, samples, groups):
                 genes[gene] = Gene(gene)
                 genes[gene].exp = np.zeros(len(counts))
 
-            geneObj = genes[gene]            
+            geneObj = genes[gene]
             geneObj.exp += counts
 
             if iso not in isoforms:
@@ -245,6 +247,7 @@ def main():
     quantTable = myCommandLine.args['matrix']
     sFilter    = myCommandLine.args['filter']
     threads    = myCommandLine.args['threads']
+    force_dir  = myCommandLine.args['of']
 
     # Get sample data info
     with open(quantTable) as l:
@@ -261,7 +264,7 @@ def main():
     if len(list(groupCounts.keys()))<2:
         print("** Error. diffExp requires >1 condition group. Maybe group name formatting is incorrect. Exiting." , file=sys.stderr)
         sys.exit(1)
-    elif min(list(groupCounts.values()))<3: 
+    elif min(list(groupCounts.values()))<3:
         print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates." , file=sys.stderr)
         sys.exit(1)
     elif set(groups).intersection(set(batches)):
@@ -273,7 +276,11 @@ def main():
 
 
     # Create output directory.
-    if not os.path.exists(outDir):
+    if force_dir:
+        if not os.path.exists(outDir):
+            os.makedirs(outDir)
+        pass
+    elif not os.path.exists(outDir):
         try:
             os.makedirs(outDir, 0o700)
         except OSError as e:
@@ -314,16 +321,16 @@ def main():
     formulaDF.to_csv( formulaMatrixFile, sep='\t')
 
     with open("%s/dge_stderr.txt" % outDir,"w") as out1:
-        
-        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
+
+        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
                             "--prefix", "dge", "--formula", formulaMatrixFile], stderr=out1)
 
-        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1], 
+        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
                             "--prefix", "die", "--formula", formulaMatrixFile], stderr=out1)
 
-        subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1], 
+        subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
                              "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
 

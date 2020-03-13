@@ -51,7 +51,7 @@ class CommandLine(object) :
                                              epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
-                                             usage = '%(prog)s -i isoforms.bed -f isoforms.fa -g annotations.gtf')
+                                             usage = '%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf')
         # Add args
         self.parser.add_argument('-i', "--input_isoforms", action = 'store', required=True, help='Input collapsed isoforms in psl or bed12 format.')
         self.parser.add_argument('-g', "--gtf", action = 'store', required=True, help='Gencode annotation file.')
@@ -255,7 +255,6 @@ def predict(bed, starts, isoDict):
         isoDict[read].strand = intersection[5]
         isoDict[read].chrom = intersection[0]
         isoDict[read].exons.add(exonCoord)
-
         if overlap != "3":
             continue
         else:
@@ -333,18 +332,19 @@ def main():
         elif status:
             sys.stderr.write('bin/psl_to_bed.py did not exit with success status\n')
             sys.exit(1)
-        bed = bed+'.bed'
+        else:
+            bed = bed+'.bed'
 
     starts      = getStarts(gtf)
     isoformObjs = getSeqs(bed, genome)
     isoformObjs = predict(bed, starts, isoformObjs)
+
 
     beaut = {"PRO":"103,169,207", "PTC":"239,138,98", "NST":"0,0,0","NGO":"0,0,0"}
 
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
-
             isoObj = isoformObjs[bedCols[3]]
             
             if defineORF == 'longest':
@@ -367,7 +367,7 @@ def main():
                 bedCols[7],bedCols[6] = str(start),str(end)
             print("\t".join(bedCols))
     if is_psl:
-        subprocess.call(['rm', bed+'.bed'])
+        subprocess.call(['rm', bed])
 
 if __name__ == "__main__":
     main()

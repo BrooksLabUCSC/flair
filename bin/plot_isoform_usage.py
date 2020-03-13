@@ -1,8 +1,10 @@
 import sys
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mplpatches
 import seaborn as sns
+matplotlib.use("Agg")
 
 try:
     psl = open(sys.argv[1])
