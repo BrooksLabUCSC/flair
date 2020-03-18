@@ -217,8 +217,8 @@ elif mode == 'collapse':
 		Intermediate files include: promoter-supported reads file,
 		read assignments to firstpass isoforms (default: not specified)''')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map', \
-		help='''specify this argument if a txt file of which isoform each read is assigned to should be
-		generated. note: only works if the quantification method is not using salmon (default: not specified)''')
+		help='''specify this argument to generate a txt file of which reads are assigned to each isoform. 
+		note: only works if the quantification method is not using salmon (default: not specified)''')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir', \
@@ -335,7 +335,8 @@ elif mode == 'collapse':
 			count_cmd += ['--trust_ends']
 		if args.generate_map:
 			count_cmd += ['--generate_map', args.o+'.isoform.read.map.txt']
-		subprocess.call(count_cmd)
+		if subprocess.call(count_cmd):
+			sys.exit(1)
 		count_file = alignout+'.q.counts'
 		align_files += [alignout+'.q.sam']
 

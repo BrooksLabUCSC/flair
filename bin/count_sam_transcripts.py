@@ -79,7 +79,7 @@ def count_transcripts_for_reads(read_names):
 						counts[t] = 0
 					counts[t] += 1
 					if args.generate_map:
-						if t not in counts:
+						if t not in isoform_read:
 							isoform_read[t] = []
 						isoform_read[t] += [r]
 					break
@@ -96,7 +96,7 @@ def count_transcripts_for_reads(read_names):
 				counts[t] = 0
 			counts[t] += 1
 			if args.generate_map:
-				if t not in counts:
+				if t not in isoform_read:
 					isoform_read[t] = []
 				isoform_read[t] += [r]
 			continue
