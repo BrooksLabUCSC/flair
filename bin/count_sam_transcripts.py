@@ -14,7 +14,7 @@ required.add_argument('-o', '--output', default=0.25, type=str, required=True, a
 parser.add_argument('-i', '--isoforms', type=str, action='store', dest='isoforms', default='', \
 	help='specify isoforms.bed or .psl file if --stringent is specified')
 parser.add_argument('-w', '--window', type=int, action='store', dest='w', default=10, \
-	help='number of bases for determining which end is best match')
+	help='number of bases for determining which end is best match (10)')
 parser.add_argument('--stringent', default='', action='store_true', dest='stringent', \
 	help='only count if read alignment passes stringent criteria')
 parser.add_argument('-t', '--threads', default=4, type=int, action='store', dest='t', \
@@ -71,10 +71,11 @@ def count_transcripts_for_reads(read_names):
 	isoform_read = {}  # isoform and their supporting read ids 
 	for r in read_names:
 		transcripts = reads[r]  # all potential transcripts this read is assigned to
+
 		if not args.stringent and len(set(transcripts)) == 1:  # only one possible transcript
 			for t in transcripts:
 				quality = reads[r][t].mapq
-				if quality != 0:
+				if quality >= args.quality:  # if transcript passes mapq threshold
 					if t not in counts:
 						counts[t] = 0
 					counts[t] += 1
@@ -85,12 +86,11 @@ def count_transcripts_for_reads(read_names):
 					break
 			continue
 
+		# based on sorted mapq, if the read aligns much better to one transcript than the other candidates
 		ordered_transcripts = sorted(transcripts.items(), key=lambda x: transcripts[x[0]].mapq)
-
-		# based on mapq, if the read aligns better to one transcript than the other candidates
 		if (not args.stringent and ordered_transcripts[-1][1].mapq > ordered_transcripts[-2][1].mapq \
 			and ordered_transcripts[-1][1].mapq > 7) or \
-			(not args.trust_ends and ordered_transcripts[-1][1].mapq > 0):
+			(not args.stringent and not args.trust_ends and ordered_transcripts[-1][1].mapq >= args.quality):
 			t = ordered_transcripts[-1][0]
 			if t not in counts:
 				counts[t] = 0
@@ -101,21 +101,20 @@ def count_transcripts_for_reads(read_names):
 				isoform_read[t] += [r]
 			continue
 
-		if not args.trust_ends:  # ignore multiple mappers
+		if not args.trust_ends and not args.stringent:  # multiple mapper, can't assign
 			continue
 
+		# read in cigar info for stringent/trust_ends modes into transcript_coverage dict
 		# {transcript: (sum_matches, unmapped_left, unmapped_right, softclip_left, softclip_right)}
 		transcript_coverage = {}
 		for t, t_info in ordered_transcripts:
 
 			cigar, pos = t_info.cigar, t_info.startpos
 
-
 			relstart = 0
 			blocksizes, relblockstarts = [], []
 
 			matches = re.findall('([0-9]+)([A-Z])', cigar)
-
 			num, op = int(matches[0][0]), matches[0][1]
 			if op == 'H':  # check for H and then S at beginning of cigar 
 				matches = matches[1:]
@@ -151,9 +150,8 @@ def count_transcripts_for_reads(read_names):
 			blockstarts = [pos + s for s in relblockstarts]
 			read_left = blockstarts[0]
 			read_right = blockstarts[-1] + blocksizes[-1]
-
 			if args.stringent and is_stringent(t, blocksizes, blockstarts) \
-				or not args.stringent:
+				or args.trust_ends:
 				transcript_coverage[t] = (sum(blocksizes), read_left, \
 					transcript_lengths[t] - read_right, softclip_left, softclip_right)
 
@@ -176,7 +174,7 @@ def count_transcripts_for_reads(read_names):
 		counts[best_t] += 1
 
 		if args.generate_map:
-			if best_t not in counts:
+			if best_t not in isoform_read:
 				isoform_read[best_t] = []
 			isoform_read[best_t] += [r]
 
@@ -208,7 +206,7 @@ for line in sam:
 	if line.startswith('@'):
 		if line.startswith('@SQ'):
 			name = line[line.find('SN:') + 3:].split()[0]
-			length = int(line[line.find('LN:') + 3:].split()[0])
+			length = float(line[line.find('LN:') + 3:].split()[0])
 			transcript_lengths[name] = length
 		continue
 	line = line.rstrip().split('\t')

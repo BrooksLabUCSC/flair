@@ -114,7 +114,7 @@ if mode == 'align':
 
 elif mode == 'correct':
 	parser = argparse.ArgumentParser(description='flair-correct parse options', \
-		usage='python flair.py correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
+		usage='python flair.py correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('at least one of the following arguments is required')
