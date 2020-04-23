@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from __future__ import print_function
 
 ########################################################################
@@ -189,7 +190,7 @@ def main():
     # R('pdf(file=fname)')
     # R('plotPValues(res)')  # histogram of p-value distribution
     # R('dev.off()')
-    resOut = "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix, conditionA, conditionB)
+    resOut = "%s.%s_v_%s_drimseq2_results.tsv"  % (prefix, conditionA, conditionB)
     res.to_csv(resOut, sep='\t')
 
 if __name__ == "__main__":

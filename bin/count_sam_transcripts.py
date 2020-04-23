@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys, argparse, re, csv, math, os
 from multiprocessing import Pool
 from collections import Counter

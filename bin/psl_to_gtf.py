@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys, csv
 
 try:
@@ -5,7 +6,7 @@ try:
 	isbed = sys.argv[1][-3:].lower() != 'psl'
 	force = len(sys.argv) > 2 and 'force' in sys.argv[2]
 except:
-	sys.stderr.write('usage: script.py pslfile > outfile.gtf \n')
+	sys.stderr.write('usage: script.py file.psl|file.bed > outfile.gtf \n')
 	sys.stderr.write('Entry name must contain underscore-delimited transcriptid and geneid like so:\
 	 ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n')
 	sys.exit(1)

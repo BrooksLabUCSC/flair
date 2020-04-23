@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys, csv, argparse, math, os
 from multiprocessing import Pool
 

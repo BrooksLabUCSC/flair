@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys, csv, os
 import scipy.stats as sps
 

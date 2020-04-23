@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import sys, os, re, argparse, textwrap, subprocess, shutil, random
 sys.path.append('/pod/home/jeltje/lib')

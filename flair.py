@@ -433,6 +433,7 @@ elif mode == 'quantify':
 				sys.stderr.write('''Possible minimap2 error, please check that all file, directory,
 					and executable paths exist\n''')
 				sys.exit(1)
+			subprocess.call(['rm', sample[-1]+'.mm2_Stderr.txt'])
 			sys.stderr.flush()
 
 			if args.quality != '0' and not args.trust_ends and not args.salmon:
@@ -472,9 +473,9 @@ elif mode == 'quantify':
 				else:
 					countData[iso][num] = numreads
 			subprocess.call(['rm', 'salmon_stderr.txt'])
-			subprocess.call(['rm', '-rf', samOut[:-4]+'.salmon'])
-		# subprocess.call(['rm', samOut])
+			subprocess.call(['rm', '-r', samOut[:-4]+'.salmon/'])
 		sys.stderr.flush()
+		subprocess.call(['rm', samOut])
 
 	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o))
 	countMatrix = open(args.o,'w')
@@ -584,7 +585,10 @@ elif mode == 'diffSplice':
 				sys.stderr.write('Both conditionA and conditionB must be specified, or both left unspecified\n')
 				sys.exit(1)
 			ds_command += ['--conditionA', args.conditionA, '--conditionB',  args.conditionB]
-		subprocess.call(ds_command + ['--matrix', args.o+'.es.events.quant.tsv', '--prefix', args.o+'_es'])
-		subprocess.call(ds_command + ['--matrix', args.o+'.alt5.events.quant.tsv', '--prefix', args.o+'_alt5'])
-		subprocess.call(ds_command + ['--matrix', args.o+'.alt3.events.quant.tsv', '--prefix', args.o+'_alt3'])
-		subprocess.call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'_ir'])
+
+		with open(args.o+'.stderr.txt', 'w') as ds_stderr:
+			subprocess.call(ds_command + ['--matrix', args.o+'.es.events.quant.tsv', '--prefix', args.o+'.es'], stderr=ds_stderr)
+			subprocess.call(ds_command + ['--matrix', args.o+'.alt5.events.quant.tsv', '--prefix', args.o+'.alt5'], stderr=ds_stderr)
+			subprocess.call(ds_command + ['--matrix', args.o+'.alt3.events.quant.tsv', '--prefix', args.o+'.alt3'], stderr=ds_stderr)
+			subprocess.call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'.ir'], stderr=ds_stderr)
+

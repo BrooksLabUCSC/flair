@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from __future__ import print_function
 
 ########################################################################
@@ -219,8 +220,8 @@ def separateTables(f, thresh, samples, groups):
     isoDF = pd.DataFrame(filteredIsoVals,columns=samples, index=filteredIsoIDs)
 
 
-    geneDF.to_csv("filtered_gene_counts_ds2.tsv", sep="\t")
-    isoDF.to_csv("filtered_iso_counts_ds2.tsv", sep="\t")
+    geneDF.to_csv(outDir + "/filtered_gene_counts_ds2.tsv", sep="\t")
+    isoDF.to_csv(outDir + "/filtered_iso_counts_ds2.tsv", sep="\t")
 
     # also make table for drimm-seq
     isoformIDs = np.asarray([[y.parent.name,x] for x,y in isoforms.items()])
@@ -228,7 +229,7 @@ def separateTables(f, thresh, samples, groups):
     #isoformIDs = isoformIDs.reshape(len(isoformIDs),1)
     allIso = np.hstack((isoformIDs,vals))
     isoDF  = pd.DataFrame(allIso, columns=['gene_id','feature_id']+samples)
-    isoDF.to_csv("filtered_iso_counts_drim.tsv", sep="\t")
+    isoDF.to_csv(outDir + "/filtered_iso_counts_drim.tsv", sep="\t")
 
     return genes, isoforms
 
@@ -313,10 +314,10 @@ def main():
         formulaDF     = formulaDF.set_index('sample_id')
 
 
-    formulaMatrixFile = "formula_matrix.tsv"
-    isoMatrixFile     = "filtered_iso_counts_ds2.tsv"
-    geneMatrixFile    = "filtered_gene_counts_ds2.tsv"
-    drimMatrixFile    = "filtered_iso_counts_drim.tsv"
+    formulaMatrixFile = outDir + "/formula_matrix.tsv"
+    isoMatrixFile     = outDir + "/filtered_iso_counts_ds2.tsv"
+    geneMatrixFile    = outDir + "/filtered_gene_counts_ds2.tsv"
+    drimMatrixFile    = outDir + "/filtered_iso_counts_drim.tsv"
 
     formulaDF.to_csv( formulaMatrixFile, sep='\t')
 
@@ -337,4 +338,11 @@ def main():
 
 
 if __name__ == "__main__":
+    myCommandLine = CommandLine()
+
+    outDir     = myCommandLine.args['outDir']
+    quantTable = myCommandLine.args['matrix']
+    sFilter    = myCommandLine.args['filter']
+    threads    = myCommandLine.args['threads']
+    force_dir  = myCommandLine.args['of']
     main()

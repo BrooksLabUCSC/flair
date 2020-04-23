@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys, csv, os
 
 try:
@@ -41,7 +42,6 @@ with open(outfilename, 'wt') as outfile:
 		# once all the exons for a transcript are read, write the psl/bed entry
 		if this_transcript != prev_transcript:
 			if prev_transcript:
-
 				blockcount = len(blockstarts)
 				if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
 					blocksizes = blocksizes[::-1]
@@ -49,7 +49,7 @@ with open(outfilename, 'wt') as outfile:
 
 				tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
 				qsize = sum(blocksizes)  # query (e.g. transcript)
-				qname = this_transcript#+'_'+this_gene
+				qname = prev_transcript#+'_'+this_gene
 				if not isbed:  # psl specific
 					pos = 0
 					qstarts = [pos]
@@ -75,7 +75,7 @@ with open(outfilename, 'wt') as outfile:
 							missing_chroms.add(prev_chrom)
 						writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize, \
 							prev_chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-			
+
 			blockstarts, blocksizes = [], []
 			prev_transcript = this_transcript
 			prev_gene = line[8][line[8].find('gene_id')+9:]
@@ -87,12 +87,17 @@ with open(outfilename, 'wt') as outfile:
 		blocksizes += [end-start]
 
 	# last entry...
-	this_gene = line[8][line[8].find('gene_id')+9:]
-	this_gene = this_gene[:this_gene.find('"')]
+	# this_gene = line[8][line[8].find('gene_id')+9:]
+	# this_gene = this_gene[:this_gene.find('"')]
+	if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
+		blocksizes = blocksizes[::-1]
+		blockstarts = blockstarts[::-1]
+	qsize = sum(blocksizes)  # query (e.g. transcript)
+	tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
 	blocksizes = ','.join([str(b) for b in blocksizes]) + ','
 	qname = this_transcript#+'_'+this_gene
 	if isbed:
-		relblockstarts = [block - start for block in blockstarts]		
+		relblockstarts = [block - tstart for block in blockstarts]		
 		relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
 		writer.writerow([chrom, tstart, tend, qname, 1000, strand, start, end, 0, \
 			blockcount, blocksizes, relblockstarts])

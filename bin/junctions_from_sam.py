@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # preProcess_getASEventReadCounts.py
 # Author: Angela Brooks, Alison Tang (modifications for FLAIR)
 # Program Completion Date:
