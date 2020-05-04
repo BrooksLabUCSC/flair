@@ -15,7 +15,7 @@ elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'diffexp' or sys.argv[1] == '
 elif len(sys.argv) > 1 and (sys.argv[1].lower() == 'diffsplice' or sys.argv[1] == '6'):
 	mode = 'diffSplice'
 elif len(sys.argv) > 1 and sys.argv[1] == '--version':
-	sys.stderr.write('FLAIR v1.4.0\n')
+	sys.stderr.write('FLAIR v1.5.0\n')
 	sys.exit(1)
 else:
 	sys.stderr.write('usage: python flair.py <mode> --help \n')
