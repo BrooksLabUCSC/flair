@@ -130,26 +130,23 @@ def getStarts(gtf):
 
 def split_iso_gene(iso_gene):
     if '_chr' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_chr')]
-        gene = iso_gene[iso_gene.rfind('_chr')+1:]
+        splitchar = '_chr'
     elif '_XM' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_XM')]
-        gene = iso_gene[iso_gene.rfind('_XM')+1:]
+        splitchar = '_XM'
     elif '_XR' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_XR')]
-        gene = iso_gene[iso_gene.rfind('_XR')+1:]
+        splitchar = '_XR'
     elif '_NM' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_NM')]
-        gene = iso_gene[iso_gene.rfind('_NM')+1:]
+        splitchar = '_NM'
     elif '_NR' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_NR')]
-        gene = iso_gene[iso_gene.rfind('_NR')+1:]
+        splitchar = '_NR'
     elif '_R2_' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_R2_')]
-        gene = iso_gene[iso_gene.rfind('_R2_')+1:]
+        splitchar = '_R2_'
+    elif '_NC_' in iso_gene:
+        splitchar = '_NC_'
     else:
-        iso = iso_gene[:iso_gene.rfind('_')]
-        gene = iso_gene[iso_gene.rfind('_')+1:]
+        splitchar = '_'
+    iso = iso_gene[:iso_gene.rfind(splitchar)]
+    gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
 def getSeqs(bed, genome):
