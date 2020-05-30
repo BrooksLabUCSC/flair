@@ -503,7 +503,7 @@ def collapse(genomic_range='', corrected_reads=''):
 				stdout=open(alignout+'q.sam', 'w'), stderr=open(alignout+'q.samtools_stderr', 'w'))
 			align_files += [alignout+'sam']
 		else:
-			subprocess.call(['mv', alignout+'.sam', alignout+'.q.sam'])
+			subprocess.call(['mv', alignout+'sam', alignout+'q.sam'])
 		count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', alignout+'q.sam', \
 			'-o', alignout+'q.counts', '-t', args.t, '--quality', args.quality]
 		if args.stringent:
