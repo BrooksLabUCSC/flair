@@ -25,7 +25,7 @@ FLAIR can be run optionally with short-read data to help increase splice site ac
 
 <img src='https://people.ucsc.edu/~atang14/flair/flair_workflow_compartmentalized.png' alt='flair workflow' width='680'/>
 
-It is recommended to combine all samples together prior to running flair-collapse for isoform assembly by concatenating corrected read `psl` files together. Following the creation of an isoform reference from flair-collapse, consequent steps will assign reads from each sample individually to isoforms of the combined assembly for downstream analyses.
+It is recommended to combine all samples together prior to running flair-collapse for isoform assembly by concatenating corrected read `psl` or `bed` files together. Following the creation of an isoform reference from flair-collapse, consequent steps will assign reads from each sample individually to isoforms of the combined assembly for downstream analyses.
 
 It is also good to note that `bed12` and `PSL` can be converted using [kentUtils](https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils) bedToPsl or pslToBed, or using `bin/bed_to_psl.py` and `bin/psl_to_bed.py`.
 
@@ -66,9 +66,9 @@ To use short-read splice sites to aid with correction, one option is `bin/juncti
 ```sh
 python junctions_from_sam.py -s <shortreads.sam>|<shortreads.bam> -n outname
 ```
-The file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file. For example, if you wanted to do the filter out junctions with fewer than 3 short reads, you could use `awk '{ if ($5 >= 3) { print } }' outname.sj_junctions.bed > outname.filtered.bed`.
+The file that can be supplied to flair-correct with `-j` is in the output file `outname_junctions.bed`. It is recommended that the user remove infrequently used junctions i.e. junctions with few supporting junction reads, which are in the 5th column of the junction bed file. For example, if you wanted to do the filter out junctions with fewer than 3 supporting short reads, you could use `awk '{ if ($5 > 2) { print } }' outname.sj_junctions.bed > outname.filtered.bed`.
 
-Alternatively, the `-j` argument for flair-correct can also be generated using STAR. STAR 2-pass alignment of short reads produces a compatible splice junction file (`SJ.out.tab`). We recommend filtering out junctions with few uniquely mapping reads (column 7).
+Alternatively, the `-j` argument for flair-correct can also be generated using STAR. STAR 2-pass alignment of short reads automatically produces a compatible splice junction file (`SJ.out.tab`). We recommend filtering out junctions with few uniquely mapping reads (column 7).
 
 
 ### <a name="collapse"></a>flair collapse
@@ -82,7 +82,7 @@ python flair.py collapse -g genome.fa -r <reads.fq>|<reads.fa> -q <query.psl>|<q
 ```
 run with `--help` for description of optional arguments.
 
-Outputs the high-confidence isoforms in several formats: (1) `*isoforms.psl` or `.bed`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. If an annotation file is provided, the isoforms ID format will contain the transcript id, underscore, and then the gene id, like so: `EN*T*_EN*G*`. If multiple TSSs/TESs are allowed (toggle with `--max_ends` or `--no_redundant`), then a `-1` or higher will be appended to the end of the isoform name for the isoforms that have identical splice junction chains and differ only by their TSS/TES. For the gene field, the gene that is assigned to the isoform is based on whichever annotated gene has the greatest number of splice junctions shared with the isoform. If there are no genes in the annotation which can be assigned to the isoform, a genomic coordinate is used (e.g. `chr*:100000`.
+Outputs the high-confidence isoforms in several formats: (1) `*isoforms.psl` or `.bed`, (2) `*isoforms.gtf`, as well as (3) an `*isoforms.fa` file of isoform sequences. If an annotation file is provided, the isoforms ID format will contain the transcript id, underscore, and then the gene id, so it would look like `ENST*_ENSG*` if you're working with the GENCODE human annotation. If multiple TSSs/TESs are allowed (toggle with `--max_ends` or `--no_redundant`), then a `-1` or higher will be appended to the end of the isoform name for the isoforms that have identical splice junction chains and differ only by their TSS/TES. For the gene field, the gene that is assigned to the isoform is based on whichever annotated gene has the greatest number of splice junctions shared with the isoform. If there are no genes in the annotation which can be assigned to the isoform, a genomic coordinate is used (e.g. `chr*:100000`).
 
 ### <a name="quantify"></a>flair quantify
 Convenience function to quantifying FLAIR isoform usage across samples using minimap2. If isoform quantification in TPM is desired, please use the `--tpm` option. If the user prefers [salmon](https://combine-lab.github.io/salmon/getting_started/) to quantify transcripts using their nanopore reads, please specify a path to salmon using `--salmon`. For all options run flair-quantify with `--help`.
@@ -187,7 +187,7 @@ inclusion_chr1:400-500	chr1:400-500	75.0	35.0	...	e,a
 exclusion_chr1:400-500	chr1:400-500	56.0	15.0	...	f
 ```
 
-## <a name="otherways"></a>Other ways to run FLAIR
+## <a name="otherways"></a>Other ways to run FLAIR modules
 For convenience, multiple FLAIR modules can be run in the same command. In place of a single module name, multiple module numbers can be specified (module numbers: align=1, correct=2, collapse=3, collapse-range=3.5, quantify=4, diffExp=5, diffSplice=6). All arguments for the modules that will be run must be provided. For example, to run the align, correct, and collapse modules, the command might look like:
 ```sh
 python flair.py 123 -r reads.fa -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]

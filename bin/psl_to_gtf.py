@@ -42,6 +42,7 @@ for line in psl:
 		chrom, strand, score, name, start = line[0], line[5], line[4], line[3], int(line[1])
 		tstarts = [int(n) + start for n in line[11].split(',')[:-1]]
 		bsizes = [int(n) for n in line[10].split(',')[:-1]]
+		end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
 	else:
 		chrom, strand, score, name, start = line[13], line[8], line[0], line[9], int(line[15])
 		tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
@@ -61,16 +62,33 @@ for line in psl:
 				.format(gene_id, transcript_id)
 	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
 		endstring]))
+	if isbed and thick_start != thick_end and (thick_start != start or thick_end != end):
+		print('\t'.join([chrom, 'FLAIR', 'CDS', str(thick_start+1), str(thick_end), '.', strand, '.', \
+		endstring]))
+		if strand == '+':
+			print('\t'.join([chrom, 'FLAIR', 'start_codon', str(thick_start+1), str(thick_start+3), '.', strand, '.', \
+			endstring]))
+			print('\t'.join([chrom, 'FLAIR', '5UTR', str(start+1), str(thick_start+1), '.', strand, '.', \
+			endstring]))
+			print('\t'.join([chrom, 'FLAIR', '3UTR', str(thick_end), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
+			endstring]))
+		elif strand == '-':
+			print('\t'.join([chrom, 'FLAIR', 'start_codon', str(thick_end-2), str(thick_end), '.', strand, '.', \
+			endstring]))
+			print('\t'.join([chrom, 'FLAIR', '3UTR', str(start+1), str(thick_start+1), '.', strand, '.', \
+			endstring]))
+			print('\t'.join([chrom, 'FLAIR', '5UTR', str(thick_end), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
+			endstring]))
 	# if strand == '-':  # to list exons in 5'->3'
 	# 	for b in range(len(tstarts)):  # exon number
 	# 		bi = len(tstarts) - 1 - b  # block index
 	# 		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
 	# 						.format(gene_id, transcript_id, b)
 	# 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[bi]+1), \
-	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, str(score), endstring]))			
+	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, '.', endstring]))			
 	# else:
 	for b in range(len(tstarts)):
 		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
 				.format(gene_id, transcript_id, b)
 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1), \
-			str(tstarts[b]+bsizes[b]), '.', strand, str(score), endstring]))
+			str(tstarts[b]+bsizes[b]), '.', strand, '.', endstring]))

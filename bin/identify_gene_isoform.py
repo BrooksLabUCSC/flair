@@ -195,9 +195,10 @@ with open(outfilename, 'wt') as outfile:
 			gene = chrom + ':' + str(start)[:-3] + '000'
 		else:  # gene name will be whichever gene the entry has more shared junctions with
 			genes = sorted(gene_hits.items(), key=lambda x: x[1])  # sort by number of junctions shared with gene
-			if len(genes) > 1 and len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size 
+			if len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size 
 				genes = sorted(genes, key=lambda x: x[0])
 				genes = sorted(genes, key=lambda x: x[1])
+				print(genes)
 				if not junctions:
 					g = genes[-1], se_gene_tiebreaker[genes[-1][0]]
 					for i in reversed(range(len(genes)-1)):

@@ -66,8 +66,8 @@ def get_junctions(line):
 
 def get_junctions_bed12(line):
 	chrstart = int(line[1])
-	starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
-	sizes = [int(n) for n in line[10].split(',')[:-1]]
+	starts = [int(n) + chrstart + 1 for n in line[11].split(',')[:-1]]
+	sizes = [int(n) - 1 for n in line[10].split(',')[:-1]]
 	if len(starts) == 1:
 		return 0, 0
 	junctions = set()

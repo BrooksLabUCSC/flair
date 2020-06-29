@@ -355,7 +355,8 @@ def main():
             if extra_col:
                 bedCols += [pro]
             else:
-                bedCols[3] = "%s_%s" % (bedCols[3], pro)
+                iso, gene = split_iso_gene(bedCols[3])
+                bedCols[3] = "%s_%s_%s" % (iso, pro, gene)
 
 
             bedCols[8] = beaut[pro]

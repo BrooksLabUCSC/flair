@@ -5,7 +5,11 @@ try:
 	psl = open(sys.argv[1])
 	isbed = sys.argv[1][-3:].lower() != 'psl'
 	outfilename = sys.argv[2]
-	nvrna = len(sys.argv) > 3  # specify if stranded protocol
+	if len(sys.argv) > 3:
+		nvrna = 'nvrna' in sys.argv[3]  # specify if stranded protocol
+		reverse = 'reverse' in sys.argv[3]
+	else:
+		nvrna = reverse = False
 except:
 	sys.stderr.write('script.py psl|bed outfilename [nvrna]\n')
 	sys.exit(1)
@@ -23,11 +27,11 @@ with open(outfilename, 'wt') as outfile:
 			writer.writerow([chrom, start, start, name])
 			writer.writerow([chrom, end, end, name])
 			continue
-		elif '+' in strand:
+		elif '+' in strand or reverse and '-' in strand:
 			tss = start
-		elif '-' in strand:
+		elif '-' in strand or reverse and '+' in strand:
 			tss = end
-		else:  # ambiguous strand
+		else:  # ambiguous strand, write both
 			writer.writerow([chrom, start, start, name])
 			tss = end	
 		writer.writerow([chrom, tss, tss, name])
