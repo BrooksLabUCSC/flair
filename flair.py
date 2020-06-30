@@ -448,19 +448,19 @@ def collapse(genomic_range='', corrected_reads=''):
 		precollapse = args.o+'promoter_supported'+ext  # filename of promoter-supported, corrected reads
 		subprocess.call([sys.executable, path+'bin/psl_reads_from_bed.py', args.temp_dir+tempfile_name+'promoter_intersect.bed', \
 			args.q, precollapse])
-		intermediate += [args.temp_dir+tempfile_name+'tss.bed', args.o+'promoter_supported'+ext]
+		intermediate += [args.temp_dir+tempfile_name+'tss.bed', precollapse]
 
 	if args.threeprime:
 		if not args.quiet: sys.stderr.write('Filtering out reads without TES support\n')
-		if subprocess.call([sys.executable, path+'bin/pull_starts.py', args.q, args.temp_dir+tempfile_name+'tes.bed', 'reverse']):
+		if subprocess.call([sys.executable, path+'bin/pull_starts.py', precollapse, args.temp_dir+tempfile_name+'tes.bed', 'reverse']):
 			return 1
 		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tes.bed', '-b', args.threeprime], \
 			stdout=open(args.temp_dir+tempfile_name+'tes_intersect.bed', 'w')):
 			return 1
-		precollapse = args.o+'tes_supported'+ext  # filename of promoter-supported, corrected reads
+		precollapse = args.o+'tes_supported'+ext  # filename of 3' end-supported, corrected reads
 		subprocess.call([sys.executable, path+'bin/psl_reads_from_bed.py', args.temp_dir+tempfile_name+'tes_intersect.bed', \
 			args.q, precollapse])
-		intermediate += [args.temp_dir+tempfile_name+'tes.bed', args.o+'tes_supported'+ext]
+		intermediate += [args.temp_dir+tempfile_name+'tes.bed', precollapse]
 
 	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
 			'-m', str(args.max_ends), '-w', args.w, '-n', args.n, '-o', args.o+'firstpass.unfiltered'+ext]

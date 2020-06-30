@@ -8,6 +8,7 @@ try:
 	if len(sys.argv) > 3:
 		nvrna = 'nvrna' in sys.argv[3]  # specify if stranded protocol
 		reverse = 'reverse' in sys.argv[3]
+
 	else:
 		nvrna = reverse = False
 except:
@@ -27,9 +28,9 @@ with open(outfilename, 'wt') as outfile:
 			writer.writerow([chrom, start, start, name])
 			writer.writerow([chrom, end, end, name])
 			continue
-		elif '+' in strand or reverse and '-' in strand:
+		elif not reverse and '+' in strand or reverse and '-' in strand:
 			tss = start
-		elif '-' in strand or reverse and '+' in strand:
+		elif not reverse and '-' in strand or reverse and '+' in strand:
 			tss = end
 		else:  # ambiguous strand, write both
 			writer.writerow([chrom, start, start, name])
