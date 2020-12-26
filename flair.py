@@ -45,7 +45,7 @@ def align():
 	try:
 		mm2_command = [args.m, '-ax', 'splice', '-t', args.t, '--secondary=no', args.g]+args.r
 		if args.n:
-			mm2_command[4:4] = ['-uf', '-k14']
+			mm2_command[5:5] = ['-uf', '-k14']
 		if args.quiet:
 			if subprocess.call(mm2_command, stdout=open(args.o+'.sam', 'w'), \
 			stderr=open(args.o+'.mm2_stderr', 'w')):
