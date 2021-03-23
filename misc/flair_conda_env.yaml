@@ -23,7 +23,6 @@ dependencies:
   - r-ggplot2=2.2.1
   - r-qqman
   - bioconductor-deseq2
-  - bioconductor-deseq2
   - bioconductor-drimseq
   - bioconductor-stager
   - matplotlib
