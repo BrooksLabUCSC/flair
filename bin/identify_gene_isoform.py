@@ -198,7 +198,6 @@ with open(outfilename, 'wt') as outfile:
 			if len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size 
 				genes = sorted(genes, key=lambda x: x[0])
 				genes = sorted(genes, key=lambda x: x[1])
-				print(genes)
 				if not junctions:
 					g = genes[-1], se_gene_tiebreaker[genes[-1][0]]
 					for i in reversed(range(len(genes)-1)):

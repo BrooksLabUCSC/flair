@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-import sys, csv
+import sys, argparse
 
-try:
-	psl = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl'
-	force = len(sys.argv) > 2 and 'force' in sys.argv[2]
-except:
-	sys.stderr.write('usage: script.py file.psl|file.bed > outfile.gtf \n')
-	sys.stderr.write('Entry name must contain underscore-delimited transcriptid and geneid like so:\
-	 ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n')
-	sys.exit(1)
+parser = argparse.ArgumentParser(description='options', \
+	usage='python script.py psl|bed [options] > outfile.gtf')
+parser.add_argument('psl', type=str, \
+	action='store', help='isoforms in psl or bed format')
+parser.add_argument('--force', action='store_true', dest='force', \
+	help='specify to not split isoform name by underscore into isoform and gene ids')
+args = parser.parse_args()
 
 def split_iso_gene(iso_gene):
 	if '_chr' in iso_gene:
@@ -35,7 +33,8 @@ def split_iso_gene(iso_gene):
 		gene = iso_gene[iso_gene.rfind('_')+1:]
 	return iso, gene
 
-for line in psl:
+isbed = args.psl[-3:].lower() != 'psl'
+for line in open(args.psl):
 	line = line.rstrip().split('\t')
 	if isbed:
 		start = int(line[1])
@@ -48,15 +47,20 @@ for line in psl:
 		tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
 		bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
 	
-	if '_' not in name and not force:
-		sys.stderr.write('No GTF conversion was done. Please run bin/identify_gene_isoform.py first\n')
+	if '_' not in name and not args.force:
+		sys.stderr.write('Entry name should contain underscore-delimited transcriptid and geneid like so:\
+		 ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n')
+		sys.stderr.write('So no GTF conversion was done. Please run bin/identify_gene_isoform.py first\n')
 		sys.stderr.write('for best results, or run with --force\n')
 		sys.exit(1)
 
 	if ';' in name:
 		name = name.replace(';', ':')
 
-	transcript_id, gene_id = split_iso_gene(name)
+	if args.force:
+		transcript_id, gene_id = name, name
+	else:
+		transcript_id, gene_id = split_iso_gene(name)
 
 	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\
 				.format(gene_id, transcript_id)

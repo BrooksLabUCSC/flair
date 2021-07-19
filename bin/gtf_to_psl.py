@@ -50,7 +50,7 @@ with open(outfilename, 'wt') as outfile:
 				tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
 				qsize = sum(blocksizes)  # query (e.g. transcript)
 				qname = prev_transcript#+'_'+this_gene
-				if not isbed:  # psl specific
+				if not isbed: # psl specific
 					pos = 0
 					qstarts = [pos]
 					for b in blocksizes[:-1]:

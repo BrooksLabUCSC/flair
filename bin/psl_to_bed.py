@@ -12,7 +12,8 @@ with open(bed, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for line in psl:
 		line = line.rstrip().split('\t')
-		if len(line) < 20:  # input was a bed file
+		if len(line) < 21:
+			sys.stderr.write('fewer than 21 columns in the psl file, exiting\n')
 			sys.exit(2)
 		chrom, name, start, end = line[13], line[9], line[15], line[16]
 		strand, blocksizes = line[8], line[18]
