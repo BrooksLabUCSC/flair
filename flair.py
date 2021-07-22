@@ -371,7 +371,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''specify this argument to generate a txt file of read-isoform assignments 
 		note: only works if the quantification method is not using salmon (default: not specified)''')
 	parser.add_argument('--mm2_args', action='store', dest='mm2_args', \
-		type=str,  help='''additional minimap2 arguments when aligning reads first-pass transcripts; 
+		type=str, default='', help='''additional minimap2 arguments when aligning reads first-pass transcripts; 
 		separate args by commas, e.g. --mm2_args=-I8g,--MD ''')
 	parser.add_argument('--quiet', default=False, action='store_true', dest='quiet', \
 			help='''Suppress progress statements from being printed''')
