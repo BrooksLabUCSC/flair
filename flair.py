@@ -49,7 +49,10 @@ def align():
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
-
+	for r in args.r:
+		if not os.path.exists(r):
+			sys.stderr.write('Check that read file {} exists\n'.format(r))
+			return 1
 	try:
 		mm2_command = [args.m, '-ax', 'splice', '-t', args.t, args.g]+args.r
 		if args.n:
@@ -470,6 +473,10 @@ def collapse(genomic_range='', corrected_reads=''):
 		ext = '.'+args.q[-3:]  # query file extension (bed or psl)
 		precollapse = args.q  # query file unchanged
 		args.r = args.r[0].split(',') if ',' in args.r[0] else args.r  # read sequences
+		for r in args.r:
+			if not os.path.exists(args.q):
+				sys.stderr.write('Check that read file {} exists\n'.format(r))
+				return 1
 
 	# filter out the reads with TSSs without promoter support
 	intermediate = []
@@ -678,7 +685,7 @@ def quantify(isoform_sequences=''):
 		for line in lines:
 
 			cols = line.rstrip().split('\t')
-			if len(cols)<4:
+			if len(cols) < 4:
 				sys.stderr.write('Expected 4 columns in manifest.tsv, got %s. Exiting.\n' % len(cols))
 				return 1
 			sample, group, batch, readFile = cols
