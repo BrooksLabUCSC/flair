@@ -248,7 +248,7 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
 
 
 
-def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
+def correctReads(bed, intTree_1, intTree_2, ssData_1, ssData_2, filePrefix, correctStrand, wDir):
     ''' Builds read and splice site objects '''
 
     if checkFname: 
@@ -272,20 +272,21 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
 
         for x in juncs:
             c1, c2 = x[0], x[1]
-            if c1 not in ssData:
-                ssData = ssCorrrect(c1,strand,c1Type,intTree,ssData)
-            if c2 not in ssData:
-                ssData = ssCorrrect(c2,strand,c2Type,intTree,ssData)
+            if c1 not in ssData_1:
+                ssData_1 = ssCorrrect(c1,strand,c1Type,intTree_1, ssData_1)
+            if c2 not in ssData_2:
+                ssData_2 = ssCorrrect(c2,strand,c2Type,intTree_2, ssData_2)
 
 
-            c1Obj, c2Obj = ssData[c1], ssData[c2]
+            c1Obj, c2Obj = ssData_1[c1], ssData_2[c2]
 
-            c1Corr = ssData[c1].ssCorr.coord
-            c2Corr = ssData[c2].ssCorr.coord
+            c1Corr = ssData_1[c1].ssCorr.coord
+            c2Corr = ssData_2[c2].ssCorr.coord
 
-            ssTypes   = [ssData[c1].ssCorr.ssType ,ssData[c2].ssCorr.ssType]
-            ssStrands.add(ssData[c1].ssCorr.strand)
-            ssStrands.add(ssData[c2].ssCorr.strand)
+            ssTypes   = [ssData_1[c1].ssCorr.ssType ,ssData_2[c2].ssCorr.ssType]
+            ssTypes   = [ssData_1[c1].ssCorr.ssType ,ssData_2[c2].ssCorr.ssType]
+            ssStrands.add(ssData_1[c1].ssCorr.strand)
+            ssStrands.add(ssData_2[c2].ssCorr.strand)
 
             if None in ssTypes or ssTypes[0] == ssTypes[1]:
                 # Either two donors or two acceptors or both none.
@@ -294,7 +295,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             newJuncs.append((c1Corr,c2Corr)) 
 
         blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
-        
+
         if correctStrand:
             if len(ssStrands)>1:
                 novelSS = True
@@ -313,7 +314,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
                     bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
                     blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=inconsistent)
         else:
-            
+
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
                     bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
                     blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
@@ -339,8 +340,10 @@ def buildIntervalTree(juncs, wiggle, fasta):
         with open(checkFname,'a+') as fo:
             print("** Initializing int tree for chromosome %s" % (currentChr), file=fo)
 
-    x = IntervalTree()
-    data = dict()
+    x_1 = IntervalTree()
+    x_2 = IntervalTree()
+    data_1 = dict()
+    data_2 = dict()
 
     with open(juncs) as lines:
         for line in lines:
@@ -352,7 +355,7 @@ def buildIntervalTree(juncs, wiggle, fasta):
             c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
 
             # add c1 first
-            if c1 not in data:
+            if c1 not in data_1:
                 ss = SS(c1,strand,c1Type)
                 ss.support.add(annoType)
                 ss.ssCorr = ss
@@ -361,14 +364,14 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 c1S, c1E = max(c1-wiggle,1), c1+wiggle
                 
                 # Add to tree and object to data
-                data[c1] = ss
-                x.add(c1S,c1E,c1)
+                data_1[c1] = ss
+                x_1.add(c1S,c1E,c1)
 
             else:
-                data[c1].support.add(annoType)
+                data_1[c1].support.add(annoType)
 
             # now add c2
-            if c2 not in data:
+            if c2 not in data_2:
                 ss = SS(c2,strand,c2Type)
                 ss.support.add(annoType)
                 ss.ssCorr = ss
@@ -377,15 +380,15 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 c2S, c2E = max(c2-wiggle,1), c2+wiggle
                 
                 # Add to tree and object to data
-                data[c2] = ss
-                x.add(c2S,c2E,c2)
+                data_2[c2] = ss
+                x_2.add(c2S,c2E,c2)
             else:
-                data[c2].support.add(annoType)
+                data_2[c2].support.add(annoType)
     if checkFname: 
         with open(checkFname,'a+') as fo:
             print("** Tree Initilized. %s data points added for chromosome %s." % (len(list(data.keys())),currentChr), file=fo)
 
-    return x, data
+    return x_1, x_2, data_1, data_2
 
 def main():
     '''
@@ -417,14 +420,14 @@ def main():
 
 
     # Build interval tree of known juncs
-    intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
+    intTree_1, intTree_2, ssData_1, ssData_2 = buildIntervalTree(knownJuncs, wiggle, fa)
 
     if checkFname: 
         with open(checkFname,'a+') as fo:
             print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncs, bed), file=fo)
     # Build read objects.
     try:
-        correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
+        correctReads(bed, intTree_1, intTree_2, ssData_1, ssData_2, out, resolveStrand, workingDir)
     except:
         if checkFname: 
             with open(checkFname,'a+') as fo:
