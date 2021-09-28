@@ -510,7 +510,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			return 1
 
 	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, \
-			'-m', str(args.max_ends), '-w', args.w, '-n', args.n, '-o', args.o+'firstpass.unfiltered'+ext]
+			'-m', str(args.max_ends), '-w', args.w, '-s', args.s, '-n', args.n, '-o', args.o+'firstpass.unfiltered'+ext]
 	if args.f and not args.no_end_adjustment:
 		collapse_cmd += ['-f', args.f]
 	if args.i:
@@ -551,7 +551,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	alignout = args.temp_dir + tempfile_name +'firstpass.'
 	try:
 		args.mm2_args = args.mm2_args.split(',')
-		if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4'] + args.mm2_args + [args.o+'firstpass.fa'] + args.r, \
+		if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4'] + [args.o+'firstpass.fa'] + args.r, \
 			stdout=open(alignout+'sam', 'w'), stderr=open(alignout+'mm2_stderr', 'w')):
 			return 1
 	except Exception as e:
@@ -608,8 +608,8 @@ def collapse(genomic_range='', corrected_reads=''):
 			subprocess.call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'isoforms'+ext], \
 				stdout=open(args.o+'isoforms.gtf', 'w'))
 
-	subprocess.call(['rm', '-rf', args.o+'firstpass.fa', alignout+'q.counts'])
 	if not args.keep_intermediate:
+		subprocess.call(['rm', '-rf', args.o+'firstpass.fa', alignout+'q.counts'])
 		subprocess.call(['rm', args.o+'firstpass.q.counts', args.o+'firstpass'+ext])
 		subprocess.call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
 	return args.o+'isoforms.bed', args.o+'isoforms.fa'
@@ -636,6 +636,8 @@ def quantify(isoform_sequences=''):
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
 		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
 		used (1)''')
+	parser.add_argument('--unique_quality', default=20, type=int, action='store', dest='uni_quality', \
+	        help='minimum quality threshold to consider if a read is uniquely mapped (20)')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output file name prefix (counts_matrix.tsv)')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
