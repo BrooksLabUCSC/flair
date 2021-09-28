@@ -35,6 +35,9 @@ def get_sequence(entry, seq):
 	pulledseq = ''
 	for block in range(len(blockstarts)):
 		pulledseq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
+
+	pulledseq = pulledseq.upper()
+
 	if strand == '-':
 		pulledseq = revcomp(pulledseq)
 	return pulledseq
