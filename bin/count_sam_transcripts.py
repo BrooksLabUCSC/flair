@@ -15,14 +15,16 @@ required.add_argument('-o', '--output', default=0.25, type=str, required=True, a
 	dest='output', help='output file name')
 parser.add_argument('-i', '--isoforms', type=str, action='store', dest='isoforms', default='', \
 	help='specify isoforms.bed or .psl file if --stringent is specified')
-parser.add_argument('-w', '--window', type=int, action='store', dest='w', default=10, \
-	help='number of bases for determining which end is best match (10)')
+parser.add_argument('-w', '--window', type=int, action='store', dest='w', default=0.01, \
+	help='minimum improvement of percentage of identity at the aligned region (0.01)')
 parser.add_argument('--stringent', default='', action='store_true', dest='stringent', \
 	help='only count if read alignment passes stringent criteria')
 parser.add_argument('-t', '--threads', default=4, type=int, action='store', dest='t', \
 	help='number of threads to use')
 parser.add_argument('--quality', default=1, type=int, action='store', dest='quality', \
 	help='minimum quality threshold to consider if ends are to be trusted (1)')
+parser.add_argument('--unique_quality', default=20, type=int, action='store', dest='uni_quality', \
+	help='minimum quality threshold to consider if a read is uniquely mapped (20)')
 parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends', \
 	help='specify if reads are generated from a long read method with minimal fragmentation')
 parser.add_argument('--generate_map', default='', action='store', type=str, dest='generate_map', \
@@ -44,7 +46,10 @@ def is_stringent(tname, blocksizes, blockstarts):
 	corresponding transcript and the read must extend at least 25 nt into the first and last exons of the tn.'''
 	read_start, read_end = blockstarts[0], blockstarts[-1]+blocksizes[-1]
 	isoform_length = transcript_lengths[tname]
-	first_blocksize, last_blocksize = terminal_exons[tname]['left_size'], terminal_exons[tname]['right_size']
+	if terminal_exons[tname]['strand'] == "+":
+		first_blocksize, last_blocksize = terminal_exons[tname]['left_size'], terminal_exons[tname]['right_size']
+	else:
+		first_blocksize, last_blocksize = terminal_exons[tname]['right_size'], terminal_exons[tname]['left_size']
 
 	right_coverage = left_coverage = False
 	if len(blocksizes) == 1:  # single exon transcript
@@ -106,11 +111,15 @@ def count_transcripts_for_reads(read_names):
 		if not args.trust_ends and not args.stringent:  # multiple mapper, can't assign
 			continue
 
+		
+		# If a uniquely mapped alignment is found, the read will be considered as the only candidate.
+		if (args.stringent and ordered_transcripts[-1][1].mapq >= args.uni_quality):
+			ordered_transcripts = ordered_transcripts[-1:]
+
 		# read in cigar info for stringent/trust_ends modes into transcript_coverage dict
 		# {transcript: (sum_matches, unmapped_left, unmapped_right, softclip_left, softclip_right)}
 		transcript_coverage = {}
 		for t, t_info in ordered_transcripts:
-
 			cigar, pos = t_info.cigar, t_info.startpos
 
 			relstart = 0
@@ -154,17 +163,18 @@ def count_transcripts_for_reads(read_names):
 			read_right = blockstarts[-1] + blocksizes[-1]
 			if args.stringent and is_stringent(t, blocksizes, blockstarts) \
 				or args.trust_ends:
-				transcript_coverage[t] = (sum(blocksizes), read_left, \
-					transcript_lengths[t] - read_right, softclip_left, softclip_right)
+				n_matches = sum(blocksizes)
+				transcript_coverage[t] = (n_matches, read_left, \
+					transcript_lengths[t] - read_right, softclip_left, softclip_right, n_matches/relstart)
 
 		if args.stringent and not transcript_coverage:  # no transcripts passed stringent criteria
 			continue
 
 		# sort by highest number of base matches
-		ranked_transcripts = sorted(transcript_coverage.items(), key=lambda x: x[1][0])
+		ranked_transcripts = sorted(transcript_coverage.items(), key=lambda x: x[1][5])
 		best_t, best_t_info = ranked_transcripts[0]
 		for t, t_info in ranked_transcripts[1:]:
-			if t_info[0] + args.w < best_t_info[0]:
+			if t_info[5] + args.w < best_t_info[5]:
 				continue
 			# does this transcript have less softclipping than the best transcript and
 			# does this transcript reach the ends better than the best transcript
@@ -190,16 +200,17 @@ if args.stringent:
 	for line in isoform_file:
 		line = line.rstrip().split('\t')
 		if isbed:
-			name, left, right = line[3], int(line[1]), int(line[2])
+			name, left, right, strand = line[3], int(line[1]), int(line[2]), line[5]
 			blocksizes = [int(n) for n in line[10].split(',')[:-1]]
 		else:
-			name, left, right = line[9], int(line[11]), int(line[12])
+			name, left, right, strand = line[9], int(line[11]), int(line[12]), line[8]
 			blocksizes = [int(n) for n in line[18].split(',')[:-1]]
 		terminal_exons[name] = {}
 		terminal_exons[name]['left_size'] = blocksizes[0]
 		terminal_exons[name]['right_size'] = blocksizes[-1]
 		terminal_exons[name]['left_pos'] = left
 		terminal_exons[name]['right_pos'] = right
+		terminal_exons[name]['strand'] = strand
 
 aln = namedtuple('aln', 'cigar mapq startpos')
 transcript_lengths = {}
