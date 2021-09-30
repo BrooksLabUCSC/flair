@@ -23,8 +23,6 @@ parser.add_argument('-t', '--threads', default=4, type=int, action='store', dest
 	help='number of threads to use')
 parser.add_argument('--quality', default=1, type=int, action='store', dest='quality', \
 	help='minimum quality threshold to consider if ends are to be trusted (1)')
-parser.add_argument('--unique_quality', default=20, type=int, action='store', dest='uni_quality', \
-	help='minimum quality threshold to consider if a read is uniquely mapped (20)')
 parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends', \
 	help='specify if reads are generated from a long read method with minimal fragmentation')
 parser.add_argument('--generate_map', default='', action='store', type=str, dest='generate_map', \
@@ -113,7 +111,7 @@ def count_transcripts_for_reads(read_names):
 
 		
 		# If a uniquely mapped alignment is found, the read will be considered as the only candidate.
-		if (args.stringent and ordered_transcripts[-1][1].mapq >= args.uni_quality):
+		if (args.stringent and ordered_transcripts[-1][1].mapq >= args.quality):
 			ordered_transcripts = ordered_transcripts[-1:]
 
 		# read in cigar info for stringent/trust_ends modes into transcript_coverage dict

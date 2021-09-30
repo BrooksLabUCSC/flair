@@ -363,8 +363,13 @@ def collapse(genomic_range='', corrected_reads=''):
 	parser.add_argument('--fusion_dist', default=0, type=int, action='store', dest='fusion_dist', \
 			help='''minimium distance between separate read alignments on the same chromosome to be
 			considered a fusion, otherwise no reads will be assumed to be fusions''')
-	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
-		help='minimum MAPQ of read assignment to an isoform (1)')
+	parser.add_argument('--hard_quality', type=int, action='store', dest='h_quality', default=1, \
+		help='Filter any alignment alignment lower than this mapping quality (1)')
+	parser.add_argument('--soft_quality', type=int, action='store', dest='s_quality', default=1, \
+                help='''Only useful when --stringent parameter is set. 
+		Alignments passing this mapping quality are considered as sole cadidate when counting supporting reads; 
+		those do not pass this filter will be assessed by other metrics, 
+		e.g. pairwise alignment identity and distance to transcript end (1)''')
 	parser.add_argument('--keep_intermediate', default=False, action='store_true', \
 		dest='keep_intermediate', \
 		help='''specify if intermediate and temporary files are to be kept for debugging.
@@ -419,7 +424,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		else:
 			args.m += '/minimap2'
 
-	args.t, args.quality = str(args.t), str(args.quality)
+	args.t, args.h_quality, args.s_quality = str(args.t), str(args.h_quality), str(args.s_quality)
 	args.o += '.'
 	min_reads = float(args.s) if float(args.s) >= 1 else 3
 
@@ -569,19 +574,23 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_file = alignout+'salmon/quant.sf'
 		align_files += [alignout+'sam', alignout+'salmon/quant.sf']
 	else:
-		args.quality = '0' if args.trust_ends else args.quality
-		if args.quality != '0':
-			subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', alignout+'sam'], \
+		args.h_quality = '0' if args.trust_ends else args.h_quality
+		if args.h_quality != '0' :
+			subprocess.call([args.sam, 'view', '-q', args.h_quality, '-h', '-S', alignout+'sam'], \
 				stdout=open(alignout+'q.sam', 'w'), stderr=open(alignout+'q.samtools_stderr', 'w'))
 			align_files += [alignout+'sam']
 		else:
 			subprocess.call(['mv', alignout+'sam', alignout+'q.sam'])
 		count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', alignout+'q.sam', \
-			'-o', alignout+'q.counts', '-t', args.t, '--quality', args.quality]
+			'-o', alignout+'q.counts', '-t', args.t]
 		if args.stringent:
 			count_cmd += ['--stringent', '-i', args.o+'firstpass'+ext]
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
+		if args.trust_ends or args.stringent:
+			count_cmd += ['--quality', args.s_quality]
+		else:
+			count_cmd += ['--quality', args.h_quality]
 		if args.generate_map:
 			count_cmd += ['--generate_map', args.o+'isoform.read.map.txt']
 		if args.fusion_dist:
@@ -636,8 +645,6 @@ def quantify(isoform_sequences=''):
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
 		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
 		used (1)''')
-	parser.add_argument('--unique_quality', default=20, type=int, action='store', dest='uni_quality', \
-	        help='minimum quality threshold to consider if a read is uniquely mapped (20)')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output file name prefix (counts_matrix.tsv)')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
@@ -715,7 +722,7 @@ def quantify(isoform_sequences=''):
 			subprocess.call(['rm', sample[-1]+'.mm2_stderr.txt'])
 			sys.stderr.flush()
 
-			if args.quality != '0' and not args.trust_ends and not args.salmon:
+			if args.quality != '0' and not args.trust_ends and not args.salmon and not args.stringent:
 				if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
 					stdout=open(sample[-1]+'.qual.sam', 'w')):
 					return 1
