@@ -110,9 +110,17 @@ def count_transcripts_for_reads(read_names):
 			continue
 
 		
-		# If a uniquely mapped alignment is found, the read will be considered as the only candidate.
-		if (args.stringent and ordered_transcripts[-1][1].mapq >= args.quality):
-			ordered_transcripts = ordered_transcripts[-1:]
+		# Reads passing that mapq will be considered as candidates. 
+		max_mapq = ordered_transcripts[-1][1].mapq
+		if (args.stringent and max_mapq >= args.quality and max_mapq > 0):
+			counter = 0
+			# Finding all reads with the maximum mapq
+			for i in ordered_transcripts:
+				if i[1].mapq >= max_mapq:
+					counter += 1
+
+			ordered_transcripts = ordered_transcripts[-counter:]
+
 
 		# read in cigar info for stringent/trust_ends modes into transcript_coverage dict
 		# {transcript: (sum_matches, unmapped_left, unmapped_right, softclip_left, softclip_right)}

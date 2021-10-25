@@ -620,7 +620,8 @@ def collapse(genomic_range='', corrected_reads=''):
 	if not args.keep_intermediate:
 		subprocess.call(['rm', '-rf', args.o+'firstpass.fa', alignout+'q.counts'])
 		subprocess.call(['rm', args.o+'firstpass.q.counts', args.o+'firstpass'+ext])
-		subprocess.call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
+		subprocess.call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*'))
+		subprocess.call(['rm', '-rf'] + align_files + intermediate)
 	return args.o+'isoforms.bed', args.o+'isoforms.fa'
 
 def quantify(isoform_sequences=''):
@@ -642,9 +643,12 @@ def quantify(isoform_sequences=''):
 		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools', \
 		help='specify a samtools executable path if not in $PATH if --quality is also used')
-	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1, \
+	parser.add_argument('--hard_quality', type=int, action='store', dest='h_quality', default=0, \
 		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
 		used (1)''')
+	parser.add_argument('--soft_quality', type=int, action='store', dest='s_quality', default=1, \
+	help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
+                used (1)''')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', \
 		default='counts_matrix.tsv', help='Counts matrix output file name prefix (counts_matrix.tsv)')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon', \
@@ -687,7 +691,7 @@ def quantify(isoform_sequences=''):
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
-	args.t, args.quality = str(args.t), str(args.quality)
+	args.t, args.h_quality, args.s_quality = str(args.t), str(args.h_quality), str(args.s_quality)
 
 	samData = list()
 	with codecs.open(args.r, "r", encoding='utf-8', errors='ignore') as lines:
@@ -722,8 +726,8 @@ def quantify(isoform_sequences=''):
 			subprocess.call(['rm', sample[-1]+'.mm2_stderr.txt'])
 			sys.stderr.flush()
 
-			if args.quality != '0' and not args.trust_ends and not args.salmon and not args.stringent:
-				if subprocess.call([args.sam, 'view', '-q', args.quality, '-h', '-S', sample[-1]], \
+			if args.h_quality != '0' and not args.trust_ends and not args.salmon:
+				if subprocess.call([args.sam, 'view', '-q', args.h_quality, '-h', '-S', sample[-1]], \
 					stdout=open(sample[-1]+'.qual.sam', 'w')):
 					return 1
 				subprocess.call(['mv', sample[-1]+'.qual.sam', sample[-1]])
@@ -735,11 +739,13 @@ def quantify(isoform_sequences=''):
 
 		if not args.salmon:
 			count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', samOut, \
-				'-o', samOut+'.counts.txt', '-t', args.t, '--quality', args.quality]
+				'-o', samOut+'.counts.txt', '-t', args.t]
 			if args.trust_ends:
 				count_cmd += ['--trust_ends']
 			if args.stringent:
-				count_cmd += ['--stringent', '-i', args.isoforms]
+				count_cmd += ['--stringent', '-i', args.isoforms, '--quality', args.s_quality]
+			else:
+				count_cmd += ['--stringent', '-i', args.isoforms, '--quality', args.h_quality]
 			if args.generate_map:
 				count_cmd += ['--generate_map', 'flair.quantify.'+sample+'.'+group+'.isoform.read.map.txt']
 
@@ -765,7 +771,7 @@ def quantify(isoform_sequences=''):
 					countData[iso][num] = numreads
 			subprocess.call(['rm', '-r', samOut[:-4]+'.salmon/', 'salmon_stderr.txt'])
 		sys.stderr.flush()
-		subprocess.call(['rm', samOut])
+		#subprocess.call(['rm', samOut])
 
 	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o))
 	countMatrix = open(args.o,'w')
