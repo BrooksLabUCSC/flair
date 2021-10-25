@@ -554,11 +554,17 @@ def collapse(genomic_range='', corrected_reads=''):
 	count_files, align_files = [], []
 
 	alignout = args.temp_dir + tempfile_name +'firstpass.'
+
 	try:
-		args.mm2_args = args.mm2_args.split(',')
-		if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4'] + [args.o+'firstpass.fa'] + args.r, \
-			stdout=open(alignout+'sam', 'w'), stderr=open(alignout+'mm2_stderr', 'w')):
-			return 1
+		if args.mm2_args:
+			args.mm2_args = args.mm2_args.split(',')
+			if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4'] + args.mm2_args + [args.o+'firstpass.fa'] + args.r, \
+				stdout=open(alignout+'sam', 'w'), stderr=open(alignout+'mm2_stderr', 'w')):
+				return 1
+		else:
+			if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4  '] + [args.o+'firstpass.fa'] + args.r, \
+                                stdout=open(alignout+'sam', 'w'), stderr=open(alignout+'mm2_stderr', 'w')):
+                                return 1
 	except Exception as e:
 		sys.stderr.write(str(e)+'\n\n\nMinimap2 error, please check that all file, directory, and executable paths exist\n')
 		return 1
