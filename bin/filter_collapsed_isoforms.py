@@ -7,9 +7,10 @@ try:
 	mode = sys.argv[2] if sys.argv[2] in ['ginormous', 'comprehensive', 'nosubset'] else 'default' # all typos will report default
 	pslout = sys.argv[3]
 	tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
+	keep_extra_column = len(sys.argv) > 5
 except:
 	sys.stderr.write('usage: script.py collapsed.psl (nosubset/default/comprehensive/ginormous)' + \
-		' filtered.psl [tolerance]\n')
+		' filtered.psl [tolerance] [keep_extra_column]\n')
 	sys.exit(1)
 
 def get_junctions(starts, sizes):
@@ -194,4 +195,7 @@ for chrom in isoforms:
 with open(pslout, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for iso in keepisoforms:
-		writer.writerow(iso[:-1])
+		if keep_extra_column:
+			writer.writerow(iso)
+		else:
+			writer.writerow(iso[:-1])

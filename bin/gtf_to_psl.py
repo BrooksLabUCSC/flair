@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
-import sys, csv, os
+import sys, csv, os, argparse
 
-try:
-	gtf = open(sys.argv[1])
-	outfilename = sys.argv[2]
-	isbed = sys.argv[2][-3:].lower() != 'psl'
-	if len(sys.argv) > 3:
-		chrom_sizes_file = open(sys.argv[3])
-	else:
-		chrom_sizes_file = ''
-except:
-	sys.stderr.write('usage: script.py in.gtf out.psl|bed \n')
-	sys.stderr.write('converts a gtf to a bed or psl, depending on the output filename extension\n')
-	sys.stderr.write('a chrom sizes file is recommended for psl conversion:\n')
-	sys.stderr.write('usage: script.py in.gtf out.psl chrom.sizes \n')
+parser = argparse.ArgumentParser(description='''converts a gtf to a bed or psl, depending on the output filename extension;
+	gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',
+	usage='script.py in.gtf out.psl|bed [options]')
+required = parser.add_argument_group('required named arguments')
+required.add_argument('gtf', action='store',
+	type=str, help='annotated gtf')
+required.add_argument('psl', action='store',
+	type=str, help='psl or bed file')
+parser.add_argument('--include_gene', action='store_true', dest='include_gene',
+	required=False, help='''Include gene name in the isoform name''')
+parser.add_argument('--chrom_sizes', action='store', dest='chrom_sizes', default='',
+	required=False, help='''chrom sizes file for psl conversion, recommended''')
+args = parser.parse_args()
 
-	sys.exit(1)
+outfilename = args.psl
+isbed = outfilename[-3:].lower() != 'psl'
+gtf = open(args.gtf)
 
 chrom_to_size = {}
-for line in chrom_sizes_file:
-	line = line.rstrip().split('\t')
-	chrom_to_size[line[0]] = line[1]
+if args.chrom_sizes:
+	for line in open(args.chrom_sizes):
+		line = line.rstrip().split('\t')
+		chrom_to_size[line[0]] = line[1]
 
 missing_chroms = set()
 
@@ -49,7 +52,10 @@ with open(outfilename, 'wt') as outfile:
 
 				tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
 				qsize = sum(blocksizes)  # query (e.g. transcript)
-				qname = prev_transcript#+'_'+this_gene
+				if args.include_gene:
+					qname = prev_transcript+'_'+prev_gene
+				else:
+					qname = prev_transcript
 				if not isbed: # psl specific
 					pos = 0
 					qstarts = [pos]
@@ -87,15 +93,18 @@ with open(outfilename, 'wt') as outfile:
 		blocksizes += [end-start]
 
 	# last entry...
-	# this_gene = line[8][line[8].find('gene_id')+9:]
-	# this_gene = this_gene[:this_gene.find('"')]
+	this_gene = line[8][line[8].find('gene_id')+9:]
+	this_gene = this_gene[:this_gene.find('"')]
 	if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
 		blocksizes = blocksizes[::-1]
 		blockstarts = blockstarts[::-1]
 	qsize = sum(blocksizes)  # query (e.g. transcript)
 	tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
 	blocksizes = ','.join([str(b) for b in blocksizes]) + ','
-	qname = this_transcript#+'_'+this_gene
+	if args.include_gene:
+		qname = this_transcript+'_'+this_gene
+	else:
+		qname = this_transcript
 	if isbed:
 		relblockstarts = [block - tstart for block in blockstarts]		
 		relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','

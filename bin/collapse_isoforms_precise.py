@@ -11,7 +11,7 @@ required.add_argument('-q', '--query', type=str, default='', required=True, acti
 parser.add_argument('-o', '--output', type=str, action='store', \
 	dest='o', default='', help='specify output file, should agree with query file type')
 parser.add_argument('-w', '--window', default=100, type=int, \
-	action='store', dest='w', help='window size for grouping TSS/TES (20)')
+	action='store', dest='w', help='window size for grouping TSS/TES (100)')
 parser.add_argument('-s', '--support', default=0.25, type=float, action='store', \
 	dest='s', help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
 parser.add_argument('-f', '--gtf', default='', type=str, \
@@ -302,9 +302,10 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		# second+ end site called stringently
 			break
 		closest_annotated = 1e15  # just a large number
-		if annotends and chrom in annotends:  # args.f supplied
+		if annot_tss and chrom in annot_tss:  # args.f supplied
 			for t in range(bestsite[0]-window, bestsite[0]+window):
-				if t in annotends[chrom] and abs(t - bestsite[0]) < abs(closest_annotated - bestsite[0]) and \
+				if (finding_tss and t in annot_tss[chrom] or not finding_tss and t in annot_tes[chrom]) \
+					and abs(t - bestsite[0]) < abs(closest_annotated - bestsite[0]) and \
 					(junccoord and (finding_tss and t < junccoord[0] or not finding_tss and t > junccoord[1])):
 					closest_annotated = t
 		if closest_annotated < 1e15:
@@ -321,8 +322,13 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 	specific_tes = {tes: count} for a specific set of tss within given window
 	junccoord is coordinate of the isoform's first splice site and last splice site"""
 	total = float(sum(list(sites_tss_all.values())))  # total number of reads for this splice junction chain
+	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
+	# 	print('--', junccoord)
+	# 	print(sites_tss_all)
 	found_tss = find_tsss(sites_tss_all, total, finding_tss=True, max_results=max_results, \
 		chrom=chrom, junccoord=junccoord)
+	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
+	# 	print(found_tss)
 	if not found_tss:
 		return ''
 
@@ -513,6 +519,8 @@ def run_find_best_sites(chrom):
 			tss_support = allends[chrom]['tss'][tss]  # current tss
 			for t in reversed(range(tss-window, tss+window)):
 				if t in allends[chrom]['tss']:
+					# if 'e68436c4' in line[3]:
+					# 	print(t, allends[chrom]['tss'][t], tss_support, tss)
 					t_support = allends[chrom]['tss'][t]  # comparison tss
 					if (t_support > tss_support and t < junccoord[0]) or \
 					(t_support == tss_support and t < tss):
@@ -591,7 +599,8 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 	return line
 
 
-annotends = {}  # all annotated TSS/TES sites per chromosome from GTF
+annot_tss = {}  # annotated left terminal sites per chromosome from GTF
+annot_tes = {}  # annotated right terminal sites
 if args.f:
 	for line in gtf:
 		if line.startswith('#'):
@@ -599,10 +608,11 @@ if args.f:
 		line = line.rstrip().split('\t')
 		chrom, ty, start, end = line[0], line[2], int(line[3]) - 1, int(line[4])
 		if ty == 'transcript':
-			if chrom not in annotends:
-				annotends[chrom] = set()
-			annotends[chrom].add(start)
-			annotends[chrom].add(end)
+			if chrom not in annot_tss:
+				annot_tss[chrom] = set()
+				annot_tes[chrom] = set()
+			annot_tss[chrom].add(start)
+			annot_tes[chrom].add(end)
 	if not args.quiet:
 		sys.stderr.write('Annotated ends extracted from GTF\n')
 
@@ -631,6 +641,9 @@ for line in psl:
 		continue
 
 	junctions = str(sorted(list(junctions)))  # splice junction chain
+	# if '(36179025, 36179262)' in junctions:
+	# 	print(tss, junccoord, line[3])
+
 	if chrom not in isoforms:
 		isoforms[chrom] = {}
 	if junctions not in isoforms[chrom]:

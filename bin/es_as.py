@@ -313,7 +313,7 @@ def main():
 	with open(flairIsoforms) as fin:
 		for line in fin:
 			cols = line.rstrip().split()
-			iso, start, starts, sizes = cols[3], cols[1], cols[-1], cols[-2]
+			iso, start, starts, sizes = cols[3], cols[1], cols[11], cols[10]
 			chrom,strand = cols[0], cols[5]
 			starts = starts.rstrip(",").split(",")
 			sizes = sizes.rstrip(",").split(",")

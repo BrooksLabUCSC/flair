@@ -1,27 +1,40 @@
 #!/usr/bin/env python3
 import matplotlib
 matplotlib.use("Agg")
-import sys
+import sys, argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mplpatches
 import seaborn as sns
 
-try:
-    psl = open(sys.argv[1])
-    isbed = sys.argv[1][-3:].lower() == 'bed'
-    counts_matrix = open(sys.argv[2])
-    genename = sys.argv[3]
-    if len(sys.argv) > 4:
-        outfilebase = sys.argv[4]
-    else:
-        outfilebase = genename
-except:
-    sys.stderr.write('python script.py isoforms.psl|.bed counts_matrix.tsv genename [outfilenamebase]\n')
-    sys.stderr.write('''The most highly expressed isoforms across all the samples will be plotted. 
-        The minor isoforms are aggregated into a gray bar. You can toggle minreads or color_palette to
-        plot more isoforms\n''')
-    sys.exit(1)
+parser = argparse.ArgumentParser(description='options',
+  usage='''python plot_isoform_usage.py isoforms.psl|.bed counts_matrix.tsv gene_name [options]
+  The script will produce two images, one of the isoform models and another of the usage proportions.
+  The most highly expressed isoforms across all the samples will be plotted.
+  The minor isoforms are aggregated into a gray bar. You can toggle min_reads or
+  color_palette to plot more isoforms. Run with --help for options''')
+parser.add_argument('isoforms', type=str, action='store', help='isoforms in psl/bed format')
+parser.add_argument('counts_matrix', type=str, action='store', help='genomic sequence')
+parser.add_argument('gene_name', type=str, action='store', 
+    help='''Name of gene, must correspond with the gene names in the
+    isoform and counts matrix files''')
+parser.add_argument('-o', action='store', dest='o', type=str,
+    required=False, help='prefix used for output files (default=gene_name)')
+parser.add_argument('--min_reads', action='store', dest='min_reads', type=int, required=False, default=6,
+    help='minimum number of total supporting reads for an isoform to be visualized (default=6)')
+parser.add_argument('-v', '--vcf', action='store', dest='vcf',
+  required=False, help='''VCF containing the isoform names that include each variant
+  in the last sample column''')
+parser.add_argument('--palette', action='store', dest='palette',
+  required=False, help='''provide a palette file if you would like to visualize more than 7
+  isoforms at once or change the palette used. each line contains a hex color for each isoform''')
+args = parser.parse_args()
+
+psl = open(args.isoforms)
+isbed = sys.argv[1][-3:].lower() == 'bed'
+counts_matrix = open(args.counts_matrix)
+if not args.o:
+    args.o = args.gene_name
 
 def parse_psl(psl, names=False, plotany=False, keepiso=set()):
     info = []
@@ -40,30 +53,52 @@ def parse_psl(psl, names=False, plotany=False, keepiso=set()):
             blocksizes = [int(n) for n in line[18].split(',')[:-1]]
             blockstarts = [int(n) for n in line[20].split(',')[:-1]]
 
-        if name not in keepiso and name[:name.rfind('_')] not in keepiso:
-            continue
-
-        strand = line[5] if isbed else line[8]
-
         if '_' in name[-4:]:  # for isoforms with productivity appended to the name
             flag = name[name.rfind('_') +1:]
             if flag not in ['PRO', 'PTC']:
                 flag = 'Z'+flag  # ngo and nstop are alphabetically after pro and ptc
             name = name[:name.rfind('_')]
+        elif '_PTC' in name:
+            flag = 'PTC'
+            name = name.replace('_PTC', '')
+        elif '_PRO' in name:
+            flag = 'PRO'
+            name = name.replace('_PRO', '')
+        elif '_NST' in name:
+            flag = 'Z'
+            name = name.replace('_NST', '')
+        elif '_NGO' in name:
+            flag = 'Z'
+            name = name.replace('_NGO', '')
+
         else:
             flag = 'PRO'
+
+        if name not in keepiso and name[:name.rfind('_')] not in keepiso:
+            continue
+
+        strand = line[5] if isbed else line[8]
         lowbound = min(lowbound, start)
         upbound = max(upbound, end)
         info += [[blocksizes, blockstarts, keepiso[name], flag, name]]  # exon sizes, exon starts, color, prod, iso
         usednames += [name]
-    upbound += 100  # padding
+    upbound += 100  # padding up and downstream of isoforms
     lowbound -= 100
     for i in range(len(info)):
         info[i][1] = [n - lowbound for n in info[i][1]]
-    if names:
-        return info, usednames
-    else:
-        return info, lowbound, upbound, strand, usednames
+
+    try:
+        if names:
+            return info, usednames
+        else:
+            return info, lowbound, upbound, strand, usednames
+    except NameError:
+        sys.stderr.write('Check that the gene name is present in the bed file\n')
+        sys.exit(1)
+    except Exception as e:
+        sys.stderr.write('{}\n'.format(e))
+        sys.exit(1)
+
 
 def pack(data, rev=True, color=False, tosort = True):
     starts = [max(d[1]) for d in data] if rev else [min(d[1]) for d in data] # sort by right or left end
@@ -89,7 +124,7 @@ def pack(data, rev=True, color=False, tosort = True):
             ends += [end]
     return packed
 
-def plot_blocks(data, panel, names, height=.5, l=0.8):
+def plot_blocks(data, panel, names, iso_to_variant, height=.5, l=0.8):
     panel.set_xlim(1, upper - lower + 2)
     if strand == '-':  # flip axes so that the isoforms are plotted 5' -> 3'
         panel.set_xlim(upper - lower + 2, 1)
@@ -127,34 +162,51 @@ def plot_blocks(data, panel, names, height=.5, l=0.8):
 
             for k in range(len(sizes)):  # each block of each read
                 if flag=='PRO':
-                    rectangle = mplpatches.Rectangle([starts[k], i - height/2], \
+                    rectangle = mplpatches.Rectangle([starts[k], i - height/2],
                         sizes[k], height, facecolor=color, linewidth=ew, edgecolor=color, zorder=10)
                     panel.add_patch(rectangle)
                 elif flag=='PTC':
-                    rectangle = mplpatches.Rectangle([starts[k], i - height/2], \
-                        sizes[k], height, facecolor='none', edgecolor=color, \
+                    rectangle = mplpatches.Rectangle([starts[k], i - height/2],
+                        sizes[k], height, facecolor='none', edgecolor=color,
                         linewidth=ew, zorder=10,hatch='////')
                     panel.add_patch(rectangle)
-                    rectangle = mplpatches.Rectangle([starts[k], i - height/2], \
+                    rectangle = mplpatches.Rectangle([starts[k], i - height/2],
                         sizes[k], height, facecolor=color, linewidth=0, zorder=10,alpha=0.2)
                     panel.add_patch(rectangle)
                 else:
-                    rectangle = mplpatches.Rectangle([starts[k], i - height/2], \
+                    rectangle = mplpatches.Rectangle([starts[k], i - height/2],
                         sizes[k], height, facecolor='none', edgecolor=color, linewidth=ew, zorder=10,alpha=1)
                     panel.add_patch(rectangle)
-                    rectangle = mplpatches.Rectangle([starts[k], i - height/2], \
+                    rectangle = mplpatches.Rectangle([starts[k], i - height/2],
                         sizes[k], height, facecolor=color, linewidth=0, zorder=10,alpha=0.2)
                     panel.add_patch(rectangle)
                 if k > 0:
                     panel.plot([starts[k-1]+sizes[k-1], starts[k]], [i]*2, 'k-', lw=l)
+
+            if iso_name in iso_to_variant:
+                for var in iso_to_variant[iso_name]:
+                    if strand != '+':
+                        basecol = base_colors[reverse_complement[var[3]]]
+                    else:
+                        basecol = base_colors[var[3]]
+                    rectangle = mplpatches.Rectangle([var[1], i - height/2-.2], 
+                        (upper-lower)/500, height+.4, facecolor=basecol, linewidth=0, zorder=10,alpha=.8)
+                    panel.add_patch(rectangle)                        
 
         di += 1
 
 
 hex_colors = ['#ba748a', '#3498db', "#34495e"]
 name_colors = ['windows blue', 'faded green', 'dusty purple', 'amber']
-color_palette = sns.xkcd_palette(name_colors) + sns.color_palette(hex_colors)  # or your preferred color palette
+color_palette = sns.xkcd_palette(name_colors) + sns.color_palette(hex_colors)
 gray = sns.xkcd_palette(["greyish"])
+base_colors = {'C': color_palette[0], 'A': color_palette[1], 'G': color_palette[4], 'T': color_palette[5]}
+reverse_complement = {'C': 'G', 'G': 'C', 'A': 'T', 'T': 'A'}
+
+if args.palette:
+    color_palette = []
+    for line in open(args.palette):
+        color_palette += sns.color_palette(line.rstrip())
 
 keepiso = {}  # isoforms that they have a sufficient proportion of reads mapping to them
 sample_ids = counts_matrix.readline().rstrip().split('\t')[1:]
@@ -172,14 +224,13 @@ panel.tick_params(axis='both',which='both', \
                    right=False, labelright=False, \
                    top=False, labeltop=False, labelsize=8)
 
-minreads = 10  # minimum number of cumulative reads the isoform must have to be plotted in color
 gray_bar = [['lowexpr']+[0]*len(sample_ids)+gray]  # the minor isoform bar is gray
 for line in counts_matrix:
     line = line.rstrip().split('\t')
-    if genename not in line[0]:
+    if args.gene_name not in line[0]:
         continue
     counts = [float(x) for x in line[1:]]
-    if all(x < minreads for x in counts):
+    if all(x < args.min_reads for x in counts):
         for i in range(len(sample_ids)):
             gray_bar[0][i+1] += counts[i]   # add to gray bar bc expression is too low
         for i in range(len(sample_ids)):
@@ -206,11 +257,11 @@ for i in range(len(proportions)):
 proportions = [gray_bar[0]] + proportions_color
 
 if len(proportions) == 1:
-    sys.stderr.write('Needs more than 1 isoform with sufficient representation, try toggling minreads\n')
-    sys.exit()
+    sys.stderr.write('''Needs more than 1 isoform with sufficient representation, check gene_name in 
+        your counts file, then try toggling min_reads\n''')
+    sys.exit(1)
 
 proportions = sorted(proportions, key=lambda x:x[1])[::-1]
-
 heights = [0]*len(sample_ids)
 for iso in proportions:
     for i in range(len(sample_ids)):
@@ -246,19 +297,37 @@ panel.set_xticklabels(sample_ids, rotation=20, ha='right')
 panel.set_xlim(0.5, xlim)
 panel.set_ylim(0, 100)
 panel.set_ylabel('Percent Usage', fontsize=12)
-# plt.savefig(genename+'_proportion.pdf', transparent=True, dpi=600)  # uncomment to output as pdf
-plt.savefig(outfilebase+'_usage.png', dpi=600)
+# plt.savefig(args.o+'_proportion.pdf', transparent=True, dpi=600)  # uncomment to output as pdf
+plt.savefig(args.o+'_usage.png', dpi=600)
 
-# isoform structures
+# plotting isoform structures
 fig_0 = plt.figure(figsize=(9, 3))
 
 panel = plt.axes([0.005, 0.015, .99, 0.97], frameon=True)  # annotation
+
 
 isoforms, lower, upper, strand, names = parse_psl(psl,keepiso=keepiso)
 isoforms = sorted(isoforms,key=lambda x: x[3], reverse=True)  # sort by productivity
 packed = pack(isoforms, rev=False, tosort=False)
 
-plot_blocks(packed, panel, names, l=1)
+iso_to_variant = {}
+if args.vcf:
+    for line in open(args.vcf):
+        if line.startswith('#'):
+            continue
+        line = line.rstrip().split('\t')
+        if args.gene_name not in line[-1]:
+            continue
+        variant_isos = ''.join(line[-1].split(':')[5:]).split(',')
+        for k in keepiso:
+            if ''.join(k.split(':')) in variant_isos:
+                iso_name = k[:k.rfind('_')]
+                if iso_name not in iso_to_variant:
+                    iso_to_variant[iso_name] = []
+                iso_to_variant[iso_name] += [(line[0], int(line[1])-lower, line[3], line[4])]
 
-# plt.savefig(genename+'_bars.pdf', transparent=True, dpi=600)  # uncomment to output as pdf
-plt.savefig(outfilebase+'_isoforms.png', dpi=600)
+
+plot_blocks(packed, panel, names, iso_to_variant, l=1)
+
+# plt.savefig(args.o+'_bars.pdf', transparent=True, dpi=600)  # uncomment to output as pdf
+plt.savefig(args.o+'_isoforms.png', dpi=600)

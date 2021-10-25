@@ -23,9 +23,13 @@ import pandas as pd
 import numpy as np
 
 from rpy2 import robjects
-from rpy2.robjects import r,pandas2ri, Formula
+
+import rpy2.robjects as ro 
+from rpy2.robjects import r, pandas2ri, Formula
+from rpy2.robjects.conversion import localconverter
+
+
 from rpy2.robjects.lib import grid
-pandas2ri.activate()
 R = robjects.r
 
 import warnings
@@ -141,7 +145,7 @@ def main():
     formulaDF = pd.DataFrame(data=formula, columns = ['sample_id', 'condition', 'batch'])
 
     # get quant table
-    quantDF  = pd.read_table(matrix, header=0, sep='\t', index_col=False)
+    quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=False)
 
     # subset the counts_matrix for only the samples with condA/B
     quantDF  = quantDF[['feature_id', 'coordinate'] + list(formulaDF['sample_id']) + ['isoform_ids']]
@@ -153,8 +157,17 @@ def main():
         quantDF[[col]] = quantDF[[col]] + 1
 
     # Convert pandas to R data frame.
-    samples      = pandas2ri.py2ri(formulaDF)
-    counts       = pandas2ri.py2ri(quantDF)
+    import rpy2
+    rpy2_version = rpy2.__version__
+    rpy2_version = float(rpy2_version[:rpy2_version.rfind('.')])
+    if rpy2_version >= 3.4:
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            samples = ro.conversion.py2rpy(formulaDF)
+            counts = ro.conversion.py2rpy(quantDF)
+    else:
+        pandas2ri.activate()
+        samples = pandas2ri.py2ri(formulaDF)
+        counts = pandas2ri.py2ri(quantDF)
 
     # DRIMSEQ part.
     if "batch" in list(formulaDF): R.assign('batch', samples.rx2('batch'))
@@ -185,13 +198,19 @@ def main():
 
 
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
+    resOut = "%s.%s_v_%s_drimseq_results.tsv"  % (prefix, conditionA, conditionB)
+    if rpy2_version >= 3.4:
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            res = ro.conversion.rpy2py(res)
+
+    res.to_csv(resOut, sep='\t')
     # pltFName = '%s_%s_v_%s_pval_histogram.pdf' % (prefix,conditionA,conditionB)
     # R.assign('fname', pltFName)
     # R('pdf(file=fname)')
     # R('plotPValues(res)')  # histogram of p-value distribution
     # R('dev.off()')
-    resOut = "%s.%s_v_%s_drimseq2_results.tsv"  % (prefix, conditionA, conditionB)
-    res.to_csv(resOut, sep='\t')
+
+
 
 if __name__ == "__main__":
     main()

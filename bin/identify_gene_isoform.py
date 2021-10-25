@@ -1,21 +1,39 @@
 #!/usr/bin/env python3
-import sys, csv, os
+import sys, csv, os, argparse
 
-try:
-	psl = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl' 
-	gtf = open(sys.argv[2])
-	outfilename = sys.argv[3]
-	if len(sys.argv) > 4:
-		proportion_annotated_covered = float(sys.argv[4])
-	else:
-		proportion_annotated_covered = 0.8
-except:
-	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion] \n')
-	sys.stderr.write('purpose: changes the name for each entry in psl/bed to the isoform and gene\n')
-	sys.stderr.write('optional argument: proportion should be a decimal < 1 specifying the % of an' +
-		'annotated single-exon gene a FLAIR isoform has to cover (default=0.8)\n')
-	sys.exit(1)
+# try:
+# 	psl = open(sys.argv[1])
+# 	gtf = open(sys.argv[2])
+# 	outfilename = sys.argv[3]
+# 	if len(sys.argv) > 4:
+# 		proportion_annotated_covered = float(sys.argv[4])
+# 	else:
+# 		proportion_annotated_covered = 0.8
+# except:
+# 	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion] \n')
+# 	sys.stderr.write('purpose: changes the name for each entry in psl/bed to the isoform and gene\n')
+# 	sys.stderr.write('optional argument: proportion should be a decimal < 1 specifying the % of an' +
+# 		'annotated single-exon gene a FLAIR isoform has to cover (default=0.8)\n')
+# 	sys.exit(1)
+
+
+parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
+	each isoform and renames the isoform''',
+	usage='python script.py psl/bed annotation.gtf renamed.psl/bed [proportion]')
+parser.add_argument('psl', type=str,
+	action='store', help='isoforms in psl or bed format')
+parser.add_argument('gtf', type=str,
+	action='store', help='annotated isoform gtf')
+parser.add_argument('outfilename', type=str,
+	action='store', help='Name of output file')
+parser.add_argument('--proportion', action='store', default=0.8, dest='proportion_annotated_covered',
+	type=float, help='''proportion should be a decimal < 1 specifying the % of an annotated single-exon
+	gene a FLAIR isoform has to cover (default=0.8)''')
+parser.add_argument('--annotation_reliant', action='store_true', dest='annotation_reliant', default='',
+	help='name all isoforms with -* starting with -0')
+args = parser.parse_args()
+isbed = sys.argv[1][-3:].lower() != 'psl' 
+
 
 def get_junctions(line):
 	junctions = set()
@@ -98,7 +116,9 @@ all_se = {}  # all single exon genes
 junc_to_gene = {}  # matches a splice junction (i.e. an intron) to gene name
 gene_unique_juncs = {}  # matches a gene to its set of unique splice junctions
 
-for line in gtf:  # extract all exons from the gtf, keep exons grouped by transcript
+for line in open(args.gtf):
+	# extract all exons from the gtf, keep exons grouped by transcript
+	# only works if the exons are sorted by coordinates and grouped by transcript
 	if line.startswith('#'):
 		continue
 	line = line.rstrip().split('\t')
@@ -137,9 +157,9 @@ for chrom in all_se:
 	all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
 
 name_counts = {}  # to avoid redundant names
-with open(outfilename, 'wt') as outfile:
+with open(args.outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-	for line in psl:
+	for line in open(args.psl):
 		line = line.rstrip().split('\t')
 		if isbed:
 			junctions = get_junctions_bed12(line)
@@ -147,10 +167,10 @@ with open(outfilename, 'wt') as outfile:
 		else:
 			junctions = get_junctions(line)
 			chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+		if ';' in name:
+			name = name[:name.find(';')]
 
 		if chrom not in junc_to_tn:  # chrom not in reference file
-			if ';' in name:
-				name = name[:name.find(';')]
 			if name not in name_counts:
 				name_counts[name] = 0
 			else:
@@ -165,7 +185,6 @@ with open(outfilename, 'wt') as outfile:
 			writer.writerow(line)
 			continue
 
-		things = {}
 		gene_hits = {}
 		se_gene_tiebreaker = {}
 		if not junctions:
@@ -177,7 +196,7 @@ with open(outfilename, 'wt') as outfile:
 				if overlap:
 					proportion = float(overlap)/(exon[1]-exon[0])  # base coverage of long-read isoform by the annotated isoform
 					proportion2 = float(overlap)/(e[1]-e[0])  # base coverage of the annotated isoform by the long-read isoform
-					if proportion > 0.5 and proportion2 > proportion_annotated_covered:
+					if proportion > 0.5 and proportion2 > args.proportion_annotated_covered:
 						if e[2] in gene_hits: # gene name
 							if proportion <= gene_hits[e[2]]:
 								continue
@@ -228,16 +247,14 @@ with open(outfilename, 'wt') as outfile:
 				if tn_to_juncs[chrom][t] == junctions:
 					transcript = t  # annotated transcript identified
 					break
-
-		if not transcript:
-			if ';' in name:
-				name = name[:name.find(';')]
-		else:
-			name = transcript
+		name = transcript if transcript else name
 
 		if name not in name_counts:
 			name_counts[name] = 0
-			newname = name + '_' + gene
+			if args.annotation_reliant:
+				newname = name + '-0_' + gene
+			else:
+				newname = name + '_' + gene
 		else:
 			name_counts[name] += 1
 			newname = name + '-' + str(name_counts[name]) + '_' + gene

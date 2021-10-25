@@ -54,7 +54,8 @@ class CommandLine(object) :
                                             usage = '%(prog)s -i sorted.aligned.bam ')
         # Add args
         self.parser.add_argument('-i', "--input_bam", action = 'store', required=True, help='Input bam file.')
-        
+        self.parser.add_argument('--keep_supplementary', action = 'store_true', required=False, default=False,  help='Keep supplementary alignments')
+
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -120,7 +121,7 @@ def main():
     unknownTxn = "99,99,99"
 
     # SAM Object allows for execution of many SAM-related functions.
-    sObj = SAM(alignmentFile)
+    sObj = SAM(alignmentFile, keep_supplementary = myCommandLine.args['keep_supplementary'])
 
 
     for num, readData in enumerate(sObj.readJuncs(),0):
