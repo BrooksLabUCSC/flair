@@ -129,6 +129,7 @@ def count_transcripts_for_reads(read_names):
 			cigar, pos = t_info.cigar, t_info.startpos
 
 			relstart = 0
+			n_inserts = 0	
 			blocksizes, relblockstarts = [], []
 
 			matches = re.findall('([0-9]+)([A-Z])', cigar)
@@ -152,6 +153,8 @@ def count_transcripts_for_reads(read_names):
 					relstart += num
 				elif op == 'D':  # consumes reference
 					relstart += num
+				elif op == 'I':  # calculate the pairwise space for penalising insertion
+                                        n_inserts += num
 				elif op == 'N':  # consumes reference
 					relstart += num
 
@@ -167,11 +170,12 @@ def count_transcripts_for_reads(read_names):
 			blockstarts = [pos + s for s in relblockstarts]
 			read_left = blockstarts[0]
 			read_right = blockstarts[-1] + blocksizes[-1]
+			pairwise_space = n_inserts + relstart
 			if args.stringent and is_stringent(t, blocksizes, blockstarts) \
 				or args.trust_ends:
 				n_matches = sum(blocksizes)
 				transcript_coverage[t] = (n_matches, read_left, \
-					transcript_lengths[t] - read_right, softclip_left, softclip_right, n_matches/relstart)
+					transcript_lengths[t] - read_right, softclip_left, softclip_right, n_matches/pairwise_space)
 
 		if args.stringent and not transcript_coverage:  # no transcripts passed stringent criteria
 			continue
