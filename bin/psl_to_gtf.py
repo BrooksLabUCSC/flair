@@ -7,6 +7,8 @@ parser.add_argument('psl', type=str, \
 	action='store', help='isoforms in psl or bed format')
 parser.add_argument('--force', action='store_true', dest='force', \
 	help='specify to not split isoform name by underscore into isoform and gene ids')
+parser.add_argument('--add_reference_transcript_id', action='store_true', dest='reference_transcript_id', \
+	help='specify to add reference_transcript_id attribute')
 args = parser.parse_args()
 
 def split_iso_gene(iso_gene):
@@ -62,37 +64,44 @@ for line in open(args.psl):
 	else:
 		transcript_id, gene_id = split_iso_gene(name)
 
-	endstring = 'gene_id \"{}\"; transcript_id \"{}\";'\
+	attributes = 'gene_id \"{}\"; transcript_id \"{}\";'\
 				.format(gene_id, transcript_id)
-	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
-		endstring]))
+	if args.reference_transcript_id and '-referencetranscript' in transcript_id:
+		trimmed_transcript_id = transcript_id[:transcript_id.find('-referencetranscript')]
+		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; reference_transcript_id \"{}\";'\
+		.format(gene_id, trimmed_transcript_id, trimmed_transcript_id)
+	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.',
+		attributes]))
 	if isbed and thick_start != thick_end and (thick_start != start or thick_end != end):
-		print('\t'.join([chrom, 'FLAIR', 'CDS', str(thick_start+1), str(thick_end), '.', strand, '.', \
-		endstring]))
+		print('\t'.join([chrom, 'FLAIR', 'CDS', str(thick_start+1), str(thick_end), '.', strand, '.',
+		attributes]))
 		if strand == '+':
-			print('\t'.join([chrom, 'FLAIR', 'start_codon', str(thick_start+1), str(thick_start+3), '.', strand, '.', \
-			endstring]))
-			print('\t'.join([chrom, 'FLAIR', '5UTR', str(start+1), str(thick_start+1), '.', strand, '.', \
-			endstring]))
-			print('\t'.join([chrom, 'FLAIR', '3UTR', str(thick_end), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
-			endstring]))
+			print('\t'.join([chrom, 'FLAIR', 'start_codon', str(thick_start+1), str(thick_start+3), '.', strand, '.',
+			attributes]))
+			print('\t'.join([chrom, 'FLAIR', '5UTR', str(start+1), str(thick_start+1), '.', strand, '.',
+			attributes]))
+			print('\t'.join([chrom, 'FLAIR', '3UTR', str(thick_end), str(tstarts[-1]+bsizes[-1]), '.', strand, '.',
+			attributes]))
 		elif strand == '-':
-			print('\t'.join([chrom, 'FLAIR', 'start_codon', str(thick_end-2), str(thick_end), '.', strand, '.', \
-			endstring]))
-			print('\t'.join([chrom, 'FLAIR', '3UTR', str(start+1), str(thick_start+1), '.', strand, '.', \
-			endstring]))
-			print('\t'.join([chrom, 'FLAIR', '5UTR', str(thick_end), str(tstarts[-1]+bsizes[-1]), '.', strand, '.', \
-			endstring]))
+			print('\t'.join([chrom, 'FLAIR', 'start_codon', str(thick_end-2), str(thick_end), '.', strand, '.',
+			attributes]))
+			print('\t'.join([chrom, 'FLAIR', '3UTR', str(start+1), str(thick_start+1), '.', strand, '.',
+			attributes]))
+			print('\t'.join([chrom, 'FLAIR', '5UTR', str(thick_end), str(tstarts[-1]+bsizes[-1]), '.', strand, '.',
+			attributes]))
 	# if strand == '-':  # to list exons in 5'->3'
 	# 	for b in range(len(tstarts)):  # exon number
 	# 		bi = len(tstarts) - 1 - b  # block index
-	# 		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
+	# 		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
 	# 						.format(gene_id, transcript_id, b)
 	# 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[bi]+1), \
-	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, '.', endstring]))			
+	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, '.', attributes]))			
 	# else:
 	for b in range(len(tstarts)):
-		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
+		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
 				.format(gene_id, transcript_id, b)
+		if args.reference_transcript_id and '-referencetranscript' in transcript_id:		
+			attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\"; reference_transcript_id \"{}\";'\
+			.format(gene_id, trimmed_transcript_id, b, trimmed_transcript_id)
 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1), \
-			str(tstarts[b]+bsizes[b]), '.', strand, '.', endstring]))
+			str(tstarts[b]+bsizes[b]), '.', strand, '.', attributes]))

@@ -6,8 +6,8 @@ from collections import Counter
 from collections import namedtuple
 
 parser = argparse.ArgumentParser(description='''for counting transcript abundances after 
-			aligning reads to transcripts; for multiple mappers, only the best alignment 
-			for each read is used, usage=python -s samfile -o outputfile''')
+	aligning reads to transcripts; for multiple mappers, only the best alignment 
+	for each read is used, usage=python -s samfile -o outputfile''')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('-s', '--sam', type=str, default='', required=True, action='store',
 	dest='sam', help='sam file')
@@ -31,10 +31,10 @@ parser.add_argument('--quality', default=1, type=int, action='store', dest='qual
 parser.add_argument('--generate_map', default='', action='store', type=str, dest='generate_map',
 	help='''specify an output path for a txt file of which isoform each read is assigned to''')
 parser.add_argument('--fusion_dist', default='', action='store', dest='fusion_dist',
-		help='''minimium distance between separate read alignments on the same chromosome to be
-		considered a fusion, otherwise no reads will be assumed to be fusions''')
+	help='''minimium distance between separate read alignments on the same chromosome to be
+	considered a fusion, otherwise no reads will be assumed to be fusions''')
 parser.add_argument('--minimal_input', default='', action='store_true', dest='minimal_input',
-		help='''input file is not actually a sam file, but only the info necessary''')
+	help='''input file is not actually a sam file, but only the info necessary''')
 args = parser.parse_args()
 
 if not os.path.exists(args.sam):
@@ -117,7 +117,7 @@ def are_far(transcript_1, transcript_2):
 
 def count_transcripts_for_reads(read_names):
 	counts = {}  # isoform to counts
-	isoform_read = {}  # isoform and their supporting read ids 
+	isoform_read = {}  # isoform and their supporting read ids
 	for r in read_names:
 		transcripts = reads[r]  # all potential transcripts this read is assigned to
 
@@ -168,7 +168,7 @@ def count_transcripts_for_reads(read_names):
 			num, op = int(matches[0][0]), matches[0][1]
 			if op == 'H':  # check for H and then S at beginning of cigar 
 				matches = matches[1:]
-				relstart += num
+				# relstart += num
 
 			num, op = int(matches[0][0]), matches[0][1]
 			if op == 'S':
@@ -230,12 +230,15 @@ def count_transcripts_for_reads(read_names):
 			args.check_splice and not args.stringent and check_splice(t, pos, covered_pos, insertion_pos)) or \
 			(not args.stringent and not args.check_splice and args.trust_ends):
 				transcript_coverage[t] = (sum(blocksizes), read_left, \
-					transcript_lengths[t] - read_right, softclip_left, softclip_right)
+					transcript_lengths[t] - read_right, softclip_left, softclip_right, transcripts[t].mapq)
 
 		if not transcript_coverage:  # no transcripts passed stringent and/or check_splice criteria
 			continue
 		# sort by highest number of base matches
-		ranked_transcripts = sorted(transcript_coverage.items(), key=lambda x: x[1][0])
+		ranked_transcripts = sorted(transcript_coverage.items(), key=lambda x: x[1][0], reverse=True)
+		# then sort by highest mapq
+		ranked_transcripts = sorted(ranked_transcripts, key=lambda x: x[1][5], reverse=True)
+
 		best_t, best_t_info = ranked_transcripts[0]
 
 		# reminder that best_t_info is sum(blocksizes), left pos, right pos, softclip_left, softclip_right)
@@ -318,7 +321,7 @@ for line in sam:
 	if line.startswith('@'):
 		if line.startswith('@SQ'):
 			name = line[line.find('SN:') + 3:].split()[0]
-			if '|' in name:
+			if name.count('|') > 2:
 				name = name[:name.find('|')]
 			length = float(line[line.find('LN:') + 3:].split()[0])
 			transcript_lengths[name] = length
@@ -334,7 +337,7 @@ for line in sam:
 		continue
 	if read not in reads:
 		reads[read] = {}
-	if '|' in transcript:
+	if transcript.count('|')>2:
 		transcript = transcript[:transcript.find('|')]
 	reads[read][transcript] = aln(cigar=cigar, mapq=quality, startpos=pos)
 

@@ -113,7 +113,7 @@ def main():
     drim      = importr('DRIMSeq')
 
     # get quant table and formula table
-    quantDF  = pd.read_table(matrix, header=0, sep='\t', index_col=0)
+    quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
     df       = pandas2ri.py2ri(quantDF)
 
     formulaDF = pd.read_csv(formula,header=0, sep="\t")
@@ -126,6 +126,7 @@ def main():
 
     # DRIMSEQ part.
     # Forumla
+    print('here')
     if "batch" in list(formulaDF): R.assign('batch', samples.rx2('batch'))
     R.assign('condition', samples.rx2('condition'))
     R.assign('counts', counts)
@@ -144,7 +145,18 @@ def main():
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
-    R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
+    # R('f = colnames(design_full)')
+    # R("save.image(file='/private/groups/brookslab/atang/flair/testing/misc/colette/.RData')")
+    # f = robjects.r['f']
+    # print('here2')
+    # g = robjects.r['condition']
+    # print(f)
+    # print(g)
+    import rpy2
+    print(rpy2.__version__)
+    print(np.__version__)
+    # R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
+    R('contrast = colnames(design_full)[2]')
 
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')

@@ -211,9 +211,9 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 
 			chrom_clean = chrom[1:]
 			event = chrom_clean+':'+str(j[0])+'-'+str(j[1])
-			writer.writerow(['inclusion_'+event, event] + ir_junctions[chrom][j]['inclusion']['counts'] +\
+			writer.writerow(['inclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['inclusion']['counts'] +\
 			[','.join(ir_junctions[chrom][j]['inclusion']['isos'])] )
-			writer.writerow(['exclusion_'+event, event] + ir_junctions[chrom][j]['exclusion']['counts'] +\
+			writer.writerow(['exclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['exclusion']['counts'] +\
 			[','.join(ir_junctions[chrom][j]['exclusion']['isos'])] )
 		ir_junctions[chrom] = None
 

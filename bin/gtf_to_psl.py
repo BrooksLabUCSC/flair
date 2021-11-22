@@ -15,9 +15,7 @@ parser.add_argument('--chrom_sizes', action='store', dest='chrom_sizes', default
 	required=False, help='''chrom sizes file for psl conversion, recommended''')
 args = parser.parse_args()
 
-outfilename = args.psl
-isbed = outfilename[-3:].lower() != 'psl'
-gtf = open(args.gtf)
+isbed = args.psl[-3:].lower() != 'psl'
 
 chrom_to_size = {}
 if args.chrom_sizes:
@@ -26,21 +24,26 @@ if args.chrom_sizes:
 		chrom_to_size[line[0]] = line[1]
 
 missing_chroms = set()
-
-with open(outfilename, 'wt') as outfile:
+iso_to_cds = {}
+with open(args.psl, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
 	prev_transcript = ''
-	for line in gtf:  # extract all exons from the gtf, keep exons grouped by transcript
+	for line in open(args.gtf):  # extract all exons from the gtf, keep exons grouped by transcript
 		if line.startswith('#'):
 			continue
 		line = line.rstrip().split('\t')
 		chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1 , int(line[4]), line[6]
-		if ty != 'exon':
-			continue
-
 		this_transcript = line[8][line[8].find('transcript_id')+15:]
 		this_transcript = this_transcript[:this_transcript.find('"')]
+
+		if ty == 'CDS':
+			if this_transcript not in iso_to_cds:
+				iso_to_cds[this_transcript] = [start, end]
+			elif end > iso_to_cds[this_transcript][1]:
+				iso_to_cds[this_transcript][1] = end
+		if ty != 'exon':
+			continue
 
 		# once all the exons for a transcript are read, write the psl/bed entry
 		if this_transcript != prev_transcript:
@@ -69,17 +72,21 @@ with open(outfilename, 'wt') as outfile:
 				if isbed:
 					relblockstarts = [block - tstart for block in blockstarts]
 					relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-					writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, tstart, \
-						tend, 0, blockcount, blocksizes, relblockstarts])
+					if qname in iso_to_cds:
+						cds_start, cds_end = iso_to_cds[qname]
+					else:
+						cds_start, cds_end = tstart, tend
+					writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
+						cds_end, 0, blockcount, blocksizes, relblockstarts])
 				else:
 					blockstarts = ','.join([str(b) for b in blockstarts]) + ','
 					if chrom_to_size and prev_chrom in chrom_to_size:
-						writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize, \
+						writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize,
 							prev_chrom, chrom_to_size[prev_chrom], tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
 					else:
 						if chrom_to_size and prev_chrom not in chrom_to_size:
 							missing_chroms.add(prev_chrom)
-						writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize, \
+						writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize,
 							prev_chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
 
 			blockstarts, blocksizes = [], []
@@ -108,17 +115,21 @@ with open(outfilename, 'wt') as outfile:
 	if isbed:
 		relblockstarts = [block - tstart for block in blockstarts]		
 		relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-		writer.writerow([chrom, tstart, tend, qname, 1000, strand, start, end, 0, \
+		if qname in iso_to_cds:
+			cds_start, cds_end = iso_to_cds[qname]
+		else:
+			cds_start, cds_end = tstart, tend
+		writer.writerow([chrom, tstart, tend, qname, 1000, cds_start, cds_end, end, 0,
 			blockcount, blocksizes, relblockstarts])
 	else:
 		blockstarts = ','.join([str(b) for b in blockstarts]) + ','
 		if chrom_to_size and prev_chrom in chrom_to_size:
-			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize, \
+			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize,
 				chrom, chrom_to_size[chrom], tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
 		else:
 			if chrom_to_size and chrom not in chrom_to_size:
 				missing_chroms.add(chrom)
-			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize, \
+			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize,
 				chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
 if missing_chroms:
 	sys.stderr.write('chromosomes found in gtf but not in chrom_sizes file: {}\n'.format(missing_chroms))

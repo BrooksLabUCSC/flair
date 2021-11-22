@@ -104,7 +104,7 @@ def main():
     print("running DESEQ2 %s" % prefix, file=sys.stderr)
 
     # make the quant DF
-    quantDF  = pd.read_table(matrix, header=0, sep='\t', index_col=0)
+    quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
     df = pandas2ri.py2ri(quantDF)
 
     # import formula
@@ -113,7 +113,7 @@ def main():
 
 
     if "batch" in list(formulaDF):
-        design = Formula("~ batch + condition")
+        design = Formula("~ condition + condition")
     else:
         design = Formula("~ condition")
    
@@ -134,6 +134,10 @@ def main():
     R.assign('design',design)
     R('dds <- DESeqDataSetFromMatrix(countData = df, colData = sampleTable, design = design)')
     R('dds <- DESeq(dds)')
+    # R("save.image(file='/private/groups/brookslab/atang/flair/testing/misc/colette/.RData')")
+    R('f = resultsNames(dds)')
+    g = robjects.r['f']
+    print(g)
     R('name <- grep("condition", resultsNames(dds), value=TRUE)')
 
     ###

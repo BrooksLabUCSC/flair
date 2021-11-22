@@ -1,22 +1,6 @@
 #!/usr/bin/env python3
 import sys, csv, os, argparse
 
-# try:
-# 	psl = open(sys.argv[1])
-# 	gtf = open(sys.argv[2])
-# 	outfilename = sys.argv[3]
-# 	if len(sys.argv) > 4:
-# 		proportion_annotated_covered = float(sys.argv[4])
-# 	else:
-# 		proportion_annotated_covered = 0.8
-# except:
-# 	sys.stderr.write('usage: script.py psl/bed annotation.gtf renamed.psl/bed [proportion] \n')
-# 	sys.stderr.write('purpose: changes the name for each entry in psl/bed to the isoform and gene\n')
-# 	sys.stderr.write('optional argument: proportion should be a decimal < 1 specifying the % of an' +
-# 		'annotated single-exon gene a FLAIR isoform has to cover (default=0.8)\n')
-# 	sys.exit(1)
-
-
 parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
 	each isoform and renames the isoform''',
 	usage='python script.py psl/bed annotation.gtf renamed.psl/bed [proportion]')
@@ -31,6 +15,10 @@ parser.add_argument('--proportion', action='store', default=0.8, dest='proportio
 	gene a FLAIR isoform has to cover (default=0.8)''')
 parser.add_argument('--annotation_reliant', action='store_true', dest='annotation_reliant', default='',
 	help='name all isoforms with -* starting with -0')
+parser.add_argument('--gene_only', action='store_true', dest='gene_only', default='',
+	help='only append gene name to read name')
+parser.add_argument('--field_name', action='store', dest='field_name', default='gene_id',
+	help='field name to use for gene id, e.g. gene_type or gene_name (default: gene_id)')
 args = parser.parse_args()
 isbed = sys.argv[1][-3:].lower() != 'psl' 
 
@@ -145,8 +133,15 @@ for line in open(args.gtf):
 			(prev_end, start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
 
 	prev_start, prev_end = start, end
-	prev_gene = line[8][line[8].find('gene_id')+9:]
-	prev_gene = prev_gene[:prev_gene.find('"')]
+	if args.field_name not in line[8]:
+		# sys.stderr.write('{} not in {}\n'.format(args.field_name, line[8]))
+		# sys.exit(1)
+		prev_gene = 'NA'
+	else:
+		prev_gene = line[8][line[8].find(args.field_name)+len(args.field_name)+2:]
+		prev_gene = prev_gene[:prev_gene.find('"')]
+		prev_gene = prev_gene.replace('_', '-')
+
 	prev_exon = (start, end, prev_gene)
 
 if ty == 'exon' and prev_transcript:
@@ -247,9 +242,11 @@ with open(args.outfilename, 'wt') as outfile:
 				if tn_to_juncs[chrom][t] == junctions:
 					transcript = t  # annotated transcript identified
 					break
-		name = transcript if transcript else name
+		name = transcript if transcript and not args.gene_only else name
 
-		if name not in name_counts:
+		if args.gene_only:
+			newname = name + '_' + gene
+		elif name not in name_counts:
 			name_counts[name] = 0
 			if args.annotation_reliant:
 				newname = name + '-0_' + gene

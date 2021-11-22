@@ -17,6 +17,9 @@ from __future__ import print_function
 # Hot Imports & Global Variable
 ########################################################################
 
+import warnings
+from rpy2.rinterface import RRuntimeWarning
+warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 import os, sys
 import pandas as pd
@@ -32,9 +35,6 @@ from rpy2.robjects.conversion import localconverter
 from rpy2.robjects.lib import grid
 R = robjects.r
 
-import warnings
-from rpy2.rinterface import RRuntimeWarning
-warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 ########################################################################
 # CommandLine
@@ -60,7 +60,7 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' runDU.py - a rpy2 convenience tool to run DRIMseq.',
+        self.parser = argparse.ArgumentParser(description = 'runDS.py - a rpy2 convenience tool to run DRIMseq.',
                                              epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
