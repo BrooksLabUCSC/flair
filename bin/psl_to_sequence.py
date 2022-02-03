@@ -186,7 +186,10 @@ def get_sequence_with_variants(entry, seq, name):
 	return name_ref, pulled_seq, name_alt, alt_seq
 
 def write_sequences(chrom):
+
+	models = []
 	for entry in psldata[chrom]:
+
 		name = entry[3] if isbed else entry[9]
 		if args.vcf:
 			pulled_seqs = get_sequence_with_variants(entry, seq, name)
@@ -199,11 +202,11 @@ def write_sequences(chrom):
 				writer.writerow([pulled_seqs[3]])
 				entry[3] = pulled_seqs[2]
 				entry_alt = tuple(entry)
-				return [entry_ref, entry_alt]
+				models += [entry_ref, entry_alt]
 			else:
 				writer.writerow(['>' + name])
 				writer.writerow([pulled_seqs[0]])
-				return [entry]
+				models += [entry]
 
 		else:
 			if fastq:
@@ -216,7 +219,7 @@ def write_sequences(chrom):
 			if fastq:
 				writer.writerow(['+'])
 				writer.writerow(['@'*len(pulled_seq)])
-			return []
+	return models
 
 
 revcomp_dict = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 'R': 'Y',
@@ -241,28 +244,8 @@ with open(args.outfilename, 'wt') as outfile:
 				chrom = line.split()[0][1:]
 				continue
 			if chrom in psldata:  # or bed
-				models = write_sequences(chrom)
-				for m in models:
-					models_to_write += [m]
-				# for entry in psldata[chrom]:
-				# 	name = entry[3] if isbed else entry[9]
-				# 	if args.vcf:
-				# 		pulledseqs = get_sequence_with_variants(entry, seq, name)
-				# 		for seq in pulledseq:
-				# 			writer.writerow(['>' + name])
-				# 			writer.writerow([seq])
+				models_to_write += write_sequences(chrom)
 
-				# 	else:
-				# 		if fastq:
-				# 			writer.writerow(['@' + name])
-				# 		else:
-				# 			writer.writerow(['>' + name])
-				# 		pulledseq = get_sequence(entry, seq)
-
-				# 		writer.writerow([pulledseq])
-				# 		if fastq:
-				# 			writer.writerow(['+'])
-				# 			writer.writerow(['@'*len(pulledseq)])
 			chrom = line.split()[0][1:]
 			ignore = chrom not in psldata
 			seq = ''
@@ -270,8 +253,8 @@ with open(args.outfilename, 'wt') as outfile:
 			seq += line.upper()
 
 	if chrom in psldata:  # last chromosome
-		for entry in psldata[chrom]:
-			write_sequences(chrom)
+		models_to_write += write_sequences(chrom)
+
 
 if args.models_out:
 	with open(args.models_out, 'wt') as outfile:

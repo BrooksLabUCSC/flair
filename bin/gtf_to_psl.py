@@ -119,7 +119,7 @@ with open(args.psl, 'wt') as outfile:
 			cds_start, cds_end = iso_to_cds[qname]
 		else:
 			cds_start, cds_end = tstart, tend
-		writer.writerow([chrom, tstart, tend, qname, 1000, cds_start, cds_end, end, 0,
+		writer.writerow([chrom, tstart, tend, qname, 1000, strand, cds_start, cds_end, 0,
 			blockcount, blocksizes, relblockstarts])
 	else:
 		blockstarts = ','.join([str(b) for b in blockstarts]) + ','

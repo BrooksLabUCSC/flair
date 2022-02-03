@@ -108,7 +108,8 @@ def align():
 		ver = subprocess.Popen([args.sam], stderr=subprocess.PIPE, universal_newlines=True)
 		for line in ver.stderr:
 			if 'Version:' in line:
-				v = line.rstrip()[line.find('Version:')+9:line.find('Version:')+12]
+				v = line.rstrip()[line.find('Version:')+9:line.find('Version:')+13]
+				v = v[:-1] if v[-1] == '.' else v
 				try:
 					if float(v) >= 1.3:
 						if not args.quiet:
@@ -595,6 +596,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4', args.annotation_reliant] + args.r,
 			stdout=open(args.o+'annotated_transcripts.alignment.sam', 'w'),
 			stderr=open(args.o+'annotated_transcripts.alignment.mm2_stderr', 'w')):
+			sys.stderr.write('Minimap2 issue, check stderr file\n')
 			return 1
 		intermediate += [args.o+'annotated_transcripts.alignment.sam', args.o+'annotated_transcripts.alignment.mm2_stderr']
 
@@ -602,7 +604,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			sys.stderr.write('Counting supporting reads for annotated transcripts\n')
 		count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', args.o+'annotated_transcripts.alignment.sam',
 			'-o', args.o+'annotated_transcripts.alignment.counts', '-t', args.t, '--quality', args.quality, '-w', args.w,
-			'--generate_map', args.o+'annotated.isoform.read.map.txt']
+			'--generate_map', args.o+'annotated_transcripts.isoform.read.map.txt']
 		if args.stringent:
 			count_cmd += ['--stringent']
 		if args.check_splice:
@@ -621,7 +623,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			args.annotated_bed, str(min_reads), args.o+'annotated_transcripts.supported'+ext])
 
 		subset_reads = args.o+'unassigned.fasta'
-		subprocess.call([sys.executable, path+'bin/subset_unassigned_reads.py', args.o+'annotated.isoform.read.map.txt',
+		subprocess.call([sys.executable, path+'bin/subset_unassigned_reads.py', args.o+'annotated_transcripts.isoform.read.map.txt',
 			precollapse, str(min_reads), args.o+'unassigned'+ext]+args.r, stdout=open(subset_reads, 'w'))
 		precollapse = args.o+'unassigned'+ext
 		args.r = [subset_reads]
@@ -729,7 +731,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.annotation_reliant:
 		subprocess.call([sys.executable, path+'bin/filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
 			'-i', args.o+'isoforms'+ext, '--map_i', args.o+'isoform.read.map.txt', 
-			'-a',  args.o+'annotated_transcripts.supported'+ext, '--map_a', args.o+'annotated.isoform.read.map.txt',
+			'-a',  args.o+'annotated_transcripts.supported'+ext, '--map_a', args.o+'annotated_transcripts.isoform.read.map.txt',
 			'-o', args.o+'isoforms'+ext, '--new_map', args.o+'combined.isoform.read.map.txt'])
 
 	if not args.range:  # also write .fa and .gtf files
