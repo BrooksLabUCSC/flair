@@ -73,7 +73,7 @@ class SAM(object):
     Handles sequence alignment format file input and output.
     '''
 
-    def __init__(self, inFile=None, isHISAT=False, fetch=''):
+    def __init__(self, inFile=None, isHISAT=False, fetch='', keep_supplementary=False):
         # Attributes
         self.inFile = inFile
         self.fetch = fetch
@@ -87,6 +87,7 @@ class SAM(object):
             sys.exit(1)
     
         self.strandInfo = {0:'+', 16:'-'}
+        self.supplementary_strandInfo = {2048:'+', 2064:'-'}
         #print(self.reader.find_introns((read for read in self.reader.fetch() if read.is_reverse)))
 
         #sys.exit(1)
@@ -95,6 +96,8 @@ class SAM(object):
             self.inferJuncStrand = self.inferHISATJuncStrand
         else:
             self.inferJuncStrand = self.inferMM2JuncStrand
+
+        self.keep_supplementary = keep_supplementary
 
     def inferMM2JuncStrand(self, read):
         # minimap gives junction strand denoted as 'ts'
@@ -162,14 +165,17 @@ class SAM(object):
         '''
         Returns start, end and junctions from a single read.
         '''
-
+        allskipped={}
         for read in self.reader.fetch():
 
             try:
                 # Skip unmapped or multimapped reads.
                 strand = self.strandInfo[read.flag]
             except:
-                continue
+                if self.keep_supplementary and read.flag in self.supplementary_strandInfo:
+                    strand = self.supplementary_strandInfo[read.flag]
+                else:
+                    continue
 
             qName = read.query_name
             chromosome = read.reference_name
@@ -189,7 +195,6 @@ class SAM(object):
             orientation = read.flag
 
             juncDir = self.inferJuncStrand(read)
-
             for num, flagTuple in enumerate(cigar,1):
                 flag, length = flagTuple 
                 if flag not in [0,2,3,7,8]:
@@ -201,6 +206,7 @@ class SAM(object):
                 refPos = refEnd+length
                 refEnd = refPos
 
+
             # Last is the end
             rend = refEnd
 
@@ -210,7 +216,6 @@ class SAM(object):
 def runCMD(x):
     fetch, alignType, bam = x
     bObj = SAM(bam, alignType, fetch)
-    print(bObj)
     return bObj.countJuncs()
 
 
@@ -238,7 +243,7 @@ def main():
 
     #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
     results = p.map(runCMD, referenceIDs)
-    print(results)
+
 
 
     # print(results[0])
