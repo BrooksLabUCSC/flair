@@ -19,7 +19,7 @@ parser.add_argument('--append_counts', action='store_true', dest='append_counts'
 	read counts as a new column in the psl file''')
 args = parser.parse_args()
 
-isbed = args.psl.lower() != 'psl'
+isbed = args.psl.lower()[-3:] != 'psl'
 
 counts = {}
 for line in open(args.counts_file):
