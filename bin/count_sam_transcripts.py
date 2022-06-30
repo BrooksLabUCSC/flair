@@ -9,8 +9,8 @@ parser = argparse.ArgumentParser(description='''for counting transcript abundanc
 	aligning reads to transcripts; for multiple mappers, only the best alignment 
 	for each read is used, usage=python -s samfile -o outputfile''')
 required = parser.add_argument_group('required named arguments')
-required.add_argument('-s', '--sam', type=str, default='', required=True, action='store',
-	dest='sam', help='sam file')
+required.add_argument('-s', '--sam', type=argparse.FileType('r'), required=True,
+	dest='sam', help='sam file or - for STDIN')
 required.add_argument('-o', '--output', default='counts.txt', type=str, required=True, action='store',
 	dest='output', help='output file name')
 parser.add_argument('-i', '--isoforms', type=str, action='store', dest='isoforms', default='',
@@ -37,10 +37,7 @@ parser.add_argument('--minimal_input', default='', action='store_true', dest='mi
 	help='''input file is not actually a sam file, but only the info necessary''')
 args = parser.parse_args()
 
-if not os.path.exists(args.sam):
-	sys.stderr.write('Sam file path issue: {}\n'.format(args.sam))
-	sys.exit(1)
-sam = open(args.sam)
+sam = args.sam
 
 if args.stringent or args.fusion_dist or args.check_splice:
 	if not os.path.exists(args.isoforms):
