@@ -1,11 +1,27 @@
 """ ADT, CMS """
 
 import sys
+import re
 import argparse
 import subprocess
 import os
 import tempfile
 import glob
+
+def samtools_outdated(samtools):
+	'''Make sure samtools version is 1.3 or higher'''
+	ver = subprocess.Popen([samtools], stderr=subprocess.PIPE, universal_newlines=True)
+	for line in ver.stderr:
+		if 'Version:' in line:
+			versionmatch = re.match('Version: (\d+)\.(\d+)', line)
+			if versionmatch == None:
+				return True
+			versionmatch = list(versionmatch.groups())
+			if len(versionmatch) < 2:
+				return True
+			if int(versionmatch[0]) > 0 and int(versionmatch[1]) > 2:
+				return False
+	return True
 
 
 def align():
@@ -39,8 +55,6 @@ def align():
 		compatible psl file''')
 	parser.add_argument('--psl', action='store_true', dest='p',
 		help='also output sam-converted psl')
-	parser.add_argument('-v1.3', '--version1.3', action='store_true', dest='v',
-		help='specify if samtools version 1.3+')
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
 		help='minimum MAPQ of read alignment to the genome (1)')
 	parser.add_argument('-N', type=int, action='store', dest='N', default=0,
@@ -50,6 +64,10 @@ def align():
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Align unrecognized arguments: {}\n'.format(' '.join(unknown)))
+
+	if samtools_outdated(args.sam) == True:
+		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
+		return 1
 
 	if args.m[-8:] != 'minimap2':
 		if args.m[-1] == '/':
@@ -104,38 +122,12 @@ def align():
 		args.o+'.psl', args.c]):
 		return 1
 
-	if not args.v:  # samtools version is < 1.3 or unspecified --> detect version; some versions don't have --version
-		ver = subprocess.Popen([args.sam], stderr=subprocess.PIPE, universal_newlines=True)
-		for line in ver.stderr:
-			if 'Version:' in line:
-				v = line.rstrip()[line.find('Version:')+9:line.find('Version:')+13]
-				v = v[:-1] if v[-1] == '.' else v
-				try:
-					if float(v) >= 1.3:
-						if not args.quiet:
-							sys.stderr.write('Samtools version >= 1.3 detected\n')
-						args.v = True
-						break
-				except:
-					if not args.quiet:
-						sys.stderr.write('Could not detect samtools version, assuming < 1.3\n')
-
-	if args.v:  # samtools verison 1.3+
-		if subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.sam', '-o', args.o+'.bam'],
-			stderr=open(args.o+'.bam.stderr', 'w')):
-			sys.stderr.write('Samtools issue with sorting minimap2 sam\n')
-			return 1
-		subprocess.check_call(['rm', args.o+'.bam.stderr'])
-	else:
-		if subprocess.call([args.sam, 'view', '-h', '-Sb', '-@', args.t, args.o+'.sam'],
-				stdout=open(args.o+'.unsorted.bam', 'w')):
-			sys.stderr.write('Possible issue with samtools executable\n')
-			return 1
-		if subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.unsorted.bam', args.o],
-				stderr=open(args.o+'.unsorted.bam.stderr', 'w')):
-			sys.stderr.write('If using samtools v1.3+, please specify -v1.3 argument\n')
-			return 1
-		subprocess.check_call(['rm', args.o+'.unsorted.bam', args.o+'.unsorted.bam.stderr'])
+	stderrfile = args.o + '.bam.stderr'
+	if subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.sam', '-o', args.o+'.bam'],
+		stderr=open(stderrfile, 'w')):
+		sys.stderr.write(f'Samtools issue with sorting minimap2 sam, see {stderrfile}\n')
+		return 1
+	subprocess.check_call(['rm', stderrfile, args.o+'.sam'])
 
 	subprocess.check_call([args.sam, 'index', args.o+'.bam'])
 
@@ -278,6 +270,10 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Collapse-range unrecognized arguments: {}\n'.format(' '.join(unknown)))
+
+	if samtools_outdated(args.sam) == True:
+		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
+		return 1
 
 	if corrected_reads:
 		args.q = corrected_reads
@@ -445,6 +441,10 @@ def collapse(genomic_range='', corrected_reads=''):
 			return 1
 	if corrected_reads:
 		args.q = corrected_reads
+
+	if samtools_outdated(args.sam) == True:
+		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
+		return 1
 
 	# housekeeping stuff
 	tempfile_dir = tempfile.NamedTemporaryFile().name
@@ -800,6 +800,10 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
 		if not isoform_sequences:
 			return 1
+
+	if samtools_outdated(args.sam) == True:
+		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
+		return 1
 
 	if isoform_sequences:
 		args.i = isoform_sequences
