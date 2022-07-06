@@ -13,8 +13,8 @@ def samtools_outdated(samtools):
 	ver = subprocess.Popen([samtools], stderr=subprocess.PIPE, universal_newlines=True)
 	for line in ver.stderr:
 		if 'Version:' in line:
-			versionmatch = re.match('Version: (\d+)\.(\d+)', line)
-			if versionmatch == None:
+			versionmatch = re.match('Version: ([0-9]+)\.([0-9]+)', line)
+			if versionmatch is None:
 				return True
 			versionmatch = list(versionmatch.groups())
 			if len(versionmatch) < 2:
@@ -38,8 +38,8 @@ def align():
 		help='minimap2 index .mmi file')
 	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.aligned',
 		help='output file name base (default: flair.aligned)')
-	parser.add_argument('-t', '--threads', type=str,
-		action='store', dest='t', default='4', help='minimap2 number of threads (4)')
+	parser.add_argument('-t', '--threads', type=int,
+		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('--junction_bed', action='store', dest='junction_bed', default='',
 		help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
 	parser.add_argument('--pychopper', type=str, default='', action='store', dest='pychopper',
@@ -65,7 +65,7 @@ def align():
 	if unknown and not args.quiet:
 		sys.stderr.write('Align unrecognized arguments: {}\n'.format(' '.join(unknown)))
 
-	if samtools_outdated(args.sam) == True:
+	if samtools_outdated(args.sam) is True:
 		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
 		return 1
 
@@ -79,12 +79,12 @@ def align():
 			sys.stderr.write('Check that read file {} exists\n'.format(args.r[i]))
 			return 1
 		if args.pychopper:
-			subprocess.check_call([args.pychopper, '-t', args.t, '-r', args.o+'.'+args.r[i]+'.pychopper_report.pdf',
+			subprocess.check_call([args.pychopper, '-t', str(args.t), '-r', args.o+'.'+args.r[i]+'.pychopper_report.pdf',
 				'-u', args.o+'.'+args.r[i]+'.unclassified.fastq', '-w', args.o+'.'+args.r[i]+'.rescued.fastq',
 				args.r, args.o+'.'+args.r[i]+'.trimmed.fastq'])
 			args.r[i] = args.o+'.'+args.r[i]+'.trimmed.fastq'
 
-	mm2_command = [args.m, '-ax', 'splice', '-t', args.t, args.g]+args.r
+	mm2_command = [args.m, '-ax', 'splice', '-t', str(args.t), args.g]+args.r
 	if args.mm_index:
 		mm2_command[5] = args.mm_index
 	if args.n:
@@ -123,7 +123,7 @@ def align():
 		return 1
 
 	stderrfile = args.o + '.bam.stderr'
-	if subprocess.call([args.sam, 'sort', '-@', args.t, args.o+'.sam', '-o', args.o+'.bam'],
+	if subprocess.call([args.sam, 'sort', '-@', str(args.t), args.o+'.sam', '-o', args.o+'.bam'],
 		stderr=open(stderrfile, 'w')):
 		sys.stderr.write(f'Samtools issue with sorting minimap2 sam, see {stderrfile}\n')
 		return 1
@@ -158,9 +158,9 @@ def correct(aligned_reads=''):
 		dest='c', default='', help='chromosome sizes tab-separated file, specify if working with .psl')
 	parser.add_argument('--nvrna', action='store_true', dest='n', default=False,
 		help='''specify this flag to keep the strand of a read consistent after correction''')
-	parser.add_argument('-t', '--threads', type=str, action='store', dest='t', default='4',
+	parser.add_argument('-t', '--threads', type=int, action='store', dest='t', default=4,
 		help='splice site correction script number of threads (4)')
-	parser.add_argument('-w', '--ss_window', action='store', dest='w', default='10',
+	parser.add_argument('-w', '--ss_window', type=int, action='store', dest='w', default=10,
 		help='window size for correcting splice sites (W=10)')
 	parser.add_argument('-o', '--output',
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
@@ -179,7 +179,7 @@ def correct(aligned_reads=''):
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
 		return 1
 	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q,
-			'-w', args.w, '-p', args.t, '-o', args.o, '--progress', '-f', args.g]
+			'-w', str(args.w), '-p', str(args.t), '-o', args.o, '--progress', '-f', args.g]
 	if not args.n:
 		correction_cmd += ['--correctStrand']
 	if args.j:
@@ -225,9 +225,9 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 		help='bedtools executable path, provide if promoter regions specified and bedtools is not in $PATH')
 	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
 		help='samtools executable path if not in $PATH')
-	parser.add_argument('-w', '--end_window', default='100', action='store', dest='w',
+	parser.add_argument('-w', '--end_window', type=int, default=100, action='store', dest='w',
 		help='window size for comparing TSS/TES (100)')
-	parser.add_argument('-s', '--support', default='3', action='store', dest='s',
+	parser.add_argument('-s', '--support', type=int, default=3, action='store', dest='s',
 		help='minimum number of supporting reads for an isoform (3)')
 	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
 		help='''specify if all supporting reads need to be full-length
@@ -240,7 +240,7 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 	parser.add_argument('-i', '--isoformtss', default=False, action='store_true', dest='i',
 		help='''when specified, TSS/TES for each isoform will be determined from supporting reads
 		for individual isoforms (default: not specified, determined at the gene level)''')
-	parser.add_argument('--max_ends', default=2, action='store', dest='max_ends',
+	parser.add_argument('--max_ends', type=int, default=2, action='store', dest='max_ends',
 		help='maximum number of TSS/TES picked per isoform (2)')
 	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
 		help='specify if reads are generated from a long read method with minimal fragmentation')
@@ -271,7 +271,7 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 	if unknown and not args.quiet:
 		sys.stderr.write('Collapse-range unrecognized arguments: {}\n'.format(' '.join(unknown)))
 
-	if samtools_outdated(args.sam) == True:
+	if samtools_outdated(args.sam) is True:
 		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
 		return 1
 
@@ -287,7 +287,7 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 		args.temp_dir = tempfile.NamedTemporaryFile().name+'/'
 		if not args.quiet:
 			sys.stderr.write('Writing temporary files to {}\n'.format(args.temp_dir))
-	if not os.path.isdir(args.temp_dir):  # make temporary directory
+	if not os.path.isdir(args.temp_dir): # make temporary directory
 		if subprocess.call(['mkdir', args.temp_dir]):
 			sys.stderr.write('Could not make temporary directory {}\n'.format(args.temp_dir))
 			return 1
@@ -318,7 +318,7 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 
 	# call collapse on all the ranges
 	p = Pool(args.t)
-	if 1 in p.map(collapse, ranges):  # if a process failed
+	if 1 in p.map(collapse, ranges): # if a process failed
 		return 1
 	p.terminate()
 
@@ -359,7 +359,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
 		type --annotation_reliant generate''')
 	# supporting read assignment options
-	parser.add_argument('-s', '--support', default='3', action='store', dest='s',
+	parser.add_argument('-s', '--support', type=float, default=3.0, action='store', dest='s',
 		help='''minimum number of supporting reads for an isoform;
 		if s < 1, it will be treated as a percentage of expression of the gene (3)''')
 	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
@@ -378,7 +378,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	parser.add_argument('--longshot_vcf', action='store', dest='longshot_vcf', default='',
 		help='vcf from longshot')
 	# ends options
-	parser.add_argument('-w', '--end_window', default='100', action='store', dest='w',
+	parser.add_argument('-w', '--end_window', type=int, default=100, action='store', dest='w',
 		help='window size for comparing TSS/TES (100)')
 	parser.add_argument('-p', '--promoters', action='store', dest='p', default='',
 		help='promoter regions bed file to identify full-length reads')
@@ -396,7 +396,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		dest='no_end_adjustment',
 		help='''when specified, TSS/TES from the gtf provided with -f will not be used to adjust
 		isoform TSSs/TESs each isoform will be determined from supporting reads''')
-	parser.add_argument('--max_ends', default=2, action='store', dest='max_ends',
+	parser.add_argument('--max_ends', type=int, default=2, action='store', dest='max_ends',
 		help='maximum number of TSS/TES picked per isoform (2)')
 	parser.add_argument('--filter', default='default', action='store', dest='filter',
 		help='''Report options include:
@@ -442,7 +442,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if corrected_reads:
 		args.q = corrected_reads
 
-	if samtools_outdated(args.sam) == True:
+	if samtools_outdated(args.sam) is True:
 		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
 		return 1
 
@@ -453,14 +453,14 @@ def collapse(genomic_range='', corrected_reads=''):
 		args.temp_dir = tempfile_dir+'/'
 		if not args.quiet:
 			sys.stderr.write('Writing temporary files to {}\t\n'.format(args.temp_dir))
-	if not os.path.isdir(args.temp_dir):  # make temporary directory
+	if not os.path.isdir(args.temp_dir): # make temporary directory
 		if subprocess.call(['mkdir', args.temp_dir]):
 			sys.stderr.write('Could not make temporary directory {}\n'.format(args.temp_dir))
 			return 1
 	if args.temp_dir[-1] != '/':
 		args.temp_dir += '/'
 
-	if genomic_range:  # this module was called internally from collapse_range
+	if genomic_range: # this module was called internally from collapse_range
 		args.range = genomic_range
 		args.o = args.temp_dir+run_id
 		args.q = args.temp_dir+run_id+'.sorted.bed.gz'
@@ -472,7 +472,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		else:
 			args.m += '/minimap2'
 
-	args.t, args.quality = str(args.t), str(args.quality)
+	#args.t, args.quality = str(args.t), str(args.quality)
 	args.quality = '0' if args.trust_ends else args.quality
 	args.o += '.'
 	min_reads = float(args.s) if float(args.s) >= 1 else 3
@@ -498,19 +498,19 @@ def collapse(genomic_range='', corrected_reads=''):
 		if '\t' in args.range:
 			args.range = args.range.split('\t')
 			args.range = args.range[0]+':'+args.range[1]+'-'+args.range[2]
-		ext = '.bed'  # query file extension will be 'bed'
+		ext = '.bed' # query file extension will be 'bed'
 		args.o += args.range+'.'
 		if args.r[0][-3:] != 'bam':
 			sys.stderr.write('Must provide genome alignment BAM with -r if range is specified\n')
 			return 1
 		bams = []
-		for i in range(len(args.r)):  # subset bam file for alignments within range
+		for i in range(len(args.r)): # subset bam file for alignments within range
 			bams += [args.temp_dir+tempfile_name+args.range+str(i)+'.bam']
 			if subprocess.call([args.sam, 'view', '-h', args.r[i], args.range],
 				stdout=open(bams[-1], 'w')):
 				return 1
 		args.r = []
-		for i in range(len(bams)):  # read sequences of the alignments within range
+		for i in range(len(bams)): # read sequences of the alignments within range
 			args.r += [bams[i][:-3]+'fasta']
 			subprocess.check_call([args.sam, 'fasta', bams[i]],
 				stdout=open(args.r[-1], 'w'),
@@ -519,8 +519,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		chrom = args.range[:args.range.find(':')]
 		coord1 = args.range[args.range.find(':')+1:args.range.find('-')]
 		coord2 = args.range[args.range.find('-')+1:]
-		precollapse = args.temp_dir+tempfile_name+args.range+'.bed'  # name of subsetted query file
-		coordfile = open(args.temp_dir+tempfile_name+args.range+'.range.bed', 'wt')  # write range to a bed file
+		precollapse = args.temp_dir+tempfile_name+args.range+'.bed' # name of subsetted query file
+		coordfile = open(args.temp_dir+tempfile_name+args.range+'.range.bed', 'wt') # write range to a bed file
 		coordfile.write('\t'.join([chrom, coord1, coord2]))
 		coordfile.close()
 		if subprocess.call(['tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', args.q],
@@ -529,11 +529,11 @@ def collapse(genomic_range='', corrected_reads=''):
 			return 1
 	else:
 		if '.' in args.q[-5:]:
-			ext = args.q[args.q.rfind('.'):]  # query file extension (bed or psl)
+			ext = args.q[args.q.rfind('.'):] # query file extension (bed or psl)
 		else:
 			ext = '.'+args.q[-3:]
-		precollapse = args.q  # query file unchanged
-		args.r = args.r[0].split(',') if ',' in args.r[0] else args.r  # read sequences
+		precollapse = args.q # query file unchanged
+		args.r = args.r[0].split(',') if ',' in args.r[0] else args.r # read sequences
 		for r in args.r:
 			if not os.path.exists(args.q):
 				sys.stderr.write('Check that read file {} exists\n'.format(r))
@@ -548,7 +548,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tss.bed', '-b', args.p],
 			stdout=open(args.temp_dir+tempfile_name+'promoter_intersect.bed', 'w')):
 			return 1
-		precollapse = args.o+'promoter_supported'+ext  # filename of promoter-supported, corrected reads
+		precollapse = args.o+'promoter_supported'+ext # filename of promoter-supported, corrected reads
 		subprocess.check_call([sys.executable, path+'bin/psl_reads_from_bed.py', args.temp_dir+tempfile_name+'promoter_intersect.bed',
 			args.q, precollapse])
 		intermediate += [args.temp_dir+tempfile_name+'tss.bed', precollapse]
@@ -561,12 +561,12 @@ def collapse(genomic_range='', corrected_reads=''):
 		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tes.bed', '-b', args.threeprime],
 			stdout=open(args.temp_dir+tempfile_name+'tes_intersect.bed', 'w')):
 			return 1
-		precollapse = args.o+'tes_supported'+ext  # filename of 3' end-supported, corrected reads
+		precollapse = args.o+'tes_supported'+ext # filename of 3' end-supported, corrected reads
 		subprocess.check_call([sys.executable, path+'bin/psl_reads_from_bed.py', args.temp_dir+tempfile_name+'tes_intersect.bed',
 			args.q, precollapse])
 		intermediate += [args.temp_dir+tempfile_name+'tes.bed', precollapse]
 
-	if args.range:  # for collapse_range, make sure the minimum number of reads is present
+	if args.range: # for collapse_range, make sure the minimum number of reads is present
 		count = len(open(precollapse).readlines())
 		if count < min_reads:
 			return 1
@@ -584,7 +584,7 @@ def collapse(genomic_range='', corrected_reads=''):
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
 			args.annotated_bed = args.o+'annotated_transcripts.bed'
 			subprocess.check_call([sys.executable, path+'bin/gtf_to_psl.py', args.f, args.annotated_bed, '--include_gene'])
-			# subprocess.call([sys.executable, path+'bin/identify_gene_isoform.py', args.annotated_bed, 
+			# subprocess.call([sys.executable, path+'bin/identify_gene_isoform.py', args.annotated_bed,
 			# 	args.f, args.annotated_bed])
 
 		if args.annotation_reliant == 'generate':
@@ -595,7 +595,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		if not args.quiet:
 			sys.stderr.write('Aligning reads to reference transcripts\n')
-		if subprocess.call([args.m, '-a', '-t', args.t, '-N', '4', args.annotation_reliant] + args.r,
+		if subprocess.call([args.m, '-a', '-t', str(args.t), '-N', '4', args.annotation_reliant] + args.r,
 			stdout=open(args.o+'annotated_transcripts.alignment.sam', 'w'),
 			stderr=open(args.o+'annotated_transcripts.alignment.mm2_stderr', 'w')):
 			sys.stderr.write('Minimap2 issue, check stderr file\n')
@@ -605,14 +605,14 @@ def collapse(genomic_range='', corrected_reads=''):
 		if not args.quiet:
 			sys.stderr.write('Counting supporting reads for annotated transcripts\n')
 		count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', args.o+'annotated_transcripts.alignment.sam',
-			'-o', args.o+'annotated_transcripts.alignment.counts', '-t', args.t, '--quality', args.quality, '-w', args.w,
-			'--generate_map', args.o+'annotated_transcripts.isoform.read.map.txt']
+			'-o', args.o+'annotated_transcripts.alignment.counts', '-t', str(args.t), '--quality', str(args.quality),
+			'-w', str(args.w), '--generate_map', args.o+'annotated_transcripts.isoform.read.map.txt']
 		if args.stringent:
 			count_cmd += ['--stringent']
 		if args.check_splice:
 			count_cmd += ['--check_splice']
 		if args.check_splice or args.stringent:
-			count_cmd += ['-i', args.annotated_bed]  # annotated isoform bed file
+			count_cmd += ['-i', args.annotated_bed] # annotated isoform bed file
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
 		if subprocess.call(count_cmd):
@@ -631,22 +631,24 @@ def collapse(genomic_range='', corrected_reads=''):
 		args.r = [subset_reads]
 		intermediate += [subset_reads, precollapse]
 
-	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, '-t', args.t,
-			'-m', str(args.max_ends), '-w', args.w, '-n', args.n, '-o', args.o+'firstpass.unfiltered'+ext]
+	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.t),
+			'-m', str(args.max_ends), '-w', str(args.w), '-n', args.n, '-o', args.o+'firstpass.unfiltered'+ext]
 	if args.f and not args.no_end_adjustment:
 		collapse_cmd += ['-f', args.f]
 	if args.i:
 		collapse_cmd += ['-i']
 	if args.quiet:
 		collapse_cmd += ['--quiet']
+
 	if subprocess.call(collapse_cmd):
 		return 1
 
 	# filtering out subset isoforms with insuficient support
 	filter_cmd = [sys.executable, path+'bin/filter_collapsed_isoforms.py',
-		args.o+'firstpass.unfiltered'+ext, args.filter, args.o+'firstpass'+ext, args.w]
+		args.o+'firstpass.unfiltered'+ext, args.filter, args.o+'firstpass'+ext, str(args.w)]
 	if float(args.s) < 1:
 		filter_cmd += ['keep']
+
 	if subprocess.call(filter_cmd):
 		return 1
 	intermediate += [args.o+'firstpass.unfiltered'+ext]
@@ -664,7 +666,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		subprocess.check_call(['mv', args.o+'firstpass.named'+ext, args.o+'firstpass'+ext])
 		if float(args.s) < 1:
 			subprocess.check_call([sys.executable, path+'bin/filter_isoforms_by_proportion_of_gene_expr.py',
-				args.o+'firstpass'+ext, args.s, args.o+'firstpass'+ext])
+				args.o+'firstpass'+ext, str(args.s), args.o+'firstpass'+ext])
 
 	if subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'firstpass'+ext,
 		args.g, args.o+'firstpass.fa']):
@@ -679,24 +681,24 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.mm2_args:
 		args.mm2_args = args.mm2_args.split(',')
 	# note that we cannot get a return value at this point because there's a pipe to samtools or count_sam_transcripts.py
-	ps = subprocess.Popen([args.m, '-a', '-t', args.t, '-N', '4'] + args.mm2_args + [args.o+'firstpass.fa'] + args.r, 
-		stdout=subprocess.PIPE) 
+	ps = subprocess.Popen([args.m, '-a', '-t', str(args.t), '-N', '4'] + args.mm2_args + [args.o+'firstpass.fa'] + args.r,
+		stdout=subprocess.PIPE)
 
 	# count the number of supporting reads for each first-pass isoform
 	count_file = args.o+'firstpass.q.counts'
-	if args.salmon:  # use salmon to count
+	if args.salmon: # use salmon to count
 		if subprocess.call([args.sam, 'view', '-F', '4', '-h', '-b', '-S', '-'],
 			stdout=open(alignout+'bam', 'w'), stdin=ps.stdout):
 			sys.stderr.write('\nMinimap2 error, please check that all file, directory, and executable paths exist\n')
 			return 1
 
 		subprocess.check_call([args.salmon, 'quant', '-t', args.o+'firstpass.fa', '-o', alignout+'salmon',
-			'-p', args.t, '-l', 'U', '-a', alignout+'bam'], stderr=open(alignout+'salmon_stderr.txt', 'w'))
+			'-p', str(args.t), '-l', 'U', '-a', alignout+'bam'], stderr=open(alignout+'salmon_stderr.txt', 'w'))
 		subprocess.check_call([sys.executable, path + 'bin/combine_counts.py', alignout+'salmon/quant.sf', count_file])
 		align_files += [alignout+'bam', alignout+'salmon/quant.sf']
 	else:
 		count_cmd = [sys.executable, path + 'bin/count_sam_transcripts.py', '-s', '-',
-			'-o', count_file, '-t', args.t, '--quality', args.quality, '-w', args.w]
+			'-o', count_file, '-t', str(args.t), '--quality', str(args.quality), '-w', str(args.w)]
 		if args.stringent:
 			count_cmd += ['--stringent']
 		if args.check_splice:
@@ -723,11 +725,11 @@ def collapse(genomic_range='', corrected_reads=''):
 
 	if args.annotation_reliant:
 		subprocess.check_call([sys.executable, path+'bin/filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
-			'-i', args.o+'isoforms'+ext, '--map_i', args.o+'isoform.read.map.txt', 
-			'-a',  args.o+'annotated_transcripts.supported'+ext, '--map_a', args.o+'annotated_transcripts.isoform.read.map.txt',
+			'-i', args.o+'isoforms'+ext, '--map_i', args.o+'isoform.read.map.txt',
+			'-a', args.o+'annotated_transcripts.supported'+ext, '--map_a', args.o+'annotated_transcripts.isoform.read.map.txt',
 			'-o', args.o+'isoforms'+ext, '--new_map', args.o+'combined.isoform.read.map.txt'])
 
-	if not args.range:  # also write .fa and .gtf files
+	if not args.range: # also write .fa and .gtf files
 		if args.longshot_bam:
 			subprocess.check_call([sys.executable, path+'bin/get_phase_sets.py', '-i', args.o+'isoforms'+ext,
 				'-b', args.longshot_bam, '-m', args.o+'combined.isoform.read.map.txt',
@@ -801,7 +803,7 @@ def quantify(isoform_sequences=''):
 		if not isoform_sequences:
 			return 1
 
-	if samtools_outdated(args.sam) == True:
+	if samtools_outdated(args.sam) is True:
 		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
 		return 1
 
@@ -831,7 +833,7 @@ def quantify(isoform_sequences=''):
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
-	args.t, args.quality = str(args.t), str(args.quality)
+	#args.t, args.quality = str(args.t), str(args.quality)
 	samData = list()
 	with codecs.open(args.r, 'r', encoding='utf-8', errors='ignore') as lines:
 		for line in lines:
@@ -858,7 +860,8 @@ def quantify(isoform_sequences=''):
 
 	for num, sample in enumerate(samData, 0):
 		sys.stderr.write("Step 1/3. Aligning sample %s_%s, %s/%s \r" % (sample[0], sample[2], num+1, len(samData)))
-		mm2_command = [args.m, '-a', '-N', '4', '-t', args.t, args.i, sample[-2]]
+		mm2_command = [args.m, '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+
 		try:
 			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
 				stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):
@@ -884,7 +887,7 @@ def quantify(isoform_sequences=''):
 
 		if not args.salmon:
 			count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', samOut,
-				'-o', samOut+'.counts.txt', '-t', args.t, '--quality', args.quality]
+				'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
 			if args.trust_ends:
 				count_cmd += ['--trust_ends']
 			if args.stringent:
@@ -906,9 +909,9 @@ def quantify(isoform_sequences=''):
 				countData[iso][num] = numreads
 		else:
 			subprocess.check_call([args.salmon, 'quant', '-t', args.i, '-o', samOut[:-4]+'.salmon',
-				'-p', args.t, '-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))
+				'-p', str(args.t), '-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))
 			salmonOut = open(samOut[:-4]+'.salmon/quant.sf')
-			salmonOut.readline()  # header
+			salmonOut.readline() # header
 			for line in salmonOut:
 				line = line.rstrip().split('\t')
 				iso, tpm, numreads = line[0], line[3], line[4]
@@ -1059,7 +1062,7 @@ def diffSplice(isoforms='', counts_matrix=''):
 			if not args.conditionB:
 				sys.stderr.write('Both conditionA and conditionB must be specified, or both left unspecified\n')
 				return 1
-			ds_command += ['--conditionA', args.conditionA, '--conditionB',  args.conditionB]
+			ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
 		with open(args.o+'.stderr.txt', 'w') as ds_stderr:
 			subprocess.check_call(ds_command + ['--matrix', args.o+'.es.events.quant.tsv', '--prefix', args.o+'.es'], stderr=ds_stderr)
