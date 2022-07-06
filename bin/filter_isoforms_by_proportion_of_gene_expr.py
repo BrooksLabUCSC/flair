@@ -7,7 +7,7 @@ try:
 	s = float(sys.argv[2])
 	outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py isoforms support_percentage outfile\n')
+	sys.stderr.write('usage: filter_isoforms_by_proportion_of_gene_expr.py isoforms support_percentage outfile\n')
 	sys.exit(1)
 
 if s >= 1:

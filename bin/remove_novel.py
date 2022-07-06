@@ -6,7 +6,7 @@ try:
     psl = open(sys.argv[2])
     outpsl = sys.argv[3]
 except:
-    sys.stderr.write('script.py junctions.gp psl nonovels.psl \n')
+    sys.stderr.write('remove_novel.py junctions.gp psl nonovels.psl \n')
     sys.exit(1)
 
 annotated = {}

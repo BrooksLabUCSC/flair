@@ -12,7 +12,7 @@ try:
 		counts_tsv = ''
 	wiggle = 10  # minimum distance apart for alt SS to be tested
 except:
-	sys.stderr.write('usage: script.py .psl|.bed out.tsv [counts_tsv]\n')
+	sys.stderr.write('usage: call_diffsplice_events.py .psl|.bed out.tsv [counts_tsv]\n')
 	sys.exit(1)
 
 def overlap(coords0, coords1):

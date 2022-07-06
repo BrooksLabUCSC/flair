@@ -9,7 +9,7 @@ try:
 	colname2 = sys.argv[3]
 	outfilename = sys.argv[4]
 except:
-	print('usage: script.py events.quant.tsv colname1 colname2 out.fishers.tsv')
+	print('usage: diffsplice_fishers_exact.py events.quant.tsv colname1 colname2 out.fishers.tsv')
 	sys.exit()
 
 header = events_quant.readline().rstrip().split('\t')

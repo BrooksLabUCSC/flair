@@ -3,7 +3,7 @@ import sys, csv, os, argparse
 
 parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
 	each isoform and renames the isoform''',
-	usage='python script.py psl/bed annotation.gtf renamed.psl/bed [proportion]')
+	usage='python identify_gene_isoform.py psl/bed annotation.gtf renamed.psl/bed [proportion]')
 parser.add_argument('psl', type=str,
 	action='store', help='isoforms in psl or bed format')
 parser.add_argument('gtf', type=str,

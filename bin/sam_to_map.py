@@ -5,7 +5,7 @@ try:
 	sam = open(sys.argv[1])
 	outfilename = sys.argv[2]
 except:
-	sys.stderr.write('usage: script.py sam outfile\n')
+	sys.stderr.write('usage: sam_to_map.py sam outfile\n')
 	sys.exit(1)
 
 with open(outfilename, 'wt') as outfile:

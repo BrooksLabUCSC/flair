@@ -9,7 +9,7 @@ try:
 	else:
 		outfilename2 = ''
 except:
-	sys.stderr.write('usage: script.py fasta outfilename [outfilename2]\n')
+	sys.stderr.write('usage: fasta_seq_lengths.py fasta outfilename [outfilename2]\n')
 	sys.exit(1)
 
 length_frequencies = {}

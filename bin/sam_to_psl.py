@@ -16,7 +16,7 @@ try:
 		quick = False
 
 except:
-	sys.stderr.write('usage: script.py samfile outpsl [chromsizefile|"quick"]\n')
+	sys.stderr.write('usage: sam_to_psl.py samfile outpsl [chromsizefile|"quick"]\n')
 	sys.stderr.write('written for minimap sams\n')
 	sys.exit(1)
 

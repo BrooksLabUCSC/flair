@@ -3,7 +3,7 @@ import sys, csv, os, argparse, pysam, subprocess
 # from filter_collapsed_isoforms_from_annotation import split_iso_gene
 
 parser = argparse.ArgumentParser(description='options',
-	usage='python script.py psl|bed genome.fa outfilename [options]')
+	usage='python psl_to_sequence.py psl|bed genome.fa outfilename [options]')
 parser.add_argument('psl', type=str,
 	action='store', help='isoforms in psl or bed format')
 parser.add_argument('genome', type=str,

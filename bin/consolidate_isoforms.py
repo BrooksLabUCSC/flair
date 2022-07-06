@@ -2,7 +2,7 @@
 import sys, os, glob, argparse
 
 parser = argparse.ArgumentParser(description='options', \
-	usage='script.py tempdir run_id outfilename [options]')
+	usage='consolidate_isoforms.py tempdir run_id outfilename [options]')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('temp_dir', action='store', \
 	type=str, help='temp_dir')
@@ -22,7 +22,7 @@ temp_dir, run_id, outbase = args.temp_dir, args.run_id, args.outbase
 # 	run_id = sys.argv[2]
 # 	outbase = sys.argv[3]
 # except:
-# 	sys.stderr.write('usage: script.py tempdir run_id outfilename\n')
+# 	sys.stderr.write('usage: consolidate_isoforms.py tempdir run_id outfilename\n')
 # 	sys.stderr.write('script for collapse-range\n')
 	# sys.exit(1)
 

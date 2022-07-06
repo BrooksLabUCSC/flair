@@ -13,7 +13,7 @@ try:
 		outfilename2 = ''
 	calculate_all = len(sys.argv) > 6
 except:
-	sys.stderr.write('usage: script.py isoforms.psl alignment.sam.psl minsupport out_isoforms.psl [out_assignments.txt] [calculate_all]\n')
+	sys.stderr.write('usage: filter_stringent_support.py isoforms.psl alignment.sam.psl minsupport out_isoforms.psl [out_assignments.txt] [calculate_all]\n')
 	sys.exit(1)
 
 isoform_info = {}

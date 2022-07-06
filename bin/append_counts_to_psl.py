@@ -6,7 +6,7 @@ try:
 	tsv = open(sys.argv[2])
 	outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py isoforms.psl counts_matrix.tsv isoforms_with_counts_output_name.psl\n')
+	sys.stderr.write('usage: append_counts_to_psl.py isoforms.psl counts_matrix.tsv isoforms_with_counts_output_name.psl\n')
 	sys.exit()
 
 tsv.readline()

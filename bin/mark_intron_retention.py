@@ -7,7 +7,7 @@ try:
 	outfilename = sys.argv[2]
 	txtout = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py in.psl|in.bed out_isoforms.psl out_introns.txt\n')
+	sys.stderr.write('usage: mark_intron_retention.py in.psl|in.bed out_isoforms.psl out_introns.txt\n')
 	sys.exit(1)
 
 def overlap(coords0, coords1):

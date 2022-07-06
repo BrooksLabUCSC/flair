@@ -3,7 +3,7 @@ import sys, csv, os, argparse
 
 parser = argparse.ArgumentParser(description='''converts a gtf to a bed or psl, depending on the output filename extension;
 	gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',
-	usage='script.py in.gtf out.psl|bed [options]')
+	usage='gtf_to_psl.py in.gtf out.psl|bed [options]')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('gtf', action='store',
 	type=str, help='annotated gtf')

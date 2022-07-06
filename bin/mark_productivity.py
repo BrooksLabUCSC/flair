@@ -6,7 +6,7 @@ try:
 	gtf = open(sys.argv[2])
 	genome = open(sys.argv[3])
 except:
-	sys.stderr.write('usage: script.py reads.psl annotation.gtf genome.fa > reads.productivity.psl \n')
+	sys.stderr.write('usage: mark_productivity.py reads.psl annotation.gtf genome.fa > reads.productivity.psl \n')
 	sys.stderr.write('assumes the psl has the correct strand information\n')
 	sys.exit()
 

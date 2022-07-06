@@ -5,7 +5,7 @@ try:
 	psl = open(sys.argv[1])
 	bed = sys.argv[2]
 except:
-	sys.stderr.write('usage: script.py in.psl out.bed\n')
+	sys.stderr.write('usage: psl_to_bed.py in.psl out.bed\n')
 	sys.exit(1)
 
 with open(bed, 'wt') as outfile:

@@ -2,7 +2,7 @@
 import sys, argparse
 
 parser = argparse.ArgumentParser(description='options', \
-	usage='python script.py psl|bed [options] > outfile.gtf')
+	usage='python psl_to_gtf.py psl|bed [options] > outfile.gtf')
 parser.add_argument('psl', type=str, \
 	action='store', help='isoforms in psl or bed format')
 parser.add_argument('--force', action='store_true', dest='force', \

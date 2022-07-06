@@ -12,7 +12,7 @@ try:
 	else:
 		nvrna = reverse = False
 except:
-	sys.stderr.write('script.py psl|bed outfilename [nvrna]\n')
+	sys.stderr.write('pull_starts.py psl|bed outfilename [nvrna]\n')
 	sys.exit(1)
 
 with open(outfilename, 'wt') as outfile:

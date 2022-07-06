@@ -7,14 +7,14 @@ try:
 	s = int(sys.argv[1])
 	sys.argv = sys.argv[1:]
 except:
-	sys.stderr.write('usage: script.py n_supporting_reads mapfile1 mapfile2 [...] > outfilename\n')
+	sys.stderr.write('usage: combine_map.py n_supporting_reads mapfile1 mapfile2 [...] > outfilename\n')
 	sys.stderr.write('combines isoform-read map files, remove entries with fewer than N supporting reads\n')
 	sys.exit()
 
 try:
 	file1 = open(sys.argv[1])
 except:
-	sys.stderr.write('usage: script.py mapfile1 mapfile2 [...] > outfilename\n')
+	sys.stderr.write('usage: combine_map.py mapfile1 mapfile2 [...] > outfilename\n')
 	sys.stderr.write('''combines isoform-read map files, could't open files\n''')
 	sys.exit()
 

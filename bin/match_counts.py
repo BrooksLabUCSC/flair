@@ -2,7 +2,7 @@
 import sys, csv, os, argparse
 
 parser = argparse.ArgumentParser(description='script for collapse-range',
-	usage='script.py countsfile psl min_read_threshold outfilename [options]')
+	usage='match_counts.py countsfile psl min_read_threshold outfilename [options]')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('counts_file', action='store',
 	type=str, help='counts file from count_sam_transcripts')

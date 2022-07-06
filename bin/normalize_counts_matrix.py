@@ -14,7 +14,7 @@ try:
 	else:
 		gtf = ''
 except:
-	sys.stderr.write('usage: script.py matrix outmatrix [cpm/uq/median] [gtf]\n')
+	sys.stderr.write('usage: normalize_counts_matrix.py matrix outmatrix [cpm/uq/median] [gtf]\n')
 	sys.stderr.write('gtf if normalization by protein coding gene counts only\n')
 	sys.exit(1)
 

@@ -5,7 +5,7 @@ import sys, csv, os
 try:
 	file1 = open(sys.argv[1])
 except:
-	sys.stderr.write('usage: script.py countsfile1 countsfile2 [...] outfilename\n')
+	sys.stderr.write('usage: combine_counts.py countsfile1 countsfile2 [...] outfilename\n')
 	sys.exit()
 
 counts = {}

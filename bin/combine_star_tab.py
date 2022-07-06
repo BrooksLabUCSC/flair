@@ -5,7 +5,7 @@ import sys, csv
 try:
 	file1 = open(sys.argv[1])
 except:
-	sys.stderr.write('usage: script.py countsfile1 countsfile2 [...] > outfilename\n')
+	sys.stderr.write('usage: combine_star_tab.py countsfile1 countsfile2 [...] > outfilename\n')
 	sys.stderr.write('sums column 7 and 8 in all files based on matching the first 3 columns\n')
 	sys.exit()
 

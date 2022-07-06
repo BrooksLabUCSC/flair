@@ -2,7 +2,7 @@
 import sys, csv, os, argparse, pysam
 
 parser = argparse.ArgumentParser(description='options',
-	usage='python script.py -i isoforms.psl|bed -m isoform_read_map.txt -b reads.bam -o out [options]')
+	usage='python get_phase_sets.py -i isoforms.psl|bed -m isoform_read_map.txt -b reads.bam -o out [options]')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('-i', '--isoforms', action='store', dest='i',
 	type=str, required=True, help='isoforms in bed or psl format')

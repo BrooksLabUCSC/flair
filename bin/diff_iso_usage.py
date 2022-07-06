@@ -9,7 +9,7 @@ try:
 	colname2 = sys.argv[3]
 	outfilename = sys.argv[4]
 except:
-	sys.stderr.write('usage: script.py counts_matrix colname1 colname2 diff_isos.txt\n')
+	sys.stderr.write('usage: diff_iso_usage.py counts_matrix colname1 colname2 diff_isos.txt\n')
 	sys.exit()
 
 header = counts_matrix.readline().rstrip().split('\t')

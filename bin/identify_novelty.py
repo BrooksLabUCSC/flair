@@ -6,7 +6,7 @@ try:
 	gtf = open(sys.argv[2])
 	outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py isoforms.psl|bed .gtf outfile_with_novel_categories.psl|bed \n')
+	sys.stderr.write('usage: identify_novelty.py isoforms.psl|bed .gtf outfile_with_novel_categories.psl|bed \n')
 	sys.exit(1)
 
 def get_junctions(line):
