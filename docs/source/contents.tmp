@@ -1,0 +1,19 @@
+Overview
+Requirements
+FLAIR modules
+
+   align
+   correct
+      short-read junctions
+   collapse
+   quantify
+   diffExp
+   diffSplice
+
+Scripts
+Other ways to run FLAIR
+Docker
+Conda environment
+Example Files
+Cite FLAIR
+
