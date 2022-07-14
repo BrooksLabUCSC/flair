@@ -1,4 +1,4 @@
-""" ADT, CMS """
+#! /usr/bin/env python
 
 import sys
 import re
@@ -190,7 +190,8 @@ def correct(aligned_reads=''):
 		correction_cmd += ['--print_check']
 
 	if subprocess.call(correction_cmd):
-		sys.stderr.write('Correction command did not exit with success status\n')
+		printcmd = ' '.join(correction_cmd)
+		sys.stderr.write(f'Correction command did not exit with success status:\n{printcmd}\n\n')
 
 	if args.c and subprocess.call([sys.executable, path+'bed_to_psl.py', args.c, args.o+'_all_corrected.bed',
 		args.o+'_all_corrected.psl']):
@@ -1071,96 +1072,101 @@ def diffSplice(isoforms='', counts_matrix=''):
 			subprocess.check_call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'.ir'], stderr=ds_stderr)
 	return
 
-
-path = '/'.join(os.path.realpath(__file__).split("/")[:-1])+'/'
-if len(sys.argv) < 2:
-	sys.stderr.write('usage: python flair.py <mode> --help \n')
-	sys.stderr.write('modes: align, correct, collapse, quantify, diffExp, diffSplice\n')
-	sys.stderr.write('Multiple modules can be run when specified using numbers, e.g.:\n')
-	sys.stderr.write('python flair.py 1234 ...\n')
-	sys.exit(1)
-else:
-	mode = sys.argv[1].lower()
-
-aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
-if mode == 'align' or '1' in mode:
-	status = align()
-	if status == 1:
+def main():
+	path = '/'.join(os.path.realpath(__file__).split("/")[:-1])+'/'
+	globals()['path'] = path
+	if len(sys.argv) < 2:
+		sys.stderr.write('usage: python flair.py <mode> --help \n')
+		sys.stderr.write('modes: align, correct, collapse, quantify, diffExp, diffSplice\n')
+		sys.stderr.write('Multiple modules can be run when specified using numbers, e.g.:\n')
+		sys.stderr.write('python flair.py 1234 ...\n')
 		sys.exit(1)
 	else:
-		aligned_reads = status
+		mode = sys.argv[1].lower()
+	
+	aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
+	if mode == 'align' or '1' in mode:
+		status = align()
+		if status == 1:
+			sys.exit(1)
+		else:
+			aligned_reads = status
+	
+	if mode == 'correct' or '2' in mode:
+		if aligned_reads:
+			status = correct(aligned_reads=aligned_reads)
+		else:
+			status = correct()
+		if status == 1:
+			sys.exit(1)
+		else:
+			corrected_reads = status
+	
+	if mode == 'collapse' or ('3' in mode and '3.5' not in mode):
+		if corrected_reads:
+			status = collapse(corrected_reads=corrected_reads)
+		else:
+			status = collapse()
+		if status == 1:
+			sys.exit(1)
+		else:
+			isoforms, isoform_sequences = status
+	
+	if mode == 'collapse-range' or '3.5' in mode:
+		from multiprocessing import Pool
+		tempfile_name = tempfile.NamedTemporaryFile().name
+		run_id = tempfile_name[tempfile_name.rfind('/')+1:]
+	
+		if corrected_reads and not aligned_reads:
+			sys.stderr.write('''Collapse 3.5 run consecutively without align module; will assume {}
+			 to be the name of the aligned reads bam file\n'''.format(corrected_reads[:-18]+'.bam'))
+			status = collapse_range(corrected_reads=corrected_reads,
+				aligned_reads=corrected_reads[:-18]+'.bam')
+		elif corrected_reads and aligned_reads:
+			status = collapse_range(corrected_reads=corrected_reads, aligned_reads=aligned_reads)
+		elif not corrected_reads and aligned_reads:
+			sys.stderr.write('Correct module not run...\n')
+			status = collapse_range(corrected_reads=aligned_reads, aligned_reads=aligned_reads)
+		else:
+			status = collapse_range()
+		if status == 1:
+			sys.exit(1)
+		else:
+			isoforms, isoform_sequences = status
+		mode = mode.replace('3.5', 'x')
+	
+	if mode == 'quantify' or '4' in mode:
+		if isoform_sequences:
+			status = quantify(isoform_sequences=isoform_sequences)
+		else:
+			status = quantify()
+		if status == 1:
+			sys.exit(1)
+		else:
+			counts_matrix = status
+	
+	if mode == 'diffexp' or '5' in mode:
+		if counts_matrix:
+			status = diffExp(counts_matrix=counts_matrix)
+		else:
+			status = diffExp()
+		if status == 1:
+			sys.exit(1)
+	
+	if mode == 'diffsplice' or '6' in mode:
+		if counts_matrix and isoforms:
+			status = diffSplice(isoforms=isoforms, counts_matrix=counts_matrix)
+		elif not isoforms and counts_matrix:
+			sys.stderr.write('DiffSplice run consecutively without collapse module, exiting\n')
+			sys.exit(1)
+		else:
+			status = diffSplice()
+		if status == 1:
+			sys.exit(1)
+	
+	if mode == '--version':
+		sys.stderr.write('FLAIR v1.5.1\n')
 
-if mode == 'correct' or '2' in mode:
-	if aligned_reads:
-		status = correct(aligned_reads=aligned_reads)
-	else:
-		status = correct()
-	if status == 1:
-		sys.exit(1)
-	else:
-		corrected_reads = status
 
-if mode == 'collapse' or ('3' in mode and '3.5' not in mode):
-	if corrected_reads:
-		status = collapse(corrected_reads=corrected_reads)
-	else:
-		status = collapse()
-	if status == 1:
-		sys.exit(1)
-	else:
-		isoforms, isoform_sequences = status
-
-if mode == 'collapse-range' or '3.5' in mode:
-	from multiprocessing import Pool
-	tempfile_name = tempfile.NamedTemporaryFile().name
-	run_id = tempfile_name[tempfile_name.rfind('/')+1:]
-
-	if corrected_reads and not aligned_reads:
-		sys.stderr.write('''Collapse 3.5 run consecutively without align module; will assume {}
-		 to be the name of the aligned reads bam file\n'''.format(corrected_reads[:-18]+'.bam'))
-		status = collapse_range(corrected_reads=corrected_reads,
-			aligned_reads=corrected_reads[:-18]+'.bam')
-	elif corrected_reads and aligned_reads:
-		status = collapse_range(corrected_reads=corrected_reads, aligned_reads=aligned_reads)
-	elif not corrected_reads and aligned_reads:
-		sys.stderr.write('Correct module not run...\n')
-		status = collapse_range(corrected_reads=aligned_reads, aligned_reads=aligned_reads)
-	else:
-		status = collapse_range()
-	if status == 1:
-		sys.exit(1)
-	else:
-		isoforms, isoform_sequences = status
-	mode = mode.replace('3.5', 'x')
-
-if mode == 'quantify' or '4' in mode:
-	if isoform_sequences:
-		status = quantify(isoform_sequences=isoform_sequences)
-	else:
-		status = quantify()
-	if status == 1:
-		sys.exit(1)
-	else:
-		counts_matrix = status
-
-if mode == 'diffexp' or '5' in mode:
-	if counts_matrix:
-		status = diffExp(counts_matrix=counts_matrix)
-	else:
-		status = diffExp()
-	if status == 1:
-		sys.exit(1)
-
-if mode == 'diffsplice' or '6' in mode:
-	if counts_matrix and isoforms:
-		status = diffSplice(isoforms=isoforms, counts_matrix=counts_matrix)
-	elif not isoforms and counts_matrix:
-		sys.stderr.write('DiffSplice run consecutively without collapse module, exiting\n')
-		sys.exit(1)
-	else:
-		status = diffSplice()
-	if status == 1:
-		sys.exit(1)
-
-if mode == '--version':
-	sys.stderr.write('FLAIR v1.5.1\n')
+if __name__ == "__main__":
+    main()
