@@ -118,7 +118,7 @@ def align():
 		subprocess.check_call(['mv', args.o+'.q.sam', args.o+'.sam'])
 		subprocess.check_call(['rm', args.o+'.samtools_stderr'])
 
-	if args.p and subprocess.call([sys.executable, path+'bin/sam_to_psl.py', args.o+'.sam',
+	if args.p and subprocess.call([sys.executable, path+'sam_to_psl.py', args.o+'.sam',
 		args.o+'.psl', args.c]):
 		return 1
 
@@ -131,7 +131,7 @@ def align():
 
 	subprocess.check_call([args.sam, 'index', args.o+'.bam'])
 
-	bed_conversion_cmd = [sys.executable, path+'bin/bam2Bed12.py', '-i', args.o+'.bam']
+	bed_conversion_cmd = [sys.executable, path+'bam2Bed12.py', '-i', args.o+'.bam']
 	if args.N != 0:
 		bed_conversion_cmd += ['--keep_supplementary']
 	subprocess.check_call(bed_conversion_cmd, stdout=open(args.o+'.bed', 'w'))
@@ -178,7 +178,7 @@ def correct(aligned_reads=''):
 	if not args.j and not args.f:
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
 		return 1
-	correction_cmd = [sys.executable, path+'bin/ssCorrect.py', '-i', args.q,
+	correction_cmd = [sys.executable, path+'ssCorrect.py', '-i', args.q,
 			'-w', str(args.w), '-p', str(args.t), '-o', args.o, '--progress', '-f', args.g]
 	if not args.n:
 		correction_cmd += ['--correctStrand']
@@ -192,7 +192,7 @@ def correct(aligned_reads=''):
 	if subprocess.call(correction_cmd):
 		sys.stderr.write('Correction command did not exit with success status\n')
 
-	if args.c and subprocess.call([sys.executable, path+'bin/bed_to_psl.py', args.c, args.o+'_all_corrected.bed',
+	if args.c and subprocess.call([sys.executable, path+'bed_to_psl.py', args.c, args.o+'_all_corrected.bed',
 		args.o+'_all_corrected.psl']):
 		return 1
 
@@ -296,7 +296,7 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 
 	# convert query to bed
 	if args.q[-3:].lower() == 'psl':
-		subprocess.check_call([sys.executable, path+'bin/psl_to_bed.py', args.q, args.q+'.bed'])
+		subprocess.check_call([sys.executable, path+'psl_to_bed.py', args.q, args.q+'.bed'])
 		args.q = args.q+'.bed'
 
 	# partition the bed file into independent regions
@@ -323,11 +323,11 @@ def collapse_range(corrected_reads='', aligned_reads=''):
 	p.terminate()
 
 	# consolidate all the isoforms from all the ranges
-	subprocess.check_call([sys.executable, path+'bin/consolidate_isoforms.py', args.temp_dir, run_id, args.o,
+	subprocess.check_call([sys.executable, path+'consolidate_isoforms.py', args.temp_dir, run_id, args.o,
 		'--generate_map', str(args.generate_map)])
-	subprocess.check_call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'.isoforms.bed', args.f,
+	subprocess.check_call([sys.executable, path+'psl_to_sequence.py', args.o+'.isoforms.bed', args.f,
 		args.o+'.isoforms.fa'])
-	subprocess.check_call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'.isoforms.bed'],
+	subprocess.check_call([sys.executable, path+'psl_to_gtf.py', args.o+'.isoforms.bed'],
 		stdout=open(args.o+'.isoforms.gtf', 'w'))
 	return args.o+'.isoforms.bed', args.o+'.isoforms.fa'
 
@@ -543,26 +543,26 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.p:
 		if not args.quiet:
 			sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
-		if subprocess.call([sys.executable, path+'bin/pull_starts.py', args.q, args.temp_dir+tempfile_name+'tss.bed']):
+		if subprocess.call([sys.executable, path+'pull_starts.py', args.q, args.temp_dir+tempfile_name+'tss.bed']):
 			return 1
 		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tss.bed', '-b', args.p],
 			stdout=open(args.temp_dir+tempfile_name+'promoter_intersect.bed', 'w')):
 			return 1
 		precollapse = args.o+'promoter_supported'+ext # filename of promoter-supported, corrected reads
-		subprocess.check_call([sys.executable, path+'bin/psl_reads_from_bed.py', args.temp_dir+tempfile_name+'promoter_intersect.bed',
+		subprocess.check_call([sys.executable, path+'psl_reads_from_bed.py', args.temp_dir+tempfile_name+'promoter_intersect.bed',
 			args.q, precollapse])
 		intermediate += [args.temp_dir+tempfile_name+'tss.bed', precollapse]
 
 	if args.threeprime:
 		if not args.quiet:
 			sys.stderr.write('Filtering out reads without TES support\n')
-		if subprocess.call([sys.executable, path+'bin/pull_starts.py', precollapse, args.temp_dir+tempfile_name+'tes.bed', 'reverse']):
+		if subprocess.call([sys.executable, path+'pull_starts.py', precollapse, args.temp_dir+tempfile_name+'tes.bed', 'reverse']):
 			return 1
 		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tes.bed', '-b', args.threeprime],
 			stdout=open(args.temp_dir+tempfile_name+'tes_intersect.bed', 'w')):
 			return 1
 		precollapse = args.o+'tes_supported'+ext # filename of 3' end-supported, corrected reads
-		subprocess.check_call([sys.executable, path+'bin/psl_reads_from_bed.py', args.temp_dir+tempfile_name+'tes_intersect.bed',
+		subprocess.check_call([sys.executable, path+'psl_reads_from_bed.py', args.temp_dir+tempfile_name+'tes_intersect.bed',
 			args.q, precollapse])
 		intermediate += [args.temp_dir+tempfile_name+'tes.bed', precollapse]
 
@@ -583,15 +583,15 @@ def collapse(genomic_range='', corrected_reads=''):
 			if not args.quiet:
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
 			args.annotated_bed = args.o+'annotated_transcripts.bed'
-			subprocess.check_call([sys.executable, path+'bin/gtf_to_psl.py', args.f, args.annotated_bed, '--include_gene'])
-			# subprocess.call([sys.executable, path+'bin/identify_gene_isoform.py', args.annotated_bed,
+			subprocess.check_call([sys.executable, path+'gtf_to_psl.py', args.f, args.annotated_bed, '--include_gene'])
+			# subprocess.call([sys.executable, path+'identify_gene_isoform.py', args.annotated_bed,
 			# 	args.f, args.annotated_bed])
 
 		if args.annotation_reliant == 'generate':
 			if not args.generate_map:
 				args.generate_map = True
 			args.annotation_reliant = args.o+'annotated_transcripts.fa'
-			subprocess.check_call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'annotated_transcripts.bed', args.g, args.annotation_reliant])
+			subprocess.check_call([sys.executable, path+'psl_to_sequence.py', args.o+'annotated_transcripts.bed', args.g, args.annotation_reliant])
 
 		if not args.quiet:
 			sys.stderr.write('Aligning reads to reference transcripts\n')
@@ -604,7 +604,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		if not args.quiet:
 			sys.stderr.write('Counting supporting reads for annotated transcripts\n')
-		count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', args.o+'annotated_transcripts.alignment.sam',
+		count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', args.o+'annotated_transcripts.alignment.sam',
 			'-o', args.o+'annotated_transcripts.alignment.counts', '-t', str(args.t), '--quality', str(args.quality),
 			'-w', str(args.w), '--generate_map', args.o+'annotated_transcripts.isoform.read.map.txt']
 		if args.stringent:
@@ -621,17 +621,17 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		if not args.quiet:
 			sys.stderr.write('Setting up unassigned reads for flair-collapse novel isoform detection\n')
-		subprocess.check_call([sys.executable, path+'bin/match_counts.py', args.o+'annotated_transcripts.alignment.counts',
+		subprocess.check_call([sys.executable, path+'match_counts.py', args.o+'annotated_transcripts.alignment.counts',
 			args.annotated_bed, str(min_reads), args.o+'annotated_transcripts.supported'+ext])
 
 		subset_reads = args.o+'unassigned.fasta'
-		subprocess.check_call([sys.executable, path+'bin/subset_unassigned_reads.py', args.o+'annotated_transcripts.isoform.read.map.txt',
+		subprocess.check_call([sys.executable, path+'subset_unassigned_reads.py', args.o+'annotated_transcripts.isoform.read.map.txt',
 			precollapse, str(min_reads), args.o+'unassigned'+ext]+args.r, stdout=open(subset_reads, 'w'))
 		precollapse = args.o+'unassigned'+ext
 		args.r = [subset_reads]
 		intermediate += [subset_reads, precollapse]
 
-	collapse_cmd = [sys.executable, path+'bin/collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.t),
+	collapse_cmd = [sys.executable, path+'collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.t),
 			'-m', str(args.max_ends), '-w', str(args.w), '-n', args.n, '-o', args.o+'firstpass.unfiltered'+ext]
 	if args.f and not args.no_end_adjustment:
 		collapse_cmd += ['-f', args.f]
@@ -644,7 +644,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		return 1
 
 	# filtering out subset isoforms with insuficient support
-	filter_cmd = [sys.executable, path+'bin/filter_collapsed_isoforms.py',
+	filter_cmd = [sys.executable, path+'filter_collapsed_isoforms.py',
 		args.o+'firstpass.unfiltered'+ext, args.filter, args.o+'firstpass'+ext, str(args.w)]
 	if float(args.s) < 1:
 		filter_cmd += ['keep']
@@ -657,7 +657,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.f:
 		if not args.quiet:
 			sys.stderr.write('Renaming isoforms using gtf\n')
-		renaming_cmd = [sys.executable, path+'bin/identify_gene_isoform.py',
+		renaming_cmd = [sys.executable, path+'identify_gene_isoform.py',
 			args.o+'firstpass'+ext, args.f, args.o+'firstpass.named'+ext]
 		if args.annotation_reliant:
 			renaming_cmd += ['--annotation_reliant']
@@ -665,10 +665,10 @@ def collapse(genomic_range='', corrected_reads=''):
 			return 1
 		subprocess.check_call(['mv', args.o+'firstpass.named'+ext, args.o+'firstpass'+ext])
 		if float(args.s) < 1:
-			subprocess.check_call([sys.executable, path+'bin/filter_isoforms_by_proportion_of_gene_expr.py',
+			subprocess.check_call([sys.executable, path+'filter_isoforms_by_proportion_of_gene_expr.py',
 				args.o+'firstpass'+ext, str(args.s), args.o+'firstpass'+ext])
 
-	if subprocess.call([sys.executable, path+'bin/psl_to_sequence.py', args.o+'firstpass'+ext,
+	if subprocess.call([sys.executable, path+'psl_to_sequence.py', args.o+'firstpass'+ext,
 		args.g, args.o+'firstpass.fa']):
 		return 1
 
@@ -694,10 +694,10 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		subprocess.check_call([args.salmon, 'quant', '-t', args.o+'firstpass.fa', '-o', alignout+'salmon',
 			'-p', str(args.t), '-l', 'U', '-a', alignout+'bam'], stderr=open(alignout+'salmon_stderr.txt', 'w'))
-		subprocess.check_call([sys.executable, path + 'bin/combine_counts.py', alignout+'salmon/quant.sf', count_file])
+		subprocess.check_call([sys.executable, path+'combine_counts.py', alignout+'salmon/quant.sf', count_file])
 		align_files += [alignout+'bam', alignout+'salmon/quant.sf']
 	else:
-		count_cmd = [sys.executable, path + 'bin/count_sam_transcripts.py', '-s', '-',
+		count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', '-',
 			'-o', count_file, '-t', str(args.t), '--quality', str(args.quality), '-w', str(args.w)]
 		if args.stringent:
 			count_cmd += ['--stringent']
@@ -717,31 +717,31 @@ def collapse(genomic_range='', corrected_reads=''):
 
 	if not args.quiet:
 		sys.stderr.write('Filtering isoforms by read coverage\n')
-	match_count_cmd = [sys.executable, path+'bin/match_counts.py', count_file,
+	match_count_cmd = [sys.executable, path+'match_counts.py', count_file,
 		args.o+'firstpass'+ext, str(min_reads), args.o+'isoforms'+ext]
 	if args.generate_map or args.annotation_reliant:
 		match_count_cmd += ['--generate_map', args.o+'isoform.read.map.txt']
 	subprocess.check_call(match_count_cmd)
 
 	if args.annotation_reliant:
-		subprocess.check_call([sys.executable, path+'bin/filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
+		subprocess.check_call([sys.executable, path+'filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
 			'-i', args.o+'isoforms'+ext, '--map_i', args.o+'isoform.read.map.txt',
 			'-a', args.o+'annotated_transcripts.supported'+ext, '--map_a', args.o+'annotated_transcripts.isoform.read.map.txt',
 			'-o', args.o+'isoforms'+ext, '--new_map', args.o+'combined.isoform.read.map.txt'])
 
 	if not args.range: # also write .fa and .gtf files
 		if args.longshot_bam:
-			subprocess.check_call([sys.executable, path+'bin/get_phase_sets.py', '-i', args.o+'isoforms'+ext,
+			subprocess.check_call([sys.executable, path+'get_phase_sets.py', '-i', args.o+'isoforms'+ext,
 				'-b', args.longshot_bam, '-m', args.o+'combined.isoform.read.map.txt',
 				'-o', args.o+'phase_sets.txt', '--out_iso', args.o+'isoforms'+ext])
 
-		to_sequence_cmd = [sys.executable, path+'bin/psl_to_sequence.py', args.o+'isoforms'+ext,
+		to_sequence_cmd = [sys.executable, path+'psl_to_sequence.py', args.o+'isoforms'+ext,
 			args.g, args.o+'isoforms.fa']
 		if args.longshot_bam:
 			to_sequence_cmd += ['--vcf', args.longshot_vcf, '--isoform_haplotypes', args.o+'phase_sets.txt', '--vcf_out', args.o+'flair.vcf']
 		subprocess.check_call(to_sequence_cmd)
 		if args.f:
-			subprocess.check_call([sys.executable, path+'bin/psl_to_gtf.py', args.o+'isoforms'+ext],
+			subprocess.check_call([sys.executable, path+'psl_to_gtf.py', args.o+'isoforms'+ext],
 				stdout=open(args.o+'isoforms.gtf', 'w'))
 
 	subprocess.check_call(['rm', '-rf', args.o+'firstpass.fa', alignout+'q.counts'])
@@ -886,7 +886,7 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write("Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r" % (sample, batch, num+1, len(samData)))
 
 		if not args.salmon:
-			count_cmd = [sys.executable, path+'bin/count_sam_transcripts.py', '-s', samOut,
+			count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', samOut,
 				'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
 			if args.trust_ends:
 				count_cmd += ['--trust_ends']
@@ -942,7 +942,7 @@ def quantify(isoform_sequences=''):
 	sys.stderr.write("\n")
 
 	if args.tpm and not args.salmon:
-		subprocess.check_call([sys.executable, path+'bin/counts_to_tpm.py', args.o, args.o+'.tpm.tsv'])
+		subprocess.check_call([sys.executable, path+'counts_to_tpm.py', args.o, args.o+'.tpm.tsv'])
 	return args.o
 
 
@@ -977,7 +977,7 @@ def diffExp(counts_matrix=''):
 		sys.stderr.write('Counts matrix file path does not exist\n')
 		return 1
 
-	scriptsBin = path + "bin/"
+	scriptsBin = path
 	runDE = scriptsBin + "deFLAIR.py"
 	DEcommand = [sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads',
 		str(args.t), '--outDir', args.o, '--matrix', args.q]
@@ -1042,19 +1042,19 @@ def diffSplice(isoforms='', counts_matrix=''):
 		return 1
 
 	if args.i[-3:].lower() == 'psl':
-		subprocess.check_call([sys.executable, path+'bin/psl_to_bed.py', args.i, args.i+'.bed'])
+		subprocess.check_call([sys.executable, path+'psl_to_bed.py', args.i, args.i+'.bed'])
 		args.i = args.i+'.bed'
 
-	subprocess.check_call([sys.executable, path+'bin/call_diffsplice_events.py', args.i, args.o, args.q])
-	subprocess.check_call([sys.executable, path+'bin/es_as.py', args.i], stdout=open(args.o+'.es.events.tsv', 'w'))
-	subprocess.check_call([sys.executable, path+'bin/es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'],
+	subprocess.check_call([sys.executable, path+'call_diffsplice_events.py', args.i, args.o, args.q])
+	subprocess.check_call([sys.executable, path+'es_as.py', args.i], stdout=open(args.o+'.es.events.tsv', 'w'))
+	subprocess.check_call([sys.executable, path+'es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'],
 		stdout=open(args.o+'.es.events.quant.tsv', 'w'))
 	subprocess.check_call(['rm', args.o+'.es.events.tsv'])
 
 	if args.test or args.conditionA:
 		sys.stderr.write('DRIMSeq testing for each AS event type\n')
 		drim1, drim2, drim3, drim4 = [str(x) for x in [args.drim1, args.drim2, args.drim3, args.drim4]]
-		ds_command = [sys.executable, path+'bin/runDS.py', '--threads', str(args.t),
+		ds_command = [sys.executable, path+'runDS.py', '--threads', str(args.t),
 			'--drim1', drim1, '--drim2', drim2, '--drim3', drim3, '--drim4', drim4]
 		if args.batch:
 			ds_command += ['--batch']
