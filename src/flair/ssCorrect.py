@@ -56,7 +56,6 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' ssCorrect.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null',
                                              add_help = True, #default is True
                                              prefix_chars = '-',
                                              usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')

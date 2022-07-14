@@ -1,8 +1,0 @@
-diff_iso_usage.py
-fasta_seq_lengths.py
-gtf_to_psl.py
-identify_annotated_gene.py
-plot_isoform_usage.py
-psl_to_gtf.py
-psl_to_sequence.py
-sam_to_psl.py

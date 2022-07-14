@@ -57,7 +57,6 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' runDE.py - a rpy2 convenience tool to run DESeq2.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
                                              usage = '%(prog)s ')
