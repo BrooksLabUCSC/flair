@@ -4,6 +4,8 @@ Other environments
 Docker 
 ------
 
+PLEASE NOTE: the Docker image is outdated, please do not use until further notice.
+
 If the user wishes to run FLAIR using
 `docker <https://docs.docker.com/>`__ instead of cloning this
 repository, the following commands can be used:

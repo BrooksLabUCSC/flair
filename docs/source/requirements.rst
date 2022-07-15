@@ -8,9 +8,10 @@ will refer to them here as basic flair.
 The other three modules are ``quantify``, ``diffExp``, and 
 ``diffSplice``. Together with basic flair these are called full flair.
 These three additional modules have more dependencies than basic flair
-so if you don't need them, you will not need the modules listed under 4.
+so if you don't need them, you will not need the modules listed under 5.
 
 There are three ways to install flair:
+
 * ``pip install flair-brookslab`` will install basic flair and all necessary python modules (see below)
 * Download `the latest release <https://github.com/BrooksLabUCSC/flair/releases>`_
 * Use git to check out `the current flair repository <https://github.com/BrooksLabUCSC/flair.git>`_
@@ -23,17 +24,18 @@ Requirements
 3. `minimap2 <https://github.com/lh3/minimap2>`_
 
 If you do not use ``pip install``, you will also need:
+
 4. python v3.6+ and python modules: 
-   * numpy 1.9.*
+   * numpy=1.9.*
    * tqdm
    * ncls
    * pybedtools
    * mappy
-   * pysam v0.8.4+
+   * pysam=v0.8.4+
 5. full flair additional python modules:
   - Cython
   - pandas
-  - rpy2 2.9.*
+  - rpy2=2.9.*
   - R
   - r-ggplot2=2.2.1
   - r-qqman

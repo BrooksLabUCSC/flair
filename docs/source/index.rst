@@ -7,6 +7,7 @@ Welcome to Flair's documentation!
 =================================
 
 New: Flair can now be pip installed using 
+
 .. code:: sh
 
    pip install flair-brookslab
