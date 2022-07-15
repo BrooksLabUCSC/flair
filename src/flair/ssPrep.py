@@ -391,7 +391,6 @@ def main():
     '''
 
     # Command Line Stuff...
-    print('HAVE', str(sys.argv))
     myCommandLine = CommandLine()
     bed           = myCommandLine.args['input_bed']
     knownJuncs    = myCommandLine.args['juncs']

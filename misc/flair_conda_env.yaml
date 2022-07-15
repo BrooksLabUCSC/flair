@@ -6,7 +6,7 @@ channels:
   - conda-forge
   - r
 dependencies:
-  - python=3.6.5   # or 2.7
+  - python=3.6.5
   - numpy=1.9.*
   - Cython
   - pandas
@@ -17,7 +17,6 @@ dependencies:
   - bedtools=2.25.0
   - pybedtools
   - minimap2
-  - intervaltree
   - pysam
   - R
   - r-ggplot2=2.2.1
@@ -28,5 +27,3 @@ dependencies:
   - matplotlib
   - seaborn
   - pip
-  - pip:
-    - kerneltree
