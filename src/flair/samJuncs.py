@@ -49,7 +49,6 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = 'samJuncs.py - lorem ipsium.',
-                                             #epilog = 'Please feel free to forward any questions or concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
                                              usage = '%(prog)s -i sorted_indexed.bam ')

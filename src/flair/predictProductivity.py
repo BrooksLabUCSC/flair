@@ -49,7 +49,6 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' predictProductivity - a tool.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null', 
                                              add_help = True, #default is True 
                                              prefix_chars = '-', 
                                              usage = '%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf')

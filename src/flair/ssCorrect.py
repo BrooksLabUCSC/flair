@@ -56,7 +56,6 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' ssCorrect.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
-                                             epilog = 'Please feel free to forward any questions/concerns to /dev/null',
                                              add_help = True, #default is True
                                              prefix_chars = '-',
                                              usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
@@ -89,8 +88,7 @@ class CommandLine(object) :
 ########################################################################
 
 
-def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
-
+def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
 
     lineNum = 0
     if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
@@ -203,9 +201,8 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, known):
 
     return juncs, chromosomes
 
-def gtfToSSBed(file, knownSS):
+def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
     ''' Convenience function, reformats GTF to bed'''
-
 
     # First: get all exons per transcript.
     exons = dict()
@@ -276,7 +273,6 @@ def gtfToSSBed(file, knownSS):
 
 def runCMD(x):
 
-
     tDir, prefix,juncs,reads, rs, f, err, errFname = x
     cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f)
     if rs:
@@ -337,10 +333,10 @@ def main():
 
     # Convert gtf to bed and split by cromosome.
     juncs, chromosomes, knownSS  = dict(), set(), dict() # initialize juncs for adding to db
-    if gtf != None: juncs, chromosomes, knownSS = gtfToSSBed(gtf, knownSS)
+    if gtf != None: juncs, chromosomes, knownSS = gtfToSSBed(gtf, knownSS, printErr, printErrFname, verbose)
 
     # Do the same for the other juncs file.
-    if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes, genomeFasta, knownSS)
+    if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes, genomeFasta, printErrFname, knownSS)
     knownSS = dict()
 
     # added to allow annotations not to be used.
