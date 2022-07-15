@@ -13,7 +13,7 @@ def samtools_outdated(samtools):
 	ver = subprocess.Popen([samtools], stderr=subprocess.PIPE, universal_newlines=True)
 	for line in ver.stderr:
 		if 'Version:' in line:
-			versionmatch = re.match('Version: ([0-9]+)\.([0-9]+)', line)
+			versionmatch = re.match('Version: ([0-9]+)\\.([0-9]+)', line)
 			if versionmatch is None:
 				return True
 			versionmatch = list(versionmatch.groups())
@@ -1083,7 +1083,7 @@ def main():
 		sys.exit(1)
 	else:
 		mode = sys.argv[1].lower()
-	
+
 	aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
 	if mode == 'align' or '1' in mode:
 		status = align()
@@ -1091,7 +1091,7 @@ def main():
 			sys.exit(1)
 		else:
 			aligned_reads = status
-	
+
 	if mode == 'correct' or '2' in mode:
 		if aligned_reads:
 			status = correct(aligned_reads=aligned_reads)
@@ -1101,7 +1101,7 @@ def main():
 			sys.exit(1)
 		else:
 			corrected_reads = status
-	
+
 	if mode == 'collapse' or ('3' in mode and '3.5' not in mode):
 		if corrected_reads:
 			status = collapse(corrected_reads=corrected_reads)
@@ -1111,12 +1111,12 @@ def main():
 			sys.exit(1)
 		else:
 			isoforms, isoform_sequences = status
-	
+
 	if mode == 'collapse-range' or '3.5' in mode:
 		from multiprocessing import Pool
 		tempfile_name = tempfile.NamedTemporaryFile().name
 		run_id = tempfile_name[tempfile_name.rfind('/')+1:]
-	
+
 		if corrected_reads and not aligned_reads:
 			sys.stderr.write('''Collapse 3.5 run consecutively without align module; will assume {}
 			 to be the name of the aligned reads bam file\n'''.format(corrected_reads[:-18]+'.bam'))
@@ -1134,7 +1134,7 @@ def main():
 		else:
 			isoforms, isoform_sequences = status
 		mode = mode.replace('3.5', 'x')
-	
+
 	if mode == 'quantify' or '4' in mode:
 		if isoform_sequences:
 			status = quantify(isoform_sequences=isoform_sequences)
@@ -1144,7 +1144,7 @@ def main():
 			sys.exit(1)
 		else:
 			counts_matrix = status
-	
+
 	if mode == 'diffexp' or '5' in mode:
 		if counts_matrix:
 			status = diffExp(counts_matrix=counts_matrix)
@@ -1152,7 +1152,7 @@ def main():
 			status = diffExp()
 		if status == 1:
 			sys.exit(1)
-	
+
 	if mode == 'diffsplice' or '6' in mode:
 		if counts_matrix and isoforms:
 			status = diffSplice(isoforms=isoforms, counts_matrix=counts_matrix)
@@ -1163,7 +1163,7 @@ def main():
 			status = diffSplice()
 		if status == 1:
 			sys.exit(1)
-	
+
 	if mode == '--version':
 		sys.stderr.write('FLAIR v1.6.0\n')
 
