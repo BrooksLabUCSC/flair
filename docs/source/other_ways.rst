@@ -10,7 +10,7 @@ the align, correct, and collapse modules, the command might look like:
 
 .. code:: sh
 
-   python flair.py 123 -r reads.fa -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]
+   flair 123 -r reads.fa -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]
 
 A beta version of the collapse module, called collapse-range, has been
 developed. The corrected reads are divided into many independent
@@ -25,11 +25,11 @@ needs to be in your $PATH.
 
 .. code:: sh
 
-   python flair.py collapse-range -r reads.bam -q query.bed -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]
+   flair collapse-range -r reads.bam -q query.bed -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]
 
 If the user would prefer not to use python’s multiprocessing module, a
 bash script has also been provided
-(``bin/run_flair_collapse_ranges.sh``) that runs collapse-range for the
+(``run_flair_collapse_ranges.sh``) that runs collapse-range for the
 user that parallelizes using GNU parallel, which the user can alter as
 they see fit for their system.
 

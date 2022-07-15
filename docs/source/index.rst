@@ -6,6 +6,15 @@
 Welcome to Flair's documentation!
 =================================
 
+New: Flair can now be pip installed using 
+.. code:: sh
+
+   pip install flair-brookslab
+
+This will install all python dependencies for basic Flair (``align``, 
+``correct``, and ``collapse``). If you want to use any of the other
+modules (``quantify``, ``diffExp``, or ``diffSplice``), please install
+`The latest release <https://github.com/BrooksLabUCSC/flair/releases>`_.
 
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
@@ -28,8 +37,8 @@ downstream analyses.
 It is also good to note that ``bed12`` and ``psl`` can be converted
 using
 `kentUtils <https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils>`__
-bedToPsl or pslToBed, or using ``bin/bed_to_psl.py`` and
-``bin/psl_to_bed.py``.
+bedToPsl or pslToBed, or using ``bed_to_psl`` and
+``psl_to_bed`` provided in flair's ``/bin`` directory.
 
 .. toctree::
    :maxdepth: 2
