@@ -338,7 +338,7 @@ def buildIntervalTree(juncs, wiggle, fasta):
     x = []
     data = dict()
 
-    with open(juncs) as lines:
+    with open(juncs, 'r') as lines:
         for line in lines:
             cols     = line.rstrip().split()
             c1, c2   = int(cols[1]), int(cols[2])
@@ -377,7 +377,9 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 x.append([c2S,c2E,c2])
             else:
                 data[c2].support.add(annoType)
-    intTree = NCLS([val[0]-1 for val in x], [val[1]+1 for val in x], [val[2] for val in x])
+    intTree = False
+    if len(x) > 0:
+        intTree = NCLS([val[0]-1 for val in x], [val[1]+1 for val in x], [val[2] for val in x])
     if checkFname: 
         with open(checkFname,'a+') as fo:
             print("** Tree Initialized. %s data points added for chromosome %s." % (len(list(data.keys())),currentChr), file=fo)
