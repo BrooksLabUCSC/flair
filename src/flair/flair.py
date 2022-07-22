@@ -174,10 +174,22 @@ def correct(aligned_reads=''):
 
 	if aligned_reads:
 		args.q = aligned_reads
-
+	if not os.path.exists(args.q):
+		sys.stderr.write(f'File {args.q} does not appear to exist, please check.\n')
+		return 1
+	if not os.path.exists(args.g):
+		sys.stderr.write(f'File {args.g} does not appear to exist, please check.\n')
+		return 1
 	if not args.j and not args.f:
 		sys.stderr.write('Please specify at least one of the -f or -j arguments for correction\n')
 		return 1
+	if args.j and not os.path.exists(args.j):
+		sys.stderr.write(f'File {args.j} does not appear to exist, please check.\n')
+		return 1
+	if args.f and not os.path.exists(args.f):
+		sys.stderr.write(f'File {args.f} does not appear to exist, please check.\n')
+		return 1
+
 	correction_cmd = [sys.executable, path+'ssCorrect.py', '-i', args.q,
 			'-w', str(args.w), '-p', str(args.t), '-o', args.o, '--progress', '-f', args.g]
 	if not args.n:
@@ -480,6 +492,10 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.fusion_dist:
 		args.trust_ends = True
 
+	for rfile in args.r:
+		if not os.path.exists(rfile):
+			sys.stderr.write(f'Read file path does not exist: {rfile}\n')
+			return 1
 	if not os.path.exists(args.q):
 		sys.stderr.write('Query file path does not exist: {}\n'.format(args.q))
 		return 1
