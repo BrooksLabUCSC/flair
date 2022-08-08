@@ -1182,7 +1182,7 @@ def main():
 			sys.exit(1)
 
 	if mode == '--version':
-		sys.stderr.write('FLAIR v1.6.1\n')
+		sys.stderr.write('FLAIR v1.6.2\n')
 
 
 if __name__ == "__main__":
