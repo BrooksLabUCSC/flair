@@ -365,7 +365,7 @@ def main():
                 bedCols[7],bedCols[6] = str(start),str(end)
             print("\t".join(bedCols))
     if is_psl:
-        subprocess.call(['rm', bed])
+        subprocess.check_call(['rm', bed])
 
 if __name__ == "__main__":
     main()

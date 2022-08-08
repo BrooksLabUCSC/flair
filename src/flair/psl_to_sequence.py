@@ -53,9 +53,9 @@ if args.vcf:
 		vcf.fetch(chrom)
 	except ValueError:
 		if args.vcf[-3:] != '.gz':
-			subprocess.call(['bgzip', '-c', args.vcf], stdout=open(args.vcf+'.gz', 'w'))
+			subprocess.check_call(['bgzip', '-c', args.vcf], stdout=open(args.vcf+'.gz', 'w'))
 			args.vcf = args.vcf+'.gz'
-		subprocess.call(['tabix', '-fp', 'vcf', args.vcf])
+		subprocess.check_call(['tabix', '-fp', 'vcf', args.vcf])
 		vcf = pysam.VariantFile(args.vcf, 'r')
 	used_variants = {}
 	variant_string_to_record = {}

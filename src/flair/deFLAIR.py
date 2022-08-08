@@ -322,15 +322,15 @@ def main():
 
     with open("%s/dge_stderr.txt" % outDir,"w") as out1:
 
-        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
+        subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
                             "--prefix", "dge", "--formula", formulaMatrixFile], stderr=out1)
 
-        subprocess.call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
+        subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
                             "--prefix", "die", "--formula", formulaMatrixFile], stderr=out1)
 
-        subprocess.call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
+        subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
                              "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
 
