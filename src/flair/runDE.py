@@ -104,11 +104,11 @@ def main():
 
     # make the quant DF
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
-    df = pandas2ri.py2rpy(quantDF)
+    df = pandas2ri.py2ri(quantDF)
 
     # import formula
     formulaDF     = pd.read_csv(formula,header=0, sep="\t",index_col=0)
-    sampleTable = pandas2ri.py2rpy(formulaDF)
+    sampleTable = pandas2ri.py2ri(formulaDF)
 
 
     if "batch" in list(formulaDF):

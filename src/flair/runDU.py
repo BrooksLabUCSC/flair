@@ -113,11 +113,11 @@ def main():
 
     # get quant table and formula table
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
-    df       = pandas2ri.py2rpy(quantDF)
+    df       = pandas2ri.py2ri(quantDF)
 
     formulaDF = pd.read_csv(formula,header=0, sep="\t")
 
-    pydf      = pandas2ri.py2rpy(formulaDF)
+    pydf      = pandas2ri.py2ri(formulaDF)
 
     # Convert pandas to R data frame.
     samples = pydf
@@ -165,7 +165,7 @@ def main():
 
 
     res.to_csv(resOut, sep='\t')
-    sys.exit(0)
+    sys.exit(1)
 
     R('library(stageR)')
     R('pScreen <- results(d)$pvalue')

@@ -164,7 +164,7 @@ for chrom in isoforms:
 			elif mode == 'nosubset' or len(exons) < 4:  # is a subset and will be removed
 				continue
 			elif isoforms[chrom][n]['line'][-1] > 3 and \
-				isoforms[chrom][n]['line'][-1] > max(superset_support)*1.2: 
+				isoforms[chrom][n]['line'][-1] > (sum(superset_support)/len(superset_support))*1.2:
 					keepisoforms += [isoforms[chrom][n]['line']]
 		else:  # single exon isoforms
 			exon = isoforms[chrom][n]['exons'][0]
