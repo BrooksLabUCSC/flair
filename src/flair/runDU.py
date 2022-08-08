@@ -113,11 +113,11 @@ def main():
 
     # get quant table and formula table
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
-    df       = pandas2ri.py2ri(quantDF)
+    df       = pandas2ri.py2rpy(quantDF)
 
     formulaDF = pd.read_csv(formula,header=0, sep="\t")
 
-    pydf      = pandas2ri.py2ri(formulaDF)
+    pydf      = pandas2ri.py2rpy(formulaDF)
 
     # Convert pandas to R data frame.
     samples = pydf
@@ -125,7 +125,6 @@ def main():
 
     # DRIMSEQ part.
     # Forumla
-    print('here')
     if "batch" in list(formulaDF): R.assign('batch', samples.rx2('batch'))
     R.assign('condition', samples.rx2('condition'))
     R.assign('counts', counts)
@@ -147,7 +146,6 @@ def main():
     # R('f = colnames(design_full)')
     # R("save.image(file='/private/groups/brookslab/atang/flair/testing/misc/colette/.RData')")
     # f = robjects.r['f']
-    # print('here2')
     # g = robjects.r['condition']
     # print(f)
     # print(g)
@@ -165,7 +163,7 @@ def main():
 
 
     res.to_csv(resOut, sep='\t')
-    sys.exit(1)
+    sys.exit(0)
 
     R('library(stageR)')
     R('pScreen <- results(d)$pvalue')
