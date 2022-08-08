@@ -18,6 +18,7 @@ from __future__ import print_function
 ########################################################################
 
 import os, sys, csv
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 from itertools import combinations
 import scipy.stats as sps
 import statsmodels.stats.multitest as sm
