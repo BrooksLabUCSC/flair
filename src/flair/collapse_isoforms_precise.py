@@ -237,7 +237,6 @@ def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes t
 	for se in se_ordered[1:]:
 		overlapped_loci = []
 		overlapped_intervals = []
-		things = []
 		for g in reversed(range(max(0, group-6), group+1)):
 			isoverlap, coverage = overlap(se, sedict[chrom][g]['bounds'])
 			if isoverlap:
@@ -669,6 +668,7 @@ chrom_names = []  # sorted by descending total number of unique single-exon isof
 for chrom in all_se_by_chrom:
 	chrom_names += [(chrom, len(all_se_by_chrom[chrom]))]
 chrom_names = [chrom for chrom,num in sorted(chrom_names, key=lambda x: x[1], reverse=True)]
+res = {}
 if __name__ == '__main__':
 	p = Pool(args.t)
 	res = p.map(run_iterative_add_se, chrom_names)
