@@ -156,6 +156,8 @@ def getSeqs(bed, genome):
     with open(bt.seqfn) as entries:
         for entry in entries:
             read,seq  = entry.split()
+            # accommodate different bedtools versions
+            read = read.split('::')[0]
             read = read.split("(")[0]
             
             if read not in isoDict:
