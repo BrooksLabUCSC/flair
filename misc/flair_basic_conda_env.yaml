@@ -17,3 +17,6 @@ dependencies:
   - minimap2
   - mappy
   - pysam
+  - pip
+  - pip:
+      - flair-brookslab
