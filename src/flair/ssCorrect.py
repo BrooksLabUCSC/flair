@@ -313,7 +313,7 @@ def main():
 
     # make temp dir for dumping
     if tempDirName == None:
-        tempDirName = "tmp_%s" % str(uuid.uuid4())
+        tempDirName = str(uuid.uuid4())
     try:
         current_directory = os.getcwd()
         tempDir = os.path.join(current_directory, tempDirName)
@@ -329,7 +329,7 @@ def main():
     global printErr
     verbose  = myCommandLine.args['progress']
     printErr = myCommandLine.args['print_check']
-    printErrFname = "err_%s.txt" % tempDirName
+    printErrFname = os.path.join(tempDirName, 'ssCorrect.err')
 
     # Convert gtf to bed and split by cromosome.
     juncs, chromosomes, knownSS  = dict(), set(), dict() # initialize juncs for adding to db
