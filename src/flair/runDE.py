@@ -22,7 +22,6 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 import numpy as np
 
-
 from rpy2 import robjects
 from rpy2.robjects import r,pandas2ri, Formula
 from rpy2.robjects.lib import grid
@@ -37,6 +36,7 @@ warnings.filterwarnings("ignore", category=RRuntimeWarning)
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -46,11 +46,11 @@ class CommandLine(object) :
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
     myCommandLine.args['option'] 
-    
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -62,7 +62,7 @@ class CommandLine(object) :
                                              prefix_chars = '-', 
                                              usage = '%(prog)s ')
         # Add args
-        
+
         self.parser.add_argument("--group1"    , action = 'store', required=True, 
                                     help='Sample group 1.')
         self.parser.add_argument("--group2"    , action = 'store', required=True, 
@@ -82,9 +82,8 @@ class CommandLine(object) :
         else :
             self.args = vars(self.parser.parse_args(inOpts))
 
+
 # main
-
-
 def main():
     '''
     maine
@@ -111,12 +110,10 @@ def main():
     formulaDF     = pd.read_csv(formula,header=0, sep="\t",index_col=0)
     sampleTable = pandas2ri.py2rpy(formulaDF)
 
-
     if "batch" in list(formulaDF):
         design = Formula("~ condition + condition")
     else:
         design = Formula("~ condition")
-   
 
     # import DESeq2
     from rpy2.robjects.packages import importr
@@ -125,8 +122,6 @@ def main():
     deseq     = importr('DESeq2')
     grdevices = importr('grDevices')
     qqman     = importr('qqman')
-
-
 
     ### RUN DESEQ2 ###
     R.assign('df', df)
@@ -140,8 +135,6 @@ def main():
     print(g)
     R('name <- grep("condition", resultsNames(dds), value=TRUE)')
 
-    ###
-    ###
     # Get Results and shrinkage values
     res    = R('results(dds, name=name)')
     resLFC = R('lfcShrink(dds, coef=name)')
@@ -150,14 +143,13 @@ def main():
     reslfc = robjects.r['as.data.frame'](resLFC)
     dds    = R('dds')
 
-    
     ### Plotting section ###
     # plot MA and PC stats for the user
     plotMA    = robjects.r['plotMA']
     plotDisp  = robjects.r['plotDispEsts']
     plotPCA   = robjects.r['plotPCA']
     plotQQ    = robjects.r['qq']
-    
+
     # get pca data
     if "batch" in list(formulaDF):
         pcaData    = plotPCA(vsd, intgroup=robjects.StrVector(("condition", "batch")), returnData=robjects.r['T'])
@@ -166,12 +158,11 @@ def main():
         print(vsd)
         pcaData    = plotPCA(vsd, intgroup="condition", returnData=robjects.r['T'])
         percentVar = robjects.r['attr'](pcaData, "percentVar")
+
     # arrange 
-
-
     data_folder = os.path.join(os.getcwd(), outdir)
     qcOut = os.path.join(data_folder, "%s_QCplots_%s_v_%s.pdf"  % (prefix,group1,group2))
-    
+
     grdevices.pdf(file=qcOut)
 
     x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
@@ -207,11 +198,10 @@ def main():
     plotDisp(dds, main="Dispersion Estimates")
     grdevices.dev_off()
 
-
     data_folder = os.path.join(os.getcwd(), outdir)
     lfcOut = os.path.join(data_folder, "%s_%s_v_%s_deseq2_results_shrinkage.tsv"  % (prefix,group1,group2))
     resOut = os.path.join(data_folder, "%s_%s_v_%s_deseq2_results.tsv"  % (prefix,group1,group2))
-   
+
     robjects.r['write.table'](reslfc, file=lfcOut, quote=False, sep="\t")
     robjects.r['write.table'](resdf, file=resOut, quote=False, sep="\t")
 

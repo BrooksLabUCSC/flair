@@ -9,6 +9,7 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
 import glob
 
+
 def samtools_outdated(samtools):
 	'''Make sure samtools version is 1.3 or higher'''
 	ver = subprocess.Popen([samtools], stderr=subprocess.PIPE, universal_newlines=True)
@@ -509,7 +510,6 @@ def collapse(genomic_range='', corrected_reads=''):
 	if float(args.s) < 1 and not args.f:
 		sys.stderr.write('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
 		return 1
-
 
 	if args.range:
 		# subset out the read sequences and corrected reads corresponding to the specified range
@@ -1088,6 +1088,7 @@ def diffSplice(isoforms='', counts_matrix=''):
 			subprocess.check_call(ds_command + ['--matrix', args.o+'.alt3.events.quant.tsv', '--prefix', args.o+'.alt3'], stderr=ds_stderr)
 			subprocess.check_call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'.ir'], stderr=ds_stderr)
 	return
+
 
 def main():
 	path = '/'.join(os.path.realpath(__file__).split("/")[:-1])+'/'

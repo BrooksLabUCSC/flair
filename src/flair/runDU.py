@@ -37,6 +37,7 @@ warnings.filterwarnings("ignore", category=RRuntimeWarning)
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -78,7 +79,6 @@ class CommandLine(object) :
                                     help='Formula design matrix.')
         self.parser.add_argument("--threads"    , type=int, action = 'store',default=4, required=False,
                                     help='Number of threads for running DRIM-Seq. BBPARAM')
-
 
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
@@ -161,8 +161,6 @@ def main():
 
     data_folder = os.path.join(os.getcwd(), outdir)
     resOut = os.path.join(data_folder, "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix,group1,group2))
-
-
     res.to_csv(resOut, sep='\t')
     sys.exit(0)
 

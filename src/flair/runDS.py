@@ -196,7 +196,6 @@ def main():
     R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
-
     res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     resOut = "%s.%s_v_%s_drimseq_results.tsv"  % (prefix, conditionA, conditionB)
     if rpy2_version >= 3.4:
@@ -209,7 +208,6 @@ def main():
     # R('pdf(file=fname)')
     # R('plotPValues(res)')  # histogram of p-value distribution
     # R('dev.off()')
-
 
 
 if __name__ == "__main__":

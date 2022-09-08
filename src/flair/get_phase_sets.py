@@ -24,6 +24,7 @@ parser.add_argument('--comprehensive', action='store_true', dest='comprehensive'
 args = parser.parse_args()
 isbed = args.i[-3:].lower() != 'psl'
 
+
 def split_iso_gene(iso_gene):
     if '_chr' in iso_gene:
         splitchar = '_chr'
@@ -46,6 +47,7 @@ def split_iso_gene(iso_gene):
     iso = iso_gene[:iso_gene.rfind(splitchar)]
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
+
 
 isoform_model = {}
 for line in open(args.i):
@@ -116,7 +118,7 @@ with open(args.o, 'wt') as outfile, open(args.outiso, 'wt') as outfile_iso:
 			writer.writerow([i, 'NA'])
 			writer_iso.writerow(isoform_model[i])
 			continue
-		
+
 		ps_tag, hp_tag = pss[0][0]
 		num_reads = pss[0][1]
 

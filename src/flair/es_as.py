@@ -37,7 +37,6 @@ class Gene(object):
 					# this exon also cannot be skipped, so just continue
 					continue
 
-
 				previousDonor = self.isoforms[i][num-1][self.donor]
 				nextAcceptor = self.isoforms[i][num+1][self.acceptor]
 
@@ -108,7 +107,6 @@ class Gene(object):
 				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor] 
 				previousDonor = self.spliceSites[previousDonor]
 				nextAcceptor = self.spliceSites[nextAcceptor]
-			
 
 				exon = tuple(sorted([acceptor.name,donor.name]))
 				if exon not in self.exonGraph:
@@ -160,7 +158,6 @@ class Gene(object):
 				len(exclusionIsos), ",".join(inclusionIsos),",".join(exclusionIsos), sep="\t")
 			#print(self.chrom, "\t".join(str(x) for x in sorted([acceptor.name,donor.name])), "%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.name, self.strand, sep="\t")
 
-
 	def findSkippedExonsV2(self):
 		'''
 		'''
@@ -196,9 +193,9 @@ class Gene(object):
 			possiblePaths = list(currentSS.up)[0]
 			currentSS = possiblePaths
 			pathSoFar = [currentSS.name] + pathSoFar
-			
 
 		return pathSoFar
+
 	def findSkippedExons(self):
 		'''
 		'''
@@ -211,7 +208,6 @@ class Gene(object):
 
 			downstreamAcceptors = donor.down
 			downAcceptorPathsIn = set([y.name for x in downstreamAcceptors for y in x.up])
-			
 
 			upstreamDonors = acceptor.up
 			upDonorPathsIn = set([y.name for x in upstreamDonors for y in x.down])
@@ -229,7 +225,7 @@ class Gene(object):
 			# 			continue
 			# 		else:
 			# 			altAcceptors.add((altAcceptor,altAcceptor.name))
-			
+
 			# downstreamAcceptors = obj.donor.down
 			# altDonors = set()
 			# for acceptor in downstreamAcceptors:
@@ -251,6 +247,7 @@ class SpliceSite(object):
 		self.up = set()
 		self.down = set()
 
+
 class Exon(object):
 	'''
 	'''
@@ -261,6 +258,7 @@ class Exon(object):
 		self.acceptor = acceptor
 		self.inclusionJuncs = set()
 
+
 class Junction(object):
 	'''
 	'''
@@ -270,6 +268,7 @@ class Junction(object):
 		self.inExon = set()
 		self.outExon = set()
 		self.weight = int()
+
 
 #functions
 def bed12toExons(start,starts,sizes):
@@ -320,15 +319,16 @@ def main():
 
 			geneID = parse_gene_id(iso)
 			exons = bed12toExons(start,starts,sizes)
-			
+
 			if chrom not in genes:
 				genes[chrom] = Gene(geneID, chrom, strand)
 			geneObj = genes[chrom]
 			geneObj.isoforms[iso] = exons
-	
+
 	for chrom, gobj in genes.items():
 		gobj.buildGraphv2()
 		gobj.findSkippedExonsV1()
+
 
 if __name__ == "__main__":
 	main()

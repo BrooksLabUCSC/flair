@@ -54,6 +54,7 @@ if args.o:
 else:  # default output name
 	args.o = args.q[:-3]+'collapsed.bed' if bed else args.q[:-3]+'collapsed.psl'
 
+
 def get_junctions(line):
 	starts = [int(n) for n in line[20].split(',')[:-1]]
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
@@ -63,6 +64,7 @@ def get_junctions(line):
 	for b in range(len(starts)-1):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions, (starts[0]+sizes[0], starts[-1])
+
 
 def get_junctions_bed12(line):
 	chrstart = int(line[1])
@@ -75,6 +77,7 @@ def get_junctions_bed12(line):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions, (starts[0]+sizes[0], starts[-1])
 
+
 def overlap(coord0, coord1, tol=0):
 	if coord1[0] < coord0[0]:
 		coord0, coord1 = coord1, coord0
@@ -83,6 +86,7 @@ def overlap(coord0, coord1, tol=0):
 		return isoverlap, (min(coord0[1], coord1[1]) - coord1[0])/(coord0[1] - coord0[0])# + \
 			#(coord0[1] - coord1[0])/(coord1[1] - coord1[0]) / 2
 	return isoverlap, 0
+
 
 def bin_search(query, data):
 	""" Query is a coordinate interval. Approximate binary search for the query in sorted data, 
@@ -115,6 +119,7 @@ def bin_search(query, data):
 		tried.add(i)
 	return i
 
+
 def interval_insert(query, data):
 	i = int(round(len(data)/2))
 	lower, upper = 0, len(data)
@@ -134,6 +139,7 @@ def interval_insert(query, data):
 				break
 	data = data[:i+1] + [query] + data[i+1:]
 	return data
+
 
 def add_se(sedict, tss, tes, line, sedictkeys, support=1):
 	loci = {}  # altered loci
@@ -183,6 +189,7 @@ def add_se(sedict, tss, tes, line, sedictkeys, support=1):
 		sedictkeys = interval_insert((tss,tes),sedictkeys)
 	return sedict, sedictkeys
 
+
 def run_add_se(chrom):
 	sedict, sekeys = {}, {}
 	sedict[chrom] = {}
@@ -191,6 +198,7 @@ def run_add_se(chrom):
 		sedict[chrom], sekeys[chrom] = add_se(sedict[chrom], se[0], se[1], \
 			all_se_by_chrom[chrom][se]['line'], sekeys[chrom], all_se_by_chrom[chrom][se]['count'])
 	return sedict
+
 
 def iterative_add_se(sedict, chrom, group, se):
 	tss, tes = se[0], se[1]
@@ -226,6 +234,7 @@ def iterative_add_se(sedict, chrom, group, se):
 	sedict[chrom][group]['tss_tes'][tss][tes] += support
 	return sedict, True
 
+
 def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes that reads are sorted
 	group = 0  # group number
 	sedict = {}
@@ -256,6 +265,7 @@ def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes t
 			sedict, added = iterative_add_se(sedict, chrom, group, se)
 	return sedict
 
+
 def find_best_tss(sites, finding_tss, remove_used):
 	nearby = dict.fromkeys(sites, 0)  # key: site, value: number of supporting reads in window
 	wnearby = dict.fromkeys(sites, 0)  # key: site, value: weighted number of supporting reads in window
@@ -280,6 +290,7 @@ def find_best_tss(sites, finding_tss, remove_used):
 			if abs(s - bestsite[0]) <= window:
 				sites.pop(s)
 	return sites, bestsite
+
 
 def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord='', remove_used=True):
 	""" Finds the best TSSs within Sites. If find_tss is False, some 
@@ -315,6 +326,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 			found_tss += [bestsite]
 	return found_tss
 
+
 def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_results=max_results):
 	""" sites_tss_all = {tss: count}
 	sites_tes_all = {tss: {tes: count}}
@@ -346,6 +358,7 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 		for tes in found_tes:
 			ends += [[tss[0], tes[0], max(tss[3], tes[3]), tss[3], tes[3]]]
 	return ends
+
 
 def run_se_collapse(chrom):
 	senames = {}
@@ -433,6 +446,7 @@ def run_se_collapse(chrom):
 	return new_towrite
 
 	return towrite
+
 
 def run_find_best_sites(chrom):
 	allends = {}  # counts of all TSSs/TESs by chromosome
@@ -554,6 +568,7 @@ def run_find_best_sites(chrom):
 			new_towrite[chrom][jset] += [newline[:-1]]
 	return new_towrite
 
+
 def edit_line(line, tss, tes, blocksize=''):
 	line = list(line)
 	if blocksize:  # single exon transcript
@@ -574,6 +589,7 @@ def edit_line(line, tss, tes, blocksize=''):
 	line[18] = ','.join([str(x) for x in bsizes])+','
 	line[20] = ','.join([str(x) for x in bstarts])+','
 	return line
+
 
 def edit_line_bed12(line, tss, tes, blocksize=''):
 	line = list(line)

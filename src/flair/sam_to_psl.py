@@ -115,7 +115,6 @@ with open(outfilename, 'wt') as outfile:
 		if op == 'S':
 			qsize_backup += num
 
-
 		blockcount = len(relblockstarts)
 		relblockstarts = ','.join([str(s) for s in relblockstarts]) + ','
 		qstarts = ','.join([str(qstart + s) for s in qstarts]) + ','

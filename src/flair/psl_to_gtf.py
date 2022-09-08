@@ -11,6 +11,7 @@ parser.add_argument('--add_reference_transcript_id', action='store_true', dest='
 	help='specify to add reference_transcript_id attribute')
 args = parser.parse_args()
 
+
 def split_iso_gene(iso_gene):
 	if '_chr' in iso_gene:
 		iso = iso_gene[:iso_gene.rfind('_chr')]
@@ -35,6 +36,7 @@ def split_iso_gene(iso_gene):
 		gene = iso_gene[iso_gene.rfind('_')+1:]
 	return iso, gene
 
+
 isbed = args.psl[-3:].lower() != 'psl'
 for line in open(args.psl):
 	line = line.rstrip().split('\t')
@@ -48,7 +50,7 @@ for line in open(args.psl):
 		chrom, strand, score, name, start = line[13], line[8], line[0], line[9], int(line[15])
 		tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
 		bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
-	
+
 	if '_' not in name and not args.force:
 		sys.stderr.write('Entry name should contain underscore-delimited transcriptid and geneid like so:\
 		 ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n')

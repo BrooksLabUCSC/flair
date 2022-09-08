@@ -15,15 +15,18 @@ except:
 	sys.stderr.write('usage: call_diffsplice_events.py .psl|.bed out.tsv [counts_tsv]\n')
 	sys.exit(1)
 
+
 def overlap(coords0, coords1):
 	return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
 		coords1[1] >= coords0[0] and coords1[1] <= coords0[1]
+
 
 def get_junctions_psl(starts, sizes):
 	junctions = []
 	for b in range(len(starts)-1):
 		junctions += [(starts[b]+sizes[b], starts[b+1], starts[b], starts[b+1]+sizes[b+1])]
 	return junctions
+
 
 def parse_iso_id(iso_gene):
 	if '_' not in iso_gene:
@@ -44,6 +47,7 @@ def parse_iso_id(iso_gene):
 		iso = iso_gene[:iso_gene.rfind('_')]
 	return iso
 
+
 def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sample_names,\
 	iso_counts, search_threeprime=True):
 	if fiveprime not in jdict[chrom]:
@@ -63,6 +67,7 @@ def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sa
 	for c in range(len(sample_names)): 
 		jdict[chrom][fiveprime][threeprime]['counts'][c] += iso_counts[name][c]
 	return jdict
+
 
 def find_altss(alljuncs, writer, search_threeprime=True):
 	""" If fiveprimeon is True, then alternative 5' SS will be reported instead. """
@@ -98,6 +103,7 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 					writer.writerow(['exclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][exclusion]['counts'] +\
 					[','.join(alljuncs[chrom][fiveprime][exclusion]['isos'])] )
 					n += 1
+
 
 iso_counts = {}
 sample_names = []
@@ -216,6 +222,4 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 			writer.writerow(['exclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['exclusion']['counts'] +\
 			[','.join(ir_junctions[chrom][j]['exclusion']['isos'])] )
 		ir_junctions[chrom] = None
-
-
 

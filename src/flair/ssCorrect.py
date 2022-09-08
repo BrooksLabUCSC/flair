@@ -35,6 +35,7 @@ helperScript = path + "/" + "ssPrep.py"
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -100,7 +101,6 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
             if num >10:
                 break
 
-
     # guess what kind of bedFile
     if cols is None:
         raise Exception("Empty junctions BED file, not supported")
@@ -124,7 +124,6 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
 
     else:
         raise Exception("Cannot find strand info for %s. Is this bed6 or STAR_juncs.tab file?" % bedJuncs)
-
 
     if printErr:
         with open(printErrFname,'a+') as fo:
@@ -200,6 +199,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
             print("** GTF Juncs + other juncs now total %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 
     return juncs, chromosomes
+
 
 def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
     ''' Convenience function, reformats GTF to bed'''
@@ -283,6 +283,7 @@ def runCMD(x):
     std, perr = p.communicate()
     return perr
 
+
 def main():
     '''
     maine
@@ -309,7 +310,6 @@ def main():
         """
         test = pybedtools.BedTool(testString, from_string=True)
         a = test.sequence(fi=genomeFasta)
-
 
     # make temp dir for dumping
     if tempDirName == None:
@@ -386,7 +386,6 @@ def main():
         with open(printErrFname,'a+') as fo:
             print("** Prepared correct commands for %s read files" % len(cmds), file=fo)
 
-
     juncs = None
     annotations = None
     p = Pool(threads)
@@ -397,12 +396,10 @@ def main():
         print(childErrs,file=sys.stderr)
         sys.exit(1)
 
-
     with open("%s_all_inconsistent.bed" % outFile,'wb') as inconsistent:
         for chrom in readDict:
             with open(os.path.join(tempDir, "%s_inconsistent.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, inconsistent, 1024*1024*10)
-
 
     with open("%s_all_corrected.bed" % outFile,'wb') as corrected:
         for chrom in readDict:
@@ -417,5 +414,7 @@ def main():
             print("Error: %s - %s." % (e.filename, e.strerror), file=sys.stderr)
 
     print("\n")
+
+
 if __name__ == "__main__":
     main()

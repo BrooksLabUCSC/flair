@@ -14,6 +14,7 @@ if s >= 1:
 	sys.stderr.write('Support percentage should be a decimal e.g. 0.1 for 10%\n')
 	sys.exit(1)
 
+
 def split_iso_gene(iso_gene):
     if '_chr' in iso_gene:
         splitchar = '_chr'
@@ -34,6 +35,7 @@ def split_iso_gene(iso_gene):
     iso = iso_gene[:iso_gene.rfind(splitchar)]
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
+
 
 genes = {}
 for line in isoforms:

@@ -27,6 +27,7 @@ import pybedtools
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -36,11 +37,11 @@ class CommandLine(object) :
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
     myCommandLine.args['option'] 
-    
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -60,10 +61,9 @@ class CommandLine(object) :
         self.parser.add_argument("--workingDir", action = 'store', required=True, help='Working directory.')
         self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
         self.parser.add_argument('--check_file', action = 'store', required=False, default = False, help='Write file for print_check')
-        
+
         #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
-        
-        
+
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -101,7 +101,7 @@ class BED12(object):
     '''
     def __init__(self, fname=None):
         self.fname = fname
-        
+
         if not os.path.isfile(fname):
             print("%s does not exist. Exiting.", file=sys.stderr)
             sys.exit(1)
@@ -118,7 +118,6 @@ class BED12(object):
                 self.starts = [int(x) for x in cols[11].split(",")[:-1]] if cols[11][-1] == "," else [int(x) for x in (cols[11]+",").split(",")[:-1]]
                 yield cols
 
-
     def bed12toJuncs(self):
         '''
         Take bed12 entry and convert block/sizes to junction coordinates.
@@ -133,7 +132,6 @@ class BED12(object):
             junctions.append((ss1,ss2))
 
         return junctions
-
 
     def bed12toExons(self):
         '''
@@ -150,6 +148,7 @@ class BED12(object):
 # Read
 ########################################################################
 
+
 class READ(object):
     '''
     Handles Read data.
@@ -162,6 +161,7 @@ class READ(object):
 ########################################################################
 # Junc
 ########################################################################
+
 
 class SS(object):
     '''
@@ -176,12 +176,12 @@ class SS(object):
         self.support = set()
         self.usage   = 0
         self.ssCorr  = None
-        
 
 
 ########################################################################
 # Functions
 ########################################################################
+
 
 def juncsToBed12(start, end, coords):
     '''
@@ -214,14 +214,13 @@ def juncsToBed12(start, end, coords):
         return 1, [end-start], [0]
 
 
-
 def ssCorrrect(c,strand,ssType,intTree,ssData):
     '''
     correct un-annotated splice sites.
     '''
 
     hits = [h for h in intTree.find_overlap(c,c)]
-    
+
     if len(hits)<1:
         ss = SS(c,strand,None)
         ssData[c] = ss
@@ -246,14 +245,12 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
             return ssData
 
 
-
 def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
     ''' Builds read and splice site objects '''
 
     if checkFname: 
         with open(checkFname,'a+') as fo:
             print("** Creating temporary correction files for chromosome %s: %s & %s" % (currentChr, os.path.join(wDir, "%s_inconsistent.bed" % filePrefix), os.path.join(wDir,"%s_corrected.bed" % filePrefix)), file=fo)
-
 
     inconsistent = open(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix),'w')
     corrected = open(os.path.join(wDir,"%s_corrected.bed" % filePrefix),'w')
@@ -263,7 +260,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
         juncs  = bedObj.bed12toJuncs()
         strand = bedObj.strand 
         c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
-        
+
         newJuncs  = list()
         ssTypes   = list()
         ssStrands = set()
@@ -275,7 +272,6 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
                 ssData = ssCorrrect(c1,strand,c1Type,intTree,ssData)
             if c2 not in ssData:
                 ssData = ssCorrrect(c2,strand,c2Type,intTree,ssData)
-
 
             c1Obj, c2Obj = ssData[c1], ssData[c2]
 
@@ -293,7 +289,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             newJuncs.append((c1Corr,c2Corr)) 
 
         blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
-        
+
         if correctStrand:
             if len(ssStrands)>1:
                 novelSS = True
@@ -306,26 +302,24 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
         minSize = min(sizes)
         if minSize == 0: novelSS = True
 
-
         if novelSS:
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
                     bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
                     blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=inconsistent)
         else:
-            
+
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
                     bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
                     blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
     corrected.close()
     inconsistent.close()
-    
+
     inc = os.path.isfile(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix))
     cor = os.path.isfile(os.path.join(wDir, "%s_corrected.bed" % filePrefix))
 
     if checkFname: 
         with open(checkFname,'a+') as fo:
             print("** Checking inc/corr files for chromsome %s: %s %s" % (currentChr,inc,cor), file=fo)
-
 
 
 def buildIntervalTree(juncs, wiggle, fasta):
@@ -352,10 +346,10 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 ss = SS(c1,strand,c1Type)
                 ss.support.add(annoType)
                 ss.ssCorr = ss
-        
+
                 # SS window
                 c1S, c1E = max(c1-wiggle,1), c1+wiggle
-                
+
                 # Add to tree and object to data
                 data[c1] = ss
                 x.append([c1S,c1E,c1])
@@ -368,10 +362,10 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 ss = SS(c2,strand,c2Type)
                 ss.support.add(annoType)
                 ss.ssCorr = ss
-        
+
                 # SS window
                 c2S, c2E = max(c2-wiggle,1), c2+wiggle
-                
+
                 # Add to tree and object to data
                 data[c2] = ss
                 x.append([c2S,c2E,c2])
@@ -389,7 +383,7 @@ def buildIntervalTree(juncs, wiggle, fasta):
 
 def main():
     '''
-    maine
+    main
     '''
 
     # Command Line Stuff...
@@ -397,30 +391,26 @@ def main():
     bed           = myCommandLine.args['input_bed']
     knownJuncs    = myCommandLine.args['juncs']
     fa            = myCommandLine.args['genome_fasta']
-
     wiggle        = myCommandLine.args['wiggleWindow']
     out           = myCommandLine.args['output_fname']
-
     resolveStrand = myCommandLine.args['correctStrand']
-
     workingDir    = myCommandLine.args['workingDir']
-
 
     global checkFname
     checkFname    = myCommandLine.args['check_file']
-   
+
     try: 
         ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname)
     except:
         sys.exit(1)
-    
+
+
 def ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname):
     globals()['currentChr'] = out
     globals()['checkFname'] = checkFname
     if checkFname: 
         with open(checkFname,'a+') as fo:
             print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (bed, wiggle, knownJuncs, fa), file=fo)
-
 
     # Build interval tree of known juncs
     intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
@@ -436,8 +426,6 @@ def ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFna
             with open(checkFname,'a+') as fo:
                 print("** correctReads FAILED for %s" % (bed), file=fo)
         sys.exit(1)
-
-            
 
 
 if __name__ == "__main__":

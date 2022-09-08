@@ -13,6 +13,7 @@ except:
 		' filtered.psl [tolerance] [keep_extra_column]\n')
 	sys.exit(1)
 
+
 def get_junctions(starts, sizes):
 	junctions = set()
 	if len(starts) != 1:
@@ -20,15 +21,18 @@ def get_junctions(starts, sizes):
 			junctions.add((starts[b]+sizes[b], starts[b+1]))
 		return junctions
 
+
 def get_exons(starts, sizes):
 	exons = []
 	for e in range(len(starts)):
 		exons += [(starts[e], starts[e]+sizes[e])]
 	return exons
 
+
 def overlap(coords0, coords1, tol=1):
 	coords0, coords1 = sorted([coords0, coords1], key = lambda x: x[0])
 	return (coords0[0] < coords1[0] and coords1[0] < coords0[1] - tol)
+
 
 def exon_overlap(coords0, coords1, left=True, tol=1):
 	len0, len1 = coords0[1] - coords0[0], coords1[1] - coords1[0]
@@ -36,8 +40,10 @@ def exon_overlap(coords0, coords1, left=True, tol=1):
 		return coords0[1] == coords1[1] and (len0 - tol) < len1
 	return coords0[0] == coords1[0] and (len0 - tol) < len1
 
+
 def contained(coords0, coords1):  # complete coverage of coords0 by coords1
 	return coords1[0] <= coords0[0] and coords1[1] >= coords0[1]
+
 
 def bin_search_left(query, data):
 	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
@@ -62,6 +68,7 @@ def bin_search_left(query, data):
 			i = int(math.floor((lower + upper)/2.))
 	return data[i:min(i+40, len(data))]
 
+
 def bin_search_right(query, data):
 	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
 	the query in data sorted by the right coordinate. Finishes when the first interval in data with
@@ -83,6 +90,7 @@ def bin_search_right(query, data):
 			upper = i
 			i = int(math.floor((lower + upper)/2.))
 	return data[max(0, i-40):i+1]
+
 
 isoforms, allevents, jcn_to_name = {}, {}, {}
 for line in psl:

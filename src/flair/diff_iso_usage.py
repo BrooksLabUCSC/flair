@@ -26,6 +26,7 @@ else:
 	sys.stderr.write('Could not find {} in {}\n'.format(colname2, ' '.join(header)))
 	sys.exit(1)
 
+
 def split_iso_gene(iso_gene):
 	if '_chr' in iso_gene:
 		iso = iso_gene[:iso_gene.rfind('_chr')]
@@ -46,6 +47,7 @@ def split_iso_gene(iso_gene):
 		iso = iso_gene[:iso_gene.rfind('_')]
 		gene = iso_gene[iso_gene.rfind('_')+1:]
 	return iso, gene
+
 
 counts = {}
 for line in counts_matrix:

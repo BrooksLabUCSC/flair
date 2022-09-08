@@ -23,7 +23,7 @@ with open(outfilename, 'wt') as outfile:
         sizes = [int(n) for n in blocksizes.split(',')[:-1]]
         starts = [int(n) for n in relblockstarts.split(',')[:-1]]
         blockstarts = ','.join([str(int(start)+relstart) for relstart in starts]) + ','
-        
+
         qblockstarts, qbs = '', 0
         for s in sizes:
             qblockstarts += str(qbs) + ','

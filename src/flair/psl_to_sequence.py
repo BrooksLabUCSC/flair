@@ -84,6 +84,7 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
+
 def get_sequence(entry, seq):
 	if isbed:
 		start = int(entry[1])
@@ -101,6 +102,7 @@ def get_sequence(entry, seq):
 		pulledseq = revcomp(pulledseq)
 	return pulledseq
 
+
 def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, iso_name):
 	pulled_seq = ''
 	for block in range(len(starts)):
@@ -112,17 +114,17 @@ def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, iso_na
 					print('VCF ref {} does not match genome ref base {}'.format(v.ref, 
 						exon_seq[v.pos-starts[block] - 2:v.pos-starts[block] + 2]))
 				exon_seq = exon_seq[:v.pos-starts[block]-1] + v.alts[0] + exon_seq[v.pos-starts[block]:]
-				
+
 				vstring = str(v)
 				if vstring not in variant_string_to_record:
 					variant_string_to_record[vstring] = v
-
 
 					used_variants[vstring] = set()
 
 				used_variants[vstring].add(iso_name)
 		pulled_seq += exon_seq
 	return pulled_seq
+
 
 def get_sequence_with_variants(entry, seq, name):
 	if isbed:
@@ -185,6 +187,7 @@ def get_sequence_with_variants(entry, seq, name):
 		alt_seq = revcomp(alt_seq)
 	return name_ref, pulled_seq, name_alt, alt_seq
 
+
 def write_sequences(chrom):
 
 	models = []
@@ -225,11 +228,13 @@ def write_sequences(chrom):
 revcomp_dict = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 'R': 'Y',
 'Y':'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
 
+
 def revcomp(seq):
 	rev_seq = ''
 	for i in reversed(range(len(seq))):
 		rev_seq += revcomp_dict[seq[i]]
 	return rev_seq
+
 
 with open(args.outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

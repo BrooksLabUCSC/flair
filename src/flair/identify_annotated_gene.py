@@ -10,6 +10,7 @@ except:
 	sys.stderr.write('usage: identify_annotated_gene.py psl ref.gtf/ref.gp isos_matched.psl \n')
 	sys.exit(1)
 
+
 def get_junctions(line):
 	junctions = set()
 	starts = [int(n) + 1 for n in line[20].split(',')[:-1]]
@@ -19,6 +20,7 @@ def get_junctions(line):
 	for b in range(len(starts)-1): # block
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
+
 
 def get_junctions_bed12(line):
 	junctions = set()
@@ -30,6 +32,7 @@ def get_junctions_bed12(line):
 	for b in range(len(starts)-1): # block
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
+
 
 def bin_search(query, data):
 	""" Query is a coordinate interval. Binary search for the query in sorted data, 
@@ -50,12 +53,14 @@ def bin_search(query, data):
 			break
 	return i
 
+
 def contained(coords0, coords1, tol=0):
 	""" complete coverage of coords0 by coords1, and coords0 can be tol larger.
 	if coords0 is contained by coords1, then return the number of overlapping basepairs """
 	if coords0[1] > coords1[0] and coords1[0] <= coords0[0]+tol and coords1[1] >= coords0[1]-tol:
 		return min(coords1[1], coords0[1]) - max(coords1[0], coords0[0])
 	return
+
 
 prev_transcript, prev_exon = '', ''
 all_juncs = {}  # matches a splice junction to gene name

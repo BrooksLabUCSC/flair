@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import print_function#
 
-
 ########################################################################
 # File: samJuncs.py
 #  executable: samJuncs.py
@@ -29,6 +28,7 @@ from tqdm import *
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -38,11 +38,11 @@ class CommandLine(object) :
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
     myCommandLine.args['option'] 
-    
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -57,8 +57,7 @@ class CommandLine(object) :
         self.parser.add_argument('-i', '--ibam', type=str, action = 'store', required=True, help='Input BAM file.')
         self.parser.add_argument('-p', '--threads', action = 'store', required=False, default=2,  help='Num threads.')
         self.parser.add_argument('--quiet', action = 'store_true', required=False, default=True,  help='Quiet stderr output.')
-        
-                
+
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
         else :
@@ -67,6 +66,7 @@ class CommandLine(object) :
 ########################################################################
 # Sequence Alignment File
 ########################################################################
+
 
 class SAM(object):
     '''
@@ -85,7 +85,7 @@ class SAM(object):
             #File does not exist.
             print("ERROR: Cannot find file %s. Exiting!" % self.inFile, file=sys.stderr)
             sys.exit(1)
-    
+
         self.strandInfo = {0:'+', 16:'-'}
         self.supplementary_strandInfo = {2048:'+', 2064:'-'}
         #print(self.reader.find_introns((read for read in self.reader.fetch() if read.is_reverse)))
@@ -152,14 +152,12 @@ class SAM(object):
             orientation = "+"
         elif orientation == 16:
             orientation = "-"
-        
-        tags = read.get_tags()
 
+        tags = read.get_tags()
 
         juncDir = [x[-1] for x in tags if x[0] == 'XS']
 
         return juncDir
-
 
     def readJuncs(self):
         '''
@@ -179,14 +177,13 @@ class SAM(object):
 
             qName = read.query_name
             chromosome = read.reference_name
-            
+
             refPos = read.pos
             refEnd = read.pos
-            
 
             startPos = read.pos
             cigar = read.cigar
-            
+
             # Here is the read starts
             rstart = int(read.pos)
 
@@ -199,13 +196,12 @@ class SAM(object):
                 flag, length = flagTuple 
                 if flag not in [0,2,3,7,8]:
                     continue
-                    
+
                 if flag == 3:
                     junctions.append((refEnd, refEnd+length))
 
                 refPos = refEnd+length
                 refEnd = refPos
-
 
             # Last is the end
             rend = refEnd
@@ -224,7 +220,7 @@ def main():
     TDB
     '''
     myCommandLine = CommandLine()
-    
+
     alignmentFile = myCommandLine.args['ibam']
     threads = myCommandLine.args['threads']
     quiet = myCommandLine.args['quiet']
@@ -237,20 +233,18 @@ def main():
         alignType = "his"
     else:
         print("Aligment not done using minimap2 or hisat2. Exiting.", alignmentCommand, file=sys.stderr, sep="\n")
-    
+
     referenceIDs = [(i.split()[1].split(":")[-1], alignType, alignmentFile) for i in header[1:-2]]
     p = Pool(threads)
 
     #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
     results = p.map(runCMD, referenceIDs)
 
-
-
     # print(results[0])
     # for c,j in d.items():
     #     for i in j:
     #         print(c,i[0]-1, i[1], ".", d[c][i], i[-1],  sep="\t")
-    
+
 
 ########################################################################
 # Main

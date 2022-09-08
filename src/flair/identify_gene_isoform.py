@@ -33,6 +33,7 @@ def get_junctions(line):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
 
+
 def get_junctions_bed12(line):
 	junctions = set()
 	chrstart = int(line[1])
@@ -43,6 +44,7 @@ def get_junctions_bed12(line):
 	for b in range(len(starts)-1): # block
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
+
 
 def bin_search(query, data):
 	""" Query is a coordinate interval. Binary search for the query in sorted data, 
@@ -63,6 +65,7 @@ def bin_search(query, data):
 			break
 	return i
 
+
 def overlapping_bases(coords0, coords1):
 	""" complete coverage of coords0 by coords1, and coords0 can be tol larger.
 	if coords0 is contained by coords1, then return the number of 
@@ -70,6 +73,7 @@ def overlapping_bases(coords0, coords1):
 	if coords0[1] > coords1[0] and coords1[1] > coords0[0]:
 		return min(coords1[1], coords0[1]) - max(coords1[0], coords0[0])
 	return
+
 
 def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
 	tn_to_juncs, all_se):
@@ -87,6 +91,7 @@ def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
 			junc_to_tn[chrom][j].add(prev_transcript)
 	return junc_to_tn, tn_to_juncs, all_se
 
+
 def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene):
 	junctions.add(j)
 	if prev_gene not in gene_unique_juncs:
@@ -96,6 +101,7 @@ def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene
 		junc_to_gene[chrom][j] = set()
 	junc_to_gene[chrom][j].add(gene)
 	return junctions, gene_unique_juncs, junc_to_gene
+
 
 prev_transcript, prev_exon = '', ''
 junc_to_tn = {}  # matches intron to transcript; chrom: {intron: [transcripts], ... }

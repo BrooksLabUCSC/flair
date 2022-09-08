@@ -57,6 +57,7 @@ num_match_in_ss_window = 4
 trust_ends_window = 50
 large_indel_tolerance = 25
 
+
 def is_stringent(tname, blocksizes, blockstarts):
 	''' The additional criteria applied if --stringent is specified: Read must cover 80% of its
 	corresponding transcript and the read must extend at least 25 nt into the first and last exons of the tn.'''
@@ -96,6 +97,7 @@ def is_stringent(tname, blocksizes, blockstarts):
 
 	return right_coverage and left_coverage
 
+
 def check_splice(tname, pos, covered_pos, insertion_pos):
 	''' Returns True if all splice sites are covered. Splice site is considered covered if
 	the number of matches according to CIGAR string  num_match_in_ss_window '''
@@ -104,6 +106,7 @@ def check_splice(tname, pos, covered_pos, insertion_pos):
 		if sum(covered_pos[ss-pos-3:ss-pos+3]) <= num_match_in_ss_window:
 			return False
 	return True
+
 
 def are_far(transcript_1, transcript_2):
 	t1_left, t1_right = terminal_exons[transcript_1]['left_pos'], terminal_exons[transcript_1]['right_pos']
@@ -270,7 +273,6 @@ def count_transcripts_for_reads(read_names):
 					counts[second_t] = 0
 				counts[second_t] += 1
 
-
 		if args.generate_map:
 			if best_t not in isoform_read:
 				isoform_read[best_t] = []
@@ -285,6 +287,7 @@ def count_transcripts_for_reads(read_names):
 		return counts, isoform_read
 	else:
 		return counts, None
+
 
 terminal_exons = {}  # first last exons of the firstpass flair reference transcriptome
 splice_sites = {}  # splice site positions related to transcript start site
@@ -360,7 +363,6 @@ if __name__ == '__main__':
 	for res in counts[1:]:
 		merged_counts += Counter(res[0])
 
-
 	with open(outfilename, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 		for t in merged_counts:
@@ -379,6 +381,4 @@ if __name__ == '__main__':
 			for t in merged_map:
 				if t in merged_counts:
 					writer.writerow([t, ','.join(merged_map[t])])
-
-
 

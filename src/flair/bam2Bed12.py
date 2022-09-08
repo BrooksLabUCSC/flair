@@ -28,6 +28,7 @@ import pysam
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -37,11 +38,11 @@ class CommandLine(object) :
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
     myCommandLine.args['option'] 
-    
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -65,20 +66,21 @@ class CommandLine(object) :
 # Functions
 ########################################################################
 
+
 def juncsToBed12(start, end, coords):
     '''
     junctToBed12 takes in alignment start position, end position, and genomic junction coordinates
     and converts them to start, end, and length blocks for bed12.
     '''
-    
+
     sizes, starts = [],[]
-    
+
     #coords with 0 length are reads without introns
     if len(coords) > 0:
         for num,junc in enumerate(coords,0):
             # a junc is 2 Splice Sites
             ss1, ss2 = junc
-    
+
             # initial start is 0
             if num == 0:
                 st = 0
@@ -94,7 +96,6 @@ def juncsToBed12(start, end, coords):
         size =  end - (st + start)
         starts.append(st)
         sizes.append(size)
-
 
         return len(starts), sizes, starts
     else:
@@ -112,7 +113,7 @@ def main():
     '''
 
     myCommandLine = CommandLine()
-    
+
     alignmentFile = myCommandLine.args['input_bam']
 
     #Color codes for positive and negative stranded read transcripts
@@ -122,7 +123,6 @@ def main():
 
     # SAM Object allows for execution of many SAM-related functions.
     sObj = SAM(alignmentFile, keep_supplementary = myCommandLine.args['keep_supplementary'])
-
 
     for num, readData in enumerate(sObj.readJuncs(),0):
         read, chrom, startPos, junctions, endPos, flags, tags, score = readData

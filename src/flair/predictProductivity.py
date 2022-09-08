@@ -28,6 +28,7 @@ import subprocess
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -37,11 +38,11 @@ class CommandLine(object) :
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
     myCommandLine.args['option'] 
-    
+
     methods:
-    
+
     '''
-    
+
     def __init__(self, inOpts=None) :
         '''
         CommandLine constructor.
@@ -76,11 +77,11 @@ class CommandLine(object) :
 class Isoform(object) :
     '''
     Object to handle isoform related data.
-    
+
     attributes:
-        
+
     methods:
-    
+
     ''' 
 
     def __init__(self, name=None, seq=None):
@@ -107,8 +108,10 @@ class Isoform(object) :
 # MAIN
 ########################################################################
 
+
 def bed12ToExonRanges(cols):
     pass
+
 
 def getStarts(gtf):
     starts = list()
@@ -121,11 +124,10 @@ def getStarts(gtf):
                 gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
                 gene = gene[:gene.find('"')]             
                 # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
-                
-                starts.append((chrom,c1,c2,gene,".",strand))
 
-           
+                starts.append((chrom,c1,c2,gene,".",strand))
     return starts
+
 
 def split_iso_gene(iso_gene):
     if '_chr' in iso_gene:
@@ -148,6 +150,7 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
+
 def getSeqs(bed, genome):
 
     isoDict = dict()
@@ -159,7 +162,7 @@ def getSeqs(bed, genome):
             # accommodate different bedtools versions
             read = read.split('::')[0]
             read = read.split("(")[0]
-            
+
             if read not in isoDict:
                 isoDict[read] = Isoform(read,seq)
     return isoDict
@@ -178,7 +181,7 @@ def getStartRelPos(genomicStartPos,exon, exons, isoObj):
         relativeStart = genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])
     elif isoObj.strand == "-":
         relativeStart = len(isoObj.sequence) - (genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])) - 3
-        
+
     return relativeStart
 
 
@@ -224,14 +227,11 @@ def checkPTC(orfEndPos, exons, isoObj):
                 ptc=True
                 break
 
-
     exonsWithStop = exons[exonWithStop]
     left,right    = exonsWithStop
 
     if isoObj.exonSizes[exonWithStop] != right - left:
         print(isoObj.strand,exons,isoObj.exonSizes,exonWithStop,exonsWithStop,orfEndPos,ptc)
-
-    
 
     genomicPos = right - stopDistFromExon if isoObj.strand == "+" else left + stopDistFromExon 
 
@@ -272,7 +272,7 @@ def predict(bed, starts, isoDict):
                 exon,startPos = start
                 relativeStart = getStartRelPos(startPos,exon,exons,o)
                 fiveUTR,rest  = o.sequence[:relativeStart], o.sequence[relativeStart:].upper()
-                
+
                 # Next find first stop codon
                 stopReached = False
                 for i in range(0, len(rest), 3):
@@ -301,6 +301,7 @@ def predict(bed, starts, isoDict):
                     #o.orfs.append([ptc, startPos, genomicStopPos, relativeStart ])
 
     return isoDict
+
 
 def main():
     '''
@@ -338,14 +339,13 @@ def main():
     isoformObjs = getSeqs(bed, genome)
     isoformObjs = predict(bed, starts, isoformObjs)
 
-
     beaut = {"PRO":"103,169,207", "PTC":"239,138,98", "NST":"0,0,0","NGO":"0,0,0"}
 
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
             isoObj = isoformObjs[bedCols[3]]
-            
+
             if defineORF == 'longest':
                 isoObj.orfs.sort(key=lambda x: x[-2])
                 pro,start,end,orfLen, tisPos = isoObj.orfs[-1]
@@ -359,7 +359,6 @@ def main():
                 iso, gene = split_iso_gene(bedCols[3])
                 bedCols[3] = "%s_%s_%s" % (iso, pro, gene)
 
-
             bedCols[8] = beaut[pro]
             if isoObj.strand == "+":
                 bedCols[6],bedCols[7] = str(start),str(end)
@@ -368,6 +367,7 @@ def main():
             print("\t".join(bedCols))
     if is_psl:
         subprocess.check_call(['rm', bed])
+
 
 if __name__ == "__main__":
     main()

@@ -37,6 +37,7 @@ predictProd = path + "/" + "predictProductivity"
 # CommandLine
 ########################################################################
 
+
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
@@ -108,7 +109,6 @@ class Isoform(object) :
         self.deseq2FC = float()
         self.deltaIPU = float()
 
-
     def computeUsage(self):
 
         self.usage = ["%.2f" % np.divide(iso,gene) for iso,gene in zip(self.exp,self.parent.exp)]
@@ -141,15 +141,14 @@ class Gene(object) :
         self.deseq2FC = float()
 
 ########################################################################
-# Funktions
+# Functions
 ########################################################################
+
 
 def separateTables(f, thresh, samples, groups):
 
     genes, isoforms = dict(), dict()
     duplicateID = 1
-
-
 
     with codecs.open(f, "r", encoding='utf-8', errors='ignore' ) as lines:
         cols = next(lines).split("\t")
@@ -194,13 +193,10 @@ def separateTables(f, thresh, samples, groups):
             isoformObj = isoforms[iso]
             isoformObj.parent = geneObj
 
-
-
     # get group indices for filterin tables
     groups = np.asarray(groups)
     g1Ind  = np.where(groups == groups[0])[0]
     g2Ind  = np.where(groups == groups[-1])[0]
-
 
     #make gene table first
     geneIDs = np.asarray(list(genes.keys()))
@@ -219,7 +215,6 @@ def separateTables(f, thresh, samples, groups):
     geneDF  = pd.DataFrame(filteredGeneVals,columns=samples, index=filteredGeneIDs)
     isoDF = pd.DataFrame(filteredIsoVals,columns=samples, index=filteredIsoIDs)
 
-
     geneDF.to_csv(outDir + "/filtered_gene_counts_ds2.tsv", sep="\t")
     isoDF.to_csv(outDir + "/filtered_iso_counts_ds2.tsv", sep="\t")
 
@@ -232,7 +227,6 @@ def separateTables(f, thresh, samples, groups):
     isoDF.to_csv(outDir + "/filtered_iso_counts_drim.tsv", sep="\t")
 
     return genes, isoforms
-
 
 
 def main():
@@ -259,7 +253,6 @@ def main():
     batches = [x.split("_")[-1] for x in header]
     combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
 
-
     from collections import Counter
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys()))<2:
@@ -274,7 +267,6 @@ def main():
     elif sum([1 if x.isdigit() else 0 for x in groups])>0 or sum([1 if x.isdigit() else 0 for x in batches])>0:
         print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting." , file=sys.stderr)
         sys.exit(1)
-
 
     # Create output directory.
     if force_dir:
@@ -300,7 +292,6 @@ def main():
         formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
         formulaDF     = formulaDF.set_index('sample_id')
 
-
     elif len(set(batches)) > 1:
         header        = ['sample_id','condition','batch']
         formulaMatrix = [[x,y,z] for x,y,z in zip(samples,groups,batches)]
@@ -312,7 +303,6 @@ def main():
         formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
         formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
         formulaDF     = formulaDF.set_index('sample_id')
-
 
     formulaMatrixFile = outDir + "/formula_matrix.tsv"
     isoMatrixFile     = outDir + "/filtered_iso_counts_ds2.tsv"
@@ -334,7 +324,6 @@ def main():
         subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
                              "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
-
 
 
 if __name__ == "__main__":

@@ -34,6 +34,7 @@ except:
 isbed = args.i[-3:].lower() != 'psl'
 tol = args.w
 
+
 def split_iso_gene(iso_gene):
     if '_' not in iso_gene:
     	return iso_gene, 'NA'
@@ -57,6 +58,7 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
+
 def get_info(line, isbed):
 	if isbed:
 		chrom, name, chrstart = line[0], line[3], int(line[1])
@@ -68,6 +70,7 @@ def get_info(line, isbed):
 		starts = [int(n) for n in line[20].split(',')[:-1]]
 	return chrom, name, sizes, starts
 
+
 def get_junctions(starts, sizes):
 	junctions = set()
 	if len(starts) != 1:
@@ -75,15 +78,18 @@ def get_junctions(starts, sizes):
 			junctions.add((starts[b]+sizes[b], starts[b+1]))
 		return junctions
 
+
 def get_exons(starts, sizes):
 	exons = []
 	for e in range(len(starts)):
 		exons += [(starts[e], starts[e]+sizes[e])]
 	return exons
 
+
 def overlap(coords0, coords1, tol=1):
 	coords0, coords1 = sorted([coords0, coords1], key = lambda x: x[0])
 	return (coords0[0] < coords1[0] and coords1[0] < coords0[1] - tol)
+
 
 def exon_overlap(coords0, coords1, left=True, tol=1):
 	len0, len1 = coords0[1] - coords0[0], coords1[1] - coords1[0]
@@ -91,8 +97,10 @@ def exon_overlap(coords0, coords1, left=True, tol=1):
 		return coords0[1] == coords1[1] and (len0 - tol) < len1
 	return coords0[0] == coords1[0] and (len0 - tol) < len1
 
+
 def contained(coords0, coords1):  # complete coverage of coords0 by coords1
 	return coords1[0] <= coords0[0] and coords1[1] >= coords0[1]
+
 
 def bin_search_left(query, data):
 	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
@@ -117,6 +125,7 @@ def bin_search_left(query, data):
 			i = int(math.floor((lower + upper)/2.))
 	return data[i:min(i+40, len(data))]
 
+
 def bin_search_right(query, data):
 	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
 	the query in data sorted by the right coordinate. Finishes when the first interval in data with
@@ -138,6 +147,7 @@ def bin_search_right(query, data):
 			upper = i
 			i = int(math.floor((lower + upper)/2.))
 	return data[max(0, i-40):i+1]
+
 
 iso_support = {}
 annotated_iso_read_map = {}
@@ -360,8 +370,3 @@ if args.new_map:
 		for iso in keep_isoforms:
 			if iso not in annotated_iso_read_map:  # flair collapse iso that is in keep_isoforms
 				writer.writerow([iso, flair_iso_read_map[iso]])
-
-
-
-
-
