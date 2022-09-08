@@ -34,5 +34,5 @@ with open(outfilename, 'wt') as outfile:
 			tss = end
 		else:  # ambiguous strand, write both
 			writer.writerow([chrom, start, start, name])
-			tss = end	
+			tss = end
 		writer.writerow([chrom, tss, tss, name])

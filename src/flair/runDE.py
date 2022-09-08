@@ -4,9 +4,9 @@ from __future__ import print_function
 ########################################################################
 # File: runDE.py
 #  executable: runDE.py
-# Purpose: 
+# Purpose:
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 12/05/2018 Created
 #
@@ -40,12 +40,12 @@ warnings.filterwarnings("ignore", category=RRuntimeWarning)
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
+    myCommandLine.args['option']
 
     methods:
 
@@ -58,24 +58,24 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' runDE.py - a rpy2 convenience tool to run DESeq2.',
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s ')
         # Add args
 
-        self.parser.add_argument("--group1"    , action = 'store', required=True, 
+        self.parser.add_argument("--group1"    , action = 'store', required=True,
                                     help='Sample group 1.')
-        self.parser.add_argument("--group2"    , action = 'store', required=True, 
+        self.parser.add_argument("--group2"    , action = 'store', required=True,
                                     help='Sample group 2.')
         self.parser.add_argument("--batch"     , action = 'store', required=False, default=None,
                                     help='Secondary sample attribute (used in design matrix).')
         self.parser.add_argument("--matrix"     , action = 'store', required=True,
                                     help='Input count files.')
-        self.parser.add_argument("--outDir"    , action = 'store', required=True, 
+        self.parser.add_argument("--outDir"    , action = 'store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--prefix"    , action = 'store', required=True, 
+        self.parser.add_argument("--prefix"    , action = 'store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument("--formula"    , action = 'store', required=True, 
+        self.parser.add_argument("--formula"    , action = 'store', required=True,
                                     help='Formula design matrix.')
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
@@ -95,7 +95,7 @@ def main():
     outdir     = myCommandLine.args['outDir']
     group1     = myCommandLine.args['group1']
     group2     = myCommandLine.args['group2']
-    batch      = myCommandLine.args['batch']  
+    batch      = myCommandLine.args['batch']
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
@@ -139,7 +139,7 @@ def main():
     res    = R('results(dds, name=name)')
     resLFC = R('lfcShrink(dds, coef=name)')
     vsd    = R('vst(dds,blind=FALSE)')
-    resdf  = robjects.r['as.data.frame'](res) 
+    resdf  = robjects.r['as.data.frame'](res)
     reslfc = robjects.r['as.data.frame'](resLFC)
     dds    = R('dds')
 
@@ -159,7 +159,7 @@ def main():
         pcaData    = plotPCA(vsd, intgroup="condition", returnData=robjects.r['T'])
         percentVar = robjects.r['attr'](pcaData, "percentVar")
 
-    # arrange 
+    # arrange
     data_folder = os.path.join(os.getcwd(), outdir)
     qcOut = os.path.join(data_folder, "%s_QCplots_%s_v_%s.pdf"  % (prefix,group1,group2))
 
@@ -187,7 +187,7 @@ def main():
                 ggplot2.coord_fixed()
     pp.plot()
     plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
-    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrhinkage")    
+    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrhinkage")
     plotQQ(reslfc.rx2('pvalue'), main="LFCSrhinkage pvalue QQ")
     hh = ggplot2.ggplot(resdf) + \
             ggplot2.aes_string(x="pvalue") + \

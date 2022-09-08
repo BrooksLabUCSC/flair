@@ -20,7 +20,7 @@ parser.add_argument('--gene_only', action='store_true', dest='gene_only', defaul
 parser.add_argument('--field_name', action='store', dest='field_name', default='gene_id',
 	help='field name to use for gene id, e.g. gene_type or gene_name (default: gene_id)')
 args = parser.parse_args()
-isbed = sys.argv[1][-3:].lower() != 'psl' 
+isbed = sys.argv[1][-3:].lower() != 'psl'
 
 
 def get_junctions(line):
@@ -47,8 +47,8 @@ def get_junctions_bed12(line):
 
 
 def bin_search(query, data):
-	""" Query is a coordinate interval. Binary search for the query in sorted data, 
-	which is a list of coordinates. Finishes when an overlapping value of query and 
+	""" Query is a coordinate interval. Binary search for the query in sorted data,
+	which is a list of coordinates. Finishes when an overlapping value of query and
 	data exists and returns the index in data. """
 	i = int(round(len(data)/2))  # binary search prep
 	lower, upper = 0, len(data)
@@ -68,7 +68,7 @@ def bin_search(query, data):
 
 def overlapping_bases(coords0, coords1):
 	""" complete coverage of coords0 by coords1, and coords0 can be tol larger.
-	if coords0 is contained by coords1, then return the number of 
+	if coords0 is contained by coords1, then return the number of
 	overlapping basepairs """
 	if coords0[1] > coords1[0] and coords1[1] > coords0[0]:
 		return min(coords1[1], coords0[1]) - max(coords1[0], coords0[0])
@@ -215,7 +215,7 @@ with open(args.outfilename, 'wt') as outfile:
 			gene = chrom + ':' + str(start)[:-3] + '000'
 		else:  # gene name will be whichever gene the entry has more shared junctions with
 			genes = sorted(gene_hits.items(), key=lambda x: x[1])  # sort by number of junctions shared with gene
-			if len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size 
+			if len(genes) > 1 and genes[-1][1] == genes[-2][1]: # tie, break by gene size
 				genes = sorted(genes, key=lambda x: x[0])
 				genes = sorted(genes, key=lambda x: x[1])
 				if not junctions:

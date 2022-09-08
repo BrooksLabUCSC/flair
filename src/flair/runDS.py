@@ -4,9 +4,9 @@ from __future__ import print_function
 ########################################################################
 # File: runDS.py
 #  executable: runDS.py
-# Purpose: 
+# Purpose:
 #
-#          
+#
 # Author: Cameron M. Soulette + Alison Tang
 # History: 01/31/2020 Created
 #
@@ -28,7 +28,7 @@ import numpy as np
 
 from rpy2 import robjects
 
-import rpy2.robjects as ro 
+import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, Formula
 from rpy2.robjects.conversion import localconverter
 
@@ -44,12 +44,12 @@ R = robjects.r
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
+    myCommandLine.args['option']
 
     methods:
 
@@ -62,15 +62,15 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = 'runDS.py - a rpy2 convenience tool to run DRIMseq.',
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s ')
         # Add args
         self.parser.add_argument("--matrix"    , action='store', required=True,
                                     help='Input DRIM-Seq formatted count files.')
-        self.parser.add_argument("--outDir"    , action='store', required=False, 
+        self.parser.add_argument("--outDir"    , action='store', required=False,
                                     help='Write to specified output directory.', default='')
-        self.parser.add_argument("--prefix"    , action='store', required=True, 
+        self.parser.add_argument("--prefix"    , action='store', required=True,
                                     help='Specify file prefix.')
         self.parser.add_argument('--drim1'     , action='store', type=int, required=False, default=6, \
             help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion;
@@ -84,7 +84,7 @@ class CommandLine(object) :
         self.parser.add_argument('--drim4'     , action='store', type=int, required=False, default=5, \
             help='''The minimum number of reads covering an AS event inclusion, events with too few
                                 samples are filtered out and not tested (5)''')
-        self.parser.add_argument("--threads"   , action='store', type=int, default=4, required=False, 
+        self.parser.add_argument("--threads"   , action='store', type=int, default=4, required=False,
                                     help='Number of threads for running DRIM-Seq. BBPARAM')
         self.parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False, \
                                     help='''If specified, batch correction will be performed''')
@@ -185,7 +185,7 @@ def main():
     R('filtered <- dmFilter(data, min_samps_gene_expr = drim1, min_samps_feature_expr = drim2, min_gene_expr = drim3, min_feature_expr = drim4)')
     if usebatch:
         R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
-    else: 
+    else:
         R('design_full <- model.matrix(~ condition, data = samples(filtered))')
 
     R('set.seed(123)')

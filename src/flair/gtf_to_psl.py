@@ -65,7 +65,7 @@ with open(args.psl, 'wt') as outfile:
 					for b in blocksizes[:-1]:
 						pos += b
 						qstarts += [pos]
-					qstarts = ','.join([str(b) for b in qstarts]) + ',' 
+					qstarts = ','.join([str(b) for b in qstarts]) + ','
 
 				blocksizes = ','.join([str(b) for b in blocksizes]) + ','
 
@@ -113,7 +113,7 @@ with open(args.psl, 'wt') as outfile:
 	else:
 		qname = this_transcript
 	if isbed:
-		relblockstarts = [block - tstart for block in blockstarts]		
+		relblockstarts = [block - tstart for block in blockstarts]
 		relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
 		if qname in iso_to_cds:
 			cds_start, cds_end = iso_to_cds[qname]

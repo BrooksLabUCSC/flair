@@ -5,8 +5,8 @@ from multiprocessing import Pool
 from collections import Counter
 from collections import namedtuple
 
-parser = argparse.ArgumentParser(description='''for counting transcript abundances after 
-	aligning reads to transcripts; for multiple mappers, only the best alignment 
+parser = argparse.ArgumentParser(description='''for counting transcript abundances after
+	aligning reads to transcripts; for multiple mappers, only the best alignment
 	for each read is used, usage=python -s samfile -o outputfile''')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('-s', '--sam', type=argparse.FileType('r'), required=True,
@@ -18,7 +18,7 @@ parser.add_argument('-i', '--isoforms', type=str, action='store', dest='isoforms
 parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
 	help='only count if read alignment passes stringent criteria')
 parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
-	help='''enforce coverage of 4 out of 6 bp around each splice site and no 
+	help='''enforce coverage of 4 out of 6 bp around each splice site and no
 	insertions greater than 3 bp at the splice site''')
 parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
 	help='specify if reads are generated from a long read method with minimal fragmentation')
@@ -166,7 +166,7 @@ def count_transcripts_for_reads(read_names):
 
 			matches = re.findall('([0-9]+)([A-Z])', cigar)
 			num, op = int(matches[0][0]), matches[0][1]
-			if op == 'H':  # check for H and then S at beginning of cigar 
+			if op == 'H':  # check for H and then S at beginning of cigar
 				matches = matches[1:]
 				# relstart += num
 
@@ -178,7 +178,7 @@ def count_transcripts_for_reads(read_names):
 				softclip_left = 0
 
 			indel_detected = False
-			for m in matches:  # does not check for H and S 
+			for m in matches:  # does not check for H and S
 				num, op = int(m[0]), m[1]
 				if op == 'M':  # consumes reference
 					blocksizes += [num]
@@ -209,7 +209,7 @@ def count_transcripts_for_reads(read_names):
 				continue
 
 			num, op = int(matches[-1][0]), matches[-1][1]
-			if op == 'H':  # check for H and S at the end of cigar 
+			if op == 'H':  # check for H and S at the end of cigar
 				matches = matches[:-1]
 			num, op = int(matches[-1][0]), matches[-1][1]
 			if op == 'S':

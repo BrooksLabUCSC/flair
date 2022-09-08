@@ -49,7 +49,7 @@ class Gene(object):
 				if previousDonor not in self.spliceSites:
 					self.spliceSites[previousDonor] = SpliceSite(previousDonor,"donor")
 
-				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor] 
+				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor]
 				previousDonor = self.spliceSites[previousDonor]
 				nextAcceptor = self.spliceSites[nextAcceptor]
 
@@ -104,7 +104,7 @@ class Gene(object):
 				if previousDonor not in self.spliceSites:
 					self.spliceSites[previousDonor] = SpliceSite(previousDonor,"donor")
 
-				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor] 
+				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor]
 				previousDonor = self.spliceSites[previousDonor]
 				nextAcceptor = self.spliceSites[nextAcceptor]
 
@@ -253,7 +253,7 @@ class Exon(object):
 	'''
 
 	def __init__(self, exonID=None, acceptor=None, donor=None):
-		self.name =  exonID 
+		self.name =  exonID
 		self.donor = donor
 		self.acceptor = acceptor
 		self.inclusionJuncs = set()

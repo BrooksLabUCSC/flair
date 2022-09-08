@@ -89,8 +89,8 @@ def overlap(coord0, coord1, tol=0):
 
 
 def bin_search(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the query in sorted data, 
-	which is a list of coordinates. Finishes when the closest overlapping value of query and 
+	""" Query is a coordinate interval. Approximate binary search for the query in sorted data,
+	which is a list of coordinates. Finishes when the closest overlapping value of query and
 	data is found and returns the index in data. """
 	i = int(math.floor(len(data)/2))  # binary search prep
 	lower, upper = 0, len(data)
@@ -99,7 +99,7 @@ def bin_search(query, data):
 	tried = set()
 	rightfound = ''  # null value in place of 0, which is a valid value for rightfound
 	while not (data[i][0] <= query[0] and data[i][1] >= query[0]):  # query left coordinate not found in data yet
-		if data[i][0] <= query[1] and data[i][1] >= query[1]:  # query right found, will keep looking for left 
+		if data[i][0] <= query[1] and data[i][1] >= query[1]:  # query right found, will keep looking for left
 			rightfound = i
 		if data[i][1] < query[0]:  # i is too low of an index
 			lower = i
@@ -222,7 +222,7 @@ def iterative_add_se(sedict, chrom, group, se):
 	strand = all_se_by_chrom[chrom][se]['line'][5] if bed else all_se_by_chrom[chrom][se]['line'][8]
 	if strand not in sedict[chrom][group]['strand']:
 		sedict[chrom][group]['strand'][strand] = 0
-	sedict[chrom][group]['strand'][strand] += 1 
+	sedict[chrom][group]['strand'][strand] += 1
 
 	if tss not in sedict[chrom][group]['tss']:
 		sedict[chrom][group]['tss'][tss] = 0
@@ -293,16 +293,16 @@ def find_best_tss(sites, finding_tss, remove_used):
 
 
 def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord='', remove_used=True):
-	""" Finds the best TSSs within Sites. If find_tss is False, some 
-	assumptions are changed to search specifically for TESs. I also assume that the correct 
-	splice site will be the more represented, so measures to filter out degraded reads are 
+	""" Finds the best TSSs within Sites. If find_tss is False, some
+	assumptions are changed to search specifically for TESs. I also assume that the correct
+	splice site will be the more represented, so measures to filter out degraded reads are
 	recommended. """
 	remaining = float(sum(list(sites.values())))  # number isoforms with these junctions
 	found_tss = []  # TSSs found
 	used_annotated = set()
 	avg = remaining/ (len(sites))
 	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport) and \
-			len(found_tss) < max_results:  
+			len(found_tss) < max_results:
 		sites, bestsite = find_best_tss(sites, finding_tss, remove_used)
 		newremaining = sum(list(sites.values()))
 		used = remaining - newremaining
@@ -464,7 +464,7 @@ def run_find_best_sites(chrom):
 
 		if args.i and args.n == 'longest':
 			tss_sorted = sorted(jset_ends, key=lambda x: x[0])[0]  # smallest left coord
-			tes_sorted = sorted(jset_ends, key=lambda x: x[1])[-1]  # largest right coord 
+			tes_sorted = sorted(jset_ends, key=lambda x: x[1])[-1]  # largest right coord
 			if not args.c:
 				line += [(tss_sorted[3]+tes_sorted[3])/2.]
 			tss, tes = tss_sorted[0], tes_sorted[1]

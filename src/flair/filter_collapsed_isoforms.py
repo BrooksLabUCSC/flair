@@ -3,7 +3,7 @@ import sys, csv, math, os
 
 try:
 	psl = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl' 
+	isbed = sys.argv[1][-3:].lower() != 'psl'
 	mode = sys.argv[2] if sys.argv[2] in ['ginormous', 'comprehensive', 'nosubset'] else 'default' # all typos will report default
 	pslout = sys.argv[3]
 	tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
@@ -46,7 +46,7 @@ def contained(coords0, coords1):  # complete coverage of coords0 by coords1
 
 
 def bin_search_left(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
+	""" Query is a coordinate interval. Approximate binary search for the left coordinate of
 	the query in data sorted by the right coordinate. Finishes when the first interval in data with
 	a right coordinate that is greater than the query's left coordinate is found. """
 	lower, upper, i = 0, len(data), int(math.floor(len(data)/2))  # binary search prep
@@ -70,7 +70,7 @@ def bin_search_left(query, data):
 
 
 def bin_search_right(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
+	""" Query is a coordinate interval. Approximate binary search for the left coordinate of
 	the query in data sorted by the right coordinate. Finishes when the first interval in data with
 	a left coordinate that is greater than the query's right coordinate is found. Kept separate for
 	my own readability. """
@@ -172,7 +172,7 @@ for chrom in isoforms:
 			elif mode == 'nosubset' or len(exons) < 4:  # is a subset and will be removed
 				continue
 			elif isoforms[chrom][n]['line'][-1] > 3 and \
-				isoforms[chrom][n]['line'][-1] > max(superset_support)*1.2: 
+				isoforms[chrom][n]['line'][-1] > max(superset_support)*1.2:
 					keepisoforms += [isoforms[chrom][n]['line']]
 		else:  # single exon isoforms
 			exon = isoforms[chrom][n]['exons'][0]

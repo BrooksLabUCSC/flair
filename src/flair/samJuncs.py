@@ -4,9 +4,9 @@ from __future__ import print_function#
 ########################################################################
 # File: samJuncs.py
 #  executable: samJuncs.py
-# Purpose: 
+# Purpose:
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 02/12/2018 Created
 #
@@ -32,12 +32,12 @@ from tqdm import *
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
+    myCommandLine.args['option']
 
     methods:
 
@@ -50,8 +50,8 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = 'samJuncs.py - lorem ipsium.',
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s -i sorted_indexed.bam ')
         # Add args
         self.parser.add_argument('-i', '--ibam', type=str, action = 'store', required=True, help='Input BAM file.')
@@ -193,7 +193,7 @@ class SAM(object):
 
             juncDir = self.inferJuncStrand(read)
             for num, flagTuple in enumerate(cigar,1):
-                flag, length = flagTuple 
+                flag, length = flagTuple
                 if flag not in [0,2,3,7,8]:
                     continue
 
@@ -249,8 +249,8 @@ def main():
 ########################################################################
 # Main
 # Here is the main program
-# 
+#
 ########################################################################
 
 if __name__ == "__main__":
-    main()      
+    main()

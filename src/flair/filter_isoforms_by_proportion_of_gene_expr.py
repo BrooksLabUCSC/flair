@@ -3,7 +3,7 @@ import sys, csv, os
 
 try:
 	isoforms = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl' 
+	isbed = sys.argv[1][-3:].lower() != 'psl'
 	s = float(sys.argv[2])
 	outfilename = sys.argv[3]
 except:

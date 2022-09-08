@@ -111,7 +111,7 @@ def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, iso_na
 		for v in variant_list:
 			if v.pos > starts[block] and v.pos < starts[block]+sizes[block]:
 				if v.ref != exon_seq[v.pos-starts[block]-1]:
-					print('VCF ref {} does not match genome ref base {}'.format(v.ref, 
+					print('VCF ref {} does not match genome ref base {}'.format(v.ref,
 						exon_seq[v.pos-starts[block] - 2:v.pos-starts[block] + 2]))
 				exon_seq = exon_seq[:v.pos-starts[block]-1] + v.alts[0] + exon_seq[v.pos-starts[block]:]
 

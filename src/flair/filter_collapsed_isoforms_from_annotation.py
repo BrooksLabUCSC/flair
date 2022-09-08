@@ -12,12 +12,12 @@ required.add_argument('-o', action='store', dest='o', type=str, required=True,
 	help='output file, .bed or .psl matching the input file')
 parser.add_argument('--new_map', action='store', dest='new_map', type=str, default='',
 	help='output annotated map file for isos there were merged')
-parser.add_argument('--map_i', action='store', dest='map_i', type=str, required=False, default='', 
-	help='''isoform-read map file for the annotated isoforms to retain subset isoforms with 
+parser.add_argument('--map_i', action='store', dest='map_i', type=str, required=False, default='',
+	help='''isoform-read map file for the annotated isoforms to retain subset isoforms with
 	sufficient read support. must also specify --map_a.''')
-parser.add_argument('--map_a', action='store', dest='map_a', type=str, required=False, default='', 
+parser.add_argument('--map_a', action='store', dest='map_a', type=str, required=False, default='',
 	help='''isoform-read map file for the flair-collapse isoforms)''')
-parser.add_argument('-w', action='store', dest='w', type=int, required=False, default=100, 
+parser.add_argument('-w', action='store', dest='w', type=int, required=False, default=100,
 	help='''number of extra basepairs on a terminal exon for a subset isoform to be kept (default=100)''')
 parser.add_argument('-s', '--support', default=3, action='store', dest='s', type=float,
 	help='minimum number of supporting reads for an isoform (3)')
@@ -103,7 +103,7 @@ def contained(coords0, coords1):  # complete coverage of coords0 by coords1
 
 
 def bin_search_left(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
+	""" Query is a coordinate interval. Approximate binary search for the left coordinate of
 	the query in data sorted by the right coordinate. Finishes when the first interval in data with
 	a right coordinate that is greater than the query's left coordinate is found. """
 	lower, upper, i = 0, len(data), int(math.floor(len(data)/2))  # binary search prep
@@ -127,7 +127,7 @@ def bin_search_left(query, data):
 
 
 def bin_search_right(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the left coordinate of 
+	""" Query is a coordinate interval. Approximate binary search for the left coordinate of
 	the query in data sorted by the right coordinate. Finishes when the first interval in data with
 	a left coordinate that is greater than the query's right coordinate is found. Kept separate for
 	my own readability. """
@@ -286,7 +286,7 @@ for chrom in isoforms:
 			if not too_similar_to_annotated:
 				if not issubset[0] and not issubset[1]:  # not a subset
 					keep_isoforms += [n]
-				elif iso_support[n] > 3:  
+				elif iso_support[n] > 3:
 					superset_support = []
 					for n_ in superset_iso:
 						superset_support += [iso_support[n_]]

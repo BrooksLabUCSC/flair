@@ -60,7 +60,7 @@ for line in counts_matrix:
 	iso, gene = split_iso_gene(iso_gene)
 	if gene not in counts:
 		counts[gene] = {}
-	counts[gene][iso] = [count1, count2] 
+	counts[gene][iso] = [count1, count2]
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

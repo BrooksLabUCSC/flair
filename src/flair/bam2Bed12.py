@@ -8,7 +8,7 @@ from __future__ import print_function
 #  executable: bam2Bed12.py
 # Purpose: Conver minimap2 aligned bam file to bed12
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 03/22/2018 Created
 #
@@ -32,12 +32,12 @@ import pysam
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
+    myCommandLine.args['option']
 
     methods:
 
@@ -50,8 +50,8 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = 'A tool to convert minimap2 BAM to Bed12.',
-                                            add_help = True, #default is True 
-                                            prefix_chars = '-', 
+                                            add_help = True, #default is True
+                                            prefix_chars = '-',
                                             usage = '%(prog)s -i sorted.aligned.bam ')
         # Add args
         self.parser.add_argument('-i', "--input_bam", action = 'store', required=True, help='Input bam file.')
@@ -99,13 +99,13 @@ def juncsToBed12(start, end, coords):
 
         return len(starts), sizes, starts
     else:
-        return 1, [end-start], [0] 
+        return 1, [end-start], [0]
 
 
 ########################################################################
 # Main
 # Here is the main program
-# 
+#
 ########################################################################
 def main():
     '''
@@ -131,17 +131,17 @@ def main():
 
         if tags == "+":
 
-            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, positiveTxn, blocks, 
+            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, positiveTxn, blocks,
                 ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
         elif tags == "-":
-            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, negativeTxn, blocks, 
-                ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")                    
+            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, negativeTxn, blocks,
+                ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
 
         else:
             tags = "+" if flags == "0" else "-"
-            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, unknownTxn, blocks, 
-            ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")                    
+            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, unknownTxn, blocks,
+            ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
 
 
 if __name__ == "__main__":
-    main();        
+    main();

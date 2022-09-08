@@ -47,7 +47,7 @@ with open(outfilename, 'wt') as outfile:
 		qsize_backup = 0
 
 		num, op = int(matches[0][0]), matches[0][1]
-		if op == 'H':  # check for H and S at beginning of cigar 
+		if op == 'H':  # check for H and S at beginning of cigar
 			looplist = matches[1:]
 			qstart = num
 			relstart += num
@@ -64,7 +64,7 @@ with open(outfilename, 'wt') as outfile:
 		else:
 			looplist = looplist
 
-		for m in looplist:  # does not check for H and S 
+		for m in looplist:  # does not check for H and S
 			num, op = int(m[0]), m[1]
 			if op == 'M':  # consumes reference
 				blocksizes += [num]
@@ -105,7 +105,7 @@ with open(outfilename, 'wt') as outfile:
 			continue
 
 		num, op = int(matches[-1][0]), matches[-1][1]
-		if op == 'H':  # check for H and S at the end of cigar 
+		if op == 'H':  # check for H and S at the end of cigar
 			looplist = matches[:-1]
 			qsize_backup += num   # technically does not consume q but useful when comparing a read's secondary alignments
 		else:

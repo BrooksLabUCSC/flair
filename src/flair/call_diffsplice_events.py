@@ -64,7 +64,7 @@ def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sa
 		if exon_end > jdict[chrom][fiveprime][threeprime]['exon_end']:
 			jdict[chrom][fiveprime][threeprime]['exon_end'] = exon_end
 	jdict[chrom][fiveprime][threeprime]['isos'] += [name]
-	for c in range(len(sample_names)): 
+	for c in range(len(sample_names)):
 		jdict[chrom][fiveprime][threeprime]['counts'][c] += iso_counts[name][c]
 	return jdict
 
@@ -92,7 +92,7 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 					if (search_threeprime and strand == '+') or (not search_threeprime and strand == '-'):
 						if tp2 > exon_end:  # exon skipping. tp2 does not overlap tp1's exon
 							continue
-					elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor 
+					elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor
 							continue
 
 					feature_suffix = chrom_clean+':'+str(fiveprime) if n == 0 else  chrom_clean+':'+str(fiveprime)+'-'+str(n)

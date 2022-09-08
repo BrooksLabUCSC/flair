@@ -35,8 +35,8 @@ def get_junctions_bed12(line):
 
 
 def bin_search(query, data):
-	""" Query is a coordinate interval. Binary search for the query in sorted data, 
-	which is a list of coordinates. Finishes when an overlapping value of query and 
+	""" Query is a coordinate interval. Binary search for the query in sorted data,
+	which is a list of coordinates. Finishes when an overlapping value of query and
 	data exists and returns the index in data. """
 	i = int(round(len(data)/2))  # binary search prep
 	lower, upper = 0, len(data)

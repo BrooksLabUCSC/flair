@@ -30,7 +30,7 @@ def split_iso_gene(iso_gene):
 		gene = iso_gene[iso_gene.rfind('_NR')+1:]
 	elif '_R2_' in iso_gene:
 		iso = iso_gene[:iso_gene.rfind('_R2_')]
-		gene = iso_gene[iso_gene.rfind('_R2_')+1:]		
+		gene = iso_gene[iso_gene.rfind('_R2_')+1:]
 	else:
 		iso = iso_gene[:iso_gene.rfind('_')]
 		gene = iso_gene[iso_gene.rfind('_')+1:]
@@ -97,12 +97,12 @@ for line in open(args.psl):
 	# 		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
 	# 						.format(gene_id, transcript_id, b)
 	# 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[bi]+1), \
-	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, '.', attributes]))			
+	# 			str(tstarts[bi]+bsizes[bi]), '.', strand, '.', attributes]))
 	# else:
 	for b in range(len(tstarts)):
 		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
 				.format(gene_id, transcript_id, b)
-		if args.reference_transcript_id and '-referencetranscript' in transcript_id:		
+		if args.reference_transcript_id and '-referencetranscript' in transcript_id:
 			attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\"; reference_transcript_id \"{}\";'\
 			.format(gene_id, trimmed_transcript_id, b, trimmed_transcript_id)
 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1), \

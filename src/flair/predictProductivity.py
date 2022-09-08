@@ -5,9 +5,9 @@ from __future__ import print_function
 ########################################################################
 # File: predictProductivity.py
 #  executable: predictProductivity.py
-# Purpose: 
+# Purpose:
 #
-#          
+#
 # Author: Cameron M. Soulette
 # History:      cms 10/09/2018 Created
 #
@@ -32,12 +32,12 @@ import subprocess
 class CommandLine(object) :
     '''
     Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond. 
+    CommandLine uses argparse, now standard in 2.7 and beyond.
     it implements a standard command line argument parser with various argument options,
     and a standard usage and help,
     attributes:
     myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option'] 
+    myCommandLine.args['option']
 
     methods:
 
@@ -50,8 +50,8 @@ class CommandLine(object) :
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description = ' predictProductivity - a tool.',
-                                             add_help = True, #default is True 
-                                             prefix_chars = '-', 
+                                             add_help = True, #default is True
+                                             prefix_chars = '-',
                                              usage = '%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf')
         # Add args
         self.parser.add_argument('-i', "--input_isoforms", action = 'store', required=True, help='Input collapsed isoforms in psl or bed12 format.')
@@ -82,7 +82,7 @@ class Isoform(object) :
 
     methods:
 
-    ''' 
+    '''
 
     def __init__(self, name=None, seq=None):
         self.name = name
@@ -122,7 +122,7 @@ def getStarts(gtf):
             chrom, c1, c2, strand = cols[0], int(cols[3])-1, int(cols[4]), cols[6]
             if cols[2] == "start_codon":
                 gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
-                gene = gene[:gene.find('"')]             
+                gene = gene[:gene.find('"')]
                 # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
 
                 starts.append((chrom,c1,c2,gene,".",strand))
@@ -193,12 +193,12 @@ def checkPTC(orfEndPos, exons, isoObj):
     the genomic position is also reported.
     '''
     stopDistFromExon = None
-    exonWithStop = None 
+    exonWithStop = None
     ptc  = None
     genomicPos = int()
     distance   = 0
 
-    if isoObj.strand  == "-": 
+    if isoObj.strand  == "-":
         isoObj.exonSizes = isoObj.exonSizes[::-1]
         exons = exons [::-1]
 
@@ -233,7 +233,7 @@ def checkPTC(orfEndPos, exons, isoObj):
     if isoObj.exonSizes[exonWithStop] != right - left:
         print(isoObj.strand,exons,isoObj.exonSizes,exonWithStop,exonsWithStop,orfEndPos,ptc)
 
-    genomicPos = right - stopDistFromExon if isoObj.strand == "+" else left + stopDistFromExon 
+    genomicPos = right - stopDistFromExon if isoObj.strand == "+" else left + stopDistFromExon
 
     return genomicPos, ptc
 
@@ -288,8 +288,8 @@ def predict(bed, starts, isoDict):
                 # lets call these nonstop, or nst for now.
                 if not stopReached:
                     orfEndPos = len(fiveUTR)+i
-                    o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], orfEndPos-relativeStart, relativeStart])  
-                    #o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], relativeStart])  
+                    o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], orfEndPos-relativeStart, relativeStart])
+                    #o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], relativeStart])
 
                 #else if a stop was reached...
                 else:
@@ -326,7 +326,7 @@ def main():
     is_psl = bed[-3:].lower() != 'bed' and bed[-5:].lower() != 'bed12'
     if is_psl:
         path = sys.argv[0][:sys.argv[0].rfind('/')+1] if '/' in sys.argv[0] else ''
-        status = subprocess.call([sys.executable, path+'psl_to_bed.py', bed, bed+'.bed']) 
+        status = subprocess.call([sys.executable, path+'psl_to_bed.py', bed, bed+'.bed'])
         if status == 2:
             is_psl = False
         elif status:
