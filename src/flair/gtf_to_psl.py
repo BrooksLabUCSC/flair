@@ -31,7 +31,7 @@ iso_to_cds = {}
 with open(args.psl, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
-	prev_transcript = ''
+	prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand = [None, None, None, None, None, None]
 	for line in open(args.gtf):  # extract all exons from the gtf, keep exons grouped by transcript
 		if line.startswith('#'):
 			continue

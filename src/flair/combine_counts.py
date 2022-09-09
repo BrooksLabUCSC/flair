@@ -29,3 +29,4 @@ with open(sys.argv[-1], 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for transcript in counts:
 		writer.writerow([transcript, counts[transcript]])
+

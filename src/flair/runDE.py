@@ -93,7 +93,7 @@ def main():
     outdir     = myCommandLine.args['outDir']
     group1     = myCommandLine.args['group1']
     group2     = myCommandLine.args['group2']
-    batch      = myCommandLine.args['batch']
+#    batch      = myCommandLine.args['batch'] # unused, check args
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
@@ -116,10 +116,10 @@ def main():
     # import DESeq2
     from rpy2.robjects.packages import importr
     import rpy2.robjects.lib.ggplot2 as ggplot2
-    methods   = importr('methods')
-    deseq     = importr('DESeq2')
+    #methods   = importr('methods') unused
+    #deseq     = importr('DESeq2') unused
     grdevices = importr('grDevices')
-    qqman     = importr('qqman')
+    #qqman     = importr('qqman')  unused
 
     ### RUN DESEQ2 ###
     R.assign('df', df)

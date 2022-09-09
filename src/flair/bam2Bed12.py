@@ -51,7 +51,7 @@ class CommandLine(object):
                                             usage='%(prog)s -i sorted.aligned.bam ')
         # Add args
         self.parser.add_argument('-i', "--input_bam", action='store', required=True, help='Input bam file.')
-        self.parser.add_argument('--keep_supplementary', action='store_true', required=False, default=False,  help='Keep supplementary alignments')
+        self.parser.add_argument('--keep_supplementary', action='store_true', required=False, default=False, help='Keep supplementary alignments')
 
         if inOpts is None:
             self.args = vars(self.parser.parse_args())
@@ -140,4 +140,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main();
+    main()

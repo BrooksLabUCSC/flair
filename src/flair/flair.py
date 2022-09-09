@@ -8,6 +8,7 @@ import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
 import glob
+from multiprocessing import Pool
 
 
 def samtools_outdated(samtools):
@@ -214,7 +215,7 @@ def correct(aligned_reads=''):
 	return args.o+'_all_corrected.bed'
 
 
-def collapse_range(corrected_reads='', aligned_reads=''):
+def collapse_range(run_id='', corrected_reads='', aligned_reads=''):
 	parser = argparse.ArgumentParser(description='flair-collapse parse options',
 		usage='python flair.py collapse-range -g genome.fa -r reads.bam -q <query.psl>|<query.bed> [options]')
 	parser.add_argument('collapse')
@@ -1131,22 +1132,21 @@ def main():
 			isoforms, isoform_sequences = status
 
 	if mode == 'collapse-range' or '3.5' in mode:
-#		from multiprocessing import Pool
 		tempfile_name = tempfile.NamedTemporaryFile().name
 		run_id = tempfile_name[tempfile_name.rfind('/')+1:]
 
 		if corrected_reads and not aligned_reads:
 			sys.stderr.write('''Collapse 3.5 run consecutively without align module; will assume {}
 			 to be the name of the aligned reads bam file\n'''.format(corrected_reads[:-18]+'.bam'))
-			status = collapse_range(corrected_reads=corrected_reads,
+			status = collapse_range(run_id=run_id,corrected_reads=corrected_reads,
 				aligned_reads=corrected_reads[:-18]+'.bam')
 		elif corrected_reads and aligned_reads:
-			status = collapse_range(corrected_reads=corrected_reads, aligned_reads=aligned_reads)
+			status = collapse_range(run_id=run_id,corrected_reads=corrected_reads, aligned_reads=aligned_reads)
 		elif not corrected_reads and aligned_reads:
 			sys.stderr.write('Correct module not run...\n')
-			status = collapse_range(corrected_reads=aligned_reads, aligned_reads=aligned_reads)
+			status = collapse_range(run_id=run_id,corrected_reads=aligned_reads, aligned_reads=aligned_reads)
 		else:
-			status = collapse_range()
+			status = collapse_range(run_id=run_id,)
 		if status == 1:
 			sys.exit(1)
 		else:

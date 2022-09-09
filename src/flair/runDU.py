@@ -97,7 +97,7 @@ def main():
     outdir     = myCommandLine.args['outDir']
     group1     = myCommandLine.args['group1']
     group2     = myCommandLine.args['group2']
-    batch      = myCommandLine.args['batch']
+#    batch      = myCommandLine.args['batch'] unused, check args
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     formula    = myCommandLine.args['formula']
@@ -106,10 +106,10 @@ def main():
     print("running DRIMSEQ %s" % prefix, file=sys.stderr)
 
     # import
-    from rpy2.robjects.packages import importr
+#    from rpy2.robjects.packages import importr
 #    import rpy2.robjects.lib.ggplot2 as ggplot2
-    methods   = importr('methods')
-    drim      = importr('DRIMSeq')
+#    methods   = importr('methods')
+#    drim      = importr('DRIMSeq')
 
     # get quant table and formula table
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)

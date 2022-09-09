@@ -71,7 +71,7 @@ class CommandLine(object):
         self.parser.add_argument('--correctStrand', action='store_true', required=False, default=False, help='Try to resolve read strand by using annotated splice site strand.')
         self.parser.add_argument('-p', '--threads', action='store', required=False, type=int, default=2, help='Number of threads.')
         self.parser.add_argument('--progress', action='store_true', required=False, default=False, help='Display progress')
-        self.parser.add_argument('--tempDir', action='store', required=False, default=None,   help='Output directory for temporary files.')
+        self.parser.add_argument('--tempDir', action='store', required=False, default=None, help='Output directory for temporary files.')
         self.parser.add_argument('--keepTemp', action='store_true', required=False, default=False, help='Keep temporary/intermediate files.')
         self.parser.add_argument('--print_check', action='store_true', required=False, default=False, help='Print workflow checking')
 
@@ -91,7 +91,6 @@ class CommandLine(object):
 
 def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
 
-    lineNum = 0
     if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
     cols = None
 
@@ -107,18 +106,15 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
 
     if cols[-1] == "+" or cols[-1] == "-":
         # normal bed
-        reverseSS = "-"
         strandCol = -1
         starOffset = 0
 
     elif len(cols) == 12:
         # bed12
-        bedType   = "bed12"
         raise Exception("Bed12 not currently supported for other_juncs.bed. Please convert to bed6.")
 
     elif cols[3] == "0" or cols[3] == "1" or cols[3] == "2":
         # star junc.tab
-        reverseSS = "2"
         strandCol = 3
         starOffset = 1
 
@@ -168,7 +164,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
                 key = (c1,c2, strand)
                 known1,known2 = known.get((chrom,c1),None),known.get((chrom,c2),None)
 
-                if known1 != None:
+                if known1 is not None:
                     if known1 != strand:
                         continue
                     else:
@@ -176,7 +172,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
                 else:
                     pass
 
-                if known2 != None:
+                if known2 is not None:
                     if known2 != strand:
                         continue
                     else:
@@ -294,7 +290,7 @@ def main():
     bed           = myCommandLine.args['input_bed']
     gtf           = myCommandLine.args['gtf']
     otherJuncs    = myCommandLine.args['junctionsBed']
-    wiggle        = myCommandLine.args['wiggleWindow']
+#    wiggle        = myCommandLine.args['wiggleWindow'] # unused (check args)
     threads       = myCommandLine.args['threads']
     outFile       = myCommandLine.args['output_fname']
     keepTemp      = myCommandLine.args['keepTemp']
@@ -308,11 +304,11 @@ def main():
         testString = """
             chrX 1    100   feature1  0 +
         """
-        test = pybedtools.BedTool(testString, from_string=True)
-        a = test.sequence(fi=genomeFasta)
+        # test
+        pybedtools.BedTool(testString, from_string=True)
 
     # make temp dir for dumping
-    if tempDirName == None:
+    if tempDirName is None:
         tempDirName = str(uuid.uuid4())
     try:
         current_directory = os.getcwd()
@@ -333,10 +329,10 @@ def main():
 
     # Convert gtf to bed and split by cromosome.
     juncs, chromosomes, knownSS  = dict(), set(), dict() # initialize juncs for adding to db
-    if gtf != None: juncs, chromosomes, knownSS = gtfToSSBed(gtf, knownSS, printErr, printErrFname, verbose)
+    if gtf is not None: juncs, chromosomes, knownSS = gtfToSSBed(gtf, knownSS, printErr, printErrFname, verbose)
 
     # Do the same for the other juncs file.
-    if otherJuncs != None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes, genomeFasta, printErrFname, knownSS)
+    if otherJuncs is not None: juncs, chromosomes = addOtherJuncs(juncs, otherJuncs, chromosomes, genomeFasta, printErrFname, knownSS)
     knownSS = dict()
 
     # added to allow annotations not to be used.

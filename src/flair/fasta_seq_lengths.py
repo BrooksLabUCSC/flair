@@ -18,6 +18,7 @@ length_frequencies = {}
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	seqlen = 0
+	name = None
 	for line in fasta:
 		line = line.rstrip()
 		if line.startswith('>'):

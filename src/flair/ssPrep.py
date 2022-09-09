@@ -54,7 +54,7 @@ class CommandLine(object):
                                              usage='%(prog)s -i reads.bed -j known_junctions.bed -o out_file.bed --working_dir dir')
         # Add args
         self.parser.add_argument('-i', "--input_bed", action='store', required=True, help='Input reads in bed12 format.')
-        self.parser.add_argument('-j', "--juncs",  action='store', required=True, help='KnownJunction.bed.')
+        self.parser.add_argument('-j', "--juncs", action='store', required=True, help='KnownJunction.bed.')
         self.parser.add_argument('-w', '--wiggleWindow', action='store', type=int, required=False, default=15, help='Splice site correction window flank size.')
         self.parser.add_argument('-o', "--output_fname", action='store', required=True, help='Output file name.')
         self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Genome Fasta.')
@@ -273,7 +273,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             if c2 not in ssData:
                 ssData = ssCorrrect(c2,strand,c2Type,intTree,ssData)
 
-            c1Obj, c2Obj = ssData[c1], ssData[c2]
+            #c1Obj, c2Obj = ssData[c1], ssData[c2] unused
 
             c1Corr = ssData[c1].ssCorr.coord
             c2Corr = ssData[c2].ssCorr.coord

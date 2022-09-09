@@ -120,20 +120,21 @@ class Gene(object):
 				self.knownJuncs[j1].add(i)
 				self.knownJuncs[j2].add(i)
 
-	def findSkippedExonsV3(self):
-		'''
-		'''
-		for i,ss in self.spliceSites.items():
-			if ss.ssType != "acceptor":
-				continue
-			exons = [(i,x) for x in ss]
-
-			for exon in exons:
-				associatedAcceptors = exon[-1].down
-				associatedDonors = exon[0].up
-
-				allAcceptors = associatedAcceptors.union(associatedDonors.down)
-				allDonors = associatedDonors.union(associatedAcceptors.up)
+# unused
+#	def findSkippedExonsV3(self):
+#		'''
+#		'''
+#		for i,ss in self.spliceSites.items():
+#			if ss.ssType != "acceptor":
+#				continue
+#			exons = [(i,x) for x in ss]
+#
+#			for exon in exons:
+#				associatedAcceptors = exon[-1].down
+#				associatedDonors = exon[0].up
+#
+#				#allAcceptors = associatedAcceptors.union(associatedDonors.down) unused
+#				#allDonors = associatedDonors.union(associatedAcceptors.up)	unused
 
 	def findSkippedExonsV1(self):
 		'''
@@ -141,7 +142,7 @@ class Gene(object):
 
 		for e,obj in self.exonGraph.items():
 			donor,acceptor = obj.donor, obj.acceptor
-			if donor == None or acceptor == None:
+			if donor is None or acceptor is None:
 				# first or last exon
 				continue
 			inclusionIsos = set()
@@ -156,27 +157,28 @@ class Gene(object):
 				len(exclusionIsos), ",".join(inclusionIsos),",".join(exclusionIsos), sep="\t")
 			#print(self.chrom, "\t".join(str(x) for x in sorted([acceptor.name,donor.name])), "%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.name, self.strand, sep="\t")
 
-	def findSkippedExonsV2(self):
-		'''
-		'''
-		for i,ss in self.spliceSites.items():
-			if ss.ssType != "donor":
-				continue
-			nextSS = ss.down
-			if len(nextSS) == 1:
-				#single path
-				#print("chr6:%s-%s" % (ss.name,list(nextSS)[0].name))
-				continue
-			else:
-				paths = list()
-				for j in nextSS:
-
-					paths.append(self.getPaths(ss,j,[]))
-				for num,j in num,paths:
-					print()
-
-			# for j in nextSS:
-			# 	print("chr6:%s-%s" % (ss.name,j.name), sep="\t")
+# unused
+#	def findSkippedExonsV2(self):
+#		'''
+#		'''
+#		for i,ss in self.spliceSites.items():
+#			if ss.ssType != "donor":
+#				continue
+#			nextSS = ss.down
+#			if len(nextSS) == 1:
+#				#single path
+#				#print("chr6:%s-%s" % (ss.name,list(nextSS)[0].name))
+#				continue
+#			else:
+#				paths = list()
+#				for j in nextSS:
+#
+#					paths.append(self.getPaths(ss,j,[]))
+#				for num,j in num,paths:
+#					print()
+#
+#			# for j in nextSS:
+#			# 	print("chr6:%s-%s" % (ss.name,j.name), sep="\t")
 
 	def getPaths(self, sink=None, currentSS=None, pathSoFar=None):
 		'''
@@ -200,7 +202,7 @@ class Gene(object):
 		for exon,obj in self.exonGraph.items():
 
 			donor,acceptor = obj.donor, obj.acceptor
-			if donor == None or acceptor == None:
+			if donor is None or acceptor is None:
 				# first or last exon
 				continue
 

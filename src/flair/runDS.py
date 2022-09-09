@@ -106,7 +106,7 @@ def main():
     # Command Line Stuff...
     myCommandLine = CommandLine()
 
-    outdir     = myCommandLine.args['outDir']
+#    outdir     = myCommandLine.args['outDir'] unused, check args
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     threads    = myCommandLine.args['threads']
@@ -127,10 +127,10 @@ def main():
         conditionB = [g for g in groups if g != conditionA][0]
 
     # import
-    from rpy2.robjects.packages import importr
+#    from rpy2.robjects.packages import importr
 #    import rpy2.robjects.lib.ggplot2 as ggplot2
-    methods   = importr('methods')
-    drim      = importr('DRIMSeq')
+#    methods   = importr('methods')
+#    drim      = importr('DRIMSeq')
 
     # make formula (sample) dataframe
     formula = []

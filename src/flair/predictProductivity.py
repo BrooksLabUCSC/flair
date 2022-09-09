@@ -205,7 +205,7 @@ def checkPTC(orfEndPos, exons, isoObj):
         # if the stop codon is in the last exon, then not ptc.
         if num == len(isoObj.exonSizes)-1:
             ptc = False
-            if exonWithStop == None:
+            if exonWithStop is None:
                 exonWithStop = num
                 stopDistFromExon = distance - orfEndPos
 
@@ -215,7 +215,7 @@ def checkPTC(orfEndPos, exons, isoObj):
         # also, track which exon the stop codon is in to get genomic position
         elif orfEndPos < distance:
             distToJunc = distance - orfEndPos
-            if exonWithStop == None:
+            if exonWithStop is None:
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)
 
@@ -272,7 +272,7 @@ def predict(bed, starts, isoDict):
                 # Next find first stop codon
                 stopReached = False
                 for i in range(0, len(rest), 3):
-                    codon = rest[i:i+3]
+                    #codon = rest[i:i+3] unused
 
                     if rest[i:i+3] in stops:
                         stopReached = True
@@ -290,7 +290,6 @@ def predict(bed, starts, isoDict):
                 #else if a stop was reached...
                 else:
                     orfEndPos = len(fiveUTR)+i+3
-                    distance = 0
                     genomicStopPos, ptc = checkPTC(orfEndPos, exons, o)
                     ptc = "PTC" if ptc else "PRO"
                     o.orfs.append([ptc, startPos, genomicStopPos, orfEndPos - relativeStart, relativeStart])

@@ -249,7 +249,7 @@ def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes t
 	sedict, added = iterative_add_se(sedict, chrom, group, se_ordered[0])
 	for se in se_ordered[1:]:
 		overlapped_loci = []
-		overlapped_intervals = []
+		#overlapped_intervals = [] # unused
 		for g in reversed(range(max(0, group-6), group+1)):
 			isoverlap, coverage = overlap(se, sedict[chrom][g]['bounds'])
 			if isoverlap:
@@ -303,7 +303,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 	recommended. """
 	remaining = float(sum(list(sites.values())))  # number isoforms with these junctions
 	found_tss = []  # TSSs found
-	used_annotated = set()
+	#used_annotated = set() # unused
 	avg = remaining / (len(sites))
 	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport) and \
 			len(found_tss) < max_results:

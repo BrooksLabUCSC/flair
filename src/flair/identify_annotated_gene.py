@@ -68,6 +68,9 @@ prev_transcript, prev_exon = '', ''
 all_juncs = {}  # matches a splice junction to gene name
 all_se = {}  # single exon genes
 # annotated_juncs = {}  # deprecated
+prev_start = None
+prev_end = None
+junctions = None
 
 if genepred:  # reading in annotated splice junctions
 	for line in ref:

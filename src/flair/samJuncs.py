@@ -54,8 +54,8 @@ class CommandLine(object):
                                              usage='%(prog)s -i sorted_indexed.bam ')
         # Add args
         self.parser.add_argument('-i', '--ibam', type=str, action='store', required=True, help='Input BAM file.')
-        self.parser.add_argument('-p', '--threads', action='store', required=False, default=2,  help='Num threads.')
-        self.parser.add_argument('--quiet', action='store_true', required=False, default=True,  help='Quiet stderr output.')
+        self.parser.add_argument('-p', '--threads', action='store', required=False, default=2, help='Num threads.')
+        self.parser.add_argument('--quiet', action='store_true', required=False, default=True, help='Quiet stderr output.')
 
         if inOpts is None:
             self.args = vars(self.parser.parse_args())
@@ -144,7 +144,6 @@ class SAM(object):
 
     def inferHISATJuncStrand(self, read):
         # Next will be junctions
-        junctions = list()
         orientation = read.flag
 
         if orientation == 0:
@@ -162,15 +161,14 @@ class SAM(object):
         '''
         Returns start, end and junctions from a single read.
         '''
-        allskipped = {}
         for read in self.reader.fetch():
 
             try:
                 # Skip unmapped or multimapped reads.
-                strand = self.strandInfo[read.flag]
+                self.strandInfo[read.flag]
             except:
                 if self.keep_supplementary and read.flag in self.supplementary_strandInfo:
-                    strand = self.supplementary_strandInfo[read.flag]
+                    self.supplementary_strandInfo[read.flag]
                 else:
                     continue
 
@@ -180,7 +178,7 @@ class SAM(object):
             refPos = read.pos
             refEnd = read.pos
 
-            startPos = read.pos
+            #startPos = read.pos # unused
             cigar = read.cigar
 
             # Here is the read starts
@@ -222,7 +220,7 @@ def main():
 
     alignmentFile = myCommandLine.args['ibam']
     threads = myCommandLine.args['threads']
-    quiet = myCommandLine.args['quiet']
+#    quiet = myCommandLine.args['quiet'] unused
     header = pysam.view("-H", alignmentFile).split("\n")
 
     alignmentCommand = header[-2]
@@ -237,12 +235,13 @@ def main():
     p = Pool(threads)
 
     #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
-    results = p.map(runCMD, referenceIDs)
+    #results
+    p.map(runCMD, referenceIDs)
 
     # print(results[0])
     # for c,j in d.items():
     #     for i in j:
-    #         print(c,i[0]-1, i[1], ".", d[c][i], i[-1],  sep="\t")
+    #         print(c,i[0]-1, i[1], ".", d[c][i], i[-1], sep="\t")
 
 
 ########################################################################

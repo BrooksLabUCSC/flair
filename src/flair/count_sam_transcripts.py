@@ -106,7 +106,6 @@ def is_stringent(tname, blocksizes, blockstarts):
 def check_splice(tname, pos, covered_pos, insertion_pos):
 	''' Returns True if all splice sites are covered. Splice site is considered covered if
 	the number of matches according to CIGAR string  num_match_in_ss_window '''
-	i = 0  # exon index
 	for ss in splice_sites[tname]:
 		if sum(covered_pos[ss-pos-3:ss-pos+3]) <= num_match_in_ss_window:
 			return False
@@ -129,7 +128,7 @@ def count_transcripts_for_reads(read_names):
 		if not args.stringent and not args.check_splice:
 			if len(set(transcripts)) == 1:  # only one possible transcript
 				for t in transcripts:
-					quality = reads[r][t].mapq
+					#quality = reads[r][t].mapq # unused
 					if t not in counts:
 						counts[t] = 0
 					counts[t] += 1
@@ -194,7 +193,7 @@ def count_transcripts_for_reads(read_names):
 					relstart += num
 					covered_pos += [0] * num
 					if num > large_indel_tolerance:
-						large_indel = True
+						# large_indel = True # unused
 						break
 				elif op == 'N':  # consumes reference
 					relstart += num
