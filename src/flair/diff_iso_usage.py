@@ -81,8 +81,7 @@ with open(outfilename, 'wt') as outfile:
 			ctable[1] = othercounts
 			if ctable[0][0] + ctable[1][0] == 0 or ctable[0][1] + ctable[1][1] == 0 or not sum(ctable[1]):
 				continue
-			generes += [[gene, iso, sps.fisher_exact(ctable)[1]] +
-						 ctable[0] + ctable[1]]
+			generes += [[gene, iso, sps.fisher_exact(ctable)[1]] + ctable[0] + ctable[1]]
 		if not generes:
 			writer.writerow([gene, iso, 'NA'] + ctable[0] + ctable[1])
 			continue

@@ -170,21 +170,21 @@ def main():
 
     if "batch" in list(formulaDF):
         pp = ggplot2.ggplot(pcaData) + \
-                ggplot2.aes_string(x="PC1", y="PC2", color="condition", shape="batch") + \
-                ggplot2.geom_point(size=3) + \
-                robjects.r['xlab'](x) + \
-                robjects.r['ylab'](y) + \
-                ggplot2.theme_classic() + \
-                ggplot2.coord_fixed()
+            ggplot2.aes_string(x="PC1", y="PC2", color="condition", shape="batch") + \
+            ggplot2.geom_point(size=3) + \
+            robjects.r['xlab'](x) + \
+            robjects.r['ylab'](y) + \
+            ggplot2.theme_classic() + \
+            ggplot2.coord_fixed()
 
     else:
         pp = ggplot2.ggplot(pcaData) + \
-                ggplot2.aes_string(x="PC1", y="PC2", color="condition") + \
-                ggplot2.geom_point(size=3) + \
-                robjects.r['xlab'](x) + \
-                robjects.r['ylab'](y) + \
-                ggplot2.theme_classic() + \
-                ggplot2.coord_fixed()
+            ggplot2.aes_string(x="PC1", y="PC2", color="condition") + \
+            ggplot2.geom_point(size=3) + \
+            robjects.r['xlab'](x) + \
+            robjects.r['ylab'](y) + \
+            ggplot2.theme_classic() + \
+            ggplot2.coord_fixed()
     pp.plot()
     plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
     plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrhinkage")

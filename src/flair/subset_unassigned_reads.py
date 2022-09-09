@@ -37,7 +37,7 @@ for fle in sys.argv[5:]:
             print(seq)
             headers_used.add(header)
 
-diff = len(headers_keep -  headers_used)
+diff = len(headers_keep - headers_used)
 if diff > 0:
     sys.stderr.write('{} names do not match any names in fastq file(s)'.format(diff))
     sys.stderr.write('e.g. {} in bed but not in fastq\n'.format(list(headers_keep - headers_used)[0]))

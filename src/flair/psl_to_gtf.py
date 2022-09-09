@@ -71,7 +71,7 @@ for line in open(args.psl):
 	if args.reference_transcript_id and '-referencetranscript' in transcript_id:
 		trimmed_transcript_id = transcript_id[:transcript_id.find('-referencetranscript')]
 		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; reference_transcript_id \"{}\";'\
-		.format(gene_id, trimmed_transcript_id, trimmed_transcript_id)
+			.format(gene_id, trimmed_transcript_id, trimmed_transcript_id)
 	print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.',
 		attributes]))
 	if isbed and thick_start != thick_end and (thick_start != start or thick_end != end):
@@ -101,9 +101,9 @@ for line in open(args.psl):
 	# else:
 	for b in range(len(tstarts)):
 		attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
-				.format(gene_id, transcript_id, b)
+			.format(gene_id, transcript_id, b)
 		if args.reference_transcript_id and '-referencetranscript' in transcript_id:
 			attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\"; reference_transcript_id \"{}\";'\
-			.format(gene_id, trimmed_transcript_id, b, trimmed_transcript_id)
+				.format(gene_id, trimmed_transcript_id, b, trimmed_transcript_id)
 		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1),
 			str(tstarts[b]+bsizes[b]), '.', strand, '.', attributes]))

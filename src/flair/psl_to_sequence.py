@@ -157,9 +157,9 @@ def get_sequence_with_variants(entry, seq, name):
 			v_to_add_alt += [v]
 
 		elif args.models_out and variant_gt == (0,1) and not variant_ps and \
-		variant_ac[0] > unphased_variant_support and variant_ac[1] > unphased_variant_support:
-			print(entry[0], v.pos, variant_ps, variant_ac)
-			v_to_add_alt += [v]
+			variant_ac[0] > unphased_variant_support and variant_ac[1] > unphased_variant_support:
+				print(entry[0], v.pos, variant_ps, variant_ac)
+				v_to_add_alt += [v]
 
 		elif name not in haplotype or variant_ps not in haplotype[name]:
 

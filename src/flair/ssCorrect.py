@@ -217,7 +217,7 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
             if "exon" == cols[2]:
 
                 # -1 for 1 to 0 based conversion
-                chrom, c1, c2, strand =  cols[0], int(cols[3])-1, int(cols[4]), cols[6]
+                chrom, c1, c2, strand = cols[0], int(cols[3])-1, int(cols[4]), cols[6]
                 chromosomes.add(chrom)
                 #txn info is in the SECOND position of the shoutout column
                 txn = re.search('transcript_id "([^\"]+)"', l).group(1)#
@@ -305,7 +305,7 @@ def main():
     if os.path.isfile(genomeFasta+".fai"):
         pass
     else:
-        testString =  """
+        testString = """
             chrX 1    100   feature1  0 +
         """
         test = pybedtools.BedTool(testString, from_string=True)

@@ -24,7 +24,7 @@ temp_dir, run_id, outbase = args.temp_dir, args.run_id, args.outbase
 # except:
 # 	sys.stderr.write('usage: consolidate_isoforms.py tempdir run_id outfilename\n')
 # 	sys.stderr.write('script for collapse-range\n')
-	# sys.exit(1)
+#	sys.exit(1)
 
 # subprocess.call(['cat']+glob.glob(args.temp_dir+run_id+'*isoforms.fa'),  stdout=open(args.o+'.isoforms.fa', 'w'))
 # if args.f:

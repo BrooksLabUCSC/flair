@@ -201,14 +201,14 @@ def separateTables(f, thresh, samples, groups):
     #make gene table first
     geneIDs = np.asarray(list(genes.keys()))
     vals    = np.asarray([genes[x].exp for x in geneIDs])
-    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) |  (np.min(vals[:,g2Ind],axis=1) > thresh)
+    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
     filteredGeneVals = vals[filteredRows]
     filteredGeneIDs  = geneIDs[filteredRows]
 
     # now do isoforms
     isoformIDs = np.asarray(list(isoforms.keys()))
     vals = np.asarray([isoforms[x].exp for x in isoformIDs])
-    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) |  (np.min(vals[:,g2Ind],axis=1) > thresh)
+    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
     filteredIsoVals = vals[filteredRows]
     filteredIsoIDs  = isoformIDs[filteredRows]
 

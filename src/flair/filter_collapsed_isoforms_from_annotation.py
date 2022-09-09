@@ -250,8 +250,6 @@ for chrom in isoforms:
 			exons = isoforms[chrom][n]['exons']
 			first_exon, last_exon = exons[0], exons[-1]
 			superset_iso = set()
-			# if '373715' in n:
-				# print(n)
 			too_similar_to_annotated = False
 			for n_ in similar_isos:
 				if n == n_:
@@ -260,28 +258,28 @@ for chrom in isoforms:
 				# the ends of n are w/in 50 bp of the ends of n_, they are too close, do not keep
 				# if n_ is already in keep_isos
 				if isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
-				len(isoforms[chrom][n]['jname']) == len(isoforms[chrom][n_]['jname']) and \
-				abs(isoforms[chrom][n_]['exons'][0][0]-first_exon[0]) < args.w and \
-				abs(isoforms[chrom][n_]['exons'][-1][1]-last_exon[1]) < args.w and \
-				n_ in keep_isoforms:
-					too_similar_to_annotated = True
-					if n_ not in annotated_iso_read_map:
-						print(n, 'too similar to', n_)
-						print(isoforms[chrom][n_]['exons'][0])
-					else:
-						annotated_iso_read_map[n_] += ','+flair_iso_read_map[n]
-					break
+					len(isoforms[chrom][n]['jname']) == len(isoforms[chrom][n_]['jname']) and \
+					abs(isoforms[chrom][n_]['exons'][0][0]-first_exon[0]) < args.w and \
+					abs(isoforms[chrom][n_]['exons'][-1][1]-last_exon[1]) < args.w and \
+					n_ in keep_isoforms:
+						too_similar_to_annotated = True
+						if n_ not in annotated_iso_read_map:
+							print(n, 'too similar to', n_)
+							print(isoforms[chrom][n_]['exons'][0])
+						else:
+							annotated_iso_read_map[n_] += ','+flair_iso_read_map[n]
+						break
 				# are all the junctions in this isoform n in isoform n_ and
 				# are there the same number or more splice junctions in n_
 				if isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
-				len(isoforms[chrom][n]['jname']) <= len(isoforms[chrom][n_]['jname']):
-					for exon in isoforms[chrom][n_]['exons']:
-						if exon_overlap(first_exon, exon, tol=args.w):
-							issubset[0] = True
-							superset_iso.add(n_)
-						elif exon_overlap(last_exon, exon, left=False, tol=args.w):
-							issubset[1] = True
-							superset_iso.add(n_)
+					len(isoforms[chrom][n]['jname']) <= len(isoforms[chrom][n_]['jname']):
+						for exon in isoforms[chrom][n_]['exons']:
+							if exon_overlap(first_exon, exon, tol=args.w):
+								issubset[0] = True
+								superset_iso.add(n_)
+							elif exon_overlap(last_exon, exon, left=False, tol=args.w):
+								issubset[1] = True
+								superset_iso.add(n_)
 
 			if not too_similar_to_annotated:
 				if not issubset[0] and not issubset[1]:  # not a subset

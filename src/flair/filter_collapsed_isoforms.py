@@ -159,14 +159,14 @@ for chrom in isoforms:
 				if n == n_:
 					continue
 				elif isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
-				len(isoforms[chrom][n]['jname']) < len(isoforms[chrom][n_]['jname']):  # is subset
-					for exon in isoforms[chrom][n_]['exons']:
-						if exon_overlap(first_exon, exon, tol=tol):
-							superset_support += [isoforms[chrom][n_]['line'][-1]]
-							issubset[0] = 1
-						if exon_overlap(last_exon, exon, left=False, tol=tol):
-							superset_support += [isoforms[chrom][n_]['line'][-1]]
-							issubset[1] = 1
+					len(isoforms[chrom][n]['jname']) < len(isoforms[chrom][n_]['jname']):  # is subset
+						for exon in isoforms[chrom][n_]['exons']:
+							if exon_overlap(first_exon, exon, tol=tol):
+								superset_support += [isoforms[chrom][n_]['line'][-1]]
+								issubset[0] = 1
+							if exon_overlap(last_exon, exon, left=False, tol=tol):
+								superset_support += [isoforms[chrom][n_]['line'][-1]]
+								issubset[1] = 1
 			if sum(issubset) == 0:  # not a subset
 				keepisoforms += [isoforms[chrom][n]['line']]
 			elif mode == 'nosubset' or len(exons) < 4:  # is a subset and will be removed

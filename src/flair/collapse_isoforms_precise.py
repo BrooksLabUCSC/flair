@@ -84,7 +84,7 @@ def overlap(coord0, coord1, tol=0):
 	isoverlap = coord0[0] <= coord1[0] and coord1[0] <= coord0[1] - tol
 	if isoverlap:
 		return isoverlap, (min(coord0[1], coord1[1]) - coord1[0])/(coord0[1] - coord0[0])# + \
-			#(coord0[1] - coord1[0])/(coord1[1] - coord1[0]) / 2
+		#(coord0[1] - coord1[0])/(coord1[1] - coord1[0]) / 2
 	return isoverlap, 0
 
 
@@ -309,7 +309,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		remaining = newremaining
 		if len(found_tss) >= 1 and (args.n == 'best_only' or
 			(minsupport < 1 and (used/total) < minsupport or bestsite[3] < 4 or used < avg)):
-		# second+ end site called stringently
+			# second+ end site called stringently
 			break
 		closest_annotated = 1e15  # just a large number
 		if annot_tss and chrom in annot_tss:  # args.f supplied
@@ -536,16 +536,16 @@ def run_find_best_sites(chrom):
 					# 	print(t, allends[chrom]['tss'][t], tss_support, tss)
 					t_support = allends[chrom]['tss'][t]  # comparison tss
 					if (t_support > tss_support and t < junccoord[0]) or \
-					(t_support == tss_support and t < tss):
-						tss, support = t, t_support
+						(t_support == tss_support and t < tss):
+							tss, support = t, t_support
 
 			tes_support = allends[chrom]['tes'][tes]  # current tes
 			for t in range(tes-window, tes+window):
 				if t in allends[chrom]['tes']:
 					t_support = allends[chrom]['tes'][t]  # comparison tes
 					if (t_support > tes_support and t > junccoord[1]) or \
-					(t_support == tes_support and t > tes):
-						tes, tes_support = t, t_support
+						(t_support == tes_support and t > tes):
+							tes, tes_support = t, t_support
 
 			if (tss,tes) not in jsetends:
 				jsetends.add((tss,tes))
@@ -641,7 +641,7 @@ for line in psl:
 		junctions, junccoord = get_junctions_bed12(line)
 	else:
 		chrom, tss, tes = line[13], int(line[15]), int(line[16])
-		junctions, junccoord =  get_junctions(line)
+		junctions, junccoord = get_junctions(line)
 
 	if not junctions:  # single-exon isoforms
 		if chrom not in all_se_by_chrom:

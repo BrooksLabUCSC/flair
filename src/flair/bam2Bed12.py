@@ -87,13 +87,13 @@ def juncsToBed12(start, end, coords):
                 size = abs(start-ss1)
             else:
                 st = coords[num-1][1] - start
-                size =  ss1 - (st + start)
+                size = ss1 - (st + start)
             starts.append(st)
             sizes.append(size)
 
         # Here is the computation for the BED end coordinate
         st = coords[-1][1] - start
-        size =  end - (st + start)
+        size = end - (st + start)
         starts.append(st)
         sizes.append(size)
 

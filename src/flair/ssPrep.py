@@ -114,7 +114,7 @@ class BED12(object):
                 self.chrom, self.start, self.end, self.name = cols[0], int(cols[1]), int(cols[2]), cols[3]
                 self.score, self.strand, self.c1, self.c2 = int(cols[4]), cols[5], int(cols[6]), int(cols[7])
                 self.color, self.exons = cols[8], int(cols[9])
-                self.sizes =  [int(x) for x in cols[10].split(",")[:-1]] if cols[10][-1] == "," else [int(x) for x in (cols[10]+",").split(",")[:-1]]
+                self.sizes = [int(x) for x in cols[10].split(",")[:-1]] if cols[10][-1] == "," else [int(x) for x in (cols[10]+",").split(",")[:-1]]
                 self.starts = [int(x) for x in cols[11].split(",")[:-1]] if cols[11][-1] == "," else [int(x) for x in (cols[11]+",").split(",")[:-1]]
                 yield cols
 
@@ -202,11 +202,11 @@ def juncsToBed12(start, end, coords):
                 size = abs(start-ss1)
             else:
                 st = coords[num-1][1] - start
-                size =  ss1 - (st + start)
+                size = ss1 - (st + start)
             starts.append(st)
             sizes.append(size)
         st = coords[-1][1] - start
-        size =  end - (st + start)
+        size = end - (st + start)
         starts.append(st)
         sizes.append(size)
         return len(starts), sizes, starts

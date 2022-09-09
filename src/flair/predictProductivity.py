@@ -218,7 +218,7 @@ def checkPTC(orfEndPos, exons, isoObj):
         # if yet then ptc = True
         # also, track which exon the stop codon is in to get genomic position
         elif orfEndPos < distance:
-            distToJunc =  distance - orfEndPos
+            distToJunc = distance - orfEndPos
             if exonWithStop == None:
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)

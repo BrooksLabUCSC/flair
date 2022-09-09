@@ -75,7 +75,7 @@ def is_stringent(tname, blocksizes, blockstarts):
 			right_coverage = left_coverage = True
 	else:
 		if first_blocksize < 25:
-		# if the terminal exon is sufficiently short, relax by 5 bp bc drna misses bases on 5' end
+			# if the terminal exon is sufficiently short, relax by 5 bp bc drna misses bases on 5' end
 			if read_start < 5:
 				left_coverage = True
 		elif args.trust_ends:
@@ -112,7 +112,7 @@ def are_far(transcript_1, transcript_2):
 	t1_left, t1_right = terminal_exons[transcript_1]['left_pos'], terminal_exons[transcript_1]['right_pos']
 	t2_left, t2_right = terminal_exons[transcript_2]['left_pos'], terminal_exons[transcript_2]['right_pos']
 	return t1_left > t2_right+int(args.fusion_dist) and t1_right > t2_right or \
-	t1_right < t2_left - int(args.fusion_dist) and t1_left < t2_left
+		t1_right < t2_left - int(args.fusion_dist) and t1_left < t2_left
 
 
 def count_transcripts_for_reads(read_names):
@@ -150,7 +150,7 @@ def count_transcripts_for_reads(read_names):
 				continue
 
 		if not args.trust_ends and not args.stringent and not args.check_splice:
-		# multiple mapper, can't assign
+			# multiple mapper, can't assign
 			continue
 
 		# read in cigar info for stringent/trust_ends modes into transcript_coverage dict
@@ -197,9 +197,9 @@ def count_transcripts_for_reads(read_names):
 				elif op == 'I' and num >= min_insertion_len:  # note insertions for check_splice
 					if args.check_splice:
 						if relstart+pos in splice_sites[t] or relstart+pos+1 in splice_sites[t] \
-						or relstart+pos-1 in splice_sites[t]:
-							indel_detected = True
-							break
+							or relstart+pos-1 in splice_sites[t]:
+								indel_detected = True
+								break
 						insertion_pos.add(relstart)
 					if num > large_indel_tolerance:
 						indel_detected = True
@@ -226,11 +226,11 @@ def count_transcripts_for_reads(read_names):
 			# need to pass but the assignment with the highest coverage will be prioritized
 			if (args.check_splice and args.stringent and check_splice(t, pos, covered_pos, insertion_pos) and \
 				is_stringent(t, blocksizes, blockstarts)) \
-			or (args.stringent and not args.check_splice and is_stringent(t, blocksizes, blockstarts) or \
-			args.check_splice and not args.stringent and check_splice(t, pos, covered_pos, insertion_pos)) or \
-			(not args.stringent and not args.check_splice and args.trust_ends):
-				transcript_coverage[t] = (sum(blocksizes), read_left,
-					transcript_lengths[t] - read_right, softclip_left, softclip_right, transcripts[t].mapq)
+				or (args.stringent and not args.check_splice and is_stringent(t, blocksizes, blockstarts) or \
+				args.check_splice and not args.stringent and check_splice(t, pos, covered_pos, insertion_pos)) or \
+				(not args.stringent and not args.check_splice and args.trust_ends):
+					transcript_coverage[t] = (sum(blocksizes), read_left,
+						transcript_lengths[t] - read_right, softclip_left, softclip_right, transcripts[t].mapq)
 
 		if not transcript_coverage:  # no transcripts passed stringent and/or check_splice criteria
 			continue
@@ -248,8 +248,8 @@ def count_transcripts_for_reads(read_names):
 			# does this transcript have less softclipping than the best transcript and
 			# does this transcript reach the ends better than the best transcript
 			if t_info[3]+t_info[4] <= best_t_info[3]+best_t_info[4] and \
-			t_info[1]+t_info[2] <= best_t_info[1]+best_t_info[2]:
-				best_t, best_t_info = t, t_info
+				t_info[1]+t_info[2] <= best_t_info[1]+best_t_info[2]:
+					best_t, best_t_info = t, t_info
 		if best_t not in counts:
 			counts[best_t] = 0
 		counts[best_t] += 1
@@ -264,10 +264,10 @@ def count_transcripts_for_reads(read_names):
 					continue
 
 				if t_info[3]+t_info[4] <= second_t_info[3]+second_t_info[4] and \
-				t_info[1]+t_info[2] <= second_t_info[1]+second_t_info[2] and \
-				(terminal_exons[t]['c'] != terminal_exons[second_t]['c'] or \
+					t_info[1]+t_info[2] <= second_t_info[1]+second_t_info[2] and \
+					(terminal_exons[t]['c'] != terminal_exons[second_t]['c'] or \
 					are_far(t, second_t)):
-					second_t, second_t_info = t, t_info
+						second_t, second_t_info = t, t_info
 			if second_t != best_t:  # if a second best match was found
 				if second_t not in counts:
 					counts[second_t] = 0

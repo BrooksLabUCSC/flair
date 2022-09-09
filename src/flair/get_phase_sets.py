@@ -126,7 +126,7 @@ with open(args.o, 'wt') as outfile, open(args.outiso, 'wt') as outfile_iso:
 			iso, gene = split_iso_gene(i)
 			var1 = iso+'-PS:'+ps_tag+':'+hp_tag+'_'+gene
 
-			if  num_reads / total_supporting_reads >  0.8 or args.comprehensive:  # create a new isoform name
+			if  num_reads / total_supporting_reads > 0.8 or args.comprehensive:  # create a new isoform name
 				var2 = iso+'-PS:NA'+'_'+gene
 				writer.writerow([var1, ps_tag, hp_tag, num_reads, total_supporting_reads])
 				writer.writerow([var2, 'NA'])

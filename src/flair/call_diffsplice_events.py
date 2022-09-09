@@ -95,13 +95,15 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 					elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor
 							continue
 
-					feature_suffix = chrom_clean+':'+str(fiveprime) if n == 0 else  chrom_clean+':'+str(fiveprime)+'-'+str(n)
+					feature_suffix = chrom_clean+':'+str(fiveprime) if n == 0 else chrom_clean+':'+str(fiveprime)+'-'+str(n)
 					event = chrom_clean+':'+str(fiveprime)+'-'+str(inclusion)+'_'+chrom_clean+':'+str(fiveprime)+'-'+str(exclusion)
 
-					writer.writerow(['inclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][inclusion]['counts'] +
-					[','.join(alljuncs[chrom][fiveprime][inclusion]['isos'])])
-					writer.writerow(['exclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][exclusion]['counts'] +
-					[','.join(alljuncs[chrom][fiveprime][exclusion]['isos'])])
+					writer.writerow(['inclusion_'+feature_suffix, event] +
+						alljuncs[chrom][fiveprime][inclusion]['counts'] +
+						[','.join(alljuncs[chrom][fiveprime][inclusion]['isos'])])
+					writer.writerow(['exclusion_'+feature_suffix, event] +
+						alljuncs[chrom][fiveprime][exclusion]['counts'] +
+						[','.join(alljuncs[chrom][fiveprime][exclusion]['isos'])])
 					n += 1
 
 
@@ -146,13 +148,13 @@ for line in psl:
 		a5_junctions[chrom] = {}
 
 	isoforms[chrom][name] = {}
-	isoforms[chrom][name]['sizes']	= blocksizes
-	isoforms[chrom][name]['starts']	= blockstarts
-	isoforms[chrom][name]['range']	= start, end
+	isoforms[chrom][name]['sizes']  = blocksizes
+	isoforms[chrom][name]['starts'] = blockstarts
+	isoforms[chrom][name]['range']  = start, end
 
 	these_jcns = get_junctions_psl(blockstarts, blocksizes)
 	for j_index in range(len(these_jcns)):
-		j =  these_jcns[j_index]
+		j = these_jcns[j_index]
 		fiveprime, threeprime = j[0], j[1]
 		exon_end, exon_start = j[3], j[2]
 
@@ -217,9 +219,11 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 
 			chrom_clean = chrom[1:]
 			event = chrom_clean+':'+str(j[0])+'-'+str(j[1])
-			writer.writerow(['inclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['inclusion']['counts'] +
-			[','.join(ir_junctions[chrom][j]['inclusion']['isos'])])
-			writer.writerow(['exclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['exclusion']['counts'] +
-			[','.join(ir_junctions[chrom][j]['exclusion']['isos'])])
+			writer.writerow(['inclusion_'+event+chrom[0], event] +
+				ir_junctions[chrom][j]['inclusion']['counts'] +
+				[','.join(ir_junctions[chrom][j]['inclusion']['isos'])])
+			writer.writerow(['exclusion_'+event+chrom[0], event] +
+				ir_junctions[chrom][j]['exclusion']['counts'] +
+				[','.join(ir_junctions[chrom][j]['exclusion']['isos'])])
 		ir_junctions[chrom] = None
 
