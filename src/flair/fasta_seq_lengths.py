@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import sys, csv, os
+import sys
+import csv
+import os
 
 try:
 	fasta = open(sys.argv[1])

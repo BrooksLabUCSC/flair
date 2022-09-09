@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 
-import sys, argparse, re, csv, math, os
+import sys
+import argparse
+import re
+import csv
+import math
+import os
 from multiprocessing import Pool
 from collections import Counter
 from collections import namedtuple

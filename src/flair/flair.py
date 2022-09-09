@@ -1131,7 +1131,7 @@ def main():
 			isoforms, isoform_sequences = status
 
 	if mode == 'collapse-range' or '3.5' in mode:
-		from multiprocessing import Pool
+#		from multiprocessing import Pool
 		tempfile_name = tempfile.NamedTemporaryFile().name
 		run_id = tempfile_name[tempfile_name.rfind('/')+1:]
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 
 ########################################################################
 # File: ssCorrect.py
@@ -18,9 +17,10 @@ from __future__ import print_function
 ########################################################################
 
 
-import os, sys
+import os
+import sys
 from multiprocessing import Pool
-from tqdm import *
+from tqdm import tqdm
 import subprocess
 import shutil
 import uuid

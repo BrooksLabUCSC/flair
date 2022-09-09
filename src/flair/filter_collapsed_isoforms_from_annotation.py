@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import sys, csv, math, os, argparse
+import sys
+import csv
+import math
+import os
+import argparse
 
 parser = argparse.ArgumentParser(description='options',
 	usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed|psl -a annotated.bed -o out [options]')

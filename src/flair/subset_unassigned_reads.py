@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-import sys, os, csv
+import sys
+import os
+import csv
+import mappy as mm
+
 s = float(sys.argv[3])
 assigned_names = set()
 for line in open(sys.argv[1]):  # map
@@ -25,8 +29,6 @@ with open(sys.argv[4], 'wt') as outfile:
         if name not in assigned_names:
             writer.writerow(line)
             headers_keep.add(name)
-
-import mappy as mm
 
 headers_used = set()
 for fle in sys.argv[5:]:

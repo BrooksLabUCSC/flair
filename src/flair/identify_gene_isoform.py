@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import sys, csv, os, argparse
+import sys
+import csv
+import os
+import argparse
 
 parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
 	each isoform and renames the isoform''',

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import sys, argparse
+import sys
+import argparse
 
 parser = argparse.ArgumentParser(description='options',
 	usage='python psl_to_gtf.py psl|bed [options] > outfile.gtf')

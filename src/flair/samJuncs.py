@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function#
 
 ########################################################################
 # File: samJuncs.py
@@ -17,12 +16,12 @@ from __future__ import print_function#
 ########################################################################
 
 
-import os, sys
+import os
+import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-import numpy as np
 from multiprocessing import Pool
 import pysam
-from tqdm import *
+#from tqdm import *
 
 ########################################################################
 # CommandLine

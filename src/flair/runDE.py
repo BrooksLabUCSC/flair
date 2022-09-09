@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 
 ########################################################################
 # File: runDE.py
@@ -17,14 +16,13 @@ from __future__ import print_function
 # Hot Imports & Global Variable
 ########################################################################
 
-import os, sys
+import os
+import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
-import numpy as np
 
 from rpy2 import robjects
-from rpy2.robjects import r,pandas2ri, Formula
-from rpy2.robjects.lib import grid
+from rpy2.robjects import pandas2ri, Formula
 pandas2ri.activate()
 R = robjects.r
 

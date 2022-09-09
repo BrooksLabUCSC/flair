@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import sys, csv, os
+import sys
+import csv
+import os
 keepnames = set()
 
 for line in open(sys.argv[1]):  # bed of promoter-supported reads

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 
 ########################################################################
 # File: diaFLAIR.py
@@ -18,7 +17,8 @@ from __future__ import print_function
 ########################################################################
 
 
-import os, sys
+import os
+import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 import numpy as np

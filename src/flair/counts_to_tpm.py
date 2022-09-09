@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-import sys, csv, os
+import sys
+import csv
+import os
 
 try:
 	counts_matrix = open(sys.argv[1])

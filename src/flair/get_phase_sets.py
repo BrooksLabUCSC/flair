@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import sys, csv, os, argparse, pysam
+import sys
+import csv
+import os
+import argparse
+import pysam
 
 parser = argparse.ArgumentParser(description='options',
 	usage='python get_phase_sets.py -i isoforms.psl|bed -m isoform_read_map.txt -b reads.bam -o out [options]')

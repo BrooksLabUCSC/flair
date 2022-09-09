@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import sys, csv, argparse, os
+
+import sys
+import csv
+import os
 
 try:
 	psl = open(sys.argv[1])

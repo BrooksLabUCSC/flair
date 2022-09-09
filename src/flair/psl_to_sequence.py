@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-import sys, csv, os, argparse, pysam, subprocess
+import sys
+import csv
+import os
+import argparse
+import pysam
+import subprocess
 # from filter_collapsed_isoforms_from_annotation import split_iso_gene
 
 parser = argparse.ArgumentParser(description='options',

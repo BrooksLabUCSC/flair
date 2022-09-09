@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import sys, csv, os, argparse
+import sys
+import csv
+import os
+import argparse
 
 parser = argparse.ArgumentParser(description='''converts a gtf to a bed or psl, depending on the output filename extension;
 	gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',

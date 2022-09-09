@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import sys, csv, os, argparse
+
+import csv
+import os
+import argparse
 
 parser = argparse.ArgumentParser(description='script for collapse-range',
 	usage='match_counts.py countsfile psl min_read_threshold outfilename [options]')

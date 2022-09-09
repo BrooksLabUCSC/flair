@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-import sys, csv, argparse, math, os
+import sys
+import csv
+import argparse
+import math
+import os
 from multiprocessing import Pool
 
 parser = argparse.ArgumentParser(description='collapse parse options',

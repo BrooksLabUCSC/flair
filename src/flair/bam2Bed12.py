@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-from __future__ import print_function
-
-
 ########################################################################
 # File: bam2Bed12.py
 #  executable: bam2Bed12.py
@@ -20,9 +17,8 @@ from __future__ import print_function
 ########################################################################
 
 
-import os, sys
 from samJuncs import SAM
-import pysam
+#import pysam
 
 ########################################################################
 # CommandLine

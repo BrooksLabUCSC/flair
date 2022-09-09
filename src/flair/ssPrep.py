@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 
 ########################################################################
 # File: ssPrep.py
@@ -18,10 +17,11 @@ from __future__ import print_function
 ########################################################################
 
 
-import os, sys
+import os
+import sys
 from ncls import NCLS
-from tqdm import *
-import pybedtools
+from tqdm import tqdm
+#import pybedtools
 
 ########################################################################
 # CommandLine

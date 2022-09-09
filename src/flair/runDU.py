@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 
 ########################################################################
 # File: runDU.py
@@ -18,14 +17,14 @@ from __future__ import print_function
 ########################################################################
 
 
-import os, sys
+import os
+import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 import numpy as np
 
 from rpy2 import robjects
-from rpy2.robjects import r,pandas2ri, Formula
-from rpy2.robjects.lib import grid
+from rpy2.robjects import pandas2ri
 pandas2ri.activate()
 R = robjects.r
 
@@ -108,7 +107,7 @@ def main():
 
     # import
     from rpy2.robjects.packages import importr
-    import rpy2.robjects.lib.ggplot2 as ggplot2
+#    import rpy2.robjects.lib.ggplot2 as ggplot2
     methods   = importr('methods')
     drim      = importr('DRIMSeq')
 

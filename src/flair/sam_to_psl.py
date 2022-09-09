@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import sys, csv, re, os
+import sys
+import csv
+import re
+import os
 
 try:
 	sam = open(sys.argv[1])

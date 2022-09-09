@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import sys, os, glob, argparse
+
+import os
+import glob
+import argparse
 
 parser = argparse.ArgumentParser(description='options',
 	usage='consolidate_isoforms.py tempdir run_id outfilename [options]')

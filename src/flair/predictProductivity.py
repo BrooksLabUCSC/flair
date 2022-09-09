@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
-
 
 ########################################################################
 # File: predictProductivity.py
@@ -19,9 +17,7 @@ from __future__ import print_function
 ########################################################################
 
 
-import os, sys
-from tqdm import *
-import re
+import sys
 import pybedtools
 import subprocess
 ########################################################################
