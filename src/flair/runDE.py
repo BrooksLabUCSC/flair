@@ -57,30 +57,30 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' runDE.py - a rpy2 convenience tool to run DESeq2.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s ')
+        self.parser = argparse.ArgumentParser(description=' runDE.py - a rpy2 convenience tool to run DESeq2.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s ')
         # Add args
 
-        self.parser.add_argument("--group1"    , action = 'store', required=True,
+        self.parser.add_argument("--group1"    , action='store', required=True,
                                     help='Sample group 1.')
-        self.parser.add_argument("--group2"    , action = 'store', required=True,
+        self.parser.add_argument("--group2"    , action='store', required=True,
                                     help='Sample group 2.')
-        self.parser.add_argument("--batch"     , action = 'store', required=False, default=None,
+        self.parser.add_argument("--batch"     , action='store', required=False, default=None,
                                     help='Secondary sample attribute (used in design matrix).')
-        self.parser.add_argument("--matrix"     , action = 'store', required=True,
+        self.parser.add_argument("--matrix"     , action='store', required=True,
                                     help='Input count files.')
-        self.parser.add_argument("--outDir"    , action = 'store', required=True,
+        self.parser.add_argument("--outDir"    , action='store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--prefix"    , action = 'store', required=True,
+        self.parser.add_argument("--prefix"    , action='store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument("--formula"    , action = 'store', required=True,
+        self.parser.add_argument("--formula"    , action='store', required=True,
                                     help='Formula design matrix.')
         if inOpts is None :
-            self.args = vars(self.parser.parse_args())
+            self.args=vars(self.parser.parse_args())
         else :
-            self.args = vars(self.parser.parse_args(inOpts))
+            self.args=vars(self.parser.parse_args(inOpts))
 
 
 # main

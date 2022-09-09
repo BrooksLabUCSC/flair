@@ -49,13 +49,13 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = 'A tool to convert minimap2 BAM to Bed12.',
-                                            add_help = True, #default is True
-                                            prefix_chars = '-',
-                                            usage = '%(prog)s -i sorted.aligned.bam ')
+        self.parser = argparse.ArgumentParser(description='A tool to convert minimap2 BAM to Bed12.',
+                                            add_help=True, #default is True
+                                            prefix_chars='-',
+                                            usage='%(prog)s -i sorted.aligned.bam ')
         # Add args
-        self.parser.add_argument('-i', "--input_bam", action = 'store', required=True, help='Input bam file.')
-        self.parser.add_argument('--keep_supplementary', action = 'store_true', required=False, default=False,  help='Keep supplementary alignments')
+        self.parser.add_argument('-i', "--input_bam", action='store', required=True, help='Input bam file.')
+        self.parser.add_argument('--keep_supplementary', action='store_true', required=False, default=False,  help='Keep supplementary alignments')
 
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
@@ -122,7 +122,7 @@ def main():
     unknownTxn = "99,99,99"
 
     # SAM Object allows for execution of many SAM-related functions.
-    sObj = SAM(alignmentFile, keep_supplementary = myCommandLine.args['keep_supplementary'])
+    sObj = SAM(alignmentFile, keep_supplementary=myCommandLine.args['keep_supplementary'])
 
     for num, readData in enumerate(sObj.readJuncs(),0):
         read, chrom, startPos, junctions, endPos, flags, tags, score = readData

@@ -240,8 +240,8 @@ def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes t
 	sedict = {}
 	sedict[chrom] = {}
 	se_ordered = all_se_by_chrom[chrom].keys()
-	se_ordered = sorted(se_ordered, key = lambda x: x[1])
-	se_ordered = sorted(se_ordered, key = lambda x: x[0])
+	se_ordered = sorted(se_ordered, key=lambda x: x[1])
+	se_ordered = sorted(se_ordered, key=lambda x: x[0])
 	sedict, added = iterative_add_se(sedict, chrom, group, se_ordered[0])
 	for se in se_ordered[1:]:
 		overlapped_loci = []
@@ -253,7 +253,7 @@ def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes t
 			else:
 				break
 
-		overlapped_loci = sorted(overlapped_loci, key = lambda x: x[1], reverse=True)
+		overlapped_loci = sorted(overlapped_loci, key=lambda x: x[1], reverse=True)
 		added = False
 		for loci in overlapped_loci:
 			g = loci[0]

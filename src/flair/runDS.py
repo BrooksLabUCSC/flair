@@ -61,10 +61,10 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = 'runDS.py - a rpy2 convenience tool to run DRIMseq.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s ')
+        self.parser = argparse.ArgumentParser(description='runDS.py - a rpy2 convenience tool to run DRIMseq.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s ')
         # Add args
         self.parser.add_argument("--matrix"    , action='store', required=True,
                                     help='Input DRIM-Seq formatted count files.')
@@ -96,9 +96,9 @@ class CommandLine(object) :
                                  condition1''')
 
         if inOpts is None :
-            self.args = vars(self.parser.parse_args())
+            self.args=vars(self.parser.parse_args())
         else :
-            self.args = vars(self.parser.parse_args(inOpts))
+            self.args=vars(self.parser.parse_args(inOpts))
 
 
 # main
@@ -142,7 +142,7 @@ def main():
         if conditionA not in g and conditionB not in g:
             continue
         formula += [(s, g, b)]
-    formulaDF = pd.DataFrame(data=formula, columns = ['sample_id', 'condition', 'batch'])
+    formulaDF = pd.DataFrame(data=formula, columns=['sample_id', 'condition', 'batch'])
 
     # get quant table
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=False)

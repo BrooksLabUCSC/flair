@@ -56,32 +56,32 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' ssCorrect.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
+        self.parser = argparse.ArgumentParser(description=' ssCorrect.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s -i reads.bed -g annotations.gtf -j other_junctions.bed -o out_file.bed')
         # Add args
-        self.parser.add_argument('-i', '--input_bed', action = 'store', required=True, help='Input reads in bed12 format.')
-        self.parser.add_argument('-g', '--gtf', action = 'store', required=False, help='Gencode annotation file.')
-        self.parser.add_argument('-j', '--junctionsBed', default=None, action = 'store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
-        self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
-        self.parser.add_argument('-o', '--output_fname', action = 'store', required=True, help='Output file name.')
-        self.parser.add_argument('-f', '--genome_fasta', action = 'store', required=True, help='Bedtools indexed genome fasta.')
+        self.parser.add_argument('-i', '--input_bed', action='store', required=True, help='Input reads in bed12 format.')
+        self.parser.add_argument('-g', '--gtf', action='store', required=False, help='Gencode annotation file.')
+        self.parser.add_argument('-j', '--junctionsBed', default=None, action='store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
+        self.parser.add_argument('-w', '--wiggleWindow', action='store', type=int, required=False, default=15, help='Splice site correction window flank size.')
+        self.parser.add_argument('-o', '--output_fname', action='store', required=True, help='Output file name.')
+        self.parser.add_argument('-f', '--genome_fasta', action='store', required=True, help='Bedtools indexed genome fasta.')
 
-        self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
-        self.parser.add_argument('-p', '--threads', action = 'store', required=False, type=int, default = 2, help='Number of threads.')
-        self.parser.add_argument('--progress', action = 'store_true', required=False, default = False, help='Display progress')
-        self.parser.add_argument('--tempDir', action = 'store', required=False, default = None,   help='Output directory for temporary files.')
-        self.parser.add_argument('--keepTemp', action = 'store_true', required=False, default = False, help='Keep temporary/intermediate files.')
-        self.parser.add_argument('--print_check', action = 'store_true', required=False, default = False, help='Print workflow checking')
+        self.parser.add_argument('--correctStrand', action='store_true', required=False, default=False, help='Try to resolve read strand by using annotated splice site strand.')
+        self.parser.add_argument('-p', '--threads', action='store', required=False, type=int, default=2, help='Number of threads.')
+        self.parser.add_argument('--progress', action='store_true', required=False, default=False, help='Display progress')
+        self.parser.add_argument('--tempDir', action='store', required=False, default=None,   help='Output directory for temporary files.')
+        self.parser.add_argument('--keepTemp', action='store_true', required=False, default=False, help='Keep temporary/intermediate files.')
+        self.parser.add_argument('--print_check', action='store_true', required=False, default=False, help='Print workflow checking')
 
-        #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
-        #self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
+        #self.parser.add_argument('--keepZero', action='store_true', required=False, default=False, help='Keep alignments with no spliced junctions (single exon txns).')
+        #self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
 
         if inOpts is None :
-            self.args = vars(self.parser.parse_args())
+            self.args=vars(self.parser.parse_args())
         else :
-            self.args = vars(self.parser.parse_args(inOpts))
+            self.args=vars(self.parser.parse_args(inOpts))
 
 
 ########################################################################

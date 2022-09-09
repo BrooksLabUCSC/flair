@@ -241,7 +241,7 @@ class Gene(object):
 class SpliceSite(object):
 	'''
 	'''
-	def __init__(self,ssName = None, ssType = None):
+	def __init__(self, ssName=None, ssType=None):
 		self.name = ssName
 		self.ssType = ssType
 		self.up = set()
@@ -253,7 +253,7 @@ class Exon(object):
 	'''
 
 	def __init__(self, exonID=None, acceptor=None, donor=None):
-		self.name =  exonID
+		self.name = exonID
 		self.donor = donor
 		self.acceptor = acceptor
 		self.inclusionJuncs = set()
@@ -263,7 +263,7 @@ class Junction(object):
 	'''
 	'''
 
-	def __init__(self, jcnID= None):
+	def __init__(self, jcnID=None):
 		self.name = jcnID
 		self.inExon = set()
 		self.outExon = set()

@@ -58,26 +58,26 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' runDU.py - a rpy2 convenience tool to run DRIMseq.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s ')
+        self.parser = argparse.ArgumentParser(description=' runDU.py - a rpy2 convenience tool to run DRIMseq.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s ')
         # Add args
-        self.parser.add_argument("--group1"    , action = 'store', required=True,
+        self.parser.add_argument("--group1"    , action='store', required=True,
                                     help='Sample group 1.')
-        self.parser.add_argument("--group2"    , action = 'store', required=True,
+        self.parser.add_argument("--group2"    , action='store', required=True,
                                     help='Sample group 2.')
-        self.parser.add_argument("--batch"     , action = 'store', required=False, default=None,
+        self.parser.add_argument("--batch"     , action='store', required=False, default=None,
                                     help='Secondary sample attribute (used in design matrix).')
-        self.parser.add_argument("--matrix"     , action = 'store', required=True,
+        self.parser.add_argument("--matrix"     , action='store', required=True,
                                     help='Input count files.')
-        self.parser.add_argument("--outDir"    , action = 'store', required=True,
+        self.parser.add_argument("--outDir"    , action='store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--prefix"    , action = 'store', required=True,
+        self.parser.add_argument("--prefix"    , action='store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument("--formula"    , action = 'store', required=True,
+        self.parser.add_argument("--formula"    , action='store', required=True,
                                     help='Formula design matrix.')
-        self.parser.add_argument("--threads"    , type=int, action = 'store',default=4, required=False,
+        self.parser.add_argument("--threads"    , type=int, action='store',default=4, required=False,
                                     help='Number of threads for running DRIM-Seq. BBPARAM')
 
         if inOpts is None :

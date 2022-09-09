@@ -30,7 +30,7 @@ def get_exons(starts, sizes):
 
 
 def overlap(coords0, coords1, tol=1):
-	coords0, coords1 = sorted([coords0, coords1], key = lambda x: x[0])
+	coords0, coords1 = sorted([coords0, coords1], key=lambda x: x[0])
 	return (coords0[0] < coords1[0] and coords1[0] < coords0[1] - tol)
 
 

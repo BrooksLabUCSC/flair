@@ -49,19 +49,19 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = 'samJuncs.py - lorem ipsium.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s -i sorted_indexed.bam ')
+        self.parser = argparse.ArgumentParser(description='samJuncs.py - lorem ipsium.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s -i sorted_indexed.bam ')
         # Add args
-        self.parser.add_argument('-i', '--ibam', type=str, action = 'store', required=True, help='Input BAM file.')
-        self.parser.add_argument('-p', '--threads', action = 'store', required=False, default=2,  help='Num threads.')
-        self.parser.add_argument('--quiet', action = 'store_true', required=False, default=True,  help='Quiet stderr output.')
+        self.parser.add_argument('-i', '--ibam', type=str, action='store', required=True, help='Input BAM file.')
+        self.parser.add_argument('-p', '--threads', action='store', required=False, default=2,  help='Num threads.')
+        self.parser.add_argument('--quiet', action='store_true', required=False, default=True,  help='Quiet stderr output.')
 
         if inOpts is None :
-            self.args = vars(self.parser.parse_args())
+            self.args=vars(self.parser.parse_args())
         else :
-            self.args = vars(self.parser.parse_args(inOpts))
+            self.args=vars(self.parser.parse_args(inOpts))
 
 ########################################################################
 # Sequence Alignment File

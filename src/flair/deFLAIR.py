@@ -58,27 +58,27 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' deFLAIR.py - a rpy2 convenience tool to run DESeq2.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s --manifest manifest.txt --workingdir dir_name --outdir out_dir --filter N')
+        self.parser = argparse.ArgumentParser(description=' deFLAIR.py - a rpy2 convenience tool to run DESeq2.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s --manifest manifest.txt --workingdir dir_name --outdir out_dir --filter N')
         # Add args
-        self.parser.add_argument("--outDir"    , action = 'store', required=True,
+        self.parser.add_argument("--outDir"    , action='store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--filter"    , action = 'store', required=False, default = 10, type=int,
+        self.parser.add_argument("--filter"    , action='store', required=False, default=10, type=int,
                                     help='Isoforms with less than specified read count for either Condition A or B are filtered (Default: 10 reads)')
-        self.parser.add_argument("--matrix"    , action = 'store', required=True,
+        self.parser.add_argument("--matrix"    , action='store', required=True,
                                     help='Count matrix from FLAIR quantify.')
-        self.parser.add_argument("--threads"    , type=int, action = 'store', required=False, default=4,
+        self.parser.add_argument("--threads"    , type=int, action='store', required=False, default=4,
                                     help='Number of threads for running DRIM-Seq.')
         self.parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
             required=False, help='''Specify this argument to force overwriting of
             an existing output directory for tables and plots.''')
 
         if inOpts is None :
-            self.args = vars(self.parser.parse_args())
+            self.args=vars(self.parser.parse_args())
         else :
-            self.args = vars(self.parser.parse_args(inOpts))
+            self.args=vars(self.parser.parse_args(inOpts))
 
 
 ########################################################################

@@ -49,25 +49,25 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' predictProductivity - a tool.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf')
+        self.parser = argparse.ArgumentParser(description=' predictProductivity - a tool.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf')
         # Add args
-        self.parser.add_argument('-i', "--input_isoforms", action = 'store', required=True, help='Input collapsed isoforms in psl or bed12 format.')
-        self.parser.add_argument('-g', "--gtf", action = 'store', required=True, help='Gencode annotation file.')
-        self.parser.add_argument('-f', "--genome_fasta", action = 'store', required=True, help='Fasta file containing transcript sequences.')
-        self.parser.add_argument("--quiet", action = 'store_false', required=False, default = True, help='Do not display progress')
-        self.parser.add_argument("--append_column", action = 'store_true', required=False, default = False, help='Append prediction as an additional column in file')
+        self.parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in psl or bed12 format.')
+        self.parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
+        self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
+        self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
+        self.parser.add_argument("--append_column", action='store_true', required=False, default=False, help='Append prediction as an additional column in file')
 
-        self.group = self.parser.add_mutually_exclusive_group(required=True)
-        self.group.add_argument('--firstTIS', action = 'store_true', default = False, help = 'Defined ORFs by the first annotated TIS.')
-        self.group.add_argument('--longestORF',action = 'store_true', default = False, help = 'Defined ORFs by the longest open reading frame.')
+        self.group=self.parser.add_mutually_exclusive_group(required=True)
+        self.group.add_argument('--firstTIS', action='store_true', default=False, help='Defined ORFs by the first annotated TIS.')
+        self.group.add_argument('--longestORF',action='store_true', default=False, help='Defined ORFs by the longest open reading frame.')
 
         if inOpts is None :
-            self.args = vars(self.parser.parse_args())
+            self.args=vars(self.parser.parse_args())
         else :
-            self.args = vars(self.parser.parse_args(inOpts))
+            self.args=vars(self.parser.parse_args(inOpts))
 
 
 ########################################################################

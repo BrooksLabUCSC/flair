@@ -112,7 +112,7 @@ with open(args.o, 'wt') as outfile, open(args.outiso, 'wt') as outfile_iso:
 			phase_sets[i].pop(('', ''))
 
 		# sort all phase sets for this iso by number of supporting reads
-		pss = sorted(phase_sets[i].items(), key = lambda ps: ps[1], reverse=True)
+		pss = sorted(phase_sets[i].items(), key=lambda ps: ps[1], reverse=True)
 
 		if not pss:  # no variants
 			writer.writerow([i, 'NA'])

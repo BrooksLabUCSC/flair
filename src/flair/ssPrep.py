@@ -48,21 +48,21 @@ class CommandLine(object) :
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description = ' ssPrep.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
-                                             add_help = True, #default is True
-                                             prefix_chars = '-',
-                                             usage = '%(prog)s -i reads.bed -j known_junctions.bed -o out_file.bed --working_dir dir')
+        self.parser = argparse.ArgumentParser(description=' ssPrep.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
+                                             add_help=True, #default is True
+                                             prefix_chars='-',
+                                             usage='%(prog)s -i reads.bed -j known_junctions.bed -o out_file.bed --working_dir dir')
         # Add args
-        self.parser.add_argument('-i', "--input_bed", action = 'store', required=True, help='Input reads in bed12 format.')
-        self.parser.add_argument('-j', "--juncs",  action = 'store', required=True, help='KnownJunction.bed.')
-        self.parser.add_argument('-w', '--wiggleWindow', action = 'store', type=int, required=False, default = 15, help='Splice site correction window flank size.')
-        self.parser.add_argument('-o', "--output_fname", action = 'store', required=True, help='Output file name.')
-        self.parser.add_argument('-f', "--genome_fasta", action = 'store', required=True, help='Genome Fasta.')
-        self.parser.add_argument("--workingDir", action = 'store', required=True, help='Working directory.')
-        self.parser.add_argument('--correctStrand', action = 'store_true', required=False, default = False, help='Try to resolve read strand by using annotated splice site strand.')
-        self.parser.add_argument('--check_file', action = 'store', required=False, default = False, help='Write file for print_check')
+        self.parser.add_argument('-i', "--input_bed", action='store', required=True, help='Input reads in bed12 format.')
+        self.parser.add_argument('-j', "--juncs",  action='store', required=True, help='KnownJunction.bed.')
+        self.parser.add_argument('-w', '--wiggleWindow', action='store', type=int, required=False, default=15, help='Splice site correction window flank size.')
+        self.parser.add_argument('-o', "--output_fname", action='store', required=True, help='Output file name.')
+        self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Genome Fasta.')
+        self.parser.add_argument("--workingDir", action='store', required=True, help='Working directory.')
+        self.parser.add_argument('--correctStrand', action='store_true', required=False, default=False, help='Try to resolve read strand by using annotated splice site strand.')
+        self.parser.add_argument('--check_file', action='store', required=False, default=False, help='Write file for print_check')
 
-        #self.parser.add_argument('--keepZero', action = 'store_true', required=False, default = False, help='Keep alignments with no spliced junctions (single exon txns).')
+        #self.parser.add_argument('--keepZero', action='store_true', required=False, default=False, help='Keep alignments with no spliced junctions (single exon txns).')
 
         if inOpts is None :
             self.args = vars(self.parser.parse_args())
