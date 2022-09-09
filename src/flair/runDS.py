@@ -41,7 +41,7 @@ R = robjects.r
 # CommandLine
 ########################################################################
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -55,7 +55,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -66,25 +66,25 @@ class CommandLine(object) :
                                              prefix_chars='-',
                                              usage='%(prog)s ')
         # Add args
-        self.parser.add_argument("--matrix"    , action='store', required=True,
+        self.parser.add_argument("--matrix", action='store', required=True,
                                     help='Input DRIM-Seq formatted count files.')
-        self.parser.add_argument("--outDir"    , action='store', required=False,
+        self.parser.add_argument("--outDir", action='store', required=False,
                                     help='Write to specified output directory.', default='')
-        self.parser.add_argument("--prefix"    , action='store', required=True,
+        self.parser.add_argument("--prefix", action='store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument('--drim1'     , action='store', type=int, required=False, default=6,
+        self.parser.add_argument('--drim1', action='store', type=int, required=False, default=6,
             help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion;
                                 events with too few samples are filtered out and not tested (6)''')
-        self.parser.add_argument('--drim2'     , action='store', type=int, required=False, default=3,
+        self.parser.add_argument('--drim2', action='store', type=int, required=False, default=3,
             help='''The minimum number of samples expressing the inclusion of an AS event; events with
                                 too few samples are filtered out and not tested (3)''')
-        self.parser.add_argument('--drim3'     , action='store', type=int, required=False, default=15,
+        self.parser.add_argument('--drim3', action='store', type=int, required=False, default=15,
             help='''The minimum number of reads covering an AS event inclusion/exclusion, events with
                                 too few samples are filtered out and not tested (15)''')
-        self.parser.add_argument('--drim4'     , action='store', type=int, required=False, default=5,
+        self.parser.add_argument('--drim4', action='store', type=int, required=False, default=5,
             help='''The minimum number of reads covering an AS event inclusion, events with too few
                                 samples are filtered out and not tested (5)''')
-        self.parser.add_argument("--threads"   , action='store', type=int, default=4, required=False,
+        self.parser.add_argument("--threads", action='store', type=int, default=4, required=False,
                                     help='Number of threads for running DRIM-Seq. BBPARAM')
         self.parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False,
                                     help='''If specified, batch correction will be performed''')
@@ -95,10 +95,10 @@ class CommandLine(object) :
             help='''Specify one condition corresponding to samples in the counts_matrix to be compared against
                                  condition1''')
 
-        if inOpts is None :
-            self.args=vars(self.parser.parse_args())
-        else :
-            self.args=vars(self.parser.parse_args(inOpts))
+        if inOpts is None:
+            self.args = vars(self.parser.parse_args())
+        else:
+            self.args = vars(self.parser.parse_args(inOpts))
 
 
 # main

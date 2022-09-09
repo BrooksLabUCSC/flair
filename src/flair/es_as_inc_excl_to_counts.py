@@ -10,7 +10,7 @@ with open(sys.argv[1]) as fin1:
     nSamps = len(header) - 1
     for line in fin1:
         cols = line.rstrip().split()
-        tid, vals = cols[0] , np.asarray(cols[1:], dtype=np.float32)
+        tid, vals = cols[0], np.asarray(cols[1:], dtype=np.float32)
         data[tid] = vals
 
 with open(sys.argv[2]) as fin2:

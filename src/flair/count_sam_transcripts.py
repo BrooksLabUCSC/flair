@@ -337,7 +337,7 @@ for line in sam:
 		continue
 	if read not in reads:
 		reads[read] = {}
-	if transcript.count('|')>2:
+	if transcript.count('|') > 2:
 		transcript = transcript[:transcript.find('|')]
 	reads[read][transcript] = aln(cigar=cigar, mapq=quality, startpos=pos)
 

@@ -170,7 +170,7 @@ class Gene(object):
 				#print("chr6:%s-%s" % (ss.name,list(nextSS)[0].name))
 				continue
 			else:
-				paths=list()
+				paths = list()
 				for j in nextSS:
 
 					paths.append(self.getPaths(ss,j,[]))
@@ -183,7 +183,7 @@ class Gene(object):
 	def getPaths(self, sink=None, currentSS=None, pathSoFar=None):
 		'''
 		'''
-		if len(pathSoFar)<1:
+		if len(pathSoFar) < 1:
 			pathSoFar = [currentSS.name]
 		else:
 			pathSoFar = [currentSS.name] + pathSoFar

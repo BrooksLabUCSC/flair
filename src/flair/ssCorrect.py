@@ -36,7 +36,7 @@ helperScript = path + "/" + "ssPrep.py"
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -50,7 +50,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -78,10 +78,10 @@ class CommandLine(object) :
         #self.parser.add_argument('--keepZero', action='store_true', required=False, default=False, help='Keep alignments with no spliced junctions (single exon txns).')
         #self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
 
-        if inOpts is None :
-            self.args=vars(self.parser.parse_args())
-        else :
-            self.args=vars(self.parser.parse_args(inOpts))
+        if inOpts is None:
+            self.args = vars(self.parser.parse_args())
+        else:
+            self.args = vars(self.parser.parse_args(inOpts))
 
 
 ########################################################################
@@ -98,7 +98,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known):
     with open(bedJuncs) as l:
         for num,ll in enumerate(l,0):
             cols = ll.rstrip().split()
-            if num >10:
+            if num > 10:
                 break
 
     # guess what kind of bedFile
@@ -252,7 +252,7 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
         coords = coords[1:-1]
 
         # Coords is list of exons, so a list less than 2 is a single exon gene.
-        if len(coords)<2: continue
+        if len(coords) < 2: continue
 
         for pos in range(0,len(coords)-1,2):
             c1 = coords[pos]
@@ -319,7 +319,7 @@ def main():
         tempDir = os.path.join(current_directory, tempDirName)
         os.mkdir(tempDir)
     except OSError:
-        print ("Creation of the directory %s failed" % tempDirName)
+        print("Creation of the directory %s failed" % tempDirName)
         sys.exit(1)
 
     # There are a few functions that evaluate what verbose is defined as.
@@ -340,7 +340,7 @@ def main():
     knownSS = dict()
 
     # added to allow annotations not to be used.
-    if len(list(juncs.keys()))<1:
+    if len(list(juncs.keys())) < 1:
         print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
         sys.exit(1)
 
@@ -392,7 +392,7 @@ def main():
     childErrs = set()
     for i in tqdm(p.imap(runCMD, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", dynamic_ncols=True,position=1) if verbose else p.imap(runCMD,cmds):
         childErrs.add(i)
-    if len(childErrs)>1:
+    if len(childErrs) > 1:
         print(childErrs,file=sys.stderr)
         sys.exit(1)
 

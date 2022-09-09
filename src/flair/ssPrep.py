@@ -28,7 +28,7 @@ import pybedtools
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -42,7 +42,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -64,9 +64,9 @@ class CommandLine(object) :
 
         #self.parser.add_argument('--keepZero', action='store_true', required=False, default=False, help='Keep alignments with no spliced junctions (single exon txns).')
 
-        if inOpts is None :
+        if inOpts is None:
             self.args = vars(self.parser.parse_args())
-        else :
+        else:
             self.args = vars(self.parser.parse_args(inOpts))
 
 
@@ -221,7 +221,7 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
 
     hits = [h for h in intTree.find_overlap(c,c)]
 
-    if len(hits)<1:
+    if len(hits) < 1:
         ss = SS(c,strand,None)
         ssData[c] = ss
         ss.ssCorr = ss
@@ -232,7 +232,7 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
         minVal    = min(distances)
         count     = distances.count(minVal)
 
-        if count>1:
+        if count > 1:
             ss = SS(c,strand,None)
             ss.ssCorr = ss
             ssData[c] = ss
@@ -278,7 +278,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             c1Corr = ssData[c1].ssCorr.coord
             c2Corr = ssData[c2].ssCorr.coord
 
-            ssTypes   = [ssData[c1].ssCorr.ssType ,ssData[c2].ssCorr.ssType]
+            ssTypes = [ssData[c1].ssCorr.ssType, ssData[c2].ssCorr.ssType]
             ssStrands.add(ssData[c1].ssCorr.strand)
             ssStrands.add(ssData[c2].ssCorr.strand)
 
@@ -291,7 +291,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
         blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
 
         if correctStrand:
-            if len(ssStrands)>1:
+            if len(ssStrands) > 1:
                 novelSS = True
             elif len(ssStrands) == 1:
                 strand = list(ssStrands)[0]

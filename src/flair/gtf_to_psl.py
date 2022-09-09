@@ -33,7 +33,7 @@ with open(args.psl, 'wt') as outfile:
 		if line.startswith('#'):
 			continue
 		line = line.rstrip().split('\t')
-		chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1 , int(line[4]), line[6]
+		chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
 		this_transcript = line[8][line[8].find('transcript_id')+15:]
 		this_transcript = this_transcript[:this_transcript.find('"')]
 

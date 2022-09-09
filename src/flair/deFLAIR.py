@@ -38,7 +38,7 @@ predictProd = path + "/" + "predictProductivity"
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -52,7 +52,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -63,22 +63,22 @@ class CommandLine(object) :
                                              prefix_chars='-',
                                              usage='%(prog)s --manifest manifest.txt --workingdir dir_name --outdir out_dir --filter N')
         # Add args
-        self.parser.add_argument("--outDir"    , action='store', required=True,
+        self.parser.add_argument("--outDir", action='store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--filter"    , action='store', required=False, default=10, type=int,
+        self.parser.add_argument("--filter", action='store', required=False, default=10, type=int,
                                     help='Isoforms with less than specified read count for either Condition A or B are filtered (Default: 10 reads)')
-        self.parser.add_argument("--matrix"    , action='store', required=True,
+        self.parser.add_argument("--matrix", action='store', required=True,
                                     help='Count matrix from FLAIR quantify.')
-        self.parser.add_argument("--threads"    , type=int, action='store', required=False, default=4,
+        self.parser.add_argument("--threads", type=int, action='store', required=False, default=4,
                                     help='Number of threads for running DRIM-Seq.')
         self.parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
             required=False, help='''Specify this argument to force overwriting of
             an existing output directory for tables and plots.''')
 
-        if inOpts is None :
-            self.args=vars(self.parser.parse_args())
-        else :
-            self.args=vars(self.parser.parse_args(inOpts))
+        if inOpts is None:
+            self.args = vars(self.parser.parse_args())
+        else:
+            self.args = vars(self.parser.parse_args(inOpts))
 
 
 ########################################################################
@@ -86,7 +86,7 @@ class CommandLine(object) :
 ########################################################################
 
 
-class Isoform(object) :
+class Isoform(object):
     '''
     Object to handle isoform related data.
 
@@ -120,7 +120,7 @@ class Isoform(object) :
 ########################################################################
 
 
-class Gene(object) :
+class Gene(object):
     '''
     Object to handle gene related data.
 
@@ -150,17 +150,17 @@ def separateTables(f, thresh, samples, groups):
     genes, isoforms = dict(), dict()
     duplicateID = 1
 
-    with codecs.open(f, "r", encoding='utf-8', errors='ignore' ) as lines:
+    with codecs.open(f, "r", encoding='utf-8', errors='ignore') as lines:
         cols = next(lines).split("\t")
 
-        if len(cols)<7:
+        if len(cols) < 7:
             print("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols),file=sys.stderr)
             sys.exit(1)
 
         for num, line in enumerate(lines):
 
             data = line.rstrip().split("\t")
-            if len(data)<7:
+            if len(data) < 7:
                 print("** Error. Found %s columns in matrix on line %s, expected >6. Exiting." % (len(data), num),file=sys.stderr)
                 sys.exit(1)
 
@@ -255,17 +255,17 @@ def main():
 
     from collections import Counter
     groupCounts = Counter(groups)
-    if len(list(groupCounts.keys()))<2:
-        print("** Error. diffExp requires >1 condition group. Maybe group name formatting is incorrect. Exiting." , file=sys.stderr)
+    if len(list(groupCounts.keys())) < 2:
+        print("** Error. diffExp requires >1 condition group. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)
         sys.exit(1)
-    elif min(list(groupCounts.values()))<3:
-        print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates." , file=sys.stderr)
+    elif min(list(groupCounts.values())) < 3:
+        print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.", file=sys.stderr)
         sys.exit(1)
     elif set(groups).intersection(set(batches)):
-        print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix." , file=sys.stderr)
+        print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.", file=sys.stderr)
         sys.exit(1)
-    elif sum([1 if x.isdigit() else 0 for x in groups])>0 or sum([1 if x.isdigit() else 0 for x in batches])>0:
-        print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting." , file=sys.stderr)
+    elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
+        print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.", file=sys.stderr)
         sys.exit(1)
 
     # Create output directory.
@@ -309,7 +309,7 @@ def main():
     geneMatrixFile    = outDir + "/filtered_gene_counts_ds2.tsv"
     drimMatrixFile    = outDir + "/filtered_iso_counts_drim.tsv"
 
-    formulaDF.to_csv( formulaMatrixFile, sep='\t')
+    formulaDF.to_csv(formulaMatrixFile, sep='\t')
 
     with open("%s/dge_stderr.txt" % outDir,"w") as out1:
 

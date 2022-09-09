@@ -300,7 +300,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 	remaining = float(sum(list(sites.values())))  # number isoforms with these junctions
 	found_tss = []  # TSSs found
 	used_annotated = set()
-	avg = remaining/ (len(sites))
+	avg = remaining / (len(sites))
 	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport) and \
 			len(found_tss) < max_results:
 		sites, bestsite = find_best_tss(sites, finding_tss, remove_used)

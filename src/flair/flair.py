@@ -694,7 +694,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if not args.quiet:
 		sys.stderr.write('Aligning reads to first-pass isoform reference\n')
 	align_files = []
-	alignout = args.temp_dir + tempfile_name +'firstpass.'
+	alignout = args.temp_dir + tempfile_name + 'firstpass.'
 
 	if args.mm2_args:
 		args.mm2_args = args.mm2_args.split(',')

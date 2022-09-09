@@ -37,7 +37,7 @@ warnings.filterwarnings("ignore", category=RRuntimeWarning)
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -51,7 +51,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -63,24 +63,24 @@ class CommandLine(object) :
                                              usage='%(prog)s ')
         # Add args
 
-        self.parser.add_argument("--group1"    , action='store', required=True,
+        self.parser.add_argument("--group1", action='store', required=True,
                                     help='Sample group 1.')
-        self.parser.add_argument("--group2"    , action='store', required=True,
+        self.parser.add_argument("--group2", action='store', required=True,
                                     help='Sample group 2.')
-        self.parser.add_argument("--batch"     , action='store', required=False, default=None,
+        self.parser.add_argument("--batch", action='store', required=False, default=None,
                                     help='Secondary sample attribute (used in design matrix).')
-        self.parser.add_argument("--matrix"     , action='store', required=True,
+        self.parser.add_argument("--matrix", action='store', required=True,
                                     help='Input count files.')
-        self.parser.add_argument("--outDir"    , action='store', required=True,
+        self.parser.add_argument("--outDir", action='store', required=True,
                                     help='Write to specified output directory.')
-        self.parser.add_argument("--prefix"    , action='store', required=True,
+        self.parser.add_argument("--prefix", action='store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument("--formula"    , action='store', required=True,
+        self.parser.add_argument("--formula", action='store', required=True,
                                     help='Formula design matrix.')
-        if inOpts is None :
-            self.args=vars(self.parser.parse_args())
-        else :
-            self.args=vars(self.parser.parse_args(inOpts))
+        if inOpts is None:
+            self.args = vars(self.parser.parse_args())
+        else:
+            self.args = vars(self.parser.parse_args(inOpts))
 
 
 # main

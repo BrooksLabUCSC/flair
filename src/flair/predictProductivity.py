@@ -29,7 +29,7 @@ import subprocess
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -43,7 +43,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -60,21 +60,21 @@ class CommandLine(object) :
         self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
         self.parser.add_argument("--append_column", action='store_true', required=False, default=False, help='Append prediction as an additional column in file')
 
-        self.group=self.parser.add_mutually_exclusive_group(required=True)
+        self.group = self.parser.add_mutually_exclusive_group(required=True)
         self.group.add_argument('--firstTIS', action='store_true', default=False, help='Defined ORFs by the first annotated TIS.')
         self.group.add_argument('--longestORF',action='store_true', default=False, help='Defined ORFs by the longest open reading frame.')
 
-        if inOpts is None :
-            self.args=vars(self.parser.parse_args())
-        else :
-            self.args=vars(self.parser.parse_args(inOpts))
+        if inOpts is None:
+            self.args = vars(self.parser.parse_args())
+        else:
+            self.args = vars(self.parser.parse_args(inOpts))
 
 
 ########################################################################
 # Isoform
 ########################################################################
 
-class Isoform(object) :
+class Isoform(object):
     '''
     Object to handle isoform related data.
 
@@ -200,7 +200,7 @@ def checkPTC(orfEndPos, exons, isoObj):
 
     if isoObj.strand  == "-":
         isoObj.exonSizes = isoObj.exonSizes[::-1]
-        exons = exons [::-1]
+        exons = exons[::-1]
 
     for num,e in enumerate(isoObj.exonSizes,0):
 
@@ -217,14 +217,14 @@ def checkPTC(orfEndPos, exons, isoObj):
         # the difference in distance is more than 55nt
         # if yet then ptc = True
         # also, track which exon the stop codon is in to get genomic position
-        elif orfEndPos<distance:
+        elif orfEndPos < distance:
             distToJunc =  distance - orfEndPos
             if exonWithStop == None:
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)
 
-            if distToJunc>55:
-                ptc=True
+            if distToJunc > 55:
+                ptc = True
                 break
 
     exonsWithStop = exons[exonWithStop]
@@ -264,7 +264,7 @@ def predict(bed, starts, isoDict):
         exons = list(o.exons)
         exons.sort()
 
-        if len(o.starts)<1:
+        if len(o.starts) < 1:
             o.orfs.append(["NGO", exons[0][0], exons[0][0], 0, 0])
 
         else:

@@ -29,7 +29,7 @@ from tqdm import *
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -43,7 +43,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -58,10 +58,10 @@ class CommandLine(object) :
         self.parser.add_argument('-p', '--threads', action='store', required=False, default=2,  help='Num threads.')
         self.parser.add_argument('--quiet', action='store_true', required=False, default=True,  help='Quiet stderr output.')
 
-        if inOpts is None :
-            self.args=vars(self.parser.parse_args())
-        else :
-            self.args=vars(self.parser.parse_args(inOpts))
+        if inOpts is None:
+            self.args = vars(self.parser.parse_args())
+        else:
+            self.args = vars(self.parser.parse_args(inOpts))
 
 ########################################################################
 # Sequence Alignment File
@@ -163,7 +163,7 @@ class SAM(object):
         '''
         Returns start, end and junctions from a single read.
         '''
-        allskipped={}
+        allskipped = {}
         for read in self.reader.fetch():
 
             try:

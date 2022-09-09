@@ -29,7 +29,7 @@ import pysam
 ########################################################################
 
 
-class CommandLine(object) :
+class CommandLine(object):
     '''
     Handle the command line, usage and help requests.
     CommandLine uses argparse, now standard in 2.7 and beyond.
@@ -43,7 +43,7 @@ class CommandLine(object) :
 
     '''
 
-    def __init__(self, inOpts=None) :
+    def __init__(self, inOpts=None):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -57,9 +57,9 @@ class CommandLine(object) :
         self.parser.add_argument('-i', "--input_bam", action='store', required=True, help='Input bam file.')
         self.parser.add_argument('--keep_supplementary', action='store_true', required=False, default=False,  help='Keep supplementary alignments')
 
-        if inOpts is None :
+        if inOpts is None:
             self.args = vars(self.parser.parse_args())
-        else :
+        else:
             self.args = vars(self.parser.parse_args(inOpts))
 
 ########################################################################
@@ -131,15 +131,15 @@ def main():
 
         if tags == "+":
 
-            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, positiveTxn, blocks,
+            print(chrom, startPos, endPos, read + ";" + flags, score, tags, startPos, endPos, positiveTxn, blocks,
                 ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
         elif tags == "-":
-            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, negativeTxn, blocks,
+            print(chrom, startPos, endPos, read + ";" + flags, score, tags, startPos, endPos, negativeTxn, blocks,
                 ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
 
         else:
             tags = "+" if flags == "0" else "-"
-            print(chrom, startPos, endPos, read + ";" + flags , score, tags, startPos, endPos, unknownTxn, blocks,
+            print(chrom, startPos, endPos, read + ";" + flags, score, tags, startPos, endPos, unknownTxn, blocks,
             ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
 
 
