@@ -72,26 +72,26 @@ class CommandLine(object) :
                                     help='Write to specified output directory.', default='')
         self.parser.add_argument("--prefix"    , action='store', required=True,
                                     help='Specify file prefix.')
-        self.parser.add_argument('--drim1'     , action='store', type=int, required=False, default=6, \
+        self.parser.add_argument('--drim1'     , action='store', type=int, required=False, default=6,
             help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion;
                                 events with too few samples are filtered out and not tested (6)''')
-        self.parser.add_argument('--drim2'     , action='store', type=int, required=False, default=3, \
+        self.parser.add_argument('--drim2'     , action='store', type=int, required=False, default=3,
             help='''The minimum number of samples expressing the inclusion of an AS event; events with
                                 too few samples are filtered out and not tested (3)''')
-        self.parser.add_argument('--drim3'     , action='store', type=int, required=False, default=15, \
+        self.parser.add_argument('--drim3'     , action='store', type=int, required=False, default=15,
             help='''The minimum number of reads covering an AS event inclusion/exclusion, events with
                                 too few samples are filtered out and not tested (15)''')
-        self.parser.add_argument('--drim4'     , action='store', type=int, required=False, default=5, \
+        self.parser.add_argument('--drim4'     , action='store', type=int, required=False, default=5,
             help='''The minimum number of reads covering an AS event inclusion, events with too few
                                 samples are filtered out and not tested (5)''')
         self.parser.add_argument("--threads"   , action='store', type=int, default=4, required=False,
                                     help='Number of threads for running DRIM-Seq. BBPARAM')
-        self.parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False, \
+        self.parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False,
                                     help='''If specified, batch correction will be performed''')
-        self.parser.add_argument('--conditionA', action='store', dest='conditionA', required=False, default='', \
+        self.parser.add_argument('--conditionA', action='store', dest='conditionA', required=False, default='',
             help='''Specify one condition corresponding to samples in the counts_matrix to be compared against
                                 condition2; by default, the first two unique conditions are used''')
-        self.parser.add_argument('--conditionB', action='store', dest='conditionB', required=False, default='', \
+        self.parser.add_argument('--conditionB', action='store', dest='conditionB', required=False, default='',
             help='''Specify one condition corresponding to samples in the counts_matrix to be compared against
                                  condition1''')
 

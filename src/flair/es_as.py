@@ -154,7 +154,7 @@ class Gene(object):
 					inclusionIsos = inclusionIsos.union(self.knownJuncs[j1].intersection(self.knownJuncs[j2]))
 				if (j1[0],j2[-1]) in self.knownJuncs:
 					exclusionIsos = exclusionIsos.union(self.knownJuncs[j1[0],j2[-1]])
-			print("%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.strand, len(inclusionIsos), \
+			print("%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.strand, len(inclusionIsos),
 				len(exclusionIsos), ",".join(inclusionIsos),",".join(exclusionIsos), sep="\t")
 			#print(self.chrom, "\t".join(str(x) for x in sorted([acceptor.name,donor.name])), "%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.name, self.strand, sep="\t")
 

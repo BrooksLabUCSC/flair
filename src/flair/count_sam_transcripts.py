@@ -229,7 +229,7 @@ def count_transcripts_for_reads(read_names):
 			or (args.stringent and not args.check_splice and is_stringent(t, blocksizes, blockstarts) or \
 			args.check_splice and not args.stringent and check_splice(t, pos, covered_pos, insertion_pos)) or \
 			(not args.stringent and not args.check_splice and args.trust_ends):
-				transcript_coverage[t] = (sum(blocksizes), read_left, \
+				transcript_coverage[t] = (sum(blocksizes), read_left,
 					transcript_lengths[t] - read_right, softclip_left, softclip_right, transcripts[t].mapq)
 
 		if not transcript_coverage:  # no transcripts passed stringent and/or check_splice criteria

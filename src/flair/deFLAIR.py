@@ -71,7 +71,7 @@ class CommandLine(object) :
                                     help='Count matrix from FLAIR quantify.')
         self.parser.add_argument("--threads"    , type=int, action = 'store', required=False, default=4,
                                     help='Number of threads for running DRIM-Seq.')
-        self.parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of', \
+        self.parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
             required=False, help='''Specify this argument to force overwriting of
             an existing output directory for tables and plots.''')
 

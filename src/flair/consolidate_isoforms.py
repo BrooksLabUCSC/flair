@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 import sys, os, glob, argparse
 
-parser = argparse.ArgumentParser(description='options', \
+parser = argparse.ArgumentParser(description='options',
 	usage='consolidate_isoforms.py tempdir run_id outfilename [options]')
 required = parser.add_argument_group('required named arguments')
-required.add_argument('temp_dir', action='store', \
+required.add_argument('temp_dir', action='store',
 	type=str, help='temp_dir')
-required.add_argument('run_id', action='store', \
+required.add_argument('run_id', action='store',
 	type=str, help='output')
-parser.add_argument('outbase', action='store', \
+parser.add_argument('outbase', action='store',
 	type=str, help='Number of threads (default=4)')
-parser.add_argument('--generate_map', action='store', dest='generate_map', \
+parser.add_argument('--generate_map', action='store', dest='generate_map',
 	required=False, help='''Specify this argument to force overwriting of files in
 	an existing output directory''')
 args = parser.parse_args()

@@ -9,7 +9,7 @@ try:
 	tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
 	keep_extra_column = len(sys.argv) > 5
 except:
-	sys.stderr.write('usage: filter_collapsed_isoforms.py collapsed.psl (nosubset/default/comprehensive/ginormous)' + \
+	sys.stderr.write('usage: filter_collapsed_isoforms.py collapsed.psl (nosubset/default/comprehensive/ginormous)' +
 		' filtered.psl [tolerance] [keep_extra_column]\n')
 	sys.exit(1)
 

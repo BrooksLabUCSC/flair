@@ -48,7 +48,7 @@ def parse_iso_id(iso_gene):
 	return iso
 
 
-def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sample_names,\
+def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sample_names,
 	iso_counts, search_threeprime=True):
 	if fiveprime not in jdict[chrom]:
 		jdict[chrom][fiveprime] = {}  # 5' end anchor if search_threeprime
@@ -98,9 +98,9 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 					feature_suffix = chrom_clean+':'+str(fiveprime) if n == 0 else  chrom_clean+':'+str(fiveprime)+'-'+str(n)
 					event = chrom_clean+':'+str(fiveprime)+'-'+str(inclusion)+'_'+chrom_clean+':'+str(fiveprime)+'-'+str(exclusion)
 
-					writer.writerow(['inclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][inclusion]['counts'] +\
+					writer.writerow(['inclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][inclusion]['counts'] +
 					[','.join(alljuncs[chrom][fiveprime][inclusion]['isos'])] )
-					writer.writerow(['exclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][exclusion]['counts'] +\
+					writer.writerow(['exclusion_'+feature_suffix, event] + alljuncs[chrom][fiveprime][exclusion]['counts'] +
 					[','.join(alljuncs[chrom][fiveprime][exclusion]['isos'])] )
 					n += 1
 
@@ -160,9 +160,9 @@ for line in psl:
 			fiveprime, threeprime = threeprime, fiveprime
 			exon_end, exon_start = exon_start, exon_end
 
-		a3_junctions = update_altsplice_dict(a3_junctions, fiveprime, threeprime, \
+		a3_junctions = update_altsplice_dict(a3_junctions, fiveprime, threeprime,
 			exon_start, exon_end, sample_names, iso_counts)
-		a5_junctions = update_altsplice_dict(a5_junctions, threeprime, fiveprime, \
+		a5_junctions = update_altsplice_dict(a5_junctions, threeprime, fiveprime,
 			exon_end, exon_start, sample_names, iso_counts, search_threeprime=False)
 
 		j = (j[0], j[1])  # IR junctions do not need the flanking exon info from get_junctions_psl
@@ -217,9 +217,9 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 
 			chrom_clean = chrom[1:]
 			event = chrom_clean+':'+str(j[0])+'-'+str(j[1])
-			writer.writerow(['inclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['inclusion']['counts'] +\
+			writer.writerow(['inclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['inclusion']['counts'] +
 			[','.join(ir_junctions[chrom][j]['inclusion']['isos'])] )
-			writer.writerow(['exclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['exclusion']['counts'] +\
+			writer.writerow(['exclusion_'+event+chrom[0], event] + ir_junctions[chrom][j]['exclusion']['counts'] +
 			[','.join(ir_junctions[chrom][j]['exclusion']['isos'])] )
 		ir_junctions[chrom] = None
 

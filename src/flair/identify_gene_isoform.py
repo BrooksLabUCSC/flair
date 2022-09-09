@@ -75,7 +75,7 @@ def overlapping_bases(coords0, coords1):
 	return
 
 
-def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn, \
+def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn,
 	tn_to_juncs, all_se):
 	if chrom not in junc_to_tn:
 		junc_to_tn[chrom] = {}
@@ -127,15 +127,15 @@ for line in open(args.gtf):
 
 	if this_transcript != prev_transcript:
 		if prev_transcript:
-			junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, \
+			junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions,
 				prev_transcript, prev_exon, junc_to_tn, tn_to_juncs, all_se)
 		junctions = set()
 		prev_transcript = this_transcript
 	elif strand == '-' and end < prev_start:
-		junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom, \
+		junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
 			(end, prev_start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
 	else:
-		junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom, \
+		junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
 			(prev_end, start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
 
 	prev_start, prev_end = start, end
@@ -151,7 +151,7 @@ for line in open(args.gtf):
 	prev_exon = (start, end, prev_gene)
 
 if ty == 'exon' and prev_transcript:
-	junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, prev_transcript, \
+	junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, prev_transcript,
 		prev_exon, junc_to_tn, tn_to_juncs, all_se)
 
 for chrom in all_se:

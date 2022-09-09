@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import sys, argparse
 
-parser = argparse.ArgumentParser(description='options', \
+parser = argparse.ArgumentParser(description='options',
 	usage='python psl_to_gtf.py psl|bed [options] > outfile.gtf')
-parser.add_argument('psl', type=str, \
+parser.add_argument('psl', type=str,
 	action='store', help='isoforms in psl or bed format')
-parser.add_argument('--force', action='store_true', dest='force', \
+parser.add_argument('--force', action='store_true', dest='force',
 	help='specify to not split isoform name by underscore into isoform and gene ids')
-parser.add_argument('--add_reference_transcript_id', action='store_true', dest='reference_transcript_id', \
+parser.add_argument('--add_reference_transcript_id', action='store_true', dest='reference_transcript_id',
 	help='specify to add reference_transcript_id attribute')
 args = parser.parse_args()
 
@@ -105,5 +105,5 @@ for line in open(args.psl):
 		if args.reference_transcript_id and '-referencetranscript' in transcript_id:
 			attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\"; reference_transcript_id \"{}\";'\
 			.format(gene_id, trimmed_transcript_id, b, trimmed_transcript_id)
-		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1), \
+		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]+1),
 			str(tstarts[b]+bsizes[b]), '.', strand, '.', attributes]))

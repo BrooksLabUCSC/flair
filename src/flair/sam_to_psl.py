@@ -100,7 +100,7 @@ with open(outfilename, 'wt') as outfile:
 		blockstarts = ','.join([str(pos + s) for s in relblockstarts]) + ','
 		blocksizes = ','.join([str(s) for s in blocksizes]) + ','
 		if quick:
-			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, 0, qname, 0, 0, 0, \
+			writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, 0, qname, 0, 0, 0,
 				tname, 0, 0, 0, 0, blocksizes, 0, blockstarts])
 			continue
 
@@ -130,7 +130,7 @@ with open(outfilename, 'wt') as outfile:
 		tstart = pos
 		strand = '-' if flag & 0x10 else '+'  # flag&0x10 is 1 when the strand is -
 		mismatches = qbaseinsert = qnuminsert = tnuminsert = tbaseinsert = 0
-		writer.writerow([matchlen, mismatches, 0, ncount, qnuminsert, qbaseinsert, \
-			tnuminsert, tbaseinsert, strand, qname, qsize, qstart, qend, \
+		writer.writerow([matchlen, mismatches, 0, ncount, qnuminsert, qbaseinsert,
+			tnuminsert, tbaseinsert, strand, qname, qsize, qstart, qend,
 			tname, tsize, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
 

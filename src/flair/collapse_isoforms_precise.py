@@ -3,38 +3,38 @@
 import sys, csv, argparse, math, os
 from multiprocessing import Pool
 
-parser = argparse.ArgumentParser(description='collapse parse options', \
+parser = argparse.ArgumentParser(description='collapse parse options',
 			usage='python collapse_isoforms_precise.py -q <query.psl>/<query.bed> [options]')
 required = parser.add_argument_group('required named arguments')
-required.add_argument('-q', '--query', type=str, default='', required=True, action='store', \
+required.add_argument('-q', '--query', type=str, default='', required=True, action='store',
 	dest='q', help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
-parser.add_argument('-o', '--output', type=str, action='store', \
+parser.add_argument('-o', '--output', type=str, action='store',
 	dest='o', default='', help='specify output file, should agree with query file type')
-parser.add_argument('-w', '--window', default=100, type=int, \
+parser.add_argument('-w', '--window', default=100, type=int,
 	action='store', dest='w', help='window size for grouping TSS/TES (100)')
-parser.add_argument('-s', '--support', default=0.25, type=float, action='store', \
+parser.add_argument('-s', '--support', default=0.25, type=float, action='store',
 	dest='s', help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
-parser.add_argument('-f', '--gtf', default='', type=str, \
+parser.add_argument('-f', '--gtf', default='', type=str,
 	action='store', dest='f', help='GTF annotation file for selecting annotated TSS/TES')
-parser.add_argument('-m', '--max_results', default=2, type=int, action='store', dest='m', \
+parser.add_argument('-m', '--max_results', default=2, type=int, action='store', dest='m',
 	help='maximum number of novel TSS or TES picked per isoform unless --no_redundant is specified (2)')
-parser.add_argument('-t', '--threads', default=2, type=int, \
+parser.add_argument('-t', '--threads', default=2, type=int,
 	action='store', dest='t', help='number of threads to use (2)')
-parser.add_argument('-n', '--no_redundant', default='none', action='store', dest='n', \
+parser.add_argument('-n', '--no_redundant', default='none', action='store', dest='n',
 	help='For each unique splice junction chain, report options include: \
 	none: multiple best TSSs/TESs chosen for each unique set of splice junctions, see M; \
 	longest: TSS/TES chosen to maximize length; \
 	best_only: single best TSS/TES used in conjunction chosen; \
 	longest/best_only override max_results argument immediately before output \
 	resulting in one isoform per unique set of splice junctions (default: none)')
-parser.add_argument('-c', '--clean', default=False, action='store_true', dest='c', \
+parser.add_argument('-c', '--clean', default=False, action='store_true', dest='c',
 	help='Specify this to not append read support to the end of each entry (default: not specified)')
-parser.add_argument('-i', '--isoformtss', default=False, action='store_true', dest='i', \
+parser.add_argument('-i', '--isoformtss', default=False, action='store_true', dest='i',
 	help='when specified, TSS/TES for each isoform will be determined from supporting reads \
 	for individual isoforms (default: not specified, determined at the gene level)')
-parser.add_argument('-nosplice', default='chrM', action='store', dest='nosplice', \
+parser.add_argument('-nosplice', default='chrM', action='store', dest='nosplice',
 	help='Comma separated list of chromosomes that should not have spliced isoforms (default: chrM)')
-parser.add_argument('--quiet', default=False, \
+parser.add_argument('--quiet', default=False,
 	action='store_true', dest='quiet', help='suppress output to stderr')
 args = parser.parse_args()
 
@@ -195,7 +195,7 @@ def run_add_se(chrom):
 	sedict[chrom] = {}
 	sekeys[chrom] = []  # sorted keys for the singleexon dictionary
 	for se in all_se_by_chrom[chrom]:
-		sedict[chrom], sekeys[chrom] = add_se(sedict[chrom], se[0], se[1], \
+		sedict[chrom], sekeys[chrom] = add_se(sedict[chrom], se[0], se[1],
 			all_se_by_chrom[chrom][se]['line'], sekeys[chrom], all_se_by_chrom[chrom][se]['count'])
 	return sedict
 
@@ -307,7 +307,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		newremaining = sum(list(sites.values()))
 		used = remaining - newremaining
 		remaining = newremaining
-		if len(found_tss) >= 1 and (args.n == 'best_only' or \
+		if len(found_tss) >= 1 and (args.n == 'best_only' or
 			(minsupport < 1 and (used/total) < minsupport or bestsite[3] < 4 or used < avg)):
 		# second+ end site called stringently
 			break
@@ -336,7 +336,7 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
 	# 	print('--', junccoord)
 	# 	print(sites_tss_all)
-	found_tss = find_tsss(sites_tss_all, total, finding_tss=True, max_results=max_results, \
+	found_tss = find_tsss(sites_tss_all, total, finding_tss=True, max_results=max_results,
 		chrom=chrom, junccoord=junccoord)
 	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
 	# 	print(found_tss)
@@ -353,7 +353,7 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 						specific_tes[tes] = 0
 					specific_tes[tes] += sites_tes_all[tss_][tes]
 
-		found_tes = find_tsss(specific_tes, total, finding_tss=False, max_results=max_results, chrom=chrom, \
+		found_tes = find_tsss(specific_tes, total, finding_tss=False, max_results=max_results, chrom=chrom,
 			junccoord=junccoord)
 		for tes in found_tes:
 			ends += [[tss[0], tes[0], max(tss[3], tes[3]), tss[3], tes[3]]]
@@ -369,7 +369,7 @@ def run_se_collapse(chrom):
 	for locus in singleexon[chrom]:
 		line = list(singleexon[chrom][locus]['line'])
 		locus_info = singleexon[chrom][locus]
-		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'], \
+		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'],
 			locus_info['bounds'], chrom, max_results=1)
 		name = line[3] if bed else line[9]
 		if name not in senames:
@@ -459,7 +459,7 @@ def run_find_best_sites(chrom):
 		towrite[chrom][jset] = []
 		line = list(isoforms[chrom][jset]['line'])
 		junccoord = isoforms[chrom][jset]['junccoord']
-		jset_ends = find_best_sites(isoforms[chrom][jset]['tss'], \
+		jset_ends = find_best_sites(isoforms[chrom][jset]['tss'],
 			isoforms[chrom][jset]['tss_tes'], junccoord, chrom)
 
 		if args.i and args.n == 'longest':
