@@ -25,6 +25,8 @@ import numpy as np
 
 from rpy2 import robjects
 from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import importr
+#    import rpy2.robjects.lib.ggplot2 as ggplot2
 pandas2ri.activate()
 R = robjects.r
 
@@ -106,10 +108,8 @@ def main():
     print("running DRIMSEQ %s" % prefix, file=sys.stderr)
 
     # import
-#    from rpy2.robjects.packages import importr
-#    import rpy2.robjects.lib.ggplot2 as ggplot2
-#    methods   = importr('methods')
-#    drim      = importr('DRIMSeq')
+    importr('methods')
+    importr('DRIMSeq')
 
     # get quant table and formula table
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
