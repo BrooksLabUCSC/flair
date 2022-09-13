@@ -17,6 +17,8 @@
 ########################################################################
 
 
+import sys
+sys.path = [x+'/flair' for x in sys.path if 'packages' in x] + sys.path
 from samJuncs import SAM
 #import pysam
 
