@@ -24,14 +24,11 @@ Modified for FLAIR-correct input - Alison Tang 2019
 # alternative donor, and alternative acceptor events.
 
 import sys
-import optparse 
-import os
-import pdb
+import optparse
 import math
 import re
-
 import pysam
-import gzip
+
 #############
 # CONSTANTS #
 #############
@@ -86,6 +83,7 @@ class OptionParser(optparse.OptionParser):
             self.print_help()
             sys.exit(1)
 
+
 class JcnInfo:
     """
     This object holds all information necessary for junction information
@@ -107,9 +105,9 @@ class JcnInfo:
 
         self.longest_first_block = first_block
         self.longest_second_block = second_block
-    
+
         self.strand = strand
-        
+
         self.block_list = [first_block]
 
         # Used for calculating entropy when reads span multiple jcns.
@@ -117,9 +115,9 @@ class JcnInfo:
             self.multiJcnBlock_list = [multiJcnBlock]
         else:
             self.multiJcnBlock_list = []
-    
+
         self.intron_start = intron_start
-        self.intron_end = intron_end 
+        self.intron_end = intron_end
 
     def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):
         # Check that name, chromosome, strand are the same
@@ -133,7 +131,7 @@ class JcnInfo:
         if self.chr != chr:
             print("Error with chromosome: %s, %s" % (self.name, name))
             sys.exit(1)
-        
+
         if self.strand != strand and self.strand != '.':
             if verbosity:
                 print("Warning: Junction reads aligning to both strands for %s. Setting strand to '.'" % self.name)
@@ -179,13 +177,13 @@ class JcnInfo:
 ###############
 # END CLASSES #
 ###############
- ########
-# MAIN #    
+########
+# MAIN #
 ########
 def main():
-    
+
     opt_parser = OptionParser()
-   
+
     # Add Options. Required options should have default=None
     opt_parser.add_option("-s",
                           dest="sam_file",
@@ -203,7 +201,7 @@ def main():
     opt_parser.add_option("-n",
                           dest="name",
                           type="string",
-                          help="""Name prefixed used for output BED file. 
+                          help="""Name prefixed used for output BED file.
                           Default=%s""" % DEF_NAME,
                           default=DEF_NAME)
     opt_parser.add_option("-l",
@@ -244,7 +242,7 @@ def main():
 #                         default=False)
 
     (options, args) = opt_parser.parse_args()
-    
+
     # validate the command line arguments
     opt_parser.check_required("-s")
     # opt_parser.check_required("-o")
@@ -259,7 +257,7 @@ def main():
     #        sam_file = gzip.open(options.sam_file)
         else:
             print("Error in -s: Expecting .sam or .bam file.")
-            opt_parser.print_help() 
+            opt_parser.print_help()
             sys.exit(1)
 
     unique_only = options.unique_only
@@ -282,14 +280,14 @@ def main():
     #     print "Creating output directory: %s" % out_dir
     # else:
     #     out_dir = os.path.abspath(out_dir)
-    
+
     # if not out_dir.endswith("/"):
     #     out_dir += "/"
 
     forced_jcns = None
     if options.forced_junctions:
-        forced_jcns = getForcedJunctions(options.forced_junctions) 
-        
+        forced_jcns = getForcedJunctions(options.forced_junctions)
+
     # Creating output files.
     junction_bed_file_name = "%s_junctions.bed" % (name)
     junction_bed_file = open(junction_bed_file_name, "w")
@@ -304,14 +302,14 @@ def main():
 
         # paired_end_genome_file_name = "%s%s_paired_end_as_single_genome.txt" % (out_dir, name)
         # paired_end_genome_file = open(paired_end_genome_file_name, "w")
-        
+
     # Creating names of files for intron/exon junction counts.
 #   ie_coord_filename = "%s%s_intron_exon_junction_coords.out" % (out_dir, name)
 #   ie_read_assoc_filename = "%s%s_intron_exon_junction_coords_w_read.out" % (out_dir, name)
 #   ie_read_count_filename = "%s%s_intron_exon_junction_counts.txt" % (out_dir, name)
 
     # Dictionary to find JcnInfo to update as junction reads are encountered
-    jcn2JcnInfo = {}   
+    jcn2JcnInfo = {}
 
     jcn2pairedReads = {}
 
@@ -329,7 +327,7 @@ def main():
                 # I realize this is bad style, but the original code was written
                 # for parsing SAM files. So less updating is necessary if I convert
                 # the AlignedRead object back to a SAM line
-                line = convert2SAMLine(sam_file, line)            
+                line = convert2SAMLine(sam_file, line)
 
             line = formatLine(line)
 
@@ -356,13 +354,12 @@ def main():
                 chr = "chr" + chr
 
             chr_start = int(sam_elems[3])
-            
+
             cigar = sam_elems[5]
-           
-            # Ignore unmapped 
+
+            # Ignore unmapped
             if cigar == "*":
                 continue
-
 
             tags = sam_elems[11:]
             if unique_only:
@@ -373,7 +370,7 @@ def main():
 
                 if isMultiFlag:
                     continue
-       
+
             m_count = cigar.count("M")
 
             i_count = cigar.count("I")
@@ -382,14 +379,14 @@ def main():
                     print("Not supporting insertions, yet e.g., %s" % cigar)
                 insertionFlag = True
                 continue
-       
+
             d_count = cigar.count("D")
             if d_count > 0:
                 if not deletionFlag:
                     print("Not supporting deletions, yet e.g., %s" % cigar)
                 deletionFlag = True
                 continue
-        
+
             s_count = cigar.count("S")
             if s_count > 0:
                 if not softclipFlag:
@@ -412,16 +409,16 @@ def main():
             if m_count == 1: # A GENOME READ
                 pass
                 this_read_len = int(cigar.rstrip("M"))
-       
-                if read_len: 
+
+                if read_len:
                     if this_read_len != read_len:
                         print("Expecting reads of length: %d" % read_len)
                         print(line)
                         sys.exit(1)
 
-                chr_end = chr_start + this_read_len - 1
+                #chr_end = chr_start + this_read_len - 1
 
-                genome_line = "%s\t%s\t%d\t%d\n" % (q_name, chr, chr_start, chr_end)
+                #genome_line = "%s\t%s\t%d\t%d\n" % (q_name, chr, chr_start, chr_end)
                 # if paired_end_exists:
                 #     if isPairedRead(flag):
                 #         paired_end_genome_file.write(genome_line)
@@ -430,7 +427,7 @@ def main():
                 # else:
                 #     genome_file.write(genome_line)
 
-            else: # A JUNCTION READ 
+            else: # A JUNCTION READ
                 n_count = cigar.count("N")
 
                 if n_count == 0:
@@ -453,8 +450,8 @@ def main():
                 upstr_len, intron_len = map(int, n_split.pop(0).split("M"))
                 introns_info.append((chr_start, intron_len, None))
                 # Updating the chr_start
-                chr_start = chr_start + upstr_len + intron_len   
-     
+                chr_start = chr_start + upstr_len + intron_len
+
                 # Get remaining information from additional introns if there are
                 # any
                 # 3rd element is used in calculating entropy
@@ -473,7 +470,7 @@ def main():
                         if len(jcn_tag) > MAX_CHAR:
                             jcn_tag = jcn_tag[:MAX_CHAR]
                             if not truncation_warn:
-                                truncation_warn = True 
+                                truncation_warn = True
                                 print("Warning: Y0 tags truncated to %d characters." % MAX_CHAR)
 
                     if tag.startswith("XS"):
@@ -490,12 +487,12 @@ def main():
                     intron_len = intron_info[1]
 
                     total_len = upstr_len + intron_len + downstr_len
-                
+
                     jcn_str = None
                     if not jcn_tag:
                         # Create a junction string based on the 1-based junction
                         # coordinate
-                        jcn_str = "%s:%d-%d" % (chr, 
+                        jcn_str = "%s:%d-%d" % (chr,
                                                 chr_start + upstr_len,
                                                 chr_start + upstr_len + intron_len - 1)
                     else:
@@ -509,20 +506,19 @@ def main():
                     # beginning of the chromosome, which causes problems later
                     if (chr_start + upstr_len) < DEF_BEG_JCN_OVERHANG:
                         continue
-                                                  
 
                     if not jcn_strand:
                         jcn_strand = "."
 
-                    # Get BED format information 
+                    # Get BED format information
                     chromStart = chr_start - 1
-                    chromEnd = chromStart + total_len            
+                    chromEnd = chromStart + total_len
 
                     # Now add junction to dictionary
                     if jcn_str in jcn2JcnInfo:
-                        jcn2JcnInfo[jcn_str].updateJcnInfo(jcn_str, 
-                                                           chr, 
-                                                           chromStart, chromEnd, 
+                        jcn2JcnInfo[jcn_str].updateJcnInfo(jcn_str,
+                                                           chr,
+                                                           chromStart, chromEnd,
                                                            jcn_strand, upstr_len,
                                                            downstr_len,
                                                            chr_start + upstr_len,
@@ -546,12 +542,10 @@ def main():
                                                     chr_start + upstr_len,
                                                     chr_start + upstr_len + intron_len - 1)
 
-                               
-                            if jcn_str in jcn2pairedReads: 
+                            if jcn_str in jcn2pairedReads:
                                 jcn2pairedReads[jcn_str].append(q_name)
                             else:
                                 jcn2pairedReads[jcn_str] = [q_name]
-                
 
     # Close the genome file:
     # genome_file.close()
@@ -564,22 +558,22 @@ def main():
 #    junction_bed_file.write(bed_header)
     confident_jcns = set([])
     for jcn_str in jcn2JcnInfo:
-        if isConfidentJunction(jcn2JcnInfo[jcn_str].block_list, 
+        if isConfidentJunction(jcn2JcnInfo[jcn_str].block_list,
                                jcn2JcnInfo[jcn_str].multiJcnBlock_list,
                                confidence_score,
                                jcn2JcnInfo[jcn_str].chr,
                                jcn2JcnInfo[jcn_str].intron_start,
                                jcn2JcnInfo[jcn_str].intron_end,
-                               forced_jcns):        
+                               forced_jcns):
 
-            confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr, 
+            confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr,
                                              jcn2JcnInfo[jcn_str].intron_start,
                                              jcn2JcnInfo[jcn_str].intron_end))
-            # If junction name has ":::", then the type of junction is known
-            if ":::" in jcn_str:
-                rgb_str = getRGB(jcn_str)
-            else:
-                rgb_str = K_RGB_STR
+#            # If junction name has ":::", then the type of junction is known
+#            if ":::" in jcn_str:
+#                rgb_str = getRGB(jcn_str)
+#            else:
+#                rgb_str = K_RGB_STR
 
             intron_left = jcn_str[jcn_str.find(':')+1:jcn_str.find('-')]
             intron_right = jcn_str[jcn_str.find('-')+1:]
@@ -590,20 +584,20 @@ def main():
             else:
                 jcn_strand = '0'
             # bed_line = "%s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%s\t2\t%s\t%s\n" % (jcn2JcnInfo[jcn_str].chr,
-            #                                                                 jcn2JcnInfo[jcn_str].leftmost_start, 
-            #                                                                 jcn2JcnInfo[jcn_str].rightmost_end, 
+            #                                                                 jcn2JcnInfo[jcn_str].leftmost_start,
+            #                                                                 jcn2JcnInfo[jcn_str].rightmost_end,
             #                                                                 jcn_str,
-            #                                                                 len(jcn2JcnInfo[jcn_str].block_list), 
-            #                                                                 jcn2JcnInfo[jcn_str].strand, 
-            #                                                                 jcn2JcnInfo[jcn_str].leftmost_start, 
-            #                                                                 jcn2JcnInfo[jcn_str].rightmost_end, 
+            #                                                                 len(jcn2JcnInfo[jcn_str].block_list),
+            #                                                                 jcn2JcnInfo[jcn_str].strand,
+            #                                                                 jcn2JcnInfo[jcn_str].leftmost_start,
+            #                                                                 jcn2JcnInfo[jcn_str].rightmost_end,
             #                                                                 rgb_str,
-            #                                                                 ",".join([repr(jcn2JcnInfo[jcn_str].longest_first_block), 
+            #                                                                 ",".join([repr(jcn2JcnInfo[jcn_str].longest_first_block),
             #                                                                           repr(jcn2JcnInfo[jcn_str].longest_second_block)]),
             #                                                                 ",".join(["0",repr(jcn2JcnInfo[jcn_str].second_block_start)]))
             bed_line = "%s\t%s\t%s\t%s\t%d\n" % (jcn2JcnInfo[jcn_str].chr,
-                                                intron_left, 
-                                                intron_right, 
+                                                intron_left,
+                                                intron_right,
                                                 jcn_strand,
                                                 len(jcn2JcnInfo[jcn_str].block_list))
             junction_bed_file.write(bed_line)
@@ -616,7 +610,6 @@ def main():
     #             outline = "%s\t%s\n" % (jcn_str, ",".join(jcn2pairedReads[jcn_str]))
     #             jcn2qname_file.write(outline)
     #     jcn2qname_file.close()
-                                            
 
     sys.exit(0)
 
@@ -627,13 +620,16 @@ def main():
 #############
 # FUNCTIONS #
 #############
+
+
 def convert2CIGAR(cigar_tuple):
     cigar_str = ""
     for tup in cigar_tuple:
         cigar_str += "%d%s" % (tup[1],
                                CIGAR_OPER[tup[0]])
     return cigar_str
-    
+
+
 def convert2SAMLine(bam_file, read_obj):
     # Checks due to depracation of variables in pysam
     try:
@@ -649,13 +645,12 @@ def convert2SAMLine(bam_file, read_obj):
         rname = bam_file.getrname(read_obj.tid)
     except:
         rname = None
-        
 
     samline = "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s" % (read_obj.qname,
                                                               read_obj.flag,
                                                               rname if rname else "*",
                                                               read_obj.pos + 1,
-                                                              read_obj.mapq, 
+                                                              read_obj.mapq,
                                                               convert2CIGAR(read_obj.cigar) if read_obj.cigar else "*",
                                                               rnext if rnext else "*",
                                                               pnext + 1 if pnext else 0,
@@ -673,10 +668,11 @@ def convert2SAMLine(bam_file, read_obj):
 
     return samline + "\n"
 
+
 def convert2Tags(tag_tuples):
     tag_list = []
     for tag_tup in tag_tuples:
-        if tag_tup[0] == "Y0": 
+        if tag_tup[0] == "Y0":
             tag_list.append("Y0:Z:%s" % tag_tup[1])
         if tag_tup[0] == "XS":
             tag_list.append("XS:A:%s" % tag_tup[1])
@@ -685,12 +681,14 @@ def convert2Tags(tag_tuples):
 
     return "\t".join(tag_list)
 
+
 def convertFlag(flag):
     # Bitwise operation to get strand information
     if flag & 16:
         return "-"
     else:
         return "+"
+
 
 def extended_to_simple_cigar(cigar):
     matches = re.findall(r'([0-9]+)([A-Z]|=)', cigar)
@@ -717,10 +715,12 @@ def extended_to_simple_cigar(cigar):
         newcigar += str(prevnum)+'N'
     return newcigar
 
+
 def formatLine(line):
     line = line.replace("\r","")
     line = line.replace("\n","")
     return line
+
 
 def getForcedJunctions(forced_junction_file):
     """
@@ -742,13 +742,13 @@ def getForcedJunctions(forced_junction_file):
 
         if not lineList[0].startswith("chr"):
             lineList[0] = "chr" + lineList[0]
-            
 
         forced_junctions.add("_".join(lineList[0:3]))
-        
+
     jcn_file.close()
 
     return forced_junctions
+
 
 def getRGB(jcn_str):
     elems = jcn_str.split(":::")
@@ -758,6 +758,7 @@ def getRGB(jcn_str):
             return K_RGB_STR
 
     return N_RGB_STR
+
 
 def getPos2Count(blocklist):
     pos2count = {}
@@ -769,6 +770,7 @@ def getPos2Count(blocklist):
             pos2count[block] = 1
 
     return pos2count
+
 
 def getShannonIndex(pos2countDict, totalCount):
     """
@@ -796,7 +798,7 @@ def getShannonIndex(pos2countDict, totalCount):
 
 
 def isConfidentJunction(block_list, multiJcnBlockList, confidence_score,
-                        jcn_chr, jcn_start, jcn_end, forced_jcns):        
+                        jcn_chr, jcn_start, jcn_end, forced_jcns):
     """
     Confidence is given as the entropy score associated with each junction.
     """
@@ -807,7 +809,7 @@ def isConfidentJunction(block_list, multiJcnBlockList, confidence_score,
 
         if jcn_str in forced_jcns:
             return True
-    
+
     all_blocks = list(block_list)
     all_blocks.extend(multiJcnBlockList)
     pos2count = getPos2Count(all_blocks)
@@ -819,6 +821,7 @@ def isConfidentJunction(block_list, multiJcnBlockList, confidence_score,
         return True
     else:
         return False
+
 
 def isMultiMapped(tags):
     NHtag_found = False
@@ -833,6 +836,7 @@ def isMultiMapped(tags):
 
     return False
 
+
 def isPairedRead(flag):
     # If read is first in a pair
     if flag & 64:
@@ -844,6 +848,8 @@ def isPairedRead(flag):
 
     return False
 #################
-# END FUNCTIONS #   
-#################   
+# END FUNCTIONS #
+#################
+
+
 if __name__ == "__main__": main()

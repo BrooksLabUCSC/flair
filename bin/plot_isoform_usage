@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import matplotlib
 matplotlib.use("Agg")
-import sys, argparse
+import sys
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mplpatches
@@ -15,7 +16,7 @@ parser = argparse.ArgumentParser(description='options',
   color_palette to plot more isoforms. Run with --help for options''')
 parser.add_argument('isoforms', type=str, action='store', help='isoforms in psl/bed format')
 parser.add_argument('counts_matrix', type=str, action='store', help='genomic sequence')
-parser.add_argument('gene_name', type=str, action='store', 
+parser.add_argument('gene_name', type=str, action='store',
     help='''Name of gene, must correspond with the gene names in the
     isoform and counts matrix files''')
 parser.add_argument('-o', action='store', dest='o', type=str,
@@ -36,16 +37,17 @@ counts_matrix = open(args.counts_matrix)
 if not args.o:
     args.o = args.gene_name
 
+
 def parse_psl(psl, names=False, plotany=False, keepiso=set()):
     info = []
     usednames = []
     lowbound, upbound = 1e9, 0
-    chrom = ''
+    #chrom = ''
     for line in psl:
         line = line.rstrip().split('\t')
 
         if isbed:
-            name, start, end = line[3], int(line[1]), int(line[2]) 
+            name, start, end = line[3], int(line[1]), int(line[2])
             blocksizes = [int(n) for n in line[10].split(',')[:-1]]
             blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
         else:
@@ -54,7 +56,7 @@ def parse_psl(psl, names=False, plotany=False, keepiso=set()):
             blockstarts = [int(n) for n in line[20].split(',')[:-1]]
 
         if '_' in name[-4:]:  # for isoforms with productivity appended to the name
-            flag = name[name.rfind('_') +1:]
+            flag = name[name.rfind('_') + 1:]
             if flag not in ['PRO', 'PTC']:
                 flag = 'Z'+flag  # ngo and nstop are alphabetically after pro and ptc
             name = name[:name.rfind('_')]
@@ -100,13 +102,13 @@ def parse_psl(psl, names=False, plotany=False, keepiso=set()):
         sys.exit(1)
 
 
-def pack(data, rev=True, color=False, tosort = True):
+def pack(data, rev=True, color=False, tosort=True):
     starts = [max(d[1]) for d in data] if rev else [min(d[1]) for d in data] # sort by right or left end
     if tosort:
         data = [d for (s,d) in sorted(zip(starts, data))]
     else:
         data = [d for s, d in zip(starts, data)]
-    packed = [[ data[0] ]]
+    packed = [[data[0]]]
     ends = [max(data[0][1]) + data[0][0][data[0][1].index(max(data[0][1]))]]
     for i in range(1, len(data)):
         min_start = min(data[i][1])
@@ -124,20 +126,21 @@ def pack(data, rev=True, color=False, tosort = True):
             ends += [end]
     return packed
 
+
 def plot_blocks(data, panel, names, iso_to_variant, height=.5, l=0.8):
     panel.set_xlim(1, upper - lower + 2)
     if strand == '-':  # flip axes so that the isoforms are plotted 5' -> 3'
         panel.set_xlim(upper - lower + 2, 1)
     panel.set_ylim(-.6, len(data) * 2-.4)
 
-    panel.tick_params(axis='both', which='both',\
-                       bottom=False, labelbottom=False,\
-                       left=False, labelleft=False,\
-                       right=False, labelright=False,\
+    panel.tick_params(axis='both', which='both',
+                       bottom=False, labelbottom=False,
+                       left=False, labelleft=False,
+                       right=False, labelright=False,
                        top=False, labeltop=False)
 
     di = 0  # data index
-    ni = 0  # name index
+    #ni = 0  # name index unused
     ew = 1.5  # edgewidth on all blocks
     for i in range(0, len(data)*2, 2):  # each line
         read = data[di]
@@ -161,11 +164,11 @@ def plot_blocks(data, panel, names, iso_to_variant, height=.5, l=0.8):
                 panel.text(x, i-height/2 + 1, iso_name, fontsize=8, ha='left', va='center')
 
             for k in range(len(sizes)):  # each block of each read
-                if flag=='PRO':
+                if flag == 'PRO':
                     rectangle = mplpatches.Rectangle([starts[k], i - height/2],
                         sizes[k], height, facecolor=color, linewidth=ew, edgecolor=color, zorder=10)
                     panel.add_patch(rectangle)
-                elif flag=='PTC':
+                elif flag == 'PTC':
                     rectangle = mplpatches.Rectangle([starts[k], i - height/2],
                         sizes[k], height, facecolor='none', edgecolor=color,
                         linewidth=ew, zorder=10,hatch='////')
@@ -189,9 +192,9 @@ def plot_blocks(data, panel, names, iso_to_variant, height=.5, l=0.8):
                         basecol = base_colors[reverse_complement[var[3]]]
                     else:
                         basecol = base_colors[var[3]]
-                    rectangle = mplpatches.Rectangle([var[1], i - height/2-.2], 
+                    rectangle = mplpatches.Rectangle([var[1], i - height/2-.2],
                         (upper-lower)/500, height+.4, facecolor=basecol, linewidth=0, zorder=10,alpha=.8)
-                    panel.add_patch(rectangle)                        
+                    panel.add_patch(rectangle)
 
         di += 1
 
@@ -218,10 +221,10 @@ plt.figure(figsize=(figwidth,6))  # proportion usage figure
 figstart = 0.7/figwidth
 
 panel = plt.axes([figstart, 0.11, 1-figstart-0.02, 0.88], frameon=False)  # plotting the proportion of expression
-panel.tick_params(axis='both',which='both', \
-                   bottom=True, labelbottom=True, \
-                   left=True, labelleft=True, \
-                   right=False, labelright=False, \
+panel.tick_params(axis='both',which='both',
+                   bottom=True, labelbottom=True,
+                   left=True, labelleft=True,
+                   right=False, labelright=False,
                    top=False, labeltop=False, labelsize=8)
 
 gray_bar = [['lowexpr']+[0]*len(sample_ids)+gray]  # the minor isoform bar is gray
@@ -257,7 +260,7 @@ for i in range(len(proportions)):
 proportions = [gray_bar[0]] + proportions_color
 
 if len(proportions) == 1:
-    sys.stderr.write('''Needs more than 1 isoform with sufficient representation, check gene_name in 
+    sys.stderr.write('''Needs more than 1 isoform with sufficient representation, check gene_name in
         your counts file, then try toggling min_reads\n''')
     sys.exit(1)
 
@@ -268,18 +271,18 @@ for iso in proportions:
         if totals[i] == 0:
             continue
         percentage = iso[1+i]/totals[i]*100
-        rectangle = mplpatches.Rectangle([i+1-0.4, heights[i]], \
+        rectangle = mplpatches.Rectangle([i+1-0.4, heights[i]],
                     width=0.9, height=percentage, facecolor=iso[-1], linewidth=0)
         panel.add_patch(rectangle)
         if percentage >= 7.5:  # add usage percentage
-            panel.text(i+1+.07, heights[i] + percentage/2, str(round(percentage,1))+'%',\
+            panel.text(i+1+.07, heights[i] + percentage/2, str(round(percentage,1))+'%',
              fontsize=10, ha='center',va='center',color='white')
         if percentage >= 12.25:  # add read num
             if iso[1+i] == 1:
-                panel.text(i+1.45, heights[i]+1.75, str(int(iso[1+i]))+' read',\
+                panel.text(i+1.45, heights[i]+1.75, str(int(iso[1+i]))+' read',
                  fontsize=6, ha='right',va='center',color='white')
             else:
-                panel.text(i+1.44, heights[i]+1.75, str(int(iso[1+i]))+' reads',\
+                panel.text(i+1.44, heights[i]+1.75, str(int(iso[1+i]))+' reads',
                  fontsize=6, ha='right',va='center',color='white')
 
         heights[i] += percentage

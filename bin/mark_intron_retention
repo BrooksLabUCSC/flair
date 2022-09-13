@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import sys, csv, os
+import sys
+import csv
+import os
 
 try:
 	psl = open(sys.argv[1])
@@ -10,9 +12,11 @@ except:
 	sys.stderr.write('usage: mark_intron_retention.py in.psl|in.bed out_isoforms.psl out_introns.txt\n')
 	sys.exit(1)
 
+
 def overlap(coords0, coords1):
 	return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
 		coords1[1] >= coords0[0] and coords1[1] <= coords0[1]
+
 
 isoforms = {}
 for line in psl:
