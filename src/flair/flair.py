@@ -1007,6 +1007,14 @@ def diffExp(counts_matrix=''):
 	return
 
 
+def emptyMatrix(infile):
+	'''Returns true if file has only a header line'''
+	with open(infile, 'r') as inf:
+		if len(inf.readlines()) <= 1:
+			return True
+	return False
+
+
 def diffSplice(isoforms='', counts_matrix=''):
 	parser = argparse.ArgumentParser(description='flair-diffSplice parse options',
 		usage='python flair.py diffSplice -i isoforms.bed|isoforms.psl -q counts_matrix.tsv [options]')
@@ -1084,10 +1092,18 @@ def diffSplice(isoforms='', counts_matrix=''):
 			ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
 		with open(args.o+'.stderr.txt', 'w') as ds_stderr:
-			subprocess.check_call(ds_command + ['--matrix', args.o+'.es.events.quant.tsv', '--prefix', args.o+'.es'], stderr=ds_stderr)
-			subprocess.check_call(ds_command + ['--matrix', args.o+'.alt5.events.quant.tsv', '--prefix', args.o+'.alt5'], stderr=ds_stderr)
-			subprocess.check_call(ds_command + ['--matrix', args.o+'.alt3.events.quant.tsv', '--prefix', args.o+'.alt3'], stderr=ds_stderr)
-			subprocess.check_call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'.ir'], stderr=ds_stderr)
+			for event in ['es', 'alt5', 'alt3', 'ir']:
+				matrixfile = f'{args.o}.{event}.events.quant.tsv'
+				if emptyMatrix(matrixfile):
+					print(f'{event} event matrix file empty, not running DRIMSeq\n')
+					continue
+				cur_command = ds_command + ['--matrix', matrixfile, '--prefix', f'{args.o}.{event}']
+				if subprocess.call(cur_command, stderr=ds_stderr):
+					print(f'\nDRIMSeq failed on {event} event, likely because no genes remained after filtering.')
+					print(f'Check {args.o}.stderr.txt for details.\nCommand was:')
+					print(' '.join([x for x in cur_command]))
+
+#			subprocess.call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'.ir'], stderr=ds_stderr)
 	return
 
 

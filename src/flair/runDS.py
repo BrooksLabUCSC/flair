@@ -20,6 +20,7 @@ import warnings
 from rpy2.rinterface import RRuntimeWarning
 warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
+import sys
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
@@ -178,7 +179,11 @@ def main():
     R.assign('drim4', drim4)
 
     R('data <- dmDSdata(counts = counts, samples = samples)')
-    R('filtered <- dmFilter(data, min_samps_gene_expr = drim1, min_samps_feature_expr = drim2, min_gene_expr = drim3, min_feature_expr = drim4)')
+    try:
+        R('filtered <- dmFilter(data, min_samps_gene_expr = drim1, min_samps_feature_expr = drim2, min_gene_expr = drim3, min_feature_expr = drim4)')
+    except rpy2.rinterface_lib.embedded.RRuntimeError:
+        print('Filtering failed in runDS')
+        sys.exit(1)
     if usebatch:
         R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
     else:
