@@ -5,7 +5,7 @@ import os
 
 try:
 	psl = open(sys.argv[1])
-	isgtf = sys.argv[1][-3:] == 'gtf'
+	#isgtf = sys.argv[1][-3:] == 'gtf' unused
 	isbed = sys.argv[1][-3:] == 'bed'
 	outfilenamebase = sys.argv[2]
 	if len(sys.argv) > 3:
@@ -16,11 +16,6 @@ try:
 except:
 	sys.stderr.write('usage: call_diffsplice_events.py .psl|.bed out.tsv [counts_tsv]\n')
 	sys.exit(1)
-
-
-def overlap(coords0, coords1):
-	return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
-		coords1[1] >= coords0[0] and coords1[1] <= coords0[1]
 
 
 def get_junctions_psl(starts, sizes):
@@ -192,7 +187,6 @@ with open(outfilenamebase+'.alt5.events.quant.tsv', 'wt') as outfile:
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
 	find_altss(a5_junctions, writer, search_threeprime=False)
 
-seen_j = set()
 with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])

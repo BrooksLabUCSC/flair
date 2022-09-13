@@ -25,14 +25,15 @@ import numpy as np
 import subprocess
 import codecs
 import errno
+from collections import Counter
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
 runDE = path + "/" + "runDE.py"
 runDU = path + "/" + "runDU.py"
-runAS = path + "/" + "runAS.py"
-runAP = path + "/" + "runAP.py"
-predictProd = path + "/" + "predictProductivity"
+#runAS = path + "/" + "runAS.py"
+#runAP = path + "/" + "runAP.py"
+#predictProd = path + "/" + "predictProductivity"
 ########################################################################
 # CommandLine
 ########################################################################
@@ -101,18 +102,13 @@ class Isoform(object):
         self.parent = gid
 
         self.exp  = None
-        self.usage   = None
+#        self.usage   = None
 
-        self.deseq2AdjP  = float()
-        self.drimseqAdjP = float()
+#        self.deseq2AdjP  = float()
+#        self.drimseqAdjP = float()
 
-        self.deseq2FC = float()
-        self.deltaIPU = float()
-
-    def computeUsage(self):
-
-        self.usage = ["%.2f" % np.divide(iso,gene) for iso,gene in zip(self.exp,self.parent.exp)]
-        #self.usage[np.isinf(self.usage)] = np.nan
+#        self.deseq2FC = float()
+#        self.deltaIPU = float()
 
 
 ########################################################################
@@ -131,14 +127,14 @@ class Gene(object):
     '''
 
     def __init__(self, gid=None):
-        self.transcripts = list()
+#        self.transcripts = list()
         self.name = gid
 
         self.exp  = None
 
-        self.deseq2AdjP  = float()
+#        self.deseq2AdjP  = float()
 
-        self.deseq2FC = float()
+#        self.deseq2FC = float()
 
 ########################################################################
 # Functions
@@ -253,7 +249,6 @@ def main():
     batches = [x.split("_")[-1] for x in header]
     combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
 
-    from collections import Counter
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) < 2:
         print("** Error. diffExp requires >1 condition group. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)

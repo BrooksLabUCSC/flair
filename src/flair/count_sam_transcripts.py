@@ -57,7 +57,7 @@ if args.fusion_dist:
 outfilename = args.output
 
 min_insertion_len = 3
-ss_window = 3
+#ss_window = 3 unused
 num_match_in_ss_window = 4
 trust_ends_window = 50
 large_indel_tolerance = 25
@@ -354,7 +354,7 @@ if __name__ == '__main__':
 		grouped_reads = [allread_names]
 	else:
 		i = 0
-		for group in range(args.t):
+		for group in range(args.t):  # group variable unused TODO check
 			new_i = i + groupsize
 			grouped_reads += [allread_names[i:new_i]]
 			i = new_i

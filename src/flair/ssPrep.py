@@ -145,20 +145,6 @@ class BED12(object):
         return exons
 
 ########################################################################
-# Read
-########################################################################
-
-
-class READ(object):
-    '''
-    Handles Read data.
-    '''
-    def __init__(self, rid=None, juncs=None, chrom=None):
-        self.rid     = rid
-        self.junctions = juncs
-        self.chrom   = chrom
-
-########################################################################
 # Junc
 ########################################################################
 
@@ -174,7 +160,6 @@ class SS(object):
 
         # Descriptive attributes.
         self.support = set()
-        self.usage   = 0
         self.ssCorr  = None
 
 

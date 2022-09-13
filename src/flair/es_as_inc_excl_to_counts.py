@@ -27,7 +27,7 @@ with open(sys.argv[2]) as fin2:
 
         incVals = np.sum(incVals, axis=0)
         excVals = np.sum(excVals, axis=0)
-        totVals = incVals + excVals
+        #totVals = incVals + excVals
 
         # must have at least 1 count to support the inc and exc of this exon
         # if incVals.all() < 1 or excVals.all() < 1:

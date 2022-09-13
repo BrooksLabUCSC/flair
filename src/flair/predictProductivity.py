@@ -86,27 +86,15 @@ class Isoform(object):
         self.chrom = ""
 
         self.sequence  = seq
-        self.bed12     = None
         self.exons     = set()
         self.starts    = set()
         self.orfs      = list()
-        self.orfStart  = int()
-        self.orfEnd    = int()
         self.exonSizes = list()
 
-    def sortORFs(self):
-
-        self.orfs.sort(key=lambda x: x[-1])
-        #for i in self.orfs:
-        #    print(i,self.gid,self.tid)
 
 ########################################################################
 # MAIN
 ########################################################################
-
-
-def bed12ToExonRanges(cols):
-    pass
 
 
 def getStarts(gtf):

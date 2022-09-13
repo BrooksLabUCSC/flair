@@ -116,10 +116,10 @@ def main():
     # import DESeq2
     from rpy2.robjects.packages import importr
     import rpy2.robjects.lib.ggplot2 as ggplot2
-    #methods   = importr('methods') unused
-    #deseq     = importr('DESeq2') unused
+    importr('methods')
+    importr('DESeq2')
     grdevices = importr('grDevices')
-    #qqman     = importr('qqman')  unused
+    importr('qqman')
 
     ### RUN DESEQ2 ###
     R.assign('df', df)

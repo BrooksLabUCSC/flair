@@ -23,54 +23,6 @@ class Gene(object):
 
 		isos = sorted(list(self.isoforms.keys()))
 		for i in isos:
-
-			for num,j in enumerate(self.isoforms[i]):
-				acceptor,donor = j[self.acceptor],j[self.donor]
-
-				if num == 0:
-					# this exon cannot be skipped, so just continue
-					continue
-
-				if num+2 > len(self.isoforms[i]):
-					# this exon also cannot be skipped, so just continue
-					continue
-
-				previousDonor = self.isoforms[i][num-1][self.donor]
-				nextAcceptor = self.isoforms[i][num+1][self.acceptor]
-
-				if acceptor not in self.spliceSites:
-					self.spliceSites[acceptor] = SpliceSite(acceptor,"acceptor")
-				if donor not in self.spliceSites:
-					self.spliceSites[donor] = SpliceSite(donor,"donor")
-				if nextAcceptor not in self.spliceSites:
-					self.spliceSites[nextAcceptor] = SpliceSite(nextAcceptor,"acceptor")
-				if previousDonor not in self.spliceSites:
-					self.spliceSites[previousDonor] = SpliceSite(previousDonor,"donor")
-
-				acceptor,donor = self.spliceSites[acceptor], self.spliceSites[donor]
-				previousDonor = self.spliceSites[previousDonor]
-				nextAcceptor = self.spliceSites[nextAcceptor]
-
-				acceptor.up.add(previousDonor)
-				acceptor.down.add(donor)
-
-				donor.up.add(acceptor)
-				donor.down.add(nextAcceptor)
-
-				previousDonor.down.add(acceptor)
-				nextAcceptor.up.add(donor)
-
-				exon = tuple(sorted([acceptor.name,donor.name]))
-				if exon not in self.exonGraph:
-					self.exonGraph[exon] = Exon(exon,acceptor,donor)
-
-	def buildGraphv2(self):
-		self.exonGraph = dict()
-		self.knownJuncs = dict()
-		self.spliceSites = dict()
-
-		isos = sorted(list(self.isoforms.keys()))
-		for i in isos:
 			for num,j in enumerate(self.isoforms[i]):
 				acceptor,donor = j[self.acceptor],j[self.donor]
 
@@ -180,62 +132,62 @@ class Gene(object):
 #			# for j in nextSS:
 #			# 	print("chr6:%s-%s" % (ss.name,j.name), sep="\t")
 
-	def getPaths(self, sink=None, currentSS=None, pathSoFar=None):
-		'''
-		'''
-		if len(pathSoFar) < 1:
-			pathSoFar = [currentSS.name]
-		else:
-			pathSoFar = [currentSS.name] + pathSoFar
-
-		while currentSS != sink:
-
-			possiblePaths = list(currentSS.up)[0]
-			currentSS = possiblePaths
-			pathSoFar = [currentSS.name] + pathSoFar
-
-		return pathSoFar
-
-	def findSkippedExons(self):
-		'''
-		'''
-		for exon,obj in self.exonGraph.items():
-
-			donor,acceptor = obj.donor, obj.acceptor
-			if donor is None or acceptor is None:
-				# first or last exon
-				continue
-
-			downstreamAcceptors = donor.down
-			downAcceptorPathsIn = set([y.name for x in downstreamAcceptors for y in x.up])
-
-			upstreamDonors = acceptor.up
-			upDonorPathsIn = set([y.name for x in upstreamDonors for y in x.down])
-			if len(downAcceptorPathsIn) == 1 and len(upDonorPathsIn) == 1:
-				# no alternative routes
-				print(exon)
-				continue
-
-			print(exon,upDonorPathsIn,downAcceptorPathsIn,sep="\t")
-			# upstreamDonors = obj.acceptor.up
-			# altAcceptors = set()
-			# for donor in upstreamDonors:
-			# 	for altAcceptor in donor.down:
-			# 		if altAcceptor == obj.acceptor:
-			# 			continue
-			# 		else:
-			# 			altAcceptors.add((altAcceptor,altAcceptor.name))
-
-			# downstreamAcceptors = obj.donor.down
-			# altDonors = set()
-			# for acceptor in downstreamAcceptors:
-			# 	for altDonor in acceptor.up:
-			# 		if altDonor == obj.donor:
-			# 			continue
-			# 	else:
-			# 		altDonors.add((altDonor,altDonor.name))
-
-			# print(exon,altDonors)#.intersection(upstreamDonors))
+#	def getPaths(self, sink=None, currentSS=None, pathSoFar=None):
+#		'''
+#		'''
+#		if len(pathSoFar) < 1:
+#			pathSoFar = [currentSS.name]
+#		else:
+#			pathSoFar = [currentSS.name] + pathSoFar
+#
+#		while currentSS != sink:
+#
+#			possiblePaths = list(currentSS.up)[0]
+#			currentSS = possiblePaths
+#			pathSoFar = [currentSS.name] + pathSoFar
+#
+#		return pathSoFar
+#
+#	def findSkippedExons(self):
+#		'''
+#		'''
+#		for exon,obj in self.exonGraph.items():
+#
+#			donor,acceptor = obj.donor, obj.acceptor
+#			if donor is None or acceptor is None:
+#				# first or last exon
+#				continue
+#
+#			downstreamAcceptors = donor.down
+#			downAcceptorPathsIn = set([y.name for x in downstreamAcceptors for y in x.up])
+#
+#			upstreamDonors = acceptor.up
+#			upDonorPathsIn = set([y.name for x in upstreamDonors for y in x.down])
+#			if len(downAcceptorPathsIn) == 1 and len(upDonorPathsIn) == 1:
+#				# no alternative routes
+#				print(exon)
+#				continue
+#
+#			print(exon,upDonorPathsIn,downAcceptorPathsIn,sep="\t")
+#			# upstreamDonors = obj.acceptor.up
+#			# altAcceptors = set()
+#			# for donor in upstreamDonors:
+#			# 	for altAcceptor in donor.down:
+#			# 		if altAcceptor == obj.acceptor:
+#			# 			continue
+#			# 		else:
+#			# 			altAcceptors.add((altAcceptor,altAcceptor.name))
+#
+#			# downstreamAcceptors = obj.donor.down
+#			# altDonors = set()
+#			# for acceptor in downstreamAcceptors:
+#			# 	for altDonor in acceptor.up:
+#			# 		if altDonor == obj.donor:
+#			# 			continue
+#			# 	else:
+#			# 		altDonors.add((altDonor,altDonor.name))
+#
+#			# print(exon,altDonors)#.intersection(upstreamDonors))
 
 
 class SpliceSite(object):
@@ -244,8 +196,8 @@ class SpliceSite(object):
 	def __init__(self, ssName=None, ssType=None):
 		self.name = ssName
 		self.ssType = ssType
-		self.up = set()
-		self.down = set()
+#		self.up = set()
+#		self.down = set()
 
 
 class Exon(object):
@@ -259,15 +211,15 @@ class Exon(object):
 		self.inclusionJuncs = set()
 
 
-class Junction(object):
-	'''
-	'''
-
-	def __init__(self, jcnID=None):
-		self.name = jcnID
-		self.inExon = set()
-		self.outExon = set()
-		self.weight = int()
+#class Junction(object):
+#	'''
+#	'''
+#
+#	def __init__(self, jcnID=None):
+#		self.name = jcnID
+#		self.inExon = set()
+#		self.outExon = set()
+#		self.weight = int()
 
 
 #functions
@@ -326,7 +278,7 @@ def main():
 			geneObj.isoforms[iso] = exons
 
 	for chrom, gobj in genes.items():
-		gobj.buildGraphv2()
+		gobj.buildGraph()
 		gobj.findSkippedExonsV1()
 
 

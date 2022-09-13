@@ -124,85 +124,75 @@ def bin_search(query, data):
 	return i
 
 
-def interval_insert(query, data):
-	i = int(round(len(data)/2))
-	lower, upper = 0, len(data)
-	if not upper:
-		return [query]
-	while True:
-		if data[i][0] <= query[0]:  # i is too low of an index
-			lower = i
-			i = int(math.floor((lower + upper)/2.))
-			if i == lower:
-				break
-		elif data[i][0] >= query[0]:  # i is too high of an index
-			upper = i
-			i = int(math.floor((lower + upper)/2.))
-			if i == upper:
-				i = -1
-				break
-	data = data[:i+1] + [query] + data[i+1:]
-	return data
-
-
-def add_se(sedict, tss, tes, line, sedictkeys, support=1):
-	loci = {}  # altered loci
-	c = bin_search((tss, tes), sedictkeys)
-	if c != -1:  # found
-		for coord in sedictkeys[c:]:  # coordinates of a locus of single-exon reads
-			if overlap((tss, tes), coord):
-				if tss not in sedict[coord]['tss']:
-					sedict[coord]['tss'][tss] = 0
-				if tss not in sedict[coord]['tss_tes']:
-					sedict[coord]['tss_tes'][tss] = {}
-				if tes not in sedict[coord]['tss_tes'][tss]:
-					sedict[coord]['tss_tes'][tss][tes] = 0
-				if not loci:
-					sedict[coord]['tss'][tss] += support  # add tss/tes data to existing locus
-					sedict[coord]['tss_tes'][tss][tes] += support
-					newcoord = tss if tss < coord[0] else coord[0], tes if tes > coord[1] else coord[1]
-					loci[newcoord] = sedict.pop(coord)
-				else:
-					newlocus = sedict.pop(coord)
-					oldlocus = list(loci.keys())[0]  # previous locus the tss/tes overlapped with
-					if tss in newlocus['tss']:
-						newlocus['tss'][tss] += support
-						if tes in newlocus['tss_tes'][tss]:
-							newlocus['tss_tes'][tss][tes] += support
-						else:
-							newlocus['tss_tes'][tss][tes] = loci[oldlocus]['tss_tes'][tss][tes] + support
-					loci[oldlocus]['tss_tes'].update(newlocus['tss_tes'])  # combine previous and current loci
-					loci[oldlocus]['tss'].update(newlocus['tss'])
-					newcoord = oldlocus[0] if oldlocus[0] < coord[0] else coord[0],\
-						oldlocus[1] if oldlocus[1] > coord[1] else coord[1]  # combined locus name
-					loci[newcoord] = loci.pop(oldlocus)  # add all info under combined locus name
-			else:
-				break
-		sedict.update(loci)
-		sedictkeys = sorted(sedict.keys(), key=lambda x: x[0])
-	else:  # define new locus
-		locus = (tss,tes)
-		sedict[locus] = {}
-		sedict[locus]['tss'] = {}
-		sedict[locus]['tss'][tss] = support
-		sedict[locus]['tss_tes'] = {}
-		sedict[locus]['tss_tes'][tss] = {}
-		sedict[locus]['tss_tes'][tss][tes] = support
-		sedict[locus]['line'] = line
-		sedict[locus]['bounds'] = (tss, tes)
-		sedictkeys = interval_insert((tss,tes),sedictkeys)
-	return sedict, sedictkeys
-
-
-def run_add_se(chrom):
-	sedict, sekeys = {}, {}
-	sedict[chrom] = {}
-	sekeys[chrom] = []  # sorted keys for the singleexon dictionary
-	for se in all_se_by_chrom[chrom]:
-		sedict[chrom], sekeys[chrom] = add_se(sedict[chrom], se[0], se[1],
-			all_se_by_chrom[chrom][se]['line'], sekeys[chrom], all_se_by_chrom[chrom][se]['count'])
-	return sedict
-
+# unused
+#def interval_insert(query, data):
+#	i = int(round(len(data)/2))
+#	lower, upper = 0, len(data)
+#	if not upper:
+#		return [query]
+#	while True:
+#		if data[i][0] <= query[0]:  # i is too low of an index
+#			lower = i
+#			i = int(math.floor((lower + upper)/2.))
+#			if i == lower:
+#				break
+#		elif data[i][0] >= query[0]:  # i is too high of an index
+#			upper = i
+#			i = int(math.floor((lower + upper)/2.))
+#			if i == upper:
+#				i = -1
+#				break
+#	data = data[:i+1] + [query] + data[i+1:]
+#	return data
+#
+#def add_se(sedict, tss, tes, line, sedictkeys, support=1):
+#	loci = {}  # altered loci
+#	c = bin_search((tss, tes), sedictkeys)
+#	if c != -1:  # found
+#		for coord in sedictkeys[c:]:  # coordinates of a locus of single-exon reads
+#			if overlap((tss, tes), coord):
+#				if tss not in sedict[coord]['tss']:
+#					sedict[coord]['tss'][tss] = 0
+#				if tss not in sedict[coord]['tss_tes']:
+#					sedict[coord]['tss_tes'][tss] = {}
+#				if tes not in sedict[coord]['tss_tes'][tss]:
+#					sedict[coord]['tss_tes'][tss][tes] = 0
+#				if not loci:
+#					sedict[coord]['tss'][tss] += support  # add tss/tes data to existing locus
+#					sedict[coord]['tss_tes'][tss][tes] += support
+#					newcoord = tss if tss < coord[0] else coord[0], tes if tes > coord[1] else coord[1]
+#					loci[newcoord] = sedict.pop(coord)
+#				else:
+#					newlocus = sedict.pop(coord)
+#					oldlocus = list(loci.keys())[0]  # previous locus the tss/tes overlapped with
+#					if tss in newlocus['tss']:
+#						newlocus['tss'][tss] += support
+#						if tes in newlocus['tss_tes'][tss]:
+#							newlocus['tss_tes'][tss][tes] += support
+#						else:
+#							newlocus['tss_tes'][tss][tes] = loci[oldlocus]['tss_tes'][tss][tes] + support
+#					loci[oldlocus]['tss_tes'].update(newlocus['tss_tes'])  # combine previous and current loci
+#					loci[oldlocus]['tss'].update(newlocus['tss'])
+#					newcoord = oldlocus[0] if oldlocus[0] < coord[0] else coord[0],\
+#						oldlocus[1] if oldlocus[1] > coord[1] else coord[1]  # combined locus name
+#					loci[newcoord] = loci.pop(oldlocus)  # add all info under combined locus name
+#			else:
+#				break
+#		sedict.update(loci)
+#		sedictkeys = sorted(sedict.keys(), key=lambda x: x[0])
+#	else:  # define new locus
+#		locus = (tss,tes)
+#		sedict[locus] = {}
+#		sedict[locus]['tss'] = {}
+#		sedict[locus]['tss'][tss] = support
+#		sedict[locus]['tss_tes'] = {}
+#		sedict[locus]['tss_tes'][tss] = {}
+#		sedict[locus]['tss_tes'][tss][tes] = support
+#		sedict[locus]['line'] = line
+#		sedict[locus]['bounds'] = (tss, tes)
+#		sedictkeys = interval_insert((tss,tes),sedictkeys)
+#	return sedict, sedictkeys
+#
 
 def iterative_add_se(sedict, chrom, group, se):
 	tss, tes = se[0], se[1]
@@ -448,8 +438,6 @@ def run_se_collapse(chrom):
 			newline = edit_line(line, tss, tes)
 		new_towrite += [newline]
 	return new_towrite
-
-	return towrite
 
 
 def run_find_best_sites(chrom):

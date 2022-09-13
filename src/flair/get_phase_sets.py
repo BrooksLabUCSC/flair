@@ -104,7 +104,7 @@ elif (num_reads_in_bam - num_unassigned)/len(read_isoform) < 0.9:
 
 bam.close()
 
-reads_isoforms = None
+#reads_isoforms = None  unused
 
 with open(args.o, 'wt') as outfile, open(args.outiso, 'wt') as outfile_iso:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

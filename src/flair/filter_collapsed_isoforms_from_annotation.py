@@ -39,30 +39,6 @@ isbed = args.i[-3:].lower() != 'psl'
 tol = args.w
 
 
-def split_iso_gene(iso_gene):
-    if '_' not in iso_gene:
-    	return iso_gene, 'NA'
-    elif '_chr' in iso_gene:
-        splitchar = '_chr'
-    elif '_XM' in iso_gene:
-        splitchar = '_XM'
-    elif '_XR' in iso_gene:
-        splitchar = '_XR'
-    elif '_NM' in iso_gene:
-        splitchar = '_NM'
-    elif '_NR' in iso_gene:
-        splitchar = '_NR'
-    elif '_R2_' in iso_gene:
-        splitchar = '_R2_'
-    elif '_NC_' in iso_gene:
-        splitchar = '_NC_'
-    else:
-        splitchar = '_'
-    iso = iso_gene[:iso_gene.rfind(splitchar)]
-    gene = iso_gene[iso_gene.rfind(splitchar)+1:]
-    return iso, gene
-
-
 def get_info(line, isbed):
 	if isbed:
 		chrom, name, chrstart = line[0], line[3], int(line[1])
@@ -88,11 +64,6 @@ def get_exons(starts, sizes):
 	for e in range(len(starts)):
 		exons += [(starts[e], starts[e]+sizes[e])]
 	return exons
-
-
-def overlap(coords0, coords1, tol=1):
-	coords0, coords1 = sorted([coords0, coords1], key=lambda x: x[0])
-	return (coords0[0] < coords1[0] and coords1[0] < coords0[1] - tol)
 
 
 def exon_overlap(coords0, coords1, left=True, tol=1):
@@ -166,8 +137,6 @@ if args.map_a:
 		annotated_iso_read_map[iso] = reads
 	for line in open(args.map_i):
 		iso, reads = line.rstrip().split('\t')
-		# if '_' in iso:
-		# 	iso, gene = split_iso_gene(iso)
 		flair_iso_read_map[iso] = reads
 		if iso in iso_support:
 			iso_support[iso] += len(reads.split(','))
@@ -204,13 +173,9 @@ for line in annotated:
 		exon = exons[0]
 		allevents[chrom]['all_se_exons'].add((exon[0], exon[1], iso_support[name]))
 
-in_annotation = 0
 for line in psl:
 	line = line.rstrip().split()
 	chrom, name, sizes, starts = get_info(line, isbed)
-	# if split_iso_gene(name)[0] in keep_isoforms:
-	# 	in_annotation += 1
-	# 	continue
 	junctions = get_junctions(starts, sizes)
 	exons = get_exons(starts, sizes)
 	if chrom not in isoforms:
@@ -324,39 +289,6 @@ for chrom in isoforms:
 				keep_isoforms += [n]
 
 
-# used_names = set()
-# name_remapping = {}
-# with open(args.o, 'wt') as outfile:  # renamed isoform bed
-# 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-
-# 	for iso in keep_isoforms:  # isoform bed
-# 		new_name, gene = split_iso_gene(iso)
-# 		if gene != 'NA':
-# 			if new_name in used_names:
-# 				if '-' in new_name[-3:]:
-# 					sys.stderr.write('Issue, exiting {}\n'.format(iso))
-# 					sys.exit(1)
-# 				new_name += '-0'
-# 		used_names.add(new_name)
-
-# 		line = all_iso_info[iso]
-# 		if isbed:
-# 			line[3] = new_name + '_' + gene
-# 		else:
-# 			line[9] = new_name + '_' + gene
-# 		writer.writerow(line)
-# 		name_remapping[iso] = new_name
-
-# if args.new_map:
-# 	with open(args.new_map, 'wt') as outfile:
-# 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-# 		# writer.writerow(['transcript_id', 'read_ids'])
-# 		for iso in annotated_iso_read_map:
-# 			writer.writerow([name_remapping[iso], annotated_iso_read_map[iso]])
-
-# 		for iso in keep_isoforms:
-# 			if iso not in annotated_iso_read_map:  # flair collapse iso that is in keep_isoforms
-# 				writer.writerow([name_remapping[iso], flair_iso_read_map[iso]])
 
 
 with open(args.o, 'wt') as outfile:

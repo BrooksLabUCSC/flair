@@ -194,7 +194,6 @@ with open(args.outfilename, 'wt') as outfile:
 		if not junctions:
 			exon = (start, end)
 			i = bin_search(exon, all_se[chrom])
-			first = True
 			for e in all_se[chrom][i-2:i+2]:
 				overlap = overlapping_bases(exon, e)
 				if overlap:
