@@ -6,16 +6,13 @@
 Welcome to Flair's documentation!
 =================================
 
-New: Flair can now be pip installed using 
+New: Flair can now be conda installed using 
 
 .. code:: sh
 
-   pip install flair-brookslab
+   conda create -n flair -c conda-forge -c bioconda flair
+   conda activate flair
 
-This will install all python dependencies for basic Flair (``align``, 
-``correct``, and ``collapse``). If you want to use any of the other
-modules (``quantify``, ``diffExp``, or ``diffSplice``), please install
-`The latest release <https://github.com/BrooksLabUCSC/flair/releases>`_.
 
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
