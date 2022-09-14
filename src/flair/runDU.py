@@ -22,7 +22,9 @@ import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 import numpy as np
+import argparse
 
+import rpy2
 from rpy2 import robjects
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
@@ -58,7 +60,6 @@ class CommandLine(object):
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
         '''
-        import argparse
         self.parser = argparse.ArgumentParser(description=' runDU.py - a rpy2 convenience tool to run DRIMseq.',
                                              add_help=True, #default is True
                                              prefix_chars='-',
@@ -149,7 +150,6 @@ def main():
     # g = robjects.r['condition']
     # print(f)
     # print(g)
-    import rpy2
     print(rpy2.__version__)
     print(np.__version__)
     # R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
