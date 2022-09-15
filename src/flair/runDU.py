@@ -91,7 +91,6 @@ class CommandLine(object):
 # main
 def main():
     '''
-    maine
     '''
 
     # Command Line Stuff...
@@ -107,6 +106,18 @@ def main():
     threads    = myCommandLine.args['threads']
 
     print("running DRIMSEQ %s" % prefix, file=sys.stderr)
+
+    rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads)
+
+
+def rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads):
+    '''Run DRIMSeq via rpy R emulator'''
+
+    print(f'input file: {matrix}', file=sys.stderr)
+    # clean up rpy2/R's stderr
+    def f(x):
+        print(x.rstrip(), file=sys.stderr)
+    rpy2.rinterface_lib.callbacks.consolewrite_warnerror = f
 
     # import
     importr('methods')
@@ -125,7 +136,7 @@ def main():
     counts  = df
 
     # DRIMSEQ part.
-    # Forumla
+    # Formula
     if "batch" in list(formulaDF): R.assign('batch', samples.rx2('batch'))
     R.assign('condition', samples.rx2('condition'))
     R.assign('counts', counts)
@@ -144,15 +155,8 @@ def main():
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
-    # R('f = colnames(design_full)')
-    # R("save.image(file='/private/groups/brookslab/atang/flair/testing/misc/colette/.RData')")
-    # f = robjects.r['f']
-    # g = robjects.r['condition']
-    # print(f)
-    # print(g)
     print(rpy2.__version__)
     print(np.__version__)
-    # R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
     R('contrast = colnames(design_full)[2]')
 
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
@@ -162,39 +166,6 @@ def main():
     resOut = os.path.join(data_folder, "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix,group1,group2))
     res.to_csv(resOut, sep='\t')
     sys.exit(0)
-
-    R('library(stageR)')
-    R('pScreen <- results(d)$pvalue')
-    R('names(pScreen) <- results(d)$gene_id')
-    ## Assign transcript-level pvalues to the confirmation stage
-    R('pConfirmation <- matrix(results(d, level = "feature")$pvalue, ncol = 1)')
-    R('rownames(pConfirmation) <- results(d, level = "feature")$feature_id')
-    ## Create the gene-transcript mapping
-    R('tx2gene <- results(d, level = "feature")[, c("feature_id", "gene_id")]')
-    ## Create the stageRTx object and perform the stage-wise analysis
-    R('stageRObj <- stageRTx(pScreen = pScreen, pConfirmation = pConfirmation, pScreenAdjusted = FALSE, tx2gene = tx2gene)')
-    R('stageRObj <- stageWiseAdjustment(object = stageRObj, method = "dtu", alpha = 0.05)')
-    R('getSignificantGenes(stageRObj)')
-    R('getSignificantTx(stageRObj)')
-    R('padj <- getAdjustedPValues(stageRObj, order = TRUE, onlySignificantGenes = FALSE)')
-    R('head(padj)')
-    #     # import plotting
-    # plotMA    = robjects.r['plotData']
-    # plotPrec  = robjects.r['plotPrecision']
-    # plotQQ    = robjects.r['qq']
-
-    # # arrange
-    # pltFName = './%s/%s_%s_vs_%s_%s_%s_cutoff_plots.pdf' % (outdir,prefix,group1,group2,str(batch),sFilter)
-    # R.assign('fname',pltFName)
-    # R('pdf(file=fname)')
-    # R('plotData(filtered)')
-    # R('ggp <- plotPrecision(d)')
-    # R('ggp + geom_point(size = 4, alpha=0.3)')
-    # R('plotPValues(d)')
-    # R('dev.off()')
-    # grdevices.pdf(file="./%s/%s_%s_vs_%s_%s_%s_cutoff_plots.pdf" % (outdir,prefix,group1,group2,str(batch),sFilter))
-    # qqman(res['pvalue'])
-    # grdevices.dev_off()
 
 
 if __name__ == "__main__":

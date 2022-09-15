@@ -100,6 +100,18 @@ def main():
     formula    = myCommandLine.args['formula']
 
     print("running DESEQ2 %s" % prefix, file=sys.stderr)
+    runDESeq(outdir, group1, group2, matrix, prefix, formula)
+
+
+def runDESeq(outdir, group1, group2, matrix, prefix, formula):
+
+    '''Run DESeq2 via rpy R emulator'''
+
+    print(f'input file: {matrix}', file=sys.stderr)
+    # clean up rpy2/R's stderr
+    def f(x):
+        print(x.rstrip(), file=sys.stderr)
+    rpy2.rinterface_lib.callbacks.consolewrite_warnerror = f
 
     # make the quant DF
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)

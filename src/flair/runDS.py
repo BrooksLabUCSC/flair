@@ -12,10 +12,6 @@
 ########################################################################
 
 
-########################################################################
-# Hot Imports & Global Variable
-########################################################################
-
 import warnings
 from rpy2.rinterface import RRuntimeWarning
 warnings.filterwarnings("ignore", category=RRuntimeWarning)
@@ -36,10 +32,6 @@ from rpy2.robjects.packages import importr
 
 R = robjects.r
 
-
-########################################################################
-# CommandLine
-########################################################################
 
 class CommandLine(object):
     '''
@@ -101,13 +93,10 @@ class CommandLine(object):
             self.args = vars(self.parser.parse_args(inOpts))
 
 
-# main
 def main():
     '''
-    maine
     '''
 
-    # Command Line Stuff...
     myCommandLine = CommandLine()
 
 #    outdir     = myCommandLine.args['outDir'] unused, check args
@@ -121,6 +110,21 @@ def main():
     usebatch   = myCommandLine.args['batch']
     conditionA = myCommandLine.args['conditionA']
     conditionB = myCommandLine.args['conditionB']
+
+    outfile = runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matrix, prefix, usebatch)
+    if outfile is False:
+        print('runDS failed')
+        sys.exit(1)
+
+
+def runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matrix, prefix, usebatch):
+    '''Run DRIMSeq via rpy R emulator'''
+
+    print(f'input file: {matrix}', file=sys.stderr)
+    # clean up rpy2/R's stderr
+    def f(x):
+        print(x.rstrip(), file=sys.stderr)
+    rpy2.rinterface_lib.callbacks.consolewrite_warnerror = f
 
     samples = open(matrix).readline().rstrip().split('\t')[2:-1]
     groups  = [x.split("_")[1] for x in samples]
@@ -182,8 +186,7 @@ def main():
     try:
         R('filtered <- dmFilter(data, min_samps_gene_expr = drim1, min_samps_feature_expr = drim2, min_gene_expr = drim3, min_feature_expr = drim4)')
     except rpy2.rinterface_lib.embedded.RRuntimeError:
-        print('Filtering failed in runDS')
-        sys.exit(1)
+        return False
     if usebatch:
         R('design_full <- model.matrix(~ condition + batch, data = samples(filtered))')
     else:
@@ -204,6 +207,7 @@ def main():
             res = ro.conversion.rpy2py(res)
 
     res.to_csv(resOut, sep='\t')
+    return resOut
     # pltFName = '%s_%s_v_%s_pval_histogram.pdf' % (prefix,conditionA,conditionB)
     # R.assign('fname', pltFName)
     # R('pdf(file=fname)')

@@ -1103,7 +1103,6 @@ def diffSplice(isoforms='', counts_matrix=''):
 					print(f'Check {args.o}.stderr.txt for details.\nCommand was:')
 					print(' '.join([x for x in cur_command]))
 
-#			subprocess.call(ds_command + ['--matrix', args.o+'.ir.events.quant.tsv', '--prefix', args.o+'.ir'], stderr=ds_stderr)
 	return
 
 
