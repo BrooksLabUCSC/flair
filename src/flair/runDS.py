@@ -121,6 +121,7 @@ def runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matr
     '''Run DRIMSeq via rpy R emulator'''
 
     print(f'input file: {matrix}', file=sys.stderr)
+
     # clean up rpy2/R's stderr
     def f(x):
         print(x.rstrip(), file=sys.stderr)

@@ -27,8 +27,8 @@ from rpy2.robjects import pandas2ri, Formula
 pandas2ri.activate()
 R = robjects.r
 
-import warnings
-from rpy2.rinterface import RRuntimeWarning
+#import warnings
+#from rpy2.rinterface import RRuntimeWarning
 #warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 ########################################################################
@@ -104,10 +104,10 @@ def main():
 
 
 def runDESeq(outdir, group1, group2, matrix, prefix, formula):
-
     '''Run DESeq2 via rpy R emulator'''
 
     print(f'input file: {matrix}', file=sys.stderr)
+
     # clean up rpy2/R's stderr
     def f(x):
         print(x.rstrip(), file=sys.stderr)

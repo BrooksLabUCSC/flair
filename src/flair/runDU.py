@@ -114,6 +114,7 @@ def rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads):
     '''Run DRIMSeq via rpy R emulator'''
 
     print(f'input file: {matrix}', file=sys.stderr)
+
     # clean up rpy2/R's stderr
     def f(x):
         print(x.rstrip(), file=sys.stderr)
