@@ -21,6 +21,7 @@ import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 
+import rpy2
 from rpy2 import robjects
 from rpy2.robjects import pandas2ri, Formula
 pandas2ri.activate()
@@ -28,7 +29,7 @@ R = robjects.r
 
 import warnings
 from rpy2.rinterface import RRuntimeWarning
-warnings.filterwarnings("ignore", category=RRuntimeWarning)
+#warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 ########################################################################
 # CommandLine
@@ -136,7 +137,11 @@ def main():
     # Get Results and shrinkage values
     res    = R('results(dds, name=name)')
     resLFC = R('lfcShrink(dds, coef=name)')
-    vsd    = R('vst(dds,blind=FALSE)')
+    try:
+        vsd    = R('vst(dds,blind=FALSE)')
+    except rpy2.rinterface_lib.embedded.RRuntimeError:
+        print('runDE failed, probably because the matrix is too small to estimate dispersion')
+        exit(1)
     resdf  = robjects.r['as.data.frame'](res)
     reslfc = robjects.r['as.data.frame'](resLFC)
     dds    = R('dds')

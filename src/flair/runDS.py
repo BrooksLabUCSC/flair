@@ -25,6 +25,7 @@ import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 
+import rpy2
 from rpy2 import robjects
 
 import rpy2.robjects as ro
@@ -154,7 +155,6 @@ def main():
         quantDF[[col]] = quantDF[[col]] + 1
 
     # Convert pandas to R data frame.
-    import rpy2
     rpy2_version = rpy2.__version__
     rpy2_version = float(rpy2_version[:rpy2_version.rfind('.')])
     if rpy2_version >= 3.4:
