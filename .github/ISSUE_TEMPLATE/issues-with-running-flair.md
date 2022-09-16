@@ -20,9 +20,9 @@ Feel free to leave any original paths, we don't have access to your system
 6. `conda env create -f misc/flair_basic_conda_env.yaml`
 
 **What happened?**
-Please paste the whole error message using backtick quotes
+
 ```
-like so. 
+Please replace this text with the whole error message
 ```
 We know it's ugly but we promise it helps us solve problems faster.
 
