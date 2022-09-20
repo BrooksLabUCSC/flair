@@ -27,9 +27,9 @@ needs to be in your $PATH.
 
    flair collapse-range -r reads.bam -q query.bed -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]
 
-If the user would prefer not to use python’s multiprocessing module, a
+If you would prefer not to use python’s multiprocessing module, a
 bash script has also been provided
 (``run_flair_collapse_ranges.sh``) that runs collapse-range for the
-user that parallelizes using GNU parallel, which the user can alter as
+user that parallelizes using GNU parallel, which you can alter as
 they see fit for their system.
 

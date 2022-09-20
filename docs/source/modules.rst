@@ -3,7 +3,7 @@ FLAIR modules
 
 ``flair`` is a wrapper script with modules for running various
 processing scripts located in ``src/flair``. Modules are assumed to be run in
-order (align, correct, collapse), but the user can forgo the wrapper if
+order (align, correct, collapse), but you can forgo the wrapper if
 a more custom build is desired.
 
 .. _align-label:
@@ -21,7 +21,7 @@ written a `blog
 post <https://lh3.github.io/2017/11/13/which-human-reference-genome-to-use>`__
 on this.
 
-Alternatively, the user can align the reads themselves with their
+Alternatively, you can align the reads themselves with their
 aligner of choice and convert sorted ``bam`` output to ``bed12`` using
 ``bam2Bed12`` to supply for flair-correct. This step smoothes gaps
 in the alignment.
@@ -80,7 +80,7 @@ in a comma-separated list.
    junctions_from_sam -s <shortreads.sam>|<shortreads.bam> -n outname
 
 The file that can be supplied to flair-correct with ``-j`` is in the
-output file ``outname_junctions.bed``. It is recommended that the user
+output file ``outname_junctions.bed``. It is recommended that you
 remove infrequently used junctions i.e. junctions with few supporting
 junction reads, which are in the 5th column of the junction bed file.
 For example, if you wanted to do the filter out junctions with fewer
@@ -145,7 +145,7 @@ flair quantify
 
 Convenience function to quantifying FLAIR isoform usage across samples
 using minimap2. If isoform quantification in TPM is desired, please use
-the ``--tpm`` option. If the user prefers
+the ``--tpm`` option. If you prefers
 `salmon <https://combine-lab.github.io/salmon/getting_started/>`__ to
 quantify transcripts using their nanopore reads, please specify a path
 to salmon using ``--salmon``. For all options run flair-quantify with
@@ -246,7 +246,7 @@ alternative 5’ splicing, and cassette exons.
 
    flair diffSplice -i <isoforms.bed>|<isoforms.psl> -q counts_matrix.tsv [options]
 
-If there are 3 or more samples per condition, then the user can run with
+If there are 3 or more samples per condition, then you can run with
 ``--test`` and DRIMSeq will be used to calculate differential usage of
 the alternative splicing events between two conditions. Run with
 ``--help`` to see more DRIMSeq-specific arguments. If conditions were
