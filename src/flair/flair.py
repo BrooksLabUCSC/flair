@@ -787,39 +787,40 @@ def quantify(isoform_sequences=''):
 	else:
 		required.add_argument('--reads_manifest', action='store', dest='r', type=str,
 			required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
-	parser.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('-t', '--threads', type=int,
 		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
-	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='specify a samtools executable path if not in $PATH if --quality is also used')
-	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
-		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
-		used (1)''')
-	parser.add_argument('-o', '--output', type=str, action='store', dest='o',
-		default='counts_matrix.tsv', help='Counts matrix output file name prefix (counts_matrix.tsv)')
-	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
-		help='''specify this argument to generate a txt file of read-isoform assignments
-		note: only works if the quantification method is not using salmon (default: not specified)''')
-	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
-		default='', help='Path to salmon executable, specify if salmon quantification is desired')
-	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
-		help='specify this flag to output additional file with expression in TPM')
-	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
-		help='''specify if all supporting reads need to spanning >25 bp of the first and last exons,
-		must also specify --isoform_bed if so''')
-	parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
-		help='''enforce coverage of 4 out of 6 bp around each splice site and no
-		insertions greater than 3 bp at the splice site, must also specify --isoform_bed''')
-	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
-		help='specify if reads are generated from a long read method with minimal fragmentation')
-	parser.add_argument('--isoform_bed', '--isoformbed', default='', type=str, action='store', dest='isoforms',
-		help='''isoform .bed or .psl file, must be specified if --stringent is specified''')
+	parser.add_argument('-o', '--output', type=str, action='store', dest='o', default='flair.quantify',
+		help='''output file name base for FLAIR quantify (default: flair.quantify)''')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir',
 		help='''directory to put temporary files. use "./" to indicate current directory
 		(default: python tempfile directory)''')
+	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
+		default='', help='Path to salmon executable, specify if salmon quantification is desired')
+	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
+		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
+		used (1)''')
+	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
+		help='specify if reads are generated from a long read method with minimal fragmentation')
 	parser.add_argument('--sample_id_only', default=False, action='store_true', dest='sample_id_only',
 		help='''only use sample id in output header''')
+	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
+		help='''create read-to-isoform assignment files for each sample (default: not specified)''')
+	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
+		help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
+	parser.add_argument('--isoform_bed', '--isoformbed', default='', type=str, action='store', dest='isoforms',
+		help='''isoform .bed or .psl file, must be specified if --stringent or check_splice is specified''')
+	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
+		help='''Supporting reads must cover 80 percent of their isoform and extend at least 25 nt into the
+                first and last exons. If those exons are themselves shorter than 25 nt, the requirement becomes
+                "must start within 4 nt from the start" or "must end within 4 nt from the end" ''')
+	parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
+		help='''enforce coverage of 4 out of 6 bp around each splice site and no
+		insertions greater than 3 bp at the splice site''')
+	obsolete = parser.add_argument_group('These options will soon be removed because conda and docker installs solve them:')
+	obsolete.add_argument('-m', '--minimap2', type=str, default='minimap2',
+		action='store', dest='m', help='path to minimap2 if not in $PATH')
+	obsolete.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
+		help='specify a samtools executable path if not in $PATH if --quality is also used')
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
@@ -866,6 +867,10 @@ def quantify(isoform_sequences=''):
 				return 1
 
 			sample, group, batch, readFile = cols
+			if args.sample_id_only is False:
+				if '_' in sample or '_' in group or '_' in batch:
+					sys.stderr.write(f'Please do not use underscores in the id, condition, or batch fields of {args.r}. Exiting. \n')
+					return 1
 
 			readFileRoot = tempfile.NamedTemporaryFile().name
 			if args.temp_dir != '':
@@ -920,7 +925,7 @@ def quantify(isoform_sequences=''):
 			if args.check_splice or args.stringent:
 				count_cmd += ['-i', args.isoforms]
 			if args.generate_map:
-				count_cmd += ['--generate_map', 'flair.quantify.'+sample+'.'+group+'.isoform.read.map.txt']
+				count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
 
 			if subprocess.call(count_cmd):
 				return 1
@@ -948,8 +953,8 @@ def quantify(isoform_sequences=''):
 		sys.stderr.flush()
 		subprocess.check_call(['rm', samOut])
 
-	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o))
-	countMatrix = open(args.o, 'w')
+	sys.stderr.write("Step 3/3. Writing counts to {} \r".format(args.o+'.counts.tsv'))
+	countMatrix = open(args.o+'.counts.tsv', 'w')
 
 	if args.sample_id_only:
 		countMatrix.write('\t'.join(['ID']+[x[0] for x in samData])+'\n')
@@ -965,8 +970,8 @@ def quantify(isoform_sequences=''):
 	sys.stderr.write("\n")
 
 	if args.tpm and not args.salmon:
-		subprocess.check_call([sys.executable, path+'counts_to_tpm.py', args.o, args.o+'.tpm.tsv'])
-	return args.o
+		subprocess.check_call([sys.executable, path+'counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv'])
+	return args.o+'.counts.tsv'
 
 
 def diffExp(counts_matrix=''):
