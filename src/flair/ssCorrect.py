@@ -269,8 +269,8 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
 
 def runCMD(x):
 
-    tDir, prefix,juncs,reads, rs, f, err, errFname = x
-    cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f)
+    tDir, prefix,juncs,reads, rs, f, err, errFname, wiggle = x
+    cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s -w %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f, wiggle)
     if rs:
         cmd += "--correctStrand "
     if err:
@@ -282,7 +282,6 @@ def runCMD(x):
 
 def main():
     '''
-    maine
     '''
 
     # Command Line Stuff...
@@ -290,7 +289,7 @@ def main():
     bed           = myCommandLine.args['input_bed']
     gtf           = myCommandLine.args['gtf']
     otherJuncs    = myCommandLine.args['junctionsBed']
-#    wiggle        = myCommandLine.args['wiggleWindow'] # unused (check args)
+    wiggle        = myCommandLine.args['wiggleWindow'] # unused (check args)
     threads       = myCommandLine.args['threads']
     outFile       = myCommandLine.args['output_fname']
     keepTemp      = myCommandLine.args['keepTemp']
@@ -327,7 +326,7 @@ def main():
     printErr = myCommandLine.args['print_check']
     printErrFname = os.path.join(tempDirName, 'ssCorrect.err')
 
-    # Convert gtf to bed and split by cromosome.
+    # Convert gtf to bed and split by chromosome.
     juncs, chromosomes, knownSS  = dict(), set(), dict() # initialize juncs for adding to db
     if gtf is not None: juncs, chromosomes, knownSS = gtfToSSBed(gtf, knownSS, printErr, printErrFname, verbose)
 
@@ -376,7 +375,7 @@ def main():
 
         outDict[chrom].close()
 
-        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta, printErr, printErrFname))
+        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta, printErr, printErrFname, wiggle))
 
     if printErr:
         with open(printErrFname,'a+') as fo:
@@ -401,6 +400,8 @@ def main():
         for chrom in readDict:
             with open(os.path.join(tempDir, "%s_corrected.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, corrected, 1024*1024*10)
+    if printErr: 
+        shutil.move(printErrFname, f'{outFile}.err') 
     if keepTemp:
         pass
     else:

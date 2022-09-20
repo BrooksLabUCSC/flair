@@ -45,31 +45,32 @@ def align():
 		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('--junction_bed', action='store', dest='junction_bed', default='',
 		help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
-	parser.add_argument('--pychopper', type=str, default='', action='store', dest='pychopper',
-		help='specify cdna_classifier.py here to trim reads prior to aligning')
-	parser.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('--nvrna', action='store_true', dest='n', default=False,
 		help='specify this flag to use native-RNA specific alignment parameters for minimap2')
-	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='samtools executable path if not in $PATH')
-	parser.add_argument('-c', '--chromsizes', type=str, action='store', dest='c', default='',
-		help='''chromosome sizes tab-separated file, used for converting sam to genome-browser
-		compatible psl file''')
 	parser.add_argument('--psl', action='store_true', dest='p',
 		help='also output sam-converted psl')
+	parser.add_argument('-c', '--chromsizes', type=str, action='store', dest='c', default='',
+		help='''chromosome sizes tab-separated file, needed to make the --psl output genome-browser
+		compatible''')
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
 		help='minimum MAPQ of read alignment to the genome (1)')
 	parser.add_argument('-N', type=int, action='store', dest='N', default=0,
 		help='retain at most INT secondary alignments from minimap2 alignment (0)')
 	parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
 			help='''Suppress progress statements from being printed''')
+	obsolete = parser.add_argument_group('These options will soon be removed because conda and docker installs solve them:')
+	obsolete.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
+		help='samtools executable path if not in $PATH')
+	obsolete.add_argument('-m', '--minimap2', type=str, default='minimap2',
+		action='store', dest='m', help='path to minimap2 if not in $PATH')
+	parser.add_argument('--pychopper', type=str, default='', action='store', dest='invalid',
+		help='Oxford nanopore trimmer, no longer part of Flair. Please see https://github.com/epi2me-labs/pychopper.')
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Align unrecognized arguments: {}\n'.format(' '.join(unknown)))
 
 	if samtools_outdated(args.sam) is True:
-		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
+		sys.stderr.write('\nERROR: Samtools version should be >= 1.3, try conda installing flair to solve this issue\n\n')
 		return 1
 
 	if args.m[-8:] != 'minimap2':
@@ -81,11 +82,14 @@ def align():
 		if not os.path.exists(args.r[i]):
 			sys.stderr.write('Check that read file {} exists\n'.format(args.r[i]))
 			return 1
-		if args.pychopper:
-			subprocess.check_call([args.pychopper, '-t', str(args.t), '-r', args.o+'.'+args.r[i]+'.pychopper_report.pdf',
-				'-u', args.o+'.'+args.r[i]+'.unclassified.fastq', '-w', args.o+'.'+args.r[i]+'.rescued.fastq',
-				args.r, args.o+'.'+args.r[i]+'.trimmed.fastq'])
-			args.r[i] = args.o+'.'+args.r[i]+'.trimmed.fastq'
+		if args.invalid:
+			sys.stderr.write('Flair no longer supports the pychopper argument.\nPlease see https://github.com/epi2me-labs/pychopper for details on installing and running pychopper.\n\n')
+			return 1
+#		if args.pychopper:
+#			subprocess.check_call([args.pychopper, '-t', str(args.t), '-r', args.o+'.'+args.r[i]+'.pychopper_report.pdf',
+#				'-u', args.o+'.'+args.r[i]+'.unclassified.fastq', '-w', args.o+'.'+args.r[i]+'.rescued.fastq',
+#				args.r, args.o+'.'+args.r[i]+'.trimmed.fastq'])
+#			args.r[i] = args.o+'.'+args.r[i]+'.trimmed.fastq'
 
 	mm2_command = [args.m, '-ax', 'splice', '-t', str(args.t), args.g]+args.r
 	if args.mm_index:
@@ -160,11 +164,11 @@ def correct(aligned_reads=''):
 	parser.add_argument('-c', '--chromsizes', type=str, action='store',
 		dest='c', default='', help='chromosome sizes tab-separated file, specify if working with .psl')
 	parser.add_argument('--nvrna', action='store_true', dest='n', default=False,
-		help='''specify this flag to keep the strand of a read consistent after correction''')
+		help='''specify this flag to make the strand of a read consistent with the annotation during correction''')
 	parser.add_argument('-t', '--threads', type=int, action='store', dest='t', default=4,
 		help='splice site correction script number of threads (4)')
-	parser.add_argument('-w', '--ss_window', type=int, action='store', dest='w', default=10,
-		help='window size for correcting splice sites (W=10)')
+	parser.add_argument('-w', '--ss_window', type=int, action='store', dest='w', default=15,
+		help='window size for correcting splice sites (15)')
 	parser.add_argument('-o', '--output',
 		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	parser.add_argument('--print_check',
