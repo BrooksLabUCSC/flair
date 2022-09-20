@@ -844,6 +844,9 @@ def quantify(isoform_sequences=''):
 	if not os.path.exists(args.i):
 		sys.stderr.write('Isoform sequences fasta file path does not exist\n')
 		return 1
+	if args.salmon and (args.quality != 1 or args.trust_ends or args.stringent or args.check_splice or args.generate_map):
+		sys.stderr.write('ERROR, cannot specify quality, trust_ends, stringent, check_splice or generate_map when using salmon to quantify\n')
+		return 1
 
 	try:
 		import numpy as np
