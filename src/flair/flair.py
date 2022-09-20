@@ -794,19 +794,20 @@ def quantify(isoform_sequences=''):
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir',
 		help='''directory to put temporary files. use "./" to indicate current directory
 		(default: python tempfile directory)''')
+	parser.add_argument('--sample_id_only', default=False, action='store_true', dest='sample_id_only',
+		help='''only use sample id in output header''')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
-		default='', help='Path to salmon executable, specify if salmon quantification is desired')
+		default='', help='''Path to salmon executable, specify if salmon quantification is desired. Please 
+		note that none of the optional arguments below can be specified when using salmon''')
+	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
+		help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
 		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
 		used (1)''')
 	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
 		help='specify if reads are generated from a long read method with minimal fragmentation')
-	parser.add_argument('--sample_id_only', default=False, action='store_true', dest='sample_id_only',
-		help='''only use sample id in output header''')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
 		help='''create read-to-isoform assignment files for each sample (default: not specified)''')
-	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
-		help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
 	parser.add_argument('--isoform_bed', '--isoformbed', default='', type=str, action='store', dest='isoforms',
 		help='''isoform .bed or .psl file, must be specified if --stringent or check_splice is specified''')
 	parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
@@ -844,8 +845,9 @@ def quantify(isoform_sequences=''):
 	if not os.path.exists(args.i):
 		sys.stderr.write('Isoform sequences fasta file path does not exist\n')
 		return 1
-	if args.salmon and (args.quality != 1 or args.trust_ends or args.stringent or args.check_splice or args.generate_map):
-		sys.stderr.write('ERROR, cannot specify quality, trust_ends, stringent, check_splice or generate_map when using salmon to quantify\n')
+	if args.salmon and (args.quality != 1 or args.trust_ends or args.stringent or args.check_splice or 
+		args.tpm or args.generate_map):
+		sys.stderr.write('ERROR, cannot specify quality, tpm, trust_ends, stringent, check_splice or generate_map when using salmon to quantify\n')
 		return 1
 
 	try:

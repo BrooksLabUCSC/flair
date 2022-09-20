@@ -3,7 +3,7 @@ flair correct
 
 .. code:: sh
 
-usage: python flair.py correct -q query.bed12 [-f annotation.gtf]|[-j introns.tab] -g genome.fa [options]
+   usage: python flair.py correct -q query.bed12 [-f annotation.gtf]|[-j introns.tab] -g genome.fa [options]
 
 
 This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions. It creates a ``<prefix>.corrected.bed`` for use in subsequent steps and a ``<prefix>.inconsistent.bed`` with rejected alignments.
