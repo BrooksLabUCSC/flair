@@ -108,6 +108,17 @@ def runDESeq(outdir, group1, group2, matrix, prefix, formula):
 
     print(f'input file: {matrix}', file=sys.stderr)
 
+    # create output working directory if it doesn't exist
+    data_folder = os.path.join(os.getcwd(), outdir)
+    workdir = os.path.join(data_folder, 'workdir')
+    if not os.path.exists(workdir):
+        os.makedirs(workdir)
+    lfcOut = os.path.join(workdir, "%s_%s_v_%s_results_shrinkage.tsv"  % (prefix,group1,group2))
+    resOut = os.path.join(workdir, "%s_%s_v_%s_results.tsv"  % (prefix,group1,group2))
+    # final files go in the main output dir
+    cleanOut = os.path.join(data_folder, "%s_%s_v_%s.tsv"  % (prefix,group1,group2))
+    qcOut = os.path.join(data_folder, "%s_QCplots_%s_v_%s.pdf"  % (prefix,group1,group2))
+
     # clean up rpy2/R's stderr
     def f(x):
         print(x.rstrip(), file=sys.stderr)
@@ -115,6 +126,7 @@ def runDESeq(outdir, group1, group2, matrix, prefix, formula):
 
     # make the quant DF
     quantDF  = pd.read_csv(matrix, header=0, sep='\t', index_col=0)
+    genecount = quantDF.shape[0]
     df = pandas2ri.py2rpy(quantDF)
 
     # import formula
@@ -140,23 +152,27 @@ def runDESeq(outdir, group1, group2, matrix, prefix, formula):
     R.assign('design',design)
     R('dds <- DESeqDataSetFromMatrix(countData = df, colData = sampleTable, design = design)')
     R('dds <- DESeq(dds)')
-    # R("save.image(file='/private/groups/brookslab/atang/flair/testing/misc/colette/.RData')")
     R('f = resultsNames(dds)')
-    g = robjects.r['f']
-    print(g)
     R('name <- grep("condition", resultsNames(dds), value=TRUE)')
 
     # Get Results and shrinkage values
     res    = R('results(dds, name=name)')
-    resLFC = R('lfcShrink(dds, coef=name)')
-    try:
-        vsd    = R('vst(dds,blind=FALSE)')
-    except rpy2.rinterface_lib.embedded.RRuntimeError:
-        print('runDE failed, probably because the matrix is too small to estimate dispersion')
-        exit(1)
+    R('resLFC <- lfcShrink(dds, coef=name)')
+    resLFC = R('resLFC')
     resdf  = robjects.r['as.data.frame'](res)
     reslfc = robjects.r['as.data.frame'](resLFC)
-    dds    = R('dds')
+
+    robjects.r['write.table'](reslfc, file=lfcOut, quote=False, sep="\t")
+    robjects.r['write.table'](resdf, file=resOut, quote=False, sep="\t")
+
+    # order by adjusted p value and remove NA
+    R('resLFC <- na.omit(resLFC[order(resLFC[,"padj"]),])')
+    # keep only significant
+    R('resLFC <- as.matrix(resLFC[resLFC$padj< 0.05,])')
+    # round the numbers so the table is human readable (last two columns are e values)
+    R('outdf <- data.frame(sample=rownames(resLFC), round(resLFC[,1:3], 2), signif(resLFC[,4:5], 3))')
+    R.assign('outf', cleanOut)
+    R('write.table(outdf, row.names=FALSE, quote=FALSE, file=outf, sep="\t")')
 
     ### Plotting section ###
     # plot MA and PC stats for the user
@@ -165,20 +181,38 @@ def runDESeq(outdir, group1, group2, matrix, prefix, formula):
     plotPCA   = robjects.r['plotPCA']
     plotQQ    = robjects.r['qq']
 
+    # arrange
+    grdevices.pdf(file=qcOut)
+
+    plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
+    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrhinkage")
+    plotQQ(reslfc.rx2('pvalue'), main="LFCSrhinkage pvalue QQ")
+    hh = ggplot2.ggplot(resdf) + \
+            ggplot2.aes_string(x="pvalue") + \
+            ggplot2.geom_histogram() + \
+            ggplot2.theme_classic() + \
+            ggplot2.ggtitle("pvalue distribution")
+    hh.plot()
+    dds    = R('dds')
+    plotDisp(dds, main="Dispersion Estimates")
+
+    # vst expects 1000 rows unless otherwise informed
+    nsub = min(genecount, 1000)
+    R.assign('nsub', nsub)
+    try:
+        vsd    = R('vst(dds, nsub=nsub, blind=FALSE)')
+    except rpy2.rinterface_lib.embedded.RRuntimeError:
+        print('DESeq2 and other QC plots ran OK but the PCA plot failed, probably because the number of input genes is very low')
+        grdevices.dev_off()
+        exit(1)
+
     # get pca data
     if "batch" in list(formulaDF):
         pcaData    = plotPCA(vsd, intgroup=robjects.StrVector(("condition", "batch")), returnData=robjects.r['T'])
         percentVar = robjects.r['attr'](pcaData, "percentVar")
     else:
-        print(vsd)
         pcaData    = plotPCA(vsd, intgroup="condition", returnData=robjects.r['T'])
         percentVar = robjects.r['attr'](pcaData, "percentVar")
-
-    # arrange
-    data_folder = os.path.join(os.getcwd(), outdir)
-    qcOut = os.path.join(data_folder, "%s_QCplots_%s_v_%s.pdf"  % (prefix,group1,group2))
-
-    grdevices.pdf(file=qcOut)
 
     x = "PC1: %s" % int(percentVar[0]*100) + "%% variance"
     y = "PC2: %s" % int(percentVar[1]*100) + "%% variance"
@@ -195,30 +229,15 @@ def runDESeq(outdir, group1, group2, matrix, prefix, formula):
     else:
         pp = ggplot2.ggplot(pcaData) + \
             ggplot2.aes_string(x="PC1", y="PC2", color="condition") + \
+            ggplot2.ggtitle("Principal Component Analysis (PCA)") + \
             ggplot2.geom_point(size=3) + \
             robjects.r['xlab'](x) + \
             robjects.r['ylab'](y) + \
             ggplot2.theme_classic() + \
             ggplot2.coord_fixed()
     pp.plot()
-    plotMA(res, ylim=robjects.IntVector((-3,3)), main="MA-plot results")
-    plotMA(resLFC, ylim=robjects.IntVector((-3,3)), main="MA-plot LFCSrhinkage")
-    plotQQ(reslfc.rx2('pvalue'), main="LFCSrhinkage pvalue QQ")
-    hh = ggplot2.ggplot(resdf) + \
-            ggplot2.aes_string(x="pvalue") + \
-            ggplot2.geom_histogram() + \
-            ggplot2.theme_classic() + \
-            ggplot2.ggtitle("pvalue distribution")
-    hh.plot()
-    plotDisp(dds, main="Dispersion Estimates")
     grdevices.dev_off()
 
-    data_folder = os.path.join(os.getcwd(), outdir)
-    lfcOut = os.path.join(data_folder, "%s_%s_v_%s_deseq2_results_shrinkage.tsv"  % (prefix,group1,group2))
-    resOut = os.path.join(data_folder, "%s_%s_v_%s_deseq2_results.tsv"  % (prefix,group1,group2))
-
-    robjects.r['write.table'](reslfc, file=lfcOut, quote=False, sep="\t")
-    robjects.r['write.table'](resdf, file=resOut, quote=False, sep="\t")
 
 
 if __name__ == "__main__":

@@ -115,6 +115,15 @@ def rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads):
 
     print(f'input file: {matrix}', file=sys.stderr)
 
+    # create output working directory if it doesn't exist
+    data_folder = os.path.join(os.getcwd(), outdir)
+    workdir = os.path.join(data_folder, 'workdir')
+    if not os.path.exists(workdir):
+        os.makedirs(workdir)
+    resOut = os.path.join(workdir, "%s_%s_v_%s_results.tsv"  % (prefix,group1,group2))
+    # final file goes in the main output dir
+    cleanOut = os.path.join(data_folder, "%s_%s_v_%s.tsv"  % (prefix,group1,group2))
+
     # clean up rpy2/R's stderr
     def f(x):
         print(x.rstrip(), file=sys.stderr)
@@ -156,18 +165,28 @@ def rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads):
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
-    print(rpy2.__version__)
-    print(np.__version__)
+    #print(rpy2.__version__)
+    #print(np.__version__)
     R('contrast = colnames(design_full)[2]')
 
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
-    res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
-
-    data_folder = os.path.join(os.getcwd(), outdir)
-    resOut = os.path.join(data_folder, "%s_%s_v_%s_drimseq2_results.tsv"  % (prefix,group1,group2))
+    #res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
+    #res.to_csv(resOut, sep='\t')
+    R('res <- merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
+    # raw output
+    res = R('res')
     res.to_csv(resOut, sep='\t')
-    sys.exit(0)
 
+    # order by adjusted p value
+    R('res <- res[order(res[,"adj_pvalue"]),]')
+    # keep only significant
+    R('res <- subset(res, adj_pvalue <= 0.05)')
+    # we don't know how many samples there are
+    R('fina <- ncol(res)-4')
+    # round sample and log ratio value, skip df and pvalue, round(=signif) the e-values of adj_pvalue
+    R('outdf <- data.frame(res[1:2], round(res[3:fina],3), lr = round(res[["lr"]],2), adj_pvalue = signif(res[["adj_pvalue"]],3))')
+    R.assign('outf', cleanOut)
+    R('write.table(outdf, row.names=FALSE, quote=FALSE, file=outf, sep="\t")')
 
 if __name__ == "__main__":
     main()

@@ -141,7 +141,7 @@ class Gene(object):
 ########################################################################
 
 
-def separateTables(f, thresh, samples, groups):
+def separateTables(f, thresh, samples, groups, outDir):
 
     genes, isoforms = dict(), dict()
     duplicateID = 1
@@ -197,6 +197,7 @@ def separateTables(f, thresh, samples, groups):
     #make gene table first
     geneIDs = np.asarray(list(genes.keys()))
     vals    = np.asarray([genes[x].exp for x in geneIDs])
+    # genes must be expressed in all samples of at least one group
     filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
     filteredGeneVals = vals[filteredRows]
     filteredGeneIDs  = geneIDs[filteredRows]
@@ -221,17 +222,14 @@ def separateTables(f, thresh, samples, groups):
     allIso = np.hstack((isoformIDs,vals))
     isoDF  = pd.DataFrame(allIso, columns=['gene_id','feature_id']+samples)
     isoDF.to_csv(outDir + "/filtered_iso_counts_drim.tsv", sep="\t")
-
     return genes, isoforms
 
 
 def main():
 
     '''
-    maine
     '''
 
-    # Command Line Stuff...
     myCommandLine = CommandLine()
 
     outDir     = myCommandLine.args['outDir']
@@ -250,8 +248,8 @@ def main():
     combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
 
     groupCounts = Counter(groups)
-    if len(list(groupCounts.keys())) < 2:
-        print("** Error. diffExp requires >1 condition group. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)
+    if len(list(groupCounts.keys())) != 2:
+        print("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)
         sys.exit(1)
     elif min(list(groupCounts.values())) < 3:
         print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.", file=sys.stderr)
@@ -263,14 +261,16 @@ def main():
         print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.", file=sys.stderr)
         sys.exit(1)
 
-    # Create output directory.
+    # Create output directory including a working directory for intermediate files.
+    workdir = os.path.join(outDir, 'workdir')
+    
     if force_dir:
-        if not os.path.exists(outDir):
-            os.makedirs(outDir)
+        if not os.path.exists(workdir):
+            os.makedirs(workdir)
         pass
     elif not os.path.exists(outDir):
         try:
-            os.makedirs(outDir, 0o700)
+            os.makedirs(workdir, 0o700)
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
@@ -278,7 +278,7 @@ def main():
         print("** Error. Name '%s' already exists. Choose another name for out_dir" % outDir, file=sys.stderr)
         sys.exit(1)
     # Convert count tables to dataframe and update isoform objects.
-    genes, isoforms = separateTables(quantTable, sFilter, samples, groups)
+    genes, isoforms = separateTables(quantTable, sFilter, samples, groups, workdir)
 
     # checks linear combination
     if len(combos) == 2:
@@ -299,35 +299,38 @@ def main():
         formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
         formulaDF     = formulaDF.set_index('sample_id')
 
-    formulaMatrixFile = outDir + "/formula_matrix.tsv"
-    isoMatrixFile     = outDir + "/filtered_iso_counts_ds2.tsv"
-    geneMatrixFile    = outDir + "/filtered_gene_counts_ds2.tsv"
-    drimMatrixFile    = outDir + "/filtered_iso_counts_drim.tsv"
+    formulaMatrixFile = workdir + "/formula_matrix.tsv"
+    isoMatrixFile     = workdir + "/filtered_iso_counts_ds2.tsv"
+    geneMatrixFile    = workdir + "/filtered_gene_counts_ds2.tsv"
+    drimMatrixFile    = workdir + "/filtered_iso_counts_drim.tsv"
 
     formulaDF.to_csv(formulaMatrixFile, sep='\t')
 
-    with open("%s/dge_stderr.txt" % outDir,"w") as out1:
+    with open("%s/dge_stderr.txt" % workdir,"w") as out1:
 
         try:
             subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
-                            "--prefix", "dge", "--formula", formulaMatrixFile], stderr=out1)
+                            "--prefix", "genes_deseq2", "--formula", formulaMatrixFile], stderr=out1)
         except subprocess.CalledProcessError:
-            print(f'WARNING, running DESeq2 on genes failed, please check {outDir}/dge_stderr.txt for details')
+            print(f'WARNING, running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details')
+        sys.stdout.flush()
     
         try:
             subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
-                            "--prefix", "die", "--formula", formulaMatrixFile], stderr=out1)
+                            "--prefix", "isoforms_deseq2", "--formula", formulaMatrixFile], stderr=out1)
         except subprocess.CalledProcessError:
-            print(f'WARNING, running DESeq2 on isoforms failed, please check {outDir}/dge_stderr.txt for details')
+            print(f'WARNING, running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details')
+        sys.stdout.flush()
     
         try:
             subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
-                             "--prefix", "diu", "--formula", formulaMatrixFile], stderr=out1)
+                             "--prefix", "isoforms_drimseq", "--formula", formulaMatrixFile], stderr=out1)
         except subprocess.CalledProcessError:
-            print(f'WARNING, running DRIMSeq, please check {outDir}/dge_stderr.txt for details')
+            print(f'WARNING, running DRIMSeq failed, please check {workdir}/dge_stderr.txt for details')
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":
