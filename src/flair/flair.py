@@ -1039,12 +1039,14 @@ def diffSplice(isoforms='', counts_matrix=''):
 			type=str, help='isoforms in bed or psl format')
 		required.add_argument('-q', '--counts_matrix', action='store', dest='q',
 			type=str, required=True, help='tab-delimited isoform count matrix from flair quantify module')
-	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.diffsplice', type=str,
-		required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
+	required.add_argument('-o', '--out_dir', action='store', dest='o',
+		type=str, required=True, help='Output directory for tables and plots.')
+#	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.diffsplice', type=str,
+#		required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
 	parser.add_argument('--test', action='store_true', dest='test',
 		required=False, default=False, help='Run DRIMSeq statistical testing')
 	parser.add_argument('-t', '--threads', action='store', dest='t',
-		type=int, required=False, default=1, help='Number of threads for parallel DRIMSeq (1)')
+		type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq (4)')
 	parser.add_argument('--drim1', action='store', dest='drim1', type=int, required=False, default=6,
 		help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion
 		for DRIMSeq testing; events with too few samples are filtered out and not tested (6)''')
@@ -1060,11 +1062,14 @@ def diffSplice(isoforms='', counts_matrix=''):
 	parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False,
 		help='''If specified with --test, DRIMSeq will perform batch correction''')
 	parser.add_argument('--conditionA', action='store', dest='conditionA', required=False, default='',
-		help='''Specify one condition corresponding to samples in the counts_matrix to be compared against
+		help='''Implies --test. Specify one condition corresponding to samples in the counts_matrix to be compared against
 		condition2; by default, the first two unique conditions are used''')
 	parser.add_argument('--conditionB', action='store', dest='conditionB', required=False, default='',
 		help='''Specify another condition corresponding to samples in the counts_matrix to be compared against
 		conditionA''')
+	parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
+		required=False, help='''Specify this argument to force overwriting of files in
+		an existing output directory''')
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('DiffSplice unrecognized arguments: {}\n'.format(' '.join(unknown)))
@@ -1082,20 +1087,36 @@ def diffSplice(isoforms='', counts_matrix=''):
 		sys.stderr.write('Isoform bed file path does not exist\n')
 		return 1
 
+	# Create output directory including a working directory for intermediate files.
+	workdir = os.path.join(args.o, 'workdir')
+	if args.of:
+		if not os.path.exists(workdir):
+			os.makedirs(workdir)
+		pass
+	elif not os.path.exists(args.o):
+		try:
+			os.makedirs(workdir, 0o700)
+		except OSError as e:
+			if e.errno != errno.EEXIST:
+				raise
+	else:
+		print("** Error. Name '%s' already exists. Choose another name for out_dir" % args.o, file=sys.stderr)
+		return 1
 	if args.i[-3:].lower() == 'psl':
 		subprocess.check_call([sys.executable, path+'psl_to_bed.py', args.i, args.i+'.bed'])
 		args.i = args.i+'.bed'
 
-	subprocess.check_call([sys.executable, path+'call_diffsplice_events.py', args.i, args.o, args.q])
-	subprocess.check_call([sys.executable, path+'es_as.py', args.i], stdout=open(args.o+'.es.events.tsv', 'w'))
-	subprocess.check_call([sys.executable, path+'es_as_inc_excl_to_counts.py', args.q, args.o+'.es.events.tsv'],
-		stdout=open(args.o+'.es.events.quant.tsv', 'w'))
-	subprocess.check_call(['rm', args.o+'.es.events.tsv'])
+	filebase = os.path.join(args.o, 'diffsplice')
+	subprocess.check_call([sys.executable, path+'call_diffsplice_events.py', args.i, filebase, args.q])
+	subprocess.check_call([sys.executable, path+'es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
+	subprocess.check_call([sys.executable, path+'es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
+		stdout=open(filebase+'.es.events.quant.tsv', 'w'))
+	subprocess.check_call(['rm', filebase+'.es.events.tsv'])
 
 	if args.test or args.conditionA:
 		sys.stderr.write('DRIMSeq testing for each AS event type\n')
 		drim1, drim2, drim3, drim4 = [str(x) for x in [args.drim1, args.drim2, args.drim3, args.drim4]]
-		ds_command = [sys.executable, path+'runDS.py', '--threads', str(args.t),
+		ds_command = [sys.executable, path+'runDS.py', '--threads', str(args.t), '--outDir', args.o,
 			'--drim1', drim1, '--drim2', drim2, '--drim3', drim3, '--drim4', drim4]
 		if args.batch:
 			ds_command += ['--batch']
@@ -1105,18 +1126,20 @@ def diffSplice(isoforms='', counts_matrix=''):
 				return 1
 			ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
-		with open(args.o+'.stderr.txt', 'w') as ds_stderr:
+		with open(workdir+'/ds.stderr.txt', 'w') as ds_stderr:
 			for event in ['es', 'alt5', 'alt3', 'ir']:
-				matrixfile = f'{args.o}.{event}.events.quant.tsv'
+				matrixfile = f'{filebase}.{event}.events.quant.tsv'
 				if emptyMatrix(matrixfile):
 					print(f'{event} event matrix file empty, not running DRIMSeq\n')
 					continue
-				cur_command = ds_command + ['--matrix', matrixfile, '--prefix', f'{args.o}.{event}']
+				cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
 				if subprocess.call(cur_command, stderr=ds_stderr):
-					print(f'\nDRIMSeq failed on {event} event, likely because no genes remained after filtering.')
-					print(f'Check {args.o}.stderr.txt for details.\nCommand was:')
+					print(f'\nDRIMSeq failed on {event} event')
+					print(f'Check {workdir}/ds.stderr.txt for details.\nCommand was:')
 					print(' '.join([x for x in cur_command]))
-
+	else:
+		# workdir only necessary for drimseq output
+		os.rmdir(workdir)
 	return
 
 

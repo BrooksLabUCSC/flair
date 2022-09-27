@@ -17,7 +17,6 @@ If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`_
 If you have more than two sample condtions, either split your counts matrix ahead of time or run DESeq2 and DRIMSeq yourself. 
 
 Outputs
-~~~~~~~
 
 After the run, the output directory (``--out_dir``) contains the following, where COND1 and COND2 are the names of the sample groups.
  - ``genes_deseq2_MCF7_v_A549.tsv`` Filtered differential gene expression table.
@@ -50,7 +49,7 @@ Optional arguments
 
 
 Notes
--------
+-----
 
 DESeq2 and DRIMSeq are optimized for short read experiments and expect many reads for each expressed gene. Lower coverage (as expected when using long reads) will tend to result in false positives.
 

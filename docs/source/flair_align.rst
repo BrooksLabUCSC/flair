@@ -27,21 +27,21 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``-reads`` Raw reads in fasta or fastq format. This argument accepts multiple files if they are separated by spaces.
+``--reads`` Raw reads in fasta or fastq format. This argument accepts multiple files if they are separated by spaces.
 
 At least one of the following arguments is required:
 
-``-genome`` Reference genome in fasta format. Flair will minimap index this file unless there already is a ``.mmi`` file in the same location.
+``--genome`` Reference genome in fasta format. Flair will minimap index this file unless there already is a ``.mmi`` file in the same location.
 
-``-mm_index`` If there already is a ``.mmi`` index for the genome it can be supplied directly using this option. 
+``--mm_index`` If there already is a ``.mmi`` index for the genome it can be supplied directly using this option. 
 
 
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-``-help`` Show all options.
+``--help`` Show all options.
 
-``-output`` Name base for output files (default: ``flair.aligned``). You can supply an output directory (e.g. ``output/flair_aligned``) 
+``--output`` Name base for output files (default: ``flair.aligned``). You can supply an output directory (e.g. ``output/flair_aligned``) 
 but it has to exist; Flair will not create it. If you run the same command twice, Flair will overwrite the files without warning.
 
 ``--threads`` Number of processors to use (default 4).

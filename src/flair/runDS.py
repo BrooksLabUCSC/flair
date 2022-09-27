@@ -12,12 +12,8 @@
 ########################################################################
 
 
-import warnings
-from rpy2.rinterface import RRuntimeWarning
-warnings.filterwarnings("ignore", category=RRuntimeWarning)
-
-import sys
 import os
+import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import pandas as pd
 
@@ -31,6 +27,10 @@ from rpy2.robjects.packages import importr
 #    import rpy2.robjects.lib.ggplot2 as ggplot2
 
 R = robjects.r
+
+import warnings
+from rpy2.rinterface import RRuntimeWarning
+warnings.filterwarnings("ignore", category=RRuntimeWarning)
 
 
 class CommandLine(object):
@@ -99,7 +99,7 @@ def main():
 
     myCommandLine = CommandLine()
 
-#    outdir     = myCommandLine.args['outDir'] unused, check args
+    outdir     = myCommandLine.args['outDir']
     matrix     = myCommandLine.args['matrix']
     prefix     = myCommandLine.args['prefix']
     threads    = myCommandLine.args['threads']
@@ -111,16 +111,21 @@ def main():
     conditionA = myCommandLine.args['conditionA']
     conditionB = myCommandLine.args['conditionB']
 
-    outfile = runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matrix, prefix, usebatch)
+    outfile = runDRIMSeq(outdir, threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matrix, prefix, usebatch)
     if outfile is False:
         print('runDS failed')
         sys.exit(1)
 
 
-def runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matrix, prefix, usebatch):
+def runDRIMSeq(outdir, threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matrix, prefix, usebatch):
     '''Run DRIMSeq via rpy R emulator'''
 
     print(f'input file: {matrix}', file=sys.stderr)
+
+    # create output working directory if it doesn't exist
+    workdir = os.path.join(outdir, 'workdir')
+    if not os.path.exists(workdir):
+        os.makedirs(workdir)
 
     # clean up rpy2/R's stderr
     def f(x):
@@ -141,10 +146,21 @@ def runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matr
 
     # make formula (sample) dataframe
     formula = []
+    foundA = False
+    foundB = False
     for s,g,b in zip(samples, groups, batches):
-        if conditionA not in g and conditionB not in g:
+        if conditionA in g:
+            foundA = True
+        elif conditionB in g:
+            foundB = True
+        else:
+#        if conditionA not in g and conditionB not in g:
             continue
         formula += [(s, g, b)]
+    if not (foundA and foundB):
+        print(f'\n**ERROR** Could not find {conditionA} and/or {conditionB} in input file, exiting\n\n')
+        sys.stderr.write(f'\n**ERROR** Could not find {conditionA} and/or {conditionB} in input file, exiting\n\n')
+        sys.exit(1)
     formulaDF = pd.DataFrame(data=formula, columns=['sample_id', 'condition', 'batch'])
 
     # get quant table
@@ -201,14 +217,26 @@ def runDRIMSeq(threads, drim1, drim2, drim3, drim4, conditionA, conditionB, matr
     R('contrast <- grep("condition",colnames(design_full),value=TRUE)')
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
-    res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
-    resOut = "%s.%s_v_%s_drimseq_results.tsv"  % (prefix, conditionA, conditionB)
-    if rpy2_version >= 3.4:
-        with localconverter(ro.default_converter + pandas2ri.converter):
-            res = ro.conversion.rpy2py(res)
+    R('res <- merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
+    resOut = os.path.join(workdir, "%s_%s_v_%s_drimseq_results.tsv"  % (prefix, conditionA, conditionB))
+    # raw output
+    R.assign('outf', resOut)
+    R('write.table(res, quote=FALSE, file=outf, sep="\t")')
 
-    res.to_csv(resOut, sep='\t')
-    return resOut
+    # final file goes in the main output dir
+    cleanOut = os.path.join(outdir, "drimseq_%s_%s_v_%s.tsv"  % (prefix, conditionA, conditionB))
+    # order by adjusted p value
+    R('res <- res[order(res[,"adj_pvalue"]),]')
+    # keep only significant
+    R('res <- subset(res, adj_pvalue <= 0.05)')
+    # we don't know how many samples there are
+    R('fina <- ncol(res)-4')
+    # round sample and log ratio value, skip df and pvalue, round(=signif) the e-values of adj_pvalue
+    R('outdf <- data.frame(res[1:2], round(res[3:fina],3), lr = round(res[["lr"]],2), adj_pvalue = signif(res[["adj_pvalue"]],3))')
+    R.assign('outf', cleanOut)
+    R('write.table(outdf, row.names=FALSE, quote=FALSE, file=outf, sep="\t")')
+
+    return cleanOut
     # pltFName = '%s_%s_v_%s_pval_histogram.pdf' % (prefix,conditionA,conditionB)
     # R.assign('fname', pltFName)
     # R('pdf(file=fname)')
