@@ -29,7 +29,7 @@ def samtools_outdated(samtools):
 
 def align():
 	parser = argparse.ArgumentParser(description='flair-align parse options',
-		usage='python flair.py align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
+		usage='flair align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
 	parser.add_argument('align')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('Either one of the following arguments is required')
@@ -78,13 +78,16 @@ def align():
 			args.m += 'minimap2'
 		else:
 			args.m += '/minimap2'
-	for i in range(len(args.r)):
-		if not os.path.exists(args.r[i]):
-			sys.stderr.write('Check that read file {} exists\n'.format(args.r[i]))
+	if ',' in args.r[0]:
+		args.r = args.r[0].split(',')
+	for rfile in args.r:
+	#for i in range(len(args.r)):
+		if not os.path.exists(rfile):
+			sys.stderr.write(f'Check that read file {rfile} exists\n')
 			return 1
-		if args.invalid:
-			sys.stderr.write('Flair no longer supports the pychopper argument.\nPlease see https://github.com/epi2me-labs/pychopper for details on installing and running pychopper.\n\n')
-			return 1
+	if args.invalid:
+		sys.stderr.write('Flair no longer supports the pychopper argument.\nPlease see https://github.com/epi2me-labs/pychopper for details on installing and running pychopper.\n\n')
+		return 1
 #		if args.pychopper:
 #			subprocess.check_call([args.pychopper, '-t', str(args.t), '-r', args.o+'.'+args.r[i]+'.pychopper_report.pdf',
 #				'-u', args.o+'.'+args.r[i]+'.unclassified.fastq', '-w', args.o+'.'+args.r[i]+'.rescued.fastq',
@@ -148,7 +151,7 @@ def align():
 
 def correct(aligned_reads=''):
 	parser = argparse.ArgumentParser(description='flair-correct parse options',
-		usage='python flair.py correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
+		usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
 	parser.add_argument('correct')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('at least one of the following arguments is required')
@@ -161,16 +164,16 @@ def correct(aligned_reads=''):
 		help='bed format splice junctions from short-read sequencing')
 	atleastone.add_argument('-f', '--gtf', default='',
 		action='store', dest='f', help='GTF annotation file')
+	parser.add_argument('-o', '--output',
+		action='store', dest='o', default='flair', help='output name base (default: flair)')
+	parser.add_argument('-t', '--threads', type=int, action='store', dest='t', default=4,
+		help='splice site correction script number of threads (4)')
 	parser.add_argument('-c', '--chromsizes', type=str, action='store',
 		dest='c', default='', help='chromosome sizes tab-separated file, specify if working with .psl')
 	parser.add_argument('--nvrna', action='store_true', dest='n', default=False,
 		help='''specify this flag to make the strand of a read consistent with the annotation during correction''')
-	parser.add_argument('-t', '--threads', type=int, action='store', dest='t', default=4,
-		help='splice site correction script number of threads (4)')
 	parser.add_argument('-w', '--ss_window', type=int, action='store', dest='w', default=15,
 		help='window size for correcting splice sites (15)')
-	parser.add_argument('-o', '--output',
-		action='store', dest='o', default='flair', help='output name base (default: flair)')
 	parser.add_argument('--print_check',
 		action='store_true', dest='p', default=False, help='Print err.txt with step checking.')
 	args, unknown = parser.parse_known_args()
@@ -221,7 +224,7 @@ def correct(aligned_reads=''):
 
 def collapse_range(run_id='', corrected_reads='', aligned_reads=''):
 	parser = argparse.ArgumentParser(description='flair-collapse parse options',
-		usage='python flair.py collapse-range -g genome.fa -r reads.bam -q <query.psl>|<query.bed> [options]')
+		usage='flair collapse-range -g genome.fa -r reads.bam -q <query.psl>|<query.bed> [options]')
 	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-r', '--reads', action='store', dest='r', nargs='+',
@@ -354,7 +357,7 @@ def collapse_range(run_id='', corrected_reads='', aligned_reads=''):
 
 def collapse(genomic_range='', corrected_reads=''):
 	parser = argparse.ArgumentParser(description='flair-collapse parse options',
-		usage='''python flair.py collapse -g genome.fa -q <query.psl>|<query.bed>
+		usage='''flair collapse -g genome.fa -q <query.psl>|<query.bed>
 		-r <reads.fq>/<reads.fa> [options]''')
 	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
@@ -365,12 +368,12 @@ def collapse(genomic_range='', corrected_reads=''):
 		type=str, required=True, help='FastA of reference genome')
 	required.add_argument('-r', '--reads', action='store', dest='r', nargs='+',
 		type=str, required=True, help='FastA/FastQ files of raw reads, can specify multiple files')
-	parser.add_argument('-f', '--gtf', default='', action='store', dest='f',
-		help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
-	parser.add_argument('-t', '--threads', type=int,
-		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('-o', '--output', default='flair.collapse',
 		action='store', dest='o', help='output file name base for FLAIR isoforms (default: flair.collapse)')
+	parser.add_argument('-t', '--threads', type=int,
+		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
+	parser.add_argument('-f', '--gtf', default='', action='store', dest='f',
+		help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
 		help='''specify this argument to generate a txt file of read-isoform assignments
 		note: only works if the quantification method is not using salmon (default: not specified)''')
@@ -431,12 +434,6 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''specify if intermediate and temporary files are to be kept for debugging.
 		Intermediate files include: promoter-supported reads file,
 		read assignments to firstpass isoforms''')
-	parser.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
-	parser.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools',
-		help='bedtools executable path, provide if TSS/TES regions specified and bedtools is not in $PATH')
-	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='samtools executable path if not in $PATH')
 	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
 		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--fusion_dist', default=0, type=int, action='store', dest='fusion_dist',
@@ -451,9 +448,16 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''annotation_reliant also requires a bedfile of annotated isoforms; if this isn't provided,
 		flair collapse will generate the bedfile from the gtf. eventually this argument will be removed''')
 	parser.add_argument('--range', default='', action='store', dest='range',
-		help='''interval for which to collapse isoforms for, formatted chromosome:coord1-coord2 or
+		help='''interval for which to collapse isoforms, formatted chromosome:coord1-coord2 or
 		tab-delimited; if a range is specified, then the aligned reads bam must be specified with -r
 		and the query must be a sorted, bgzip-ed bed file''')
+	obsolete = parser.add_argument_group('These options will soon be removed because conda and docker installs solve them:')
+	obsolete.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools',
+		help='bedtools executable path, provide if TSS/TES regions specified and bedtools is not in $PATH')
+	obsolete.add_argument('-m', '--minimap2', type=str, default='minimap2',
+		action='store', dest='m', help='path to minimap2 if not in $PATH')
+	obsolete.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
+		help='specify a samtools executable path if not in $PATH if --quality is also used')
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
@@ -499,6 +503,8 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.fusion_dist:
 		args.trust_ends = True
 
+	if ',' in args.r[0]:
+		args.r = args.r[0].split(',')
 	for rfile in args.r:
 		if not os.path.exists(rfile):
 			sys.stderr.write(f'Read file path does not exist: {rfile}\n')
@@ -776,7 +782,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
 def quantify(isoform_sequences=''):
 	parser = argparse.ArgumentParser(description='flair-quantify parse options',
-		usage='python flair.py quantify -r reads_manifest.tsv -i isoforms.fa [options]')
+		usage='flair quantify -r reads_manifest.tsv -i isoforms.fa [options]')
 	parser.add_argument('quantify')
 	required = parser.add_argument_group('required named arguments')
 	if not isoform_sequences:
@@ -787,10 +793,10 @@ def quantify(isoform_sequences=''):
 	else:
 		required.add_argument('--reads_manifest', action='store', dest='r', type=str,
 			required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
-	parser.add_argument('-t', '--threads', type=int,
-		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', default='flair.quantify',
 		help='''output file name base for FLAIR quantify (default: flair.quantify)''')
+	parser.add_argument('-t', '--threads', type=int,
+		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir',
 		help='''directory to put temporary files. use "./" to indicate current directory
 		(default: python tempfile directory)''')
@@ -981,7 +987,7 @@ def quantify(isoform_sequences=''):
 
 def diffExp(counts_matrix=''):
 	parser = argparse.ArgumentParser(description='flair-diffExp parse options',
-		usage='python flair.py diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
+		usage='flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
 	parser.add_argument('diffExp')
 	required = parser.add_argument_group('required named arguments')
 	if not counts_matrix:
@@ -1031,7 +1037,7 @@ def emptyMatrix(infile):
 
 def diffSplice(isoforms='', counts_matrix=''):
 	parser = argparse.ArgumentParser(description='flair-diffSplice parse options',
-		usage='python flair.py diffSplice -i isoforms.bed|isoforms.psl -q counts_matrix.tsv [options]')
+		usage='flair diffSplice -i isoforms.bed|isoforms.psl -q counts_matrix.tsv [options]')
 	parser.add_argument('diffSplice')
 	required = parser.add_argument_group('required named arguments')
 	if not isoforms:
@@ -1043,10 +1049,10 @@ def diffSplice(isoforms='', counts_matrix=''):
 		type=str, required=True, help='Output directory for tables and plots.')
 #	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.diffsplice', type=str,
 #		required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
-	parser.add_argument('--test', action='store_true', dest='test',
-		required=False, default=False, help='Run DRIMSeq statistical testing')
 	parser.add_argument('-t', '--threads', action='store', dest='t',
 		type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq (4)')
+	parser.add_argument('--test', action='store_true', dest='test',
+		required=False, default=False, help='Run DRIMSeq statistical testing')
 	parser.add_argument('--drim1', action='store', dest='drim1', type=int, required=False, default=6,
 		help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion
 		for DRIMSeq testing; events with too few samples are filtered out and not tested (6)''')
@@ -1147,10 +1153,10 @@ def main():
 	path = '/'.join(os.path.realpath(__file__).split("/")[:-1])+'/'
 	globals()['path'] = path
 	if len(sys.argv) < 2:
-		sys.stderr.write('usage: python flair.py <mode> --help \n')
+		sys.stderr.write('usage: flair <mode> --help \n')
 		sys.stderr.write('modes: align, correct, collapse, quantify, diffExp, diffSplice\n')
 		sys.stderr.write('Multiple modules can be run when specified using numbers, e.g.:\n')
-		sys.stderr.write('python flair.py 1234 ...\n')
+		sys.stderr.write('flair 1234 ...\n')
 		sys.exit(1)
 	else:
 		mode = sys.argv[1].lower()
