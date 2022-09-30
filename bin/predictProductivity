@@ -19,7 +19,6 @@
 
 import sys
 import pybedtools
-import subprocess
 ########################################################################
 # CommandLine
 ########################################################################
@@ -308,15 +307,8 @@ def main():
 
     is_psl = bed[-3:].lower() != 'bed' and bed[-5:].lower() != 'bed12'
     if is_psl:
-        path = sys.argv[0][:sys.argv[0].rfind('/')+1] if '/' in sys.argv[0] else ''
-        status = subprocess.call([sys.executable, path+'psl_to_bed.py', bed, bed+'.bed'])
-        if status == 2:
-            is_psl = False
-        elif status:
-            sys.stderr.write('bin/psl_to_bed.py did not exit with success status\n')
-            sys.exit(1)
-        else:
-            bed = bed+'.bed'
+        sys.stderr.write('predictProductivity no longer accepts PSL input, please run psl_to_bed\n')
+        sys.exit(1)
 
     starts      = getStarts(gtf)
     isoformObjs = getSeqs(bed, genome)
@@ -348,8 +340,6 @@ def main():
             else:
                 bedCols[7],bedCols[6] = str(start),str(end)
             print("\t".join(bedCols))
-    if is_psl:
-        subprocess.check_call(['rm', bed])
 
 
 if __name__ == "__main__":
