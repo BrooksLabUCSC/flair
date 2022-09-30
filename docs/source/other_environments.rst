@@ -46,13 +46,16 @@ Requirements
 If you do not use ``pip install`` or ``conda env create```, you will also need:
 
 4. python v3.6+ and python modules: 
+
    * numpy=1.9.*
    * tqdm
    * ncls
    * pybedtools
    * mappy
    * pysam=v0.8.4+
+
 5. full Flair additional python modules:
+
   - Cython
   - pandas
   - rpy2=2.9.*
