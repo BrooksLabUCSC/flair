@@ -289,7 +289,7 @@ def main():
     bed           = myCommandLine.args['input_bed']
     gtf           = myCommandLine.args['gtf']
     otherJuncs    = myCommandLine.args['junctionsBed']
-    wiggle        = myCommandLine.args['wiggleWindow'] # unused (check args)
+    wiggle        = myCommandLine.args['wiggleWindow']
     threads       = myCommandLine.args['threads']
     outFile       = myCommandLine.args['output_fname']
     keepTemp      = myCommandLine.args['keepTemp']
@@ -352,21 +352,27 @@ def main():
     sortedData = None
     skippedChroms = set()
     readDict = dict()
-    with open(bed) as lines:
+    notfound = False
+    with open(bed) as lines, open("%s_cannot_verify.bed" % outFile,'w') as nochrom:
         outDict = dict()
         for line in tqdm(lines, desc="Step 4/5: Preparing reads for correction", dynamic_ncols=True, position=1) if verbose else lines:
             cols  = line.rstrip().split()
             chrom = cols[0]
             if chrom not in chromosomes:
+                notfound = True
+                nochrom.write(line)
                 if chrom not in skippedChroms:
                     skippedChroms.add(chrom)
-                    #if verbose: tqdm.write("Reference sequence not found in annotations, skipping: %s" % (chrom), file=sys.stderr)
+                    if verbose: tqdm.write("Reference sequence %s not found in annotations, skipping" % (chrom), file=sys.stdout)
                     continue
             else:
                 if chrom not in outDict:
                     readDict[chrom] = os.path.join(tempDir,"%s_temp_reads.bed" % chrom)
                     outDict[chrom] = open(os.path.join(tempDir,"%s_temp_reads.bed" % chrom),'w')
                 print(line.rstrip(),file=outDict[chrom])
+    nochrom.close()
+    if notfound is False:
+        os.remove(f'{outFile}_cannot_verify.bed')
 
     cmds = list()
     for chrom in readDict:
