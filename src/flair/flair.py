@@ -11,22 +11,6 @@ import glob
 from multiprocessing import Pool
 
 
-def samtools_outdated(samtools):
-	'''Make sure samtools version is 1.3 or higher'''
-	ver = subprocess.Popen([samtools], stderr=subprocess.PIPE, universal_newlines=True)
-	for line in ver.stderr:
-		if 'Version:' in line:
-			versionmatch = re.match('Version: ([0-9]+)\\.([0-9]+)', line)
-			if versionmatch is None:
-				return True
-			versionmatch = list(versionmatch.groups())
-			if len(versionmatch) < 2:
-				return True
-			if int(versionmatch[0]) > 0 and int(versionmatch[1]) > 2:
-				return False
-	return True
-
-
 def align():
 	parser = argparse.ArgumentParser(description='flair-align parse options',
 		usage='flair align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
@@ -53,26 +37,10 @@ def align():
 		help='retain at most INT secondary alignments from minimap2 alignment (0)')
 	parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
 			help='''Suppress progress statements from being printed''')
-	obsolete = parser.add_argument_group('These options will soon be removed because conda and docker installs solve them:')
-	obsolete.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='samtools executable path if not in $PATH')
-	obsolete.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
-	obsolete.add_argument('--pychopper', type=str, default='', action='store', dest='invalid',
-		help='Oxford nanopore trimmer, no longer part of Flair. Please see https://github.com/epi2me-labs/pychopper.')
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Align unrecognized arguments: {}\n'.format(' '.join(unknown)))
 
-	if samtools_outdated(args.sam) is True:
-		sys.stderr.write('\nERROR: Samtools version should be >= 1.3, try conda installing flair to solve this issue\n\n')
-		return 1
-
-	if args.m[-8:] != 'minimap2':
-		if args.m[-1] == '/':
-			args.m += 'minimap2'
-		else:
-			args.m += '/minimap2'
 	if ',' in args.r[0]:
 		args.r = args.r[0].split(',')
 	for rfile in args.r:
@@ -80,16 +48,8 @@ def align():
 		if not os.path.exists(rfile):
 			sys.stderr.write(f'Check that read file {rfile} exists\n')
 			return 1
-	if args.invalid:
-		sys.stderr.write('Flair no longer supports the pychopper argument.\nPlease see https://github.com/epi2me-labs/pychopper for details on installing and running pychopper.\n\n')
-		return 1
-#		if args.pychopper:
-#			subprocess.check_call([args.pychopper, '-t', str(args.t), '-r', args.o+'.'+args.r[i]+'.pychopper_report.pdf',
-#				'-u', args.o+'.'+args.r[i]+'.unclassified.fastq', '-w', args.o+'.'+args.r[i]+'.rescued.fastq',
-#				args.r, args.o+'.'+args.r[i]+'.trimmed.fastq'])
-#			args.r[i] = args.o+'.'+args.r[i]+'.trimmed.fastq'
 
-	mm2_command = [args.m, '-ax', 'splice', '-t', str(args.t), args.g]+args.r
+	mm2_command = ['minimap2', '-ax', 'splice', '-t', str(args.t), args.g]+args.r
 	if args.mm_index:
 		mm2_command[5] = args.mm_index
 	if args.n:
@@ -115,7 +75,7 @@ def align():
 		return 1
 
 	if args.quality != 0:
-		if subprocess.call([args.sam, 'view', '-q', str(args.quality), '-h', '-S', args.o+'.sam'],
+		if subprocess.call(['samtools', 'view', '-q', str(args.quality), '-h', '-S', args.o+'.sam'],
 		stdout=open(args.o+'.q.sam', 'w'), stderr=open(args.o+'.samtools_stderr', 'w')):
 			sys.stderr.write('Possible issue with samtools, see {}\n'.format(args.o+'.samtools_stderr'))
 			return 1
@@ -124,13 +84,13 @@ def align():
 		subprocess.check_call(['rm', args.o+'.samtools_stderr'])
 
 	stderrfile = args.o + '.bam.stderr'
-	if subprocess.call([args.sam, 'sort', '-@', str(args.t), args.o+'.sam', '-o', args.o+'.bam'],
+	if subprocess.call(['samtools', 'sort', '-@', str(args.t), args.o+'.sam', '-o', args.o+'.bam'],
 		stderr=open(stderrfile, 'w')):
 		sys.stderr.write(f'Samtools issue with sorting minimap2 sam, see {stderrfile}\n')
 		return 1
 	subprocess.check_call(['rm', stderrfile, args.o+'.sam'])
 
-	subprocess.check_call([args.sam, 'index', args.o+'.bam'])
+	subprocess.check_call(['samtools', 'index', args.o+'.bam'])
 
 	bed_conversion_cmd = [sys.executable, path+'bam2Bed12.py', '-i', args.o+'.bam']
 	if args.N != 0:
@@ -221,18 +181,12 @@ def collapse_range(run_id='', corrected_reads='', aligned_reads=''):
 		type=str, required=True, help='FastA of reference genome')
 	parser.add_argument('-f', '--gtf', default='', action='store', dest='f',
 		help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
-	parser.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
 	parser.add_argument('--mmi', type=str, default='',
 		action='store', dest='mmi', help='minimap2 indexed genome')
 	parser.add_argument('-t', '--threads', type=int,
 		action='store', dest='t', default=4, help='minimap2 number of threads (4)')
 	parser.add_argument('-p', '--promoters', action='store', dest='p', default='',
 		help='promoter regions bed file to identify full-length reads')
-	parser.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools',
-		help='bedtools executable path, provide if promoter regions specified and bedtools is not in $PATH')
-	parser.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='samtools executable path if not in $PATH')
 	parser.add_argument('-w', '--end_window', type=int, default=100, action='store', dest='w',
 		help='window size for comparing TSS/TES (100)')
 	parser.add_argument('-s', '--support', type=int, default=3, action='store', dest='s',
@@ -278,10 +232,6 @@ def collapse_range(run_id='', corrected_reads='', aligned_reads=''):
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Collapse-range unrecognized arguments: {}\n'.format(' '.join(unknown)))
-
-	if samtools_outdated(args.sam) is True:
-		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
-		return 1
 
 	if corrected_reads:
 		args.q = corrected_reads
@@ -435,13 +385,6 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''interval for which to collapse isoforms, formatted chromosome:coord1-coord2 or
 		tab-delimited; if a range is specified, then the aligned reads bam must be specified with -r
 		and the query must be a sorted, bgzip-ed bed file''')
-	obsolete = parser.add_argument_group('These options will soon be removed because conda and docker installs solve them:')
-	obsolete.add_argument('-b', '--bedtools', action='store', dest='b', default='bedtools',
-		help='bedtools executable path, provide if TSS/TES regions specified and bedtools is not in $PATH')
-	obsolete.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
-	obsolete.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='specify a samtools executable path if not in $PATH if --quality is also used')
 	args, unknown = parser.parse_known_args()
 	if unknown and not args.quiet:
 		sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
@@ -449,10 +392,6 @@ def collapse(genomic_range='', corrected_reads=''):
 			return 1
 	if corrected_reads:
 		args.q = corrected_reads
-
-	if samtools_outdated(args.sam) is True:
-		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
-		return 1
 
 	# housekeeping stuff
 	tempfile_dir = tempfile.NamedTemporaryFile().name
@@ -474,13 +413,6 @@ def collapse(genomic_range='', corrected_reads=''):
 		args.q = args.temp_dir+run_id+'.sorted.bed.gz'
 		args.quiet = True
 
-	if args.m[-8:] != 'minimap2':
-		if args.m[-1] == '/':
-			args.m += 'minimap2'
-		else:
-			args.m += '/minimap2'
-
-	#args.t, args.quality = str(args.t), str(args.quality)
 	args.quality = '0' if args.trust_ends else args.quality
 	args.o += '.'
 	min_reads = float(args.s) if float(args.s) >= 1 else 3
@@ -518,13 +450,13 @@ def collapse(genomic_range='', corrected_reads=''):
 		bams = []
 		for i in range(len(args.r)): # subset bam file for alignments within range
 			bams += [args.temp_dir+tempfile_name+args.range+str(i)+'.bam']
-			if subprocess.call([args.sam, 'view', '-h', args.r[i], args.range],
+			if subprocess.call(['samtools', 'view', '-h', args.r[i], args.range],
 				stdout=open(bams[-1], 'w')):
 				return 1
 		args.r = []
 		for i in range(len(bams)): # read sequences of the alignments within range
 			args.r += [bams[i][:-3]+'fasta']
-			subprocess.check_call([args.sam, 'fasta', bams[i]],
+			subprocess.check_call(['samtools', 'fasta', bams[i]],
 				stdout=open(args.r[-1], 'w'),
 				stderr=open(args.temp_dir+tempfile_name+'bam2fq_stderr', 'w'))
 		subprocess.check_call(['rm'] + bams)
@@ -556,7 +488,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
 		if subprocess.call([sys.executable, path+'pull_starts.py', args.q, args.temp_dir+tempfile_name+'tss.bed']):
 			return 1
-		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tss.bed', '-b', args.p],
+		if subprocess.call(['bedtools', 'intersect', '-a', args.temp_dir+tempfile_name+'tss.bed', '-b', args.p],
 			stdout=open(args.temp_dir+tempfile_name+'promoter_intersect.bed', 'w')):
 			return 1
 		precollapse = args.o+'promoter_supported.bed' # filename of promoter-supported, corrected reads
@@ -569,7 +501,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			sys.stderr.write('Filtering out reads without TES support\n')
 		if subprocess.call([sys.executable, path+'pull_starts.py', precollapse, args.temp_dir+tempfile_name+'tes.bed', 'reverse']):
 			return 1
-		if subprocess.call([args.b, 'intersect', '-a', args.temp_dir+tempfile_name+'tes.bed', '-b', args.threeprime],
+		if subprocess.call(['bedtools', 'intersect', '-a', args.temp_dir+tempfile_name+'tes.bed', '-b', args.threeprime],
 			stdout=open(args.temp_dir+tempfile_name+'tes_intersect.bed', 'w')):
 			return 1
 		precollapse = args.o+'tes_supported.bed' # filename of 3' end-supported, corrected reads
@@ -606,7 +538,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		if not args.quiet:
 			sys.stderr.write('Aligning reads to reference transcripts\n')
-		if subprocess.call([args.m, '-a', '-t', str(args.t), '-N', '4', args.annotation_reliant] + args.r,
+		if subprocess.call(['minimap2', '-a', '-t', str(args.t), '-N', '4', args.annotation_reliant] + args.r,
 			stdout=open(args.o+'annotated_transcripts.alignment.sam', 'w'),
 			stderr=open(args.o+'annotated_transcripts.alignment.mm2_stderr', 'w')):
 			sys.stderr.write('Minimap2 issue, check stderr file\n')
@@ -692,13 +624,13 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.mm2_args:
 		args.mm2_args = args.mm2_args.split(',')
 	# note that we cannot get a return value at this point because there's a pipe to samtools or count_sam_transcripts.py
-	ps = subprocess.Popen([args.m, '-a', '-t', str(args.t), '-N', '4'] + args.mm2_args + [args.o+'firstpass.fa'] + args.r,
+	ps = subprocess.Popen(['minimap2', '-a', '-t', str(args.t), '-N', '4'] + args.mm2_args + [args.o+'firstpass.fa'] + args.r,
 		stdout=subprocess.PIPE)
 
 	# count the number of supporting reads for each first-pass isoform
 	count_file = args.o+'firstpass.q.counts'
 	if args.salmon: # use salmon to count
-		if subprocess.call([args.sam, 'view', '-F', '4', '-h', '-b', '-S', '-'],
+		if subprocess.call(['samtools', 'view', '-F', '4', '-h', '-b', '-S', '-'],
 			stdout=open(alignout+'bam', 'w'), stdin=ps.stdout):
 			sys.stderr.write('\nMinimap2 error, please check that all file, directory, and executable paths exist\n')
 			return 1
@@ -805,20 +737,11 @@ def quantify(isoform_sequences=''):
 	parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
 		help='''enforce coverage of 4 out of 6 bp around each splice site and no
 		insertions greater than 3 bp at the splice site''')
-	obsolete = parser.add_argument_group('These options will soon be removed because conda and docker installs solve them:')
-	obsolete.add_argument('-m', '--minimap2', type=str, default='minimap2',
-		action='store', dest='m', help='path to minimap2 if not in $PATH')
-	obsolete.add_argument('-sam', '--samtools', action='store', dest='sam', default='samtools',
-		help='specify a samtools executable path if not in $PATH if --quality is also used')
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
 		if not isoform_sequences:
 			return 1
-
-	if samtools_outdated(args.sam) is True:
-		sys.stderr.write('\nERROR: Samtools version should be >= 1.3\n\n')
-		return 1
 
 	if isoform_sequences:
 		args.i = isoform_sequences
@@ -848,12 +771,6 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write('Numpy import error. Please pip install numpy. Exiting.\n')
 		return 1
 
-	if args.m[-8:] != 'minimap2':
-		if args.m[-1] == '/':
-			args.m += 'minimap2'
-		else:
-			args.m += '/minimap2'
-	#args.t, args.quality = str(args.t), str(args.quality)
 	samData = list()
 	with codecs.open(args.r, 'r', encoding='utf-8', errors='ignore') as lines:
 		for line in lines:
@@ -884,7 +801,7 @@ def quantify(isoform_sequences=''):
 
 	for num, sample in enumerate(samData, 0):
 		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \r' % (sample[0], sample[2], num+1, len(samData)))
-		mm2_command = [args.m, '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
 		try:
 			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
