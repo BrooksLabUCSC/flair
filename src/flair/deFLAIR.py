@@ -31,9 +31,7 @@ scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
 runDE = path + "/" + "runDE.py"
 runDU = path + "/" + "runDU.py"
-#runAS = path + "/" + "runAS.py"
-#runAP = path + "/" + "runAP.py"
-#predictProd = path + "/" + "predictProductivity"
+
 ########################################################################
 # CommandLine
 ########################################################################
@@ -243,9 +241,13 @@ def main():
         header = next(l).split()[1:]
 
     samples = ["%s_%s" % (h,num) for num,h in enumerate(header)]
-    groups  = [x.split("_")[1] for x in header]
-    batches = [x.split("_")[-1] for x in header]
-    combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
+    try:
+        groups  = [x.split("_")[1] for x in header]
+        batches = [x.split("_")[-1] for x in header]
+        combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
+    except IndexError:
+        print("** Error. diffExp requires column headers to contain sample, group, and batch, separated by '_'", file=sys.stderr)
+        sys.exit(1)
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:
