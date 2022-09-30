@@ -24,18 +24,6 @@ def get_junctions(line):
 	return junctions
 
 
-def get_junctions_bed12(line):
-	junctions = set()
-	chrstart = int(line[1])
-	starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
-	sizes = [int(n) for n in line[10].split(',')[:-1]]
-	if len(starts) == 1:
-		return
-	for b in range(len(starts)-1): # block
-		junctions.add((starts[b]+sizes[b], starts[b+1]))
-	return junctions
-
-
 def bin_search(query, data):
 	""" Query is a coordinate interval. Binary search for the query in sorted data,
 	which is a list of coordinates. Finishes when an overlapping value of query and
