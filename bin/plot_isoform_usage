@@ -9,7 +9,7 @@ import matplotlib.patches as mplpatches
 import seaborn as sns
 
 parser = argparse.ArgumentParser(description='options',
-  usage='''python plot_isoform_usage.py isoforms.psl|.bed counts_matrix.tsv gene_name [options]
+  usage='''plot_isoform_usage isoforms.psl|.bed counts_matrix.tsv gene_name [options]
   The script will produce two images, one of the isoform models and another of the usage proportions.
   The most highly expressed isoforms across all the samples will be plotted.
   The minor isoforms are aggregated into a gray bar. You can toggle min_reads or

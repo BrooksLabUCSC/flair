@@ -60,16 +60,6 @@ but it has to exist; Flair will not create it. If you run the same command twice
 
 ``--quiet`` Dont print progress statements.
 
-Obsolete arguments (will be removed soon)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you ``conda install`` Flair or use its docker container, minimap2 and samtools are in $PATH.
-
-``--minimap2`` Path to minimap2 if not in $PATH.
-
-``--samtools`` Path to samtools if not in $PATH
-
-``--pychopper`` `Pychopper <https://github.com/epi2me-labs/pychopper>`__ is a preprocessing tool for Oxford Nanopore reads. It's easy to conda install and run locally; please do so before running Flair.
 
 Notes
 -----
@@ -275,16 +265,6 @@ Optional arguments
 ``--range`` Interval for which to collapse isoforms, formatted ``chromosome:coord1-coord2`` or tab-delimited; if a range is specified, then the ``--reads`` argument must be a BAM file and ``--query`` must be a sorted, bgzip-ed bed file.
 
 
-Obsolete arguments (will be removed soon)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you ``conda install`` Flair or use its docker container these programs are in $PATH.
-
-``--minimap2`` Path to minimap2 if not in $PATH.
-
-``--samtools`` Path to samtools if not in $PATH
-
-``--bedtools`` B bedtools executable path, provide if TSS/TES regions specified and bedtools is not in $PATH.
 
 .. _quantify-label:
 
@@ -349,14 +329,6 @@ Optional arguments
 ``--check_splice`` Enforces coverage of 4 out of 6 bp around each splice site and no insertions greater than 3 bp at the splice site.
 
 
-Obsolete arguments (will be removed soon)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you ``conda install`` Flair or use its docker container, minimap2 and samtools are in its $PATH
-
-``--minimap2`` Path to minimap2 if not in $PATH.
-
-``--samtools`` Path to samtools if not in $PATH (only needed when --quality is specified).
 
 
 Other info
@@ -461,7 +433,7 @@ flair diffSplice
 
 .. code:: sh
 
-   usage: flair diffSplice -i <isoforms.bed> -q counts_matrix.tsv [options]
+   usage: flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
 
 This module calls alternative splicing (AS) events from isoforms. Currently supports
 the following AS events: 
@@ -477,7 +449,7 @@ the alternative splicing events between two conditions. See below for
 more DRIMSeq-specific arguments. 
 
 If conditions were sequenced without replicates, then the diffSplice output files can
-be input to the `diffsplice_fishers_exact.py <#diffsplice_fishers>`__
+be input to the `diffsplice_fishers_exact <#diffsplice_fishers>`__
 script for statistical testing instead.
 
 **Outputs**
