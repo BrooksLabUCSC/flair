@@ -209,7 +209,7 @@ Optional arguments
 
 ``--stringent`` Specify if all supporting reads need to be full-length (80% coverage and spanning 25 bp of the first and last exons).
 
-``--check_splice`` Enforce coverage of 4 out of 6 bp around each splice site and no insertions greater than 3 bp at the splice site.
+``--check_splice`` Enforce coverage of 4 out of 6 bp around each splice site and no insertions greater than 3 bp at the splice site. Please note: If you want to use ``--annotation_reliant``  as well, set it to ``generate`` instead of providing an input transcripts fasta file, otherwise flair may fail to match the transcript IDs. Alternatively you can create a correctly formatted transcript fasta file using ``gtf_to_psl``
 
 ``--trust_ends`` Specify if reads are generated from a long read method with minimal fragmentation.
 

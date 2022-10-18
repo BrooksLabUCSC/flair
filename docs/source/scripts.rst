@@ -2,27 +2,6 @@ Additional programs
 ^^^^^^^^^^^^^^^^^^^
 When you ``conda install`` flair, the following helper programs will be in your $PATH:
 
-deFLAIR
-=======
-.. code:: sh
-
-    usage: deFLAIR --manifest manifest.txt --workingdir dir_name --outdir out_dir --filter N
-
-deFLAIR is a rpy2 convenience tool to run DESeq2.
-
-.. code:: sh
-
-    options:
-      -h, --help            show this help message and exit
-      --outDir OUTDIR       Write to specified output directory.
-      --filter FILTER       Isoforms with less than specified read count for
-                            either Condition A or B are filtered (Default: 10
-                            reads)
-      --matrix MATRIX       Count matrix from FLAIR quantify.
-      --threads THREADS     Number of threads for running DRIM-Seq.
-      -of, --out_dir_force  Specify this argument to force overwriting of an
-                            existing output directory for tables and plots.
-
 diff_iso_usage
 ==============
 .. code:: sh
