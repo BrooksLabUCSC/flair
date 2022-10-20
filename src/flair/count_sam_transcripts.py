@@ -106,10 +106,16 @@ def is_stringent(tname, blocksizes, blockstarts):
 def check_splice(tname, pos, covered_pos, insertion_pos):
 	''' Returns True if all splice sites are covered. Splice site is considered covered if
 	the number of matches according to CIGAR string  num_match_in_ss_window '''
-	for ss in splice_sites[tname]:
-		if sum(covered_pos[ss-pos-3:ss-pos+3]) <= num_match_in_ss_window:
-			return False
-	return True
+	try:
+		for ss in splice_sites[tname]:
+			if sum(covered_pos[ss-pos-3:ss-pos+3]) <= num_match_in_ss_window:
+				return False
+		return True
+	except KeyError:
+		sys.stderr.write('''ERROR, the transcript names in the annotation fasta do not appear to match the ones 
+in the isoforms file. You may be able to fix this by using gtf_to_bed and bed_to_sequence on your annotation gtf
+and using the resulting file as your annotation fasta input to this program\n''')
+		sys.exit(1)
 
 
 def are_far(transcript_1, transcript_2):

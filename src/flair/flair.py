@@ -515,6 +515,8 @@ def collapse(genomic_range='', corrected_reads=''):
 			return 1
 
 	if args.annotation_reliant:
+		if not args.generate_map:
+			args.generate_map = True
 		if args.annotation_reliant == 'generate' or not args.annotated_bed:
 			if not os.path.exists(args.f):
 				if not args.f:
@@ -527,12 +529,8 @@ def collapse(genomic_range='', corrected_reads=''):
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
 			args.annotated_bed = args.o+'annotated_transcripts.bed'
 			subprocess.check_call([sys.executable, path+'gtf_to_bed.py', args.f, args.annotated_bed, '--include_gene'])
-			# subprocess.call([sys.executable, path+'identify_gene_isoform.py', args.annotated_bed,
-			# 	args.f, args.annotated_bed])
 
 		if args.annotation_reliant == 'generate':
-			if not args.generate_map:
-				args.generate_map = True
 			args.annotation_reliant = args.o+'annotated_transcripts.fa'
 			subprocess.check_call([sys.executable, path+'bed_to_sequence.py', args.o+'annotated_transcripts.bed', args.g, args.annotation_reliant])
 
