@@ -228,8 +228,10 @@ panel.tick_params(axis='both',which='both',
                    top=False, labeltop=False, labelsize=8)
 
 gray_bar = [['lowexpr']+[0]*len(sample_ids)+gray]  # the minor isoform bar is gray
+print(args.gene_name)
 for line in counts_matrix:
     line = line.rstrip().split('\t')
+    print(line[0])
     if args.gene_name not in line[0]:
         continue
     counts = [float(x) for x in line[1:]]
@@ -288,12 +290,12 @@ for iso in proportions:
         heights[i] += percentage
 
 xlim = len(sample_ids) + 0.5  # guide lines every 20%
-panel.plot([-1, xlim], [0,     0], 'r--', lw=.75, color='black', alpha=.3, zorder=0)
-panel.plot([-1, xlim], [20,   20], 'r--', lw=.75, color='black', alpha=.3, zorder=0)
-panel.plot([-1, xlim], [40,   40], 'r--', lw=.75, color='black', alpha=.3, zorder=0)
-panel.plot([-1, xlim], [60,   60], 'r--', lw=.75, color='black', alpha=.3, zorder=0)
-panel.plot([-1, xlim], [80,   80], 'r--', lw=.75, color='black', alpha=.3, zorder=0)
-panel.plot([-1, xlim], [100, 100], 'r--', lw=.75, color='black', alpha=.3, zorder=0)
+panel.plot([-1, xlim], [0,     0], 'r--', lw=.75, alpha=.3, zorder=0)
+panel.plot([-1, xlim], [20,   20], 'r--', lw=.75, alpha=.3, zorder=0)
+panel.plot([-1, xlim], [40,   40], 'r--', lw=.75, alpha=.3, zorder=0)
+panel.plot([-1, xlim], [60,   60], 'r--', lw=.75, alpha=.3, zorder=0)
+panel.plot([-1, xlim], [80,   80], 'r--', lw=.75, alpha=.3, zorder=0)
+panel.plot([-1, xlim], [100, 100], 'r--', lw=.75, alpha=.3, zorder=0)
 
 panel.set_xticks(np.arange(1,xlim))
 panel.set_xticklabels(sample_ids, rotation=20, ha='right')
