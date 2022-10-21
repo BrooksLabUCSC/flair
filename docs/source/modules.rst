@@ -31,35 +31,41 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``--reads`` Raw reads in fasta or fastq format. This argument accepts multiple (comma/space separated) files.
 
-At least one of the following arguments is required:
+.. code:: sh
 
-``--genome`` Reference genome in fasta format. Flair will minimap index this file unless there already is a ``.mmi`` file in the same location.
+    --reads     Raw reads in fasta or fastq format. This argument accepts multiple 
+                (comma/space separated) files.
 
-``--mm_index`` If there already is a ``.mmi`` index for the genome it can be supplied directly using this option. 
+    At least one of the following arguments is required:
+    --genome    Reference genome in fasta format. Flair will minimap index this file 
+                unless there already is a .mmi file in the same location.
+    --mm_index  If there already is a .mmi index for the genome it can be supplied 
+                directly using this option. 
 
 
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-``--help`` Show all options.
+.. code:: sh
 
-``--output`` Name base for output files (default: ``flair.aligned``). You can supply an output directory (e.g. ``output/flair_aligned``) 
-but it has to exist; Flair will not create it. If you run the same command twice, Flair will overwrite the files without warning.
-
-``--threads`` Number of processors to use (default 4).
-
-``--junction_bed`` Annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment.
-
-``--nvrna`` Use native-RNA specific alignment parameters for minimap2 (``-u f -k 14``, see `minimap2's manual <https://lh3.github.io/minimap2/minimap2.html>`__ for details).
-
-``--quality`` Minimum `MAPQ score <http://www.acgt.me/blog/2014/12/16/understanding-mapq-scores-in-sam-files-does-37-42>`__ of read alignment to the genome. The default is 1, which is the lowest possible score.
-
-``-N`` Retain at most INT secondary alignments from minimap2 (default 0). Please proceed with caution, changing this setting is only useful if you know there are closely related homologs elsewhere in the genome. It will likely decrease the quality of Flair's final results.
-
-``--quiet`` Dont print progress statements.
-
+    --help		Show all options.
+    --output		Name base for output files (default: flair.aligned). You can supply 
+                        an output directory (e.g. output/flair_aligned) but it has to exist; 
+                        Flair will not create it. If you run the same command twice, Flair 
+                        will overwrite the files without warning.
+    --threads		Number of processors to use (default 4).
+    --junction_bed	Annotated isoforms/junctions bed file for splice site-guided 
+                        minimap2 genomic alignment.
+    --nvrna		Use native-RNA specific alignment parameters for minimap2 (-u f -k 14)
+    --quality		Minimum MAPQ score of read alignment to the genome. The default is 1, 
+                        which is the lowest possible score.
+    -N                  Retain at most INT secondary alignments from minimap2 (default 0). Please 
+                        proceed with caution, changing this setting is only useful if you know 
+                        there are closely related homologs elsewhere in the genome. It will 
+                        likely decrease the quality of Flair's final results.
+    --quiet		Dont print progress statements.
+    
 
 Notes
 -----
@@ -71,6 +77,10 @@ If your input sequences are Oxford nanopore reads, please use `Pychopper <https:
 
 If your reads are already aligned, you can convert the sorted ``bam`` output to ``bed12`` using
 ``bam2Bed12`` to supply for flair-correct. This step smoothes gaps in the alignment.
+
+nvrna settings: See `minimap2's manual <https://lh3.github.io/minimap2/minimap2.html>`__ for details.
+
+quality: `More info on MAPQ scores <http://www.acgt.me/blog/2014/12/16/understanding-mapq-scores-in-sam-files-does-37-42>`__ 
 
 .. _correct-label:
 
@@ -96,30 +106,33 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``--query`` Uncorrected bed12 file, e.g. output of `flair align <#align-label>`__.
 
-``--genome`` Reference genome in fasta format.
+.. code:: sh
 
-At least one of the following arguments is required:
-
-``--shortread`` Bed format splice junctions from short-read sequencing. You can generate these from SAM format files using the ``junctions_from_sam`` program that comes with Flair.
-
-``--gtf`` GTF annotation file.
-
+    --query	        Uncorrected bed12 file, e.g. output of flair align.
+    --genome	        Reference genome in fasta format.
+    
+    At least one of the following arguments is required:
+    --shortread         Bed format splice junctions from short-read sequencing. You can 
+                        generate these from SAM format files using the junctions_from_sam 
+                        program that comes with Flair.
+    --gtf	        GTF annotation file.
+    
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
-``--help`` Show all options 
 
-``--output`` Name base for output files (default: ``flair``). You can supply an output directory (e.g. ``output/flair``)
-but it has to exist; Flair will not create it. If you run the same command twice, Flair will overwrite the files without warning.
+.. code:: sh
 
-``--threads`` Number of processors to use (default 4).
-
-``--nvrna`` Specify this flag to make the strand of a read consistent with the input annotation during correction.
-
-``--ss_window`` Window size for correcting splice sites (default 15).
-
-``--print_check``         Print err.txt with step checking.
+    --help	        Show all options 
+    --output	        Name base for output files (default: flair). You can supply an 
+                        output directory (e.g. output/flair) but it has to exist; Flair 
+                        will not create it. If you run the same command twice, Flair will 
+                        overwrite the files without warning.
+    --threads	        Number of processors to use (default 4).
+    --nvrna	        Specify this flag to make the strand of a read consistent with 
+                        the input annotation during correction.
+    --ss_window	        Window size for correcting splice sites (default 15).
+    --print_check	Print err.txt with step checking.
 
 Notes
 -----
@@ -183,88 +196,113 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``--query`` Bed file of aligned/corrected reads
 
-``--genome`` FastA of reference genome
+.. code:: sh
 
-``--reads`` FastA/FastQ files of raw reads, can specify multiple files
-
+    --query	Bed file of aligned/corrected reads
+    --genome	FastA of reference genome
+    --reads	FastA/FastQ files of raw reads, can specify multiple files
+    
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
-``--help`` Show all options.
-
-``--output`` Name base for output files (default: ``flair.collapse``). You can supply an output directory (e.g. ``output/flair_collapse``)
-
-``--threads`` Number of processors to use (default: 4).
-
-``--gtf`` GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs.
-
-``--generate_map`` Specify this argument to generate a txt file of read-isoform assignments. Note: only works if the quantification method is not using salmon (default: not specified).
-
-``--annotation_reliant`` Specify transcript fasta that corresponds to transcripts in the gtf to run annotation-reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa, use ``--annotation_reliant generate``.
-
+    
+.. code:: sh
+    
+    --help	        Show all options.
+    --output	        Name base for output files (default: flair.collapse). 
+                        You can supply an output directory (e.g. output/flair_collapse)
+    --threads	        Number of processors to use (default: 4).
+    --gtf	        GTF annotation file, used for renaming FLAIR isoforms to 
+                        annotated isoforms and adjusting TSS/TESs.
+    --generate_map	Specify this argument to generate a txt file of read-isoform 
+                        assignments (default: not specified).
+    --annotation_reliant	Specify transcript fasta that corresponds to transcripts 
+                        in the gtf to run annotation-reliant flair collapse; to ask flair 
+                        to make transcript sequences given the gtf and genome fa, use 
+                        --annotation_reliant generate.
+    
 **Options for read support**
-
-``--support`` Minimum number of supporting reads for an isoform; if s < 1, it will be treated as a percentage of expression of the gene (default: 3).
-
-``--stringent`` Specify if all supporting reads need to be full-length (80% coverage and spanning 25 bp of the first and last exons).
-
-``--check_splice`` Enforce coverage of 4 out of 6 bp around each splice site and no insertions greater than 3 bp at the splice site. Please note: If you want to use ``--annotation_reliant``  as well, set it to ``generate`` instead of providing an input transcripts fasta file, otherwise flair may fail to match the transcript IDs. Alternatively you can create a correctly formatted transcript fasta file using ``gtf_to_psl``
-
-``--trust_ends`` Specify if reads are generated from a long read method with minimal fragmentation.
-
-``--quality`` Minimum MAPQ of read assignment to an isoform (default: 1).
-
+    
+.. code:: sh
+    
+    --support	        Minimum number of supporting reads for an isoform; if s < 1, 
+                        it will be treated as a percentage of expression of the gene 
+                        (default: 3).
+    --stringent	        Specify if all supporting reads need to be full-length (80% 
+                        coverage and spanning 25 bp of the first and last exons).
+    --check_splice	Enforce coverage of 4 out of 6 bp around each splice site and 
+                        no insertions greater than 3 bp at the splice site. Please note: 
+                        If you want to use --annotation_reliant as well, set it to 
+                        generate instead of providing an input transcripts fasta file, 
+                        otherwise flair may fail to match the transcript IDs. 
+                        Alternatively you can create a correctly formatted transcript 
+                        fasta file using gtf_to_psl
+    --trust_ends	Specify if reads are generated from a long read method with 
+                        minimal fragmentation.
+    --quality	        Minimum MAPQ of read assignment to an isoform (default: 1).
+    
 **Variant options**
+    
+.. code:: sh
+    
+    --longshot_bam	BAM file from Longshot containing haplotype information for each read.
+    --longshot_vcf	VCF file from Longshot.
 
-``--longshot_bam`` BAM file from `longshot <https://github.com/pjedge/longshot>`__ containing haplotype information for each read.
-
-``--longshot_vcf`` VCF file from longshot.
-
+For more information on the Longshot variant caller, see its `github page <https://github.com/pjedge/longshot>`__
+    
 **Transcript starts and ends**
-
-``--end_window`` Window size for comparing transcripts starts (TSS) and ends (TES) (default: 100).
-
-``--promoters`` Promoter regions bed file to identify full-length reads.
-
-``--3prime_regions`` TES regions bed file to identify full-length reads.
-
-``--no_redundant`` <none,longest,best_only> (default: none). For each unique splice junction chain, report options include:
-                - ``none``  best TSSs/TESs chosen for each unique set of splice junctions
-                - ``longest`` single TSS/TES chosen to maximize length
-                - ``best_only`` single most supported TSS/TES
-
-``--isoformtss`` When specified, TSS/TES for each isoform will be determined from supporting reads for individual isoforms (default: not specified, determined at the gene level).
-
-``--no_gtf_end_adjustment`` Do not use TSS/TES from the input gtf to adjust isoform TSSs/TESs. Instead, each isoform will be determined from supporting reads.
-
-``--max_ends`` Maximum number of TSS/TES picked per isoform (default: 2).
-
-``--filter`` Report options include: 
-        - ``nosubset`` any isoforms that are a proper set of another isoform are removed
-        - ``default`` subset isoforms are removed based on support
-        - ``comprehensive`` default set + all subset isoforms
-        - ``ginormous`` comprehensive set + single exon subset isoforms.
-
+    
+.. code:: sh
+    
+    --end_window	Window size for comparing transcripts starts (TSS) and ends 
+                        (TES) (default: 100).
+    --promoters	        Promoter regions bed file to identify full-length reads.
+    --3prime_regions	TES regions bed file to identify full-length reads.
+    --no_redundant	<none,longest,best_only> (default: none). For each unique 
+                        splice junction chain, report options include:
+                                - none	        best TSSs/TESs chosen for each unique
+                                                set of splice junctions
+                                - longest	single TSS/TES chosen to maximize length
+                                - best_only	single most supported TSS/TES
+    --isoformtss	When specified, TSS/TES for each isoform will be determined 
+                        from supporting reads for individual isoforms (default: not 
+                        specified, determined at the gene level).
+    --no_gtf_end_adjustment	Do not use TSS/TES from the input gtf to adjust 
+                        isoform TSSs/TESs. Instead, each isoform will be determined 
+                        from supporting reads.
+    --max_ends	        Maximum number of TSS/TES picked per isoform (default: 2).
+    --filter	        Report options include: 
+                                - nosubset	any isoforms that are a proper set of 
+                                                another isoform are removed
+                                - default	subset isoforms are removed based on support
+                                - comprehensive	default set + all subset isoforms
+                                - ginormous	comprehensive set + single exon subset 
+                                                isoforms
+    
 **Other options**
-
-``--temp_dir`` Directory for temporary files. use "./" to indicate current directory (default: python tempfile directory).
-
-``--keep_intermediate`` Specify if intermediate and temporary files are to be kept for debugging. Intermediate files include: promoter-supported reads file, read assignments to firstpass isoforms.
-
-``--salmon`` Path to salmon executable, specify if salmon quantification is desired.
-
-``--fusion_dist`` Minimium distance between separate read alignments on the same chromosome to be considered a fusion, otherwise no reads will be assumed to be fusions.
-
-``--mm2_args`` Additional minimap2 arguments when aligning reads first-pass transcripts; separate args by commas, e.g. ``--mm2_args=-I8g,--MD``.
-
-``--quiet`` Suppress progress statements from being printed.
-
-``--annotated_bed`` BED file of annotated isoforms, required by ``--annotation_reliant``. If this file is not provided, flair collapse will generate the bedfile from the gtf. Eventually this argument will be removed.
-
-``--range`` Interval for which to collapse isoforms, formatted ``chromosome:coord1-coord2`` or tab-delimited; if a range is specified, then the ``--reads`` argument must be a BAM file and ``--query`` must be a sorted, bgzip-ed bed file.
-
-
+    
+.. code:: sh
+    
+    --temp_dir	        Directory for temporary files. use "./" to indicate current 
+                        directory (default: python tempfile directory).
+    --keep_intermediate	        Specify if intermediate and temporary files are to 
+                        be kept for debugging. Intermediate files include: 
+                        promoter-supported reads file, read assignments to 
+                        firstpass isoforms.
+    --fusion_dist	Minimium distance between separate read alignments on the 
+                        same chromosome to be considered a fusion, otherwise no reads 
+                        will be assumed to be fusions.
+    --mm2_args	        Additional minimap2 arguments when aligning reads first-pass 
+                        transcripts; separate args by commas, e.g. --mm2_args=-I8g,--MD.
+    --quiet	        Suppress progress statements from being printed.
+    --annotated_bed	BED file of annotated isoforms, required by --annotation_reliant. 
+                        If this file is not provided, flair collapse will generate the 
+                        bedfile from the gtf. Eventually this argument will be removed.
+    --range	        Interval for which to collapse isoforms, formatted 
+                        chromosome:coord1-coord2 or tab-delimited; if a range is specified, 
+                        then the --reads argument must be a BAM file and --query must be 
+                        a sorted, bgzip-ed bed file.
+    
 
 .. _quantify-label:
 
@@ -284,9 +322,14 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``--isoforms`` Fasta of Flair collapsed isoforms
 
-``--reads_manifest`` Tab delimited file containing sample id, condition, batch, reads.fq, where ``reads.fq`` is the path to the sample fastq file. Example:
+.. code:: sh
+
+    --isoforms          Fasta of Flair collapsed isoforms
+    --reads_manifest    Tab delimited file containing sample id, condition, batch, 
+                        reads.fq, where reads.fq is the path to the sample fastq file. 
+
+Reads manifest example:
 
 .. code:: sh
 
@@ -302,34 +345,30 @@ Note: Do **not** use underscores in the first three fields, see below for detail
 
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
-``--help`` Show all options
 
-``--output`` Name base for output files (default: ``flair.quantify``). You can supply an output directory (e.g. ``output/flair_quantify``).
+.. code:: sh
 
-``--threads`` Number of processors to use (default 4).
-
-``--temp_dir`` directory to put temporary files. use ``./`` to indicate current directory (default: python tempfile directory).
-
-``--sample_id_only`` Only use sample id in output header instead of a concatenation of id, condition, and batch.
-
-``--salmon`` Path to salmon executable, specify if salmon quantification is desired. Please note that salmon is not installed with Flair's conda or docker installations and that none of the arguments below can be used.
-
-``--tpm`` Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv.
-
-``--quality`` Minimum MAPQ of read assignment to an isoform (default 1). If using salmon, all alignments are used.
-
-``--trust_ends`` Specify if reads are generated from a long read method with minimal fragmentation.
-
-``--generate_map`` Create read-to-isoform assignment files for each sample.
-
-``--isoform_bed`` isoform .bed file, must be specified if --stringent or --check-splice is specified.
-
-``--stringent`` Supporting reads must cover 80% of their isoform and extend at least 25 nt into the first and last exons. If those exons are themselves shorter than 25 nt, the requirement becomes 'must start within 4 nt from the start' or 'end within 4 nt from the end'.
-
-``--check_splice`` Enforces coverage of 4 out of 6 bp around each splice site and no insertions greater than 3 bp at the splice site.
-
-
-
+    --help	        Show all options
+    --output	        Name base for output files (default: flair.quantify). You 
+                        can supply an output directory (e.g. output/flair_quantify).
+    --threads	        Number of processors to use (default 4).
+    --temp_dir	        Directory to put temporary files. use ./ to indicate current 
+                        directory (default: python tempfile directory).
+    --sample_id_only	Only use sample id in output header instead of a concatenation 
+                        of id, condition, and batch.
+    --quality	        Minimum MAPQ of read assignment to an isoform (default 1). 
+    --trust_ends	Specify if reads are generated from a long read method with 
+                        minimal fragmentation.
+    --generate_map	Create read-to-isoform assignment files for each sample.
+    --isoform_bed	isoform .bed file, must be specified if --stringent or 
+                        --check-splice is specified.
+    --stringent	        Supporting reads must cover 80% of their isoform and extend 
+                        at least 25 nt into the first and last exons. If those exons 
+                        are themselves shorter than 25 nt, the requirement becomes 
+                        'must start within 4 nt from the start' or 'end within 4 nt 
+                        from the end'.
+    --check_splice	Enforces coverage of 4 out of 6 bp around each splice site 
+                        and no insertions greater than 3 bp at the splice site.
 
 Other info
 ----------
@@ -378,20 +417,23 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``--counts_matrix`` Tab-delimited isoform count matrix from the `flair quantify <#quantify-label>`__ module
 
-``--out_dir`` Output directory for tables and plots.
-
+.. code:: sh
+    
+    --counts_matrix	Tab-delimited isoform count matrix from flair quantify
+    --out_dir	        Output directory for tables and plots.
+    
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
-``--help`` show this help message and exit
 
-``--threads`` Number of threads for parallel DRIMSeq.
-
-``--exp_thresh`` Read count expression threshold. Isoforms in which both conditions contain fewer than E reads are filtered out (Default E=10)
-
-``--out_dir_force`` Specify this argument to force overwriting of files in an existing output directory
-
+.. code:: sh
+    
+    --help	        Show this help message and exit
+    --threads	        Number of threads for parallel DRIMSeq.
+    --exp_thresh	Read count expression threshold. Isoforms in which both 
+                        conditions contain fewer than E reads are filtered out (Default E=10)
+    --out_dir_force	Specify this argument to force overwriting of files in 
+                        an existing output directory
 
 
 Notes
@@ -474,36 +516,41 @@ Options
 
 Required arguments
 ~~~~~~~~~~~~~~~~~~
-``--isoforms`` Isoforms in bed format from the `flair collapse <#collapse-label>`__ module
 
-``--counts_matrix`` Tab-delimited isoform count matrix from the `flair quantify <#quantify-label>`__ module
+.. code:: sh
 
-``--out_dir`` Output directory for tables and plots.
-
-
+    --isoforms	        Isoforms in bed format from Flair collapse.
+    --counts_matrix	Tab-delimited isoform count matrix from Flair quantify.
+    --out_dir	        Output directory for tables and plots.
+    
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
-``--help`` Show all options.
 
-``--threads`` Number of processors to use (default 4).
-
-``--test`` Run DRIMSeq statistical testing.
-
-``--drim1`` The minimum number of samples that have coverage over an AS event inclusion/exclusion for DRIMSeq testing; events with too few samples are filtered out and not tested (6).
-
-``--drim2`` The minimum number of samples expressing the inclusion of an AS event; events with too few samples are filtered out and not tested (3).
-
-``--drim3`` The minimum number of reads covering an AS event inclusion/exclusion for DRIMSeq testing, events with too few samples are filtered out and not tested (15).
-
-``--drim4`` The minimum number of reads covering an AS event inclusion for DRIMSeq testing, events with too few samples are filtered out and not tested (5).
-
-``--batch`` If specified with --test, DRIMSeq will perform batch correction.
-
-``--conditionA`` Specify one condition corresponding to samples in the counts_matrix to be compared against condition2; by default, the first two unique conditions are used. **This implies ``--test``.**
-
-``--conditionB`` Specify another condition corresponding to samples in the counts_matrix to be compared against conditionA.
-
-``--out_dir_force`` Specify this argument to force overwriting of files in an existing output directory
+.. code:: sh
+    
+    --help	        Show all options.
+    --threads	        Number of processors to use (default 4).
+    --test	        Run DRIMSeq statistical testing.
+    --drim1	        The minimum number of samples that have coverage over an 
+                        AS event inclusion/exclusion for DRIMSeq testing; events 
+                        with too few samples are filtered out and not tested (6).
+    --drim2	        The minimum number of samples expressing the inclusion of 
+                        an AS event; events with too few samples are filtered out 
+                        and not tested (3).
+    --drim3	        The minimum number of reads covering an AS event 
+                        inclusion/exclusion for DRIMSeq testing, events with too 
+                        few samples are filtered out and not tested (15).
+    --drim4	        The minimum number of reads covering an AS event inclusion 
+                        for DRIMSeq testing, events with too few samples are 
+                        filtered out and not tested (5).
+    --batch	        If specified with --test, DRIMSeq will perform batch correction.
+    --conditionA	Specify one condition corresponding to samples in the 
+                        counts_matrix to be compared against condition2; by default, 
+                        the first two unique conditions are used. This implies --test.
+    --conditionB	Specify another condition corresponding to samples in the 
+                        counts_matrix to be compared against conditionA.
+    --out_dir_force	Specify this argument to force overwriting of files in an 
+                        existing output directory
 
 Notes
 -----
