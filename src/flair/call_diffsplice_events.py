@@ -25,26 +25,6 @@ def get_junctions_psl(starts, sizes):
 	return junctions
 
 
-def parse_iso_id(iso_gene):
-	if '_' not in iso_gene:
-		return iso_gene
-	if '_chr' in iso_gene:
-		iso = iso_gene[:iso_gene.rfind('_chr')]
-	elif '_XM' in iso_gene:
-		iso = iso_gene[:iso_gene.rfind('_XM')]
-	elif '_XR' in iso_gene:
-		iso = iso_gene[:iso_gene.rfind('_XR')]
-	elif '_NM' in iso_gene:
-		iso = iso_gene[:iso_gene.rfind('_NM')]
-	elif '_NR' in iso_gene:
-		iso = iso_gene[:iso_gene.rfind('_NR')]
-	elif '_R2_' in iso_gene:
-		iso = iso_gene[:iso_gene.rfind('_R2_')]
-	else:
-		iso = iso_gene[:iso_gene.rfind('_')]
-	return iso
-
-
 def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sample_names,
 	iso_counts, search_threeprime=True):
 	if fiveprime not in jdict[chrom]:
@@ -110,7 +90,7 @@ if counts_tsv:
 	sample_names = counts_tsv.readline().rstrip().split('\t')[1:]
 	for line in counts_tsv:
 		line = line.rstrip().split('\t')
-		iso = parse_iso_id(line[0])
+		iso = line[0]
 		iso_counts[iso] = [float(x) for x in line[1:]]
 
 isoforms = {}  # ir detection
@@ -124,8 +104,6 @@ for line in psl:
 		chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
 	else:
 		chrom, name, start, end, strand = line[13], line[9], int(line[15]), int(line[16]), line[8]
-
-	name = parse_iso_id(name)
 
 	if iso_counts and name not in iso_counts:
 		continue
@@ -215,10 +193,10 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 
 			chrom_clean = chrom[1:]
 			event = chrom_clean+':'+str(j[0])+'-'+str(j[1])
-			writer.writerow(['inclusion_'+event+chrom[0], event] +
+			writer.writerow(['inclusion_'+event, event] +
 				ir_junctions[chrom][j]['inclusion']['counts'] +
 				[','.join(ir_junctions[chrom][j]['inclusion']['isos'])])
-			writer.writerow(['exclusion_'+event+chrom[0], event] +
+			writer.writerow(['exclusion_'+event, event] +
 				ir_junctions[chrom][j]['exclusion']['counts'] +
 				[','.join(ir_junctions[chrom][j]['exclusion']['isos'])])
 		ir_junctions[chrom] = None
