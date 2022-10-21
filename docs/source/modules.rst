@@ -10,7 +10,7 @@ order (align, correct, collapse), but can be run separately.
 flair align
 ===========
 
-.. code:: sh
+.. code:: text
 
     usage: flair align -g genome.fa -r <reads.fq>|<reads.fa> [options]
 
@@ -32,7 +32,7 @@ Options
 Required arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --reads     Raw reads in fasta or fastq format. This argument accepts multiple 
                 (comma/space separated) files.
@@ -47,7 +47,7 @@ Required arguments
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --help		Show all options.
     --output		Name base for output files (default: flair.aligned). You can supply 
@@ -87,7 +87,7 @@ quality: `More info on MAPQ scores <http://www.acgt.me/blog/2014/12/16/understan
 flair correct
 =============
 
-.. code:: sh
+.. code:: text
 
    usage: flair correct -q query.bed12 [-f annotation.gtf]|[-j introns.tab] -g genome.fa [options]
 
@@ -107,7 +107,7 @@ Options
 Required arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --query	        Uncorrected bed12 file, e.g. output of flair align.
     --genome	        Reference genome in fasta format.
@@ -121,7 +121,7 @@ Required arguments
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --help	        Show all options 
     --output	        Name base for output files (default: flair). You can supply an 
@@ -146,7 +146,7 @@ Please do use GTF instead of GFF; annotations should not split single exons into
 flair collapse
 ==============
 
-.. code:: sh
+.. code:: text
 
     usage: flair collapse -g genome.fa -q <query.bed> -r <reads.fq>/<reads.fa> [options]
 
@@ -197,7 +197,7 @@ Options
 Required arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --query	Bed file of aligned/corrected reads
     --genome	FastA of reference genome
@@ -206,7 +206,7 @@ Required arguments
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
     
-.. code:: sh
+.. code:: text
     
     --help	        Show all options.
     --output	        Name base for output files (default: flair.collapse). 
@@ -223,7 +223,7 @@ Optional arguments
     
 **Options for read support**
     
-.. code:: sh
+.. code:: text
     
     --support	        Minimum number of supporting reads for an isoform; if s < 1, 
                         it will be treated as a percentage of expression of the gene 
@@ -243,7 +243,7 @@ Optional arguments
     
 **Variant options**
     
-.. code:: sh
+.. code:: text
     
     --longshot_bam	BAM file from Longshot containing haplotype information for each read.
     --longshot_vcf	VCF file from Longshot.
@@ -252,7 +252,7 @@ For more information on the Longshot variant caller, see its `github page <https
     
 **Transcript starts and ends**
     
-.. code:: sh
+.. code:: text
     
     --end_window	Window size for comparing transcripts starts (TSS) and ends 
                         (TES) (default: 100).
@@ -281,7 +281,7 @@ For more information on the Longshot variant caller, see its `github page <https
     
 **Other options**
     
-.. code:: sh
+.. code:: text
     
     --temp_dir	        Directory for temporary files. use "./" to indicate current 
                         directory (default: python tempfile directory).
@@ -309,7 +309,7 @@ For more information on the Longshot variant caller, see its `github page <https
 flair quantify
 ==============
 
-.. code:: sh
+.. code:: text
 
     usage: flair quantify -r reads_manifest.tsv -i isoforms.fa [options]
 
@@ -323,7 +323,7 @@ Options
 Required arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --isoforms          Fasta of Flair collapsed isoforms
     --reads_manifest    Tab delimited file containing sample id, condition, batch, 
@@ -331,7 +331,7 @@ Required arguments
 
 Reads manifest example:
 
-.. code:: sh
+.. code:: text
 
    sample1      condition1      batch1  mydata/sample1.fq
    sample2      condition1      batch1  mydata/sample2.fq
@@ -346,7 +346,7 @@ Note: Do **not** use underscores in the first three fields, see below for detail
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --help	        Show all options
     --output	        Name base for output files (default: flair.quantify). You 
@@ -374,7 +374,7 @@ Other info
 ----------
 Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. Flair diffExp and diffSplice expect this information.
 
-.. code:: sh
+.. code:: text
 
    id   sample1_condition1_batch1  sample2_condition1_batch1  sample3_condition1_batch1  sample4_condition2_batch1  sample5_condition2_batch1  sample6_condition2_batch1
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
@@ -385,7 +385,7 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
 flair diffExp
 =============
 
-.. code:: sh
+.. code:: text
 
    usage: flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]
 
@@ -418,7 +418,7 @@ Options
 Required arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
     
     --counts_matrix	Tab-delimited isoform count matrix from flair quantify
     --out_dir	        Output directory for tables and plots.
@@ -426,7 +426,7 @@ Required arguments
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
     
     --help	        Show this help message and exit
     --threads	        Number of threads for parallel DRIMSeq.
@@ -443,7 +443,7 @@ DESeq2 and DRIMSeq are optimized for short read experiments and expect many read
 
 For instance, look at this counts table with two groups (s and v) of three samples each:
 
-.. code:: sh
+.. code:: text
 
     gene   s1    s2      s3      v1      v2      v3
        A    1     0       2       0       4       2
@@ -473,7 +473,7 @@ This module requires python modules and R packages that are not necessary for ot
 flair diffSplice
 ================
 
-.. code:: sh
+.. code:: text
 
    usage: flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
 
@@ -517,7 +517,7 @@ Options
 Required arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
 
     --isoforms	        Isoforms in bed format from Flair collapse.
     --counts_matrix	Tab-delimited isoform count matrix from Flair quantify.
@@ -526,7 +526,7 @@ Required arguments
 Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
-.. code:: sh
+.. code:: text
     
     --help	        Show all options.
     --threads	        Number of processors to use (default 4).

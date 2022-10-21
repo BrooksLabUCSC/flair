@@ -220,11 +220,9 @@ def collapse_range(run_id='', corrected_reads='', aligned_reads=''):
 		read assignments to firstpass isoforms''')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
 		help='''specify this argument to generate a txt file of which reads are assigned to each isoform.
-		note: only works if the quantification method is not using salmon (default: not specified)''')
+		(default: not specified)''')
 	parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
 		help='''Suppress progress statements from being printed''')
-	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
-		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--temp_dir', default='', action='store', dest='temp_dir',
 		help='directory to put temporary files. use "./" to indicate current directory (default: python tempfile directory)')
 	parser.add_argument('-o', '--output', default='flair.collapse',
@@ -310,7 +308,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
 		help='''specify this argument to generate a txt file of read-isoform assignments
-		note: only works if the quantification method is not using salmon (default: not specified)''')
+		(default: not specified)''')
 	parser.add_argument('--annotation_reliant', default=False, action='store', dest='annotation_reliant',
 		help='''specify transcript fasta that corresponds to transcripts in the gtf to run annotation-
 		reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
@@ -368,8 +366,6 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''specify if intermediate and temporary files are to be kept for debugging.
 		Intermediate files include: promoter-supported reads file,
 		read assignments to firstpass isoforms''')
-	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
-		default='', help='Path to salmon executable, specify if salmon quantification is desired')
 	parser.add_argument('--fusion_dist', default=0, type=int, action='store', dest='fusion_dist',
 			help='''minimium distance between separate read alignments on the same chromosome to be
 			considered a fusion, otherwise no reads will be assumed to be fusions''')
@@ -627,34 +623,23 @@ def collapse(genomic_range='', corrected_reads=''):
 
 	# count the number of supporting reads for each first-pass isoform
 	count_file = args.o+'firstpass.q.counts'
-	if args.salmon: # use salmon to count
-		if subprocess.call(['samtools', 'view', '-F', '4', '-h', '-b', '-S', '-'],
-			stdout=open(alignout+'bam', 'w'), stdin=ps.stdout):
-			sys.stderr.write('\nMinimap2 error, please check that all file, directory, and executable paths exist\n')
-			return 1
-
-		subprocess.check_call([args.salmon, 'quant', '-t', args.o+'firstpass.fa', '-o', alignout+'salmon',
-			'-p', str(args.t), '-l', 'U', '-a', alignout+'bam'], stderr=open(alignout+'salmon_stderr.txt', 'w'))
-		subprocess.check_call([sys.executable, path+'combine_counts.py', alignout+'salmon/quant.sf', count_file])
-		align_files += [alignout+'bam', alignout+'salmon/quant.sf']
-	else:
-		count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', '-',
-			'-o', count_file, '-t', str(args.t), '--quality', str(args.quality), '-w', str(args.w)]
-		if args.stringent:
-			count_cmd += ['--stringent']
-		if args.check_splice:
-			count_cmd += ['--check_splice']
-		if args.check_splice or args.stringent:
-			count_cmd += ['-i', args.o+'firstpass.bed']
-		if args.trust_ends:
-			count_cmd += ['--trust_ends']
-		if args.generate_map:
-			count_cmd += ['--generate_map', args.o+'isoform.read.map.txt']
-		if args.fusion_dist:
-			count_cmd += ['--fusion_dist', str(args.fusion_dist)]
-		if subprocess.call(count_cmd, stdin=ps.stdout):
-			sys.stderr.write('Failed at counting step for isoform read support\n')
-			return 1
+	count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', '-',
+		'-o', count_file, '-t', str(args.t), '--quality', str(args.quality), '-w', str(args.w)]
+	if args.stringent:
+		count_cmd += ['--stringent']
+	if args.check_splice:
+		count_cmd += ['--check_splice']
+	if args.check_splice or args.stringent:
+		count_cmd += ['-i', args.o+'firstpass.bed']
+	if args.trust_ends:
+		count_cmd += ['--trust_ends']
+	if args.generate_map:
+		count_cmd += ['--generate_map', args.o+'isoform.read.map.txt']
+	if args.fusion_dist:
+		count_cmd += ['--fusion_dist', str(args.fusion_dist)]
+	if subprocess.call(count_cmd, stdin=ps.stdout):
+		sys.stderr.write('Failed at counting step for isoform read support\n')
+		return 1
 
 	if not args.quiet:
 		sys.stderr.write('Filtering isoforms by read coverage\n')
@@ -714,14 +699,10 @@ def quantify(isoform_sequences=''):
 		(default: python tempfile directory)''')
 	parser.add_argument('--sample_id_only', default=False, action='store_true', dest='sample_id_only',
 		help='''only use sample id in output header''')
-	parser.add_argument('--salmon', type=str, action='store', dest='salmon',
-		default='', help='''Path to salmon executable, specify if salmon quantification is desired. Please 
-		note that none of the optional arguments below can be specified when using salmon''')
 	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
 		help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
 	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
-		help='''minimum MAPQ of read assignment to an isoform. If using salmon, all alignments are
-		used (1)''')
+		help='''minimum MAPQ of read assignment to an isoform (1)''')
 	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
 		help='specify if reads are generated from a long read method with minimal fragmentation')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
@@ -756,10 +737,6 @@ def quantify(isoform_sequences=''):
 			return 1
 	if not os.path.exists(args.i):
 		sys.stderr.write('Isoform sequences fasta file path does not exist\n')
-		return 1
-	if args.salmon and (args.quality != 1 or args.trust_ends or args.stringent or args.check_splice or 
-		args.tpm or args.generate_map):
-		sys.stderr.write('ERROR, cannot specify quality, tpm, trust_ends, stringent, check_splice or generate_map when using salmon to quantify\n')
 		return 1
 
 	try:
@@ -818,43 +795,27 @@ def quantify(isoform_sequences=''):
 		sample, group, batch, readFile, samOut = data
 		sys.stderr.write('Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
 
-		if not args.salmon:
-			count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', samOut,
-				'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
-			if args.trust_ends:
-				count_cmd += ['--trust_ends']
-			if args.stringent:
-				count_cmd += ['--stringent']
-			if args.check_splice:
-				count_cmd += ['--check_splice']
-			if args.check_splice or args.stringent:
-				count_cmd += ['-i', args.isoforms]
-			if args.generate_map:
-				count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
+		count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', samOut,
+			'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
+		if args.trust_ends:
+			count_cmd += ['--trust_ends']
+		if args.stringent:
+			count_cmd += ['--stringent']
+		if args.check_splice:
+			count_cmd += ['--check_splice']
+		if args.check_splice or args.stringent:
+			count_cmd += ['-i', args.isoforms]
+		if args.generate_map:
+			count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
 
-			if subprocess.call(count_cmd):
-				return 1
-			for line in open(samOut+'.counts.txt'):
-				line = line.rstrip().split('\t')
-				iso, numreads = line[0], line[1]
-				if iso not in countData:
-					countData[iso] = np.zeros(len(samData))
-				countData[iso][num] = numreads
-		else:
-			subprocess.check_call([args.salmon, 'quant', '-t', args.i, '-o', samOut[:-4]+'.salmon',
-				'-p', str(args.t), '-l', 'U', '-a', samOut], stderr=open('salmon_stderr.txt', 'w'))
-			salmonOut = open(samOut[:-4]+'.salmon/quant.sf')
-			salmonOut.readline() # header
-			for line in salmonOut:
-				line = line.rstrip().split('\t')
-				iso, tpm, numreads = line[0], line[3], line[4]
-				if iso not in countData:
-					countData[iso] = np.zeros(len(samData))
-				if args.tpm:
-					countData[iso][num] = tpm
-				else:
-					countData[iso][num] = numreads
-			subprocess.check_call(['rm', '-r', samOut[:-4]+'.salmon/', 'salmon_stderr.txt'])
+		if subprocess.call(count_cmd):
+			return 1
+		for line in open(samOut+'.counts.txt'):
+			line = line.rstrip().split('\t')
+			iso, numreads = line[0], line[1]
+			if iso not in countData:
+				countData[iso] = np.zeros(len(samData))
+			countData[iso][num] = numreads
 		sys.stderr.flush()
 		subprocess.check_call(['rm', samOut])
 
@@ -874,7 +835,7 @@ def quantify(isoform_sequences=''):
 	sys.stderr.flush()
 	sys.stderr.write('\n')
 
-	if args.tpm and not args.salmon:
+	if args.tpm:
 		subprocess.check_call([sys.executable, path+'counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv'])
 	return args.o+'.counts.tsv'
 
