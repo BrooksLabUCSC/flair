@@ -47,6 +47,7 @@ bedToPsl or pslToBed, or using ``bed_to_psl`` and
    scripts.rst
    other_ways.rst
    other_environments.rst
+   testrun.rst
    example_files.rst
    cite.rst
 
