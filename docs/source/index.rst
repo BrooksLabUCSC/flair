@@ -19,7 +19,7 @@ site accuracy of the long read splice junctions. FLAIR uses multiple
 alignment steps and splice site filters to increase confidence in the
 set of isoforms defined from noisy data. FLAIR was designed to be able
 to sense subtle splicing changes in nanopore data from `Tang et
-al. (2018) <https://www.nature.com/articles/s41467-020-15171-6>`__.
+al. (2020) <https://www.nature.com/articles/s41467-020-15171-6>`__.
 Please read for more description of the methods.
 
 .. figure:: img/flair_workflow_compartmentalized.png
