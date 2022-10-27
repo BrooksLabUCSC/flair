@@ -25,10 +25,11 @@ RUN apt-get update && apt-get install -y \
 	python3 \
 	python3-pip 
 
-RUN pip install flair-brookslab==1.6.4 \
+RUN pip install flair-brookslab==1.7.0 \
 	rpy2 \
 	pandas \
 	matplotlib \
+	scipy \
 	seaborn
 
 RUN R -e 'update.packages(ask=FALSE)'
