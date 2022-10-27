@@ -1,0 +1,16 @@
+[flake8]
+# E722: do not use bare except; maybe fix later
+ignore = W391 W191 E501 E226 E128 E261 E265 E701 C901 E101 E231 E221 E117 E127 E266 E262 E741 E722
+exclude = ./flair.py,.git,__pycache__,docs/source/conf.py,build,dist
+max-complexity = 10
+per-file-ignores =
+    # imported but unused
+    src/flair/count_sam_transcripts.py: E502
+    # fixing W504 causes E502
+    src/flair/filter_collapsed_isoforms.py,src/flair/collapse_isoforms_precise.py,src/flair/call_diffsplice_events.py: W504
+    # openblas setting must be in middle of import section
+    deFLAIR.py,es_as_inc_excl_to_counts.py,flair.py,runDE.py,runDS.py,runDU.py,samJuncs.py: E402
+    # untrue: 'tqdm.tqdm' imported but unused
+    src/flair/ssPrep.py: F401 
+    # hard to fix in-loop variable definitions (maybe later)
+    src/flair/identify_gene_isoform.py: F821
