@@ -629,14 +629,14 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_cmd += ['--stringent']
 	if args.check_splice:
 		count_cmd += ['--check_splice']
-	if args.check_splice or args.stringent:
+	if args.fusion_dist:
+		count_cmd += ['--fusion_dist', str(args.fusion_dist)]
+	if args.check_splice or args.stringent or args.fusion_dist:
 		count_cmd += ['-i', args.o+'firstpass.bed']
 	if args.trust_ends:
 		count_cmd += ['--trust_ends']
 	if args.generate_map:
 		count_cmd += ['--generate_map', args.o+'isoform.read.map.txt']
-	if args.fusion_dist:
-		count_cmd += ['--fusion_dist', str(args.fusion_dist)]
 	if subprocess.call(count_cmd, stdin=ps.stdout):
 		sys.stderr.write('Failed at counting step for isoform read support\n')
 		return 1
