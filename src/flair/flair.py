@@ -123,6 +123,8 @@ def correct(aligned_reads=''):
 		help='''specify this flag to make the strand of a read consistent with the annotation during correction''')
 	parser.add_argument('-w', '--ss_window', type=int, action='store', dest='w', default=15,
 		help='window size for correcting splice sites (15)')
+	parser.add_argument('-e', '--tes_window', type=int, action='store', dest='e', default=100,
+		help='window size for correcting splice sites (100)')
 	parser.add_argument('--print_check',
 		action='store_true', dest='p', default=False, help='Print err.txt with step checking.')
 	args, unknown = parser.parse_known_args()
@@ -150,7 +152,7 @@ def correct(aligned_reads=''):
 		return 1
 
 	correction_cmd = [sys.executable, path+'ssCorrect.py', '-i', args.q,
-			'-w', str(args.w), '-p', str(args.t), '-o', args.o, '--progress', '-f', args.g]
+			'-w', str(args.w), '-3', str(args.e), '-p', str(args.t), '-o', args.o, '--progress', '-f', args.g]
 	if not args.n:
 		correction_cmd += ['--correctStrand']
 	if args.j:

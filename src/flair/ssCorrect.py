@@ -65,6 +65,7 @@ class CommandLine(object):
         self.parser.add_argument('-g', '--gtf', action='store', required=False, help='Gencode annotation file.')
         self.parser.add_argument('-j', '--junctionsBed', default=None, action='store', required=False, help='Short-read supported junctions in bed6 format (Optiona) [BED entries must be UNIQUE and have strand information].')
         self.parser.add_argument('-w', '--wiggleWindow', action='store', type=int, required=False, default=15, help='Splice site correction window flank size.')
+        self.parser.add_argument('-3', '--wiggleWindow_3p', action='store', type=int, required=False, default=100, help='Transcription end site correction window flank size.')
         self.parser.add_argument('-o', '--output_fname', action='store', required=True, help='Output file name.')
         self.parser.add_argument('-f', '--genome_fasta', action='store', required=True, help='Bedtools indexed genome fasta.')
 
@@ -243,23 +244,27 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
 
         coords = list(exons[exonInfo])
 
-        # assume lowest and highest as TSS and TES, and remove them
+        # assume lowest as TSS, and remove it
         coords.sort()
-        coords = coords[1:-1]
+        coords = coords[1:] if strand == "+" else coords[:-1]
 
         # Coords is list of exons, so a list less than 2 is a single exon gene.
-        if len(coords) < 2: continue
+        # if len(coords) < 2: continue
 
-        for pos in range(0,len(coords)-1,2):
+        if strand == "-":
+            juncs[chrom][(coords[0],coords[0] + 1,strand)] = "gtf"
+            knownSS[(chrom, coords[0])] = strand
+        for pos in range(0,len(coords)-2,2) if strand == "+" else range(1, len(coords)-1,2):
             c1 = coords[pos]
             c2 = coords[pos+1]
-
             if abs(c2 - c1) <= 5:
                 continue
-
             juncs[chrom][(c1,c2,strand)] = "gtf"
             knownSS[(chrom, c1)] = strand
             knownSS[(chrom, c2)] = strand
+        if strand == "+":
+            juncs[chrom][(coords[-1] - 1,coords[-1],strand)] = "gtf"
+            knownSS[(chrom, coords[-1])] = strand
 
     if printErr:
         with open(printErrFname,'a+') as fo:
@@ -269,8 +274,8 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
 
 def runCMD(x):
 
-    tDir, prefix,juncs,reads, rs, f, err, errFname, wiggle = x
-    cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s -w %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f, wiggle)
+    tDir, prefix,juncs,reads, rs, f, err, errFname, wiggle, wiggle_3p = x
+    cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s -w %s -3 %s" % (sys.executable, helperScript, reads,juncs,prefix, tDir, f, wiggle, wiggle_3p)
     if rs:
         cmd += "--correctStrand "
     if err:
@@ -290,6 +295,7 @@ def main():
     gtf           = myCommandLine.args['gtf']
     otherJuncs    = myCommandLine.args['junctionsBed']
     wiggle        = myCommandLine.args['wiggleWindow']
+    wiggle_3p     = myCommandLine.args['wiggleWindow_3p']
     threads       = myCommandLine.args['threads']
     outFile       = myCommandLine.args['output_fname']
     keepTemp      = myCommandLine.args['keepTemp']
@@ -381,7 +387,7 @@ def main():
 
         outDict[chrom].close()
 
-        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta, printErr, printErrFname, wiggle))
+        cmds.append((tempDir, chrom, juncs,reads, resolveStrand, genomeFasta, printErr, printErrFname, wiggle, wiggle_3p))
 
     if printErr:
         with open(printErrFname,'a+') as fo:

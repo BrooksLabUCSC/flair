@@ -56,6 +56,7 @@ class CommandLine(object):
         self.parser.add_argument('-i', "--input_bed", action='store', required=True, help='Input reads in bed12 format.')
         self.parser.add_argument('-j', "--juncs", action='store', required=True, help='KnownJunction.bed.')
         self.parser.add_argument('-w', '--wiggleWindow', action='store', type=int, required=False, default=15, help='Splice site correction window flank size.')
+        self.parser.add_argument('-3', '--wiggleWindow_3p', action='store', type=int, required=False, default=100, help='Transcription end site correction window flank size.')
         self.parser.add_argument('-o', "--output_fname", action='store', required=True, help='Output file name.')
         self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Genome Fasta.')
         self.parser.add_argument("--workingDir", action='store', required=True, help='Working directory.')
@@ -230,7 +231,7 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
             return ssData
 
 
-def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
+def correctReads(bed, intTree, intTree_3p, ssData, filePrefix, correctStrand, wDir):
     ''' Builds read and splice site objects '''
 
     if checkFname:
@@ -251,8 +252,12 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
         ssStrands = set()
         novelSS   = False
 
-        for x in juncs:
+        for idx, x in enumerate(juncs):
             c1, c2 = x[0], x[1]
+            if strand == "+" and idx == len(juncs) - 1 or strand == "-" and idx == 0:
+                tes = c1 if strand == "-" else c2
+                if tes not in ssData:
+                    ssData = ssCorrrect(tes,strand,"acceptor",intTree_3p,ssData)
             if c1 not in ssData:
                 ssData = ssCorrrect(c1,strand,c1Type,intTree,ssData)
             if c2 not in ssData:
@@ -307,14 +312,15 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             print("** Checking inc/corr files for chromsome %s: %s %s" % (currentChr,inc,cor), file=fo)
 
 
-def buildIntervalTree(juncs, wiggle, fasta):
+def buildIntervalTree(juncs, wiggle, wiggle_3p, fasta):
     ''' Builds read and splice site objects '''
 
     if checkFname:
         with open(checkFname,'a+') as fo:
             print("** Initializing int tree for chromosome %s" % (currentChr), file=fo)
 
-    x = []
+    x_1 = []
+    x_2 = []
     data = dict()
 
     with open(juncs, 'r') as lines:
@@ -332,12 +338,11 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 ss.support.add(annoType)
                 ss.ssCorr = ss
 
-                # SS window
-                c1S, c1E = max(c1-wiggle,1), c1+wiggle
-
                 # Add to tree and object to data
                 data[c1] = ss
-                x.append([c1S,c1E,c1])
+                x_1.append([max(c1-wiggle,1),c1+wiggle,c1])
+                if c1 == c2 - 1 and strand == "-":
+                    x_2.append([max(c1-wiggle_3p,1),c1+wiggle_3p,c1])
 
             else:
                 data[c1].support.add(annoType)
@@ -348,22 +353,25 @@ def buildIntervalTree(juncs, wiggle, fasta):
                 ss.support.add(annoType)
                 ss.ssCorr = ss
 
-                # SS window
-                c2S, c2E = max(c2-wiggle,1), c2+wiggle
-
                 # Add to tree and object to data
                 data[c2] = ss
-                x.append([c2S,c2E,c2])
+                x_1.append([max(c2-wiggle,1),c2+wiggle,c2])
+                if c1 == c2 - 1 and strand == "+":
+                    x_2.append([max(c2-wiggle_3p,1),c2+wiggle_3p,c2])
             else:
                 data[c2].support.add(annoType)
+
     intTree = False
-    if len(x) > 0:
-        intTree = NCLS([val[0]-1 for val in x], [val[1]+1 for val in x], [val[2] for val in x])
+    intTree_3p = False
+    if len(x_1) > 0:
+        intTree = NCLS([val[0]-1 for val in x_1], [val[1]+1 for val in x_1], [val[2] for val in x_1])
+    if len(x_2) > 0:
+        intTree_3p = NCLS([val[0]-1 for val in x_2], [val[1]+1 for val in x_2], [val[2] for val in x_2])
     if checkFname:
         with open(checkFname,'a+') as fo:
-            print("** Tree Initialized. %s data points added for chromosome %s." % (len(list(data.keys())),currentChr), file=fo)
+            print("** Tree Initialized. %s data points added for chromosome %s." % (len(list(data.keys())),currentChr),file=fo)
 
-    return intTree, data
+    return intTree, intTree_3p, data
 
 
 def main():
@@ -377,6 +385,7 @@ def main():
     knownJuncs    = myCommandLine.args['juncs']
     fa            = myCommandLine.args['genome_fasta']
     wiggle        = myCommandLine.args['wiggleWindow']
+    wiggle_3p     = myCommandLine.args['wiggleWindow_3p']
     out           = myCommandLine.args['output_fname']
     resolveStrand = myCommandLine.args['correctStrand']
     workingDir    = myCommandLine.args['workingDir']
@@ -385,12 +394,12 @@ def main():
     checkFname    = myCommandLine.args['check_file']
 
     try:
-        ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname)
+        ssPrep(bed, knownJuncs, fa, wiggle, wiggle_3p, out, resolveStrand, workingDir, checkFname)
     except:
         sys.exit(1)
 
 
-def ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname):
+def ssPrep(bed, knownJuncs, fa, wiggle, wiggle_3p, out, resolveStrand, workingDir, checkFname):
     globals()['currentChr'] = out
     globals()['checkFname'] = checkFname
     if checkFname:
@@ -398,14 +407,14 @@ def ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFna
             print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (bed, wiggle, knownJuncs, fa), file=fo)
 
     # Build interval tree of known juncs
-    intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
+    intTree, intTree_3p, ssData = buildIntervalTree(knownJuncs, wiggle, wiggle_3p, fa)
 
     if checkFname:
         with open(checkFname,'a+') as fo:
             print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncs, bed), file=fo)
     # Build read objects.
     try:
-        correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
+        correctReads(bed, intTree, intTree_3p, ssData, out, resolveStrand, workingDir)
     except:
         if checkFname:
             with open(checkFname,'a+') as fo:

@@ -1,0 +1,36 @@
+name: flair_3p
+channels:
+  - defaults
+dependencies:
+  - _libgcc_mutex=0.1=main
+  - _openmp_mutex=5.1=1_gnu
+  - bzip2=1.0.8=h7b6447c_0
+  - ca-certificates=2022.10.11=h06a4308_0
+  - certifi=2022.9.24=py310h06a4308_0
+  - ld_impl_linux-64=2.38=h1181459_1
+  - libffi=3.3=he6710b0_2
+  - libgcc-ng=11.2.0=h1234567_1
+  - libgomp=11.2.0=h1234567_1
+  - libstdcxx-ng=11.2.0=h1234567_1
+  - libuuid=1.0.3=h7f8727e_2
+  - ncurses=6.3=h5eee18b_3
+  - openssl=1.1.1s=h7f8727e_0
+  - pip=22.1.2=py310h06a4308_0
+  - python=3.10.4=h12debd9_0
+  - readline=8.1.2=h7f8727e_1
+  - setuptools=65.5.0=py310h06a4308_0
+  - sqlite=3.38.5=hc218d9a_0
+  - tk=8.6.12=h1ccaba5_0
+  - tzdata=2022a=hda174b7_0
+  - wheel=0.37.1=pyhd3eb1b0_0
+  - xz=5.2.5=h7f8727e_1
+  - zlib=1.2.12=h7f8727e_2
+  - pip:
+    - mappy==2.24
+    - ncls==0.0.65
+    - numpy==1.23.1
+    - pybedtools==0.9.0
+    - pysam==0.19.1
+    - six==1.16.0
+    - tqdm==4.64.0
+prefix: /blaze/hansb/conda/envs/flair_3p
