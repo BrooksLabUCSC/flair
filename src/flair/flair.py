@@ -366,9 +366,6 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''specify if intermediate and temporary files are to be kept for debugging.
 		Intermediate files include: promoter-supported reads file,
 		read assignments to firstpass isoforms''')
-	parser.add_argument('--fusion_dist', default=0, type=int, action='store', dest='fusion_dist',
-			help='''minimium distance between separate read alignments on the same chromosome to be
-			considered a fusion, otherwise no reads will be assumed to be fusions''')
 	parser.add_argument('--mm2_args', action='store', dest='mm2_args',
 		type=str, default=[], help='''additional minimap2 arguments when aligning reads first-pass transcripts;
 		separate args by commas, e.g. --mm2_args=-I8g,--MD ''')
@@ -412,8 +409,6 @@ def collapse(genomic_range='', corrected_reads=''):
 	args.quality = '0' if args.trust_ends else args.quality
 	args.o += '.'
 	min_reads = float(args.s) if float(args.s) >= 1 else 3
-	if args.fusion_dist:
-		args.trust_ends = True
 
 	if ',' in args.r[0]:
 		args.r = args.r[0].split(',')
@@ -580,7 +575,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if subprocess.call(collapse_cmd):
 		return 1
 
-	# filtering out subset isoforms with insuficient support
+	# filtering out subset isoforms with insufficient support
 	filter_cmd = [sys.executable, path+'filter_collapsed_isoforms.py',
 		args.o+'firstpass.unfiltered.bed', args.filter, args.o+'firstpass.bed', str(args.w)]
 	if float(args.s) < 1:
@@ -629,9 +624,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_cmd += ['--stringent']
 	if args.check_splice:
 		count_cmd += ['--check_splice']
-	if args.fusion_dist:
-		count_cmd += ['--fusion_dist', str(args.fusion_dist)]
-	if args.check_splice or args.stringent or args.fusion_dist:
+	if args.check_splice or args.stringent:
 		count_cmd += ['-i', args.o+'firstpass.bed']
 	if args.trust_ends:
 		count_cmd += ['--trust_ends']
