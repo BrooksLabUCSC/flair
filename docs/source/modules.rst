@@ -168,6 +168,11 @@ flair-collapse. In addition, all raw read fastq/fasta files should
 either be specified after ``--reads`` with space/comma separators or
 concatenated into a single file.
 
+**Please note:** Flair collapse is not yet capable of dealing with large (>1G) 
+input bed files. If you find that Flair needs a lot of memory you may want to 
+split the input bed file by chromosome and run these separately. We do intend to 
+improve this.
+
 **Outputs**
 
  - ``isoforms.bed``
