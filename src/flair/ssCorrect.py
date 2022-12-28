@@ -270,7 +270,7 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
 def runCMD(x):
 
     tDir, prefix,juncs,reads, rs, f, err, errFname, wiggle = x
-    cmd = "%s %s -i %s -j %s -o %s --workingDir %s -f %s -w %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f, wiggle)
+    cmd = "%s %s -i '%s' -j '%s' -o '%s' --workingDir '%s' -f '%s' -w %s " % (sys.executable, helperScript, reads,juncs,prefix, tDir, f, wiggle)
     if rs:
         cmd += "--correctStrand "
     if err:
