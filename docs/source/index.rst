@@ -45,6 +45,7 @@ bedToPsl or pslToBed, or using ``bed_to_psl`` and
    requirements.rst
    modules.rst
    scripts.rst
+   flair2_functions.rst
    other_ways.rst
    other_environments.rst
    testrun.rst

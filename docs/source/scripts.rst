@@ -2,19 +2,6 @@ Additional programs
 ^^^^^^^^^^^^^^^^^^^
 When you ``conda install`` flair, the following helper programs will be in your $PATH:
 
-bed_to_sequence 
-==========
-.. code:: sh
-
-    usage: bed_to_sequence psl|bed genome.fa outfilename [options]
-    options:
-      -h, --help            show this help message and exit
-      --isoform_haplotypes  isoform haplotype assignments
-      --vcf                 vcf file
-      --vcf_out             vcf output file name
-      --models_out          isoform psl/bed out, will contain additional
-                            isoforms created from unphased variants
-
 diff_iso_usage
 ==============
 .. code:: sh
@@ -177,11 +164,12 @@ For example:
     options:
       -h, --help            show this help message and exit
       -o O                  prefix used for output files (default=gene_name)
-      --min_reads           minimum number of total supporting reads for an
+      --min_reads MIN_READS
+                            minimum number of total supporting reads for an
                             isoform to be visualized (default=6)
-      --vcf                 VCF containing the isoform names that include each
+      -v VCF, --vcf VCF     VCF containing the isoform names that include each
                             variant in the last sample column
-      --palette             provide a palette file if you would like to visualize
+      --palette PALETTE     provide a palette file if you would like to visualize
                             more than 7 isoforms at once or change the palette
                             used. each line contains a hex color for each isoform
 
@@ -202,7 +190,7 @@ annotation, (3) ``fasta`` genome sequences. `Bedtools <https://github.com/arq5x/
 **Output**
 
 Outputs a bed file with either the values ``PRO`` (productive), ``PTC``
-(premature termination codon, i.e. unproductive), ``NGO`` (no start
+(premature termination codon, i.e. unproductive), ``NGO`` (no start
 codon), or ``NST`` (has start codon but no stop codon) appended to the
 end of the isoform name. When isoforms are visualized in the UCSC genome
 browser or IGV, the isoforms will be colored accordingly and have
@@ -212,10 +200,12 @@ thicker exons to denote the coding region.
 .. code:: sh
 
     options:
-      -h, --help            Show this help message and exit
-      --input_isoforms      Input collapsed isoforms in psl or bed12 format.
-      --gtf                 Annotation file (e.g. from Gencode)
-      --genome_fasta        Fasta file containing transcript sequences.
+      -h, --help            show this help message and exit
+      -i INPUT_ISOFORMS, --input_isoforms INPUT_ISOFORMS
+                            Input collapsed isoforms in psl or bed12 format.
+      -g GTF, --gtf GTF     Gencode annotation file.
+      -f GENOME_FASTA, --genome_fasta GENOME_FASTA
+                            Fasta file containing transcript sequences.
       --quiet               Do not display progress
       --append_column       Append prediction as an additional column in file
       --firstTIS            Defined ORFs by the first annotated TIS.
@@ -230,8 +220,8 @@ bam2Bed12
 
     usage: bam2Bed12 -i sorted.aligned.bam 
     options:
-      -h, --help            Show this help message and exit
-      --input_bam           Input bam file.
+      -h, --help            show this help message and exit
+      -i INPUT_BAM, --input_bam Input bam file.
       --keep_supplementary  Keep supplementary alignments
 
 A tool to convert minimap2 BAM to Bed12.
@@ -257,11 +247,3 @@ sam_to_map
 
     usage: sam_to_map sam outfile
 
-
-gtf_to_bed
-==========
-.. code:: sh
-
-   usage: gtf_to_bed in.gtf out.bed
-
-If the output file extension is psl instead of bed, a psl format file will be created.
