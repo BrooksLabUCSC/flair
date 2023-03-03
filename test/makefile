@@ -69,7 +69,7 @@ test-diffsplice : mkdirs
 # FLAIR SCRIPTS
 test-predict-productivity : mkdirs test_input/genome.fa
 	$(DCMD) predictProductivity -i $(ISOFORMS_BED) -g $(ANNOTATION) -f test_input/genome.fa > $O/test.predict_productivity.bed --longestORF
-	diff <(sort $E/test.predict_productivity.bedi) <(sort $O/test.predict_productivity.bed) > $D/test.predict_productivity.diff
+	diff <(sort $E/test.predict_productivity.bed) <(sort $O/test.predict_productivity.bed) > $D/test.predict_productivity.diff
 
 test-diff-iso-usage : mkdirs
 	$(DCMD) diff_iso_usage $(COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/test.diff_iso_usage.tsv
