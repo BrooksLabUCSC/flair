@@ -109,6 +109,9 @@ def getStarts(gtf):
                 # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
 
                 starts.append((chrom,c1,c2,gene,".",strand))
+    if (len(starts)) == 0:
+        sys.stderr.write('ERROR, no start codons were found in', gtf)
+        sys.exit(1)
     return starts
 
 

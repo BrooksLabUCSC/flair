@@ -81,6 +81,12 @@ Create the package (from the main Flair directory)
 
 ####### 5. Update the conda recipe and submit #########################
 
+### THIS STEP MIGHT NOT BE NECESSARY ####
+If you do not make any changes to flair's dependencies (scipy, pandas, etc) then
+the biocondabot may detect the new release and update the conda package automatically. 
+Simply wait a few days, then check the version at https://anaconda.org/bioconda/flair
+#########################################
+
 Full details are here: https://bioconda.github.io/contributor/index.html
 
 1. Fork the bioconda recipes repo: https://github.com/bioconda/bioconda-recipes/fork
@@ -91,7 +97,7 @@ Full details are here: https://bioconda.github.io/contributor/index.html
 4. update the recipe in recipes/flair/meta.yaml with the new version number
    and the pypi url and md5, found at https://pypi.org/project/flair-brookslab/(current version)/#files
 5. git commit, git push
-6. submit a pull request via https://github.com/bioconda/bioconda-recipes/
+6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
 	This starts a testing process. Once all checks have passed and a green mark appears, 
 	add this comment to the pull request:
 	    @BiocondaBot please add label
@@ -122,3 +128,4 @@ From the ./misc directory, run
     docker tag brookslab/flair:<current version number> brookslab/flair:latest
     docker push brookslab/flair:<current version number>
     docker push brookslab/flair:latest
+The reason that the build takes long is that pysam doesn't have a fast installation method.

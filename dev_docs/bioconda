@@ -2,7 +2,7 @@ Full details are here: https://bioconda.github.io/contributor/index.html
 
 0. Create a pip package (this is used by conda)
 1. Fork the bioconda recipes repo: https://github.com/bioconda/bioconda-recipes/fork
-2. git clone that directory to your local computer
+2. git clone that directory to your local computer and move to the top directory
 3. create a bioconda environment for testing: conda create -n bioconda -c conda-forge -c bioconda bioconda-utils pytorch
 3a. conda activate bioconda
 4. update the recipe in recipes/flair/meta.yaml
