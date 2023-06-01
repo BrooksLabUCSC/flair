@@ -56,7 +56,7 @@ for line in counts_matrix:
 	line = line.rstrip().split('\t')
 	iso_gene, count1, count2 = line[0], float(line[col1]), float(line[col2])
 	if '_' not in iso_gene:
-		sys.stderr.write('Please run bin/identify_annotated_gene.py first so that isoforms\
+		sys.stderr.write('Please run identify_annotated_gene first so that isoforms\
 			can be grouped by their parent genes\n')
 		sys.exit(1)
 	iso, gene = split_iso_gene(iso_gene)
