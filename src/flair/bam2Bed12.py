@@ -129,15 +129,15 @@ def main():
 
         if tags == "+":
 
-            print(chrom, startPos, endPos, read + ";" + flags, score, tags, startPos, endPos, positiveTxn, blocks,
+            print(chrom, startPos, endPos, read, score, tags, startPos, endPos, positiveTxn, blocks,
                 ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
         elif tags == "-":
-            print(chrom, startPos, endPos, read + ";" + flags, score, tags, startPos, endPos, negativeTxn, blocks,
+            print(chrom, startPos, endPos, read, score, tags, startPos, endPos, negativeTxn, blocks,
                 ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
 
         else:
             tags = "+" if flags == "0" else "-"
-            print(chrom, startPos, endPos, read + ";" + flags, score, tags, startPos, endPos, unknownTxn, blocks,
+            print(chrom, startPos, endPos, read, score, tags, startPos, endPos, unknownTxn, blocks,
             ",".join(str(x) for x in sizes) + ",", ",".join(str(x) for x in starts) + ",", sep="\t")
 
 

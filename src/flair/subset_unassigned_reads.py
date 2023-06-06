@@ -22,9 +22,9 @@ with open(sys.argv[4], 'wt') as outfile:
     for line in open(sys.argv[2]):  # bed
         line = line.rstrip().split('\t')
         if isbed:
-            name = line[3][:line[3].rfind(';')]
+            name = line[3]
         else:
-            name = line[9][:line[9].rfind(';')]
+            name = line[9]
 
         if name not in assigned_names:
             writer.writerow(line)
