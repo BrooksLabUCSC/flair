@@ -50,12 +50,11 @@ for line in isoforms:
 	if gene not in genes:
 		genes[gene] = set()
 	genes[gene].add(tuple(line))
-	# print(tuple(line))
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for gene in genes:
-		gene_total = float(sum([float(iso[0][-1]) for iso in genes[gene]]))
+		gene_total = float(sum([float(iso[-1]) for iso in genes[gene]]))
 		if gene_total == 0:
 			continue
 		for iso in genes[gene]:
