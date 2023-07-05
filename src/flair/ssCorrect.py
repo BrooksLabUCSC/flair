@@ -416,8 +416,6 @@ def main():
         except OSError as e:
             print("Error: %s - %s." % (e.filename, e.strerror), file=sys.stderr)
 
-    print("\n")
-
 
 if __name__ == "__main__":
     main()
