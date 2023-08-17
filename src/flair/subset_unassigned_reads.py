@@ -44,3 +44,6 @@ if diff > 0:
     sys.stderr.write('{} names do not match any names in fastq file(s)'.format(diff))
     sys.stderr.write('e.g. {} in bed but not in fastq\n'.format(list(headers_keep - headers_used)[0]))
     sys.exit(1)
+
+#if __name__ == "__main__":
+#    main()

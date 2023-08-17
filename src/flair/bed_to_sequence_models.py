@@ -2,7 +2,8 @@
 import sys, csv, os, argparse, pysam, subprocess
 from collections import namedtuple
 
-# TODO: Test this code with longshot vcf input
+# PLEASE NOTE: the models section does not work, keeping this file in case we want to fix this later
+# models are not called in the flair pipeline
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
@@ -19,8 +20,10 @@ def main():
 	parser.add_argument('--isoform_haplotypes', type=str, 
 		help='isoform haplotype assignments')
 	parser.add_argument('--vcf_out',  default='', type=str, 
-		help='''vcf output file name. VCF output can only be created if vcf and 
+		help='''vcf output file name. Vcf output can only be created if the input is vcf and 
 		isoform_haplotypes have been provided''')
+	parser.add_argument('--models_out', default='', type=str,
+		help='isoform psl/bed output file name, will contain additional isoforms created from unphased variants')
 	args = parser.parse_args()
 
 	fastq, isbed = False, False
@@ -28,7 +31,7 @@ def main():
 		fastq = True
 	if args.psl[-3:].lower() != 'psl':
 		isbed = True
-	bed_to_sequence(args.psl, args.genome, args.outfilename, args.vcf, 
+	bed_to_sequence(args.outfilename, args.genome, args.psl, args.models_out, args.vcf, 
 	args.isoform_haplotypes, isbed=isbed, vcf_out=args.vcf_out, fastq=fastq)
 
 
@@ -150,6 +153,11 @@ def get_sequence_with_variants(entry, seq, pvcf, isbed=False, models_out=False, 
 				v_to_add += [v]
 				v_to_add_alt += [v]
 
+			elif models_out and variant_gt == (0,1) and not variant_ps and \
+			variant_ac[0] > unphased_variant_support and variant_ac[1] > unphased_variant_support:
+				print(entry[0], v.pos, variant_ps, variant_ac)
+				v_to_add_alt += [v]
+
 			elif name not in haplotype or variant_ps not in haplotype[name]:
 
 				continue
@@ -172,7 +180,7 @@ def get_sequence_with_variants(entry, seq, pvcf, isbed=False, models_out=False, 
 	if strand == '-':
 		pulled_seq = revcomp(pulled_seq)
 	if isoform_haplotypes:
-		if len(v_to_add_alt) == len(v_to_add):
+		if not models_out or len(v_to_add_alt) == len(v_to_add):
 			return pulled_seq
 
 		alt_seq = add_variants_to_seq(v_to_add_alt, seq, blockstarts, blocksizes, iso_name=name_alt)
@@ -189,7 +197,7 @@ def write_sequences(writer, chrom, pvcf, isbed, psldata, seq, models_out=False, 
 	for entry in psldata[chrom]:
 
 		if isoform_haplotypes:
-			pulled_seqs = get_sequence_with_variants(entry, seq, pvcf, isbed, isoform_haplotypes)
+			pulled_seqs = get_sequence_with_variants(entry, seq, pvcf, isbed, models_out, isoform_haplotypes)
 			writer.writerow(['>' + name])
 			writer.writerow([pulled_seq])   # TODO: This CANNOT be right
 
@@ -208,16 +216,19 @@ def write_sequences(writer, chrom, pvcf, isbed, psldata, seq, models_out=False, 
 	return models
 
 
-def bed_to_sequence(pslfile, genome, outfilename, models_out=False, inputvcf=False, 
+def bed_to_sequence(outfilename, genome, pslfile, models_out=False, inputvcf=False, 
 	isoform_haplotypes=False, isbed=False, vcf_out=False, fastq=False):
 
-	if isoform_haplotypes and not inputvcf:
-		print('Cannot output isoform haplotypes without input vcf, skipping...')
-		isoform_haplotypes = False
-	if vcf_out and not isoform_haplotypes:
-		print('Cannot output vcf without isoform haplotypes and vcf input, skipping...')
-		isoform_haplotypes = False
-
+	if inputvcf and not (inputvcf and isoform_haplotypes):
+		sys.stderr.write('Must provide both vcf and haplotype information if vcf is provided\n')
+		sys.exit(1)
+	if vcf_out and not inputvcf:
+		sys.stderr.write('Not going to write isoform models without input vcf\n')
+		vcf_out = False
+	print(inputvcf, models_out, vcf_out, isbed)
+	if not inputvcf and models_out or not isbed and models_out:
+		sys.stderr.write('Not going to write isoform models without vcf or in psl format\n')
+		models_out = False
 	psldata = {}
 	for line in open(pslfile):  # or bed
 		line = line.rstrip().split('\t')
@@ -260,7 +271,7 @@ def bed_to_sequence(pslfile, genome, outfilename, models_out=False, inputvcf=Fal
 					chrom = line.split()[0][1:]
 					continue
 				if chrom in psldata:  # or bed				
-					write_sequences(writer1, chrom, pvcf, isbed, psldata, seq, isoform_haplotypes, fastq)
+					write_sequences(writer1, chrom, pvcf, isbed, psldata, seq, models_out, isoform_haplotypes, fastq)
 
 				chrom = line.split()[0][1:]
 				ignore = chrom not in psldata
@@ -270,6 +281,12 @@ def bed_to_sequence(pslfile, genome, outfilename, models_out=False, inputvcf=Fal
 
 		if chrom in psldata:  # last chromosome
 			write_sequences(writer1, chrom, pvcf, isbed, psldata, seq, isoform_haplotypes, fastq)
+
+	if models_out:
+		with open(models_out, 'wt') as outfile2:
+			writer2 = csv.writer(outfile2, delimiter='\t', lineterminator=os.linesep)
+			for entry in models_to_write:
+				writer2.writerow(entry)
 
 	if pvcf and isoform_haplotypes:
 		header = pvcf.header
