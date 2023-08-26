@@ -23,7 +23,7 @@ def main():
 	gtf_to_bed(args.psl, args.gtf, isbed, args.include_gene, chrom_sizes=args.chrom_sizes)
 
 
-def gtf_to_bed(outputfile, gtf, isbed=False, include_gene=False, chrom_sizes=False):
+def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=False):
 	chrom_to_size = {}
 	if chrom_sizes:
 		for line in open(chrom_sizes):

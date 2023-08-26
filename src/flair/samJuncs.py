@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
 
-########################################################################
-# File: samJuncs.py
-#  executable: samJuncs.py
-# Purpose:
-#
-#
-# Author: Cameron M. Soulette
-# History:      cms 02/12/2018 Created
-#
-########################################################################
-
-########################################################################
-# Hot Imports & Global Variable
-########################################################################
-
-
 import os
 import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 from multiprocessing import Pool
 import pysam
-#from tqdm import *
-
-########################################################################
-# CommandLine
-########################################################################
-
 
 class CommandLine(object):
     '''
@@ -48,7 +26,7 @@ class CommandLine(object):
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description='samJuncs.py - lorem ipsium.',
+        self.parser = argparse.ArgumentParser(description='samJuncs.py - extract jumctions from sam.',
                                              add_help=True, #default is True
                                              prefix_chars='-',
                                              usage='%(prog)s -i sorted_indexed.bam ')
@@ -244,11 +222,7 @@ def main():
     #         print(c,i[0]-1, i[1], ".", d[c][i], i[-1], sep="\t")
 
 
-########################################################################
-# Main
-# Here is the main program
-#
-########################################################################
+
 
 if __name__ == "__main__":
     main()

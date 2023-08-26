@@ -548,7 +548,7 @@ def collapse_isoforms_precise(queryfile, max_results=2, window=100, threads=2, c
 			sys.stderr.write('Make sure input and output file extensions agree\n')
 			sys.exit(1)
 	else:  # default output name
-		outputfile = queryfile[:-3]+'collapsed.bed' if isbed else queryfile[:-3]+'collapsed.psl'
+		outputfname = queryfile[:-3]+'collapsed.bed' if isbed else queryfile[:-3]+'collapsed.psl'
 
 	# get annotation starts and ends if an input gtf has been provided
 	annot_tss = {}  # annotated left terminal sites per chromosome from GTF
@@ -630,10 +630,10 @@ def collapse_isoforms_precise(queryfile, max_results=2, window=100, threads=2, c
 				      window=window, isbed=isbed)
 
 	res = {}
-	if __name__ == '__main__':
-		p = Pool(threads)
-		res = p.map(named_run_iterative_add_se, chrom_names)
-		p.terminate()
+#	if __name__ == '__main__':
+	p = Pool(threads)
+	res = p.map(named_run_iterative_add_se, chrom_names)
+	p.terminate()
 	all_se_by_chrom = None
 
 	singleexon = {}  # single-exon isoforms
@@ -643,7 +643,7 @@ def collapse_isoforms_precise(queryfile, max_results=2, window=100, threads=2, c
 	if not quiet:
 		sys.stderr.write('Single-exon genes grouped, collapsing\n')
 
-	with open(outputfile, 'wt') as outfile:
+	with open(outputfname, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
     # SE collapse

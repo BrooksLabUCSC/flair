@@ -21,7 +21,7 @@ def correct(aligned_reads=''):
 		help='uncorrected bed12 file')
 		required.add_argument('-g', '--genome', type=str, required=True, 
 			help='FastA of reference genome')
-		atleastone.add_argument('-j', '--srjunctions', type=str, default='',
+		atleastone.add_argument('-j', '--shortread', type=str, default='',
 			help='bed format splice junctions from short-read sequencing')
 		atleastone.add_argument('-f', '--gtf', default='',
 		help='GTF annotation file')
@@ -47,6 +47,7 @@ def correct(aligned_reads=''):
 		if not aligned_reads:
 			return 1
 # TODO:This seems opposite the intended use, see what happens
+	resolveStrand = False
 	if not args.nvrna:
 		resolveStrand = True
 
@@ -74,7 +75,7 @@ def correct(aligned_reads=''):
 	global verbose
 	global printErrFname
 	global printErr
-	verbose  = True # TODO
+	verbose  = False # TODO
 	printErr = args.print_check
 	printErrFname = False
 	if printErr:
@@ -86,8 +87,8 @@ def correct(aligned_reads=''):
 		juncs, chromosomes, knownSS = gtfToSSBed(args.gtf, knownSS, printErr, printErrFname, verbose)
 
 	# Do the same for the other juncs file.
-	if args.srjunctions: 
-		juncs, chromosomes = addOtherJuncs(juncs, args.srjunctions, chromosomes, args.genome, 
+	if args.shortread: 
+		juncs, chromosomes = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome, 
 			printErrFname, knownSS, verbose, printErr)
 	knownSS = dict()
 

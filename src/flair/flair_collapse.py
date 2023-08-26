@@ -2,29 +2,37 @@
 
 import sys
 import argparse
-import subprocess
+#import subprocess
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
 import glob
 import pipettor
 from multiprocessing import Pool
+# TODO: put all of these in utils.py
 from pull_starts import pull_starts
 from select_from_bed import select_from_bed
 from bed_to_sequence import bed_to_sequence
 from gtf_to_bed import gtf_to_bed
 from match_counts import match_counts
 from collapse_isoforms_precise import collapse_isoforms_precise
+from filter_collapsed_isoforms import filter_collapsed_isoforms
+from identify_gene_isoform import identify_gene_isoform
+from filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
+from get_phase_sets import get_phase_sets
+from bed_to_gtf import bed_to_gtf
+from subset_unassigned_reads import subset_unassigned_reads
+from filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
 
 run_id = 'removeme'
-path = 'removeme'
+#path = '/home/jeltje/flair/flair/src/flair/'  # remove this too
 # TODO: do not redefine args variables, it breaks your head.
 
 def collapse(genomic_range='', corrected_reads=''):
 	parser = argparse.ArgumentParser(description='flair-collapse parse options',
 		usage='''flair collapse -g genome.fa -q query.bed
 		-r <reads.fq>/<reads.fa> [options]''')
-	parser.add_argument('collapse')
+#	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
 	if not corrected_reads:
 		required.add_argument('-q', '--query', type=str, default='', required=True,
@@ -111,8 +119,16 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''interval for which to collapse isoforms, formatted chromosome:coord1-coord2 or
 		tab-delimited; if a range is specified, then the aligned reads bam must be specified with -r
 		and the query must be a sorted, bgzip-ed bed file''')
+	
+	no_arguments_passed = len(sys.argv) == 1
+	if no_arguments_passed:
+		parser.print_help()
+		sys.exit(1)
+	if 'collapse' in sys.argv:
+		sys.argv.remove('collapse')
 	args, unknown = parser.parse_known_args()
-	if unknown and not args.quiet:
+	#if unknown and not args.quiet:
+	if unknown:
 		sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
 		if not corrected_reads:
 			return 1
@@ -267,30 +283,32 @@ def collapse(genomic_range='', corrected_reads=''):
 			if not args.quiet:
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
 			args.annotated_bed = args.output+'annotated_transcripts.bed'
-			gtf_to_bed(args.annotated_bed, args.gtf, isbed=True, include_gene=True, chrom_sizes=False)
+			gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
 #			subprocess.check_call([sys.executable, path+'gtf_to_bed.py', args.gtf, args.annotated_bed, '--include_gene'])
 
 		if args.annotation_reliant == 'generate':
 			args.annotation_reliant = args.output+'annotated_transcripts.fa'
-			bed_to_sequence(args.output+'annotated_transcripts.bed', args.genome, args.annotation_reliant)
+			bed_to_sequence(query=args.output+'annotated_transcripts.bed', genome=args.genome, 
+				outfilename=args.annotation_reliant)
 
 #			subprocess.check_call([sys.executable, path+'bed_to_sequence.py', 
 #args.output+'annotated_transcripts.bed', args.genome, args.annotation_reliant])
 
-		if not args.quiet:
-			sys.stderr.write('Aligning reads to reference transcripts\n')
-		if subprocess.call(['minimap2', '-a', '-t', str(args.threads), '-N', '4', args.annotation_reliant] + args.reads,
-			stdout=open(args.output+'annotated_transcripts.alignment.sam', 'w'),
-			stderr=open(args.output+'annotated_transcripts.alignment.mm2_stderr', 'w')):
-			sys.stderr.write('Minimap2 issue, check stderr file\n')
-			return 1
-		intermediate += [args.output+'annotated_transcripts.alignment.sam', args.output+'annotated_transcripts.alignment.mm2_stderr']
-
-		if not args.quiet:
-			sys.stderr.write('Counting supporting reads for annotated transcripts\n')
-		count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', args.output+'annotated_transcripts.alignment.sam',
-			'-o', args.output+'annotated_transcripts.alignment.counts', '-t', str(args.threads), '--quality', str(args.quality),
-			'-w', str(args.end_window), '--generate_map', args.output+'annotated_transcripts.isoform.read.map.txt']
+		# minimap (results are piped into count_sam_transcripts.py)
+		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', args.annotation_reliant] + args.reads
+		mm2_cmd = tuple(mm2_cmd)
+		
+#		if subprocess.call(['minimap2', '-a', '-t', str(args.threads), '-N', '4', args.annotation_reliant] + args.reads,
+#			stdout=open(args.output+'annotated_transcripts.alignment.sam', 'w'),
+#			stderr=open(args.output+'annotated_transcripts.alignment.mm2_stderr', 'w')):
+#			sys.stderr.write('Minimap2 issue, check stderr file\n')
+#			return 1
+#		intermediate += [args.output+'annotated_transcripts.alignment.sam', args.output+'annotated_transcripts.alignment.mm2_stderr']
+		# count sam transcripts ; the dash at the end means STDIN
+		count_cmd = ['count_sam_transcripts.py', '--sam', '-',
+			'-o', args.output+'annotated_transcripts.alignment.counts', '-t', str(args.threads), 
+			'--quality', str(args.quality), '-w', str(args.end_window), 
+			'--generate_map', args.output+'annotated_transcripts.isoform.read.map.txt']
 		if args.stringent:
 			count_cmd += ['--stringent']
 		if args.check_splice:
@@ -299,15 +317,21 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['-i', args.annotated_bed] # annotated isoform bed file
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
-		if subprocess.call(count_cmd):
-			sys.stderr.write('Failed at counting step for annotated isoform read support\n')
-			return 1
+#		if subprocess.call(count_cmd):
+#			sys.stderr.write('Failed at counting step for annotated isoform read support\n')
+#			return 1
+		count_cmd = tuple(count_cmd)
+
+		if not args.quiet:
+			sys.stderr.write('Aligning reads to reference transcripts\n')
+			sys.stderr.write('Counting supporting reads for annotated transcripts\n')
+		pipettor.run([mm2_cmd, count_cmd]) 
 
 		if not args.quiet:
 			sys.stderr.write('Setting up unassigned reads for flair-collapse novel isoform detection\n')
 		counts_file = args.output+'annotated_transcripts.alignment.counts'
 		supported_bed = args.output+'annotated_transcripts.supported.bed'
-		match_counts(counts_file=counts_file, output_file=supported_bed, psl=args.annotated_bed, min_reads=args.support, isbed=True)
+		match_counts(counts_file=counts_file, output_file=supported_bed, psl=args.annotated_bed, min_reads=args.support)
 # NOTE: this won't work as is anymore because match_counts.py now requires named input args
 #		subprocess.check_call([sys.executable, path+'match_counts.py', 
 # args.output+'annotated_transcripts.alignment.counts',
@@ -315,9 +339,10 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		subset_reads = args.output+'unassigned.fasta'
 		# NOTE: min_reads is passed but not used
-		# BUG: should probably be ,args.reads, not +: 4 arguments are passed, 5 expected. TEST THIS
-		subprocess.check_call([sys.executable, path+'subset_unassigned_reads.py', args.output+'annotated_transcripts.isoform.read.map.txt',
-			precollapse, str(min_reads), args.output+'unassigned.bed']+args.reads, stdout=open(subset_reads, 'w'))
+		subset_unassigned_reads(readmap=args.output+'annotated_transcripts.isoform.read.map.txt',
+                        query=precollapse, support=str(min_reads), output=args.output+'unassigned.bed', fastx=args.reads)
+#		subprocess.check_call([sys.executable, path+'subset_unassigned_reads.py', args.output+'annotated_transcripts.isoform.read.map.txt',
+#			precollapse, str(min_reads), args.output+'unassigned.bed']+args.reads, stdout=open(subset_reads, 'w'))
 		# TODO: Get rid of this renaming!
 		precollapse = args.output+'unassigned.bed'
 		args.reads = [subset_reads]
@@ -329,7 +354,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		gtfname=args.gtf
 
 	# TODO: This needs a lot more testing
-	collapse_isoforms_precise(query=precollapse, threads=args.threads, 
+	collapse_isoforms_precise(queryfile=precollapse, threads=args.threads, 
 			   max_results=args.max_ends, window=args.end_window, no_redundant=args.no_redundant, 
 			   outputfname=args.output+'firstpass.unfiltered.bed', gtfname=gtfname, isoformtss=args.isoformtss, 
 			   quiet=args.quiet)
@@ -346,31 +371,46 @@ def collapse(genomic_range='', corrected_reads=''):
 	# 	return 1
 
 	# filtering out subset isoforms with insufficient support
-	filter_cmd = [sys.executable, path+'filter_collapsed_isoforms.py',
-		args.output+'firstpass.unfiltered.bed', args.filter, args.output+'firstpass.bed', str(args.end_window)]
+	keep_extra_column = False
 	if float(args.support) < 1:
-		filter_cmd += ['keep']
-
-	if subprocess.call(filter_cmd):
-		return 1
+		keep_extra_column = True
+	filter_collapsed_isoforms(queryfile=args.output+'firstpass.unfiltered.bed', mode=args.filter, 
+		tol=args.end_window, outfile=args.output+'firstpass.bed', keep_extra_column=keep_extra_column)
+#	filter_cmd = [sys.executable, path+'filter_collapsed_isoforms.py',
+#		args.output+'firstpass.unfiltered.bed', args.filter, args.output+'firstpass.bed', str(args.end_window)]
+#	if float(args.support) < 1:
+#		filter_cmd += ['keep']
+#	if subprocess.call(filter_cmd):
+#		return 1
 	intermediate += [args.output+'firstpass.unfiltered.bed']
 
 	# rename first-pass isoforms to annotated transcript IDs if they match
 	if args.gtf:
 		if not args.quiet:
 			sys.stderr.write('Renaming isoforms using gtf\n')
-		renaming_cmd = [sys.executable, path+'identify_gene_isoform.py',
-			args.output+'firstpass.bed', args.gtf, args.output+'firstpass.named.bed']
-		if args.annotation_reliant:
-			renaming_cmd += ['--annotation_reliant']
-		if subprocess.call(renaming_cmd):
-			return 1
-		subprocess.check_call(['mv', args.output+'firstpass.named.bed', args.output+'firstpass.bed'])
-		if float(args.support) < 1:
-			subprocess.check_call([sys.executable, path+'filter_isoforms_by_proportion_of_gene_expr.py',
-				args.output+'firstpass.bed', str(args.support), args.output+'firstpass.bed'])
+		identify_gene_isoform(query=args.output+'firstpass.bed', gtf=args.gtf, 
+			outfilename=args.output+'firstpass.named.bed', annotation_reliant=args.annotation_reliant)
+#		renaming_cmd = [sys.executable, path+'identify_gene_isoform.py',
+#			args.output+'firstpass.bed', args.gtf, args.output+'firstpass.named.bed']
+#		if args.annotation_reliant:
+#			renaming_cmd += ['--annotation_reliant']
+#		if subprocess.call(renaming_cmd):
+#			return 1
 
-	bed_to_sequence(args.output+'firstpass.bed', args.genome, args.output+'firstpass.fa')
+		# TODO: get rid of this renaming (maybe by copying, or otherwise by having a currentbed variable)
+		os.rename(args.output+'firstpass.named.bed', args.output+'firstpass.bed')
+
+		if float(args.support) < 1:
+			filter_isoforms_by_proportion_of_gene_expr(isoforms=args.output+'firstpass.bed', 
+				outfilename=args.output+'firstpass.filtered.bed', support=args.support)
+			os.rename(args.output+'firstpass.filtered.bed', args.output+'firstpass.bed')
+#			subprocess.check_call(['mv', args.output+'firstpass.filtered.bed', args.output+'firstpass.bed'])
+
+# please note: in the original, input and output filenames were identical. Don't do this
+#			subprocess.check_call([sys.executable, path+'filter_isoforms_by_proportion_of_gene_expr.py',
+#				args.output+'firstpass.bed', str(args.support), args.output+'firstpass.bed'])
+
+	bed_to_sequence(query=args.output+'firstpass.bed', genome=args.genome, outfilename=args.output+'firstpass.fa')
 	# if subprocess.call([sys.executable, path+'bed_to_sequence.py', args.output+'firstpass.bed',
 	# 	args.genome, args.output+'firstpass.fa']):
 	# 	return 1
@@ -378,18 +418,19 @@ def collapse(genomic_range='', corrected_reads=''):
 	# reassign reads to first-pass isoforms
 	if not args.quiet:
 		sys.stderr.write('Aligning reads to first-pass isoform reference\n')
-	align_files = []
+#	align_files = []  # TODO: this doesn't get filled
 	alignout = args.temp_dir + tempfile_name + 'firstpass.'
 
+	# minimap
 	if args.mm2_args:
 		args.mm2_args = args.mm2_args.split(',')
-	# note that we cannot get a return value at this point because there's a pipe to samtools or count_sam_transcripts.py
-	ps = subprocess.Popen(['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + [args.output+'firstpass.fa'] + args.reads,
-		stdout=subprocess.PIPE)
+	mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + [args.output+'firstpass.fa'] + args.reads
+#	ps = subprocess.Popen(['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + [args.output+'firstpass.fa'] + args.reads,
+#		stdout=subprocess.PIPE)
 
 	# count the number of supporting reads for each first-pass isoform
 	count_file = args.output+'firstpass.q.counts'
-	count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', '-',
+	count_cmd = ['count_sam_transcripts.py', '--sam', '-',
 		'-o', count_file, '-t', str(args.threads), '--quality', str(args.quality), '-w', str(args.end_window)]
 	if args.stringent:
 		count_cmd += ['--stringent']
@@ -401,9 +442,15 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_cmd += ['--trust_ends']
 	if args.generate_map:
 		count_cmd += ['--generate_map', args.output+'isoform.read.map.txt']
-	if subprocess.call(count_cmd, stdin=ps.stdout):
-		sys.stderr.write('Failed at counting step for isoform read support\n')
-		return 1
+	count_cmd = tuple(count_cmd)
+
+	if not args.quiet:
+		sys.stderr.write('Aligning reads to firstpass transcripts\n')
+		sys.stderr.write('Counting supporting reads for firstpass transcripts\n')
+	pipettor.run([mm2_cmd, count_cmd]) 
+#	if subprocess.call(count_cmd, stdin=ps.stdout):
+#		sys.stderr.write('Failed at counting step for isoform read support\n')
+#		return 1
 
 	if not args.quiet:
 		sys.stderr.write('Filtering isoforms by read coverage\n')
@@ -418,40 +465,61 @@ def collapse(genomic_range='', corrected_reads=''):
 #		match_count_cmd += ['--generate_map', args.output+'isoform.read.map.txt']
 #	subprocess.check_call(match_count_cmd)
 	match_counts(counts_file=count_file, output_file=mc_output, psl=firstpassbed, min_reads=min_reads, 
-	      isbed=True, isoform_file = isoform_file)
+	      isoform_file = isoform_file)
 
 	if args.annotation_reliant:
-		subprocess.check_call([sys.executable, path+'filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
-			'-i', args.output+'isoforms.bed', '--map_i', args.output+'isoform.read.map.txt',
-			'-a', args.output+'annotated_transcripts.supported.bed', '--map_a', args.output+'annotated_transcripts.isoform.read.map.txt',
-			'-o', args.output+'isoforms.bed', '--new_map', args.output+'combined.isoform.read.map.txt'])
+		filter_collapsed_isoforms_from_annotation(support=min_reads, 
+			query=args.output+'isoforms.bed', 
+			map_i=args.output+'isoform.read.map.txt', 
+			annotation=args.output+'annotated_transcripts.supported.bed', 
+			map_a=args.output+'annotated_transcripts.isoform.read.map.txt',
+			outputfile=args.output+'isoforms.bed', wiggle=args.wiggle, 
+			new_map=args.output+'combined.isoform.read.map.txt')
+#		subprocess.check_call([sys.executable, path+'filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
+#			'-i', args.output+'isoforms.bed', '--map_i', args.output+'isoform.read.map.txt',
+#			'-a', args.output+'annotated_transcripts.supported.bed', '--map_a', args.output+'annotated_transcripts.isoform.read.map.txt',
+#			'-o', args.output+'isoforms.bed', '--new_map', args.output+'combined.isoform.read.map.txt'])
 
 	# TODO: Test this section, longshot has not been tested at all
 	if not args.range: # also write .fa and .gtf files
 		if args.longshot_bam:
-			subprocess.check_call([sys.executable, path+'get_phase_sets.py', '-i', args.output+'isoforms.bed',
-				'-b', args.longshot_bam, '-m', args.output+'combined.isoform.read.map.txt',
-				'-o', args.output+'phase_sets.txt', '--out_iso', args.output+'isoforms.bed'])
+			get_phase_sets(isoforms=args.output+'isoforms.bed', 
+				bam=args.longshot_bam, 
+				isoform_reads_map=args.output+'combined.isoform.read.map.txt', 
+				output=args.output+'phase_sets.txt', 
+				outiso=args.output+'isoforms.ls.bed')
+			os.rename(args.output+'isoforms.ls.bed', args.output+'isoforms.bed')
 
-			bed_to_sequence(args.output+'isoforms.bed', args.genome, args.output+'isoforms.fa', 
-			inputvcf=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt', 
-			vcf_out=args.output+'flair.vcf')
+#			subprocess.check_call([sys.executable, path+'get_phase_sets.py', '-i', args.output+'isoforms.bed',
+#				'-b', args.longshot_bam, '-m', args.output+'combined.isoform.read.map.txt',
+#				'-o', args.output+'phase_sets.txt', '--out_iso', args.output+'isoforms.bed'])
+
+			bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome, 
+				outfilename=args.output+'isoforms.fa', 
+				vcfinput=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt', 
+				vcf_out=args.output+'flair.vcf')
 		else:
-			bed_to_sequence(args.output+'isoforms.bed', args.genome, args.output+'isoforms.fa')
+			bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome, 
+				outfilename=args.output+'isoforms.fa')
 			
 		# to_sequence_cmd = [sys.executable, path+'bed_to_sequence.py', args.output+'isoforms.bed',
 		# 	args.genome, args.output+'isoforms.fa']
 		# if args.longshot_bam:
 		# 	to_sequence_cmd += ['--vcf', args.longshot_vcf, '--isoform_haplotypes', args.output+'phase_sets.txt', '--vcf_out', args.output+'flair.vcf']
 		# subprocess.check_call(to_sequence_cmd)
-		# if args.gtf:
+		if args.gtf:
+			bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf') 
 		# 	subprocess.check_call([sys.executable, path+'bed_to_gtf.py', args.output+'isoforms.bed'],
 		# 		stdout=open(args.output+'isoforms.gtf', 'w'))
 
-	subprocess.check_call(['rm', '-rf', args.output+'firstpass.fa', alignout+'q.counts'])
+	files_to_remove = [args.output+'firstpass.fa', alignout+'q.counts']
+	#subprocess.check_call(['rm', '-rf', args.output+'firstpass.fa', alignout+'q.counts'])
 	if not args.keep_intermediate:
-		subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
-		subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
+		files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
+		files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
+		#subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
+		#subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
 	return args.output+'isoforms.bed', args.output+'isoforms.fa'
 
-
+if __name__ == "__main__":
+    collapse()

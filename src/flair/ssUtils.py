@@ -7,7 +7,7 @@ import pybedtools
 import re
 
 def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbose, printErr):
-
+	verbose = False
 	if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
 	cols = None
 

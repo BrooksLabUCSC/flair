@@ -3,18 +3,22 @@ import sys
 import csv
 import os
 
-try:
-	isoforms = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl'
-	s = float(sys.argv[2])
-	outfilename = sys.argv[3]
-except:
-	sys.stderr.write('usage: filter_isoforms_by_proportion_of_gene_expr.py isoforms support_percentage outfile\n')
-	sys.exit(1)
+def main():
+	try:
+		isoforms = sys.argv[1]
+		isbed = sys.argv[1][-3:].lower() != 'psl'
+		s = float(sys.argv[2])
+		outfilename = sys.argv[3]
+	except:
+		sys.stderr.write('usage: filter_isoforms_by_proportion_of_gene_expr.py isoforms support_percentage outfile\n')
+		sys.exit(1)
 
-if s >= 1:
-	sys.stderr.write('Support percentage should be a decimal e.g. 0.1 for 10%\n')
-	sys.exit(1)
+	if s >= 1:
+		sys.stderr.write('Support percentage should be a decimal e.g. 0.1 for 10%\n')
+		sys.exit(1)
+
+	filter_isoforms_by_proportion_of_gene_expr(isoforms=isoforms, outfilename=outfilename, 
+					    support=s, isbed=isbed)
 
 
 def split_iso_gene(iso_gene):
@@ -38,26 +42,29 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
+def filter_isoforms_by_proportion_of_gene_expr(isoforms, outfilename, support, isbed=True):
+	genes = dict()
+	isoFH = open(isoforms, 'r')
+	for line in isoFH:
+		line = line.rstrip().split('\t')
+		if isbed:
+			name = line[3]
+		else:
+			name = line[9]
+		iso, gene = split_iso_gene(name)
+		if gene not in genes:
+			genes[gene] = set()
+		genes[gene].add(tuple(line))
 
-genes = {}
-for line in isoforms:
-	line = line.rstrip().split('\t')
-	if isbed:
-		name = line[3]
-	else:
-		name = line[9]
-	iso, gene = split_iso_gene(name)
-	if gene not in genes:
-		genes[gene] = set()
-	genes[gene].add(tuple(line))
+	with open(outfilename, 'wt') as outfile:
+		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+		for gene in genes:
+			gene_total = float(sum([float(iso[-1]) for iso in genes[gene]]))
+			if gene_total == 0:
+				continue
+			for iso in genes[gene]:
+				if float(iso[0][-1])/gene_total >= support:
+					writer.writerow(iso)
 
-with open(outfilename, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-	for gene in genes:
-		gene_total = float(sum([float(iso[-1]) for iso in genes[gene]]))
-		if gene_total == 0:
-			continue
-		for iso in genes[gene]:
-			if float(iso[0][-1])/gene_total >= s:
-				writer.writerow(iso)
-
+if __name__ == "__main__":
+    main()
