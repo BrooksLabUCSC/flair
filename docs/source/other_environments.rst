@@ -24,8 +24,8 @@ Flair consists of six modules. The first three are ``align``,
 ``correct``, and ``collapse``. They are the most used, so we
 will refer to them here as basic Flair.
 
-The other three modules are ``quantify``, ``diffExp``, and 
-``diffSplice``. Together with basic Flair these are called full Flair.
+The other three modules are ``quantify``, ``flair_diffExp``, and 
+``flair_diffSplice``. Together with basic Flair these are called full Flair.
 These three additional modules have more dependencies than basic Flair
 so if you don't need them, you will not need the modules listed under 5.
 

@@ -1,27 +1,8 @@
 #!/usr/bin/env python3
 
-########################################################################
-# File: ssPrep.py
-#  executable: ssPrep.py
-# Purpose:
-#
-#
-# Author: Cameron M. Soulette
-# History:      cms 05/01/2018 Created
-#
-########################################################################
-
-
-########################################################################
-# Hot Imports & Global Variable
-########################################################################
-
-
 import os
 import sys
 from ncls import NCLS
-from tqdm import tqdm
-#import pybedtools
 
 ########################################################################
 # CommandLine
@@ -230,7 +211,7 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
             return ssData
 
 
-def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
+def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentChr, checkFname):
     ''' Builds read and splice site objects '''
 
     if checkFname:
@@ -307,7 +288,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir):
             print("** Checking inc/corr files for chromsome %s: %s %s" % (currentChr,inc,cor), file=fo)
 
 
-def buildIntervalTree(juncs, wiggle, fasta):
+def buildIntervalTree(juncs, wiggle, currentChr, checkFname):
     ''' Builds read and splice site objects '''
 
     if checkFname:
@@ -380,32 +361,29 @@ def main():
     out           = myCommandLine.args['output_fname']
     resolveStrand = myCommandLine.args['correctStrand']
     workingDir    = myCommandLine.args['workingDir']
-
-    global checkFname
     checkFname    = myCommandLine.args['check_file']
 
-    try:
-        ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname)
-    except:
-        sys.exit(1)
+
+    ssPrep([bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname])
 
 
-def ssPrep(bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname):
-    globals()['currentChr'] = out
-    globals()['checkFname'] = checkFname
+def ssPrep(x):
+    '''one argument so we can run p.map from the main program'''
+    bed, knownJuncs, fa, wiggle, chrom, resolveStrand, workingDir, checkFname = x
+
     if checkFname:
         with open(checkFname,'a+') as fo:
             print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (bed, wiggle, knownJuncs, fa), file=fo)
 
     # Build interval tree of known juncs
-    intTree, ssData = buildIntervalTree(knownJuncs, wiggle, fa)
+    intTree, ssData = buildIntervalTree(knownJuncs, wiggle, chrom, checkFname)
 
     if checkFname:
         with open(checkFname,'a+') as fo:
             print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncs, bed), file=fo)
     # Build read objects.
     try:
-        correctReads(bed, intTree, ssData, out, resolveStrand, workingDir)
+        correctReads(bed, intTree, ssData, chrom, resolveStrand, workingDir, chrom, checkFname)
     except:
         if checkFname:
             with open(checkFname,'a+') as fo:

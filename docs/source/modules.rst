@@ -320,7 +320,7 @@ flair quantify
 
 **Output**
 
-Isoform-by-sample counts file that can be used in the diffExp and diffSplice modules.
+Isoform-by-sample counts file that can be used in the flair_diffExp and flair_diffSplice programs.
 
 Options
 -------
@@ -377,7 +377,7 @@ Optional arguments
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. Flair diffExp and diffSplice expect this information.
+Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. flair_diffExp and flair_diffSplice expect this information.
 
 .. code:: text
 
@@ -387,12 +387,15 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
 
 .. _diffexp-label:
 
-flair diffExp
+flair_diffExp
 =============
+
+**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
+programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
 
 .. code:: text
 
-   usage: flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]
+   usage: flair_diffExp -q counts_matrix.tsv --out_dir out_dir [options]
 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
@@ -478,9 +481,12 @@ This module requires python modules and R packages that are not necessary for ot
 flair diffSplice
 ================
 
+**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
+programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
+
 .. code:: text
 
-   usage: flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
+   usage: flair_diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
 
 This module calls alternative splicing (AS) events from isoforms. Currently supports
 the following AS events: 

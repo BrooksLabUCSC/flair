@@ -4,17 +4,21 @@ import csv
 import math
 import os
 
-try:
-	psl = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl'
-	mode = sys.argv[2] if sys.argv[2] in ['ginormous', 'comprehensive', 'nosubset'] else 'default' # all typos will report default
-	pslout = sys.argv[3]
-	tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
-	keep_extra_column = len(sys.argv) > 5
-except:
-	sys.stderr.write('usage: filter_collapsed_isoforms.py collapsed.psl (nosubset/default/comprehensive/ginormous)' +
-		' filtered.psl [tolerance] [keep_extra_column]\n')
-	sys.exit(1)
+
+def main():
+	try:
+		query = sys.argv[1]
+		isbed = sys.argv[1][-3:].lower() != 'psl'
+		mode = sys.argv[2] if sys.argv[2] in ['ginormous', 'comprehensive', 'nosubset'] else 'default' # all typos will report default
+		pslout = sys.argv[3]
+		tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
+		keep_extra_column = len(sys.argv) > 5
+	except:
+		sys.stderr.write('usage: filter_collapsed_isoforms.py collapsed.psl (nosubset/default/comprehensive/ginormous)' +
+			' filtered.psl [tolerance] [keep_extra_column]\n')
+		sys.exit(1)
+	filter_collapsed_isoforms(query=query, isbed=isbed, mode=mode, tol=tol, outfile=pslout, 
+			   keep_extra_column=keep_extra_column)
 
 
 def get_junctions(starts, sizes):
@@ -95,118 +99,123 @@ def bin_search_right(query, data):
 	return data[max(0, i-40):i+1]
 
 
-isoforms, allevents, jcn_to_name = {}, {}, {}
-for line in psl:
-	line = line.rstrip().split()
-	try:
-		line[-1] = float(line[-1])
-		support = True
-	except:
-		sys.stderr.write('Expecting an extra column of integers\n')
-		sys.exit(1)
-	if isbed:
-		chrom, name, chrstart = line[0], line[3], int(line[1])
-		sizes = [int(n) for n in line[10].split(',')[:-1]]
-		starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
-	else:
-		chrom, name = line[13], line[9]
-		sizes = [int(n) for n in line[18].split(',')[:-1]]
-		starts = [int(n) for n in line[20].split(',')[:-1]]
-	junctions = get_junctions(starts, sizes)
-	exons = get_exons(starts, sizes)
-	if chrom not in isoforms:
-		isoforms[chrom] = {}
-		allevents[chrom] = {}
-		allevents[chrom]['allexons'] = set()
-		jcn_to_name[chrom] = {}
-		allevents[chrom]['all_se_exons'] = set()
-	isoforms[chrom][name] = {}
-	isoforms[chrom][name]['line'] = line
-	isoforms[chrom][name]['exons'] = exons
-	if junctions:  # multi-exon isoform
-		isoforms[chrom][name]['jset'] = junctions
-		allevents[chrom]['allexons'].update(exons)
-		jname = str(sorted(list(junctions)))
-		isoforms[chrom][name]['jname'] = jname
-		for j in junctions:
-			if j not in jcn_to_name[chrom]:
-				jcn_to_name[chrom][j] = set()
-			jcn_to_name[chrom][j].add(name)
-	else:
-		exon = exons[0]
-		allevents[chrom]['all_se_exons'].add((exon[0], exon[1], line[-1]))
-
-keepisoforms = []
-for chrom in isoforms:
-	allexons_left = sorted(list(allevents[chrom]['allexons']), key=lambda x: x[0])
-	allexons_right = sorted(allexons_left, key=lambda x: x[1])
-	all_se_exons_left = sorted(list(allevents[chrom]['all_se_exons']), key=lambda x: x[0])
-	all_se_exons_right = sorted(all_se_exons_left, key=lambda x: x[1])
-	for n in isoforms[chrom]:
-		if mode == 'ginormous':  # currently includes all
-			keepisoforms += [isoforms[chrom][n]['line']]
-			continue
-		if 'jname' in isoforms[chrom][n]:  # multi-exon isoforms
-			if mode == 'comprehensive':  # all spliced subsets allowed
-				keepisoforms += [isoforms[chrom][n]['line']]
-				continue
-			similar_isos = set()
-			for j in isoforms[chrom][n]['jset']:
-				similar_isos.update(jcn_to_name[chrom][j])
-
-			issubset = [0, 0]  # first exon is a subset, last exon is a subset
-			exons = isoforms[chrom][n]['exons']
-			first_exon, last_exon = exons[0], exons[-1]
-			superset_support = []
-			for n_ in similar_isos:  # compare with all similar
-				if n == n_:
-					continue
-				elif isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
-					len(isoforms[chrom][n]['jname']) < len(isoforms[chrom][n_]['jname']):  # is subset
-						for exon in isoforms[chrom][n_]['exons']:
-							if exon_overlap(first_exon, exon, tol=tol):
-								superset_support += [isoforms[chrom][n_]['line'][-1]]
-								issubset[0] = 1
-							if exon_overlap(last_exon, exon, left=False, tol=tol):
-								superset_support += [isoforms[chrom][n_]['line'][-1]]
-								issubset[1] = 1
-			if sum(issubset) == 0:  # not a subset
-				keepisoforms += [isoforms[chrom][n]['line']]
-			elif mode == 'nosubset' or len(exons) < 4:  # is a subset and will be removed
-				continue
-			elif isoforms[chrom][n]['line'][-1] > 3 and \
-				isoforms[chrom][n]['line'][-1] > max(superset_support)*1.2:
-					keepisoforms += [isoforms[chrom][n]['line']]
-		else:  # single exon isoforms
-			exon = isoforms[chrom][n]['exons'][0]
-			iscontained = False  # is exon contained in another exon (e) of a multi-exon transcript?
-			b = bin_search_left(exon, allexons_right)
-			c = bin_search_right(exon, allexons_left)
-			for e in set(b).intersection(set(c)):
-				if contained(exon, (e[0]-tol, e[1]+tol)):
-					iscontained = True
-					break
-			if iscontained:  # if so, then filter out
-				continue
-
-			contained_expr = False  # exon is contained in another exon but is more highly expressed
-			b = bin_search_left(exon, all_se_exons_right)
-			c = bin_search_right(exon, all_se_exons_left)
-			for e in set(b).intersection(set(c)):  # is exon contained in another single exon transcript e?
-				if (e[1] - e[0]) <= (exon[1] - exon[0]):  # e must be larger than exon to remove exon
-					continue
-				if contained(exon, (e[0]-tol, e[1]+tol)):
-					iscontained = True
-					if mode != 'nosubset' and isoforms[chrom][n]['line'][-1] > 3 and \
-						e[2] * 1.2 < isoforms[chrom][n]['line'][-1]:
-						contained_expr = True  # keep exon
-			if not iscontained or contained_expr:
-				keepisoforms += [isoforms[chrom][n]['line']]
-
-with open(pslout, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-	for iso in keepisoforms:
-		if keep_extra_column:
-			writer.writerow(iso)
+def filter_collapsed_isoforms(queryfile, mode, tol, outfile, isbed=True, keep_extra_column=False):
+	isoforms, allevents, jcn_to_name = {}, {}, {}
+	query = open(queryfile, 'r')
+	for line in query:
+		line = line.rstrip().split()
+		try:
+			line[-1] = float(line[-1])
+			support = True
+		except:
+			sys.stderr.write('Expecting an extra column of integers\n')
+			sys.exit(1)
+		if isbed:
+			chrom, name, chrstart = line[0], line[3], int(line[1])
+			sizes = [int(n) for n in line[10].split(',')[:-1]]
+			starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
 		else:
-			writer.writerow(iso[:-1])
+			chrom, name = line[13], line[9]
+			sizes = [int(n) for n in line[18].split(',')[:-1]]
+			starts = [int(n) for n in line[20].split(',')[:-1]]
+		junctions = get_junctions(starts, sizes)
+		exons = get_exons(starts, sizes)
+		if chrom not in isoforms:
+			isoforms[chrom] = {}
+			allevents[chrom] = {}
+			allevents[chrom]['allexons'] = set()
+			jcn_to_name[chrom] = {}
+			allevents[chrom]['all_se_exons'] = set()
+		isoforms[chrom][name] = {}
+		isoforms[chrom][name]['line'] = line
+		isoforms[chrom][name]['exons'] = exons
+		if junctions:  # multi-exon isoform
+			isoforms[chrom][name]['jset'] = junctions
+			allevents[chrom]['allexons'].update(exons)
+			jname = str(sorted(list(junctions)))
+			isoforms[chrom][name]['jname'] = jname
+			for j in junctions:
+				if j not in jcn_to_name[chrom]:
+					jcn_to_name[chrom][j] = set()
+				jcn_to_name[chrom][j].add(name)
+		else:
+			exon = exons[0]
+			allevents[chrom]['all_se_exons'].add((exon[0], exon[1], line[-1]))
+
+	keepisoforms = []
+	for chrom in isoforms:
+		allexons_left = sorted(list(allevents[chrom]['allexons']), key=lambda x: x[0])
+		allexons_right = sorted(allexons_left, key=lambda x: x[1])
+		all_se_exons_left = sorted(list(allevents[chrom]['all_se_exons']), key=lambda x: x[0])
+		all_se_exons_right = sorted(all_se_exons_left, key=lambda x: x[1])
+		for n in isoforms[chrom]:
+			if mode == 'ginormous':  # currently includes all
+				keepisoforms += [isoforms[chrom][n]['line']]
+				continue
+			if 'jname' in isoforms[chrom][n]:  # multi-exon isoforms
+				if mode == 'comprehensive':  # all spliced subsets allowed
+					keepisoforms += [isoforms[chrom][n]['line']]
+					continue
+				similar_isos = set()
+				for j in isoforms[chrom][n]['jset']:
+					similar_isos.update(jcn_to_name[chrom][j])
+
+				issubset = [0, 0]  # first exon is a subset, last exon is a subset
+				exons = isoforms[chrom][n]['exons']
+				first_exon, last_exon = exons[0], exons[-1]
+				superset_support = []
+				for n_ in similar_isos:  # compare with all similar
+					if n == n_:
+						continue
+					elif isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
+						len(isoforms[chrom][n]['jname']) < len(isoforms[chrom][n_]['jname']):  # is subset
+							for exon in isoforms[chrom][n_]['exons']:
+								if exon_overlap(first_exon, exon, tol=tol):
+									superset_support += [isoforms[chrom][n_]['line'][-1]]
+									issubset[0] = 1
+								if exon_overlap(last_exon, exon, left=False, tol=tol):
+									superset_support += [isoforms[chrom][n_]['line'][-1]]
+									issubset[1] = 1
+				if sum(issubset) == 0:  # not a subset
+					keepisoforms += [isoforms[chrom][n]['line']]
+				elif mode == 'nosubset' or len(exons) < 4:  # is a subset and will be removed
+					continue
+				elif isoforms[chrom][n]['line'][-1] > 3 and \
+					isoforms[chrom][n]['line'][-1] > max(superset_support)*1.2:
+						keepisoforms += [isoforms[chrom][n]['line']]
+			else:  # single exon isoforms
+				exon = isoforms[chrom][n]['exons'][0]
+				iscontained = False  # is exon contained in another exon (e) of a multi-exon transcript?
+				b = bin_search_left(exon, allexons_right)
+				c = bin_search_right(exon, allexons_left)
+				for e in set(b).intersection(set(c)):
+					if contained(exon, (e[0]-tol, e[1]+tol)):
+						iscontained = True
+						break
+				if iscontained:  # if so, then filter out
+					continue
+
+				contained_expr = False  # exon is contained in another exon but is more highly expressed
+				b = bin_search_left(exon, all_se_exons_right)
+				c = bin_search_right(exon, all_se_exons_left)
+				for e in set(b).intersection(set(c)):  # is exon contained in another single exon transcript e?
+					if (e[1] - e[0]) <= (exon[1] - exon[0]):  # e must be larger than exon to remove exon
+						continue
+					if contained(exon, (e[0]-tol, e[1]+tol)):
+						iscontained = True
+						if mode != 'nosubset' and isoforms[chrom][n]['line'][-1] > 3 and \
+							e[2] * 1.2 < isoforms[chrom][n]['line'][-1]:
+							contained_expr = True  # keep exon
+				if not iscontained or contained_expr:
+					keepisoforms += [isoforms[chrom][n]['line']]
+
+	with open(outfile, 'wt') as outf:
+		writer = csv.writer(outf, delimiter='\t', lineterminator=os.linesep)
+		for iso in keepisoforms:
+			if keep_extra_column:
+				writer.writerow(iso)
+			else:
+				writer.writerow(iso[:-1])
+
+if __name__ == "__main__":
+    main()
