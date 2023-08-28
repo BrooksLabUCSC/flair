@@ -17,8 +17,6 @@ def correct(aligned_reads=''):
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('at least one of the following arguments is required')
 	if not aligned_reads:
-#		parser.add_argument('-q', '--query', type=str, default=aligned_reads) 
-#	else:
 		required.add_argument('-q', '--query', type=str, required=True, 
 		help='uncorrected bed12 file')
 	required.add_argument('-g', '--genome', type=str, required=True, 
@@ -41,8 +39,7 @@ def correct(aligned_reads=''):
 	if no_arguments_passed:
 		parser.print_help()
 		sys.exit(1)
-#	if 'correct' in sys.argv:
-#		sys.argv.remove('correct')
+
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Correct unrecognized arguments: {}\n'.format(' '.join(unknown)))
@@ -51,6 +48,7 @@ def correct(aligned_reads=''):
 		query = aligned_reads
 	else:
 		query = args.query
+
 # TODO:This seems opposite the intended use, see what happens
 	resolveStrand = False
 	if not args.nvrna:
