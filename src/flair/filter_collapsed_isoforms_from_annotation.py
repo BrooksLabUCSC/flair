@@ -37,7 +37,7 @@ def main():
 	# 	sys.exit(1)
 
 	isbed = args.query[-3:].lower() != 'psl'
-	filter_collapsed_isoforms_from_annotation(map_a=args.map_a, map_i=args.map_i, 
+	filter_collapsed_isoforms_from_annotation(annotation=args.annotated, map_a=args.map_a, map_i=args.map_i, 
 		support=args.support, query=args.psl, outputfile=args.output, wiggle=args.wiggle, 
 		new_map=args.new_map, isbed=isbed)
 
@@ -128,7 +128,7 @@ def bin_search_right(query, data):
 	return data[max(0, i-40):i+1]
 
 
-def filter_collapsed_isoforms_from_annotation(map_a, map_i, support, query, outputfile, 
+def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support, query, outputfile, 
 	wiggle=100, new_map=False, isbed=True):
 	iso_support = {}
 	annotated_iso_read_map = {}
@@ -151,8 +151,8 @@ def filter_collapsed_isoforms_from_annotation(map_a, map_i, support, query, outp
 
 	keep_isoforms = []
 	isoforms, allevents, jcn_to_name, all_iso_info = {}, {}, {}, {}
-	annotated = open(query, 'r')
-	for line in annotated:
+	psl = open(query, 'r')
+	for line in psl:
 		line = line.rstrip().split()
 		chrom, name, sizes, starts = get_info(line, isbed)
 		keep_isoforms += [name]
@@ -180,7 +180,7 @@ def filter_collapsed_isoforms_from_annotation(map_a, map_i, support, query, outp
 			exon = exons[0]
 			allevents[chrom]['all_se_exons'].add((exon[0], exon[1], iso_support[name]))
 
-	qfile = open(query, 'r')
+	qfile = open(annotation, 'r')
 	for line in qfile:
 		line = line.rstrip().split()
 		chrom, name, sizes, starts = get_info(line, isbed)

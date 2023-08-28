@@ -12,9 +12,9 @@ def main():
     output = sys.argv[4]
     isbed = sys.argv[2][-3:].lower() != 'psl'
     fle = sys.argv[5:]
-    subset_unassigned_reads(readmap=readmap, query=query, support=support, output=output, fastx=fle, isbed=isbed)
+    subset_unassigned_reads(readmap=readmap, query=query, support=support, output=output, fastx=fle, outfa='/dev/stdout', isbed=isbed)
 
-def subset_unassigned_reads(readmap, query, support, output, fastx, isbed=True):
+def subset_unassigned_reads(readmap, query, support, output, fastx, outfa, isbed=True):
     assigned_names = set()
     for line in open(readmap):  # map
         iso, reads = line.rstrip().split('\t')
@@ -40,13 +40,15 @@ def subset_unassigned_reads(readmap, query, support, output, fastx, isbed=True):
                 headers_keep.add(name)
 
     headers_used = set()
-    for fle in fastx:
-        for read in mm.fastx_read(fle):
-            header, seq, qual = read
-            if header in headers_keep:
-                print('>'+header)
-                print(seq)
-                headers_used.add(header)
+    with open(outfa, 'w') as outf:
+        for fle in fastx:
+            for read in mm.fastx_read(fle):
+                header, seq, qual = read
+                if header in headers_keep:
+                    print('>'+header, file=outf)
+                    print(seq, file=outf)
+                    headers_used.add(header)
+    outf.close()
 
     diff = len(headers_keep - headers_used)
     if diff > 0:

@@ -15,7 +15,6 @@ from select_from_bed import select_from_bed
 from bed_to_sequence import bed_to_sequence
 from gtf_to_bed import gtf_to_bed
 from match_counts import match_counts
-from collapse_isoforms_precise import collapse_isoforms_precise
 from filter_collapsed_isoforms import filter_collapsed_isoforms
 from identify_gene_isoform import identify_gene_isoform
 from filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
@@ -340,10 +339,11 @@ def collapse(genomic_range='', corrected_reads=''):
 		subset_reads = args.output+'unassigned.fasta'
 		# NOTE: min_reads is passed but not used
 		subset_unassigned_reads(readmap=args.output+'annotated_transcripts.isoform.read.map.txt',
-                        query=precollapse, support=str(min_reads), output=args.output+'unassigned.bed', fastx=args.reads)
+                        query=precollapse, support=str(min_reads), output=args.output+'unassigned.bed', 
+			fastx=args.reads, outfa=subset_reads)
 #		subprocess.check_call([sys.executable, path+'subset_unassigned_reads.py', args.output+'annotated_transcripts.isoform.read.map.txt',
 #			precollapse, str(min_reads), args.output+'unassigned.bed']+args.reads, stdout=open(subset_reads, 'w'))
-		# TODO: Get rid of this renaming!
+		# TODO: Get rid of this args renaming!
 		precollapse = args.output+'unassigned.bed'
 		args.reads = [subset_reads]
 		intermediate += [subset_reads, precollapse]
@@ -353,22 +353,23 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.gtf and not args.no_end_adjustment:
 		gtfname=args.gtf
 
-	# TODO: This needs a lot more testing
-	collapse_isoforms_precise(queryfile=precollapse, threads=args.threads, 
-			   max_results=args.max_ends, window=args.end_window, no_redundant=args.no_redundant, 
-			   outputfname=args.output+'firstpass.unfiltered.bed', gtfname=gtfname, isoformtss=args.isoformtss, 
-			   quiet=args.quiet)
-	# collapse_cmd = [sys.executable, path+'collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.threads),
-	# 		'-m', str(args.max_ends), '-w', str(args.end_window), '-n', args.no_redundant, '-o', args.output+'firstpass.unfiltered.bed']
-	# if args.gtf and not args.no_end_adjustment:
-	# 	collapse_cmd += ['-f', args.gtf]
-	# if args.isoformtss:
-	# 	collapse_cmd += ['-i']
-	# if args.quiet:
-	# 	collapse_cmd += ['--quiet']
+	# TODO: This program uses pool and map, which makes it difficult to capture in a function
+#	collapse_isoforms_precise(queryfile=precollapse, threads=args.threads, 
+#			   max_results=args.max_ends, window=args.end_window, no_redundant=args.no_redundant, 
+#			   outputfname=args.output+'firstpass.unfiltered.bed', gtfname=gtfname, isoformtss=args.isoformtss, 
+#			   quiet=args.quiet)
+	collapse_cmd = ['collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.threads),
+		'-m', str(args.max_ends), '-w', str(args.end_window), '-n', args.no_redundant, 
+		'-o', args.output+'firstpass.unfiltered.bed']
+	if args.gtf and not args.no_end_adjustment:
+		collapse_cmd += ['-f', args.gtf]
+	if args.isoformtss:
+		collapse_cmd += ['-i']
+	if args.quiet:
+		collapse_cmd += ['--quiet']
+	collapse_cmd = tuple(collapse_cmd)
+	pipettor.run([collapse_cmd])
 
-	# if subprocess.call(collapse_cmd):
-	# 	return 1
 
 	# filtering out subset isoforms with insufficient support
 	keep_extra_column = False
@@ -473,7 +474,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			map_i=args.output+'isoform.read.map.txt', 
 			annotation=args.output+'annotated_transcripts.supported.bed', 
 			map_a=args.output+'annotated_transcripts.isoform.read.map.txt',
-			outputfile=args.output+'isoforms.bed', wiggle=args.wiggle, 
+			outputfile=args.output+'isoforms.bed', 
 			new_map=args.output+'combined.isoform.read.map.txt')
 #		subprocess.check_call([sys.executable, path+'filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
 #			'-i', args.output+'isoforms.bed', '--map_i', args.output+'isoform.read.map.txt',
