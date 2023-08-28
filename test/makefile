@@ -55,14 +55,14 @@ test-quantify : mkdirs
 
 # FLAIR DIFFEXP
 test-diffexp : mkdirs
-	flair diffExp -q $(COUNTS_MATRIX) -o $O/test.diffexp -e 1 -of
+	flair_diffExp -q $(COUNTS_MATRIX) -o $O/test.diffexp -e 1 -of
 	diff <(sort $E/test.diffexp.genes_deseq2_MCF7_v_A549.tsv) <(sort $O/test.diffexp/genes_deseq2_MCF7_v_A549.tsv) > $D/test.diffexp.dge.diff
 	diff <(sort $E/test.diffexp.isoforms_deseq2_MCF7_v_A549.tsv) <(sort $O/test.diffexp/isoforms_deseq2_MCF7_v_A549.tsv) > $D/test.diffexp.die.diff
 	diff <(sort $E/test.diffexp.isoforms_drimseq_MCF7_v_A549.tsv) <(sort $O/test.diffexp/isoforms_drimseq_MCF7_v_A549.tsv) > $D/test.diffexp.drimseq.diff
 
 # FLAIR DIFFSPLICE
 test-diffsplice : mkdirs
-	flair diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/test.diffsplice -of
+	flair_diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/test.diffsplice -of
 	diff <(sort $O/test.diffsplice/drimseq_alt3_A_v_B.tsv) <(sort $E/test.diffsplice.drimseq_alt3_A_v_B.tsv) > $D/test.diffsplice.alt3.diff
 	diff <(sort $O/test.diffsplice/diffsplice.alt3.events.quant.tsv) <(sort $E/test.diffsplice.alt3.events.quant.tsv) > $D/test.diffsplice.alt3.quant.diff
 

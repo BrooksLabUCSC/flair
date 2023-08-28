@@ -1,21 +1,15 @@
 #! /usr/bin/env python3
 
 import sys
-import re
 import argparse
 import subprocess
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-import tempfile
-import glob
-import time
-from multiprocessing import Pool
-
 
 def diffSplice(isoforms='', counts_matrix=''):
 	parser = argparse.ArgumentParser(description='flair-diffSplice parse options',
 		usage='flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]')
-	parser.add_argument('diffSplice')
+#	parser.add_argument('diffSplice')
 	required = parser.add_argument_group('required named arguments')
 	if not isoforms:
 		required.add_argument('-i', '--isoforms', action='store', dest='i', required=True,
@@ -80,7 +74,7 @@ def diffSplice(isoforms='', counts_matrix=''):
 		try:
 			os.makedirs(workdir, 0o700)
 		except OSError as e:
-			if e.errno != errno.EEXIST:
+#			if e.errno != errno.EEXIST:  # TODO: errno is not defined
 				raise
 	else:
 		sys.stderr.write(f'** Error. Name {args.o} already exists. Choose another name for out_dir\n')
@@ -90,16 +84,16 @@ def diffSplice(isoforms='', counts_matrix=''):
 		return 1
 
 	filebase = os.path.join(args.o, 'diffsplice')
-	subprocess.check_call([sys.executable, path+'call_diffsplice_events.py', args.i, filebase, args.q])
-	subprocess.check_call([sys.executable, path+'es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
-	subprocess.check_call([sys.executable, path+'es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
+	subprocess.check_call(['call_diffsplice_events.py', args.i, filebase, args.q])
+	subprocess.check_call(['es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
+	subprocess.check_call(['es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
 		stdout=open(filebase+'.es.events.quant.tsv', 'w'))
 	subprocess.check_call(['rm', filebase+'.es.events.tsv'])
 
 	if args.test or args.conditionA:
 		sys.stderr.write('DRIMSeq testing for each AS event type\n')
 		drim1, drim2, drim3, drim4 = [str(x) for x in [args.drim1, args.drim2, args.drim3, args.drim4]]
-		ds_command = [sys.executable, path+'runDS.py', '--threads', str(args.t), '--outDir', args.o,
+		ds_command = ['runDS.py', '--threads', str(args.t), '--outDir', args.o,
 			'--drim1', drim1, '--drim2', drim2, '--drim3', drim3, '--drim4', drim4]
 		if args.batch:
 			ds_command += ['--batch']
@@ -125,4 +119,13 @@ def diffSplice(isoforms='', counts_matrix=''):
 		os.rmdir(workdir)
 	return
 
+def emptyMatrix(infile):
+	'''Returns true if file has only a header line'''
+	with open(infile, 'r') as inf:
+		if len(inf.readlines()) <= 1:
+			return True
+	return False
 
+
+if __name__ == '__main__':
+    diffSplice()

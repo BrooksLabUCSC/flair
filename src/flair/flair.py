@@ -76,9 +76,15 @@ def main():
 		last_time = cur_time
 
 	
-	if mode == '--version':
+	if mode in ['--version', '']:
 		sys.stderr.write('FLAIR v2.0.0\n')
 		sys.exit(0)
+
+	if mode in ['diffexp', 'diffsplice']:
+		sys.stderr.write('ERROR: This version of flair does not support diffExp and diffSplice\n')
+		sys.stderr.write('You can run flair_diffexp and flair_diffsplice as separate programs\n')
+		sys.exit(1)
+
 	print(f"Flair took {int((cur_time - start_time)/60)} minutes and {int((cur_time - start_time))%60} seconds and finished without issues. If you do not see this message, please check your run.", flush=True)
 
 

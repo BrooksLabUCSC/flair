@@ -130,7 +130,7 @@ def quantify(isoform_sequences=''):
 		sample, group, batch, readFile, samOut = data
 		sys.stderr.write('Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
 
-		count_cmd = [sys.executable, path+'count_sam_transcripts.py', '-s', samOut,
+		count_cmd = ['count_sam_transcripts.py', '-s', samOut,
 			'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
@@ -171,7 +171,7 @@ def quantify(isoform_sequences=''):
 	sys.stderr.write('\n')
 
 	if args.tpm:
-		subprocess.check_call([sys.executable, path+'counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv'])
+		subprocess.check_call(['counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv'])
 	return args.o+'.counts.tsv'
 
 
