@@ -170,5 +170,7 @@ def correct(aligned_reads=''):
 		shutil.move(printErrFname, f'{args.output}.err') 
 	shutil.rmtree(tempDir)
 
+	return args.output
 
-
+if __name__ == '__main__':
+	correct()

@@ -110,7 +110,7 @@ def quantify(isoform_sequences=''):
 	sys.stderr.write('Writing temporary files with prefixes similar to {}\n'.format(readFileRoot))
 
 	for num, sample in enumerate(samData, 0):
-		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \r' % (sample[0], sample[2], num+1, len(samData)))
+		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
 		mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
 		try:
@@ -128,7 +128,7 @@ def quantify(isoform_sequences=''):
 	countData = dict()
 	for num, data in enumerate(samData):
 		sample, group, batch, readFile, samOut = data
-		sys.stderr.write('Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
+		sys.stderr.write('Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \n' % (sample, batch, num+1, len(samData)))
 
 		count_cmd = ['count_sam_transcripts.py', '-s', samOut,
 			'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
@@ -154,7 +154,7 @@ def quantify(isoform_sequences=''):
 		sys.stderr.flush()
 		subprocess.check_call(['rm', samOut])
 
-	sys.stderr.write('Step 3/3. Writing counts to {} \r'.format(args.o+'.counts.tsv'))
+	sys.stderr.write('Step 3/3. Writing counts to {} \n'.format(args.o+'.counts.tsv'))
 	countMatrix = open(args.o+'.counts.tsv', 'w')
 
 	if args.sample_id_only:
@@ -174,4 +174,6 @@ def quantify(isoform_sequences=''):
 		subprocess.check_call(['counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv'])
 	return args.o+'.counts.tsv'
 
+if __name__ == '__main__':
+	quantify()
 
