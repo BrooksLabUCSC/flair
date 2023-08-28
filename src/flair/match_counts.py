@@ -15,7 +15,7 @@ def main():
 		help='psl or bed file to filter by counts')
 	parser.add_argument('--min_reads', type=float, default=0,
 		help='minimum number of supporting reads')
-	parser.add_argument('--out_psl', type=str, required=True,
+	required.add_argument('--out_psl', type=str, required=True,
 		help='output file name, bed or psl')
 	parser.add_argument('--generate_map',  dest='generate_map', default=False, 
 		help='''name of read-isoform mapping file to be filtered''')
@@ -29,7 +29,7 @@ def main():
 		isbed = False
 
 	match_counts(args.counts_file, args.out_psl, args.psl, append_counts=args.append_counts, 
-	      minreads=args.minreads, isbed=isbed, isoform_file=args.generate_map)
+	      min_reads=args.min_reads, isbed=isbed, isoform_file=args.generate_map)
 
 def match_counts(counts_file, output_file, psl, append_counts=False, min_reads=0, isbed=True, isoform_file=False):
 	counts = {}
