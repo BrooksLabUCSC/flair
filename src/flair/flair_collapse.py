@@ -461,6 +461,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	isoform_file = False
 #	match_count_cmd = [sys.executable, path+'match_counts.py', count_file,
 #		args.output+'firstpass.bed', str(min_reads), args.output+'isoforms.bed']
+	# TODO: make a test that shows this has different output
 	if args.generate_map or args.annotation_reliant:
 		isoform_file = args.output+'isoform.read.map.txt'
 #		match_count_cmd += ['--generate_map', args.output+'isoform.read.map.txt']
@@ -469,13 +470,15 @@ def collapse(genomic_range='', corrected_reads=''):
 	      isoform_file = isoform_file)
 
 	if args.annotation_reliant:
+		filter_output = args.output+'isoforms.filter.bed'
 		filter_collapsed_isoforms_from_annotation(support=min_reads, 
-			query=args.output+'isoforms.bed', 
+			query=mc_output,
 			map_i=args.output+'isoform.read.map.txt', 
 			annotation=args.output+'annotated_transcripts.supported.bed', 
 			map_a=args.output+'annotated_transcripts.isoform.read.map.txt',
-			outputfile=args.output+'isoforms.bed', 
+			outputfile=filter_output,
 			new_map=args.output+'combined.isoform.read.map.txt')
+		os.rename(filter_output, mc_output)
 #		subprocess.check_call([sys.executable, path+'filter_collapsed_isoforms_from_annotation.py', '-s', str(min_reads),
 #			'-i', args.output+'isoforms.bed', '--map_i', args.output+'isoform.read.map.txt',
 #			'-a', args.output+'annotated_transcripts.supported.bed', '--map_a', args.output+'annotated_transcripts.isoform.read.map.txt',

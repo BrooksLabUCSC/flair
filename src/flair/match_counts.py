@@ -28,7 +28,7 @@ def main():
 	if args.psl.lower()[-3:] == 'psl':
 		isbed = False
 
-	match_counts(args.counts_file, args.out_psl, args.psl, append_counts=args.append_counts, 
+	match_counts(counts_file=args.counts_file, output_file=args.out_psl, psl=args.psl, append_counts=args.append_counts, 
 	      min_reads=args.min_reads, isbed=isbed, isoform_file=args.generate_map)
 
 def match_counts(counts_file, output_file, psl, append_counts=False, min_reads=0, isbed=True, isoform_file=False):
