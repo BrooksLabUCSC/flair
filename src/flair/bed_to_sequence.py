@@ -232,7 +232,7 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 
 			name = entry[3] if isbed else entry[9]
 			if vcfinput:
-				pulled_seqs = get_sequence_with_variants(entry, seq, name)
+				pulled_seqs = get_sequence_with_variants(entry, seq)
 				writer.writerow(['>' + name])
 				writer.writerow([pulled_seq])
 
