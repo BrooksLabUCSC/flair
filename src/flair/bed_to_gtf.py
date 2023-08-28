@@ -14,7 +14,7 @@ def main():
 	args = parser.parse_args()
 	isbed = args.inputfile[-3:].lower() != 'psl'
 
-	bed_to_gtf(query=args.inputfile, force=args.force, outputfile=sys.stdout,
+	bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
 	    reference_transcript_id=args.reference_transcript_id, isbed=isbed)
 
 

@@ -24,7 +24,7 @@ def main():
 		help='''isoform-read map file for the flair-collapse isoforms)''')
 	parser.add_argument('-w', dest='wiggle', type=int, required=False, default=100,
 		help='''number of extra basepairs on a terminal exon for a subset isoform to be kept (default=100)''')
-	parser.add_argument('-s', '--support', default=3, dest='s', type=float,
+	parser.add_argument('-s', '--support', default=3, type=float,
 		help='minimum number of supporting reads for an isoform (3)')
 
 	args = parser.parse_args()
@@ -37,8 +37,8 @@ def main():
 	# 	sys.exit(1)
 
 	isbed = args.query[-3:].lower() != 'psl'
-	filter_collapsed_isoforms_from_annotation(annotation=args.annotated, map_a=args.map_a, map_i=args.map_i, 
-		support=args.support, query=args.psl, outputfile=args.output, wiggle=args.wiggle, 
+	filter_collapsed_isoforms_from_annotation(annotation=args.annotation, map_a=args.map_a, map_i=args.map_i, 
+		support=args.support, query=args.query, outputfile=args.output, wiggle=args.wiggle, 
 		new_map=args.new_map, isbed=isbed)
 
 
