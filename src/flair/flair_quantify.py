@@ -15,16 +15,12 @@ from multiprocessing import Pool
 def quantify(isoform_sequences=''):
 	parser = argparse.ArgumentParser(description='flair-quantify parse options',
 		usage='flair quantify -r reads_manifest.tsv -i isoforms.fa [options]')
-	parser.add_argument('quantify')
 	required = parser.add_argument_group('required named arguments')
-	if not isoform_sequences:
-		required.add_argument('-r', '--reads_manifest', action='store', dest='r', type=str,
+	required.add_argument('-r', '--reads_manifest', action='store', dest='r', type=str,
 			required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
+	if not isoform_sequences:
 		required.add_argument('-i', '--isoforms', action='store', dest='i',
 			type=str, required=True, help='FastA of FLAIR collapsed isoforms')
-	else:
-		required.add_argument('--reads_manifest', action='store', dest='r', type=str,
-			required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', default='flair.quantify',
 		help='''output file name base for FLAIR quantify (default: flair.quantify)''')
 	parser.add_argument('-t', '--threads', type=int,
@@ -54,8 +50,6 @@ def quantify(isoform_sequences=''):
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
-		if not isoform_sequences:
-			return 1
 
 	if isoform_sequences:
 		args.i = isoform_sequences

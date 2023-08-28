@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-#import subprocess
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
@@ -24,14 +23,12 @@ from subset_unassigned_reads import subset_unassigned_reads
 from filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
 
 run_id = 'removeme'
-#path = '/home/jeltje/flair/flair/src/flair/'  # remove this too
 # TODO: do not redefine args variables, it breaks your head.
 
 def collapse(genomic_range='', corrected_reads=''):
 	parser = argparse.ArgumentParser(description='flair-collapse parse options',
 		usage='''flair collapse -g genome.fa -q query.bed
 		-r <reads.fq>/<reads.fa> [options]''')
-#	parser.add_argument('collapse')
 	required = parser.add_argument_group('required named arguments')
 	if not corrected_reads:
 		required.add_argument('-q', '--query', type=str, default='', required=True,
@@ -123,16 +120,17 @@ def collapse(genomic_range='', corrected_reads=''):
 	if no_arguments_passed:
 		parser.print_help()
 		sys.exit(1)
-	if 'collapse' in sys.argv:
-		sys.argv.remove('collapse')
+#	if 'collapse' in sys.argv:
+#		sys.argv.remove('collapse')
 	args, unknown = parser.parse_known_args()
 	#if unknown and not args.quiet:
 	if unknown:
 		sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
-		if not corrected_reads:
-			return 1
+
 	if corrected_reads:
-		args.query = corrected_reads
+		query = corrected_reads
+	else:
+		query = args.query
 
 	# housekeeping stuff
 	tempfile_dir = tempfile.NamedTemporaryFile().name
@@ -150,7 +148,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if genomic_range: # this module was called internally from collapse_range
 		args.range = genomic_range
 		args.output = args.temp_dir+run_id
-		args.query = args.temp_dir+run_id+'.sorted.bed.gz'
+		query = args.temp_dir+run_id+'.sorted.bed.gz'
 		args.quiet = True
 
 	args.quality = '0' if args.trust_ends else args.quality
@@ -162,19 +160,19 @@ def collapse(genomic_range='', corrected_reads=''):
 	for rfile in args.reads:
 		if not os.path.exists(rfile):
 			sys.stderr.write(f'Read file path does not exist: {rfile}\n')
-			return 1
-	if not os.path.exists(args.query):
-		sys.stderr.write('Query file path does not exist: {}\n'.format(args.query))
-		return 1
+			sys.exit(1)
+	if not os.path.exists(query):
+		sys.stderr.write('Query file path does not exist: {}\n'.format(query))
+		sys.exit(1)
 	if not os.path.exists(args.genome):
 		sys.stderr.write('Genome file path does not exist: {}\n'.format(args.genome))
-		return 1
-	if os.stat(args.query).st_size == 0:
+		sys.exit(1)
+	if os.stat(query).st_size == 0:
 		sys.stderr.write('Query file is empty\n')
-		return 1
+		sys.exit(1)
 	if float(args.support) < 1 and not args.gtf:
 		sys.stderr.write('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
-		return 1
+		sys.exit(1)
 
 	if args.range:
 		# subset out the read sequences and corrected reads corresponding to the specified range
@@ -184,7 +182,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		args.output += args.range+'.'
 		if args.reads[0][-3:] != 'bam':
 			sys.stderr.write('Must provide genome alignment BAM with -r if range is specified\n')
-			return 1
+			sys.exit(1)
 		bams = []
 		for i in range(len(args.reads)): # subset bam file for alignments within range
 			bams += [args.temp_dir+tempfile_name+args.range+str(i)+'.bam']
@@ -207,39 +205,39 @@ def collapse(genomic_range='', corrected_reads=''):
 		coordfile.write('\t'.join([chrom, coord1, coord2]))
 		coordfile.close()
 		try:
-			tabix_cmd = ('tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', args.query)
+			tabix_cmd = ('tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', query)
 			pipettor.Popen([tabix_cmd], 'w', stdout=precollapse)
-#		if subprocess.call(['tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', args.query],
+#		if subprocess.call(['tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', query],
 #			stdout=open(precollapse, 'w')):
 #			
 		except Exception as e:
 			sys.stderr.write('Query file needs to be a sorted, bgzip-ed, tabix-indexed bed file if range is specified\n')
-			return 1
+			sys.exit(1)
 	else:
-		if args.query.endswith('psl'):
+		if query.endswith('psl'):
 			sys.stderr.write('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.\n')
-			return 1
-		precollapse = args.query # query file unchanged
+			sys.exit(1)
+		precollapse = query # query file unchanged
 		args.reads = args.reads[0].split(',') if ',' in args.reads[0] else args.reads # read sequences
 		for r in args.reads:
-			if not os.path.exists(args.query):
+			if not os.path.exists(query):
 				sys.stderr.write('Check that read file {} exists\n'.format(r))
-				return 1
+				sys.exit(1)
 
 	intermediate = []
 	if args.promoters:
 		if not args.quiet:
 			sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
 		tss_bedfile = args.temp_dir+tempfile_name+'tss.bed'
-		pull_starts(args.query, tss_bedfile)
+		pull_starts(query, tss_bedfile)
 		bedtools_output = args.temp_dir+tempfile_name+'promoter_intersect.bed'
 		bedtools_cmd = ('bedtools', 'intersect', '-a', tss_bedfile, '-b', args.promoters)
 		pipettor.Popen([bedtools_cmd], 'w', stdout=bedtools_output)		
 		# if subprocess.call(['bedtools', 'intersect', '-a', tss_bedfile, '-b', args.promoters],
 		# 	stdout=open(args.temp_dir+tempfile_name+'promoter_intersect.bed', 'w')):
-		# 	return 1
+		# 	sys.exit(1)
 		precollapse = args.output+'promoter_supported.bed' # filename of promoter-supported, corrected reads
-		select_from_bed(bedtools_output, args.query, precollapse)
+		select_from_bed(bedtools_output, query, precollapse)
 #		subprocess.check_call([sys.executable, path+'select_from_bed.py', args.temp_dir+tempfile_name+'promoter_intersect.bed',
 #			args.query, precollapse])
 		intermediate += [tss_bedfile, precollapse]
@@ -250,15 +248,15 @@ def collapse(genomic_range='', corrected_reads=''):
 		tes_bedfile = args.temp_dir+tempfile_name+'tes.bed'
 		pull_starts(precollapse, tes_bedfile, reverse=True)
 #		if subprocess.call([sys.executable, path+'pull_starts.py', precollapse, tes_bedfile, 'reverse']):
-#			return 1
+#			sys.exit(1)
 		bedtools_output = args.temp_dir+tempfile_name+'tes_intersect.bed'
 		bedtools_cmd = ('bedtools', 'intersect', '-a', tes_bedfile, '-b', args.threeprime)
 		pipettor.Popen([bedtools_cmd], 'w', stdout=bedtools_output)	
 #		if subprocess.call(['bedtools', 'intersect', '-a', tes_bedfile, '-b', args.threeprime],
 #			stdout=open(args.temp_dir+tempfile_name+'tes_intersect.bed', 'w')):
-#			return 1
+#			sys.exit(1)
 		precollapse = args.output+'tes_supported.bed' # filename of 3' end-supported, corrected reads
-		select_from_bed(bedtools_output, args.query, precollapse)
+		select_from_bed(bedtools_output, query, precollapse)
 #		subprocess.check_call([sys.executable, path+'select_from_bed.py', args.temp_dir+tempfile_name+'tes_intersect.bed',
 #			args.query, precollapse])
 		intermediate += [tes_bedfile, precollapse]
@@ -266,7 +264,8 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.range: # for collapse_range, make sure the minimum number of reads is present
 		count = len(open(precollapse).readlines())
 		if count < min_reads:
-			return 1
+			sys.stderr.write('ERROR: not enough reads in', precollapse)
+			sys.exit(1)
 
 	if args.annotation_reliant:
 		if not args.generate_map:
@@ -277,7 +276,7 @@ def collapse(genomic_range='', corrected_reads=''):
 					sys.stderr.write('Please specify annotated gtf with -f for --annotation_reliant generate\n')
 				else:
 					sys.stderr.write('GTF file path does not exist\n')
-				return 1
+				sys.exit(1)
 
 			if not args.quiet:
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
@@ -301,7 +300,7 @@ def collapse(genomic_range='', corrected_reads=''):
 #			stdout=open(args.output+'annotated_transcripts.alignment.sam', 'w'),
 #			stderr=open(args.output+'annotated_transcripts.alignment.mm2_stderr', 'w')):
 #			sys.stderr.write('Minimap2 issue, check stderr file\n')
-#			return 1
+#			sys.exit(1)
 #		intermediate += [args.output+'annotated_transcripts.alignment.sam', args.output+'annotated_transcripts.alignment.mm2_stderr']
 		# count sam transcripts ; the dash at the end means STDIN
 		count_cmd = ['count_sam_transcripts.py', '--sam', '-',
@@ -318,7 +317,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['--trust_ends']
 #		if subprocess.call(count_cmd):
 #			sys.stderr.write('Failed at counting step for annotated isoform read support\n')
-#			return 1
+#			sys.exit(1)
 		count_cmd = tuple(count_cmd)
 
 		if not args.quiet:
@@ -382,7 +381,7 @@ def collapse(genomic_range='', corrected_reads=''):
 #	if float(args.support) < 1:
 #		filter_cmd += ['keep']
 #	if subprocess.call(filter_cmd):
-#		return 1
+#		sys.exit(1)
 	intermediate += [args.output+'firstpass.unfiltered.bed']
 
 	# rename first-pass isoforms to annotated transcript IDs if they match
@@ -396,7 +395,7 @@ def collapse(genomic_range='', corrected_reads=''):
 #		if args.annotation_reliant:
 #			renaming_cmd += ['--annotation_reliant']
 #		if subprocess.call(renaming_cmd):
-#			return 1
+#			sys.exit(1)
 
 		# TODO: get rid of this renaming (maybe by copying, or otherwise by having a currentbed variable)
 		os.rename(args.output+'firstpass.named.bed', args.output+'firstpass.bed')
@@ -414,7 +413,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	bed_to_sequence(query=args.output+'firstpass.bed', genome=args.genome, outfilename=args.output+'firstpass.fa')
 	# if subprocess.call([sys.executable, path+'bed_to_sequence.py', args.output+'firstpass.bed',
 	# 	args.genome, args.output+'firstpass.fa']):
-	# 	return 1
+	# 	sys.exit(1)
 
 	# reassign reads to first-pass isoforms
 	if not args.quiet:
@@ -451,7 +450,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	pipettor.run([mm2_cmd, count_cmd]) 
 #	if subprocess.call(count_cmd, stdin=ps.stdout):
 #		sys.stderr.write('Failed at counting step for isoform read support\n')
-#		return 1
+#		sys.exit(1)
 
 	if not args.quiet:
 		sys.stderr.write('Filtering isoforms by read coverage\n')
@@ -523,7 +522,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
 		#subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
 		#subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
-	return args.output+'isoforms.bed', args.output+'isoforms.fa'
+	return [args.output+'isoforms.bed', args.output+'isoforms.fa']
 
 if __name__ == "__main__":
     collapse()
