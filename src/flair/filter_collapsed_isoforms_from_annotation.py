@@ -7,129 +7,123 @@ import argparse
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
-		usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed|psl -a annotated.bed -o out [options]')
+			usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed|psl -a annotated.bed -o out [options]')
 	required = parser.add_argument_group('required named arguments')
-	required.add_argument('-i', dest='query', type=str, required=True,
-		help='input bed/psl of collapsed isoforms to be filtered')
+	required.add_argument('-i', dest='psl', type=str, required=True,
+			help='input bed/psl of collapsed isoforms to be filtered')
 	required.add_argument('-a', dest='annotation', type=str, required=True,
-		help='annotated .bed of isoforms with read support')
+			help='annotated .bed of isoforms with read support')
 	required.add_argument('-o', dest='output', type=str, required=True,
-		help='output file, .bed or .psl matching the input file')
-	parser.add_argument('--new_map', dest='new_map', type=str, 
-		help='output annotated map file for isos there were merged')
-	parser.add_argument('--map_i', dest='map_i', type=str, required=False, 
-		help='''isoform-read map file for the annotated isoforms to retain subset isoforms with
-		sufficient read support. must also specify --map_a.''')
-	parser.add_argument('--map_a', dest='map_a', type=str, required=False, 
-		help='''isoform-read map file for the flair-collapse isoforms)''')
+			help='output file, .bed or .psl matching the input file')
+	parser.add_argument('--new_map', dest='new_map', type=str,
+			help='output annotated map file for isos there were merged')
+	parser.add_argument('--map_i', dest='map_i', type=str, required=False,
+			help='''isoform-read map file for the annotated isoforms to retain subset isoforms with
+			sufficient read support. must also specify --map_a.''')
+	parser.add_argument('--map_a', dest='map_a', type=str, required=False,
+			help='''isoform-read map file for the flair-collapse isoforms)''')
 	parser.add_argument('-w', dest='wiggle', type=int, required=False, default=100,
-		help='''number of extra basepairs on a terminal exon for a subset isoform to be kept (default=100)''')
+			help='''number of extra basepairs on a terminal exon for a subset isoform to be kept (default=100)''')
 	parser.add_argument('-s', '--support', default=3, type=float,
-		help='minimum number of supporting reads for an isoform (3)')
+			help='minimum number of supporting reads for an isoform (3)')
 
 	args = parser.parse_args()
+	isbed = args.psl[-3:].lower() != 'psl'
+	
+	filter_collapsed_isoforms_from_annotation(annotation=args.annotation, map_a=args.map_a, map_i=args.map_i,
+			support=args.support, queryfile=args.psl, outputfile=args.output, wiggle=args.wiggle,
+			new_map=args.new_map, isbed=isbed)
 
-	# try:
-	# 	psl = open(args.query)
-	# 	annotated = open(args.annotation)
-	# except:
-	# 	sys.stderr.write('Issue with opening files (filter_collapsed_isoforms_from_annotation.py)\n')
-	# 	sys.exit(1)
-
-	isbed = args.query[-3:].lower() != 'psl'
-	filter_collapsed_isoforms_from_annotation(annotation=args.annotation, map_a=args.map_a, map_i=args.map_i, 
-		support=args.support, query=args.query, outputfile=args.output, wiggle=args.wiggle, 
-		new_map=args.new_map, isbed=isbed)
-
-
-
-def get_info(line, isbed):
-	if isbed:
-		chrom, name, chrstart = line[0], line[3], int(line[1])
-		sizes = [int(n) for n in line[10].split(',')[:-1]]
-		starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
-	else:
-		chrom, name = line[13], line[9]
-		sizes = [int(n) for n in line[18].split(',')[:-1]]
-		starts = [int(n) for n in line[20].split(',')[:-1]]
-	return chrom, name, sizes, starts
-
-
-def get_junctions(starts, sizes):
-	junctions = set()
-	if len(starts) != 1:
-		for b in range(len(starts)-1):
-			junctions.add((starts[b]+sizes[b], starts[b+1]))
-		return junctions
-
-
-def get_exons(starts, sizes):
-	exons = []
-	for e in range(len(starts)):
-		exons += [(starts[e], starts[e]+sizes[e])]
-	return exons
-
-
-def exon_overlap(coords0, coords1, left=True, tol=1):
-	len0, len1 = coords0[1] - coords0[0], coords1[1] - coords1[0]
-	if left:
-		return coords0[1] == coords1[1] and (len0 - tol) < len1
-	return coords0[0] == coords1[0] and (len0 - tol) < len1
-
-
-def contained(coords0, coords1):  # complete coverage of coords0 by coords1
-	return coords1[0] <= coords0[0] and coords1[1] >= coords0[1]
-
-
-def bin_search_left(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the left coordinate of
-	the query in data sorted by the right coordinate. Finishes when the first interval in data with
-	a right coordinate that is greater than the query's left coordinate is found. """
-	lower, upper, i = 0, len(data), int(math.floor(len(data)/2))  # binary search prep
-	if upper == 0:
-		return set()
-	while True:
-		if lower == i or upper == i:
-			if i - 1 > 0 and data[i-1][1] >= query[0]:
-				lower = i = i - 1
-			else:
-				if data[i][1] < query[0]:
-					i = i + 1
-				break
-		elif data[i][1] < query[0]:  # i is too low of an index
-			lower = i
-			i = int(math.floor((lower + upper)/2.))  # floor because of python 2 and 3 differences
-		else: # i is too high of an index
-			upper = i
-			i = int(math.floor((lower + upper)/2.))
-	return data[i:min(i+40, len(data))]
-
-
-def bin_search_right(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the left coordinate of
-	the query in data sorted by the right coordinate. Finishes when the first interval in data with
-	a left coordinate that is greater than the query's right coordinate is found. Kept separate for
-	my own readability. """
-	lower, upper, i = 0, len(data), int(math.floor(len(data)/2))
-	if upper == 0:
-		return set()
-	while True:
-		if lower == i or upper == i:
-			if i + 1 < len(data) and data[i+1][0] <= query[1]:
-				upper = i = i + 1
-			else:
-				break
-		elif data[i][0] < query[1]:
-			lower = i
-			i = int(math.floor((lower + upper)/2.))
-		else:
-			upper = i
-			i = int(math.floor((lower + upper)/2.))
-	return data[max(0, i-40):i+1]
-
-
-def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support, query, outputfile, 
+def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support, queryfile, outputfile,
 	wiggle=100, new_map=False, isbed=True):
+	psl = open(queryfile)
+	annotated = open(annotation)
+
+	def get_info(line, isbed):
+		if isbed:
+			chrom, name, chrstart = line[0], line[3], int(line[1])
+			sizes = [int(n) for n in line[10].split(',')[:-1]]
+			starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
+		else:
+			chrom, name = line[13], line[9]
+			sizes = [int(n) for n in line[18].split(',')[:-1]]
+			starts = [int(n) for n in line[20].split(',')[:-1]]
+		return chrom, name, sizes, starts
+
+
+	def get_junctions(starts, sizes):
+		junctions = set()
+		if len(starts) != 1:
+			for b in range(len(starts)-1):
+				junctions.add((starts[b]+sizes[b], starts[b+1]))
+			return junctions
+
+
+	def get_exons(starts, sizes):
+		exons = []
+		for e in range(len(starts)):
+			exons += [(starts[e], starts[e]+sizes[e])]
+		return exons
+
+
+	def exon_overlap(coords0, coords1, left=True, tol=1):
+		len0, len1 = coords0[1] - coords0[0], coords1[1] - coords1[0]
+		if left:
+			return coords0[1] == coords1[1] and (len0 - tol) < len1
+		return coords0[0] == coords1[0] and (len0 - tol) < len1
+
+
+	def contained(coords0, coords1):  # complete coverage of coords0 by coords1
+		return coords1[0] <= coords0[0] and coords1[1] >= coords0[1]
+
+
+	def bin_search_left(query, data):
+		""" Query is a coordinate interval. Approximate binary search for the left coordinate of
+		the query in data sorted by the right coordinate. Finishes when the first interval in data with
+		a right coordinate that is greater than the query's left coordinate is found. """
+		lower, upper, i = 0, len(data), int(math.floor(len(data)/2))  # binary search prep
+		if upper == 0:
+			return set()
+		while True:
+			if lower == i or upper == i:
+				if i - 1 > 0 and data[i-1][1] >= query[0]:
+					lower = i = i - 1
+				else:
+					if data[i][1] < query[0]:
+						i = i + 1
+					break
+			elif data[i][1] < query[0]:  # i is too low of an index
+				lower = i
+				i = int(math.floor((lower + upper)/2.))  # floor because of python 2 and 3 differences
+			else: # i is too high of an index
+				upper = i
+				i = int(math.floor((lower + upper)/2.))
+		return data[i:min(i+40, len(data))]
+
+
+	def bin_search_right(query, data):
+		""" Query is a coordinate interval. Approximate binary search for the left coordinate of
+		the query in data sorted by the right coordinate. Finishes when the first interval in data with
+		a left coordinate that is greater than the query's right coordinate is found. Kept separate for
+		my own readability. """
+		lower, upper, i = 0, len(data), int(math.floor(len(data)/2))
+		if upper == 0:
+			return set()
+		while True:
+			if lower == i or upper == i:
+				if i + 1 < len(data) and data[i+1][0] <= query[1]:
+					upper = i = i + 1
+				else:
+					break
+			elif data[i][0] < query[1]:
+				lower = i
+				i = int(math.floor((lower + upper)/2.))
+			else:
+				upper = i
+				i = int(math.floor((lower + upper)/2.))
+		return data[max(0, i-40):i+1]
+
+
 	iso_support = {}
 	annotated_iso_read_map = {}
 	flair_iso_read_map = {}
@@ -151,8 +145,7 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 
 	keep_isoforms = []
 	isoforms, allevents, jcn_to_name, all_iso_info = {}, {}, {}, {}
-	psl = open(query, 'r')
-	for line in psl:
+	for line in annotated:
 		line = line.rstrip().split()
 		chrom, name, sizes, starts = get_info(line, isbed)
 		keep_isoforms += [name]
@@ -180,8 +173,7 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 			exon = exons[0]
 			allevents[chrom]['all_se_exons'].add((exon[0], exon[1], iso_support[name]))
 
-	qfile = open(annotation, 'r')
-	for line in qfile:
+	for line in psl:
 		line = line.rstrip().split()
 		chrom, name, sizes, starts = get_info(line, isbed)
 		junctions = get_junctions(starts, sizes)

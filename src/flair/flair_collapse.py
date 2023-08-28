@@ -472,7 +472,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.annotation_reliant:
 		filter_output = args.output+'isoforms.filter.bed'
 		filter_collapsed_isoforms_from_annotation(support=min_reads, 
-			query=mc_output,
+			queryfile=mc_output,
 			map_i=args.output+'isoform.read.map.txt', 
 			annotation=args.output+'annotated_transcripts.supported.bed', 
 			map_a=args.output+'annotated_transcripts.isoform.read.map.txt',
