@@ -68,8 +68,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 			tempJuncs.append((chrom,c1,c2,"%s,%s,%s,%s" % (chrom,c1,c2,strand),0,strand))
 			addedFlag = True
 	if addedFlag == False:
-		sys.stderr.write('\nWARNING, added no extra junctions from {}\n\n'.format(bedJuncs))
-		return juncs, chromosomes
+		return juncs, chromosomes, addedFlag
 
 	try:
 		btJuncs = pybedtools.BedTool(tempJuncs)
@@ -116,7 +115,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 		with open(printErrFname,'a+') as fo:
 			print("** GTF Juncs + other juncs now total %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 
-	return juncs, chromosomes
+	return juncs, chromosomes, addedFlag
 
 
 def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):

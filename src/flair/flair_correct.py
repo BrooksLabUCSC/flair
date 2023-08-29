@@ -91,8 +91,11 @@ def correct(aligned_reads=''):
 
 	# Do the same for the other juncs file.
 	if args.shortread: 
-		juncs, chromosomes = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome, 
+		juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome, 
 			printErrFname, knownSS, verbose, printErr)
+	if addFlag == False:
+		sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))  
+		sys.exit(1)
 	knownSS = dict()
 
 	# added to allow annotations not to be used.
