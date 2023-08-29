@@ -43,6 +43,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 			print("** Adding other juncs, assuming file is %s" % "bed6" if strandCol == -1 else "STAR", file=fo)
 
 	tempJuncs = list()
+	addedFlag = False
 	with open(bedJuncs,'r') as bedLines:
 		for line in bedLines:
 			cols = line.rstrip().split()
@@ -65,6 +66,10 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 				juncs[chrom][key] = "both"
 				continue
 			tempJuncs.append((chrom,c1,c2,"%s,%s,%s,%s" % (chrom,c1,c2,strand),0,strand))
+			addedFlag = True
+	if addedFlag == False:
+		sys.stderr.write('\nWARNING, added no extra junctions from {}\n\n'.format(bedJuncs))
+		return juncs, chromosomes
 
 	try:
 		btJuncs = pybedtools.BedTool(tempJuncs)
