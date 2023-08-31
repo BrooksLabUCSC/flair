@@ -5,7 +5,6 @@ import argparse
 import os
 import pipettor
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-from multiprocessing import Pool
 from bam2Bed12 import bam2Bed12
 
 # note to self: select interpreter for conda

@@ -367,7 +367,8 @@ if __name__ == '__main__':
 
 	p = Pool(args.t)
 	counts = p.map(count_transcripts_for_reads, grouped_reads)
-	p.terminate()
+	p.close()
+	p.join()
 
 	merged_counts = Counter(counts[0][0])
 	for res in counts[1:]:

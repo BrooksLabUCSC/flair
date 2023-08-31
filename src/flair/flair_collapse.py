@@ -7,7 +7,6 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
 import glob
 import pipettor
-from multiprocessing import Pool
 # TODO: put all of these in utils.py
 from pull_starts import pull_starts
 from select_from_bed import select_from_bed

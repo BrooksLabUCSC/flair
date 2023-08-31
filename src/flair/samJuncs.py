@@ -215,6 +215,8 @@ def main():
     #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
     #results
     p.map(runCMD, referenceIDs)
+    p.close()
+    p.join()
 
     # print(results[0])
     # for c,j in d.items():

@@ -93,9 +93,9 @@ def correct(aligned_reads=''):
 	if args.shortread: 
 		juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome, 
 			printErrFname, knownSS, verbose, printErr)
-	if addFlag == False:
-		sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))  
-		sys.exit(1)
+		if addFlag == False:
+			sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))  
+			sys.exit(1)
 	knownSS = dict()
 
 	# added to allow annotations not to be used.
@@ -159,6 +159,8 @@ def correct(aligned_reads=''):
 	for i in tqdm(p.imap(ssPrep, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", 
 	       dynamic_ncols=True,position=1) if verbose else p.imap(ssPrep,cmds):
 		childErrs.add(i)
+	p.close()
+	p.join()
 	if len(childErrs) > 1:
 		print(childErrs,file=sys.stderr)
 		sys.exit(1)

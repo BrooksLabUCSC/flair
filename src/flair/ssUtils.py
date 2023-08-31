@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from multiprocessing import Pool
 from tqdm import tqdm
 import pybedtools
 import re

@@ -7,9 +7,7 @@ import subprocess
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
-import glob
 import time
-from multiprocessing import Pool
 
 
 def quantify(isoform_sequences=''):
