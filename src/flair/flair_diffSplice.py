@@ -73,9 +73,8 @@ def diffSplice(isoforms='', counts_matrix=''):
 	elif not os.path.exists(args.o):
 		try:
 			os.makedirs(workdir, 0o700)
-		except OSError as e:
-#			if e.errno != errno.EEXIST:  # TODO: errno is not defined
-				raise
+		except OSError as ex:
+			raise OSError("** ERROR cannot create directory %s" % (workdir)) from ex
 	else:
 		sys.stderr.write(f'** Error. Name {args.o} already exists. Choose another name for out_dir\n')
 		return 1

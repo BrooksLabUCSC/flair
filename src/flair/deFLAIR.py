@@ -246,8 +246,9 @@ def main():
         batches = [x.split("_")[-1] for x in header]
         combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
     except IndexError:
-        print("** Error. diffExp requires column headers to contain sample, group, and batch, separated by '_'", file=sys.stderr)
-        sys.exit(1)
+        raise Exception("** Error. diffExp requires column headers to contain sample, group, and batch, separated by '_'")
+    except Exception as ex:
+        raise Exception("** deFlair FAILED for %s" % (quantTable)) from ex
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:

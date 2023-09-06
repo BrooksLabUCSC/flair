@@ -58,10 +58,8 @@ class SAM(object):
         # Start pysam object as bam
         try:
             self.reader = pysam.AlignmentFile(self.inFile, 'rb')
-        except:
-            #File does not exist.
-            print("ERROR: Cannot find file %s. Exiting!" % self.inFile, file=sys.stderr)
-            sys.exit(1)
+        except Exception as ex:
+            raise Exception("** ERROR reading from sam file %s" % self.inFile) from ex
 
         self.strandInfo = {0:'+', 16:'-'}
         self.supplementary_strandInfo = {2048:'+', 2064:'-'}
@@ -192,14 +190,17 @@ def runCMD(x):
 
 def main():
     '''
-    TDB
+    TBD
     '''
     myCommandLine = CommandLine()
 
     alignmentFile = myCommandLine.args['ibam']
     threads = myCommandLine.args['threads']
 #    quiet = myCommandLine.args['quiet'] unused
-    header = pysam.view("-H", alignmentFile).split("\n")
+    try:
+        header = pysam.view("-H", alignmentFile).split("\n")
+    except Exception as ex:
+        raise Exception("** ERROR reading from sam file %s" % alignmentFile) from ex
 
     alignmentCommand = header[-2]
     if "minimap" in alignmentCommand.lower():
@@ -215,6 +216,8 @@ def main():
     #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
     #results
     p.map(runCMD, referenceIDs)
+    p.close()
+    p.join()
 
     # print(results[0])
     # for c,j in d.items():

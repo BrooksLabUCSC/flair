@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from multiprocessing import Pool
 from tqdm import tqdm
 import pybedtools
 import re
@@ -43,6 +42,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 			print("** Adding other juncs, assuming file is %s" % "bed6" if strandCol == -1 else "STAR", file=fo)
 
 	tempJuncs = list()
+	addedFlag = False
 	with open(bedJuncs,'r') as bedLines:
 		for line in bedLines:
 			cols = line.rstrip().split()
@@ -65,6 +65,9 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 				juncs[chrom][key] = "both"
 				continue
 			tempJuncs.append((chrom,c1,c2,"%s,%s,%s,%s" % (chrom,c1,c2,strand),0,strand))
+			addedFlag = True
+	if addedFlag == False:
+		return juncs, chromosomes, addedFlag
 
 	try:
 		btJuncs = pybedtools.BedTool(tempJuncs)
@@ -103,15 +106,14 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 				elif fivePrime == "GT":
 					juncs[chrom][key] = "sr"
 
-	except Exception as e:
-		print(e,"Splice site motif filtering failed. Check pybedtools and bedtools is properly install and in $PATH",file=sys.stderr)
-		sys.exit(1)
+	except Exception as ex:
+		raise Exception("** ERROR Splice site motif filtering failed. Check that pybedtools and bedtools are in your PATH") from ex
 
 	if printErr:
 		with open(printErrFname,'a+') as fo:
 			print("** GTF Juncs + other juncs now total %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 
-	return juncs, chromosomes
+	return juncs, chromosomes, addedFlag
 
 
 def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):

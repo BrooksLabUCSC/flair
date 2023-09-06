@@ -696,7 +696,8 @@ res = {}
 if __name__ == '__main__':
 	p = Pool(threads)
 	res = p.map(run_iterative_add_se, chrom_names)
-	p.terminate()
+	p.close()
+	p.join()
 all_se_by_chrom = None
 
 singleexon = {}  # single-exon isoforms
@@ -712,7 +713,8 @@ with open(outputfname, 'wt') as outfile:
 	if __name__ == '__main__':
 		p = Pool(threads)
 		res = p.map(run_se_collapse, chrom_names)
-		p.terminate()
+		p.close()
+		p.join()
 	singleexon = None
 
 	for r in res:
@@ -722,7 +724,8 @@ with open(outputfname, 'wt') as outfile:
 	if __name__ == '__main__':
 		p = Pool(threads)
 		res = p.map(run_find_best_sites, list(isoforms.keys()))
-		p.terminate()
+		p.close()
+		p.join()
 	isoforms = None
 
 	for towrite in res:

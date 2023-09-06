@@ -384,11 +384,8 @@ def ssPrep(x):
     # Build read objects.
     try:
         correctReads(bed, intTree, ssData, chrom, resolveStrand, workingDir, chrom, checkFname)
-    except:
-        if checkFname:
-            with open(checkFname,'a+') as fo:
-                print("** correctReads FAILED for %s" % (bed), file=fo)
-        sys.exit(1)
+    except Exception as ex:
+        raise Exception("** correctReads FAILED for %s" % (bed)) from ex
 
 
 if __name__ == "__main__":

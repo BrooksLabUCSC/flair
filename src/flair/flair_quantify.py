@@ -6,25 +6,21 @@ import argparse
 import subprocess
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import numpy as np
+import codecs
 import tempfile
-import glob
 import time
-from multiprocessing import Pool
 
 
 def quantify(isoform_sequences=''):
 	parser = argparse.ArgumentParser(description='flair-quantify parse options',
 		usage='flair quantify -r reads_manifest.tsv -i isoforms.fa [options]')
-	parser.add_argument('quantify')
 	required = parser.add_argument_group('required named arguments')
-	if not isoform_sequences:
-		required.add_argument('-r', '--reads_manifest', action='store', dest='r', type=str,
+	required.add_argument('-r', '--reads_manifest', action='store', dest='r', type=str,
 			required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
+	if not isoform_sequences:
 		required.add_argument('-i', '--isoforms', action='store', dest='i',
 			type=str, required=True, help='FastA of FLAIR collapsed isoforms')
-	else:
-		required.add_argument('--reads_manifest', action='store', dest='r', type=str,
-			required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
 	parser.add_argument('-o', '--output', type=str, action='store', dest='o', default='flair.quantify',
 		help='''output file name base for FLAIR quantify (default: flair.quantify)''')
 	parser.add_argument('-t', '--threads', type=int,
@@ -54,8 +50,6 @@ def quantify(isoform_sequences=''):
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
-		if not isoform_sequences:
-			return 1
 
 	if isoform_sequences:
 		args.i = isoform_sequences
@@ -72,13 +66,6 @@ def quantify(isoform_sequences=''):
 			return 1
 	if not os.path.exists(args.i):
 		sys.stderr.write('Isoform sequences fasta file path does not exist\n')
-		return 1
-
-	try:
-		import numpy as np
-		import codecs
-	except:
-		sys.stderr.write('Numpy import error. Please pip install numpy. Exiting.\n')
 		return 1
 
 	samData = list()
@@ -113,6 +100,7 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
 		mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
+		# TODO: Replace this with proper try/except Exception as ex
 		try:
 			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
 				stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):

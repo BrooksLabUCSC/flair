@@ -112,10 +112,9 @@ def check_splice(tname, pos, covered_pos, insertion_pos):
 				return False
 		return True
 	except KeyError:
-		sys.stderr.write('''ERROR, the transcript names in the annotation fasta do not appear to match the ones 
-in the isoforms file. You may be able to fix this by using gtf_to_bed and bed_to_sequence on your annotation gtf
-and using the resulting file as your annotation fasta input to this program\n''')
-		sys.exit(1)
+		raise Exception("The transcript names in the annotation fasta do not appear to match the ones in the isoforms file. You may be able to fix this by using gtf_to_bed and bed_to_sequence on your annotation gtf and using the resulting file as your annotation fasta input to this program")
+	except Exception as ex:
+		raise Exception("** check_splice FAILED for %s" % (tname)) from ex
 
 
 def are_far(transcript_1, transcript_2):
@@ -367,7 +366,8 @@ if __name__ == '__main__':
 
 	p = Pool(args.t)
 	counts = p.map(count_transcripts_for_reads, grouped_reads)
-	p.terminate()
+	p.close()
+	p.join()
 
 	merged_counts = Counter(counts[0][0])
 	for res in counts[1:]:

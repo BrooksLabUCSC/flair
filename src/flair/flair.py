@@ -20,6 +20,8 @@ def main():
 		sys.exit(1)
 	else:
 		mode = sys.argv[1].lower()
+	# remove mode from the sys arguments
+	sys.argv.pop(1)
 
 	aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
 	start_time = time.time()
@@ -27,9 +29,6 @@ def main():
 	if mode == 'align' or '1' in mode:
 		print(f"Starting align...", flush=True)
 		aligned_reads = align()
-		if aligned_reads == 1 or not aligned_reads:
-			sys.stderr.write('\n\nERROR: Flair align failed\n\n')
-			sys.exit(1)
 		cur_time = time.time()
 		print(f"Flair align took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
@@ -40,22 +39,16 @@ def main():
 			corrected_reads = correct(aligned_reads=aligned_reads)
 		else:
 			corrected_reads = correct()
-		if corrected_reads == 1 or not corrected_reads:
-			sys.stderr.write('\n\nERROR: Flair correct failed\n\n')
-			sys.exit(1)
 		cur_time = time.time()
 		print(f"Flair correct took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
 
-	if mode == 'collapse' or ('3' in mode and '3.5' not in mode):
+	if mode == 'collapse' or ('3' in mode):
 		print(f"Starting collapse...", flush=True)
 		if corrected_reads:
-			isoforms, isoform_sequences = collapse(corrected_reads=corrected_reads)
+			[isoforms, isoform_sequences] = collapse(corrected_reads=corrected_reads)
 		else:
-			isoforms, isoform_sequences = collapse()
-		if not isoform_sequences:
-			sys.stderr.write('\n\nERROR: Flair collapse failed\n\n')
-			sys.exit(1)
+			[isoforms, isoform_sequences] = collapse()
 		cur_time = time.time()
 		print(f"Flair collapse took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
@@ -67,9 +60,6 @@ def main():
 			counts_matrix = quantify(isoform_sequences=isoform_sequences)
 		else:
 			counts_matrix = quantify()
-		if counts_matrix == 1 or not counts_matrix:
-			sys.stderr.write('\n\nERROR: Flair correct failed\n\n')
-			sys.exit(1)
 		cur_time = time.time()
 		print(f"Flair quantify took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
