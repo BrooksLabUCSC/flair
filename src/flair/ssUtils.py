@@ -106,9 +106,8 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 				elif fivePrime == "GT":
 					juncs[chrom][key] = "sr"
 
-	except Exception as e:
-		print(e,"Splice site motif filtering failed. Check pybedtools and bedtools is properly install and in $PATH",file=sys.stderr)
-		sys.exit(1)
+	except Exception as ex:
+		raise Exception("** ERROR Splice site motif filtering failed. Check that pybedtools and bedtools are in your PATH") from ex
 
 	if printErr:
 		with open(printErrFname,'a+') as fo:

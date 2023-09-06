@@ -74,6 +74,7 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 		vcf = pysam.VariantFile(vcfinput, 'r')
 		try:
 			vcf.fetch(chrom)
+		# TODO: check for gz beforehand
 		except ValueError:
 			if vcfinput[-3:] != '.gz':
 				subprocess.check_call(['bgzip', '-c', vcfinput], stdout=open(vcfinput+'.gz', 'w'))

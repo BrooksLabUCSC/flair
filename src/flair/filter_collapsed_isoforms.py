@@ -107,9 +107,8 @@ def filter_collapsed_isoforms(queryfile, mode, tol, outfile, isbed=True, keep_ex
 		try:
 			line[-1] = float(line[-1])
 			support = True
-		except:
-			sys.stderr.write('Expecting an extra column of integers\n')
-			sys.exit(1)
+		except Exception as ex:
+			raise Exception("** filter_collapsed_isoforms FAILED for %s. The final column in this file should be integers, please check." % (queryfile)) from ex
 		if isbed:
 			chrom, name, chrstart = line[0], line[3], int(line[1])
 			sizes = [int(n) for n in line[10].split(',')[:-1]]

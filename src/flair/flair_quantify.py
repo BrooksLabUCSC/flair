@@ -6,6 +6,8 @@ import argparse
 import subprocess
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import numpy as np
+import codecs
 import tempfile
 import time
 
@@ -66,13 +68,6 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write('Isoform sequences fasta file path does not exist\n')
 		return 1
 
-	try:
-		import numpy as np
-		import codecs
-	except:
-		sys.stderr.write('Numpy import error. Please pip install numpy. Exiting.\n')
-		return 1
-
 	samData = list()
 	with codecs.open(args.r, 'r', encoding='utf-8', errors='ignore') as lines:
 		for line in lines:
@@ -105,6 +100,7 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
 		mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
+		# TODO: Replace this with proper try/except Exception as ex
 		try:
 			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
 				stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):

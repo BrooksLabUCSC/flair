@@ -204,9 +204,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		try:
 			tabix_cmd = ('tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', query)
 			pipettor.Popen([tabix_cmd], 'w', stdout=precollapse)
-		except Exception as e:
-			sys.stderr.write('Query file needs to be a sorted, bgzip-ed, tabix-indexed bed file if range is specified\n')
-			sys.exit(1)
+		except Exception as ex:
+			raise Exception("** tabix FAILED for %s. File needs to be a sorted, bgzip-ed, tabix-indexed bed file if range is specified") from ex
 	else:
 		if query.endswith('psl'):
 			sys.stderr.write('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.\n')
