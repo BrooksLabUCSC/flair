@@ -23,7 +23,7 @@ class CommandLine(object):
 
     '''
 
-    def __init__(self, inOpts=None):
+    def __init__(self):
         '''
         CommandLine constructor.
         Implements a parser to interpret the command line argv string using argparse.
@@ -34,21 +34,22 @@ class CommandLine(object):
                                              prefix_chars='-',
                                              usage='%(prog)s -i reads.bed -j known_junctions.bed -o out_file.bed --working_dir dir')
         # Add args
-        self.parser.add_argument('-i', "--input_bed", action='store', required=True, help='Input reads in bed12 format.')
-        self.parser.add_argument('-j', "--juncs", action='store', required=True, help='KnownJunction.bed.')
-        self.parser.add_argument('-w', '--wiggleWindow', action='store', type=int, required=False, default=15, help='Splice site correction window flank size.')
-        self.parser.add_argument('-o', "--output_fname", action='store', required=True, help='Output file name.')
-        self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Genome Fasta.')
-        self.parser.add_argument("--workingDir", action='store', required=True, help='Working directory.')
+        self.parser.add_argument('-i', "--input_bed", required=True, help='Input reads in bed12 format.')
+        self.parser.add_argument('-j', "--juncs", required=True, help='KnownJunction.bed.')
+        self.parser.add_argument('-w', '--wiggleWindow', type=int, required=False, default=15, help='Splice site correction window flank size (default 15).')
+        self.parser.add_argument('-o', "--output_fname", required=True, help='Output file name.')
+        self.parser.add_argument('-f', "--genome_fasta", required=True, help='Genome Fasta.')
+        self.parser.add_argument("--workingDir", required=True, help='Working directory.')
         self.parser.add_argument('--correctStrand', action='store_true', required=False, default=False, help='Try to resolve read strand by using annotated splice site strand.')
-        self.parser.add_argument('--check_file', action='store', required=False, default=False, help='Write file for print_check')
+        self.parser.add_argument('--check_file', required=False, default=False, help='Write file for print_check')
 
         #self.parser.add_argument('--keepZero', action='store_true', required=False, default=False, help='Keep alignments with no spliced junctions (single exon txns).')
+# TODO: is juncs always a real bed file?
 
-        if inOpts is None:
-            self.args = vars(self.parser.parse_args())
-        else:
-            self.args = vars(self.parser.parse_args(inOpts))
+        if len(sys.argv) == 1:
+                self.parser.print_help()
+                sys.exit(1)
+        self.args = vars(self.parser.parse_args())
 
 
 ########################################################################
@@ -130,14 +131,14 @@ class BED12(object):
 ########################################################################
 
 
-class SS(object):
+class junctObj(object):
     '''
     Handles Junc data.
     '''
     def __init__(self, coord=None, strand=None, ssType=None):
         self.coord   = coord
         self.strand  = strand
-        self.ssType  = ssType
+        self.ssType  = ssType # donor or acceptor
 
         # Descriptive attributes.
         self.support = set()
@@ -185,10 +186,15 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
     correct un-annotated splice sites.
     '''
 
+    if intTree == False:
+        print('OJ', c,strand,ssType,intTree,ssData)
+        sys.exit()
+        return ssData
+
     hits = [h for h in intTree.find_overlap(c,c)]
 
     if len(hits) < 1:
-        ss = SS(c,strand,None)
+        ss = junctObj(c,strand,None)
         ssData[c] = ss
         ss.ssCorr = ss
         return ssData
@@ -199,23 +205,23 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
         count     = distances.count(minVal)
 
         if count > 1:
-            ss = SS(c,strand,None)
+            ss = junctObj(c,strand,None)
             ss.ssCorr = ss
             ssData[c] = ss
             return ssData
         else:
             cCorr = hits[distances.index(minVal)][-1]
-            ss = SS(c,strand,ssType)
+            ss = junctObj(c,strand,ssType)
             ss.ssCorr = ssData[cCorr]
             ssData[c] = ss
             return ssData
 
 
-def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentChr, checkFname):
+def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentChr, errFile):
     ''' Builds read and splice site objects '''
 
-    if checkFname:
-        with open(checkFname,'a+') as fo:
+    if errFile:
+        with open(errFile,'a+') as fo:
             print("** Creating temporary correction files for chromosome %s: %s & %s" % (currentChr, os.path.join(wDir, "%s_inconsistent.bed" % filePrefix), os.path.join(wDir,"%s_corrected.bed" % filePrefix)), file=fo)
 
     inconsistent = open(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix),'w')
@@ -283,68 +289,73 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentC
     inc = os.path.isfile(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix))
     cor = os.path.isfile(os.path.join(wDir, "%s_corrected.bed" % filePrefix))
 
-    if checkFname:
-        with open(checkFname,'a+') as fo:
+    if errFile:
+        with open(errFile,'a+') as fo:
             print("** Checking inc/corr files for chromsome %s: %s %s" % (currentChr,inc,cor), file=fo)
 
 
-def buildIntervalTree(juncs, wiggle, currentChr, checkFname):
+def buildIntervalTree(knownJuncsFile, wiggle, currentChr, errFile):
     ''' Builds read and splice site objects '''
 
-    if checkFname:
-        with open(checkFname,'a+') as fo:
+    if errFile:
+        with open(errFile,'a+') as fo:
             print("** Initializing int tree for chromosome %s" % (currentChr), file=fo)
 
-    x = []
-    data = dict()
+    intronranges = [] # holds list of windowStart, windowEnd, junction
+    junctionBoundaryDict = dict() # holds junction objects
 
-    with open(juncs, 'r') as lines:
+    # the below adds support for splice boundaries, found in the 4th column of the known junctions file
+    # extract junctions from the file
+    with open(knownJuncsFile, 'r') as lines:
         for line in lines:
             cols     = line.rstrip().split()
-            c1, c2   = int(cols[1]), int(cols[2])
+            intronBoundary1, intronBoundary2   = int(cols[1]), int(cols[2])
             strand   = cols[-1]
 
-            annoType = cols[3]
-            c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
+            annoType = cols[3] # 'sr' in example TODO what else?
+            intronBoundary1Type,intronBoundary2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
 
-            # add c1 first
-            if c1 not in data:
-                ss = SS(c1,strand,c1Type)
+            # add intronBoundary1 first
+            if intronBoundary1 not in junctionBoundaryDict:
+                ss = junctObj(intronBoundary1,strand,intronBoundary1Type)
+                ss.support.add(annoType)
+		# TODO: turtles all the way down?! Why.
+                ss.ssCorr = ss
+
+                # SS window
+                junctionWindowStart, junctionWindowEnd = max(intronBoundary1-wiggle,1), intronBoundary1+wiggle
+
+                # Add to tree and object to junctionBoundaryDict
+                junctionBoundaryDict[intronBoundary1] = ss
+                intronranges.append([junctionWindowStart,junctionWindowEnd,intronBoundary1])
+
+            else:
+                junctionBoundaryDict[intronBoundary1].support.add(annoType)
+
+            # now add intronBoundary2
+            if intronBoundary2 not in junctionBoundaryDict:
+                ss = junctObj(intronBoundary2,strand,intronBoundary2Type)
                 ss.support.add(annoType)
                 ss.ssCorr = ss
 
                 # SS window
-                c1S, c1E = max(c1-wiggle,1), c1+wiggle
+                junctionWindowStart, junctionWindowEnd = max(intronBoundary2-wiggle,1), intronBoundary2+wiggle
 
-                # Add to tree and object to data
-                data[c1] = ss
-                x.append([c1S,c1E,c1])
-
+                # Add to tree and object to junctionBoundaryDict
+                junctionBoundaryDict[intronBoundary2] = ss
+                intronranges.append([junctionWindowStart,junctionWindowEnd,intronBoundary2])
             else:
-                data[c1].support.add(annoType)
+                junctionBoundaryDict[intronBoundary2].support.add(annoType)
+    intervalTree = False
+    if len(intronranges) > 0:
+	# x is a new reference to the same dict
+        x = intronranges
+        intervalTree = NCLS([val[0]-1 for val in x], [val[1]+1 for val in x], [val[2] for val in x])
+    if errFile:
+        with open(errFile,'a+') as fo:
+            print("** Tree Initialized. %s data points added for chromosome %s." % (len(list(junctionBoundaryDict.keys())),currentChr), file=fo)
 
-            # now add c2
-            if c2 not in data:
-                ss = SS(c2,strand,c2Type)
-                ss.support.add(annoType)
-                ss.ssCorr = ss
-
-                # SS window
-                c2S, c2E = max(c2-wiggle,1), c2+wiggle
-
-                # Add to tree and object to data
-                data[c2] = ss
-                x.append([c2S,c2E,c2])
-            else:
-                data[c2].support.add(annoType)
-    intTree = False
-    if len(x) > 0:
-        intTree = NCLS([val[0]-1 for val in x], [val[1]+1 for val in x], [val[2] for val in x])
-    if checkFname:
-        with open(checkFname,'a+') as fo:
-            print("** Tree Initialized. %s data points added for chromosome %s." % (len(list(data.keys())),currentChr), file=fo)
-
-    return intTree, data
+    return intervalTree, junctionBoundaryDict
 
 
 def main():
@@ -354,38 +365,40 @@ def main():
 
     # Command Line Stuff...
     myCommandLine = CommandLine()
-    bed           = myCommandLine.args['input_bed']
-    knownJuncs    = myCommandLine.args['juncs']
-    fa            = myCommandLine.args['genome_fasta']
+    readsBed        = myCommandLine.args['input_bed']
+    knownJuncsFile  = myCommandLine.args['juncs']
+    genomeFa            = myCommandLine.args['genome_fasta']
     wiggle        = myCommandLine.args['wiggleWindow']
     out           = myCommandLine.args['output_fname']
     resolveStrand = myCommandLine.args['correctStrand']
     workingDir    = myCommandLine.args['workingDir']
-    checkFname    = myCommandLine.args['check_file']
+    errFile    = myCommandLine.args['check_file']
 
-
-    ssPrep([bed, knownJuncs, fa, wiggle, out, resolveStrand, workingDir, checkFname])
+    # WARNING: out is a chromosome name and interpreted as such.
+    ssPrep([readsBed, knownJuncsFile, genomeFa, wiggle, out, resolveStrand, workingDir, errFile])
 
 
 def ssPrep(x):
     '''one argument so we can run p.map from the main program'''
-    bed, knownJuncs, fa, wiggle, chrom, resolveStrand, workingDir, checkFname = x
+    readsBed, knownJuncsFile, genomeFa, wiggle, chrom, resolveStrand, workingDir, errFile = x
 
-    if checkFname:
-        with open(checkFname,'a+') as fo:
-            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (bed, wiggle, knownJuncs, fa), file=fo)
+    if errFile:
+        with open(errFile,'a+') as fo:
+            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (readsBed, wiggle, knownJuncsFile, genomeFa), file=fo)
 
     # Build interval tree of known juncs
-    intTree, ssData = buildIntervalTree(knownJuncs, wiggle, chrom, checkFname)
+    intTree, ssData = buildIntervalTree(knownJuncsFile, wiggle, chrom, errFile)
 
-    if checkFname:
-        with open(checkFname,'a+') as fo:
-            print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncs, bed), file=fo)
+    if errFile:
+        with open(errFile,'a+') as fo:
+            print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncsFile, readsBed), file=fo)
     # Build read objects.
     try:
-        correctReads(bed, intTree, ssData, chrom, resolveStrand, workingDir, chrom, checkFname)
+        correctReads(readsBed, intTree, ssData, chrom, resolveStrand, workingDir, chrom, errFile)
     except Exception as ex:
-        raise Exception("** correctReads FAILED for %s" % (bed)) from ex
+        raise Exception("** correctReads FAILED for %s" % (readsBed)) from ex
+
+# takes in interval tree of known juncs (intTree), 
 
 
 if __name__ == "__main__":
