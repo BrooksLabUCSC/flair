@@ -117,13 +117,13 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 	return juncs, chromosomes, addedFlag
 
 
-def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
+def gtfToSSBed(gtffile, knownSS, printErr, printErrFname, verbose):
 	''' Convenience function, reformats GTF to bed'''
 
 	# First: get all exons per transcript.
 	exons = dict()
 	chromosomes = set()
-	with open(file,'r') as lines:
+	with open(gtffile,'r') as lines:
 		for l in lines:
 			if l[0] == "#": # skip header lines
 				continue
@@ -135,9 +135,10 @@ def gtfToSSBed(file, knownSS, printErr, printErrFname, verbose):
 				# -1 for 1 to 0 based conversion
 				chrom, c1, c2, strand = cols[0], int(cols[3])-1, int(cols[4]), cols[6]
 				chromosomes.add(chrom)
-				#txn info is in the SECOND position of the shoutout column
-				txn = re.search('transcript_id "([^\"]+)"', l).group(1)#
-				#cols[-1].split(";")[1].split()[-1].replace('"','')
+				try:
+					txn = re.search('transcript_id "([^\"]+)"', l).group(1)
+				except Exception as ex:
+					raise Exception("** ERROR expect transcript_id in GTF format, cannot read %s" % gtffile) from ex
 
 				key = (chrom, txn, strand)
 
