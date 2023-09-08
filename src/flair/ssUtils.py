@@ -71,6 +71,7 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
 
 	try:
 		btJuncs = pybedtools.BedTool(tempJuncs)
+		# TODO: This gives a warning if a chromosome is not found. Find a way to capture these.
 		dinucSeq = btJuncs.sequence(fi=fa, s=True, tab=True, name=True)
 		with open(dinucSeq.seqfn) as fileObj:
 			for i in fileObj:
