@@ -181,23 +181,21 @@ def juncsToBed12(start, end, coords):
         return 1, [end-start], [0]
 
 
-def ssCorrrect(c,strand,ssType,intTree,ssData):
+def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict):
     '''
     correct un-annotated splice sites.
     '''
 
     if intTree == False:
-        print('OJ', c,strand,ssType,intTree,ssData)
-        sys.exit()
-        return ssData
+        return junctionBoundaryDict
 
     hits = [h for h in intTree.find_overlap(c,c)]
 
     if len(hits) < 1:
         ss = junctObj(c,strand,None)
-        ssData[c] = ss
+        junctionBoundaryDict[c] = ss
         ss.ssCorr = ss
-        return ssData
+        return junctionBoundaryDict
     else:
 
         distances = [abs(c-x[-1]) for x in hits]
@@ -207,17 +205,18 @@ def ssCorrrect(c,strand,ssType,intTree,ssData):
         if count > 1:
             ss = junctObj(c,strand,None)
             ss.ssCorr = ss
-            ssData[c] = ss
-            return ssData
+            junctionBoundaryDict[c] = ss
+            return junctionBoundaryDict
         else:
             cCorr = hits[distances.index(minVal)][-1]
             ss = junctObj(c,strand,ssType)
-            ss.ssCorr = ssData[cCorr]
-            ssData[c] = ss
-            return ssData
+            ss.ssCorr = junctionBoundaryDict[cCorr]
+            junctionBoundaryDict[c] = ss
+            return junctionBoundaryDict
 
 
-def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentChr, errFile):
+        #correctReads(readsBed, intervalTree, junctionBoundaryDict, chrom, resolveStrand, workingDir, chrom, errFile)
+def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStrand, wDir, currentChr, errFile):
     ''' Builds read and splice site objects '''
 
     if errFile:
@@ -227,7 +226,7 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentC
     inconsistent = open(os.path.join(wDir, "%s_inconsistent.bed" % filePrefix),'w')
     corrected = open(os.path.join(wDir,"%s_corrected.bed" % filePrefix),'w')
 
-    bedObj = BED12(bed)
+    bedObj = BED12(readsBed)
     for line in bedObj.getLine():
         juncs  = bedObj.bed12toJuncs()
         strand = bedObj.strand
@@ -240,19 +239,19 @@ def correctReads(bed, intTree, ssData, filePrefix, correctStrand, wDir, currentC
 
         for x in juncs:
             c1, c2 = x[0], x[1]
-            if c1 not in ssData:
-                ssData = ssCorrrect(c1,strand,c1Type,intTree,ssData)
-            if c2 not in ssData:
-                ssData = ssCorrrect(c2,strand,c2Type,intTree,ssData)
+            if c1 not in junctionBoundaryDict:
+                junctionBoundaryDict = ssCorrect(c1,strand,c1Type,intTree,junctionBoundaryDict)
+            if c2 not in junctionBoundaryDict:
+                junctionBoundaryDict = ssCorrect(c2,strand,c2Type,intTree,junctionBoundaryDict)
 
-            #c1Obj, c2Obj = ssData[c1], ssData[c2] unused
+            #c1Obj, c2Obj = junctionBoundaryDict[c1], junctionBoundaryDict[c2] unused
 
-            c1Corr = ssData[c1].ssCorr.coord
-            c2Corr = ssData[c2].ssCorr.coord
+            c1Corr = junctionBoundaryDict[c1].ssCorr.coord
+            c2Corr = junctionBoundaryDict[c2].ssCorr.coord
 
-            ssTypes = [ssData[c1].ssCorr.ssType, ssData[c2].ssCorr.ssType]
-            ssStrands.add(ssData[c1].ssCorr.strand)
-            ssStrands.add(ssData[c2].ssCorr.strand)
+            ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
+            ssStrands.add(junctionBoundaryDict[c1].ssCorr.strand)
+            ssStrands.add(junctionBoundaryDict[c2].ssCorr.strand)
 
             if None in ssTypes or ssTypes[0] == ssTypes[1]:
                 # Either two donors or two acceptors or both none.
@@ -346,7 +345,8 @@ def buildIntervalTree(knownJuncsFile, wiggle, currentChr, errFile):
                 intronranges.append([junctionWindowStart,junctionWindowEnd,intronBoundary2])
             else:
                 junctionBoundaryDict[intronBoundary2].support.add(annoType)
-    intervalTree = False
+    # ncls does not allow empty creation, so make one nonsense entry
+    intervalTree = NCLS([-1], [-1], [-1])
     if len(intronranges) > 0:
 	# x is a new reference to the same dict
         x = intronranges
@@ -387,18 +387,17 @@ def ssPrep(x):
             print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (readsBed, wiggle, knownJuncsFile, genomeFa), file=fo)
 
     # Build interval tree of known juncs
-    intTree, ssData = buildIntervalTree(knownJuncsFile, wiggle, chrom, errFile)
+    intervalTree, junctionBoundaryDict = buildIntervalTree(knownJuncsFile, wiggle, chrom, errFile)
 
     if errFile:
         with open(errFile,'a+') as fo:
             print("** SS Correction DB for  %s against %s Built. Moving to correction. Writing files to " % (knownJuncsFile, readsBed), file=fo)
     # Build read objects.
     try:
-        correctReads(readsBed, intTree, ssData, chrom, resolveStrand, workingDir, chrom, errFile)
+        correctReads(readsBed, intervalTree, junctionBoundaryDict, chrom, resolveStrand, workingDir, chrom, errFile)
     except Exception as ex:
         raise Exception("** correctReads FAILED for %s" % (readsBed)) from ex
 
-# takes in interval tree of known juncs (intTree), 
 
 
 if __name__ == "__main__":
