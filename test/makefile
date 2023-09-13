@@ -66,7 +66,7 @@ test-collapse : mkdirs test_input/genome.fa
 
 # FLAIR QUANTIFY
 test-quantify : mkdirs
-	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.collapse.temp --tpm --sample_id_only --check_splice --stringent -o $O/test.quantify
+	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only --check_splice --stringent -o $O/test.quantify
 	diff <(sort $E/test.quantify.tpm.tsv) <(sort $O/test.quantify.tpm.tsv) > $D/test.quantify.diff
 
 # FLAIR DIFFEXP
