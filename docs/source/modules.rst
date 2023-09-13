@@ -311,6 +311,28 @@ For more information on the Longshot variant caller, see its `github page <https
 
 .. _quantify-label:
 
+
+Suggested uses
+--------------
+
+**Human**
+
+.. code:: text
+
+    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
+    --stringent --check_splice --generate_map --annotation_reliant generate
+
+For novel isoform discovery in organisms with more unspliced transcripts and more overlapping genes, we recommend using a combination of options to capture more transcripts. For example:
+
+**Yeast** 
+
+.. code:: text
+
+    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
+    --stringent --no_gtf_end_adjustment --check_splice --generate_map --trust_ends
+
+Note that if you are doing direct-RNA, this command will likely call degradation products as isoforms. If you want to avoid this this we recommend using --annotation-reliant.
+
 flair quantify
 ==============
 
