@@ -20,6 +20,22 @@ READS_MANIFEST = $I/reads_manifest.txt
 COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
 DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
 
+default:
+	@echo To run all tests, use: >&2
+	@echo "   " make test-align >&2
+	@echo otherwise run individual tests with: >&2
+	@echo "   " make test-align >&2
+	@echo "   " make test-align >&2
+	@echo "   " make test-correct >&2
+	@echo "   " make test-collapse >&2
+	@echo "   " make test-quantify >&2
+	@echo "   " make test-diffexp >&2
+	@echo "   " make test-diffsplice >&2
+	@echo "   " make test-predict-productivity >&2
+	@echo "   " make test-diff-iso-usage >&2
+	@exit 1
+
+
 # FLAIR ALIGN
 test-align : mkdirs test_input/genome.fa
 	flair align -r $(READS_FA) --genome test_input/genome.fa -t 4 -o $O/test.align
