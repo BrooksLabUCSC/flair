@@ -8,7 +8,7 @@ import os
 import pybedtools
 import shutil
 import uuid
-from ssUtils import *
+from ssUtils import addOtherJuncs, gtfToSSBed
 from ssPrep import ssPrep
 
 def correct(aligned_reads=''):
