@@ -14,31 +14,29 @@ parser = argparse.ArgumentParser(description='''for counting transcript abundanc
 	aligning reads to transcripts; for multiple mappers, only the best alignment
 	for each read is used, usage=python -s samfile -o outputfile''')
 required = parser.add_argument_group('required named arguments')
-required.add_argument('-s', '--sam', type=argparse.FileType('r'), required=True,
-	dest='sam', help='sam file or - for STDIN')
-required.add_argument('-o', '--output', default='counts.txt', type=str, required=True, action='store',
-	dest='output', help='output file name')
-parser.add_argument('-i', '--isoforms', type=str, action='store', dest='isoforms', default='',
+required.add_argument('-s', '--sam', type=argparse.FileType('r'), help='sam file or - for STDIN')
+required.add_argument('-o', '--output', default='counts.txt', help='output file name')
+parser.add_argument('-i', '--isoforms',
 	help='specify isoforms.bed or .psl file if --stringent and/or --check_splice is specified')
-parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
+parser.add_argument('--stringent', action='store_true',
 	help='only count if read alignment passes stringent criteria')
-parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
+parser.add_argument('--check_splice', action='store_true', 
 	help='''enforce coverage of 4 out of 6 bp around each splice site and no
 	insertions greater than 3 bp at the splice site''')
-parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
+parser.add_argument('--trust_ends', action='store_true', 
 	help='specify if reads are generated from a long read method with minimal fragmentation')
-parser.add_argument('-t', '--threads', default=4, type=int, action='store', dest='t',
+parser.add_argument('-t', '--threads', default=4, type=int, 
 	help='number of threads to use')
-parser.add_argument('-w', '--window', type=int, action='store', dest='w', default=10,
+parser.add_argument('-w', '--window', type=int, default=10,
 	help='number of bases for determining which end is best match (10)')
-parser.add_argument('--quality', default=1, type=int, action='store', dest='quality',
+parser.add_argument('--quality', default=1, type=int,
 	help='minimum quality threshold to consider if ends are to be trusted (1)')
-parser.add_argument('--generate_map', default='', action='store', type=str, dest='generate_map',
+parser.add_argument('--generate_map',
 	help='''specify an output path for a txt file of which isoform each read is assigned to''')
-parser.add_argument('--fusion_dist', default='', action='store', dest='fusion_dist',
+parser.add_argument('--fusion_dist', 
 	help='''minimium distance between separate read alignments on the same chromosome to be
 	considered a fusion, otherwise no reads will be assumed to be fusions''')
-parser.add_argument('--minimal_input', default='', action='store_true', dest='minimal_input',
+parser.add_argument('--minimal_input', 
 	help='''input file is not actually a sam file, but only the info necessary''')
 args = parser.parse_args()
 
@@ -252,7 +250,7 @@ def count_transcripts_for_reads(read_names):
 
 		# reminder that best_t_info is sum(blocksizes), left pos, right pos, softclip_left, softclip_right)
 		for t, t_info in ranked_transcripts[1:]:
-			if not args.check_splice and t_info[0] + args.w < best_t_info[0]:
+			if not args.check_splice and t_info[0] + args.window < best_t_info[0]:
 				continue
 			# does this transcript have less softclipping than the best transcript and
 			# does this transcript reach the ends better than the best transcript
@@ -266,7 +264,7 @@ def count_transcripts_for_reads(read_names):
 		if args.fusion_dist:  # looking for the second best isoform match
 			second_t, second_t_info = best_t, (0, sys.maxsize, sys.maxsize, sys.maxsize, sys.maxsize)
 			for t, t_info in ranked_transcripts[1:]:
-				if t_info[0] + args.w < best_t_info[0]:
+				if t_info[0] + args.window < best_t_info[0]:
 					continue
 				# make sure that this transcript isn't already the best transcript
 				if t == best_t:
@@ -354,17 +352,17 @@ if __name__ == '__main__':
 
 	grouped_reads = []
 	allread_names = list(reads.keys())
-	groupsize = int(math.ceil(len(allread_names)/args.t))  # cast to int bc python 2.7 needs it
+	groupsize = int(math.ceil(len(allread_names)/args.threads))  # cast to int bc python 2.7 needs it
 	if groupsize == 0:
 		grouped_reads = [allread_names]
 	else:
 		i = 0
-		for group in range(args.t):  # group variable unused TODO check
+		for group in range(args.threads):  # group variable unused TODO check
 			new_i = i + groupsize
 			grouped_reads += [allread_names[i:new_i]]
 			i = new_i
 
-	p = Pool(args.t)
+	p = Pool(args.threads)
 	counts = p.map(count_transcripts_for_reads, grouped_reads)
 	p.close()
 	p.join()

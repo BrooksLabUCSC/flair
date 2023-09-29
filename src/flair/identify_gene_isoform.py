@@ -189,7 +189,7 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
 					name_counts[name] += 1
 					name = name + '-' + str(name_counts[name])
 				noref = chrom + ':' + str(start)[:-3] + '000'
-				newname = name + noref
+				newname = name + '_' + noref
 				if isbed:
 					line[3] = newname
 				else:
