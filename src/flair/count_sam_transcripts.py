@@ -6,7 +6,6 @@ import re
 import csv
 import math
 import os
-from multiprocessing import Pool
 from collections import Counter
 from collections import namedtuple
 
@@ -349,23 +348,17 @@ for line in sam:
 	reads[read][transcript] = aln(cigar=cigar, mapq=quality, startpos=pos)
 
 if __name__ == '__main__':
-
 	grouped_reads = []
 	allread_names = list(reads.keys())
 	groupsize = int(math.ceil(len(allread_names)/args.threads))  # cast to int bc python 2.7 needs it
 	if groupsize == 0:
 		grouped_reads = [allread_names]
 	else:
-		i = 0
-		for group in range(args.threads):  # group variable unused TODO check
-			new_i = i + groupsize
-			grouped_reads += [allread_names[i:new_i]]
-			i = new_i
 
-	p = Pool(args.threads)
-	counts = p.map(count_transcripts_for_reads, grouped_reads)
-	p.close()
-	p.join()
+		grouped_reads = [allread_names[i:i + groupsize] for i in range(0, len(allread_names), groupsize)]
+	counts = []
+	for one in grouped_reads:
+		counts.append(count_transcripts_for_reads(one))
 
 	merged_counts = Counter(counts[0][0])
 	for res in counts[1:]:
