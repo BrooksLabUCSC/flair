@@ -311,6 +311,28 @@ For more information on the Longshot variant caller, see its `github page <https
 
 .. _quantify-label:
 
+
+Suggested uses
+--------------
+
+**Human**
+
+.. code:: text
+
+    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
+    --stringent --check_splice --generate_map --annotation_reliant generate
+
+For novel isoform discovery in organisms with more unspliced transcripts and more overlapping genes, we recommend using a combination of options to capture more transcripts. For example:
+
+**Yeast** 
+
+.. code:: text
+
+    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
+    --stringent --no_gtf_end_adjustment --check_splice --generate_map --trust_ends
+
+Note that if you are doing direct-RNA, this command will likely call degradation products as isoforms. If you want to avoid this this we recommend using --annotation-reliant.
+
 flair quantify
 ==============
 
@@ -320,7 +342,7 @@ flair quantify
 
 **Output**
 
-Isoform-by-sample counts file that can be used in the diffExp and diffSplice modules.
+Isoform-by-sample counts file that can be used in the flair_diffExp and flair_diffSplice programs.
 
 Options
 -------
@@ -377,7 +399,7 @@ Optional arguments
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. Flair diffExp and diffSplice expect this information.
+Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. flair_diffExp and flair_diffSplice expect this information.
 
 .. code:: text
 
@@ -387,12 +409,15 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
 
 .. _diffexp-label:
 
-flair diffExp
+flair_diffExp
 =============
+
+**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
+programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
 
 .. code:: text
 
-   usage: flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]
+   usage: flair_diffExp -q counts_matrix.tsv --out_dir out_dir [options]
 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
@@ -478,9 +503,12 @@ This module requires python modules and R packages that are not necessary for ot
 flair diffSplice
 ================
 
+**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
+programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
+
 .. code:: text
 
-   usage: flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
+   usage: flair_diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
 
 This module calls alternative splicing (AS) events from isoforms. Currently supports
 the following AS events: 

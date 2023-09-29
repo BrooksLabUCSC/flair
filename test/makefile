@@ -20,6 +20,22 @@ READS_MANIFEST = $I/reads_manifest.txt
 COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
 DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
 
+default:
+	@echo To run all tests, use: >&2
+	@echo "   " make test-align >&2
+	@echo otherwise run individual tests with: >&2
+	@echo "   " make test-align >&2
+	@echo "   " make test-align >&2
+	@echo "   " make test-correct >&2
+	@echo "   " make test-collapse >&2
+	@echo "   " make test-quantify >&2
+	@echo "   " make test-diffexp >&2
+	@echo "   " make test-diffsplice >&2
+	@echo "   " make test-predict-productivity >&2
+	@echo "   " make test-diff-iso-usage >&2
+	@exit 1
+
+
 # FLAIR ALIGN
 test-align : mkdirs test_input/genome.fa
 	flair align -r $(READS_FA) --genome test_input/genome.fa -t 4 -o $O/test.align
@@ -50,19 +66,19 @@ test-collapse : mkdirs test_input/genome.fa
 
 # FLAIR QUANTIFY
 test-quantify : mkdirs
-	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.collapse.temp --tpm --sample_id_only --check_splice --stringent -o $O/test.quantify
+	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only --check_splice --stringent -o $O/test.quantify
 	diff <(sort $E/test.quantify.tpm.tsv) <(sort $O/test.quantify.tpm.tsv) > $D/test.quantify.diff
 
 # FLAIR DIFFEXP
 test-diffexp : mkdirs
-	flair diffExp -q $(COUNTS_MATRIX) -o $O/test.diffexp -e 1 -of
+	flair_diffExp -q $(COUNTS_MATRIX) -o $O/test.diffexp -e 1 -of
 	diff <(sort $E/test.diffexp.genes_deseq2_MCF7_v_A549.tsv) <(sort $O/test.diffexp/genes_deseq2_MCF7_v_A549.tsv) > $D/test.diffexp.dge.diff
 	diff <(sort $E/test.diffexp.isoforms_deseq2_MCF7_v_A549.tsv) <(sort $O/test.diffexp/isoforms_deseq2_MCF7_v_A549.tsv) > $D/test.diffexp.die.diff
 	diff <(sort $E/test.diffexp.isoforms_drimseq_MCF7_v_A549.tsv) <(sort $O/test.diffexp/isoforms_drimseq_MCF7_v_A549.tsv) > $D/test.diffexp.drimseq.diff
 
 # FLAIR DIFFSPLICE
 test-diffsplice : mkdirs
-	flair diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/test.diffsplice -of
+	flair_diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/test.diffsplice -of
 	diff <(sort $O/test.diffsplice/drimseq_alt3_A_v_B.tsv) <(sort $E/test.diffsplice.drimseq_alt3_A_v_B.tsv) > $D/test.diffsplice.alt3.diff
 	diff <(sort $O/test.diffsplice/diffsplice.alt3.events.quant.tsv) <(sort $E/test.diffsplice.alt3.events.quant.tsv) > $D/test.diffsplice.alt3.quant.diff
 

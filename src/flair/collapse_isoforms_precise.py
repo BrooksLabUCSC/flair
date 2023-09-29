@@ -10,54 +10,66 @@ from multiprocessing import Pool
 parser = argparse.ArgumentParser(description='collapse parse options',
 			usage='python collapse_isoforms_precise.py -q <query.psl>/<query.bed> [options]')
 required = parser.add_argument_group('required named arguments')
-required.add_argument('-q', '--query', type=str, default='', required=True, action='store',
-	dest='q', help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
-parser.add_argument('-o', '--output', type=str, action='store',
-	dest='o', default='', help='specify output file, should agree with query file type')
+required.add_argument('-q', '--query', type=str, required=True, 
+	help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
+parser.add_argument('-o', '--output', type=str, 
+	help='specify output file, should agree with query file type')
 parser.add_argument('-w', '--window', default=100, type=int,
-	action='store', dest='w', help='window size for grouping TSS/TES (100)')
-parser.add_argument('-s', '--support', default=0.25, type=float, action='store',
-	dest='s', help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
-parser.add_argument('-f', '--gtf', default='', type=str,
-	action='store', dest='f', help='GTF annotation file for selecting annotated TSS/TES')
-parser.add_argument('-m', '--max_results', default=2, type=int, action='store', dest='m',
+	 help='window size for grouping TSS/TES (100)')
+parser.add_argument('-s', '--support', default=0.25, type=float, 
+	help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
+parser.add_argument('-f', '--gtf', type=str,
+	 help='GTF annotation file for selecting annotated TSS/TES')
+parser.add_argument('-m', '--max_results', default=2, type=int, 
 	help='maximum number of novel TSS or TES picked per isoform unless --no_redundant is specified (2)')
 parser.add_argument('-t', '--threads', default=2, type=int,
-	action='store', dest='t', help='number of threads to use (2)')
-parser.add_argument('-n', '--no_redundant', default='none', action='store', dest='n',
+	 help='number of threads to use (2)')
+parser.add_argument('-n', '--no_redundant', default='none',
 	help='For each unique splice junction chain, report options include: \
 	none: multiple best TSSs/TESs chosen for each unique set of splice junctions, see M; \
 	longest: TSS/TES chosen to maximize length; \
 	best_only: single best TSS/TES used in conjunction chosen; \
 	longest/best_only override max_results argument immediately before output \
 	resulting in one isoform per unique set of splice junctions (default: none)')
-parser.add_argument('-c', '--clean', default=False, action='store_true', dest='c',
+parser.add_argument('-c', '--clean', default=False, action='store_true',
 	help='Specify this to not append read support to the end of each entry (default: not specified)')
-parser.add_argument('-i', '--isoformtss', default=False, action='store_true', dest='i',
+parser.add_argument('-i', '--isoformtss', default=False, action='store_true',
 	help='when specified, TSS/TES for each isoform will be determined from supporting reads \
 	for individual isoforms (default: not specified, determined at the gene level)')
-parser.add_argument('-nosplice', default='chrM', action='store', dest='nosplice',
+parser.add_argument('--nosplice', default='chrM',
 	help='Comma separated list of chromosomes that should not have spliced isoforms (default: chrM)')
-parser.add_argument('--quiet', default=False,
-	action='store_true', dest='quiet', help='suppress output to stderr')
+parser.add_argument('--quiet', default=False, action='store_true',
+	help='suppress output to stderr')
+
 args = parser.parse_args()
+isbed = True
+if args.query[-3:].lower() == 'psl':
+	isbed = False
 
-try:
-	max_results, window, minsupport, psl = args.m, args.w, args.s, open(args.q)
-	if args.f:
-		gtf = open(args.f)
-except:
-	sys.stderr.write('Make sure all files (query, GTF) have valid paths and can be opened\n')
-	sys.exit(1)
-
-bed = args.q[-3:].lower() != 'psl'
-if args.o:
-	if args.o[-3:].lower() != args.q[-3:].lower():
+if args.output:
+	if args.output[-3:].lower() != args.query[-3:].lower():
 		sys.stderr.write('Make sure input and output file extensions agree\n')
 		sys.exit(1)
 else:  # default output name
-	args.o = args.q[:-3]+'collapsed.bed' if bed else args.q[:-3]+'collapsed.psl'
+	args.output = args.query[:-3]+'collapsed.bed' if isbed else args.query[:-3]+'collapsed.psl'
 
+# This renaming of arguments is in preparation of turning this program into a function
+queryfile=args.query
+max_results=args.max_results
+threads=args.threads
+window=args.window
+isoformtss=args.isoformtss
+minsupport=args.support
+gtfname=args.gtf
+clean=args.clean
+nosplice=args.nosplice
+no_redundant=args.no_redundant
+outputfname=args.output
+quiet=args.quiet
+
+#def collapse_isoforms_precise(queryfile, max_results=2, window=100, threads=2, clean=False,
+#	minsupport=0.25, gtfname=None, no_redundant='none', nosplice='chrM', isoformtss=False, 
+#	outputfname=None, isbed=True, quiet=False):
 
 def get_junctions(line):
 	starts = [int(n) for n in line[20].split(',')[:-1]]
@@ -213,7 +225,7 @@ def iterative_add_se(sedict, chrom, group, se):
 		sedict[chrom][group]['bounds'][1] = sedict[chrom][group]['bounds'][1] + \
 			support*(tes - sedict[chrom][group]['bounds'][1])/sedict[chrom][group]['bounds'][2]
 
-	strand = all_se_by_chrom[chrom][se]['line'][5] if bed else all_se_by_chrom[chrom][se]['line'][8]
+	strand = all_se_by_chrom[chrom][se]['line'][5] if isbed else all_se_by_chrom[chrom][se]['line'][8]
 	if strand not in sedict[chrom][group]['strand']:
 		sedict[chrom][group]['strand'][strand] = 0
 	sedict[chrom][group]['strand'][strand] += 1
@@ -301,7 +313,7 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 		newremaining = sum(list(sites.values()))
 		used = remaining - newremaining
 		remaining = newremaining
-		if len(found_tss) >= 1 and (args.n == 'best_only' or
+		if len(found_tss) >= 1 and (no_redundant == 'best_only' or
 			(minsupport < 1 and (used/total) < minsupport or bestsite[3] < 4 or used < avg)):
 			# second+ end site called stringently
 			break
@@ -326,6 +338,7 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 	sites_tes_all = {tss: {tes: count}}
 	specific_tes = {tes: count} for a specific set of tss within given window
 	junccoord is coordinate of the isoform's first splice site and last splice site"""
+
 	total = float(sum(list(sites_tss_all.values())))  # total number of reads for this splice junction chain
 	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
 	# 	print('--', junccoord)
@@ -365,7 +378,7 @@ def run_se_collapse(chrom):
 		locus_info = singleexon[chrom][locus]
 		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'],
 			locus_info['bounds'], chrom, max_results=1)
-		name = line[3] if bed else line[9]
+		name = line[3] if isbed else line[9]
 		if name not in senames:
 			senames[name] = 0
 		strand = sorted(singleexon[chrom][locus]['strand'].items(),key=lambda x: x[1])[-1][1]
@@ -373,7 +386,7 @@ def run_se_collapse(chrom):
 			if (tss, tes) not in used_ends:
 				used_ends[(tss, tes)] = len(towrite)
 			else:
-				if not args.c:
+				if not clean:
 					towrite[used_ends[(tss, tes)]][-1] += support
 				continue
 			if tss not in all_se_starts:
@@ -384,33 +397,33 @@ def run_se_collapse(chrom):
 			all_se_ends[tes] += support
 
 			i = senames[name]
-			if not bed:
+			if not isbed:
 				edited_line = edit_line(line, tss, tes, tes-tss)
 				edited_line[5] = strand
 			else:
 				edited_line = edit_line_bed12(line, tss, tes, tes-tss)
 				edited_line[8] = strand
-			if not args.c:
+			if not clean:
 				edited_line += [support]
 			if i >= 1:  # to avoid redundant names for isoforms from the same general locus
 				if '_' in name:
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
 					newname = name+'-'+str(i)
-				if not bed:
+				if not isbed:
 					edited_line[9] = newname
 				else:
 					edited_line[3] = newname
 			senames[name] += 1
 			towrite += [edited_line]
 
-	if args.i:
+	if isoformtss:
 		return towrite
 	new_towrite = []
 	used_ends = {}
 	for line in towrite:
 		line = list(line)
-		if bed:
+		if isbed:
 			tss, tes = int(line[1]), int(line[2])
 		else:
 			tss, tes = int(line[15]), int(line[16])
@@ -429,10 +442,10 @@ def run_se_collapse(chrom):
 		if (tss, tes) not in used_ends:
 			used_ends[(tss, tes)] = len(new_towrite)
 		else:
-			if not args.c:
+			if not clean:
 				new_towrite[used_ends[(tss, tes)]][-1] += line[-1]  # support
 			continue
-		if bed:
+		if isbed:
 			newline = edit_line_bed12(line, tss, tes)
 		else:
 			newline = edit_line(line, tss, tes)
@@ -441,6 +454,7 @@ def run_se_collapse(chrom):
 
 
 def run_find_best_sites(chrom):
+
 	allends = {}  # counts of all TSSs/TESs by chromosome
 	allends[chrom] = {}
 	allends[chrom]['tss'] = {}
@@ -454,46 +468,46 @@ def run_find_best_sites(chrom):
 		jset_ends = find_best_sites(isoforms[chrom][jset]['tss'],
 			isoforms[chrom][jset]['tss_tes'], junccoord, chrom)
 
-		if args.i and args.n == 'longest':
+		if isoformtss and no_redundant == 'longest':
 			tss_sorted = sorted(jset_ends, key=lambda x: x[0])[0]  # smallest left coord
 			tes_sorted = sorted(jset_ends, key=lambda x: x[1])[-1]  # largest right coord
-			if not args.c:
+			if not clean:
 				line += [(tss_sorted[3]+tes_sorted[3])/2.]
 			tss, tes = tss_sorted[0], tes_sorted[1]
-			if not bed:
+			if not isbed:
 				towrite[chrom][jset] += [edit_line(line, tss, tes)]
 			else:
 				towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
 			continue
-		if args.i and args.n == 'best_only':
+		if isoformtss and no_redundant == 'best_only':
 			tss, tes = jset_ends[0][:2]
-			if not args.c:
+			if not clean:
 				line += [jset_ends[0][3]]
-			if not bed:
+			if not isbed:
 				towrite[chrom][jset] += [edit_line(line, tss, tes)]
 			else:
 				towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
 			continue  # 1 isoform per unique set of junctions
 
 		i = 0
-		name = line[9] if not bed else line[3]
+		name = line[9] if not isbed else line[3]
 		for tss, tes, support, tsscount, tescount in jset_ends:
-			if not bed:
+			if not isbed:
 				edited_line = edit_line(line, tss, tes)
 			else:
 				edited_line = edit_line_bed12(line, tss, tes)
-			if not args.c:
+			if not clean:
 				edited_line += [support]
 			if i >= 1:  # to avoid redundant names for isoforms with the same junctions
 				if '_' in name:
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
 					newname = name+'-'+str(i)
-				if not bed:
+				if not isbed:
 					edited_line[9] = newname
 				else:
 					edited_line[3] = newname
-			if args.i:
+			if isoformtss:
 				towrite[chrom][jset] += [edited_line]
 			else:  # all isoforms will go through another pass to homogenize ends
 				towrite[chrom][jset] += [edited_line + [junccoord]]
@@ -503,9 +517,9 @@ def run_find_best_sites(chrom):
 				if tes not in allends[chrom]['tes']:
 					allends[chrom]['tes'][tes] = 0
 				allends[chrom]['tes'][tes] = tescount
-			if args.n != 'longest':
+			if no_redundant != 'longest':
 				i += 1
-	if args.i:
+	if isoformtss:
 		return towrite
 
 	new_towrite = {}  # another pass through all isoforms, moving tss/tes to be more uniform within a gene
@@ -517,7 +531,7 @@ def run_find_best_sites(chrom):
 		for line in towrite[chrom][jset]:  # adjust isoform TSS/TES using allends dict
 			line = list(line)
 			junccoord = line[-1]
-			if bed:
+			if isbed:
 				tss, tes = int(line[1]), int(line[2])
 			else:
 				tss, tes = int(line[15]), int(line[16])
@@ -541,19 +555,19 @@ def run_find_best_sites(chrom):
 
 			if (tss,tes) not in jsetends:
 				jsetends.add((tss,tes))
-				if args.n == 'best_only':
+				if no_redundant == 'best_only':
 					endpair = [tss, tes, support] if endpair[2] < tss_support else endpair
-				elif args.n == 'longest':
+				elif no_redundant == 'longest':
 					endpair[0] = tss if tss < endpair[0] else endpair[0]
 					endpair[1] = tes if tes > endpair[1] else endpair[1]
 				else:
-					if bed:
+					if isbed:
 						newline = edit_line_bed12(line, tss, tes)
 					else:
 						newline = edit_line(line, tss, tes)
 					new_towrite[chrom][jset] += [newline[:-1]]
 		if endpair[0] != 1e15:  # write best_only or longest option isoforms
-			if bed:
+			if isbed:
 				newline = edit_line_bed12(line, endpair[0], endpair[1])
 			else:
 				newline = edit_line(line, endpair[0], endpair[1])
@@ -608,7 +622,8 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 
 annot_tss = {}  # annotated left terminal sites per chromosome from GTF
 annot_tes = {}  # annotated right terminal sites
-if args.f:
+if gtfname:
+	gtf = open(gtfname, 'r')
 	for line in gtf:
 		if line.startswith('#'):
 			continue
@@ -620,15 +635,16 @@ if args.f:
 				annot_tes[chrom] = set()
 			annot_tss[chrom].add(start)
 			annot_tes[chrom].add(end)
-	if not args.quiet:
+	if not quiet:
 		sys.stderr.write('Annotated ends extracted from GTF\n')
 
 isoforms = {}  # spliced isoforms
 all_se_by_chrom = {}  # single-exon reads grouped by exact start and end site
-nosplice_chroms = set(args.nosplice.split(','))
-for line in psl:
+nosplice_chroms = set(nosplice.split(','))
+query = open(queryfile, 'r')
+for line in query:
 	line = tuple(line.rstrip().split('\t'))
-	if bed:
+	if isbed:
 		chrom, tss, tes = line[0], int(line[1]), int(line[2])
 		junctions, junccoord = get_junctions_bed12(line)
 	else:
@@ -669,7 +685,7 @@ for line in psl:
 		isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
 	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
 
-if not args.quiet:
+if not quiet:
 	sys.stderr.write('Read data extracted\n')
 
 chrom_names = []  # sorted by descending total number of unique single-exon isoforms
@@ -678,25 +694,27 @@ for chrom in all_se_by_chrom:
 chrom_names = [chrom for chrom,num in sorted(chrom_names, key=lambda x: x[1], reverse=True)]
 res = {}
 if __name__ == '__main__':
-	p = Pool(args.t)
+	p = Pool(threads)
 	res = p.map(run_iterative_add_se, chrom_names)
-	p.terminate()
+	p.close()
+	p.join()
 all_se_by_chrom = None
 
 singleexon = {}  # single-exon isoforms
 for r in res:  # combine results
 	singleexon.update(r)
 
-if not args.quiet:
+if not quiet:
 	sys.stderr.write('Single-exon genes grouped, collapsing\n')
 
-with open(args.o, 'wt') as outfile:
+with open(outputfname, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
 	if __name__ == '__main__':
-		p = Pool(args.t)
+		p = Pool(threads)
 		res = p.map(run_se_collapse, chrom_names)
-		p.terminate()
+		p.close()
+		p.join()
 	singleexon = None
 
 	for r in res:
@@ -704,9 +722,10 @@ with open(args.o, 'wt') as outfile:
 			writer.writerow(edited_line)
 
 	if __name__ == '__main__':
-		p = Pool(args.t)
+		p = Pool(threads)
 		res = p.map(run_find_best_sites, list(isoforms.keys()))
-		p.terminate()
+		p.close()
+		p.join()
 	isoforms = None
 
 	for towrite in res:
@@ -714,3 +733,4 @@ with open(args.o, 'wt') as outfile:
 			for jset in towrite[chrom]:
 				for iso in towrite[chrom][jset]:
 					writer.writerow(iso)
+

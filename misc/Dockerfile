@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
 	python3 \
 	python3-pip 
 
-RUN pip install flair-brookslab==1.7.0 \
+RUN pip install flair-brookslab==2.0.0 \
 	rpy2 \
 	pandas \
 	matplotlib \

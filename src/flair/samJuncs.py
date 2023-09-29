@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
 
-########################################################################
-# File: samJuncs.py
-#  executable: samJuncs.py
-# Purpose:
-#
-#
-# Author: Cameron M. Soulette
-# History:      cms 02/12/2018 Created
-#
-########################################################################
-
-########################################################################
-# Hot Imports & Global Variable
-########################################################################
-
-
 import os
 import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 from multiprocessing import Pool
 import pysam
-#from tqdm import *
-
-########################################################################
-# CommandLine
-########################################################################
-
 
 class CommandLine(object):
     '''
@@ -48,7 +26,7 @@ class CommandLine(object):
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description='samJuncs.py - lorem ipsium.',
+        self.parser = argparse.ArgumentParser(description='samJuncs.py - extract jumctions from sam.',
                                              add_help=True, #default is True
                                              prefix_chars='-',
                                              usage='%(prog)s -i sorted_indexed.bam ')
@@ -80,10 +58,8 @@ class SAM(object):
         # Start pysam object as bam
         try:
             self.reader = pysam.AlignmentFile(self.inFile, 'rb')
-        except:
-            #File does not exist.
-            print("ERROR: Cannot find file %s. Exiting!" % self.inFile, file=sys.stderr)
-            sys.exit(1)
+        except Exception as ex:
+            raise Exception("** ERROR reading from sam file %s" % self.inFile) from ex
 
         self.strandInfo = {0:'+', 16:'-'}
         self.supplementary_strandInfo = {2048:'+', 2064:'-'}
@@ -214,14 +190,17 @@ def runCMD(x):
 
 def main():
     '''
-    TDB
+    TBD
     '''
     myCommandLine = CommandLine()
 
     alignmentFile = myCommandLine.args['ibam']
     threads = myCommandLine.args['threads']
 #    quiet = myCommandLine.args['quiet'] unused
-    header = pysam.view("-H", alignmentFile).split("\n")
+    try:
+        header = pysam.view("-H", alignmentFile).split("\n")
+    except Exception as ex:
+        raise Exception("** ERROR reading from sam file %s" % alignmentFile) from ex
 
     alignmentCommand = header[-2]
     if "minimap" in alignmentCommand.lower():
@@ -237,6 +216,8 @@ def main():
     #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
     #results
     p.map(runCMD, referenceIDs)
+    p.close()
+    p.join()
 
     # print(results[0])
     # for c,j in d.items():
@@ -244,11 +225,7 @@ def main():
     #         print(c,i[0]-1, i[1], ".", d[c][i], i[-1], sep="\t")
 
 
-########################################################################
-# Main
-# Here is the main program
-#
-########################################################################
+
 
 if __name__ == "__main__":
     main()

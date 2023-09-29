@@ -557,6 +557,7 @@ def main():
 #    bed_header = "track name=\"%s_jcn_counts\" itemRgb=\"On\" useScore=1\n" % name
 #    junction_bed_file.write(bed_header)
     confident_jcns = set([])
+    strandFlag = False
     for jcn_str in jcn2JcnInfo:
         if isConfidentJunction(jcn2JcnInfo[jcn_str].block_list,
                                jcn2JcnInfo[jcn_str].multiJcnBlock_list,
@@ -578,8 +579,10 @@ def main():
             intron_left = jcn_str[jcn_str.find(':')+1:jcn_str.find('-')]
             intron_right = jcn_str[jcn_str.find('-')+1:]
             if jcn2JcnInfo[jcn_str].strand == '+':
+                strandFlag = True
                 jcn_strand = '1'
             elif jcn2JcnInfo[jcn_str].strand == '-':
+                strandFlag = True
                 jcn_strand = '2'
             else:
                 jcn_strand = '0'
@@ -610,6 +613,9 @@ def main():
     #             outline = "%s\t%s\n" % (jcn_str, ",".join(jcn2pairedReads[jcn_str]))
     #             jcn2qname_file.write(outline)
     #     jcn2qname_file.close()
+
+    if strandFlag == False:
+        sys.stdout.write('\nWARNING, no stranded junctions were found\n.')
 
     sys.exit(0)
 
