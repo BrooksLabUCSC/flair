@@ -84,8 +84,9 @@ def juncsToBed12(start, end, coords):
 def bam2Bed12(alignmentFile, bedoutput='/dev/stdout', keep_supplementary=False):
 
 	#Color codes for positive and negative stranded read transcripts
-	positiveTxn = "27,158,119"
-	negativeTxn = "217,95,2"
+        #To show in UCSC browser add itemRgb=On to bed header
+	positiveTxn = "27,158,119" # green
+	negativeTxn = "217,95,2"   # orange
 	unknownTxn = "99,99,99"
 
 	# SAM Object allows for execution of many SAM-related functions.
@@ -93,23 +94,28 @@ def bam2Bed12(alignmentFile, bedoutput='/dev/stdout', keep_supplementary=False):
 
 	with open(bedoutput, 'w') as outf:
 		for num, readData in enumerate(sObj.readJuncs(),0):
-			read, chrom, startPos, junctions, endPos, flags, tags, score = readData
+			read, chrom, startPos, junctions, endPos, flags, juncDirection, score = readData
 			blocks, sizes, starts = juncsToBed12(startPos, endPos, junctions)
 			flags = str(flags)
 
 			# set correct color
+                        # Bed format needs a strand. The readJuncs function infers strand based on 
+                        # alignment orientation and splice direction (ts tag in SAM) if possible, or 
+                        # is set to None if not
 			rgbcolor = unknownTxn
-			if tags == "+":
+			if juncDirection == "+":
 				rgbcolor = positiveTxn		
-			elif tags == "-":
+			elif juncDirection == "-":
 				rgbcolor = negativeTxn
 			else:
-				tags = "+" if flags == "0" else "-"
+                                # if the juncDirection is None, use the SAM flag but don't change the color
+                                # the SAM object only retains reads with flag 0 or 16
+				juncDirection = "+" if flags == "0" else "-"
 
 			sizes = ",".join(str(x) for x in sizes) + ','
 			starts = ",".join(str(x) for x in starts) + ','	
 			
-			outitems = [chrom, startPos, endPos, read, score, tags, startPos,
+			outitems = [chrom, startPos, endPos, read, score, juncDirection, startPos,
 			    	endPos, rgbcolor, blocks, sizes, starts]
 			outstring = ('\t').join([str(x) for x in outitems])
 			outf.write(f'{outstring}\n')
