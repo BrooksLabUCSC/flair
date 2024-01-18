@@ -73,7 +73,7 @@ def quantify(isoform_sequences=''):
 		for line in lines:
 			cols = line.rstrip().split('\t')
 			if len(cols) < 4:
-				sys.stderr.write(f'Expected 4 columns in tab-delimited manifest.tsv, got len(cols). Exiting.\n')
+				sys.stderr.write(f'Expected 4 columns in tab-delimited manifest.tsv, got {len(cols)}. Exiting.\n')
 				return 1
 
 			sample, group, batch, readFile = cols
