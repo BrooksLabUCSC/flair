@@ -27,12 +27,15 @@ test_input/genome.fa :
 	zcat chr7.fa.gz chr13.fa.gz > test_input/genome.fa
 	rm chr7.fa.gz chr13.fa.gz 
 
+test_input/reads.fq :
+	gunzip test_input/reads.fq.gz
+
 mkdirs :
 	mkdir -p $O
 	mkdir -p $D
 
 # FLAIR ALIGN TODO: make tiny input 
-test-align : mkdirs test_input/genome.fa
+test-align : mkdirs test_input/genome.fa test_input/reads.fq
 	$(FLAIR) align --junction_bed $(SHORTREAD_JUNCTIONS) --reads $(READS_FQ) --genome $(GENOME) --threads 8 --output $O/align
 	diff <(sort $E/align.bed) <(sort $O/align.bed) > $D/align.diff
 
