@@ -117,6 +117,7 @@ def correct(aligned_reads=''):
 	skippedChroms = set()
 	readDict = dict()
 	notfound = False
+	prevchrom = False
 	with open(query) as lines, open("%s_cannot_verify.bed" % args.output,'w') as nochrom:
 		outDict = dict()
 		for line in tqdm(lines, desc="Step 4/5: Preparing reads for correction", dynamic_ncols=True, position=1) if verbose else lines:
@@ -132,9 +133,18 @@ def correct(aligned_reads=''):
 			else:
 				if chrom not in outDict:
 					readDict[chrom] = os.path.join(tempDir,"%s_temp_reads.bed" % chrom)
-					outDict[chrom] = open(os.path.join(tempDir,"%s_temp_reads.bed" % chrom),'w')
-				print(line.rstrip(),file=outDict[chrom])
+					outDict[chrom] = os.path.join(tempDir,"%s_temp_reads.bed" % chrom)
+					#outDict[chrom] = open(os.path.join(tempDir,"%s_temp_reads.bed" % chrom),'w')
+				if chrom != prevchrom:
+					if prevchrom is not False:
+						tempoutfile.close()
+					tempoutfile = open(outDict[chrom], 'a')
+					prevchrom = chrom
+				print(line.rstrip(),file=tempoutfile)
+				#with open(outDict[chrom], 'a') as tempoutfile:
+				#print(line.rstrip(),file=outDict[chrom])
 	nochrom.close()
+	tempoutfile.close()
 	if notfound is False:
 		os.remove(f'{args.output}_cannot_verify.bed')
 
@@ -143,7 +153,7 @@ def correct(aligned_reads=''):
 		juncs = annotations[chrom]
 		reads = readDict[chrom]
 
-		outDict[chrom].close()
+#		outDict[chrom].close()
 
 		cmds.append([reads, juncs, args.genome, args.ss_window, chrom, resolveStrand,
 	      tempDir, printErrFname])
