@@ -9,7 +9,7 @@ def main():
 	parser = argparse.ArgumentParser(description='options',
 			usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed|psl -a annotated.bed -o out [options]')
 	required = parser.add_argument_group('required named arguments')
-	required.add_argument('-i', dest='psl', type=str, required=True,
+	required.add_argument('-i', dest='bed', type=str, required=True,
 			help='input bed/psl of collapsed isoforms to be filtered')
 	required.add_argument('-a', dest='annotation', type=str, required=True,
 			help='annotated .bed of isoforms with read support')
@@ -17,10 +17,10 @@ def main():
 			help='output file, .bed or .psl matching the input file')
 	parser.add_argument('--new_map', dest='new_map', type=str,
 			help='output annotated map file for isos there were merged')
-	parser.add_argument('--map_i', dest='map_i', type=str, required=False,
+	parser.add_argument('--map_i', dest='map_i', type=str, required=True,
 			help='''isoform-read map file for the annotated isoforms to retain subset isoforms with
 			sufficient read support. must also specify --map_a.''')
-	parser.add_argument('--map_a', dest='map_a', type=str, required=False,
+	parser.add_argument('--map_a', dest='map_a', type=str, required=True,
 			help='''isoform-read map file for the flair-collapse isoforms)''')
 	parser.add_argument('-w', dest='wiggle', type=int, required=False, default=100,
 			help='''number of extra basepairs on a terminal exon for a subset isoform to be kept (default=100)''')
@@ -28,10 +28,10 @@ def main():
 			help='minimum number of supporting reads for an isoform (3)')
 
 	args = parser.parse_args()
-	isbed = args.psl[-3:].lower() != 'psl'
+	isbed = args.bed[-3:].lower() != 'psl'
 	
 	filter_collapsed_isoforms_from_annotation(annotation=args.annotation, map_a=args.map_a, map_i=args.map_i,
-			support=args.support, queryfile=args.psl, outputfile=args.output, wiggle=args.wiggle,
+			support=args.support, queryfile=args.bed, outputfile=args.output, wiggle=args.wiggle,
 			new_map=args.new_map, isbed=isbed)
 
 
@@ -122,26 +122,25 @@ def bin_search_right(query, data):
 
 def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support, queryfile, outputfile,
 	wiggle=100, new_map=False, isbed=True):
-	psl = open(queryfile)
+	bed = open(queryfile)
 	annotated = open(annotation)
 	iso_support = {}
 	annotated_iso_read_map = {}
 	flair_iso_read_map = {}
-	if map_a:
-		for line in open(map_a):
-			iso, reads = line.rstrip().split('\t')
-			num_supporting = len(reads.split(','))
-			if num_supporting < int(support):
-				continue
-			iso_support[iso] = num_supporting
-			annotated_iso_read_map[iso] = reads
-		for line in open(map_i):
-			iso, reads = line.rstrip().split('\t')
-			flair_iso_read_map[iso] = reads
-			if iso in iso_support:
-				iso_support[iso] += len(reads.split(','))
-			else:
-				iso_support[iso] = len(reads.split(','))
+	for line in open(map_a):
+		iso, reads = line.rstrip().split('\t')
+		num_supporting = len(reads.split(','))
+		if num_supporting < int(support):
+			continue
+		iso_support[iso] = num_supporting
+		annotated_iso_read_map[iso] = reads
+	for line in open(map_i):
+		iso, reads = line.rstrip().split('\t')
+		flair_iso_read_map[iso] = reads
+		if iso in iso_support:
+			iso_support[iso] += len(reads.split(','))
+		else:
+			iso_support[iso] = len(reads.split(','))
 
 	keep_isoforms = []
 	isoforms, allevents, jcn_to_name, all_iso_info = {}, {}, {}, {}
@@ -173,7 +172,7 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 			exon = exons[0]
 			allevents[chrom]['all_se_exons'].add((exon[0], exon[1], iso_support[name]))
 
-	for line in psl:
+	for line in bed:
 		line = line.rstrip().split()
 		chrom, name, sizes, starts = get_info(line, isbed)
 		junctions = get_junctions(starts, sizes)
@@ -226,6 +225,9 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 					# if isoform n and isoform n_ have the exact same splice junction chain and
 					# the ends of n are w/in 50 bp of the ends of n_, they are too close, do not keep
 					# if n_ is already in keep_isos
+					if isoforms[chrom][n_] and not isoforms[chrom][n_]['jname']:
+						print(f"it seems {n_} has no annotated introns even though it's similar to {n}")
+						sys.exit(1)
 					if isoforms[chrom][n]['jname'][1:-1] in isoforms[chrom][n_]['jname'] and \
 						len(isoforms[chrom][n]['jname']) == len(isoforms[chrom][n_]['jname']) and \
 						abs(isoforms[chrom][n_]['exons'][0][0]-first_exon[0]) < wiggle and \
