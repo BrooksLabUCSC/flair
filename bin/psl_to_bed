@@ -2,24 +2,23 @@
 import sys
 import csv
 import os
+from bed import Bed, BedBlock, intArraySplit
 
 try:
-	psl = open(sys.argv[1])
-	bed = sys.argv[2]
+	psl = open(sys.argv[1], 'r')
+	bedout = open(sys.argv[2], 'w')
 except:
 	sys.stderr.write('usage: psl_to_bed in.psl out.bed\n')
 	sys.exit(1)
 
-with open(bed, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-	for line in psl:
-		line = line.rstrip().split('\t')
-		if len(line) < 21:
-			sys.stderr.write('fewer than 21 columns in the psl file, exiting\n')
-			sys.exit(2)
-		chrom, name, start, end = line[13], line[9], line[15], line[16]
-		strand, blocksizes = line[8], line[18]
-		starts = line[20].split(',')[:-1]
-		relstarts = ','.join([str(int(n) - int(start)) for n in starts]) + ','
-		writer.writerow([chrom, start, end, name, '1000', strand, start, end, '0,0,0',
-			str(len(starts)), blocksizes, relstarts])
+for line in psl:
+	line = line.rstrip().split('\t')
+	if len(line) < 21:
+		sys.stderr.write('fewer than 21 columns in the psl file, exiting\n')
+		sys.exit(2)
+	strand, name, chrom, start, end, blockCt = line[8], line[9], line[13], int(line[15]), int(line[16]), int(line[17])
+	blocksizes, tstarts = intArraySplit(line[18]), intArraySplit(line[20])
+	blocks = [BedBlock(tstart, tstart + size) for tstart, size in zip(tstarts, blocksizes)]
+	bedObj = Bed(chrom, start, end, name=name, strand=strand, blocks=blocks, numStdCols=12)
+	bedObj.write(bedout)
+
