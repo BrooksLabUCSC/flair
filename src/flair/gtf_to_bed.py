@@ -3,143 +3,110 @@ import sys
 import csv
 import os
 import argparse
+from bed import Bed, BedBlock, intArraySplit
 
 def main():
-	parser = argparse.ArgumentParser(description='''converts a gtf to a bed or psl, depending on the output filename extension;
+	parser = argparse.ArgumentParser(description='''converts gtf to bed format;
 		gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',
-		usage='gtf_to_bed in.gtf out.psl|bed [options]')
+		usage='gtf_to_bed in.gtf out.bed [options]')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('gtf', type=str, help='annotated gtf')
-	required.add_argument('psl', type=str, help='psl or bed file')
+	required.add_argument('bed', type=str, help='bed file')
 	parser.add_argument('--include_gene', action='store_true', dest='include_gene', required=False, 
 		help='''Include gene name in the isoform name''')
-	parser.add_argument('--chrom_sizes', default='', required=False, 
-		help='''chrom sizes file for psl conversion, recommended''')
 	args = parser.parse_args()
 
-	isbed = True
-	if args.psl[-3:].lower() == 'psl':
-		isbed = False
-	gtf_to_bed(args.psl, args.gtf, isbed, args.include_gene, chrom_sizes=args.chrom_sizes)
+	gtf_to_bed(args.bed, args.gtf, args.include_gene)
+
+class Cds(object):
+	def __init__(self, start, end):
+		self.start = start
+		self.end = end
+	def update(self, start, end):
+		self.start = min(start, self.start)
+		self.end = max(end, self.end)
+
+class Gene(object):
+	def __init__(self, gene, tx, chrom, start, end, strand):
+		self.geneID = gene
+		self.txID = tx
+		self.chrom = chrom
+		self.geneStart = start
+		self.geneEnd = end
+		self.strand = strand
+		self.blockList = [BedBlock(start, end)]
+	def add(self, start, end):
+		self.geneStart = min(start, self.geneStart)
+		self.geneEnd = max(end, self.geneEnd)
+		self.blockList.append(BedBlock(start, end))
+	def write(self, FH, include_gene, thickRegion=None):
+		if include_gene:
+			name = ('_'.join(self.geneID, self.txID))
+		else:
+			name = self.txID
+		blocks = sorted(self.blockList, key=lambda x: x.start)
+		if thickRegion:
+			bedObj = Bed(self.chrom, self.geneStart, self.geneEnd, name=name, strand=self.strand,
+			blocks=blocks, numStdCols=12, thickStart=thickRegion.start, thickEnd=thickRegion.end)
+		else:
+			bedObj = Bed(self.chrom, self.geneStart, self.geneEnd, name=name, strand=self.strand, 
+			blocks=blocks, numStdCols=12)
+		bedObj.write(FH)
 
 
-def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=False):
-	chrom_to_size = {}
-	if chrom_sizes:
-		for line in open(chrom_sizes):
-			line = line.rstrip().split('\t')
-			chrom_to_size[line[0]] = line[1]
+def ids_from_gtf(descrField):
+	'''Parse the last field of a gtf to extract transcript and gene IDs'''
 
-	missing_chroms = set()
+	pairs = descrField.split("; ")
+	data_dict = {pair.split(" ", 1)[0].strip(): pair.split(" ", 1)[1].strip('"') for pair in pairs}
+	return data_dict['gene_id'], data_dict['transcript_id']
+
+
+
+def gtf_to_bed(outputfile, gtf, include_gene=False):
+	include_gene=False 
 	iso_to_cds = {}
+	geneObj = None
 	with open(outputfile, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
 		prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand = [None, None, None, None, None, None]
-		for line in open(gtf):  # extract all exons from the gtf, keep exons grouped by transcript
+		blockList = []
+		# extract all exons from the gtf, keep exons grouped by transcript
+		for line in open(gtf):  
 			if line.startswith('#'):
 				continue
 			line = line.rstrip().split('\t')
 			chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
-			this_transcript = line[8][line[8].find('transcript_id')+15:]
-			this_transcript = this_transcript[:this_transcript.find('"')]
 
-			if ty == 'CDS':
-				if this_transcript not in iso_to_cds:
-					iso_to_cds[this_transcript] = [start, end]
-				elif end > iso_to_cds[this_transcript][1]:
-					iso_to_cds[this_transcript][1] = end
+			# please note: GTF includes the stop codon  as part of the CDS, which
+			# this method doesn't catch correctly. You cannot just move the end by 3 bases
+			# because some genes have split stop codons.
+#			if ty == 'CDS':
+#				if tx not in iso_to_cds:
+#					iso_to_cds[tx] = Cds(start, end)
+#				else:
+#					iso_to_cds[tx].update(start, end)
 			if ty != 'exon':
 				continue
-
-			# once all the exons for a transcript are read, write the psl/bed entry
-			if this_transcript != prev_transcript:
-				if prev_transcript:
-					blockcount = len(blockstarts)
-					if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
-						blocksizes = blocksizes[::-1]
-						blockstarts = blockstarts[::-1]
-
-					tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
-					qsize = sum(blocksizes)  # query (e.g. transcript)
-					if include_gene:
-						qname = prev_transcript+'_'+prev_gene
-					else:
-						qname = prev_transcript
-					if isbed == False: # psl specific
-						pos = 0
-						qstarts = [pos]
-						for b in blocksizes[:-1]:
-							pos += b
-							qstarts += [pos]
-						qstarts = ','.join([str(b) for b in qstarts]) + ','
-
-					blocksizes = ','.join([str(b) for b in blocksizes]) + ','
-
-					if isbed == True:
-						relblockstarts = [block - tstart for block in blockstarts]
-						relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-						if qname in iso_to_cds:
-							cds_start, cds_end = iso_to_cds[qname]
-						else:
-							cds_start, cds_end = tstart, tend
-						writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
-							cds_end, 0, blockcount, blocksizes, relblockstarts])
-					else:
-						blockstarts = ','.join([str(b) for b in blockstarts]) + ','
-						if chrom_to_size and prev_chrom in chrom_to_size:
-							writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize,
-								prev_chrom, chrom_to_size[prev_chrom], tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-						else:
-							if chrom_to_size and prev_chrom not in chrom_to_size:
-								missing_chroms.add(prev_chrom)
-							writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize,
-								prev_chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-
-				blockstarts, blocksizes = [], []
-				prev_transcript = this_transcript
-				prev_gene = line[8][line[8].find('gene_id')+9:]
-				prev_gene = prev_gene[:prev_gene.find('"')]
-				prev_chrom = chrom
-				prev_strand = strand
-
-			blockstarts += [start]
-			blocksizes += [end-start]
+			gene, tx = ids_from_gtf(line[8])
+			if geneObj is None:
+				geneObj = Gene('mygene', tx, chrom, start, end, strand)
+			elif geneObj.txID == tx:
+				geneObj.add(start, end)
+			else:
+				if geneObj.txID in iso_to_cds:
+					geneObj.write(outfile, include_gene, thickRegion = iso_to_cds[geneObj.txID])
+				else:
+					geneObj.write(outfile, include_gene)
+				geneObj = Gene('mygene', tx, chrom, start, end, strand)
 
 		# last entry...
-		this_gene = line[8][line[8].find('gene_id')+9:]
-		this_gene = this_gene[:this_gene.find('"')]
-		if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
-			blocksizes = blocksizes[::-1]
-			blockstarts = blockstarts[::-1]
-		qsize = sum(blocksizes)  # query (e.g. transcript)
-		tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
-		blocksizes = ','.join([str(b) for b in blocksizes]) + ','
-		if include_gene:
-			qname = this_transcript+'_'+this_gene
+		if geneObj.txID in iso_to_cds:
+			geneObj.write(outfile, include_gene, thickRegion = iso_to_cds[geneObj.txID])
 		else:
-			qname = this_transcript
-		if isbed == True:
-			relblockstarts = [block - tstart for block in blockstarts]
-			relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-			if qname in iso_to_cds:
-				cds_start, cds_end = iso_to_cds[qname]
-			else:
-				cds_start, cds_end = tstart, tend
-			writer.writerow([chrom, tstart, tend, qname, 1000, strand, cds_start, cds_end, 0,
-				blockcount, blocksizes, relblockstarts])
-		else:
-			blockstarts = ','.join([str(b) for b in blockstarts]) + ','
-			if chrom_to_size and prev_chrom in chrom_to_size:
-				writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize,
-					chrom, chrom_to_size[chrom], tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-			else:
-				if chrom_to_size and chrom not in chrom_to_size:
-					missing_chroms.add(chrom)
-				writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize,
-					chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-	if missing_chroms:
-		sys.stderr.write('chromosomes found in gtf but not in chrom_sizes file: {}\n'.format(missing_chroms))
+			geneObj.write(outfile, include_gene)
+
 
 if __name__ == "__main__":
     main()
