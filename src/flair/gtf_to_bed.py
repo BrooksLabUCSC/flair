@@ -3,12 +3,22 @@ import sys
 import csv
 import os
 import argparse
+import textwrap
 from bed import Bed, BedBlock, intArraySplit
 
 def main():
-	parser = argparse.ArgumentParser(description='''converts gtf to bed format;
-		gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',
-		usage='gtf_to_bed in.gtf out.bed [options]')
+	parser = argparse.ArgumentParser(
+	formatter_class=argparse.RawDescriptionHelpFormatter,
+	description=textwrap.dedent('''\
+Converts gtf to bed format.
+
+Please note: GTF includes the stop codon  as part of the CDS, which
+this method doesn't catch correctly. You cannot just move the end by 3 bases
+because some genes have split stop codons.
+We don't need this for Flair; if you want to have bed with included CDS, 
+please download http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/gtfToGenePred
+
+        '''))
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('gtf', type=str, help='annotated gtf')
 	required.add_argument('bed', type=str, help='bed file')
@@ -41,7 +51,7 @@ class Gene(object):
 		self.blockList.append(BedBlock(start, end))
 	def write(self, FH, include_gene, thickRegion=None):
 		if include_gene:
-			name = ('_'.join(self.geneID, self.txID))
+			name = ('_'.join([self.geneID, self.txID]))
 		else:
 			name = self.txID
 		blocks = sorted(self.blockList, key=lambda x: x.start)
@@ -64,7 +74,6 @@ def ids_from_gtf(descrField):
 
 
 def gtf_to_bed(outputfile, gtf, include_gene=False):
-	include_gene=False 
 	iso_to_cds = {}
 	geneObj = None
 	with open(outputfile, 'wt') as outfile:
@@ -91,7 +100,7 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
 				continue
 			gene, tx = ids_from_gtf(line[8])
 			if geneObj is None:
-				geneObj = Gene('mygene', tx, chrom, start, end, strand)
+				geneObj = Gene(gene, tx, chrom, start, end, strand)
 			elif geneObj.txID == tx:
 				geneObj.add(start, end)
 			else:
@@ -99,7 +108,7 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
 					geneObj.write(outfile, include_gene, thickRegion = iso_to_cds[geneObj.txID])
 				else:
 					geneObj.write(outfile, include_gene)
-				geneObj = Gene('mygene', tx, chrom, start, end, strand)
+				geneObj = Gene(gene, tx, chrom, start, end, strand)
 
 		# last entry...
 		if geneObj.txID in iso_to_cds:
