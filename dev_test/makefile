@@ -36,7 +36,7 @@ mkdirs :
 
 # FLAIR ALIGN TODO: make tiny input 
 test-align : mkdirs test_input/genome.fa test_input/reads.fq
-	$(FLAIR) align --junction_bed $(SHORTREAD_JUNCTIONS) --reads $(READS_FQ) --genome $(GENOME) --threads 8 --output $O/align
+	$(FLAIR) align --reads $(READS_FQ) --genome $(GENOME) --threads 8 --output $O/align
 	diff <(sort $E/align.bed) <(sort $O/align.bed) > $D/align.diff
 
 # junction_bed improves output dramatically
@@ -49,7 +49,23 @@ test-correct : mkdirs
 	$(FLAIR) correct --query $(UNCORRECTED_READS) --gtf $(ANNOTATION) --genome $(GENOME) --shortread $(SHORTREAD_JUNCTIONS) --threads 8 --output $O/correct
 	diff <(sort $E/correct_all_corrected.bed) <(sort $O/correct_all_corrected.bed) > $D/correct.diff
 	diff <(sort $E/correct_all_inconsistent.bed) <(sort $O/correct_all_inconsistent.bed) > $D/correct.diff
-       
+
+# FLAIR COMBI
+#flair 123 \
+#            -g $ref/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna \
+#            -t 1024 \
+#            -r $input_dir/$sample-gridion-final_pass.fastq.gz \
+#            -f $ref/GCA_000001405.15_GRCh38_full_analysis_set.refseq_annotation.gtf \
+#            -m \
+#            -nvrna \
+#            --generate_map \
+#            --annotated_bed \
+#            -o flair4/$sample-flair.output \
+#            --temp_dir flair4/temp_dir \
+#            --keep_intermediate
+test-flair123 : mkdirs
+	$(FLAIR) 123 --genome $(GENOME) --reads $(READS_FQ) --gtf $(ANNOTATION) -m -nvrna --generate_map --annotated_bed --output $O/flair123 --keep-intermediate
+
 # FLAIR COLLAPSE
 # TODO: Flair can be run without a gtf input but the result is quite bad. Maybe require?
 test-collapse-basic : mkdirs
