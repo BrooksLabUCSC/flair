@@ -43,7 +43,7 @@ class Bed:
 				 "extraCols", "numStdCols")
 
 	def __init__(self, chrom, chromStart, chromEnd, name=None, *, score=None, strand=None,
-				 thickStart=None, thickEnd=None, itemRgb='255,255,255', blocks=None, extraCols=None,
+				 thickStart=None, thickEnd=None, itemRgb='0', blocks=None, extraCols=None,
 				 numStdCols=None):
 		self.chrom = chrom
 		self.chromStart = chromStart
