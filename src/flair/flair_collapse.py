@@ -228,7 +228,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		# intersect with the promoters
 		bedtools_output = args.temp_dir+tempfile_name+'promoter_intersect.bed'
 		bedtools_cmd = ('bedtools', 'intersect', '-a', tss_bedfile, '-b', args.promoters)
-		pipettor.Popen([bedtools_cmd], 'w', stdout=bedtools_output)		
+		pipettor.Popen([bedtools_cmd], 'w', stdout=bedtools_output)
 
 		# select reads that contain promoters
 		precollapse = args.output+'promoter_supported.bed' # filename of promoter-supported, corrected reads
@@ -246,7 +246,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		# intersect with known gene ends
 		bedtools_output = args.temp_dir+tempfile_name+'tes_intersect.bed'
 		bedtools_cmd = ('bedtools', 'intersect', '-a', tes_bedfile, '-b', args.threeprime)
-		pipettor.Popen([bedtools_cmd], 'w', stdout=bedtools_output)	
+		pipettor.Popen([bedtools_cmd], 'w', stdout=bedtools_output)
 
 		# select reads that contain ends
 		precollapse = args.output+'tes_supported.bed' # filename of 3' end-supported, corrected reads
@@ -373,7 +373,12 @@ def collapse(genomic_range='', corrected_reads=''):
 			os.rename(args.output+'firstpass.filtered.bed', args.output+'firstpass.bed')
 
 	# get the isoform sequences for the first pass we just did
-	bed_to_sequence(query=args.output+'firstpass.bed', genome=args.genome, outfilename=args.output+'firstpass.fa')
+	# TODO: make this into a new bed_to_sequence function after testing
+	bedquery = args.output+'firstpass.bed'
+	firstpassfasta = args.output+'firstpass.fa'
+	bedtools_cmd = ('bedtools', 'getfasta', '-nameOnly', '-split', '-fi', args.genome, '-bed', bedquery, '-s')
+	sedcmd = ('sed', 's/(.)$//')
+	pipettor.Popen([bedtools_cmd, sedcmd], 'w', stdout=firstpassfasta)
 
 	# reassign reads to first-pass isoforms
 	if not args.quiet:
@@ -451,8 +456,13 @@ def collapse(genomic_range='', corrected_reads=''):
 				vcfinput=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt', 
 				vcf_out=args.output+'flair.vcf')
 		else:
-			bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome, 
-				outfilename=args.output+'isoforms.fa')
+			#bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome, 
+			#	outfilename=args.output+'isoforms.fa')
+			bedquery = args.output+'isoforms.bed'
+			isoformfasta = args.output+'isoforms.fa'
+			bedtools_cmd = ('bedtools', 'getfasta', '-nameOnly', '-split', '-fi', args.genome, '-bed', bedquery, '-s')
+			sedcmd = ('sed', 's/(.)$//')
+			pipettor.Popen([bedtools_cmd, sedcmd], 'w', stdout=isoformfasta)		
 			
 		# to_sequence_cmd = [sys.executable, path+'bed_to_sequence.py', args.output+'isoforms.bed',
 		# 	args.genome, args.output+'isoforms.fa']
