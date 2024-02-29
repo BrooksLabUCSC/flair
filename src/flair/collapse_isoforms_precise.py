@@ -42,16 +42,13 @@ parser.add_argument('--quiet', default=False, action='store_true',
 	help='suppress output to stderr')
 
 args = parser.parse_args()
-isbed = True
-if args.query[-3:].lower() == 'psl':
-	isbed = False
 
 if args.output:
 	if args.output[-3:].lower() != args.query[-3:].lower():
 		sys.stderr.write('Make sure input and output file extensions agree\n')
 		sys.exit(1)
 else:  # default output name
-	args.output = args.query[:-3]+'collapsed.bed' if isbed else args.query[:-3]+'collapsed.psl'
+	args.output = args.query[:-3]+'collapsed.bed'
 
 # This renaming of arguments is in preparation of turning this program into a function
 queryfile=args.query
@@ -69,7 +66,7 @@ quiet=args.quiet
 
 #def collapse_isoforms_precise(queryfile, max_results=2, window=100, threads=2, clean=False,
 #	minsupport=0.25, gtfname=None, no_redundant='none', nosplice='chrM', isoformtss=False, 
-#	outputfname=None, isbed=True, quiet=False):
+#	outputfname=None, quiet=False):
 
 def get_junctions(line):
 	starts = [int(n) for n in line[20].split(',')[:-1]]
@@ -225,7 +222,7 @@ def iterative_add_se(sedict, chrom, group, se):
 		sedict[chrom][group]['bounds'][1] = sedict[chrom][group]['bounds'][1] + \
 			support*(tes - sedict[chrom][group]['bounds'][1])/sedict[chrom][group]['bounds'][2]
 
-	strand = all_se_by_chrom[chrom][se]['line'][5] if isbed else all_se_by_chrom[chrom][se]['line'][8]
+	strand = all_se_by_chrom[chrom][se]['line'][5]
 	if strand not in sedict[chrom][group]['strand']:
 		sedict[chrom][group]['strand'][strand] = 0
 	sedict[chrom][group]['strand'][strand] += 1
@@ -378,7 +375,7 @@ def run_se_collapse(chrom):
 		locus_info = singleexon[chrom][locus]
 		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'],
 			locus_info['bounds'], chrom, max_results=1)
-		name = line[3] if isbed else line[9]
+		name = line[3]
 		if name not in senames:
 			senames[name] = 0
 		strand = sorted(singleexon[chrom][locus]['strand'].items(),key=lambda x: x[1])[-1][1]
@@ -397,12 +394,8 @@ def run_se_collapse(chrom):
 			all_se_ends[tes] += support
 
 			i = senames[name]
-			if not isbed:
-				edited_line = edit_line(line, tss, tes, tes-tss)
-				edited_line[5] = strand
-			else:
-				edited_line = edit_line_bed12(line, tss, tes, tes-tss)
-				edited_line[8] = strand
+			edited_line = edit_line_bed12(line, tss, tes, tes-tss)
+			edited_line[8] = strand
 			if not clean:
 				edited_line += [support]
 			if i >= 1:  # to avoid redundant names for isoforms from the same general locus
@@ -410,10 +403,7 @@ def run_se_collapse(chrom):
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
 					newname = name+'-'+str(i)
-				if not isbed:
-					edited_line[9] = newname
-				else:
-					edited_line[3] = newname
+				edited_line[3] = newname
 			senames[name] += 1
 			towrite += [edited_line]
 
@@ -423,10 +413,7 @@ def run_se_collapse(chrom):
 	used_ends = {}
 	for line in towrite:
 		line = list(line)
-		if isbed:
-			tss, tes = int(line[1]), int(line[2])
-		else:
-			tss, tes = int(line[15]), int(line[16])
+		tss, tes = int(line[1]), int(line[2])
 		tss_support = all_se_starts[tss]  # current tss
 		for t in reversed(range(tss-window, tss+window)):
 			if t in all_se_starts:
@@ -445,10 +432,7 @@ def run_se_collapse(chrom):
 			if not clean:
 				new_towrite[used_ends[(tss, tes)]][-1] += line[-1]  # support
 			continue
-		if isbed:
-			newline = edit_line_bed12(line, tss, tes)
-		else:
-			newline = edit_line(line, tss, tes)
+		newline = edit_line_bed12(line, tss, tes)
 		new_towrite += [newline]
 	return new_towrite
 
@@ -474,28 +458,19 @@ def run_find_best_sites(chrom):
 			if not clean:
 				line += [(tss_sorted[3]+tes_sorted[3])/2.]
 			tss, tes = tss_sorted[0], tes_sorted[1]
-			if not isbed:
-				towrite[chrom][jset] += [edit_line(line, tss, tes)]
-			else:
-				towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
+			towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
 			continue
 		if isoformtss and no_redundant == 'best_only':
 			tss, tes = jset_ends[0][:2]
 			if not clean:
 				line += [jset_ends[0][3]]
-			if not isbed:
-				towrite[chrom][jset] += [edit_line(line, tss, tes)]
-			else:
-				towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
+			towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
 			continue  # 1 isoform per unique set of junctions
 
 		i = 0
-		name = line[9] if not isbed else line[3]
+		name = line[3]
 		for tss, tes, support, tsscount, tescount in jset_ends:
-			if not isbed:
-				edited_line = edit_line(line, tss, tes)
-			else:
-				edited_line = edit_line_bed12(line, tss, tes)
+			edited_line = edit_line_bed12(line, tss, tes)
 			if not clean:
 				edited_line += [support]
 			if i >= 1:  # to avoid redundant names for isoforms with the same junctions
@@ -503,10 +478,7 @@ def run_find_best_sites(chrom):
 					newname = name[:name.rfind('_')]+'-'+str(i)+name[name.rfind('_'):]
 				else:
 					newname = name+'-'+str(i)
-				if not isbed:
-					edited_line[9] = newname
-				else:
-					edited_line[3] = newname
+				edited_line[3] = newname
 			if isoformtss:
 				towrite[chrom][jset] += [edited_line]
 			else:  # all isoforms will go through another pass to homogenize ends
@@ -531,10 +503,7 @@ def run_find_best_sites(chrom):
 		for line in towrite[chrom][jset]:  # adjust isoform TSS/TES using allends dict
 			line = list(line)
 			junccoord = line[-1]
-			if isbed:
-				tss, tes = int(line[1]), int(line[2])
-			else:
-				tss, tes = int(line[15]), int(line[16])
+			tss, tes = int(line[1]), int(line[2])
 			tss_support = allends[chrom]['tss'][tss]  # current tss
 			for t in reversed(range(tss-window, tss+window)):
 				if t in allends[chrom]['tss']:
@@ -561,16 +530,10 @@ def run_find_best_sites(chrom):
 					endpair[0] = tss if tss < endpair[0] else endpair[0]
 					endpair[1] = tes if tes > endpair[1] else endpair[1]
 				else:
-					if isbed:
-						newline = edit_line_bed12(line, tss, tes)
-					else:
-						newline = edit_line(line, tss, tes)
+					newline = edit_line_bed12(line, tss, tes)
 					new_towrite[chrom][jset] += [newline[:-1]]
 		if endpair[0] != 1e15:  # write best_only or longest option isoforms
-			if isbed:
-				newline = edit_line_bed12(line, endpair[0], endpair[1])
-			else:
-				newline = edit_line(line, endpair[0], endpair[1])
+			newline = edit_line_bed12(line, endpair[0], endpair[1])
 			new_towrite[chrom][jset] += [newline[:-1]]
 	return new_towrite
 
@@ -644,12 +607,8 @@ nosplice_chroms = set(nosplice.split(','))
 query = open(queryfile, 'r')
 for line in query:
 	line = tuple(line.rstrip().split('\t'))
-	if isbed:
-		chrom, tss, tes = line[0], int(line[1]), int(line[2])
-		junctions, junccoord = get_junctions_bed12(line)
-	else:
-		chrom, tss, tes = line[13], int(line[15]), int(line[16])
-		junctions, junccoord = get_junctions(line)
+	chrom, tss, tes = line[0], int(line[1]), int(line[2])
+	junctions, junccoord = get_junctions_bed12(line)
 
 	if not junctions:  # single-exon isoforms
 		if chrom not in all_se_by_chrom:
