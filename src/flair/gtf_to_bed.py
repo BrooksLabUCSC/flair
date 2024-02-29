@@ -51,7 +51,7 @@ class Gene(object):
 		self.blockList.append(BedBlock(start, end))
 	def write(self, FH, include_gene, thickRegion=None):
 		if include_gene:
-			name = ('_'.join([self.geneID, self.txID]))
+			name = ('_'.join([self.txID, self.geneID]))
 		else:
 			name = self.txID
 		blocks = sorted(self.blockList, key=lambda x: x.start)

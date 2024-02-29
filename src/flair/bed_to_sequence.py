@@ -262,6 +262,7 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 		return rev_seq
 
 
+	# TODO: use pysam: https://pysam.readthedocs.io/en/stable/api.html#fasta-files
 	with open(outfilename, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 		seq, chrom = '', ''

@@ -274,14 +274,17 @@ def collapse(genomic_range='', corrected_reads=''):
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
 			args.annotated_bed = args.output+'annotated_transcripts.bed'
 			# gtf to bed
-			gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
+			gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
 
 		if args.annotation_reliant == 'generate':
 			# get transcript sequences
 			args.annotation_reliant = args.output+'annotated_transcripts.fa'
-			bed_to_sequence(query=args.output+'annotated_transcripts.bed', genome=args.genome, 
-				outfilename=args.annotation_reliant)
 
+			bedquery = args.output+'annotated_transcripts.bed'
+			bedtools_cmd = ('bedtools', 'getfasta', '-nameOnly', '-split', '-fi', args.genome, '-bed', bedquery, '-s')
+			# bedtools adds (+) or (-) to the end of the transcript ID, remove that
+			sedcmd = ('sed', 's/(.)$//')
+			pipettor.Popen([bedtools_cmd, sedcmd], 'w', stdout=args.annotation_reliant)		
 
 		# minimap (results are piped into count_sam_transcripts.py)
 		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', args.annotation_reliant] + args.reads
