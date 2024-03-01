@@ -36,14 +36,20 @@ class Bed:
 	"""Object wrapper for a BED record.  ExtraCols is a vector of extra
 	columns to add.  Special columns be added by extending and overriding
 	parse() and toRow(), numColumns to do special handling.
-	For BEDs with extra columns not handled by derived are stored in extraCols
+
+	Columns maybe sparsely specified, with ones up to numStdCols defaulted.
+
+	For BEDs with extra columns not handled by derived are stored in extraCols.
+	If extra columns is a tuple, include namedtuple, it is stored as-is, otherwise
+	a copy is stored.
+
 	"""
 	__slots__ = ("chrom", "chromStart", "chromEnd", "name", "score",
 				 "strand", "thickStart", "thickEnd", "itemRgb", "blocks",
 				 "extraCols", "numStdCols")
 
 	def __init__(self, chrom, chromStart, chromEnd, name=None, *, score=None, strand=None,
-				 thickStart=None, thickEnd=None, itemRgb='0', blocks=None, extraCols=None,
+				 thickStart=None, thickEnd=None, itemRgb=0, blocks=None, extraCols=None,
 				 numStdCols=None):
 		self.chrom = chrom
 		self.chromStart = chromStart
@@ -55,26 +61,33 @@ class Bed:
 		self.thickEnd = thickEnd
 		self.itemRgb = itemRgb
 		self.blocks = copy.copy(blocks)
-		self.extraCols = copy.copy(extraCols)
+		self.extraCols = extraCols if isinstance(extraCols, tuple) else copy.copy(extraCols)
+		self.numStdCols = self._calcNumStdCols(numStdCols)
 
-		if numStdCols is None:
-			# compute based on what is specified
+	def _calcNumStdCols(self, specNumStdCols):
+		# computer based on maximum specified
+		if self.blocks is not None:
+			numStdCols = 12
+		elif self.itemRgb is not None:
+			numStdCols = 9
+		elif self.thickStart is not None:
+			numStdCols = 8
+		elif self.strand is not None:
+			numStdCols = 6
+		elif self.score is not None:
+			numStdCols = 5
+		elif self.name is not None:
+			numStdCols = 4
+		else:
 			numStdCols = 3
-			if name is not None:
-				numStdCols += 1
-			if score is not None:
-				numStdCols += 1
-			if strand is not None:
-				numStdCols += 1
-			if thickStart is not None:
-				numStdCols += 2
-			if thickStart is not None:
-				numStdCols += 2
-			if itemRgb is not None:
-				numStdCols += 1
-			if blocks is not None:
-				numStdCols += 3
-		self.numStdCols = numStdCols
+		if specNumStdCols is not None:
+			if not (3 <= specNumStdCols <= 12):
+				raise Exception(f"numStdCols must be in the range 3 to 12, got {specNumStdCols}")
+			if numStdCols > specNumStdCols:
+				raise Exception(f"numStdCols was specified as {specNumStdCols}, however the arguments supplied require {numStdCols} standard columns")
+			if specNumStdCols > numStdCols:
+				numStdCols = specNumStdCols
+		return numStdCols
 
 	def addBlock(self, start, end):
 		"""add a new block"""
@@ -92,8 +105,6 @@ class Bed:
 		"""Returns the number of columns in the BED when formatted as a row."""
 		# exclude extraCols
 		n = self.numStdCols
-		if n >= 9:
-			n += 2  # blocks take up three columns
 		if self.extraCols is not None:
 			n += len(self.extraCols)
 		return n
@@ -104,27 +115,28 @@ class Bed:
 		for blk in self.blocks:
 			relStarts.append(str(blk.start - self.chromStart))
 			sizes.append(str(len(blk)))
-		return [intArrayJoin(sizes), intArrayJoin(relStarts)]
+		return str(len(self.blocks)), intArrayJoin(sizes), intArrayJoin(relStarts)
+
+	def _defaultBlockColumns(self):
+		return "1", "0,", str(self.chromEnd - self.chromStart) + ','
 
 	def toRow(self):
 		row = [self.chrom, str(self.chromStart), str(self.chromEnd)]
 		if self.numStdCols >= 4:
-			row.append(defaultIfNone(self.name))
+			row.append(str(self.name) if self.name is not None else f"{self.chrom}:{self.chromStart}-{self.chromEnd}")
 		if self.numStdCols >= 5:
 			row.append(defaultIfNone(self.score, 0))
 		if self.numStdCols >= 6:
 			row.append(defaultIfNone(self.strand, '+'))
-		if self.numStdCols >= 7:
-			row.append(defaultIfNone(self.thickStart, self.chromEnd))
 		if self.numStdCols >= 8:
+			row.append(defaultIfNone(self.thickStart, self.chromEnd))
 			row.append(defaultIfNone(self.thickEnd, self.chromEnd))
 		if self.numStdCols >= 9:
-			row.append(str(self.itemRgb))
+			row.append(defaultIfNone(str(self.itemRgb), "0,0,0"))
 		if self.numStdCols >= 10:
-			row.append(str(len(self.blocks)))
-			row.extend(self._getBlockColumns())
+			row.extend(self._getBlockColumns() if self.blocks is not None else self._defaultBlockColumns())
 		if self.extraCols is not None:
-			row.extend([defaultIfNone(c) for c in self.extraCols])
+			row.extend(encodeRow(self.extraCols))
 		return row
 
 	@staticmethod
