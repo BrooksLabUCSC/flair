@@ -12,12 +12,6 @@ def main():
 	description=textwrap.dedent('''\
 Converts gtf to bed format.
 
-Please note: GTF includes the stop codon  as part of the CDS, which
-this method doesn't catch correctly. You cannot just move the end by 3 bases
-because some genes have split stop codons.
-We don't need this for Flair; if you want to have bed with included CDS, 
-please download http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/gtfToGenePred
-
         '''))
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('gtf', type=str, help='annotated gtf')
@@ -27,14 +21,6 @@ please download http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/gtfToGeneP
 	args = parser.parse_args()
 
 	gtf_to_bed(args.bed, args.gtf, args.include_gene)
-
-class Cds(object):
-	def __init__(self, start, end):
-		self.start = start
-		self.end = end
-	def update(self, start, end):
-		self.start = min(start, self.start)
-		self.end = max(end, self.end)
 
 class Gene(object):
 	def __init__(self, gene, tx, chrom, start, end, strand):
@@ -49,33 +35,55 @@ class Gene(object):
 		self.geneStart = min(start, self.geneStart)
 		self.geneEnd = max(end, self.geneEnd)
 		self.blockList.append(BedBlock(start, end))
-	def write(self, FH, include_gene, thickRegion=None):
+	def write(self, FH, include_gene, cdsObject):
 		if include_gene:
 			name = ('_'.join([self.txID, self.geneID]))
 		else:
 			name = self.txID
 		blocks = sorted(self.blockList, key=lambda x: x.start)
-		if thickRegion:
-			bedObj = Bed(self.chrom, self.geneStart, self.geneEnd, name=name, strand=self.strand,
-			blocks=blocks, numStdCols=12, thickStart=thickRegion.start, thickEnd=thickRegion.end)
-		else:
+		if cdsObject is None:
 			bedObj = Bed(self.chrom, self.geneStart, self.geneEnd, name=name, strand=self.strand, 
 			blocks=blocks, numStdCols=12)
+		else:
+			cdsObject.finalize()
+			bedObj = Bed(self.chrom, self.geneStart, self.geneEnd, name=name, strand=self.strand,
+			blocks=blocks, numStdCols=12, thickStart=cdsObject.thickStart, thickEnd=cdsObject.thickEnd)
 		bedObj.write(FH)
 
 
 def ids_from_gtf(descrField):
 	'''Parse the last field of a gtf to extract transcript and gene IDs'''
-
 	pairs = descrField.split("; ")
 	data_dict = {pair.split(" ", 1)[0].strip(): pair.split(" ", 1)[1].strip('"') for pair in pairs}
 	return data_dict['gene_id'], data_dict['transcript_id']
 
-
+class Cds(object):
+	'''We keep track of CDS because GTF puts the stop codon outside the ORF and bed does not.
+	Stop codons may be split, so we cannot just add 3'''
+	def __init__(self, name, strand):
+		self.name = name
+		self.strand = strand
+	def add(self, ty, start, end):
+		if ty == 'stop_codon':
+			# stop codons may be split, and gtf does exclude them from the 
+			# ORF while bed does not
+			self.cdsstop = end if self.strand == '+' else start
+		elif ty == 'CDS':
+			# for the main cds body the strand doesn't matter
+			# but the gtf exons may be in reverse
+			self.start = min(start, self.start) if hasattr(self, 'start') else start
+			self.end = max(end, self.end) if hasattr(self, 'end') else end
+	def finalize(self):
+		'''Not all genes have annotated start and stop codons even if they have CDS'''
+		if self.strand == '+':
+			self.thickStart, self.thickEnd = self.start, getattr(self, 'cdsstop', self.end)
+		elif self.strand == '-':
+			self.thickStart, self.thickEnd = getattr(self, 'cdsstop', self.start), self.end
 
 def gtf_to_bed(outputfile, gtf, include_gene=False):
 	iso_to_cds = {}
 	geneObj = None
+	cdsObj = None
 	with open(outputfile, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
@@ -88,33 +96,31 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
 			line = line.rstrip().split('\t')
 			chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
 
-			# please note: GTF includes the stop codon  as part of the CDS, which
-			# this method doesn't catch correctly. You cannot just move the end by 3 bases
-			# because some genes have split stop codons.
-#			if ty == 'CDS':
-#				if tx not in iso_to_cds:
-#					iso_to_cds[tx] = Cds(start, end)
-#				else:
-#					iso_to_cds[tx].update(start, end)
-			if ty != 'exon':
+			if ty in ['gene', 'transcript', 'UTR', 'start_codon']:
 				continue
+
 			gene, tx = ids_from_gtf(line[8])
 			if geneObj is None:
 				geneObj = Gene(gene, tx, chrom, start, end, strand)
+				if ty in ['CDS', 'stop_codon']: 
+					if cdsObj is None:
+						cdsObj = Cds(tx, strand)
+					cdsObj.add(ty, start, end)
 			elif geneObj.txID == tx:
-				geneObj.add(start, end)
+				if ty in ['CDS', 'stop_codon']: 
+					if cdsObj is None:
+						cdsObj = Cds(tx, strand)
+					cdsObj.add(ty, start, end)
+				elif ty == 'exon':
+					geneObj.add(start, end)
+			# this line is a new gene, so print the previous
 			else:
-				if geneObj.txID in iso_to_cds:
-					geneObj.write(outfile, include_gene, thickRegion = iso_to_cds[geneObj.txID])
-				else:
-					geneObj.write(outfile, include_gene)
+				geneObj.write(outfile, include_gene, cdsObj)
 				geneObj = Gene(gene, tx, chrom, start, end, strand)
+				cdsObj = None
 
 		# last entry...
-		if geneObj.txID in iso_to_cds:
-			geneObj.write(outfile, include_gene, thickRegion = iso_to_cds[geneObj.txID])
-		else:
-			geneObj.write(outfile, include_gene)
+		geneObj.write(outfile, include_gene, cdsObj)
 
 
 if __name__ == "__main__":
