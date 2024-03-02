@@ -6,6 +6,7 @@ import argparse
 import math
 import os
 from multiprocessing import Pool
+from bed import Bed, BedBlock
 
 parser = argparse.ArgumentParser(description='collapse parse options',
 			usage='python collapse_isoforms_precise.py -q <query.psl>/<query.bed> [options]')
@@ -100,108 +101,6 @@ def overlap(coord0, coord1, tol=0):
 		#(coord0[1] - coord1[0])/(coord1[1] - coord1[0]) / 2
 	return isoverlap, 0
 
-
-def bin_search(query, data):
-	""" Query is a coordinate interval. Approximate binary search for the query in sorted data,
-	which is a list of coordinates. Finishes when the closest overlapping value of query and
-	data is found and returns the index in data. """
-	i = int(math.floor(len(data)/2))  # binary search prep
-	lower, upper = 0, len(data)
-	if not upper:
-		return -1
-	tried = set()
-	rightfound = ''  # null value in place of 0, which is a valid value for rightfound
-	while not (data[i][0] <= query[0] and data[i][1] >= query[0]):  # query left coordinate not found in data yet
-		if data[i][0] <= query[1] and data[i][1] >= query[1]:  # query right found, will keep looking for left
-			rightfound = i
-		if data[i][1] < query[0]:  # i is too low of an index
-			lower = i
-			i = int(math.floor((lower + upper)/2.))
-		else:  # i is too high of an index
-			upper = i
-			i = int(math.floor((lower + upper)/2.))
-
-		if i in tried or i == upper:
-			if data[i][0] >= query[0] and data[i][1] <= query[1]: # data interval sandwiched inside query
-				break
-			elif i + 1 < len(data) and data[i+1][0] > query[0] and data[i+1][1] < query[1]:  # data can be incremented
-				i = i + 1
-			else:
-				i = rightfound if rightfound != '' else -1
-			break
-		tried.add(i)
-	return i
-
-
-# unused
-#def interval_insert(query, data):
-#	i = int(round(len(data)/2))
-#	lower, upper = 0, len(data)
-#	if not upper:
-#		return [query]
-#	while True:
-#		if data[i][0] <= query[0]:  # i is too low of an index
-#			lower = i
-#			i = int(math.floor((lower + upper)/2.))
-#			if i == lower:
-#				break
-#		elif data[i][0] >= query[0]:  # i is too high of an index
-#			upper = i
-#			i = int(math.floor((lower + upper)/2.))
-#			if i == upper:
-#				i = -1
-#				break
-#	data = data[:i+1] + [query] + data[i+1:]
-#	return data
-#
-#def add_se(sedict, tss, tes, line, sedictkeys, support=1):
-#	loci = {}  # altered loci
-#	c = bin_search((tss, tes), sedictkeys)
-#	if c != -1:  # found
-#		for coord in sedictkeys[c:]:  # coordinates of a locus of single-exon reads
-#			if overlap((tss, tes), coord):
-#				if tss not in sedict[coord]['tss']:
-#					sedict[coord]['tss'][tss] = 0
-#				if tss not in sedict[coord]['tss_tes']:
-#					sedict[coord]['tss_tes'][tss] = {}
-#				if tes not in sedict[coord]['tss_tes'][tss]:
-#					sedict[coord]['tss_tes'][tss][tes] = 0
-#				if not loci:
-#					sedict[coord]['tss'][tss] += support  # add tss/tes data to existing locus
-#					sedict[coord]['tss_tes'][tss][tes] += support
-#					newcoord = tss if tss < coord[0] else coord[0], tes if tes > coord[1] else coord[1]
-#					loci[newcoord] = sedict.pop(coord)
-#				else:
-#					newlocus = sedict.pop(coord)
-#					oldlocus = list(loci.keys())[0]  # previous locus the tss/tes overlapped with
-#					if tss in newlocus['tss']:
-#						newlocus['tss'][tss] += support
-#						if tes in newlocus['tss_tes'][tss]:
-#							newlocus['tss_tes'][tss][tes] += support
-#						else:
-#							newlocus['tss_tes'][tss][tes] = loci[oldlocus]['tss_tes'][tss][tes] + support
-#					loci[oldlocus]['tss_tes'].update(newlocus['tss_tes'])  # combine previous and current loci
-#					loci[oldlocus]['tss'].update(newlocus['tss'])
-#					newcoord = oldlocus[0] if oldlocus[0] < coord[0] else coord[0],\
-#						oldlocus[1] if oldlocus[1] > coord[1] else coord[1]  # combined locus name
-#					loci[newcoord] = loci.pop(oldlocus)  # add all info under combined locus name
-#			else:
-#				break
-#		sedict.update(loci)
-#		sedictkeys = sorted(sedict.keys(), key=lambda x: x[0])
-#	else:  # define new locus
-#		locus = (tss,tes)
-#		sedict[locus] = {}
-#		sedict[locus]['tss'] = {}
-#		sedict[locus]['tss'][tss] = support
-#		sedict[locus]['tss_tes'] = {}
-#		sedict[locus]['tss_tes'][tss] = {}
-#		sedict[locus]['tss_tes'][tss][tes] = support
-#		sedict[locus]['line'] = line
-#		sedict[locus]['bounds'] = (tss, tes)
-#		sedictkeys = interval_insert((tss,tes),sedictkeys)
-#	return sedict, sedictkeys
-#
 
 def iterative_add_se(sedict, chrom, group, se):
 	tss, tes = se[0], se[1]
@@ -365,11 +264,13 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 
 
 def run_se_collapse(chrom):
+	'''Collapse single exon isoforms'''
 	senames = {}
 	towrite = []
 	used_ends = {}
 	all_se_starts = {}
 	all_se_ends = {}
+	bedObjs = []
 	for locus in singleexon[chrom]:
 		line = list(singleexon[chrom][locus]['line'])
 		locus_info = singleexon[chrom][locus]
@@ -394,6 +295,7 @@ def run_se_collapse(chrom):
 			all_se_ends[tes] += support
 
 			i = senames[name]
+		#	print('from single exon, sending', tes, tss, tes-tss, file=sys.stderr)
 			edited_line = edit_line_bed12(line, tss, tes, tes-tss)
 			edited_line[8] = strand
 			if not clean:
@@ -432,6 +334,7 @@ def run_se_collapse(chrom):
 			if not clean:
 				new_towrite[used_ends[(tss, tes)]][-1] += line[-1]  # support
 			continue
+	#	print('from towrite, sending', tss, tes, file=sys.stderr)
 		newline = edit_line_bed12(line, tss, tes)
 		new_towrite += [newline]
 	return new_towrite
@@ -445,6 +348,7 @@ def run_find_best_sites(chrom):
 	allends[chrom]['tes'] = {}
 	towrite = {}  # isoforms to be written
 	towrite[chrom] = {}
+	bedObjs = []
 	for jset in isoforms[chrom]:  # unique splice junction chain
 		towrite[chrom][jset] = []
 		line = list(isoforms[chrom][jset]['line'])
@@ -458,18 +362,33 @@ def run_find_best_sites(chrom):
 			if not clean:
 				line += [(tss_sorted[3]+tes_sorted[3])/2.]
 			tss, tes = tss_sorted[0], tes_sorted[1]
+			print('from jset longest', tss, tes, file=sys.stderr)
 			towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
+			# TODO: remove this
+			ding = edit_line_bed12(line, tss, tes)
+			if len(ding) > 12:
+				bedObjs.append(Bed.parse(ding[:13], numStdCols=12))
+			else:
+				bedObjs.append(Bed.parse(ding))
 			continue
 		if isoformtss and no_redundant == 'best_only':
 			tss, tes = jset_ends[0][:2]
 			if not clean:
 				line += [jset_ends[0][3]]
+			print('from jset best_only', tss, tes, file=sys.stderr)
 			towrite[chrom][jset] += [edit_line_bed12(line, tss, tes)]
+			# TODO: remove this
+			ding = edit_line_bed12(line, tss, tes)
+			if len(ding) > 12:
+				bedObjs.append(Bed.parse(ding[:13], numStdCols=12))
+			else:
+				bedObjs.append(Bed.parse(ding))
 			continue  # 1 isoform per unique set of junctions
 
 		i = 0
 		name = line[3]
 		for tss, tes, support, tsscount, tescount in jset_ends:
+		#	print('from jset overall, sending', tss, tes, file=sys.stderr)
 			edited_line = edit_line_bed12(line, tss, tes)
 			if not clean:
 				edited_line += [support]
@@ -481,8 +400,19 @@ def run_find_best_sites(chrom):
 				edited_line[3] = newname
 			if isoformtss:
 				towrite[chrom][jset] += [edited_line]
+				# TODO: remove this
+				if clean:
+					bedObjs.append(Bed.parse(edited_line[:12]))
+				else:
+					bedObjs.append(Bed.parse(edited_line[:13], numStdCols=12))
+
 			else:  # all isoforms will go through another pass to homogenize ends
 				towrite[chrom][jset] += [edited_line + [junccoord]]
+				# TODO: remove this
+				if clean:
+					bedObjs.append(Bed.parse(edited_line[:12]))
+				else:
+					bedObjs.append(Bed.parse(edited_line[:13], numStdCols=12))
 				if tss not in allends[chrom]['tss']:
 					allends[chrom]['tss'][tss] = 0
 				allends[chrom]['tss'][tss] += tsscount
@@ -492,8 +422,10 @@ def run_find_best_sites(chrom):
 			if no_redundant != 'longest':
 				i += 1
 	if isoformtss:
-		return towrite
+		return bedObjs
+		#return towrite
 
+	bedObjs = []
 	new_towrite = {}  # another pass through all isoforms, moving tss/tes to be more uniform within a gene
 	new_towrite[chrom] = {}
 	for jset in towrite[chrom]:
@@ -530,39 +462,36 @@ def run_find_best_sites(chrom):
 					endpair[0] = tss if tss < endpair[0] else endpair[0]
 					endpair[1] = tes if tes > endpair[1] else endpair[1]
 				else:
+		#			print('from unfound, sending', tss, tes, file=sys.stderr)
 					newline = edit_line_bed12(line, tss, tes)
+					if clean:
+						bedObjs.append(Bed.parse(newline[:12]))
+					else:
+						bedObjs.append(Bed.parse(newline[:13], numStdCols=12))
 					new_towrite[chrom][jset] += [newline[:-1]]
 		if endpair[0] != 1e15:  # write best_only or longest option isoforms
+			print('endpair', tss, tes, file=sys.stderr)
 			newline = edit_line_bed12(line, endpair[0], endpair[1])
 			new_towrite[chrom][jset] += [newline[:-1]]
-	return new_towrite
+			if clean:
+				bedObjs.append(Bed.parse(newline[:12]))
+			else:
+				bedObjs.append(Bed.parse(newline[:13], numStdCols=12))
+	return bedObjs
 
-
-def edit_line(line, tss, tes, blocksize=''):
-	line = list(line)
-	if blocksize:  # single exon transcript
-		line[18] = str(blocksize) + ','
-		line[20] = str(tss) + ','
-		line[15] = tss
-		line[16] = tes
-		return line
-	bsizes = [int(x) for x in line[18].split(',')[:-1]]
-	bstarts = [int(x) for x in line[20].split(',')[:-1]]
-	tstart = int(line[15])  # current chrom start
-	tend = int(line[16])
-	bsizes[0] += tstart - tss
-	bsizes[-1] += tes - tend
-	bstarts[0] = tss
-	line[15] = tss
-	line[16] = tes
-	line[18] = ','.join([str(x) for x in bsizes])+','
-	line[20] = ','.join([str(x) for x in bstarts])+','
-	return line
+def bed_format(bedfields, start, end, singleExon=False):
+	if singleExon is True:
+		bedObj = Bed( [BedBlock(start, end)])
 
 
 def edit_line_bed12(line, tss, tes, blocksize=''):
+	# for single exons this is mostly a a bed line, but multiexon has a bunch of extra fields.
+	# the code as is pretends that everything is ORF, which isn't right.
 	line = list(line)
 	if blocksize:
+		bedObj = Bed(line[0], int(line[1]), int(line[2]), name=line[3], strand=line[5], 
+			blocks=[BedBlock(tss, tes)], thickStart=int(tss), thickEnd=int(tes), numStdCols=12) 
+		
 		line[10] = str(blocksize) + ','
 		line[11] = '0,'
 		line[1] = line[6] = tss
@@ -651,12 +580,15 @@ chrom_names = []  # sorted by descending total number of unique single-exon isof
 for chrom in all_se_by_chrom:
 	chrom_names += [(chrom, len(all_se_by_chrom[chrom]))]
 chrom_names = [chrom for chrom,num in sorted(chrom_names, key=lambda x: x[1], reverse=True)]
-res = {}
-if __name__ == '__main__':
-	p = Pool(threads)
-	res = p.map(run_iterative_add_se, chrom_names)
-	p.close()
-	p.join()
+res = []
+#if __name__ == '__main__':
+#	p = Pool(threads)
+#	res = p.map(run_iterative_add_se, chrom_names)
+#	p.close()
+#	p.join()
+for chrom in chrom_names:
+	res.append(run_iterative_add_se(chrom))
+
 all_se_by_chrom = None
 
 singleexon = {}  # single-exon isoforms
@@ -666,30 +598,24 @@ for r in res:  # combine results
 if not quiet:
 	sys.stderr.write('Single-exon genes grouped, collapsing\n')
 
+# print all the results to a bed file. 
+# nb: this does not output a sorted file
 with open(outputfname, 'wt') as outfile:
-	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
-	if __name__ == '__main__':
-		p = Pool(threads)
-		res = p.map(run_se_collapse, chrom_names)
-		p.close()
-		p.join()
-	singleexon = None
+	# single exon genes 
+	res = []
+	for chrom in chrom_names:
+		outlines = run_se_collapse(chrom)
+		for edited_line in outlines:
+			if clean:
+				bedObject = Bed.parse(edited_line[:12])
+			else:
+				bedObject = Bed.parse(edited_line[:13], numStdCols=12)
+			bedObject.write(outfile)
 
-	for r in res:
-		for edited_line in r:
-			writer.writerow(edited_line)
-
-	if __name__ == '__main__':
-		p = Pool(threads)
-		res = p.map(run_find_best_sites, list(isoforms.keys()))
-		p.close()
-		p.join()
-	isoforms = None
-
-	for towrite in res:
-		for chrom in towrite:
-			for jset in towrite[chrom]:
-				for iso in towrite[chrom][jset]:
-					writer.writerow(iso)
-
+	# multiexon genes
+	res = []
+	for chrom in isoforms.keys():
+		bedObjs = run_find_best_sites(chrom)
+		[b.write(outfile) for b in bedObjs]
+	
