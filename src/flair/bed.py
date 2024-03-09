@@ -21,6 +21,11 @@ def defaultIfNone(v, dflt=""):
 	# also converts to a string
 	return str(v) if v is not None else str(dflt)
 
+def encodeRow(row):
+	"""convert a list of values to a list of strings, making None empty otherwise ensure it is
+	"""
+	return [str(v) if v is not None else "" for v in row]
+
 class BedBlock(namedtuple("Block", ("start", "end"))):
 	"""A block in the BED.  Coordinates are absolute, not relative and are transformed on write.
 	"""
@@ -234,8 +239,26 @@ class Bed:
 		else:
 			return sum([len(b) for b in self.blocks])
 
-	def write(self, fh):
+	def getGaps(self):
+		"""return a tuple of BedBlocks for the coordinates of the gaps between
+		the blocks, which are often introns"""
+		gaps = []
+		prevBlk = None
+		for blk in self.blocks:
+			if prevBlk is not None:
+				gaps.append(BedBlock(prevBlk.end, blk.start))
+			prevBlk = blk
+		return tuple(gaps)
+
+	@property
+	def istring(self):
+		"""return introns as a string"""
+		return '_'.join(str(i) for i in self.getGaps())
+
+	def write(self, fh, noCDS=False):
 		"""write BED to a tab-separated file"""
+		if noCDS:
+			self.thickStart, self.thickEnd = self.chromStart, self.chromStart
 		fh.write(str(self))
 		fh.write('\n')
 

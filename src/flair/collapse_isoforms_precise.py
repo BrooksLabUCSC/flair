@@ -18,7 +18,7 @@ parser.add_argument('-o', '--output', type=str,
 parser.add_argument('-w', '--window', default=100, type=int,
 	 help='window size for grouping TSS/TES (100)')
 parser.add_argument('-s', '--support', default=0.25, type=float, 
-	help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
+	help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.25)')
 parser.add_argument('-f', '--gtf', type=str,
 	 help='GTF annotation file for selecting annotated TSS/TES')
 parser.add_argument('-m', '--max_results', default=2, type=int, 
@@ -69,58 +69,74 @@ quiet=args.quiet
 #	minsupport=0.25, gtfname=None, no_redundant='none', nosplice='chrM', isoformtss=False, 
 #	outputfname=None, quiet=False):
 
-def get_junctions(line):
-	starts = [int(n) for n in line[20].split(',')[:-1]]
-	sizes = [int(n) for n in line[18].split(',')[:-1]]
-	if len(starts) == 1:
-		return 0, 0
-	junctions = set()
-	for b in range(len(starts)-1):
-		junctions.add((starts[b]+sizes[b], starts[b+1]))
-	return junctions, (starts[0]+sizes[0], starts[-1])
-
-
 def get_junctions_bed12(line):
-	chrstart = int(line[1])
-	starts = [int(n) + chrstart + 1 for n in line[11].split(',')[:-1]]
-	sizes = [int(n) - 1 for n in line[10].split(',')[:-1]]
-	if len(starts) == 1:
+	'''Returns set of intron tuples and start of first, end of last intron'''
+	# TODO: tuples are in order, no need to make a set.
+	bedObj = Bed.parse(line)
+	intronBlocks = bedObj.getGaps()
+	if len(intronBlocks) == 0:
 		return 0, 0
-	junctions = set()
-	for b in range(len(starts)-1):
-		junctions.add((starts[b]+sizes[b], starts[b+1]))
-	return junctions, (starts[0]+sizes[0], starts[-1])
+	# change the bedBlocks into tuples
+	# TODO: end is probably correct, check that +1 isn't necessary
+	junctions = set([(i.start, i.end+1) for i in intronBlocks])
+	return junctions, (intronBlocks[0].start, intronBlocks[-1].end +1)
 
 
-def overlap(coord0, coord1, tol=0):
+def overlap(coord0, coord1):
+	'''Takes in two lists, each with a startpoint and endpoint in genome coordinates. coord1 has those in floats, 
+	and may contain non-whole numbers; it also has a third entry that's probably a read count, 
+	but it is not used or returned.
+	The list are ordered so the one with the lower startpoint comes first, and then the code
+	determines if there is overlap. If there is, it calculates the fraction of the first range
+	that is part of the overlap and returns True and that fraction.
+	If there is no overlap, returns False and 0'''
+	# coord1 looks like [20188190.0, 20189088.5, 4] # the last one is probably read count
+	# I don't know why there's a .5 there sometimes.
+	# coord0 is just two coordinates
 	if coord1[0] < coord0[0]:
 		coord0, coord1 = coord1, coord0
-	isoverlap = coord0[0] <= coord1[0] and coord1[0] <= coord0[1] - tol
+	isoverlap = coord0[0] <= coord1[0] and coord1[0] <= coord0[1]
+	# (min(coord0[1], coord1[1])  # minimum of endpos of both ranges A
+	# minus coord1[0]) # startpoint of higher range (the overlap point) B divided by
+	# coord0[1] - coord0[0]) # the endpoint of the lower range minus the startpoint of that range
 	if isoverlap:
 		return isoverlap, (min(coord0[1], coord1[1]) - coord1[0])/(coord0[1] - coord0[0])# + \
 		#(coord0[1] - coord1[0])/(coord1[1] - coord1[0]) / 2
 	return isoverlap, 0
 
 
+# oh my, please make a class here. I beg you.
 def iterative_add_se(sedict, chrom, group, se):
+	'''sedict: chroms as keys. Chroms are dicts with (numbered) groups. 
+	Groups have start, size, bounds, support (coverage), strand, and bed format.'''
 	tss, tes = se[0], se[1]
-	support = all_se_by_chrom[chrom][se]['count']
+	support = all_se_by_chrom[chrom][se]['count'] # number of identical reads
 	if group not in sedict[chrom]:
 		sedict[chrom][group] = {}
 		sedict[chrom][group]['tss'] = {}
 		sedict[chrom][group]['tss_tes'] = {}
 		sedict[chrom][group]['bounds'] = [float(tss), float(tes), support]
-		sedict[chrom][group]['line'] = all_se_by_chrom[chrom][se]['line']
+		sedict[chrom][group]['line'] = all_se_by_chrom[chrom][se]['line'] # original bed format
 		sedict[chrom][group]['strand'] = {}
+	# if the group exists, find the current mean start and end of it, update bounds with that info
 	else:  # calculate mean tss and tes of this group
+		# this isoform starts or ends inside the current group, which I think means it's on the oppo strand 
 		if tss > sedict[chrom][group]['bounds'][1] or tes > sedict[chrom][group]['bounds'][1] + window:
 			return sedict, False
 		sedict[chrom][group]['bounds'][2] += support
+		# the comparison is ordered by start site, so this new transcript falls inside the group
+		# but has a higher start. Recalculate the start, using support as weight
+#		sedict[chrom][group]['bounds'][0] # tss for this group
+#		= sedict[chrom][group]['bounds'][0]  # tss for this group plus   + \
+#		support (read counts) times (tss (new se tss) minus existing group tss)  
+#		divided by /
+#		sedict[chrom][group]['bounds'][2] # existing support for the group
 		sedict[chrom][group]['bounds'][0] = sedict[chrom][group]['bounds'][0] + \
 			support*(tss - sedict[chrom][group]['bounds'][0])/sedict[chrom][group]['bounds'][2]
 		sedict[chrom][group]['bounds'][1] = sedict[chrom][group]['bounds'][1] + \
 			support*(tes - sedict[chrom][group]['bounds'][1])/sedict[chrom][group]['bounds'][2]
 
+	# now that we have a group, add info we don't already have.
 	strand = all_se_by_chrom[chrom][se]['line'][5]
 	if strand not in sedict[chrom][group]['strand']:
 		sedict[chrom][group]['strand'][strand] = 0
@@ -132,43 +148,55 @@ def iterative_add_se(sedict, chrom, group, se):
 	sedict[chrom][group]['tss'][tss] += support
 
 	if tes not in sedict[chrom][group]['tss_tes'][tss]:
-		sedict[chrom][group]['tss_tes'][tss][tes] = 0
+		sedict[chrom][group]['tss_tes'][tss][tes] = 0 	
 	sedict[chrom][group]['tss_tes'][tss][tes] += support
 	return sedict, True
 
 
-def run_iterative_add_se(chrom):  # add single exon genes iteratively, assumes that reads are sorted
+def run_iterative_add_se(chrom):  
+	'''Adds single exon genes iteratively, assumes that reads are sorted
+	Returns a dictionary with chroms as keys. Each chrom has groups that represent
+	a nonoverlapping single exon isoform (start, end, strand) and its support'''
 	group = 0  # group number
 	sedict = {}
 	sedict[chrom] = {}
-	se_ordered = all_se_by_chrom[chrom].keys()
-	se_ordered = sorted(se_ordered, key=lambda x: x[1])
+	se_ordered = all_se_by_chrom[chrom].keys() # start and endpos of all single exon reads
+	#se_ordered = sorted(se_ordered, key=lambda x: x[1]) # this gets overwritten by the next statement
 	se_ordered = sorted(se_ordered, key=lambda x: x[0])
 	sedict, added = iterative_add_se(sedict, chrom, group, se_ordered[0])
+	# loop over the single exon genes and merge if they overlap 
 	for se in se_ordered[1:]:
-		overlapped_loci = []
+		overlapped_loci = [] # all groups that are overlapped by this isoform
 		#overlapped_intervals = [] # unused
+		# looking at the last maximum 6 groups, starting with the most recent
 		for g in reversed(range(max(0, group-6), group+1)):
+			# for each group, see if the current isoform overlaps it, and by how much
 			isoverlap, coverage = overlap(se, sedict[chrom][g]['bounds'])
 			if isoverlap:
+				# add the group and amount of coverage to the list of overlaps
 				overlapped_loci += [(g, coverage)]
 			else:
+				# if we reach a group with no overlap, stop trying
 				break
-
+		# sort the overlapped groups by level of coverage, highest first
 		overlapped_loci = sorted(overlapped_loci, key=lambda x: x[1], reverse=True)
 		added = False
+		# 
 		for loci in overlapped_loci:
 			g = loci[0]
 			sedict, added = iterative_add_se(sedict, chrom, g, se)
 			if added:
 				break
 		if not added:
+			# make a new group
 			group += 1
 			sedict, added = iterative_add_se(sedict, chrom, group, se)
 	return sedict
 
 
 def find_best_tss(sites, finding_tss, remove_used):
+	'''Selects best site from input, removes its entry and all within
+	a window from the sites dict and returns that too'''
 	nearby = dict.fromkeys(sites, 0)  # key: site, value: number of supporting reads in window
 	wnearby = dict.fromkeys(sites, 0)  # key: site, value: weighted number of supporting reads in window
 	bestsite = [0, 0, 0, 0]  # TSS position, wnearby value, nearby value, number of supporting reads
@@ -176,7 +204,7 @@ def find_best_tss(sites, finding_tss, remove_used):
 		orderedsites = sorted(list(sites.keys()))  # this prioritizes the longer in case of ties
 	else:
 		orderedsites = sorted(list(sites.keys()), reverse=True)
-	for s in orderedsites:  # calculate the auxiliary support this site within window
+	for s in orderedsites:  # calculate the auxiliary support of this site within window
 		for s_ in sites:
 			if s == s_:
 				nearby[s] += sites[s]
@@ -199,12 +227,19 @@ def find_tsss(sites, total, finding_tss=True, max_results=2, chrom='', junccoord
 	assumptions are changed to search specifically for TESs. I also assume that the correct
 	splice site will be the more represented, so measures to filter out degraded reads are
 	recommended. """
+	#sites is a dict with locations and counts
+	# total is the total read count for this group
+	# junccoord is the bounds item, with tss, tes, and count
+	# it returns the selected tss, <>, the total reads for this locus, and how many read support the chosen locus
+	#print(sites, total, finding_tss, max_results, chrom, junccoord, remove_used)
 	remaining = float(sum(list(sites.values())))  # number isoforms with these junctions
 	found_tss = []  # TSSs found
-	#used_annotated = set() # unused
 	avg = remaining / (len(sites))
+	# minsupport is 0.25 by default
 	while ((minsupport < 1 and remaining/total > minsupport) or remaining >= minsupport) and \
 			len(found_tss) < max_results:
+		# are you KIDDING ME. Why is this such a hairball?!
+		# selects best tss bsed on weighing the reads supporting each
 		sites, bestsite = find_best_tss(sites, finding_tss, remove_used)
 		newremaining = sum(list(sites.values()))
 		used = remaining - newremaining
@@ -236,14 +271,9 @@ def find_best_sites(sites_tss_all, sites_tes_all, junccoord, chrom='', max_resul
 	junccoord is coordinate of the isoform's first splice site and last splice site"""
 
 	total = float(sum(list(sites_tss_all.values())))  # total number of reads for this splice junction chain
-	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
-	# 	print('--', junccoord)
-	# 	print(sites_tss_all)
 	found_tss = find_tsss(sites_tss_all, total, finding_tss=True, max_results=max_results,
 		chrom=chrom, junccoord=junccoord)
-	# if junccoord in [(36178823, 36180248), (36179025, 36180248)]:
-	# 	print(found_tss)
-	if not found_tss:
+	if not found_tss:  # doesn't happen?
 		return ''
 
 	ends = []
@@ -271,8 +301,10 @@ def run_se_collapse(chrom):
 	all_se_starts = {}
 	all_se_ends = {}
 	bedObjs = []
+	# locus is called group elsewhere
 	for locus in singleexon[chrom]:
-		line = list(singleexon[chrom][locus]['line'])
+		line = list(singleexon[chrom][locus]['line']) # bed format
+		# locus info is start, end strand, etc
 		locus_info = singleexon[chrom][locus]
 		ends = find_best_sites(locus_info['tss'], locus_info['tss_tes'],
 			locus_info['bounds'], chrom, max_results=1)
@@ -341,7 +373,6 @@ def run_se_collapse(chrom):
 
 
 def run_find_best_sites(chrom):
-
 	allends = {}  # counts of all TSSs/TESs by chromosome
 	allends[chrom] = {}
 	allends[chrom]['tss'] = {}
@@ -611,7 +642,10 @@ with open(outputfname, 'wt') as outfile:
 				bedObject = Bed.parse(edited_line[:12])
 			else:
 				bedObject = Bed.parse(edited_line[:13], numStdCols=12)
-			bedObject.write(outfile)
+			try:
+				bedObject.write(outfile)
+			except:
+				print(edited_line)
 
 	# multiexon genes
 	res = []

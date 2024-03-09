@@ -7,6 +7,7 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import tempfile
 import glob
 import pipettor
+import time # todo: remove
 # TODO: put all of these in utils.py
 from pull_starts import pull_starts
 from select_from_bed import select_from_bed
@@ -128,6 +129,10 @@ def collapse(genomic_range='', corrected_reads=''):
 		query = corrected_reads
 	else:
 		query = args.query
+
+              
+	print(f"Starting collapse...", flush=True)
+	last_time = time.time()
 
 	# housekeeping stuff
 	tempfile_dir = tempfile.NamedTemporaryFile().name
@@ -333,6 +338,9 @@ def collapse(genomic_range='', corrected_reads=''):
 	gtfname = None
 	if args.gtf and not args.no_end_adjustment:
 		gtfname=args.gtf
+	cur_time = time.time()
+	print(f"Prep took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 
 	# TODO: collapse_isoforms_precise uses pool and map, which makes it difficult to capture in a function
 	collapse_cmd = ['collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.threads),
@@ -347,6 +355,9 @@ def collapse(genomic_range='', corrected_reads=''):
 	collapse_cmd = tuple(collapse_cmd)
 	pipettor.run([collapse_cmd])
 
+	cur_time = time.time()
+	print(f"Collapse precise took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 
 	# filtering out subset isoforms with insufficient support
 	keep_extra_column = False
@@ -379,6 +390,9 @@ def collapse(genomic_range='', corrected_reads=''):
 	bedtools_cmd = ('bedtools', 'getfasta', '-nameOnly', '-split', '-fi', args.genome, '-bed', bedquery, '-s')
 	sedcmd = ('sed', 's/(.)$//')
 	pipettor.Popen([bedtools_cmd, sedcmd], 'w', stdout=firstpassfasta)
+	cur_time = time.time()
+	print(f"Getfasta took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 
 	# reassign reads to first-pass isoforms
 	if not args.quiet:
@@ -390,6 +404,9 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.mm2_args:
 		args.mm2_args = args.mm2_args.split(',')
 	mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + [args.output+'firstpass.fa'] + args.reads
+	cur_time = time.time()
+	print(f"minimap took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 
 	# count the number of supporting reads for each first-pass isoform
 	count_file = args.output+'firstpass.q.counts'
@@ -411,6 +428,9 @@ def collapse(genomic_range='', corrected_reads=''):
 		sys.stderr.write('Aligning reads to firstpass transcripts\n')
 		sys.stderr.write('Counting supporting reads for firstpass transcripts\n')
 	pipettor.run([mm2_cmd, count_cmd]) 
+	cur_time = time.time()
+	print(f"minimap plus count took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 
 	if not args.quiet:
 		sys.stderr.write('Filtering isoforms by read coverage\n')
@@ -424,6 +444,9 @@ def collapse(genomic_range='', corrected_reads=''):
 		isoform_file = args.output+'isoform.read.map.txt'
 	match_counts(counts_file=count_file, output_file=mc_output, psl=firstpassbed, min_reads=min_reads, 
 	      isoform_file = isoform_file)
+	cur_time = time.time()
+	print(f"match counts took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 
 	if args.annotation_reliant:
 		# filter the collapsed isoforms from the annotation
@@ -481,6 +504,9 @@ def collapse(genomic_range='', corrected_reads=''):
 		files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
 		#subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
 		#subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
+	cur_time = time.time()
+	print(f"Final step took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+	last_time = cur_time
 	return [args.output+'isoforms.bed', args.output+'isoforms.fa']
 
 if __name__ == "__main__":
