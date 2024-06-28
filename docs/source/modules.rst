@@ -195,6 +195,28 @@ the greatest number of splice junctions shared with the isoform. If
 there are no genes in the annotation which can be assigned to the
 isoform, a genomic coordinate is used (e.g. ``chr*:100000``).
 
+Recommended uses
+--------------
+
+**Human**
+
+The following are the recommended options to run FLAIR to increase performance on known and novel transcripts. These are the options used for submission to the Long-read RNA-Seq Genome Annotation Assessment Project systematic evaluation, which showed that FLAIR is a top-performing tool: `Pardo-Palacios et al. Nature Methods 2024 <https://doi.org/10.1038/s41592-024-02298-3>`__.
+
+.. code:: text
+
+    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
+    --stringent --check_splice --generate_map --annotation_reliant generate
+
+For novel isoform discovery in organisms with more unspliced transcripts and more overlapping genes, we recommend using a combination of options to capture more transcripts. For example:
+
+**Yeast** 
+
+.. code:: text
+
+    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
+    --stringent --no_gtf_end_adjustment --check_splice --generate_map --trust_ends
+
+Note that if you are doing direct-RNA, this command will likely call degradation products as isoforms. If you want to avoid this this we recommend using --annotation-reliant.
 
 Options
 -------
@@ -311,27 +333,6 @@ For more information on the Longshot variant caller, see its `github page <https
 
 .. _quantify-label:
 
-
-Suggested uses
---------------
-
-**Human**
-
-.. code:: text
-
-    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
-    --stringent --check_splice --generate_map --annotation_reliant generate
-
-For novel isoform discovery in organisms with more unspliced transcripts and more overlapping genes, we recommend using a combination of options to capture more transcripts. For example:
-
-**Yeast** 
-
-.. code:: text
-
-    flair collapse -g genome.fa --gtf gene_annotations.gtf -q reads.flair_all_corrected.bed -r reads.fastq
-    --stringent --no_gtf_end_adjustment --check_splice --generate_map --trust_ends
-
-Note that if you are doing direct-RNA, this command will likely call degradation products as isoforms. If you want to avoid this this we recommend using --annotation-reliant.
 
 flair quantify
 ==============
