@@ -1,5 +1,5 @@
 FLAIR2 capabilities
-==================
+===================
 
 FLAIR2 has an updated isoform detection algorithm and an added feature of variant-aware isoform detection.
 
