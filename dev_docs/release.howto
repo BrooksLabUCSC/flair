@@ -37,6 +37,17 @@ Before you do this, make sure the current version is correctly listed in .bumpve
    git commit -m "setting up release <current release version>"
    git push
 
+
+####### 2.5 Check readthedocs #########################################
+
+Readthedocs occasionally changes their requirements and when that happens the build of the Flair
+documentation may start failing. To make sure that it's up and running, 
+log in at readthedocs.org (you must be registered there as an admin on the flair project)
+and go to https://readthedocs.org/projects/flair/builds/
+and check that the latest build Passed.
+(Builds are started immediately after every push to the master branch)
+
+
 ####### 3. Make the release on github.com #############################
 
 https://github.com/BrooksLabUCSC/flair/releases
