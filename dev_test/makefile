@@ -69,7 +69,7 @@ test-flair123 : mkdirs
 # FLAIR COLLAPSE
 # TODO: Flair can be run without a gtf input but the result is quite bad. Maybe require?
 test-collapse-basic : mkdirs
-	$(FLAIR) collapse --gtf $(ANNOTATION) --reads $(READS_FQ) --query $(READS_BED) --genome $(GENOME) --threads 4 --output $O/collapse
+	$(FLAIR) collapse --gtf $(ANNOTATION) --reads $(READS_FQ) --query $(READS_BED) --genome $(GENOME) --threads 4 --output $O/collapse 
 	diff <(sort $E/collapse.isoforms.bed) <(sort $O/collapse.isoforms.bed) > $D/collapse.diff
 
 #test-collapse-annotation-reliant-infile : mkdirs
@@ -77,7 +77,7 @@ test-collapse-basic : mkdirs
 
 # TODO: annotation_reliant generate always outputs isoform.read.map.txt, combined.isoform.read.map.txt, and annotated_transcripts.read.map.txt. Necessary?
 test-collapse-annotation-reliant-generate : mkdirs
-	$(FLAIR) collapse --gtf $(ANNOTATION) --reads $(READS_FQ) --query $(READS_BED) --genome $(GENOME) --threads 4 --output $O/collapse_annotation_reliant_generate --annotation_reliant generate
+	$(FLAIR) collapse --gtf $(ANNOTATION) --reads $(READS_FQ) --query $(READS_BED) --genome $(GENOME) --threads 4 --output $O/collapse_annotation_reliant_generate --annotation_reliant generate --keep_intermediate
 	diff <(sort $E/collapse_annotation_reliant_generate.isoforms.bed) <(sort $O/collapse_annotation_reliant_generate.isoforms.bed) > $D/collapse_annotation_reliant_generate.diff
 
 # this has the exact same output as without check splice, TODO figure this out

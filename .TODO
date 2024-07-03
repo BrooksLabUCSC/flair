@@ -1,0 +1,20 @@
+flair collapse don't check params at the end: Collapse unrecognized arguments: ---stringent
+
+with --no_gtf_end_adjustment make sure a gtf is actually given, otherwise it's redundant
+
+find out why no_redundant bestonly (to collapse_isoforms_precise.py) is not different from none
+
+fix the color field in flair collapse(?)
+
+fix the block count (done?)
+collapse_annotation_reliant_generate_checksplice.isoforms.bed
+
+collapse_support_fract.isoforms.bed (ONLY!) has a 13th field. Just, what.
+
+bed_to_gtf dies if the last gene has only one tx
+
+make an argument parser for running in 123 mode, maybe output instructions for continuing.
+
+see if corrected.bed can be output as correctly sorted
+
+add single exon genes with ORFs to test input annotation.gtf

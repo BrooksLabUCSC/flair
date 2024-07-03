@@ -6,3 +6,10 @@ test/test_diffs/
 test/test_input/genome.fa
 test/test_input/genome.fa.fai
 test/test_output/
+dev_test/
+dev_test/test_diffs/
+dev_test/test_output/
+dev_test/test_input/genome.fa
+dev_test/test_input/genome.fa.fai
+dev_test/test_input/reads.fq
+
