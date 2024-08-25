@@ -3,16 +3,26 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Flair's documentation!
+Welcome to FLAIR's documentation!
 =================================
 
-New: Flair can now be conda installed using 
+FLAIR can be conda installed using 
 
 .. code:: sh
 
    conda create -n flair -c conda-forge -c bioconda flair
    conda activate flair
 
+On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use
+
+.. code:: sh
+
+   CONDA_SUBDIR=osx-64 conda create -n flair -c conda-forge -c bioconda
+   conda activate flair
+   conda config --env --set subdir osx-64
+   conda install flair
+
+Note that mamba currently fails to install FLAIR on Mac ARM64.
 
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
