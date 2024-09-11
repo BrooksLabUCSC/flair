@@ -397,6 +397,8 @@ Optional arguments
                         from the end'.
     --check_splice	Enforces coverage of 4 out of 6 bp around each splice site 
                         and no insertions greater than 3 bp at the splice site.
+    --output_bam	       If selected, forces output of each reads file aligned to the 
+                        FLAIR transcriptome. This will be a bam with no secondary alignments
 
 Other info
 ----------
