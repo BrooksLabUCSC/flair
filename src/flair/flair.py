@@ -8,6 +8,7 @@ from flair_align import align
 from flair_correct import correct
 from flair_collapse import collapse
 from flair_quantify import quantify
+import flair_combine
 
 def main():
 	path = '/'.join(os.path.realpath(__file__).split('/')[:-1])+'/'
@@ -64,6 +65,13 @@ def main():
 		print(f"Flair quantify took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
 
+	if mode == 'combine':
+		print(f"Starting combine...", flush=True)
+		flair_combine.combine()
+		cur_time = time.time()
+		print(
+			f"Flair combine took {int((cur_time - last_time) / 60)} minutes and {int((cur_time - last_time)) % 60} seconds",
+			flush=True)
 	
 	if mode in ['--version', '']:
 		sys.stderr.write('FLAIR v2.0.0\n')
