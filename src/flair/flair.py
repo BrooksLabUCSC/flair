@@ -4,7 +4,7 @@ import sys
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import time
-from flair_align import align
+import flair_align
 from flair_correct import correct
 from flair_collapse import collapse
 from flair_quantify import quantify
@@ -29,7 +29,7 @@ def main():
 	last_time = start_time
 	if mode == 'align' or '1' in mode:
 		print(f"Starting align...", flush=True)
-		aligned_reads = align()
+		aligned_reads = flair_align.align()
 		cur_time = time.time()
 		print(f"Flair align took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
