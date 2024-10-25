@@ -109,6 +109,8 @@ def align():
 		help='specify this flag to use native-RNA specific alignment parameters for minimap2')
 	parser.add_argument('--quality', type=int, default=1,
 		help='minimum MAPQ of read alignment to the genome (1)')
+	parser.add_argument('--minfragmentsize', type=int, default=80,
+						help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
 	parser.add_argument('-f', '--filtertype', type=str, default='keepsup',
         help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
 	parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
@@ -137,7 +139,7 @@ def align():
 	bedout = args.output+'.bed'
 
 	# minimap
-	mm2_cmd = ['minimap2', '-ax', 'splice', '-t', str(args.threads), args.genome]+args.reads
+	mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize), '-t', str(args.threads), args.genome]+args.reads
 	if args.mm_index:
 		mm2_cmd[5] = args.mm_index
 	if args.nvrna:
