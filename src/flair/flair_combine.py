@@ -32,11 +32,16 @@ def getbestends2(isodata):
     #     start, end = info[0], info[1]
     #     if not beststart: beststart, bestend = start, end
     #     elif end-start > bestend-beststart: beststart, bestend = start, end
-    beststart, bestend, bestisousage = None, None, 0
+    # beststart, bestend, bestisousage, bestname = None, None, 0, None
+    bestiso = (None, None, None, None, 0)
     for info in isodata:
-        start, end = info[0], info[1]
-        if info[-1] > bestisousage: beststart, bestend, bestisousage = start, end, info[-1]
-    return (beststart, bestend)
+        # start, end = info[0], info[1]
+        # if info[-1] > bestisousage: beststart, bestend, bestisousage, bestname = start, end, info[-1]
+        if info[-1] > bestiso[-1]: bestiso = info
+        elif info[-1] == bestiso[-1]:
+            if info[1]-info[0] > bestiso[1]-bestiso[0]: bestiso = info
+    # return (beststart, bestend)
+    return bestiso
 
 def combineIsos2(isolist, endwindow):
     isolist.sort()
@@ -68,33 +73,12 @@ def revcomp(seq):
     return ''.join(rev_seq)
 
 
-def write_seq_pysam(genome, outname, bedinfo):
-    genome = pysam.FastaFile(genome)
-    allchrom = genome.references
-    outfa = open(outname, 'w')
-    for chr in bedinfo:
-        if chr in allchrom:
-            for start, end, name, strand, esizes, estarts in bedinfo[chr]:
-                outfa.write('>' + name + '\n')
-                pulled_seq = ''
-                for i in range(len(estarts)):
-                    pulled_seq += genome.fetch(chr, start+estarts[i], start+estarts[i]+esizes[i])
-                if strand == '-':
-                    pulled_seq = revcomp(pulled_seq)
-                outfa.write(pulled_seq + '\n')
-    outfa.close()
-
-
-
-
 def combine():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--manifest', required=True, type=str,
-                        help="path to manifest files that points to transcriptomes to combine. Each line of file should be tab separated with sample name, condition, batch, path/to/isoforms.bed, path/to/combined.isoform.read.map.txt")
-    parser.add_argument('-o', '--output_prefix', default='collapsed_flairomes',
+                        help="path to manifest files that points to transcriptomes to combine. Each line of file should be tab separated with sample name, condition, batch, path/to/isoforms.bed, path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and read.map.txt files are not required, although if .fa files are not provided for each sample a .fa output will not be generated")
+    parser.add_argument('-o', '--output_prefix', default='flair.combined.isoforms',
                         help="path to collapsed_output.bed file. default: 'collapsed_flairomes'")
-    parser.add_argument('-g', '--genome',
-                        help="[optional] path to reference genome, allows output of combined transcriptome fasta file")
     parser.add_argument('-w', '--endwindow', type=int, default=200,
                         help="window for comparing ends of isoforms with the same intron chain. Default:200bp")
     parser.add_argument('-p', '--minpercentusage', type=int, default=10,
@@ -112,17 +96,20 @@ def combine():
     endwindow = int(args.endwindow)
     minpercentusage = int(args.minpercentusage) / 100.
 
-    bedfiles, mapfiles, samples = [], [], []
+    bedfiles, mapfiles, samples, fafiles = [], [], [], []
     for line in open(manifest):
         line = line.rstrip().split('\t')
         samples.append(line[0])
         bedfiles.append(line[1])
-        if len(line) > 2:
-            mapfiles.append(line[2])
-        else:
-            mapfiles.append('')
+        if len(line) > 2: fafiles.append(line[2])
+        else: fafiles.append('')
+        if len(line) > 3: mapfiles.append(line[3])
+        else: mapfiles.append('')
+
+    generatefa = all([len(x) > 0 for x in fafiles])
 
     intronchaintoisos = {}
+    sampletoseq = {}
     for i in range(len(samples)):
         sample = samples[i]
         genetoreads, isotoreads = {}, {}
@@ -140,8 +127,7 @@ def combine():
             line = line.rstrip().split('\t')
             chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
             gene = isoname.split('_')[-1]
-            if int(line[
-                       9]) > 1:  ###removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
+            if int(line[9]) > 1:  ###removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
                 ichain = bedReadToIntronChain(line)
                 ichainid = (chr, strand, gene, ichain)
                 if mapfiles[i] != '':
@@ -150,7 +136,7 @@ def combine():
                     isousage = 1
                 if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
                 # intronchaintoisos[ichainid].append([start, end, sample, isoname, isotoreads[isoname], isousage])
-                intronchaintoisos[ichainid].append([start, end, sample, isoname, isousage])
+                intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage))
             elif args.include_se:
                 ichain = chr + '-' + str(int(round(start, -4)))
                 ichainid = (chr, strand, gene, ichain)
@@ -159,13 +145,20 @@ def combine():
                 else:
                     isousage = 1
                 if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
-                intronchaintoisos[ichainid].append([start, end, sample, isoname, isousage])
+                intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage))
+        if generatefa:
+            last = None
+            sampletoseq[sample] = {}
+            for line in open(fafiles[i]):
+                if line[0] == '>': last = line[1:].rstrip()
+                else: sampletoseq[sample][last] = line.rstrip()
 
     finalisostosupport = {}
 
     chromtobedinfo = {}
     isocount = 1
     outbed, outcounts = open(outprefix + '.bed', 'w'), open(outprefix + '.counts.tsv', 'w')
+    if generatefa: outfa = open(outprefix + '.fa', 'w')
     for ichainid in intronchaintoisos:
         chr, strand, gene, ichain = ichainid
         collapsedIsos = combineIsos2(intronchaintoisos[ichainid], endwindow)
@@ -173,13 +166,13 @@ def combine():
         biggestdiff = 0
         maxintronchainusage = 0
         ichainendscount = 1
-        for start, end in collapsedIsos:
+        for start, end, sample, isoname, isousage in collapsedIsos:
             if abs(end - start) > biggestdiff: longestEnds = (start, end)
-            maxisousage = max([x[-1] for x in collapsedIsos[(start, end)]])
+            maxisousage = max([x[-1] for x in collapsedIsos[(start, end, sample, isoname, isousage)]])
             if maxisousage > maxintronchainusage: maxintronchainusage = maxisousage
         if args.filter == 'none' or maxintronchainusage > minpercentusage:
-            for start, end in collapsedIsos:
-                theseisos = collapsedIsos[(start, end)]
+            for start, end, sample, isoname, isousage in collapsedIsos:
+                theseisos = collapsedIsos[(start, end, sample, isoname, isousage)]
                 theseisos.sort(key=lambda x: x[1] - x[0], reverse=True)  ##longest first
                 maxisousage = max([x[-1] for x in theseisos])
                 if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and type(
@@ -190,13 +183,8 @@ def combine():
                             outname = str(isocount) + '-' + str(ichainendscount) + '_' + i[3]
                             break
                     if not outname: outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + gene
-                else:
-                    outname = 'lowexpiso_' + gene
-                if outname not in finalisostosupport: finalisostosupport[outname] = {x: 0 for x in samples}
-                for isoinfo in theseisos:
-                    finalisostosupport[outname][isoinfo[2]] += isoinfo[4]
-                if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and type(
-                        ichain) != str and args.filter == 'usageandlongest'):  # True:#
+
+                    ###output bed line
                     if type(ichain) == str:
                         esizes, estarts = [end - start], [0]
                     else:
@@ -207,9 +195,23 @@ def combine():
                                    ','.join([str(x) for x in estarts]) + ',']) + '\n')
                     if chr not in chromtobedinfo: chromtobedinfo[chr] = []
                     chromtobedinfo[chr].append([start, end, outname, strand, esizes, estarts])
+
+                    ##output sequence
+                    if generatefa:
+                        isoseq = sampletoseq[sample][isoname]
+                        outfa.write('>' + outname + '\n' + isoseq + '\n')
+                else:
+                    outname = 'lowexpiso_' + gene
+
+                ##get counts
+                if outname not in finalisostosupport: finalisostosupport[outname] = {x: 0 for x in samples}
+                for isoinfo in theseisos:
+                    finalisostosupport[outname][isoinfo[2]] += isoinfo[4]
                 ichainendscount += 1
             isocount += 1
     outbed.close()
+    if generatefa: outfa.close()
+
     outcounts.write('\t'.join(['ids'] + samples) + '\n')
     for name in finalisostosupport:
         outline = [name]
@@ -220,11 +222,6 @@ def combine():
 
     if args.convert_gtf:
         bed_to_gtf(query=outprefix + '.bed', outputfile=outprefix + '.gtf')
-
-    if args.genome:  ###generate transcriptome fasta
-        print('generating transcriptome fasta')
-        fastaoutname = outprefix + '.fa'
-        write_seq_pysam(args.genome, fastaoutname, chromtobedinfo)
 
 
 
