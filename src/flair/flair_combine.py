@@ -30,8 +30,8 @@ def intronChainToestarts(ichain, start, end):
 def getbestends2(isodata):
     bestiso = (None, None, None, None, 0)
     for info in isodata:
-        if info[-1] > bestiso[-1]: bestiso = info
-        elif info[-1] == bestiso[-1]:
+        if info[4] > bestiso[4]: bestiso = info
+        elif info[4] == bestiso[4]:
             if info[1]-info[0] > bestiso[1]-bestiso[0]: bestiso = info
     return bestiso
 
@@ -145,10 +145,11 @@ def combine():
                 ichainid = tuple([tuple(x) for x in loci])
                 if mapfiles[i] != '':
                     isousage = isotoreads[isoname] / genetoreads[gene]
+                    isocounts = isotoreads[isoname]
                 else:
-                    isousage = 1
+                    isousage, isocounts = 1, 0
                 if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
-                intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage))
+                intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
         else: ##not loading fusion reads
             for line in open(bedfiles[i]):
                 line = line.rstrip().split('\t')
@@ -163,10 +164,11 @@ def combine():
                     ichainid = (chr, strand, ichain)
                     if mapfiles[i] != '':
                         isousage = isotoreads[isoname] / genetoreads[gene]
+                        isocounts = isotoreads[isoname]
                     else:
-                        isousage = 1
+                        isousage, isocounts = 1, 0
                     if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
-                    intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage))
+                    intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
 
         if generatefa:
             last = None
@@ -191,15 +193,15 @@ def combine():
         biggestdiff = 0
         maxintronchainusage = 0
         ichainendscount = 1
-        for start, end, sample, isoname, isousage in collapsedIsos:
+        for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
             if abs(end - start) > biggestdiff: longestEnds = (start, end)
-            maxisousage = max([x[-1] for x in collapsedIsos[(start, end, sample, isoname, isousage)]])
+            maxisousage = max([x[4] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
             if maxisousage > maxintronchainusage: maxintronchainusage = maxisousage
         if args.filter == 'none' or maxintronchainusage > minpercentusage:
-            for start, end, sample, isoname, isousage in collapsedIsos:
-                theseisos = collapsedIsos[(start, end, sample, isoname, isousage)]
+            for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
+                theseisos = collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]
                 theseisos.sort(key=lambda x: x[1] - x[0], reverse=True)  ##longest first
-                maxisousage = max([x[-1] for x in theseisos])
+                maxisousage = max([x[4] for x in theseisos])
                 if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest'):  # True:#
                     outname = None
                     for i in theseisos:
@@ -259,7 +261,7 @@ def combine():
                 ##get counts
                 if outname not in finalisostosupport: finalisostosupport[outname] = {x: 0 for x in samples}
                 for isoinfo in theseisos:
-                    finalisostosupport[outname][isoinfo[2]] += isoinfo[4]
+                    finalisostosupport[outname][isoinfo[2]] += isoinfo[5]
                 ichainendscount += 1
             isocount += 1
     outbed.close()
