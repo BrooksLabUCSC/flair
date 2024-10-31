@@ -205,14 +205,15 @@ def combine():
                 if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest'):  # True:#
                     outname = None
                     for i in theseisos:
-                        if i[3][:4] == 'ENST' and len('_'.join(i[3].split('_')[:-1])) < 20:
+                        if i[3][:4] == 'ENST' and len(i[3].split('ENSG')[0]) < 25 and len(i[3].split('ENSG')) == 2:
                             outname = str(isocount) + '-' + str(ichainendscount) + '_' + i[3]
                             break
                     if not outname:
                         outgene = None
                         for i in theseisos:
-                            if i[3].split('_')[-1][:4] == 'ENSG':
-                                outgene = i[3].split('_')[-1]
+                            if len(i[3].split('ENSG')) > 1: outgene = 'ENSG' + i[3].split('ENSG')[-1]
+                            if not outgene or outgene[:4] != 'ENSG':
+                                if len(i[3].split('chr')) > 1: outgene = 'chr' + i[3].split('chr')[-1]
                         if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
                         outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
 
