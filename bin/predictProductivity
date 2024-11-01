@@ -47,11 +47,12 @@ class CommandLine(object):
         self.parser = argparse.ArgumentParser(description=' predictProductivity - a tool.',
                                              add_help=True, #default is True
                                              prefix_chars='-',
-                                             usage='%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf')
+                                             usage='%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf -o outputprefix')
         # Add args
         self.parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in psl or bed12 format.')
         self.parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
         self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
+        self.parser.add_argument('-o', "--output", action='store', required=True, help='prefix of output files')
         self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
         self.parser.add_argument("--append_column", action='store_true', required=False, default=False, help='Append prediction as an additional column in file')
 
@@ -89,6 +90,7 @@ class Isoform(object):
         self.starts    = set()
         self.orfs      = list()
         self.exonSizes = list()
+        self.ptcpoint = ''
 
 
 ########################################################################
@@ -209,9 +211,13 @@ def checkPTC(orfEndPos, exons, isoObj):
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)
 
-            if distToJunc > 55:
+            if distToJunc > 55 or num < len(isoObj.exonSizes)-2:
                 ptc = True
                 break
+
+    if len(isoObj.exonSizes) == 1: ptcpointont = 0
+    elif isoObj.exonSizes[-2] < 55: ptcpointont = sum(isoObj.exonSizes[:-2])
+    else: ptcpointont = sum(isoObj.exonSizes[:-1]) - 55
 
     exonsWithStop = exons[exonWithStop]
     left,right    = exonsWithStop
@@ -221,7 +227,7 @@ def checkPTC(orfEndPos, exons, isoObj):
 
     genomicPos = right - stopDistFromExon if isoObj.strand == "+" else left + stopDistFromExon
 
-    return genomicPos, ptc
+    return genomicPos, ptc, ptcpointont
 
 
 def predict(bed, starts, isoDict):
@@ -280,12 +286,40 @@ def predict(bed, starts, isoDict):
                 #else if a stop was reached...
                 else:
                     orfEndPos = len(fiveUTR)+i+3
-                    genomicStopPos, ptc = checkPTC(orfEndPos, exons, o)
+                    genomicStopPos, ptc, ptcdecidingpoint = checkPTC(orfEndPos, exons, o)
                     ptc = "PTC" if ptc else "PRO"
                     o.orfs.append([ptc, startPos, genomicStopPos, orfEndPos - relativeStart, relativeStart])
+                    o.ptcpoint = ptcdecidingpoint
                     #o.orfs.append([ptc, startPos, genomicStopPos, relativeStart ])
 
     return isoDict
+
+
+def translate(seq):
+    table = {
+        'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
+        'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
+        'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
+        'AGC': 'S', 'AGT': 'S', 'AGA': 'R', 'AGG': 'R',
+        'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',
+        'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
+        'CAC': 'H', 'CAT': 'H', 'CAA': 'Q', 'CAG': 'Q',
+        'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',
+        'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
+        'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',
+        'GAC': 'D', 'GAT': 'D', 'GAA': 'E', 'GAG': 'E',
+        'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
+        'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
+        'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
+        'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': '_',
+        'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
+    }
+    protein = ""
+    if len(seq) % 3 == 0:
+        for i in range(0, len(seq), 3):
+            codon = seq[i:i + 3]
+            protein += table[codon]
+    return protein
 
 
 def main():
@@ -298,6 +332,7 @@ def main():
     bed    = myCommandLine.args['input_isoforms']
     genome = myCommandLine.args['genome_fasta']
     gtf    = myCommandLine.args['gtf']
+    output = myCommandLine.args['output']
     extra_col = myCommandLine.args['append_column']
 
     if myCommandLine.args['firstTIS']:
@@ -319,17 +354,19 @@ def main():
 
     beaut = {"PRO":"103,169,207", "PTC":"239,138,98", "NST":"0,0,0","NGO":"0,0,0"}
 
+    bedout = open(output + '.bed', 'w')
+    infoout = open(output + '.info.tsv', 'w')
+    infoout.write('\t'.join(['#isoname', 'tstartont', 'tendont', 'ptcpointont', 'AAseq']) + '\n')
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
             isoObj = isoformObjs[bedCols[3]]
 
             if defineORF == 'longest':
-                isoObj.orfs.sort(key=lambda x: x[-2])
-                pro,start,end,orfLen, tisPos = isoObj.orfs[-1]
+                isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
             elif defineORF == 'first':
-                isoObj.orfs.sort(key=lambda x: x[-1])
-                pro,start,end,orfLen, tisPos = isoObj.orfs[0]
+                isoObj.orfs.sort(key=lambda x: x[4])
+            pro,start,end,orfLen, tisPos = isoObj.orfs[0]
 
             if extra_col:
                 bedCols += [pro]
@@ -342,7 +379,9 @@ def main():
                 bedCols[6],bedCols[7] = str(start),str(end)
             else:
                 bedCols[7],bedCols[6] = str(start),str(end)
-            print("\t".join(bedCols))
+            bedout.write("\t".join(bedCols) + '\n')
+            infoout.write('\t'.join([bedCols[3], str(tisPos), str(tisPos+orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos+orfLen])]) + '\n')
+
 
 
 if __name__ == "__main__":
