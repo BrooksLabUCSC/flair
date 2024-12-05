@@ -47,6 +47,8 @@ def quantify(isoform_sequences=''):
 	parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
 		help='''enforce coverage of 4 out of 6 bp around each splice site and no
 		insertions greater than 3 bp at the splice site''')
+	parser.add_argument('--output_bam', default=False, action='store_true', dest='output_bam',
+						help='whether to output bam file of reads aligned to correct isoforms')
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
@@ -98,7 +100,9 @@ def quantify(isoform_sequences=''):
 
 	for num, sample in enumerate(samData, 0):
 		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
-		mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		if args.output_bam: mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		else: mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		# mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
 		# TODO: Replace this with proper try/except Exception as ex
 		try:
@@ -128,7 +132,7 @@ def quantify(isoform_sequences=''):
 			count_cmd += ['--check_splice']
 		if args.check_splice or args.stringent:
 			count_cmd += ['-i', args.isoforms]
-		if args.generate_map:
+		if args.generate_map or args.output_bam:
 			count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
 
 		if subprocess.call(count_cmd):
@@ -140,6 +144,29 @@ def quantify(isoform_sequences=''):
 				countData[iso] = np.zeros(len(samData))
 			countData[iso][num] = numreads
 		sys.stderr.flush()
+
+		if args.output_bam:
+			sys.stderr.write('Step 2.5/3. Filtering bam reads for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
+			readToIso = {}
+			for line in open(args.o+'.'+sample+'.'+group+'.isoform.read.map.txt'):
+				line = line.rstrip().split('\t', 1)
+				for r in line[1].split(','):
+					readToIso[r] = line[0]
+			newsam = open(samOut.split('.sam')[0] + '-filtered.sam', 'w')
+			for line in open(samOut):
+				if line[0] == '@': newsam.write(line)
+				else:
+					temp = line.split('\t', 4)
+					read, iso = temp[0], temp[2]
+					if read in readToIso and readToIso[read] == iso: newsam.write(line)
+			newsam.close()
+			if subprocess.call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']):
+				sys.stderr.write(f'Samtools issue with sorting minimap2 sam, see {stderrfile}\n')
+				return 1
+			subprocess.check_call(['rm', samOut.split('.sam')[0] + '-filtered.sam'])
+
+			subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
+
 		subprocess.check_call(['rm', samOut])
 
 	sys.stderr.write('Step 3/3. Writing counts to {} \n'.format(args.o+'.counts.tsv'))

@@ -2,6 +2,51 @@ Additional programs
 ^^^^^^^^^^^^^^^^^^^
 When you ``conda install`` flair, the following helper programs will be in your $PATH:
 
+collapse_bed_files
+==============
+.. code:: sh
+
+    usage: <PATH TO FLAIR>/src/flair/collapse_bed_files.py [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-g GENOME]
+                             [-w ENDWINDOW] [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
+
+    options:
+      -h, --help            show this help message and exit
+      -m MANIFEST, --manifest MANIFEST
+                        path to manifest files that points to transcriptomes to combine.
+                        Each line of file should be tab separated with sample name,
+                        condition, batch, path/to/isoforms.bed,
+                        path/to/combined.isoform.read.map.txt
+      -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+                        path to collapsed_output.bed file. default: 'collapsed_flairomes'
+      -g GENOME, --genome GENOME
+                        [optional] path to reference genome, allows output of combined
+                        transcriptome fasta file
+      -w ENDWINDOW, --endwindow ENDWINDOW
+                        window for comparing ends of isoforms with the same intron chain.
+                        Default:200bp
+      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
+                        minimum percent usage required in one sample to keep isoform in
+                        combined transcriptome. Default:10
+      -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
+                        to gtf
+      -s, --include_se      whether to include single exon isoforms. Default: dont include
+      -f FILTER, --filter FILTER
+                        type of filtering. Options: usageandlongest(default), usageonly,
+                        none
+
+Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
+
+.. code:: text
+
+   sample1      /path/to/sample1.FLAIR.isoforms.bed      /path/to/sample1.FLAIR.combined.isoform.read.map.txt
+   sample2      /path/to/sample2.FLAIR.isoforms.bed      /path/to/sample2.FLAIR.combined.isoform.read.map.txt
+   refanno      /path/to/refannotranscripts.bed
+
+For each line, the sample name and bed path is required, but the read.map.txt file is optional. Without the read.map.txt file, we have less ability to filter and more isoforms will be included. If a sample is a FLAIR run, we highly reccommend including the read.map.txt file. If you want to combine FLAIR transcriptomes with annotatated transcripts, you can convert an annotation gtf file to a bed file using 
+
+.. code:: sh
+    <PATH TO FLAIR>/src/flair/bed_to_gtf.py file.gtf > file.bed
+
 diff_iso_usage
 ==============
 .. code:: sh

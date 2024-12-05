@@ -105,8 +105,9 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 
 			blockstarts += [start]
 			blocksizes += [end-start]
-
+		# print(blockcount, blockstarts)
 		# last entry...
+		blockcount = len(blockstarts)
 		this_gene = line[8][line[8].find('gene_id')+9:]
 		this_gene = this_gene[:this_gene.find('"')]
 		if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
