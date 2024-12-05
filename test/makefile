@@ -22,9 +22,8 @@ DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
 
 default:
 	@echo To run all tests, use: >&2
-	@echo "   " make test-align >&2
+	@echo "   " make test >&2
 	@echo otherwise run individual tests with: >&2
-	@echo "   " make test-align >&2
 	@echo "   " make test-align >&2
 	@echo "   " make test-correct >&2
 	@echo "   " make test-collapse >&2

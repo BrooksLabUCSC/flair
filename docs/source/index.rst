@@ -17,9 +17,11 @@ On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use
 
 .. code:: sh
 
-   CONDA_SUBDIR=osx-64 conda create -n flair -c conda-forge -c bioconda
+   CONDA_SUBDIR=osx-64 conda create -n flair
    conda activate flair
    conda config --env --set subdir osx-64
+   conda config --add channels bioconda
+   conda config --add channels conda-forge
    conda install flair
 
 Note that mamba currently fails to install FLAIR on Mac ARM64.
