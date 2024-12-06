@@ -5,22 +5,22 @@ import csv
 import argparse
 import math
 import os
-from multiprocessing import Pool
+import multiprocessing as mp
 
 parser = argparse.ArgumentParser(description='collapse parse options',
 			usage='python collapse_isoforms_precise.py -q <query.psl>/<query.bed> [options]')
 required = parser.add_argument_group('required named arguments')
-required.add_argument('-q', '--query', type=str, required=True, 
+required.add_argument('-q', '--query', type=str, required=True,
 	help='BED12 or PSL file of aligned/corrected reads. PSL should end in .psl')
-parser.add_argument('-o', '--output', type=str, 
+parser.add_argument('-o', '--output', type=str,
 	help='specify output file, should agree with query file type')
 parser.add_argument('-w', '--window', default=100, type=int,
 	 help='window size for grouping TSS/TES (100)')
-parser.add_argument('-s', '--support', default=0.25, type=float, 
+parser.add_argument('-s', '--support', default=0.25, type=float,
 	help='minimum proportion(s<1) or number of supporting reads(s>=1) for an isoform (0.1)')
 parser.add_argument('-f', '--gtf', type=str,
 	 help='GTF annotation file for selecting annotated TSS/TES')
-parser.add_argument('-m', '--max_results', default=2, type=int, 
+parser.add_argument('-m', '--max_results', default=2, type=int,
 	help='maximum number of novel TSS or TES picked per isoform unless --no_redundant is specified (2)')
 parser.add_argument('-t', '--threads', default=2, type=int,
 	 help='number of threads to use (2)')
@@ -68,7 +68,7 @@ outputfname=args.output
 quiet=args.quiet
 
 #def collapse_isoforms_precise(queryfile, max_results=2, window=100, threads=2, clean=False,
-#	minsupport=0.25, gtfname=None, no_redundant='none', nosplice='chrM', isoformtss=False, 
+#	minsupport=0.25, gtfname=None, no_redundant='none', nosplice='chrM', isoformtss=False,
 #	outputfname=None, isbed=True, quiet=False):
 
 def get_junctions(line):
@@ -694,7 +694,8 @@ for chrom in all_se_by_chrom:
 chrom_names = [chrom for chrom,num in sorted(chrom_names, key=lambda x: x[1], reverse=True)]
 res = {}
 if __name__ == '__main__':
-	p = Pool(threads)
+	mp.set_start_method('fork')
+	p = mp.Pool(threads)
 	res = p.map(run_iterative_add_se, chrom_names)
 	p.close()
 	p.join()
@@ -711,7 +712,7 @@ with open(outputfname, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 
 	if __name__ == '__main__':
-		p = Pool(threads)
+		p = mp.Pool(threads)
 		res = p.map(run_se_collapse, chrom_names)
 		p.close()
 		p.join()
@@ -722,7 +723,7 @@ with open(outputfname, 'wt') as outfile:
 			writer.writerow(edited_line)
 
 	if __name__ == '__main__':
-		p = Pool(threads)
+		p = mp.Pool(threads)
 		res = p.map(run_find_best_sites, list(isoforms.keys()))
 		p.close()
 		p.join()
@@ -733,4 +734,3 @@ with open(outputfname, 'wt') as outfile:
 			for jset in towrite[chrom]:
 				for iso in towrite[chrom][jset]:
 					writer.writerow(iso)
-

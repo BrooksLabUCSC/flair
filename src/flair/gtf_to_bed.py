@@ -11,9 +11,9 @@ def main():
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('gtf', type=str, help='annotated gtf')
 	required.add_argument('psl', type=str, help='psl or bed file')
-	parser.add_argument('--include_gene', action='store_true', dest='include_gene', required=False, 
+	parser.add_argument('--include_gene', action='store_true', dest='include_gene', required=False,
 		help='''Include gene name in the isoform name''')
-	parser.add_argument('--chrom_sizes', default='', required=False, 
+	parser.add_argument('--chrom_sizes', default='', required=False,
 		help='''chrom sizes file for psl conversion, recommended''')
 	args = parser.parse_args()
 
@@ -51,7 +51,6 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 					iso_to_cds[this_transcript][1] = end
 			if ty != 'exon':
 				continue
-
 			# once all the exons for a transcript are read, write the psl/bed entry
 			if this_transcript != prev_transcript:
 				if prev_transcript:
@@ -107,6 +106,7 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 			blocksizes += [end-start]
 
 		# last entry...
+		blockcount = len(blockstarts)
 		this_gene = line[8][line[8].find('gene_id')+9:]
 		this_gene = this_gene[:this_gene.find('"')]
 		if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
