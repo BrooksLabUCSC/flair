@@ -63,6 +63,22 @@ test-collapse : mkdirs test_input/genome.fa
 	flair collapse -r $(READS_FA) -q $(READS_BED) -g test_input/genome.fa -t 4 --generate_map --temp_dir $O/temp_collapse --keep_intermediate -f $(ANNOTATION) -o $O/test.collapse -p $(PROMOTER_REGIONS)
 	diff <(sort $E/test.collapse.isoforms.gtf) <(sort $O/test.collapse.isoforms.gtf) > $D/test.collapse.isoforms.gtf.diff
 
+# FLAIR COLLAPSE annotation-reliant
+test-collapseannot : mkdirs test_input/genome.fa
+	flair collapse -r $(READS_FA) -q $(READS_BED) -g test_input/genome.fa -t 4 --generate_map --temp_dir $O/temp_collapseannot --keep_intermediate -f $(ANNOTATION) -o $O/test.collapseannot -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent --check_splice
+	diff <(sort $E/test.collapseannot.isoforms.gtf) <(sort $O/test.collapseannot.isoforms.gtf) > $D/test.collapseannot.isoforms.gtf.diff
+
+
+# FLAIR speedy
+test-fasterannot : mkdirs test_input/genome.fa
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent --check_splice -g test_input/genome.fa -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/test.fasterannot -p $(PROMOTER_REGIONS)
+	diff <(sort $E/test.collapseannot.isoforms.gtf) <(sort $O/test.fasterannot.isoforms.gtf) > $D/test.fasterannot.isoforms.gtf.diff
+
+# FLAIR speedy
+test-faster : mkdirs test_input/genome.fa
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) -g test_input/genome.fa -t 4 --generate_map --temp_dir $O/temp_faster --keep_intermediate -f $(ANNOTATION) -o $O/test.faster -p $(PROMOTER_REGIONS)
+	diff <(sort $E/test.collapse.isoforms.gtf) <(sort $O/test.faster.isoforms.gtf) > $D/test.faster.isoforms.gtf.diff
+
 # FLAIR QUANTIFY
 test-quantify : mkdirs
 	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only --check_splice --stringent -o $O/test.quantify --output_bam
