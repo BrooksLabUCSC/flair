@@ -80,7 +80,7 @@ def combine():
     parser.add_argument('-s', '--include_se', action='store_true',
                         help='whether to include single exon isoforms. Default: dont include')
     parser.add_argument('-f', '--filter', default='usageandlongest',
-                        help='type of filtering. Options: usageandlongest(default), usageonly, none')
+                        help='type of filtering. Options: usageandlongest(default), usageonly, none, or a number for the total count of reads required to call an isoform')
 
     args = parser.parse_args()
     manifest = args.manifest
@@ -183,7 +183,9 @@ def combine():
     isocount = 1
     outbed, outcounts = open(outprefix + '.bed', 'w'), open(outprefix + '.counts.tsv', 'w')
     if generatefa: outfa = open(outprefix + '.fa', 'w')
+    outmap = open(outprefix + '.isoform.map.txt', 'w')
     ###Need to remove gene from ichain!!
+    isomap = {}
     for ichainid in intronchaintoisos:
         # chr, strand, gene, ichain = ichainid
         collapsedIsos = combineIsos2(intronchaintoisos[ichainid], endwindow)
@@ -192,17 +194,20 @@ def combine():
         longestEnds = (None, None)
         biggestdiff = 0
         maxintronchainusage = 0
+        totintronchaincounts = 0
         ichainendscount = 1
         for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
             if abs(end - start) > biggestdiff: longestEnds = (start, end)
             maxisousage = max([x[4] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
+            totintronchaincounts += sum([x[5] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
             if maxisousage > maxintronchainusage: maxintronchainusage = maxisousage
-        if args.filter == 'none' or maxintronchainusage > minpercentusage:
+        if args.filter == 'none' or maxintronchainusage > minpercentusage or (args.filter.isnumeric() and totintronchaincounts > int(args.filter)):
             for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
                 theseisos = collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]
                 theseisos.sort(key=lambda x: x[1] - x[0], reverse=True)  ##longest first
                 maxisousage = max([x[4] for x in theseisos])
-                if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest'):  # True:#
+                totisocounts = sum([x[5] for x in theseisos])
+                if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest') or (args.filter.isnumeric() and totisocounts > int(args.filter)):  # True:#
                     outname = None
                     for i in theseisos:
                         if i[3][:4] == 'ENST' and len(i[3].split('ENSG')[0]) < 25 and len(i[3].split('ENSG')) == 2:
@@ -259,14 +264,30 @@ def combine():
                     if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
                     outname = 'lowexpiso_' + outgene
 
+                if outname not in isomap: isomap[outname] = []
+                isomap[outname].extend([x[2] + '..' + x[3] for x in theseisos])
                 ##get counts
                 if outname not in finalisostosupport: finalisostosupport[outname] = {x: 0 for x in samples}
                 for isoinfo in theseisos:
                     finalisostosupport[outname][isoinfo[2]] += isoinfo[5]
                 ichainendscount += 1
             isocount += 1
+        else:
+            outgene = None
+            for i in theseisos:
+                if i[3].split('_')[-1][:4] == 'ENSG':
+                    outgene = i[3].split('_')[-1]
+            if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
+            outname = 'lowexpiso_' + outgene
+            if outname not in isomap: isomap[outname] = []
+            for info in collapsedIsos:
+                theseisos = collapsedIsos[info]
+                isomap[outname].extend([x[2] + '..' + x[3] for x in theseisos])
     outbed.close()
     if generatefa: outfa.close()
+
+    for newiso in isomap:
+        outmap.write(newiso + '\t' + '\t'.join(isomap[newiso]) + '\n')
 
     outcounts.write('\t'.join(['ids'] + samples) + '\n')
     for name in finalisostosupport:
@@ -275,6 +296,7 @@ def combine():
             outline.append(str(finalisostosupport[name][s]))
         outcounts.write('\t'.join(outline) + '\n')
     outcounts.close()
+    outmap.close()
 
     if args.convert_gtf:
         bed_to_gtf(query=outprefix + '.bed', outputfile=outprefix + '.gtf')
