@@ -181,18 +181,18 @@ def getannotatedseq(args):
                             outfilename=args.transcriptfasta)
     return args
 
-def getcountsamcommand(args, outputname, mapfile):
+def getcountsamcommand(args, outputname, mapfile, isannot):
     # count sam transcripts ; the dash at the end means STDIN
     count_cmd = ['count_sam_transcripts.py', '--sam', '-',
                  '-o', outputname, '-t', str(args.threads),
                  '--quality', str(args.quality), '-w', str(args.end_window)]
     if mapfile:
         count_cmd += ['--generate_map', mapfile]
-    if args.stringent:
+    if args.stringent or isannot:
         count_cmd += ['--stringent']
-    if args.check_splice:
+    if args.check_splice or isannot:
         count_cmd += ['--check_splice']
-    if args.check_splice or args.stringent:
+    if args.check_splice or args.stringent or isannot:
         count_cmd += ['-i', args.annotated_bed]  # annotated isoform bed file
     if args.trust_ends:
         count_cmd += ['--trust_ends']
@@ -200,13 +200,13 @@ def getcountsamcommand(args, outputname, mapfile):
 
 
 
-def transcriptomealignandcount(args, outputname, mapfile):
+def transcriptomealignandcount(args, outputname, mapfile, isannot):
     # minimap (results are piped into count_sam_transcripts.py)
     mm2_cmd = tuple(['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + ['--split-prefix', 'minimap2transcriptomeindex',
                args.transcriptfasta] + args.reads)
     ###FIXME add in step to filter out chimeric reads here
     ###FIXME really need to go in and check on how count_sam_transcripts is working
-    count_cmd = getcountsamcommand(args, outputname, mapfile)
+    count_cmd = getcountsamcommand(args, outputname, mapfile, isannot)
     # print(mm2_cmd)
     # print(count_cmd)
     sys.stderr.write('Aligning and counting supporting reads for transcripts\n')
@@ -277,7 +277,7 @@ def aligntofirstpasstranscripts(args):
     args.transcriptfasta = args.output + '.firstpass.fa'
     args.annotated_bed = args.output + '.firstpass.bed'
     mapfile = args.output + '.novel.isoform.read.map.txt' if args.generate_map or args.transcriptfasta else None
-    transcriptomealignandcount(args, args.output + '.firstpass.q.counts', mapfile)
+    transcriptomealignandcount(args, args.output + '.firstpass.q.counts', mapfile, False)
     return args
 
 def filterbasedonbed(args, filterfile, outsuffix):
@@ -346,7 +346,7 @@ def collapse(args):
     #check whether any annotation
     if args.transcriptfasta:
         args = getannotatedseq(args)
-        transcriptomealignandcount(args, args.output + '.annotated_transcripts.alignment.counts', args.output + '.annotated_transcripts.isoform.read.map.txt')
+        transcriptomealignandcount(args, args.output + '.annotated_transcripts.alignment.counts', args.output + '.annotated_transcripts.isoform.read.map.txt', True)
         ###outputs only supported annotated transcripts to a new file
         ###FIXME I feel like it's unnecessary to have both the counts file and the read map file - remove the counts file
         match_counts(counts_file=args.output + '.annotated_transcripts.alignment.counts',
