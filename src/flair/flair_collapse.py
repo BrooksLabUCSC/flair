@@ -284,7 +284,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
 
 		# minimap (results are piped into count_sam_transcripts.py)
-		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD', '--split-prefix', 'minimap2transcriptomeindex', args.annotation_reliant] + args.reads
+		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD', args.annotation_reliant] + args.reads #'--split-prefix', 'minimap2transcriptomeindex', ##doesn't work with MD tag
 		mm2_cmd = tuple(mm2_cmd)
 		
 		# count sam transcripts ; the dash at the end means STDIN
