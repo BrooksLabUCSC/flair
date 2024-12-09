@@ -102,7 +102,9 @@ def idTranscriptomicChimeras(bam, geneannot, intronLocs, intronToGenome, minsup)
         # genename = read.reference_name.split('|')[1]
         # tname = read.reference_name.split('|')[4]
         ###if aligning to annotated_transcripts.fa ##need to add better flexibility for formatting here
-        tname, genename = read.reference_name.split('_')
+        # tname, genename = read.reference_name.split('_')
+        tname = read.reference_name.split('ENSG', 1)[0].rstrip('_')
+        genename = 'ENSG' + read.reference_name.split('ENSG', 1)[1]
         genedir = geneannot[genename][3]
         refstart, refend, dir = read.reference_start, read.reference_end, isrevtosign[read.is_reverse]
         refstart = getGenomicPreciseLoc(tname, refstart, genedir, intronLocs, intronToGenome)
