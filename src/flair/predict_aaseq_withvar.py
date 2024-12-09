@@ -103,7 +103,8 @@ for line in open(modtranscriptsfile):
 
             posToVar = {}
             for pos, ref, alt in seqvars:
-                posToVar[pos] = (ref, alt)
+                if ref == 'I' or ref == 'D':
+                    posToVar[pos] = (ref, alt)
             refseqpostomodseqpos = {}
             modseqpos, refseqpos = 0,0
             while modseqpos <= len(modseq):
@@ -123,7 +124,6 @@ for line in open(modtranscriptsfile):
             hasnovelstart = False
             startposchange = 0
             newstart, newend = thist.origstart, thist.origstop
-
 
             if len(prestartvars) > 0:
                 for pos, ref, alt in prestartvars:
@@ -156,7 +156,9 @@ for line in open(modtranscriptsfile):
                 poststartvars = [x for x in seqvars if x[0] >= thist.origstart]
                 if len(poststartvars) > 0:
                     newpredseq = translate(modseq[refseqpostomodseqpos[thist.origstart]:refseqpostomodseqpos[thist.origstop]])
-                    if newpredseq[-1] != '_':
+                    if len(newpredseq) == 0:
+                        predProd = 'NGO'
+                    elif newpredseq[-1] != '_':
                         predProd = 'NST'
                     else:
                         newend = newstart + ((len(newpredseq)) * 3)
