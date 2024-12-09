@@ -10,6 +10,7 @@ import numpy as np
 import codecs
 import tempfile
 import time
+import pipettor, pysam
 
 
 def quantify(isoform_sequences=''):
@@ -106,6 +107,10 @@ def quantify(isoform_sequences=''):
 
 		# TODO: Replace this with proper try/except Exception as ex
 		try:
+			# samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', sample[-1], '-')
+			# samtools_index_cmd = ('samtools', 'index', sample[-1])
+			# pipettor.run([mm2_cmd, samtools_sort_cmd])
+			# pipettor.run([samtools_index_cmd])
 			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
 				stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):
 				sys.stderr.write('Check {} file\n'.format(sample[-1]+'.mm2_stderr.txt'))
@@ -152,18 +157,29 @@ def quantify(isoform_sequences=''):
 				line = line.rstrip().split('\t', 1)
 				for r in line[1].split(','):
 					readToIso[r] = line[0]
+
 			newsam = open(samOut.split('.sam')[0] + '-filtered.sam', 'w')
+			nametoseq = {}
+			impsecondary = []
 			for line in open(samOut):
 				if line[0] == '@': newsam.write(line)
 				else:
-					temp = line.split('\t', 4)
-					read, iso = temp[0], temp[2]
-					if read in readToIso and readToIso[read] == iso: newsam.write(line)
+					line = line.split('\t')
+					read, iso, flag = line[0], line[2], line[1]
+					if flag == '0' or flag == '16':
+						nametoseq[read] = line[9]
+						if read in readToIso and readToIso[read] == iso: newsam.write('\t'.join(line))
+					elif read in readToIso and readToIso[read] == iso:
+						impsecondary.append(line)
+			for line in impsecondary:
+				line[9] = nametoseq[line[0]]
+				line[5] = line[5].replace('H', 'S')
+				newsam.write('\t'.join(line))
 			newsam.close()
 			if subprocess.call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']):
-				sys.stderr.write(f'Samtools issue with sorting minimap2 sam, see {stderrfile}\n')
+				sys.stderr.write(f'Samtools issue with sorting minimap2 sam\n')
 				return 1
-			subprocess.check_call(['rm', samOut.split('.sam')[0] + '-filtered.sam'])
+			# subprocess.check_call(['rm', samOut.split('.sam')[0] + '-filtered.sam'])
 
 			subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
 
