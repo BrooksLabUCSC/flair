@@ -284,7 +284,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
 
 		# minimap (results are piped into count_sam_transcripts.py)
-		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', args.annotation_reliant] + args.reads
+		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD', args.annotation_reliant] + args.reads #'--split-prefix', 'minimap2transcriptomeindex', ##doesn't work with MD tag
 		mm2_cmd = tuple(mm2_cmd)
 		
 		# count sam transcripts ; the dash at the end means STDIN
@@ -381,7 +381,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	# minimap
 	if args.mm2_args:
 		args.mm2_args = args.mm2_args.split(',')
-	mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + [args.output+'firstpass.fa'] + args.reads
+	mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [args.output+'firstpass.fa'] + args.reads
 
 	# count the number of supporting reads for each first-pass isoform
 	count_file = args.output+'firstpass.q.counts'

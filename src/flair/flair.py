@@ -4,10 +4,11 @@ import sys
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import time
-from flair_align import align
+import flair_align
 from flair_correct import correct
 from flair_collapse import collapse
 from flair_quantify import quantify
+import flair_combine
 
 def main():
 	path = '/'.join(os.path.realpath(__file__).split('/')[:-1])+'/'
@@ -28,7 +29,7 @@ def main():
 	last_time = start_time
 	if mode == 'align' or '1' in mode:
 		print(f"Starting align...", flush=True)
-		aligned_reads = align()
+		aligned_reads = flair_align.align()
 		cur_time = time.time()
 		print(f"Flair align took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
@@ -64,6 +65,13 @@ def main():
 		print(f"Flair quantify took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
 
+	if mode == 'combine':
+		print(f"Starting combine...", flush=True)
+		flair_combine.combine()
+		cur_time = time.time()
+		print(
+			f"Flair combine took {int((cur_time - last_time) / 60)} minutes and {int((cur_time - last_time)) % 60} seconds",
+			flush=True)
 	
 	if mode in ['--version', '']:
 		sys.stderr.write('FLAIR v2.0.0\n')

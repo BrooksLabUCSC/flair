@@ -104,7 +104,7 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 
 			blockstarts += [start]
 			blocksizes += [end-start]
-
+		# print(blockcount, blockstarts)
 		# last entry...
 		blockcount = len(blockstarts)
 		this_gene = line[8][line[8].find('gene_id')+9:]

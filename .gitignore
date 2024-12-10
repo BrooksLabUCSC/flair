@@ -6,3 +6,5 @@ test/test_diffs/
 test/test_input/genome.fa
 test/test_input/genome.fa.fai
 test/test_output/
+.DS_Store
+._*
