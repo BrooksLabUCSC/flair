@@ -24,36 +24,38 @@ class Isoform(object):
         # self.pro = "UNK"
         self.chrom = ""
         self.strand = None
-        self.seqvariants = {}
+        self.seqvariants = {} ##dictionary of sequence variants (variant aware isoforms) with this isoform bed structure
         self.exons     = set()
-        self.starts    = set()
+        self.starts    = set() ###annotated start coords on transcript
         # self.orfs      = list()
-        self.exonSizes = list()
-        self.ptcpoint = 0
-        self.startcodons = []
+        # self.exonSizes = list()
+        self.ptcpoint = 0 ##location in transcript where if stop codon is before this point, transcript has a premature termination codon
+        self.startcodons = [] ###position of all ATG codons on transcript
 
 class SeqVar(object):
     def __init__(self, name=None, seq=None):
         self.name = name
-        self.pro = "UNK"
+        self.pro = "UNK" ##productivity prediction
         self.sequence = seq
         self.orfs = list()
-        self.bestorf = None
-        self.aaseq = None
+        self.bestorf = None ##only set if pro='PRO'
+        self.aaseq = None ###amino acid sequence from best orf - only set if pro='PRO'
+
+def parseGTFline(l):
+    cols = l.rstrip().split("\t")
+    chrom, c1, c2, strand = cols[0], int(cols[3]) - 1, int(cols[4]), cols[6]
+    if cols[2] == "start_codon":
+        gene = cols[8][cols[8].find('gene_id') + len('gene_id') + 2:]
+        gene = gene[:gene.find('"')]
+        return chrom,c1,c2,gene,".",strand
+    else: return None
 
 def getStarts(gtf):
-    starts = list()
-    with open(gtf) as lines:
-        for l in lines:
-            if l[0] == "#": continue
-            cols = l.rstrip().split("\t")
-            chrom, c1, c2, strand = cols[0], int(cols[3])-1, int(cols[4]), cols[6]
-            if cols[2] == "start_codon":
-                gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
-                gene = gene[:gene.find('"')]
-                # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
-
-                starts.append((chrom,c1,c2,gene,".",strand))
+    starts = []
+    for l in open(gtf):
+            if l[0] != "#":
+                startinfo = parseGTFline(l)
+                if startinfo: starts.append(startinfo)
     if (len(starts)) == 0:
         sys.stderr.write('ERROR, no start codons were found in', gtf)
         sys.exit(1)
@@ -120,6 +122,7 @@ def getargs():
                         help='hexamer.tsv file for cpat')
     args = parser.parse_args()
     return args
+
 
 
 def addATGpos(isoDict, fastafile):
