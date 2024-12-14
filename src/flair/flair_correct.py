@@ -11,30 +11,30 @@ import uuid
 from ssUtils import addOtherJuncs, gtfToSSBed
 from ssPrep import ssPrep
 
-def correct(aligned_reads=''):
+def parseargs(aligned_reads=''):
 	parser = argparse.ArgumentParser(description='flair-correct parse options',
-	usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
+									 usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('at least one of the following arguments is required')
 	if not aligned_reads:
-		required.add_argument('-q', '--query', type=str, required=True, 
-		help='uncorrected bed12 file')
-	required.add_argument('-g', '--genome', type=str, required=True, 
-		help='FastA of reference genome')
+		required.add_argument('-q', '--query', type=str, required=True,
+							  help='uncorrected bed12 file')
+	required.add_argument('-g', '--genome', type=str, required=True,
+						  help='FastA of reference genome')
 	atleastone.add_argument('-j', '--shortread', type=str, default='',
-		help='bed format splice junctions from short-read sequencing')
+							help='bed format splice junctions from short-read sequencing')
 	atleastone.add_argument('-f', '--gtf', default='',
-	help='GTF annotation file')
-	parser.add_argument('-o', '--output', default='flair', 
-	      help='output name base (default: flair)')
+							help='GTF annotation file')
+	parser.add_argument('-o', '--output', default='flair',
+						help='output name base (default: flair)')
 	parser.add_argument('-t', '--threads', type=int, default=4,
-		help='number of threads (4)')
+						help='number of threads (4)')
 	parser.add_argument('--nvrna', action='store_true', default=False,
-		help='''specify this flag to make the strand of a read consistent with the annotation during correction''')
+						help='''specify this flag to make the strand of a read consistent with the annotation during correction''')
 	parser.add_argument('-w', '--ss_window', type=int, default=15,
-		help='window size for correcting splice sites (15)')
-	parser.add_argument('--print_check', action='store_true', default=False, 
-		help='Print err.txt with step checking.')
+						help='window size for correcting splice sites (15)')
+	# parser.add_argument('--print_check', action='store_true', default=False,
+	# 					help='Print err.txt with step checking.')
 	no_arguments_passed = len(sys.argv) == 1
 	if no_arguments_passed:
 		parser.print_help()
@@ -43,6 +43,10 @@ def correct(aligned_reads=''):
 	args, unknown = parser.parse_known_args()
 	if unknown:
 		sys.stderr.write('Correct unrecognized arguments: {}\n'.format(' '.join(unknown)))
+	return args
+
+def correct(aligned_reads='', args=None):
+	if not args: args = parseargs(aligned_reads)
 
 	if aligned_reads:
 		query = aligned_reads
@@ -79,7 +83,8 @@ def correct(aligned_reads=''):
 	global printErrFname
 	global printErr
 	verbose  = False # TODO
-	printErr = args.print_check
+	# printErr = args.print_check
+	printErr = False
 	printErrFname = False
 	if printErr:
 		printErrFname = os.path.join(tempDirName, 'ssCorrect.err')
