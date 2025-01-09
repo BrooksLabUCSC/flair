@@ -92,7 +92,9 @@ flair correct
    usage: flair correct -q query.bed12 [-f annotation.gtf]|[-j introns.tab] -g genome.fa [options]
 
 
-This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions. 
+This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions.
+If your genome annotation is sparse, please also use short-reads. Any reads with splice sites not near splice sites
+identified in orthogonal data will be thrown out.
 
 **Outputs**
 
