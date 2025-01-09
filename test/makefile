@@ -20,6 +20,11 @@ READS_MANIFEST = $I/reads_manifest.txt
 COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
 DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
 
+# normally 
+ifneq (${use_installed_flair},yes)
+    export PATH := ../src/flair:../bin:${PATH}
+endif
+
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2

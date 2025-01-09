@@ -1,15 +1,12 @@
 # Testing your flair installation
 
 Prerequisites:
- - flair and flair scripts are in your $PATH
  - GNU make
 
-Flair is in your $PATH if you used `conda install -c conda-forge -c bioconda flair`.
+Normally these test use FLAIR code that is in the tree to test a conda install,
+run with `make test use_installed_flair=yes`.
 
-If you downloaded the latest release from github or cloned the flair repository:
-```
-export PATH=/path/to/flair/src/flair:/path/to/flair/bin:$PATH
-```
+Flair is in your $PATH if you used `conda install -c conda-forge -c bioconda flair`.
 
 Then run `make test`.
 
