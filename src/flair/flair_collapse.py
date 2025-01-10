@@ -402,7 +402,7 @@ def collapse(genomic_range='', corrected_reads=''):
 	if not args.quiet:
 		sys.stderr.write('Aligning reads to firstpass transcripts\n')
 		sys.stderr.write('Counting supporting reads for firstpass transcripts\n')
-	pipettor.run([mm2_cmd, count_cmd]) 
+	pipettor.run([mm2_cmd, count_cmd])
 
 	if not args.quiet:
 		sys.stderr.write('Filtering isoforms by read coverage\n')
