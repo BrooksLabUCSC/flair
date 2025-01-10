@@ -274,6 +274,8 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
 
 			if isbed:
 				line[3] = newname
+				line[8] = "20,47,181" if transcript else "232,142,23" ##blue if annotated, orange if novel
+				if line[9] == '1': line[8] = "242,208,17" #yellow if monoexon
 			else:
 				line[9] = newname
 			writer.writerow(line)

@@ -126,6 +126,8 @@ def filter_collapsed_isoforms(queryfile, mode, tol, outfile, isbed=True, keep_ex
 			jcn_to_name[chrom] = {}
 			allevents[chrom]['all_se_exons'] = set()
 		isoforms[chrom][name] = {}
+		line[8] = '27,158,119' if line[5] == '+' else '217,95,2'
+		if line[9] == '1': line[8] = "242,208,17"  # yellow if monoexon
 		isoforms[chrom][name]['line'] = line
 		isoforms[chrom][name]['exons'] = exons
 		if junctions:  # multi-exon isoform

@@ -339,6 +339,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		collapse_cmd += ['-f', args.gtf]
 	if args.isoformtss:
 		collapse_cmd += ['-i']
+	if args.support < 1:
+		collapse_cmd += ['-s', str(args.support)]
 	if args.quiet:
 		collapse_cmd += ['--quiet']
 	collapse_cmd = tuple(collapse_cmd)

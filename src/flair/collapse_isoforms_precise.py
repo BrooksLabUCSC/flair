@@ -286,7 +286,8 @@ def find_best_tss(sites, finding_tss, remove_used):
 				nearby[s] += sites[s]
 				wnearby[s] += sites[s]
 			elif abs(s - s_) < window:
-				wnearby[s] += (window - abs(s - s_))/float(window * sites[s_])  # downweighted by distance from this site
+				# wnearby[s] += (window - abs(s - s_)) / float(window * sites[s_])
+				wnearby[s] += ((window - abs(s - s_))/window) * sites[s_] #(window - abs(s - s_))/float(window * sites[s_])  # downweighted by distance from this site
 				nearby[s] += sites[s_]
 		if wnearby[s] > bestsite[1]:  # update bestsite if this site has more supporting reads
 			bestsite = [s, wnearby[s], nearby[s], sites[s]]

@@ -159,6 +159,7 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 			allevents[chrom]['all_se_exons'] = set()
 		isoforms[chrom][name] = {}
 		isoforms[chrom][name]['exons'] = exons
+		line[8] = "20,47,181" if line[9] != '1' else "242,208,17"
 		all_iso_info[name] = line
 		if junctions:  # multi-exon isoform
 			isoforms[chrom][name]['jset'] = junctions

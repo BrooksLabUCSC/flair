@@ -79,6 +79,10 @@ test-faster : mkdirs test_input/genome.fa
 	python3 ../src/flair/fastercollapse.py -r $(READS_FA) -g test_input/genome.fa -t 4 --generate_map --temp_dir $O/temp_faster --keep_intermediate -f $(ANNOTATION) -o $O/test.faster -p $(PROMOTER_REGIONS)
 	diff <(sort $E/test.collapse.isoforms.gtf) <(sort $O/test.faster.isoforms.gtf) > $D/test.faster.isoforms.gtf.diff
 
+test-collapse-support : mkdirs test_input/genome.fa
+	flair collapse -s 0.25 -r $(READS_FA) -q $(READS_BED) -g test_input/genome.fa -t 4 --generate_map --temp_dir $O/temp_collapse --keep_intermediate -f $(ANNOTATION) -o $O/test.collapse -p $(PROMOTER_REGIONS)
+	diff <(sort $E/test.collapse.isoforms.gtf) <(sort $O/test.collapse.isoforms.gtf) > $D/test.collapse.isoforms.gtf.diff
+
 # FLAIR QUANTIFY
 test-quantify : mkdirs
 	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only --check_splice --stringent -o $O/test.quantify --output_bam
