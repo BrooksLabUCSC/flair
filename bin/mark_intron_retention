@@ -4,12 +4,11 @@ import csv
 import os
 
 try:
-	psl = open(sys.argv[1])
-	isbed = sys.argv[1][-3:].lower() != 'psl'
+	bedfh = open(sys.argv[1])
 	outfilename = sys.argv[2]
 	txtout = sys.argv[3]
 except:
-	sys.stderr.write('usage: mark_intron_retention in.psl|in.bed out_isoforms.psl out_introns.txt\n')
+	sys.stderr.write('usage: mark_intron_retention in.bed out_isoforms.bed out_introns.txt\n')
 	sys.exit(1)
 
 
@@ -19,16 +18,11 @@ def overlap(coords0, coords1):
 
 
 isoforms = {}
-for line in psl:
+for line in bedfh:
 	line = line.rstrip().split('\t')
-	if isbed:
-		chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
-		blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
-		blocksizes = [int(n) for n in line[10].split(',')[:-1]]
-	else:
-		chrom, name, start, end, strand = line[13], line[9], int(line[15]), int(line[16]), line[8]
-		blocksizes = [int(n) for n in line[18].split(',')[:-1]]
-		blockstarts = [int(n) for n in line[20].split(',')[:-1]]
+	chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
+	blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
+	blocksizes = [int(n) for n in line[10].split(',')[:-1]]
 	if chrom not in isoforms:
 		isoforms[chrom] = {}
 	isoforms[chrom][name] = {}
@@ -76,4 +70,3 @@ with open(txtout, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 	for intron in introncoords:
 		writer.writerow(intron)
-

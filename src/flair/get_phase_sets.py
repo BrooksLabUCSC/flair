@@ -7,10 +7,10 @@ import pysam
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
-		usage='python get_phase_sets.py -i isoforms.psl|bed -m isoform_read_map.txt -b reads.bam -o out [options]')
+		usage='python get_phase_sets.py -i isoforms.bed -m isoform_read_map.txt -b reads.bam -o out [options]')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('-i', '--isoforms',
-		type=str, required=True, help='isoforms in bed or psl format')
+		type=str, required=True, help='isoforms in bed format')
 	required.add_argument('-m', '--isoform_reads_map',
 		type=str, required=True, help='file mapping of supporting reads to isoforms')
 	required.add_argument('-b', '--bam',
@@ -27,9 +27,8 @@ def main():
 	# 	required=False, help='''Specify this argument to force overwriting of files in
 	# 	an existing output directory''')
 	args = parser.parse_args()
-	isbed = args.isoforms[-3:].lower() != 'psl'
-	get_phase_sets(isoforms=args.isoforms, isoform_reads_map=args.isoform_reads_map, 
-		bam=args.bam, output=args.output, outiso=args.outiso, comprehensive=args.comprehensive, isbed=isbed)
+	get_phase_sets(isoforms=args.isoforms, isoform_reads_map=args.isoform_reads_map,
+		bam=args.bam, output=args.output, outiso=args.outiso, comprehensive=args.comprehensive)
 
 
 def split_iso_gene(iso_gene):
@@ -55,20 +54,11 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
-#get_phase_sets(isoforms=args.isoforms, isoform_reads_map=args.isoforms_reads_map, 
-# bam=args.bam, output=args.output, outiso=args.outiso, comprehensive=False, isbed=True)
-def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensive=False, isbed=True):
+def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensive=False):
 	isoform_model = {}
 	for line in open(isoforms):
 		line = line.rstrip().split('\t')
-		if isbed:
-			# if '.' in line[3]:
-			# 	line[3] = line[3][:line[3].find('.')]
-			isoform_model[line[3]] = line
-		else:
-			# if '.' in line[9]:
-			# 	line[9] = line[9][:line[9].find('.')]
-			isoform_model[line[9]] = line
+		isoform_model[line[3]] = line
 
 	read_isoform = {}
 	phase_sets = {}
@@ -139,19 +129,12 @@ def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensi
 					var2 = iso+'-PS:NA'+'_'+gene
 					writer.writerow([var1, ps_tag, hp_tag, num_reads, total_supporting_reads])
 					writer.writerow([var2, 'NA'])
-					if isbed:
-						writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
-						writer_iso.writerow(isoform_model[i][:3] + [var2] + isoform_model[i][4:])
-					else:
-						writer_iso.writerow(isoform_model[i][:9] + [var1] + isoform_model[i][10:])
-						writer_iso.writerow(isoform_model[i][:9] + [var2] + isoform_model[i][10:])
+					writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
+					writer_iso.writerow(isoform_model[i][:3] + [var2] + isoform_model[i][4:])
 
 				else:  # only create an isoform with variant
 					writer.writerow([i, ps_tag, hp_tag, num_reads, total_supporting_reads])
-					if isbed:
-						writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
-					else:
-						writer_iso.writerow(isoform_model[i][:9] + [var1] + isoform_model[i][10:])
+					writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
 			elif len(pss) > 1 and abs(num_reads / total_supporting_reads - 0.5) < 0.1 \
 				and abs(pss[1][1] / total_supporting_reads - 0.5) < 0.1:  # two haplotypes
 				iso, gene = split_iso_gene(i)
@@ -159,12 +142,8 @@ def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensi
 				var2 = iso+'-PS:'+pss[1][0]+'_'+gene
 				writer.writerow([var1, pss[0][0]+','+pss[1][0]])
 				writer.writerow([var2, pss[0][0]+','+pss[1][0]])
-				if isbed:
-					writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
-					writer_iso.writerow(isoform_model[i][:3] + [var2] + isoform_model[i][4:])
-				else:
-					writer_iso.writerow(isoform_model[i][:9] + [var1] + isoform_model[i][10:])
-					writer_iso.writerow(isoform_model[i][:9] + [var2] + isoform_model[i][10:])
+				writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
+				writer_iso.writerow(isoform_model[i][:3] + [var2] + isoform_model[i][4:])
 			else:  # variants not high enough in frequency
 				# print(isoform_model[i][:4], pss, '.', total_supporting_reads)
 				writer.writerow([i, 'NA'])

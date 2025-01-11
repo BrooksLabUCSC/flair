@@ -49,7 +49,7 @@ class CommandLine(object):
                                              prefix_chars='-',
                                              usage='%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf -o outputprefix')
         # Add args
-        self.parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in psl or bed12 format.')
+        self.parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in bed12 format.')
         self.parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
         self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
         self.parser.add_argument('-o', "--output", action='store', required=True, help='prefix of output files')
@@ -341,11 +341,6 @@ def main():
         defineORF = 'longest'
     else:
         print('** ERR. Select method for ORF definition.', file=sys.stderr)
-        sys.exit(1)
-
-    is_psl = bed[-3:].lower() != 'bed' and bed[-5:].lower() != 'bed12'
-    if is_psl:
-        sys.stderr.write('predictProductivity no longer accepts PSL input, please run psl_to_bed\n')
         sys.exit(1)
 
     starts      = getStarts(gtf)

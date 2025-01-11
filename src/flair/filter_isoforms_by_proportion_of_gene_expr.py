@@ -6,7 +6,6 @@ import os
 def main():
 	try:
 		isoforms = sys.argv[1]
-		isbed = sys.argv[1][-3:].lower() != 'psl'
 		s = float(sys.argv[2])
 		outfilename = sys.argv[3]
 	except:
@@ -17,8 +16,8 @@ def main():
 		sys.stderr.write('Support percentage should be a decimal e.g. 0.1 for 10%\n')
 		sys.exit(1)
 
-	filter_isoforms_by_proportion_of_gene_expr(isoforms=isoforms, outfilename=outfilename, 
-					    support=s, isbed=isbed)
+	filter_isoforms_by_proportion_of_gene_expr(isoforms=isoforms, outfilename=outfilename,
+					    support=s,)
 
 
 def split_iso_gene(iso_gene):
@@ -42,15 +41,12 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
-def filter_isoforms_by_proportion_of_gene_expr(isoforms, outfilename, support, isbed=True):
+def filter_isoforms_by_proportion_of_gene_expr(isoforms, outfilename, support):
 	genes = dict()
 	isoFH = open(isoforms, 'r')
 	for line in isoFH:
 		line = line.rstrip().split('\t')
-		if isbed:
-			name = line[3]
-		else:
-			name = line[9]
+		name = line[3]
 		iso, gene = split_iso_gene(name)
 		if gene not in genes:
 			genes[gene] = set()

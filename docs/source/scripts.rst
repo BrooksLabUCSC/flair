@@ -130,23 +130,23 @@ mark_intron_retention
 =====================
 .. code:: sh
 
-    usage: mark_intron_retention in.psl|in.bed out_isoforms.psl out_introns.txt
+    usage: mark_intron_retention in.bed out_isoforms.bed out_introns.txt
 
-Assumes the psl has the correct strand information
+Assumes the bed has the correct strand information
 
 Requires three positional arguments to identify intron retentions in
 isoforms: 
 
- - ``psl`` of isoforms
- - ``psl`` output filename
- - ``txt`` output filename for coordinates of introns found.
+ - ``in.bed`` BED of isoforms
+ - ``out_isoforms.bed`` output filename
+ - ``out_introns.txt`` output filename for coordinates of introns found.
 
 **Outputs** 
 
- - an extended ``psl`` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively
+ - an extended ``BED`` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively
  - ``txt`` file of intron retentions with format ``isoform name`` ``chromosome`` ``intron 5' coordinate`` ``intron 3' coordinate``. 
 
-Note: A psl or bed file with more additional
+Note: A bed file with more additional
 columns will not be displayed in the UCSC genome browser, but can be
 displayed in IGV.
 
@@ -169,7 +169,7 @@ plot_isoform_usage
 ==================
 .. code:: sh
 
-    plot_isoform_usage <isoforms.psl>|<isoforms.bed> counts_matrix.tsv gene_name 
+    plot_isoform_usage <isoforms.bed> counts_matrix.tsv gene_name 
 
 Visualization script for FLAIR isoform structures and the percent usage
 of each isoform in each sample for a given gene. If you supply the
@@ -201,7 +201,7 @@ For example:
 .. code:: sh
 
     positional arguments:
-      isoforms              isoforms in psl/bed format
+      isoforms              isoforms in bed format
       counts_matrix         genomic sequence
       gene_name             Name of gene, must correspond with the gene names in
                             the isoform and counts matrix files
@@ -228,7 +228,7 @@ predictProductivity
 Annotated start codons from the annotation are used to identify the
 longest ORF for each isoform for predicting isoform productivity.
 Requires three arguments to classify isoforms according to productivity:
-(1) isoforms in ``psl`` or ``bed`` format, (2) ``gtf`` genome
+(1) isoforms in  ``bed`` format, (2) ``gtf`` genome
 annotation, (3) ``fasta`` genome sequences. `Bedtools <https://github.com/arq5x/bedtools2/>`_ must be in your
 ``$PATH`` for predictProductivity to run properly.
 
@@ -247,7 +247,7 @@ thicker exons to denote the coding region.
     options:
       -h, --help            show this help message and exit
       -i INPUT_ISOFORMS, --input_isoforms INPUT_ISOFORMS
-                            Input collapsed isoforms in psl or bed12 format.
+                            Input collapsed isoforms in bed12 format.
       -g GTF, --gtf GTF     Gencode annotation file.
       -f GENOME_FASTA, --genome_fasta GENOME_FASTA
                             Fasta file containing transcript sequences.
@@ -271,20 +271,6 @@ bam2Bed12
 
 A tool to convert minimap2 BAM to Bed12.
 
-
-bed_to_psl
-==========
-.. code:: sh
-
-    usage: bed_to_psl chromsizes bedfile pslfile
-
-chromsizes is a tab separated file of chromosome sizes, needed to make the ``psl`` file genome browser compatible. `Here <https://raw.githubusercontent.com/igvteam/igv/master/genomes/sizes/hg38.chrom.sizes>`__ is one for GRCh38/hg38.
-
-psl_to_bed
-==========
-.. code:: sh
-
-    usage: psl_to_bed in.psl out.bed
 
 sam_to_map
 ==========

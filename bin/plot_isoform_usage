@@ -9,12 +9,12 @@ import matplotlib.patches as mplpatches
 import seaborn as sns
 
 parser = argparse.ArgumentParser(description='options',
-  usage='''plot_isoform_usage isoforms.psl|.bed counts_matrix.tsv gene_name [options]
+  usage='''plot_isoform_usage isoforms.bed counts_matrix.tsv gene_name [options]
   The script will produce two images, one of the isoform models and another of the usage proportions.
   The most highly expressed isoforms across all the samples will be plotted.
   The minor isoforms are aggregated into a gray bar. You can toggle min_reads or
   color_palette to plot more isoforms. Run with --help for options''')
-parser.add_argument('isoforms', type=str, action='store', help='isoforms in psl/bed format')
+parser.add_argument('isoforms', type=str, action='store', help='isoforms in bed format')
 parser.add_argument('counts_matrix', type=str, action='store', help='genomic sequence')
 parser.add_argument('gene_name', type=str, action='store',
     help='''Name of gene, must correspond with the gene names in the
@@ -31,29 +31,22 @@ parser.add_argument('--palette', action='store', dest='palette',
   isoforms at once or change the palette used. each line contains a hex color for each isoform''')
 args = parser.parse_args()
 
-psl = open(args.isoforms)
-isbed = sys.argv[1][-3:].lower() == 'bed'
+bedfh = open(args.isoforms)
 counts_matrix = open(args.counts_matrix)
 if not args.o:
     args.o = args.gene_name
 
 
-def parse_psl(psl, names=False, plotany=False, keepiso=set()):
+def parse_bed(bedfh, names=False, plotany=False, keepiso=set()):
     info = []
     usednames = []
     lowbound, upbound = 1e9, 0
     #chrom = ''
-    for line in psl:
+    for line in bedfh:
         line = line.rstrip().split('\t')
-
-        if isbed:
-            name, start, end = line[3], int(line[1]), int(line[2])
-            blocksizes = [int(n) for n in line[10].split(',')[:-1]]
-            blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
-        else:
-            name, start, end = line[9], int(line[15]), int(line[16])
-            blocksizes = [int(n) for n in line[18].split(',')[:-1]]
-            blockstarts = [int(n) for n in line[20].split(',')[:-1]]
+        name, start, end = line[3], int(line[1]), int(line[2])
+        blocksizes = [int(n) for n in line[10].split(',')[:-1]]
+        blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
 
         if '_' in name[-4:]:  # for isoforms with productivity appended to the name
             flag = name[name.rfind('_') + 1:]
@@ -79,7 +72,7 @@ def parse_psl(psl, names=False, plotany=False, keepiso=set()):
         if name not in keepiso and name[:name.rfind('_')] not in keepiso:
             continue
 
-        strand = line[5] if isbed else line[8]
+        strand = line[5]
         lowbound = min(lowbound, start)
         upbound = max(upbound, end)
         info += [[blocksizes, blockstarts, keepiso[name], flag, name]]  # exon sizes, exon starts, color, prod, iso
@@ -311,7 +304,7 @@ fig_0 = plt.figure(figsize=(9, 3))
 panel = plt.axes([0.005, 0.015, .99, 0.97], frameon=True)  # annotation
 
 
-isoforms, lower, upper, strand, names = parse_psl(psl,keepiso=keepiso)
+isoforms, lower, upper, strand, names = parse_bed(bedfh, keepiso=keepiso)
 isoforms = sorted(isoforms,key=lambda x: x[3], reverse=True)  # sort by productivity
 packed = pack(isoforms, rev=False, tosort=False)
 

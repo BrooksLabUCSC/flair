@@ -8,16 +8,15 @@ import os
 def main():
 	try:
 		query = sys.argv[1]
-		isbed = sys.argv[1][-3:].lower() != 'psl'
 		mode = sys.argv[2] if sys.argv[2] in ['ginormous', 'comprehensive', 'nosubset'] else 'default' # all typos will report default
-		pslout = sys.argv[3]
+		bedout = sys.argv[3]
 		tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
 		keep_extra_column = len(sys.argv) > 5
 	except:
-		sys.stderr.write('usage: filter_collapsed_isoforms.py collapsed.psl (nosubset/default/comprehensive/ginormous)' +
-			' filtered.psl [tolerance] [keep_extra_column]\n')
+		sys.stderr.write('usage: filter_collapsed_isoforms.py collapsed.bed (nosubset|default|comprehensive|ginormous)' +
+			' filtered.bed [tolerance] [keep_extra_column]\n')
 		sys.exit(1)
-	filter_collapsed_isoforms(query=query, isbed=isbed, mode=mode, tol=tol, outfile=pslout, 
+	filter_collapsed_isoforms(query=query, mode=mode, tol=tol, outfile=bedout,
 			   keep_extra_column=keep_extra_column)
 
 
@@ -99,7 +98,7 @@ def bin_search_right(query, data):
 	return data[max(0, i-40):i+1]
 
 
-def filter_collapsed_isoforms(queryfile, mode, tol, outfile, isbed=True, keep_extra_column=False):
+def filter_collapsed_isoforms(queryfile, mode, tol, outfile, keep_extra_column=False):
 	isoforms, allevents, jcn_to_name = {}, {}, {}
 	query = open(queryfile, 'r')
 	for line in query:
@@ -109,14 +108,9 @@ def filter_collapsed_isoforms(queryfile, mode, tol, outfile, isbed=True, keep_ex
 			support = True
 		except Exception as ex:
 			raise Exception("** filter_collapsed_isoforms FAILED for %s. The final column in this file should be integers, please check." % (queryfile)) from ex
-		if isbed:
-			chrom, name, chrstart = line[0], line[3], int(line[1])
-			sizes = [int(n) for n in line[10].split(',')[:-1]]
-			starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
-		else:
-			chrom, name = line[13], line[9]
-			sizes = [int(n) for n in line[18].split(',')[:-1]]
-			starts = [int(n) for n in line[20].split(',')[:-1]]
+		chrom, name, chrstart = line[0], line[3], int(line[1])
+		sizes = [int(n) for n in line[10].split(',')[:-1]]
+		starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
 		junctions = get_junctions(starts, sizes)
 		exons = get_exons(starts, sizes)
 		if chrom not in isoforms:

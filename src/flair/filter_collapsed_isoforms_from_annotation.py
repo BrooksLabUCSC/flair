@@ -7,14 +7,14 @@ import argparse
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
-			usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed|psl -a annotated.bed -o out [options]')
+			usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed -a annotated.bed -o out [options]')
 	required = parser.add_argument_group('required named arguments')
-	required.add_argument('-i', dest='psl', type=str, required=True,
-			help='input bed/psl of collapsed isoforms to be filtered')
+	required.add_argument('-i', dest='bed', type=str, required=True,
+			help='input bed of collapsed isoforms to be filtered')
 	required.add_argument('-a', dest='annotation', type=str, required=True,
 			help='annotated .bed of isoforms with read support')
 	required.add_argument('-o', dest='output', type=str, required=True,
-			help='output file, .bed or .psl matching the input file')
+			help='output file, .bed matching the input file')
 	parser.add_argument('--new_map', dest='new_map', type=str,
 			help='output annotated map file for isos there were merged')
 	parser.add_argument('--map_i', dest='map_i', type=str, required=False,
@@ -28,23 +28,17 @@ def main():
 			help='minimum number of supporting reads for an isoform (3)')
 
 	args = parser.parse_args()
-	isbed = args.psl[-3:].lower() != 'psl'
-	
+
 	filter_collapsed_isoforms_from_annotation(annotation=args.annotation, map_a=args.map_a, map_i=args.map_i,
-			support=args.support, queryfile=args.psl, outputfile=args.output, wiggle=args.wiggle,
-			new_map=args.new_map, isbed=isbed)
+			support=args.support, queryfile=args.bed, outputfile=args.output, wiggle=args.wiggle,
+			new_map=args.new)
 
 
 
-def get_info(line, isbed):
-	if isbed:
-		chrom, name, chrstart = line[0], line[3], int(line[1])
-		sizes = [int(n) for n in line[10].split(',')[:-1]]
-		starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
-	else:
-		chrom, name = line[13], line[9]
-		sizes = [int(n) for n in line[18].split(',')[:-1]]
-		starts = [int(n) for n in line[20].split(',')[:-1]]
+def get_info(line):
+	chrom, name, chrstart = line[0], line[3], int(line[1])
+	sizes = [int(n) for n in line[10].split(',')[:-1]]
+	starts = [int(n) + chrstart for n in line[11].split(',')[:-1]]
 	return chrom, name, sizes, starts
 
 
@@ -121,8 +115,8 @@ def bin_search_right(query, data):
 	return data[max(0, i-40):i+1]
 
 def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support, queryfile, outputfile,
-	wiggle=100, new_map=False, isbed=True):
-	psl = open(queryfile)
+	wiggle=100, new_map=False):
+	bedfh = open(queryfile)
 	annotated = open(annotation)
 	iso_support = {}
 	annotated_iso_read_map = {}
@@ -147,7 +141,7 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 	isoforms, allevents, jcn_to_name, all_iso_info = {}, {}, {}, {}
 	for line in annotated:
 		line = line.rstrip().split()
-		chrom, name, sizes, starts = get_info(line, isbed)
+		chrom, name, sizes, starts = get_info(line)
 		keep_isoforms += [name]
 		junctions = get_junctions(starts, sizes)
 		exons = get_exons(starts, sizes)
@@ -174,9 +168,9 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
 			exon = exons[0]
 			allevents[chrom]['all_se_exons'].add((exon[0], exon[1], iso_support[name]))
 
-	for line in psl:
+	for line in bedfh:
 		line = line.rstrip().split()
-		chrom, name, sizes, starts = get_info(line, isbed)
+		chrom, name, sizes, starts = get_info(line)
 		junctions = get_junctions(starts, sizes)
 		exons = get_exons(starts, sizes)
 		if chrom not in isoforms:

@@ -4,18 +4,17 @@ import argparse
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
-		usage='bed_to_gtf.py psl|bed [options] > outfile.gtf')
+		usage='bed_to_gtf.py bed [options] > outfile.gtf')
 	parser.add_argument('inputfile', type=str,
-		action='store', help='isoforms in psl or bed format')
+		action='store', help='isoforms in bed format')
 	parser.add_argument('--force', action='store_true', dest='force',
 		help='specify to not split isoform name by underscore into isoform and gene ids')
 	parser.add_argument('--add_reference_transcript_id', action='store_true', dest='reference_transcript_id',
 		help='specify to add reference_transcript_id attribute')
 	args = parser.parse_args()
-	isbed = args.inputfile[-3:].lower() != 'psl'
 
 	bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
-	    reference_transcript_id=args.reference_transcript_id, isbed=isbed)
+		   reference_transcript_id=args.reference_transcript_id)
 
 
 def split_iso_gene(iso_gene):
@@ -42,20 +41,15 @@ def split_iso_gene(iso_gene):
 		gene = iso_gene[iso_gene.rfind('_')+1:]
 	return iso, gene
 
-def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, isbed=True):
+def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False):
 	outfile = open(outputfile, 'w')
 	for line in open(query):
 		line = line.rstrip().split('\t')
-		if isbed:
-			start = int(line[1])
-			chrom, strand, score, name, start = line[0], line[5], line[4], line[3], int(line[1])
-			tstarts = [int(n) + start for n in line[11].split(',')[:-1]]
-			bsizes = [int(n) for n in line[10].split(',')[:-1]]
-			end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
-		else:
-			chrom, strand, score, name, start = line[13], line[8], line[0], line[9], int(line[15])
-			tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
-			bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
+		start = int(line[1])
+		chrom, strand, score, name, start = line[0], line[5], line[4], line[3], int(line[1])
+		tstarts = [int(n) + start for n in line[11].split(',')[:-1]]
+		bsizes = [int(n) for n in line[10].split(',')[:-1]]
+		end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
 
 		if '_' not in name and not force:
 			sys.stderr.write('Entry name should contain underscore-delimited transcriptid and geneid like so:\
@@ -80,7 +74,7 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, is
 				.format(gene_id, trimmed_transcript_id, trimmed_transcript_id)
 		print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.',
 			attributes]), file=outfile)
-		if isbed and thick_start != thick_end and (thick_start != start or thick_end != end):
+		if thick_start != thick_end and (thick_start != start or thick_end != end):
 			print('\t'.join([chrom, 'FLAIR', 'CDS', str(thick_start+1), str(thick_end), '.', strand, '.',
 			attributes]), file=outfile)
 			if strand == '+':

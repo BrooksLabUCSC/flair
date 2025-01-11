@@ -7,32 +7,30 @@ from collections import namedtuple
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
-		usage='python script.py psl|bed genome.fa outfilename [options]')
-	parser.add_argument('psl', type=str,
-		help='isoforms in psl or bed format')
+		usage='python script.py bed genome.fa outfilename [options]')
+	parser.add_argument('bed', type=str,
+		help='isoforms in bed format')
 	parser.add_argument('genome', type=str,
 		help='genomic sequence')
 	parser.add_argument('outfilename', type=str,
 		help='Name of output file')
-	parser.add_argument('-v', '--vcf', type=str, 
+	parser.add_argument('-v', '--vcf', type=str,
 		help='vcf file with flair phased transcripts')
 	# longshot phased arguments
-	parser.add_argument('--isoform_haplotypes', type=str, 
+	parser.add_argument('--isoform_haplotypes', type=str,
 		help='isoform haplotype assignments')
-	parser.add_argument('--vcf_out',  default='', type=str, 
-		help='''vcf output file name. Vcf output can only be created if the input is vcf and 
+	parser.add_argument('--vcf_out',  default='', type=str,
+		help='''vcf output file name. Vcf output can only be created if the input is vcf and
 		isoform_haplotypes have been provided''')
 	parser.add_argument('--models_out', default='', type=str,
-		help='isoform psl/bed output file name, will contain additional isoforms created from unphased variants')
+		help='isoform bed output file name, will contain additional isoforms created from unphased variants')
 	args = parser.parse_args()
 
-	fastq, isbed = False, False
+	fastq = False
 	if args.outfilename[-2:].lower() in ['fq', 'fastq']:
 		fastq = True
-	if args.psl[-3:].lower() != 'psl':
-		isbed = True
-	bed_to_sequence(args.outfilename, args.genome, args.psl, args.models_out, args.vcf, 
-	args.isoform_haplotypes, isbed=isbed, vcf_out=args.vcf_out, fastq=fastq)
+	bed_to_sequence(args.outfilename, args.genome, args.bed, args.models_out, args.vcf,
+			args.isoform_haplotypes, vcf_out=args.vcf_out, fastq=fastq)
 
 
 def revcomp(seq):
@@ -67,16 +65,11 @@ def split_iso_gene(iso_gene):
     return iso, gene
 
 
-def get_sequence(entry, seq, isbed=False):
-	if isbed:
-		start = int(entry[1])
-		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
-		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
-		strand = entry[5]
-	else:
-		blocksizes = [int(n) for n in entry[18].split(',')[:-1]]
-		blockstarts = [int(n) for n in entry[20].split(',')[:-1]]
-		strand = entry[8]
+def get_sequence(entry, seq):
+	start = int(entry[1])
+	blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
+	blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+	strand = entry[5]
 	pulled_seq = ''
 	for block in range(len(blockstarts)):
 		pulled_seq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
@@ -84,7 +77,7 @@ def get_sequence(entry, seq, isbed=False):
 		pulled_seq = revcomp(pulled_seq)
 	return pulled_seq
 
-def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, strand = '+', chrom='chr1', 
+def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, strand = '+', chrom='chr1',
 	iso_name=False):
 	pulled_seq = ''
 
@@ -93,7 +86,7 @@ def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, strand
 		for v in variant_list:
 			if v.pos > starts[block] and v.pos < starts[block]+sizes[block]:
 				if v.ref != exon_seq[v.pos-starts[block]-1]:
-					print('VCF ref {} does not match genome ref base {}, at {}:{}'.format(v.ref, 
+					print('VCF ref {} does not match genome ref base {}, at {}:{}'.format(v.ref,
 						exon_seq[v.pos-starts[block] - 2:v.pos-starts[block] + 2], v.chrom, v.pos))
 				exon_seq = exon_seq[:v.pos-starts[block]-1] + v.alts[0] + exon_seq[v.pos-starts[block]:]
 
@@ -112,28 +105,22 @@ def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, strand
 	return pulled_seq
 
 
-def get_sequence_with_variants(entry, seq, pvcf, isbed=False, models_out=False, isoform_haplotypes=False):
+def get_sequence_with_variants(entry, seq, pvcf, models_out=False, isoform_haplotypes=False):
 	''' Entry is the isoform model line, seq is the genomic sequence for this chromosome'''
-	
-	unphased_variant_support = 3
-	psldata = dict()
 
-	if isbed:
-		start = int(entry[1])
-		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
-		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
-		strand = entry[5]
-		name = entry[3]
-	else:
-		blocksizes = [int(n) for n in entry[18].split(',')[:-1]]
-		blockstarts = [int(n) for n in entry[20].split(',')[:-1]]
-		strand = entry[8]
-		name = entry[9]
+	unphased_variant_support = 3
+	beddata = dict()
+
+	start = int(entry[1])
+	blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
+	blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+	strand = entry[5]
+	name = entry[3]
 
 	# get variants for this haplotype
 	if not isoform_haplotypes:
 		if name not in iso_to_variants: # TODO: iso_to_variants never gets filled
-			pulled_seq = get_sequence(entry, seq, isbed)
+			pulled_seq = get_sequence(entry, seq)
 			return pulled_seq
 		v_to_add = iso_to_variants[name]
 		v_to_add.reverse()
@@ -164,7 +151,7 @@ def get_sequence_with_variants(entry, seq, pvcf, isbed=False, models_out=False, 
 			else:
 				v_to_add += [v]
 				v_to_add_alt += [v]
-		v_to_add.reverse()  # add variants starting from the end in case of indels 
+		v_to_add.reverse()  # add variants starting from the end in case of indels
 		v_to_add_alt.reverse()
 
 		if len(v_to_add_alt) != len(v_to_add):
@@ -191,23 +178,23 @@ def get_sequence_with_variants(entry, seq, pvcf, isbed=False, models_out=False, 
 		return pulled_seq
 
 
-def write_sequences(writer, chrom, pvcf, isbed, psldata, seq, models_out=False, isoform_haplotypes=False, fastq=False):
+def write_sequences(writer, chrom, pvcf, beddata, seq, models_out=False, isoform_haplotypes=False, fastq=False):
 
 	models = []
-	for entry in psldata[chrom]:
+	for entry in beddata[chrom]:
 
 		if isoform_haplotypes:
-			pulled_seqs = get_sequence_with_variants(entry, seq, pvcf, isbed, models_out, isoform_haplotypes)
+			pulled_seqs = get_sequence_with_variants(entry, seq, pvcf, models_out, isoform_haplotypes)
 			writer.writerow(['>' + name])
 			writer.writerow([pulled_seq])   # TODO: This CANNOT be right
 
 		else:
-			name = entry[3] if isbed else entry[9]
+			name = entry[3]
 			if fastq:
 				writer.writerow(['@' + name])
 			else:
 				writer.writerow(['>' + name])
-			pulled_seq = get_sequence(entry, seq, isbed)
+			pulled_seq = get_sequence(entry, seq)
 
 			writer.writerow([pulled_seq])
 			if fastq:
@@ -216,8 +203,8 @@ def write_sequences(writer, chrom, pvcf, isbed, psldata, seq, models_out=False, 
 	return models
 
 
-def bed_to_sequence(outfilename, genome, pslfile, models_out=False, inputvcf=False, 
-	isoform_haplotypes=False, isbed=False, vcf_out=False, fastq=False):
+def bed_to_sequence(outfilename, genome, bedfile, models_out=False, inputvcf=False,
+	isoform_haplotypes=False, vcf_out=False, fastq=False):
 
 	if inputvcf and not (inputvcf and isoform_haplotypes):
 		sys.stderr.write('Must provide both vcf and haplotype information if vcf is provided\n')
@@ -225,17 +212,17 @@ def bed_to_sequence(outfilename, genome, pslfile, models_out=False, inputvcf=Fal
 	if vcf_out and not inputvcf:
 		sys.stderr.write('Not going to write isoform models without input vcf\n')
 		vcf_out = False
-	print(inputvcf, models_out, vcf_out, isbed)
-	if not inputvcf and models_out or not isbed and models_out:
-		sys.stderr.write('Not going to write isoform models without vcf or in psl format\n')
+	print(inputvcf, models_out, vcf_out)
+	if (not inputvcf and models_out) or (not bedfile and models_out):
+		sys.stderr.write('Not going to write isoform models without vcf or in BED format\n')
 		models_out = False
-	psldata = {}
-	for line in open(pslfile):  # or bed
+	beddata = {}
+	for line in open(bedfile):  # or bed
 		line = line.rstrip().split('\t')
-		chrom = line[0] if isbed else line[13]
-		if chrom not in psldata:
-			psldata[chrom] = []
-		psldata[chrom] += [line]
+		chrom = line[0]
+		if chrom not in beddata:
+			beddata[chrom] = []
+		beddata[chrom] += [line]
 
 	haplotype = {}  # isoform to haplotype
 	if isoform_haplotypes:
@@ -270,17 +257,17 @@ def bed_to_sequence(outfilename, genome, pslfile, models_out=False, inputvcf=Fal
 				if not chrom:
 					chrom = line.split()[0][1:]
 					continue
-				if chrom in psldata:  # or bed				
-					write_sequences(writer1, chrom, pvcf, isbed, psldata, seq, models_out, isoform_haplotypes, fastq)
+				if chrom in beddata:  # or bed
+					write_sequences(writer1, chrom, pvcf, beddata, seq, models_out, isoform_haplotypes, fastq)
 
 				chrom = line.split()[0][1:]
-				ignore = chrom not in psldata
+				ignore = chrom not in beddata
 				seq = ''
 			elif not ignore:
 				seq += line.upper()
 
-		if chrom in psldata:  # last chromosome
-			write_sequences(writer1, chrom, pvcf, isbed, psldata, seq, isoform_haplotypes, fastq)
+		if chrom in beddata:  # last chromosome
+			write_sequences(writer1, chrom, pvcf, beddata, seq, isoform_haplotypes, fastq)
 
 	if models_out:
 		with open(models_out, 'wt') as outfile2:

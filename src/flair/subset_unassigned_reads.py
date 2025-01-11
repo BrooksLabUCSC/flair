@@ -10,11 +10,10 @@ def main():
     query = sys.argv[2]
     support = float(sys.argv[3])
     output = sys.argv[4]
-    isbed = sys.argv[2][-3:].lower() != 'psl'
     fle = sys.argv[5:]
-    subset_unassigned_reads(readmap=readmap, query=query, support=support, output=output, fastx=fle, outfa='/dev/stdout', isbed=isbed)
+    subset_unassigned_reads(readmap=readmap, query=query, support=support, output=output, fastx=fle, outfa='/dev/stdout')
 
-def subset_unassigned_reads(readmap, query, support, output, fastx, outfa, isbed=True):
+def subset_unassigned_reads(readmap, query, support, output, fastx, outfa):
     assigned_names = set()
     for line in open(readmap):  # map
         iso, reads = line.rstrip().split('\t')
@@ -25,15 +24,12 @@ def subset_unassigned_reads(readmap, query, support, output, fastx, outfa, isbed
             assigned_names.add(r)
 
     headers_keep = set()
-    
+
     with open(output, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
         for line in open(query):  # bed
             line = line.rstrip().split('\t')
-            if isbed:
-                name = line[3]
-            else:
-                name = line[9]
+            name = line[3]
 
             if name not in assigned_names:
                 writer.writerow(line)

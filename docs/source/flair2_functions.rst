@@ -50,7 +50,7 @@ FLAIR2 can also take a vcf agnostic to the variant caller and spike variants in 
 
    assign_variants_to_transcripts --bam flair.aligned.bam -i flair.collapse.isoforms.bed -v variants.vcf --map flair.collapse.isoform.read.map.txt --bed_out out.bed --map_out out.map > out.vcf 
 
-   psl_to_sequence out.bed genome.fa out.fa -v out.vcf
+   bed_to_sequence out.bed genome.fa out.fa -v out.vcf
 
    minimap2 -ax splice --secondary=no genome.fa out.fa > out.fa.sam
    samtools sort out.fa.sam -o out.fa.bam

@@ -5,31 +5,20 @@ import os
 import argparse
 
 def main():
-	parser = argparse.ArgumentParser(description='''converts a gtf to a bed or psl, depending on the output filename extension;
+	parser = argparse.ArgumentParser(description='''converts a gtf to a bed, depending on the output filename extension;
 		gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',
-		usage='gtf_to_bed in.gtf out.psl|bed [options]')
+		usage='gtf_to_bed in.gtf out.bed [options]')
 	required = parser.add_argument_group('required named arguments')
 	required.add_argument('gtf', type=str, help='annotated gtf')
-	required.add_argument('psl', type=str, help='psl or bed file')
+	required.add_argument('bed', type=str, help='bed file')
 	parser.add_argument('--include_gene', action='store_true', dest='include_gene', required=False,
 		help='''Include gene name in the isoform name''')
-	parser.add_argument('--chrom_sizes', default='', required=False,
-		help='''chrom sizes file for psl conversion, recommended''')
 	args = parser.parse_args()
 
-	isbed = True
-	if args.psl[-3:].lower() == 'psl':
-		isbed = False
-	gtf_to_bed(args.psl, args.gtf, isbed, args.include_gene, chrom_sizes=args.chrom_sizes)
+	gtf_to_bed(args.bed, args.gtf, args.include_gene)
 
 
-def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=False):
-	chrom_to_size = {}
-	if chrom_sizes:
-		for line in open(chrom_sizes):
-			line = line.rstrip().split('\t')
-			chrom_to_size[line[0]] = line[1]
-
+def gtf_to_bed(outputfile, gtf, include_gene=False):
 	missing_chroms = set()
 	iso_to_cds = {}
 	with open(outputfile, 'wt') as outfile:
@@ -51,7 +40,7 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 					iso_to_cds[this_transcript][1] = end
 			if ty != 'exon':
 				continue
-			# once all the exons for a transcript are read, write the psl/bed entry
+			# once all the exons for a transcript are read, write the bed entry
 			if this_transcript != prev_transcript:
 				if prev_transcript:
 					blockcount = len(blockstarts)
@@ -65,35 +54,17 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 						qname = prev_transcript+'_'+prev_gene
 					else:
 						qname = prev_transcript
-					if isbed == False: # psl specific
-						pos = 0
-						qstarts = [pos]
-						for b in blocksizes[:-1]:
-							pos += b
-							qstarts += [pos]
-						qstarts = ','.join([str(b) for b in qstarts]) + ','
 
 					blocksizes = ','.join([str(b) for b in blocksizes]) + ','
 
-					if isbed == True:
-						relblockstarts = [block - tstart for block in blockstarts]
-						relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-						if qname in iso_to_cds:
-							cds_start, cds_end = iso_to_cds[qname]
-						else:
-							cds_start, cds_end = tstart, tend
-						writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
-							cds_end, 0, blockcount, blocksizes, relblockstarts])
+					relblockstarts = [block - tstart for block in blockstarts]
+					relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
+					if qname in iso_to_cds:
+						cds_start, cds_end = iso_to_cds[qname]
 					else:
-						blockstarts = ','.join([str(b) for b in blockstarts]) + ','
-						if chrom_to_size and prev_chrom in chrom_to_size:
-							writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize,
-								prev_chrom, chrom_to_size[prev_chrom], tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-						else:
-							if chrom_to_size and prev_chrom not in chrom_to_size:
-								missing_chroms.add(prev_chrom)
-							writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, prev_strand, qname, qsize, 0, qsize,
-								prev_chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
+						cds_start, cds_end = tstart, tend
+					writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
+							 cds_end, 0, blockcount, blocksizes, relblockstarts])
 
 				blockstarts, blocksizes = [], []
 				prev_transcript = this_transcript
@@ -119,27 +90,14 @@ def gtf_to_bed(outputfile, gtf, isbed=True, include_gene=False, chrom_sizes=Fals
 			qname = this_transcript+'_'+this_gene
 		else:
 			qname = this_transcript
-		if isbed == True:
-			relblockstarts = [block - tstart for block in blockstarts]
-			relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-			if qname in iso_to_cds:
-				cds_start, cds_end = iso_to_cds[qname]
-			else:
-				cds_start, cds_end = tstart, tend
-			writer.writerow([chrom, tstart, tend, qname, 1000, strand, cds_start, cds_end, 0,
-				blockcount, blocksizes, relblockstarts])
+		relblockstarts = [block - tstart for block in blockstarts]
+		relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
+		if qname in iso_to_cds:
+			cds_start, cds_end = iso_to_cds[qname]
 		else:
-			blockstarts = ','.join([str(b) for b in blockstarts]) + ','
-			if chrom_to_size and prev_chrom in chrom_to_size:
-				writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize,
-					chrom, chrom_to_size[chrom], tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-			else:
-				if chrom_to_size and chrom not in chrom_to_size:
-					missing_chroms.add(chrom)
-				writer.writerow([0, 0, 0, 0, 0, 0, 0, 0, strand, qname, qsize, 0, qsize,
-					chrom, 0, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
-	if missing_chroms:
-		sys.stderr.write('chromosomes found in gtf but not in chrom_sizes file: {}\n'.format(missing_chroms))
+			cds_start, cds_end = tstart, tend
+		writer.writerow([chrom, tstart, tend, qname, 1000, strand, cds_start, cds_end, 0,
+				 blockcount, blocksizes, relblockstarts])
 
 if __name__ == "__main__":
     main()

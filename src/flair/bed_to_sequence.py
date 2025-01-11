@@ -7,9 +7,9 @@ from collections import namedtuple
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
-		usage='python script.py psl|bed genome.fa outfilename [options]')
-	parser.add_argument('psl', type=str,
-		action='store', help='isoforms in psl or bed format')
+		usage='python script.py bed genome.fa outfilename [options]')
+	parser.add_argument('bed', type=str,
+		action='store', help='isoforms in bed format')
 	parser.add_argument('genome', type=str,
 		action='store', help='genomic sequence')
 	parser.add_argument('outfilename', type=str,
@@ -22,7 +22,7 @@ def main():
 	parser.add_argument('--vcf_out', action='store', dest='vcf_out', default='',
 		type=str, help='vcf output file name')
 	parser.add_argument('--models_out', action='store', dest='models_out', default='', type=str,
-		help='isoform psl/bed out, will contain additional isoforms created from unphased variants')
+		help='isoform bed out, will contain additional isoforms created from unphased variants')
 
 	no_arguments_passed = len(sys.argv) == 1
 	if no_arguments_passed:
@@ -30,37 +30,35 @@ def main():
 		sys.exit(1)
 	args = parser.parse_args()
 
-	isbed = args.psl[-3:].lower() != 'psl'
-
 	if args.vcf and not (args.vcf and args.isoform_haplotypes):
 		sys.stderr.write('Must provide both vcf and haplotype information if vcf is provided\n')
 		sys.exit(1)
 
-	if not args.vcf and args.models_out or not isbed and args.models_out:
-		sys.stderr.write('Not going to write isoform models without vcf or in psl format\n')
+	if (not args.vcf and args.models_out) or (not args.bed and args.models_out):
+		sys.stderr.write('Not going to write isoform models without vcf or in BED format\n')
 		args.models_out = ''
 
-	bed_to_sequence(query=args.psl, genome=args.genome, outfilename=args.outfilename,
+	bed_to_sequence(query=args.bed, genome=args.genome, outfilename=args.outfilename,
 		 isoform_haplotypes=args.isoform_haplotypes, vcfinput=args.vcf,
-		 vcf_out=args.vcf_out, models_out=args.models_out, isbed=isbed)
+		 vcf_out=args.vcf_out, models_out=args.models_out)
 
 
 # NOTE: using functions inside bed_to_sequence because all of them rely on 'global' variables
 # This really should be rewritten.
 def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinput=False,
-		    vcf_out=False, models_out=False, isbed=True):
+		    vcf_out=False, models_out=False):
 	used_variants = dict()
 	variant_string_to_record = dict()
 	fastq = outfilename[-2:].lower() in ['fq', 'fastq']
 	unphased_variant_support = 3
 
-	psldata = {}
+	beddata = {}
 	for line in open(query):  # or bed
 		line = line.rstrip().split('\t')
-		chrom = line[0] if isbed else line[13]
-		if chrom not in psldata:
-			psldata[chrom] = []
-		psldata[chrom] += [line]
+		chrom = line[0]
+		if chrom not in beddata:
+			beddata[chrom] = []
+		beddata[chrom] += [line]
 
 	haplotype = {}  # isoform to haplotype
 	if isoform_haplotypes:
@@ -107,15 +105,10 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 
 
 	def get_sequence(entry, seq):
-		if isbed:
-			start = int(entry[1])
-			blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
-			blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
-			strand = entry[5]
-		else:
-			blocksizes = [int(n) for n in entry[18].split(',')[:-1]]
-			blockstarts = [int(n) for n in entry[20].split(',')[:-1]]
-			strand = entry[8]
+		start = int(entry[1])
+		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
+		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+		strand = entry[5]
 		pulled_seq = ''
 		for block in range(len(blockstarts)):
 			pulled_seq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
@@ -152,17 +145,11 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 
 	def get_sequence_with_variants(entry, seq):
 		''' Entry is the isoform model line, seq is the genomic sequence for this chromosome'''
-		if isbed:
-			start = int(entry[1])
-			blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
-			blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
-			strand = entry[5]
-			name = entry[3]
-		else:
-			blocksizes = [int(n) for n in entry[18].split(',')[:-1]]
-			blockstarts = [int(n) for n in entry[20].split(',')[:-1]]
-			strand = entry[8]
-			name = entry[9]
+		start = int(entry[1])
+		blockstarts = [int(n) + start for n in entry[11].split(',')[:-1]]
+		blocksizes = [int(n) for n in entry[10].split(',')[:-1]]
+		strand = entry[5]
+		name = entry[3]
 
 
 		# get variants for this haplotype
@@ -226,12 +213,12 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 			return pulled_seq
 
 
-	def write_sequences(psldata_chrom, seq):
+	def write_sequences(beddata_chrom, seq):
 
 		models = []
-		for entry in psldata_chrom:
+		for entry in beddata_chrom:
 
-			name = entry[3] if isbed else entry[9]
+			name = entry[3]
 			if vcfinput:
 				pulled_seqs = get_sequence_with_variants(entry, seq)
 				writer.writerow(['>' + name])
@@ -274,17 +261,17 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 				if not chrom:
 					chrom = line.split()[0][1:]
 					continue
-				if chrom in psldata:  # or bed
-					write_sequences(psldata[chrom], seq)
+				if chrom in beddata:  # or bed
+					write_sequences(beddata[chrom], seq)
 
 				chrom = line.split()[0][1:]
-				ignore = chrom not in psldata
+				ignore = chrom not in beddata
 				seq = ''
 			elif not ignore:
 				seq += line.upper()
 
-		if chrom in psldata:  # last chromosome
-			write_sequences(psldata[chrom], seq)
+		if chrom in beddata:  # last chromosome
+			write_sequences(beddata[chrom], seq)
 
 
 	if models_out:

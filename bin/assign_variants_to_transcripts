@@ -27,18 +27,12 @@ parser.add_argument('--support_fraction', default=0.05, action='store', dest='su
 parser.add_argument('-t', '--threads', default=4, action='store', dest='t', type=int,
   help='number of threads (4)')
 args = parser.parse_args()
-
-
-isbed = args.i[-3:].lower() != 'psl'
 isoform_to_chrom = {}
 
 bed_lines = {}
 for line in open(args.i):
     line = line.rstrip().split('\t')
-    if isbed:
-        chrom, name = line[0], line[3]
-    else:
-        chrom, name = line[13], line[9]
+    chrom, name = line[0], line[3]
     isoform_to_chrom[name] = chrom
 
     bed_lines[name] = line
@@ -182,7 +176,7 @@ with open(args.bed_out, 'wt') as outfile:
                     if chrom_res[(chrom, dict_name)][iso] == 'NA':
                         writer.writerow(bed_lines[iso])
                     else:
-                        no_var_iso_name = chrom_res[(chrom, dict_name)][iso][0] 
+                        no_var_iso_name = chrom_res[(chrom, dict_name)][iso][0]
                         line = bed_lines[no_var_iso_name]
                         line[3] = iso
                         writer.writerow(line)

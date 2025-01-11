@@ -4,9 +4,7 @@ import csv
 import os
 
 try:
-	psl = open(sys.argv[1])
-	#isgtf = sys.argv[1][-3:] == 'gtf' unused
-	isbed = sys.argv[1][-3:] == 'bed'
+	bedfh = open(sys.argv[1])
 	outfilenamebase = sys.argv[2]
 	if len(sys.argv) > 3:
 		counts_tsv = open(sys.argv[3])
@@ -14,11 +12,11 @@ try:
 		counts_tsv = ''
 	wiggle = 10  # minimum distance apart for alt SS to be tested
 except:
-	sys.stderr.write('usage: call_diffsplice_events.py .psl|.bed out.tsv [counts_tsv]\n')
+	sys.stderr.write('usage: call_diffsplice_events.py in.bed out.tsv [counts_tsv]\n')
 	sys.exit(1)
 
 
-def get_junctions_psl(starts, sizes):
+def get_junctions_bed(starts, sizes):
 	junctions = []
 	for b in range(len(starts)-1):
 		junctions += [(starts[b]+sizes[b], starts[b+1], starts[b], starts[b+1]+sizes[b+1])]
@@ -97,23 +95,16 @@ isoforms = {}  # ir detection
 ir_junctions = {}  # ir detection
 a3_junctions = {}  # alt 3' ss detection
 a5_junctions = {}  # alt 5' ss detection
-for line in psl:
+for line in bedfh:
 	line = line.rstrip().split('\t')
 
-	if isbed:
-		chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
-	else:
-		chrom, name, start, end, strand = line[13], line[9], int(line[15]), int(line[16]), line[8]
+	chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
 
 	if iso_counts and name not in iso_counts:
 		continue
 
-	if isbed:
-		blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
-		blocksizes = [int(n) for n in line[10].split(',')[:-1]]
-	else:
-		blocksizes = [int(x) for x in line[18].split(',')[:-1]]
-		blockstarts = [int(x) for x in line[20].split(',')[:-1]]
+	blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
+	blocksizes = [int(n) for n in line[10].split(',')[:-1]]
 
 	chrom = strand + chrom  # stranded comparisons
 	if chrom not in isoforms:
@@ -127,7 +118,7 @@ for line in psl:
 	isoforms[chrom][name]['starts'] = blockstarts
 	isoforms[chrom][name]['range']  = start, end
 
-	these_jcns = get_junctions_psl(blockstarts, blocksizes)
+	these_jcns = get_junctions_bed(blockstarts, blocksizes)
 	for j_index in range(len(these_jcns)):
 		j = these_jcns[j_index]
 		fiveprime, threeprime = j[0], j[1]
@@ -142,7 +133,7 @@ for line in psl:
 		a5_junctions = update_altsplice_dict(a5_junctions, threeprime, fiveprime,
 			exon_end, exon_start, sample_names, iso_counts, search_threeprime=False)
 
-		j = (j[0], j[1])  # IR junctions do not need the flanking exon info from get_junctions_psl
+		j = (j[0], j[1])  # IR junctions do not need the flanking exon info from get_junctions_bed
 		if j not in ir_junctions[chrom]:  # ir detection
 			ir_junctions[chrom][j] = {}
 			ir_junctions[chrom][j]['exclusion'] = {}
@@ -200,4 +191,3 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
 				ir_junctions[chrom][j]['exclusion']['counts'] +
 				[','.join(ir_junctions[chrom][j]['exclusion']['isos'])])
 		ir_junctions[chrom] = None
-

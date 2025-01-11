@@ -7,9 +7,9 @@ import argparse
 def main():
 	parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
 		each isoform and renames the isoform''',
-		usage='python identify_gene_isoform.py psl/bed annotation.gtf renamed.psl/bed [proportion]')
-	parser.add_argument('psl', type=str,
-		action='store', help='isoforms in psl or bed format')
+		usage='python identify_gene_isoform.py bed annotation.gtf renamed.bed [proportion]')
+	parser.add_argument('bed', type=str,
+		action='store', help='isoforms in bed format')
 	parser.add_argument('gtf', type=str,
 		action='store', help='annotated isoform gtf')
 	parser.add_argument('outfilename', type=str,
@@ -24,12 +24,11 @@ def main():
 	parser.add_argument('--field_name', action='store', dest='field_name', default='gene_id',
 		help='field name to use for gene id, e.g. gene_type or gene_name (default: gene_id)')
 	args = parser.parse_args()
-	isbed = sys.argv[1][-3:].lower() != 'psl'
 
-	identify_gene_isoform(gtf=args.gtf, field_name=args.field_name, outfilename=args.outfilename, 
-		       isbed=isbed, query=args.psl, 
-			   proportion_annotated_covered=args.proportion_annotated_covered,
-			   gene_only=args.gene_only, annotation_reliant=args.annotation_reliant)
+	identify_gene_isoform(gtf=args.gtf, field_name=args.field_name, outfilename=args.outfilename,
+			      query=args.bed,
+			      proportion_annotated_covered=args.proportion_annotated_covered,
+			      gene_only=args.gene_only, annotation_reliant=args.annotation_reliant)
 
 
 def get_junctions(line):
@@ -112,8 +111,8 @@ def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene
 	return junctions, gene_unique_juncs, junc_to_gene
 
 
-def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proportion_annotated_covered=0.8, 
-			  isbed=True, gene_only=False, annotation_reliant=False):
+def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proportion_annotated_covered=0.8,
+			  gene_only=False, annotation_reliant=False):
 	prev_transcript, prev_exon = '', ''
 	junc_to_tn = {}  # matches intron to transcript; chrom: {intron: [transcripts], ... }
 	tn_to_juncs = {}  # matches transcript to intron; i.e. chrom: {transcript_name: (junction1, junction2), ... }
@@ -173,12 +172,8 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
 		for line in open(query):
 			line = line.rstrip().split('\t')
-			if isbed:
-				junctions = get_junctions_bed12(line)
-				chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
-			else:
-				junctions = get_junctions(line)
-				chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+			junctions = get_junctions_bed12(line)
+			chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
 			if ';' in name:
 				name = name[:name.find(';')]
 
@@ -190,10 +185,7 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
 					name = name + '-' + str(name_counts[name])
 				noref = chrom + ':' + str(start)[:-3] + '000'
 				newname = name + '_' + noref
-				if isbed:
-					line[3] = newname
-				else:
-					line[9] = newname
+				line[3] = newname
 				writer.writerow(line)
 				continue
 
@@ -272,12 +264,9 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
 				name_counts[name] += 1
 				newname = name + '-' + str(name_counts[name]) + '_' + gene
 
-			if isbed:
-				line[3] = newname
-				line[8] = "20,47,181" if transcript else "232,142,23" ##blue if annotated, orange if novel
-				if line[9] == '1': line[8] = "242,208,17" #yellow if monoexon
-			else:
-				line[9] = newname
+			line[3] = newname
+			line[8] = "20,47,181" if transcript else "232,142,23" ##blue if annotated, orange if novel
+			if line[9] == '1': line[8] = "242,208,17" #yellow if monoexon
 			writer.writerow(line)
 
 if __name__ == "__main__":

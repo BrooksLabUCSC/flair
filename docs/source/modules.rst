@@ -269,7 +269,7 @@ Optional arguments
                         generate instead of providing an input transcripts fasta file, 
                         otherwise flair may fail to match the transcript IDs. 
                         Alternatively you can create a correctly formatted transcript 
-                        fasta file using gtf_to_psl
+                        fasta file using gtf_to_bed
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
     --quality	        Minimum MAPQ of read assignment to an isoform (default: 1).

@@ -3,7 +3,7 @@ import sys
 import csv
 import os
 
-def select_from_bed(inputbed, queryfile, outputfile, isbed=True):
+def select_from_bed(inputbed, queryfile, outputfile):
 	keepnames = set()
 
 	for line in open(inputbed):  # bed of promoter-supported reads
@@ -12,8 +12,7 @@ def select_from_bed(inputbed, queryfile, outputfile, isbed=True):
 
 	with open(outputfile, 'wt') as outfile:
 		writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-		for line in open(queryfile):  # psl or bed
+		for line in open(queryfile):
 			line = line.rstrip().split('\t')
-			if isbed and line[3] in keepnames or not isbed and line[9] in keepnames:
+			if line[3] in keepnames:
 				writer.writerow(line)
-

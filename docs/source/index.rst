@@ -39,16 +39,10 @@ Please read for more description of the methods.
 
 It is recommended to combine all samples together prior to running
 flair-collapse for isoform assembly by concatenating corrected read
-``psl`` or ``bed`` files together. Following the creation of an isoform
+``bed`` files together. Following the creation of an isoform
 reference from flair-collapse, consequent steps will assign reads from
 each sample individually to isoforms of the combined assembly for
 downstream analyses.
-
-It is also good to note that ``bed12`` and ``psl`` can be converted
-using
-`kentUtils <https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/utils>`__
-bedToPsl or pslToBed, or using ``bed_to_psl`` and
-``psl_to_bed`` provided in flair's ``/bin`` directory.
 
 .. toctree::
    :maxdepth: 2

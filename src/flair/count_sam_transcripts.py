@@ -18,7 +18,7 @@ def parseargs():
 	required.add_argument('-s', '--sam', type=argparse.FileType('r'), help='sam file or - for STDIN')
 	required.add_argument('-o', '--output', default='counts.txt', help='output file name')
 	parser.add_argument('-i', '--isoforms',
-						help='specify isoforms.bed or .psl file if --stringent and/or --check_splice is specified')
+						help='specify isoforms.bed file if --stringent and/or --check_splice is specified')
 	parser.add_argument('--stringent', action='store_true',
 						help='only count if read alignment passes stringent criteria')
 	parser.add_argument('--check_splice', action='store_true',
@@ -58,12 +58,8 @@ def getannotinfo(args):
 	if args.stringent or args.check_splice or args.fusion_dist:
 		for line in open(args.isoforms):
 			line = line.rstrip().split('\t')
-			if args.isoforms[-3:].lower() != 'psl':  ##is bed file
-				name, left, right, chrom = line[3], int(line[1]), int(line[2]), line[0]
-				blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
-			else:
-				name, left, right, chrom = line[9], int(line[11]), int(line[12]), line[13]
-				blocksizes = [int(n) for n in line[18].rstrip(',').split(',')]
+			name, left, right, chrom = line[3], int(line[1]), int(line[2]), line[0]
+			blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
 
 			if line[5] == '+': transcripttoexons[name] = blocksizes
 			else: transcripttoexons[name] = blocksizes[::-1]
@@ -284,6 +280,3 @@ if __name__ == '__main__':
 	transcripttoexons = getannotinfo(args)
 	transcripttoreads = parsesam(args, transcripttoexons)
 	write_output(args, transcripttoreads)
-
-
-
