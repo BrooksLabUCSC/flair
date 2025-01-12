@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from tqdm import tqdm
 import pybedtools
 import re
 
@@ -156,7 +155,7 @@ def gtfToSSBed(gtffile, knownSS, printErr, printErrFname, verbose):
 	txnList = list(exons.keys())
 	juncs = dict()
 
-	for exonInfo in tqdm(txnList, total=len(txnList), desc="Step 1/5: Splitting junctions from GTF by chromosome", dynamic_ncols=True, position=1) if verbose else txnList:
+	for exonInfo in txnList:
 		chrom, txn, strand = exonInfo
 
 		if chrom not in juncs:
@@ -186,8 +185,3 @@ def gtfToSSBed(gtffile, knownSS, printErr, printErrFname, verbose):
 		with open(printErrFname,'a+') as fo:
 			print("** Created %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 	return juncs, chromosomes, knownSS
-
-
-
-
-

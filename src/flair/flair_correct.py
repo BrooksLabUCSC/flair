@@ -3,7 +3,6 @@
 import argparse
 import sys
 from multiprocessing import Pool
-from tqdm import tqdm
 import os
 import pybedtools
 import shutil
@@ -91,15 +90,15 @@ def correct(aligned_reads='', args=None):
 
 	# Convert gtf to bed and split by chromosome.
 	juncs, chromosomes, knownSS  = dict(), set(), dict() # initialize juncs for adding to db
-	if args.gtf: 
+	if args.gtf:
 		juncs, chromosomes, knownSS = gtfToSSBed(args.gtf, knownSS, printErr, printErrFname, verbose)
 
 	# Do the same for the other juncs file.
-	if args.shortread: 
-		juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome, 
+	if args.shortread:
+		juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome,
 			printErrFname, knownSS, verbose, printErr)
 		if addFlag == False:
-			sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))  
+			sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))
 			sys.exit(1)
 	knownSS = dict()
 
@@ -109,7 +108,7 @@ def correct(aligned_reads='', args=None):
 		sys.exit(1)
 
 	annotations = dict()
-	for chrom, data in tqdm(juncs.items(), desc="Step 3/5: Preparing annotated junctions to use for correction", total=len(list(juncs.keys())), dynamic_ncols=True, position=1) if verbose else juncs.items():
+	for chrom, data in juncs.items():
 		annotations[chrom] = os.path.join(tempDir,"%s_known_juncs.bed" % chrom)
 		with open(os.path.join(tempDir,"%s_known_juncs.bed" % chrom),"w") as out:
 			sortedData = sorted(list(data.keys()), key=lambda item: item[0])
@@ -125,7 +124,7 @@ def correct(aligned_reads='', args=None):
 	prevchrom = False
 	with open(query) as lines, open("%s_cannot_verify.bed" % args.output,'w') as nochrom:
 		outDict = dict()
-		for line in tqdm(lines, desc="Step 4/5: Preparing reads for correction", dynamic_ncols=True, position=1) if verbose else lines:
+		for line in lines:
 			cols  = line.rstrip().split()
 			chrom = cols[0]
 			if chrom not in chromosomes:
@@ -133,7 +132,6 @@ def correct(aligned_reads='', args=None):
 				nochrom.write(line)
 				if chrom not in skippedChroms:
 					skippedChroms.add(chrom)
-					if verbose: tqdm.write("Reference sequence %s not found in annotations, skipping" % (chrom), file=sys.stdout)
 					continue
 			else:
 				if chrom not in outDict:
@@ -171,8 +169,7 @@ def correct(aligned_reads='', args=None):
 	annotations = None
 	p = Pool(args.threads)
 	childErrs = set()
-	for i in tqdm(p.imap(ssPrep, cmds), total=len(cmds), desc="Step 5/5: Correcting Splice Sites", 
-	       dynamic_ncols=True,position=1) if verbose else p.imap(ssPrep,cmds):
+	for i in p.imap(ssPrep,cmds):
 		childErrs.add(i)
 	p.close()
 	p.join()
@@ -185,13 +182,13 @@ def correct(aligned_reads='', args=None):
 			with open(os.path.join(tempDir, "%s_inconsistent.bed" % chrom),'rb') as fd:
 				shutil.copyfileobj(fd, inconsistent, 1024*1024*10)
 
-	correct_bed = args.output + '_all_corrected.bed' 
+	correct_bed = args.output + '_all_corrected.bed'
 	with open(correct_bed,'wb') as corrected:
 		for chrom in readDict:
 			with open(os.path.join(tempDir, "%s_corrected.bed" % chrom),'rb') as fd:
 				shutil.copyfileobj(fd, corrected, 1024*1024*10)
-	if printErr: 
-		shutil.move(printErrFname, f'{args.output}.err') 
+	if printErr:
+		shutil.move(printErrFname, f'{args.output}.err')
 	shutil.rmtree(tempDir)
 
 	return correct_bed

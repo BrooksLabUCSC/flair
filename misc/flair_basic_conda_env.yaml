@@ -9,7 +9,6 @@ channels:
 dependencies:
   - python=3.6.5
   - numpy
-  - tqdm
   - ncls
   - samtools
   - bedtools=2.25.0

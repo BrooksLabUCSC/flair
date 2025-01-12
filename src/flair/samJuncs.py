@@ -213,7 +213,6 @@ def main():
     referenceIDs = [(i.split()[1].split(":")[-1], alignType, alignmentFile) for i in header[1:-2]]
     p = Pool(threads)
 
-    #results = p.imap_unordered(runCMD, tqdm(referenceIDs, desc="Parsing BAM for junctions", total=len(referenceIDs)))
     #results
     p.map(runCMD, referenceIDs)
     p.close()
