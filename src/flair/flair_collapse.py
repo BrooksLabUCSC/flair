@@ -274,7 +274,7 @@ def collapse(genomic_range='', corrected_reads=''):
 				sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
 			args.annotated_bed = args.output+'annotated_transcripts.bed'
 			# gtf to bed
-			gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
+			gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
 
 		if args.annotation_reliant == 'generate':
 			# get transcript sequences

@@ -173,7 +173,7 @@ def getannotatedseq(args):
         if not args.annotated_bed:
             args.annotated_bed = args.output + '.annotated_transcripts.bed'
             if not os.path.exists(args.output + '.annotated_transcripts.bed'):
-                gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
+                gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
         # get transcript sequences
         args.transcriptfasta = args.output + '.annotated_transcripts.fa'
         if not os.path.exists(args.output + '.annotated_transcripts.fa'):
@@ -397,10 +397,3 @@ def collapse(args):
 if __name__ == "__main__":
     args = getargs()
     collapse(args)
-
-
-
-
-
-
-
