@@ -181,7 +181,7 @@ def juncsToBed12(start, end, coords):
         return 1, [end-start], [0]
 
 
-def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict):
+def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
     '''
     correct un-annotated splice sites.
     '''
@@ -202,17 +202,24 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict):
         minVal    = min(distances)
         count     = distances.count(minVal)
 
-        if count > 1:
-            ss = junctObj(c,strand,None)
-            ss.ssCorr = ss
-            junctionBoundaryDict[c] = ss
-            return junctionBoundaryDict
+        if count > 1: ###multiple splice sites with equal distance to read ss, how to pick?
+
+            sortedvals = []
+            for x in range(len(hits)):
+                if distances[x] == minVal:
+                    annot = junctionBoundaryDict[hits[x][-1]]
+                    sortedvals.append(('both' in annot.support or 'gtf' in annot.support, annot.strand == strand, hits[x][-1]))
+            sortedvals.sort()
+
+            # with open(errFile, 'a+') as fo:
+            #     print(c, hits, sortedvals, file=fo)
+            cCorr = sortedvals[-1][-1]
         else:
             cCorr = hits[distances.index(minVal)][-1]
-            ss = junctObj(c,strand,ssType)
-            ss.ssCorr = junctionBoundaryDict[cCorr]
-            junctionBoundaryDict[c] = ss
-            return junctionBoundaryDict
+        ss = junctObj(c,strand,ssType)
+        ss.ssCorr = junctionBoundaryDict[cCorr]
+        junctionBoundaryDict[c] = ss
+        return junctionBoundaryDict
 
 
         #correctReads(readsBed, intervalTree, junctionBoundaryDict, chrom, resolveStrand, workingDir, chrom, errFile)
@@ -240,9 +247,9 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
         for x in juncs:
             c1, c2 = x[0], x[1]
             if c1 not in junctionBoundaryDict:
-                junctionBoundaryDict = ssCorrect(c1,strand,c1Type,intTree,junctionBoundaryDict)
+                junctionBoundaryDict = ssCorrect(c1,strand,c1Type,intTree,junctionBoundaryDict, errFile)
             if c2 not in junctionBoundaryDict:
-                junctionBoundaryDict = ssCorrect(c2,strand,c2Type,intTree,junctionBoundaryDict)
+                junctionBoundaryDict = ssCorrect(c2,strand,c2Type,intTree,junctionBoundaryDict, errFile)
 
             #c1Obj, c2Obj = junctionBoundaryDict[c1], junctionBoundaryDict[c2] unused
 
@@ -250,10 +257,14 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
             c2Corr = junctionBoundaryDict[c2].ssCorr.coord
 
             ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
+
+            # with open(errFile, 'a+') as fo:
+            #     print(c1, c1Corr, ssTypes[0], c2, c2Corr, ssTypes[1], None in ssTypes, file=fo)
+
             ssStrands.add(junctionBoundaryDict[c1].ssCorr.strand)
             ssStrands.add(junctionBoundaryDict[c2].ssCorr.strand)
 
-            if None in ssTypes or ssTypes[0] == ssTypes[1]:
+            if None in ssTypes: #or ssTypes[0] == ssTypes[1]:
                 # Either two donors or two acceptors or both none.
                 novelSS = True
 
@@ -262,9 +273,9 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
         blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
 
         if correctStrand:
-            if len(ssStrands) > 1:
-                novelSS = True
-            elif len(ssStrands) == 1:
+            # if len(ssStrands) > 1:
+            #     novelSS = True
+            if len(ssStrands) == 1:
                 strand = list(ssStrands)[0]
             elif len(ssStrands) == 0:
                 strand = strand
@@ -272,6 +283,10 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
         # 0 length exons, remove them.
         minSize = min(sizes)
         if minSize == 0: novelSS = True
+
+        # with open(errFile, 'a+') as fo:
+        #     # print(correctStrand, len(ssStrands) > 1, minSize == 0, file=fo)
+        #     print(minSize == 0, file=fo)
 
         if novelSS:
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
