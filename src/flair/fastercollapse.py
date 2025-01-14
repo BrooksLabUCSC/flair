@@ -190,7 +190,7 @@ def getcountsamcommand(args, outputname, mapfile, isannot):
         count_cmd += ['--generate_map', mapfile]
     if args.stringent or isannot:
         count_cmd += ['--stringent']
-    if args.check_splice or isannot:
+    if args.check_splice: #or isannot:
         count_cmd += ['--check_splice']
     if args.check_splice or args.stringent or isannot:
         count_cmd += ['-i', args.annotated_bed]  # annotated isoform bed file
@@ -202,13 +202,13 @@ def getcountsamcommand(args, outputname, mapfile, isannot):
 
 def transcriptomealignandcount(args, outputname, mapfile, isannot):
     # minimap (results are piped into count_sam_transcripts.py)
-    mm2_cmd = tuple(['minimap2', '-a', '-t', str(args.threads), '-N', '4'] + args.mm2_args + ['--split-prefix', 'minimap2transcriptomeindex',
-               args.transcriptfasta] + args.reads)
+    ##'--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
+    mm2_cmd = tuple(['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [args.transcriptfasta] + args.reads)
     ###FIXME add in step to filter out chimeric reads here
     ###FIXME really need to go in and check on how count_sam_transcripts is working
     count_cmd = getcountsamcommand(args, outputname, mapfile, isannot)
-    # print(mm2_cmd)
-    # print(count_cmd)
+    print(' '.join(mm2_cmd))
+    print(' '.join(count_cmd))
     sys.stderr.write('Aligning and counting supporting reads for transcripts\n')
     pipettor.run([mm2_cmd, count_cmd])
 
@@ -306,8 +306,8 @@ def doprefiltering(args, intermediate_files):
     intermediate_files.extend(newint)
     return args, intermediate_files
 
-def combineannotandnovel(args, intermediate_files, min_reads):
-    if args.transcriptfasta:
+def combineannotandnovel(args, intermediate_files, min_reads, didannotreliant):
+    if didannotreliant:
         filter_collapsed_isoforms_from_annotation(support=min_reads,queryfile=args.output + '.isoforms.bed',
                                                   map_i=args.output + '.novel.isoform.read.map.txt',
                                                   annotation=args.output + '.annotated_transcripts.supported.bed',
@@ -336,7 +336,7 @@ def matchcountsonfirstpass(args, min_reads):
     else:
         isoform_file = False
     match_counts(counts_file=args.output + '.firstpass.q.counts', output_file=args.output + '.isoforms.bed',
-                 psl=args.output + '.firstpass.bed', min_reads=min_reads, isoform_file=isoform_file)
+                 bed=args.output + '.firstpass.bed', min_reads=min_reads, isoform_file=isoform_file)
 
 def collapse(args):
     args.temp_dir = maketempdir(args)
@@ -344,6 +344,7 @@ def collapse(args):
     min_reads = float(args.support) if float(args.support) >= 1 else 3
     intermediate_files = []
     #check whether any annotation
+    didannotreliant = True if args.transcriptfasta else False
     if args.transcriptfasta:
         args = getannotatedseq(args)
         transcriptomealignandcount(args, args.output + '.annotated_transcripts.alignment.counts', args.output + '.annotated_transcripts.isoform.read.map.txt', True)
@@ -351,7 +352,7 @@ def collapse(args):
         ###FIXME I feel like it's unnecessary to have both the counts file and the read map file - remove the counts file
         match_counts(counts_file=args.output + '.annotated_transcripts.alignment.counts',
                      output_file=args.output + '.annotated_transcripts.supported.bed',
-                     psl=args.annotated_bed, min_reads=args.support)
+                     bed=args.annotated_bed, min_reads=args.support)
         intermediate_files.append(args.output + '.annotated_transcripts.alignment.counts')
 
     if os.stat(args.reads[0]).st_size > 0: ###check that there are remaining reads to align to the genome
@@ -386,7 +387,7 @@ def collapse(args):
         args = aligntofirstpasstranscripts(args)
         matchcountsonfirstpass(args, min_reads)
 
-    intermediate_files = combineannotandnovel(args, intermediate_files, min_reads)
+    intermediate_files = combineannotandnovel(args, intermediate_files, min_reads, didannotreliant)
 
     sys.stderr.write('Generating final transcriptome fasta and gtf\n')
     bed_to_sequence(query=args.output + '.isoforms.bed', genome=args.genome, outfilename=args.output + '.isoforms.fa')

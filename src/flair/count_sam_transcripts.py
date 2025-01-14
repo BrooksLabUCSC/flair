@@ -83,20 +83,22 @@ def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends):
 	left_coverage = check_exonenddist(first_blocksize, read_start, trust_ends, first_blocksize-read_start)
 	right_coverage = check_exonenddist(last_blocksize, tlen-read_end, trust_ends, read_end - (tlen - last_blocksize))
+	# print(first_blocksize-read_start, read_end - (tlen - last_blocksize), read_start, read_end)
 	return right_coverage and left_coverage
 
 def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends):
 	matchpos = len([x for x in coveredpos if x == 1])
-	if matchpos/tlen < 0.8:
-		return False
+	###I think that the 80% of the transcript rule is less important than the exists in both first and last exons. Could add a toggle for this though.
+	# if matchpos/tlen < 0.8:
+	# 	return False
+	# else:
+	read_start, read_end = blockstarts[0], blockstarts[-1] + blocksizes[-1]
+	first_blocksize, last_blocksize = exonpos[0], exonpos[-1]
+	# covers enough bases into the first and last exons
+	if len(blocksizes) == 1:  # single exon transcript
+		return check_singleexon(read_start, read_end, tlen)
 	else:
-		read_start, read_end = blockstarts[0], blockstarts[-1] + blocksizes[-1]
-		first_blocksize, last_blocksize = exonpos[0], exonpos[-1]
-		# covers enough bases into the first and last exons
-		if len(blocksizes) == 1:  # single exon transcript
-			return check_singleexon(read_start, read_end, tlen)
-		else:
-			return check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends)
+		return check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends)
 
 def check_splicesites(coveredpos, exonpos, tstart, tend):
 	currpos = 0
@@ -105,7 +107,6 @@ def check_splicesites(coveredpos, exonpos, tstart, tend):
 		currpos += elen
 		if tstart < currpos < tend:
 			ssvals = coveredpos[currpos - 3:currpos + 3]
-			# print(currpos, ssvals)
 			totinsert = sum([x for x in ssvals if x > 1])
 			totmatch = sum([x for x in ssvals if x == 1])
 			if totmatch - totinsert <= num_match_in_ss_window:
@@ -171,8 +172,8 @@ def check_stringentandsplice(args, transcripttoexons, tname, coveredpos, tlen, b
 		passesstringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
 										  args.trust_ends) if args.stringent else True
 		passessplice = check_splicesites(coveredpos, exoninfo, tstart, tend) if args.check_splice else True
+	# if tname == 'ENST00000225792.10_ENSG00000108654.15': print(tname, passesstringent, exoninfo, tlen)
 	return passesstringent and passessplice
-
 
 
 def getbesttranscript(tinfo, args, transcripttoexons):
@@ -190,7 +191,6 @@ def getbesttranscript(tinfo, args, transcripttoexons):
 		matchvals = get_matchvals(args, thist.md)
 
 		indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(args, matchvals, thist.cigar, thist.startpos)
-
 		if not indel_detected:
 			if check_stringentandsplice(args, transcripttoexons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos):
 				passingtranscripts.append([-1 * thist.alignscore, sum(queryclipping), thist.tlen, tname])

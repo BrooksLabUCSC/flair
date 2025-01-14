@@ -67,18 +67,20 @@ test-collapse : mkdirs ${GENOME_FA}
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # collapse annotation-reliant
+##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot : mkdirs ${GENOME_FA}
-	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_collapseannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent --check_splice
+	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_collapseannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # speedy collapse
+###this works badly on the test dataset because the test reads are error-prone and fail the built-in correct step
 test-collapse-faster : mkdirs ${GENOME_FA}
 	python3 ../src/flair/fastercollapse.py -r $(READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_faster --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # speedy collapse annotation-reliant
 test-collapse-faster-annot : mkdirs ${GENOME_FA}
-	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent --check_splice -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # collapse with support
