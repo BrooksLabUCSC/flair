@@ -120,52 +120,53 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
 	junc_to_gene = {}  # matches a splice junction (i.e. an intron) to gene name
 	gene_unique_juncs = {}  # matches a gene to its set of unique splice junctions
 
-	for line in open(gtf):
-		# extract all exons from the gtf, keep exons grouped by transcript
-		# only works if the exons are sorted by coordinates and grouped by transcript
-		if line.startswith('#'):
-			continue
-		line = line.rstrip().split('\t')
-		chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
-		if ty != 'exon':
-			continue
-		this_transcript = line[8][line[8].find('transcript_id')+15:]
-		this_transcript = this_transcript[:this_transcript.find('"')]
+	if gtf:
+		for line in open(gtf):
+			# extract all exons from the gtf, keep exons grouped by transcript
+			# only works if the exons are sorted by coordinates and grouped by transcript
+			if line.startswith('#'):
+				continue
+			line = line.rstrip().split('\t')
+			chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
+			if ty != 'exon':
+				continue
+			this_transcript = line[8][line[8].find('transcript_id')+15:]
+			this_transcript = this_transcript[:this_transcript.find('"')]
 
-		if chrom not in junc_to_gene:
-			junc_to_gene[chrom] = {}
+			if chrom not in junc_to_gene:
+				junc_to_gene[chrom] = {}
 
-		if this_transcript != prev_transcript:
-			if prev_transcript:
-				junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions,
-					prev_transcript, prev_exon, junc_to_tn, tn_to_juncs, all_se)
-			junctions = set()
-			prev_transcript = this_transcript
-		elif strand == '-' and end < prev_start:
-			junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
-				(end, prev_start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
-		else:
-			junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
-				(prev_end, start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
+			if this_transcript != prev_transcript:
+				if prev_transcript:
+					junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions,
+						prev_transcript, prev_exon, junc_to_tn, tn_to_juncs, all_se)
+				junctions = set()
+				prev_transcript = this_transcript
+			elif strand == '-' and end < prev_start:
+				junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
+					(end, prev_start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
+			else:
+				junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
+					(prev_end, start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
 
-		prev_start, prev_end = start, end
-		if field_name not in line[8]:
-			# sys.stderr.write('{} not in {}\n'.format(args.field_name, line[8]))
-			# sys.exit(1)
-			prev_gene = 'NA'
-		else:
-			prev_gene = line[8][line[8].find(field_name)+len(field_name)+2:]
-			prev_gene = prev_gene[:prev_gene.find('"')]
-			prev_gene = prev_gene.replace('_', '-')
+			prev_start, prev_end = start, end
+			if field_name not in line[8]:
+				# sys.stderr.write('{} not in {}\n'.format(args.field_name, line[8]))
+				# sys.exit(1)
+				prev_gene = 'NA'
+			else:
+				prev_gene = line[8][line[8].find(field_name)+len(field_name)+2:]
+				prev_gene = prev_gene[:prev_gene.find('"')]
+				prev_gene = prev_gene.replace('_', '-')
 
-		prev_exon = (start, end, prev_gene)
+			prev_exon = (start, end, prev_gene)
 
-	if ty == 'exon' and prev_transcript:
-		junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, prev_transcript,
-			prev_exon, junc_to_tn, tn_to_juncs, all_se)
+		if ty == 'exon' and prev_transcript:
+			junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, prev_transcript,
+				prev_exon, junc_to_tn, tn_to_juncs, all_se)
 
-	for chrom in all_se:
-		all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
+		for chrom in all_se:
+			all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
 
 	name_counts = {}  # to avoid redundant names
 	with open(outfilename, 'wt') as outfile:

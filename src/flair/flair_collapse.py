@@ -327,10 +327,6 @@ def collapse(genomic_range='', corrected_reads=''):
 		intermediate += [subset_reads, precollapse]
 
 
-	gtfname = None
-	if args.gtf and not args.no_end_adjustment:
-		gtfname=args.gtf
-
 	# TODO: collapse_isoforms_precise uses pool and map, which makes it difficult to capture in a function
 	collapse_cmd = ['collapse_isoforms_precise.py', '-q', precollapse, '-t', str(args.threads),
 		'-m', str(args.max_ends), '-w', str(args.end_window), '-n', args.no_redundant,
@@ -356,20 +352,20 @@ def collapse(genomic_range='', corrected_reads=''):
 	intermediate += [args.output+'firstpass.unfiltered.bed']
 
 	# rename first-pass isoforms to annotated transcript IDs if they match
-	if args.gtf:
-		if not args.quiet:
-			sys.stderr.write('Renaming isoforms using gtf\n')
-		identify_gene_isoform(query=args.output+'firstpass.bed', gtf=args.gtf,
-			outfilename=args.output+'firstpass.named.bed', annotation_reliant=args.annotation_reliant)
+	# if args.gtf:
+	if not args.quiet:
+		sys.stderr.write('Renaming isoforms using gtf\n')
+	identify_gene_isoform(query=args.output+'firstpass.bed', gtf=args.gtf,
+		outfilename=args.output+'firstpass.named.bed', annotation_reliant=args.annotation_reliant)
 
-		# TODO: get rid of this renaming (maybe by copying, or otherwise by having a currentbed variable)
-		os.rename(args.output+'firstpass.named.bed', args.output+'firstpass.bed')
+	# TODO: get rid of this renaming (maybe by copying, or otherwise by having a currentbed variable)
+	os.rename(args.output+'firstpass.named.bed', args.output+'firstpass.bed')
 
-		# if we want a certain read fraction to support the isoform (instead of a number of reads)
-		if float(args.support) < 1:
-			filter_isoforms_by_proportion_of_gene_expr(isoforms=args.output+'firstpass.bed',
-				outfilename=args.output+'firstpass.filtered.bed', support=args.support)
-			os.rename(args.output+'firstpass.filtered.bed', args.output+'firstpass.bed')
+	# if we want a certain read fraction to support the isoform (instead of a number of reads)
+	if float(args.support) < 1:
+		filter_isoforms_by_proportion_of_gene_expr(isoforms=args.output+'firstpass.bed',
+			outfilename=args.output+'firstpass.filtered.bed', support=args.support)
+		os.rename(args.output+'firstpass.filtered.bed', args.output+'firstpass.bed')
 
 	# get the isoform sequences for the first pass we just did
 	bed_to_sequence(query=args.output+'firstpass.bed', genome=args.genome, outfilename=args.output+'firstpass.fa')
@@ -460,8 +456,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		# subprocess.check_call(to_sequence_cmd)
 
 		# convert isoform bed to gtf
-		if args.gtf:
-			bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
+		# if args.gtf:
+		bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
 	files_to_remove = [args.output+'firstpass.fa', alignout+'q.counts']
 	#subprocess.check_call(['rm', '-rf', args.output+'firstpass.fa', alignout+'q.counts'])
