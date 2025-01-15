@@ -75,13 +75,13 @@ def detectfusions():
             sys.stderr.write('GTF file path does not exist\n')
         sys.exit(1)
 
-    ###haven't actually needed this yet lol
-    if not args.annotated_bed:
-        if not args.quiet:
-            sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
-        args.annotated_bed = args.output + 'annotated_transcripts.bed'
-        # gtf to bed
-        gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
+    # ###haven't actually needed this yet lol
+    # if not args.annotated_bed:
+    #     if not args.quiet:
+    #         sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
+    #     args.annotated_bed = args.output + 'annotated_transcripts.bed'
+    #     # gtf to bed
+    #     gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
 
     if args.annotated_fa == 'generate':
         # get transcript sequences
@@ -227,73 +227,74 @@ def detectfusions():
                 linecount += 1
     freads.close()
 
-    # makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
-    #                     '-o', args.output, '-c', args.output + '.prelimfusions.bed']
-    # faidxcommand = ['samtools', 'faidx', args.output + '-syntheticFusionGenome.fa']
-    # mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize), '-t', str(args.threads), '-un',
-    #            '--secondary=no', '-G', '1000k', args.output + '-syntheticFusionGenome.fa', freadsname]
-    # samtools_filter_cmd = ('samtools', 'view', '-F', '2048', '-hb', '-')
-    # samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '.syntheticAligned.bam', '-')
-    # samtools_index_cmd = ('samtools', 'index', args.output + '.syntheticAligned.bam')
+    makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
+                        '-o', args.output, '-c', args.output + '.prelimfusions.bed']
+    faidxcommand = ['samtools', 'faidx', args.output + '-syntheticFusionGenome.fa']
+    mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize), '-t', str(args.threads), '-un',
+               '--secondary=no', '-G', '1000k', args.output + '-syntheticFusionGenome.fa', freadsname]
+    samtools_filter_cmd = ('samtools', 'view', '-F', '2048', '-hb', '-')
+    samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '.syntheticAligned.bam', '-')
+    samtools_index_cmd = ('samtools', 'index', args.output + '.syntheticAligned.bam')
     # bamtobedcmd = ('bamToBed', '-bed12', '-i', args.output + '.syntheticAligned.bam')
-    # getsscommand = ['python3', path + 'synthetic_splice_sites.py', args.output + '.syntheticAligned.bed',
-    #                     args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed']
-    # ##NOT ADDING GTF ANNOT TO correct or collapse - I think this will save time down the line
-    # correctcommand = ['python3', path + 'flair_correct.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.bed',
-    #                   '-g', args.output + '-syntheticFusionGenome.fa', #'-f', args.output + '-syntheticReferenceAnno.gtf',
-    #                   '--output', args.output + '.syntheticAligned.flair', '--shortread', args.output + '.syntheticAligned.SJ.bed']
-    # collapsecommand = ['python3', path + 'flair_collapse.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.flair_all_corrected.bed',
-    #                   '-g', args.output + '-syntheticFusionGenome.fa', #'-f', args.output + '-syntheticReferenceAnnos.gtf',
-    #                   '--output', args.output + '.syntheticAligned.flair', '-r', freadsname, '--end_window', '300', '--isoformtss', #'--annotation_reliant', 'generate',
-    #                   '--check_splice', '--generate_map','--stringent', '--quality', '0']
-    #
-    #
-    # ##currently need to run correct and collapse as subprocess because they expect specific args, need to fix this at some point I think
-    # # print(makesynthcommand)
-    # # pipettor.run([makesynthcommand])
-    # # pipettor.run([faidxcommand])
-    # # print('synth genome made')
-    # # pipettor.run([mm2_cmd, samtools_filter_cmd, samtools_sort_cmd])
-    # # pipettor.run([samtools_index_cmd])
-    # # pipettor.run([bamtobedcmd], stdout=args.output + '.syntheticAligned.bed')
-    # # pipettor.run([getsscommand])
-    # # pipettor.run([correctcommand])
-    # pipettor.run([collapsecommand])
-    #
-    # ###clean up isoform/gene names for args.output + '.combined.isoform.read.map.txt', '.isoforms.bed', '.isoforms.fa'
-    # oldnametonewname = {}
-    # out = open(args.output + '.syntheticAligned.isoforms.bed', 'w')
-    # c = 0
-    # for line in open(args.output + '.syntheticAligned.flair.isoforms.bed'):
-    #     c +=1
-    #     line = line.rstrip().split('\t')
-    #     newname = 'fusioniso' + str(c) + '_' + line[0]
-    #     oldnametonewname[line[3]] = newname
-    #     line[3] = newname
-    #     out.write('\t'.join(line) + '\n')
-    # out.close()
-    # out = open(args.output + '.syntheticAligned.isoforms.fa', 'w')
-    # for line in open(args.output + '.syntheticAligned.flair.isoforms.fa'):
-    #     if line[0] == '>':
-    #         oldname = line[1:].rstrip()
-    #         out.write('>' + oldnametonewname[oldname] + '\n')
-    #     else: out.write(line)
-    # out.close()
-    # out = open(args.output + '.syntheticAligned.isoform.read.map.txt', 'w')
-    # for line in open(args.output + '.syntheticAligned.flair.isoform.read.map.txt'):
-    #     line = line.split('\t', 1)
-    #     line[0] = oldnametonewname[line[0]]
-    #     out.write('\t'.join(line))
-    # out.close()
-    #
-    # #removing extra FLAIR files
-    # for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
-    #     os.remove(filename)
-    #
-    # convertcommand = ['python3', path + 'convert_synthetic_to_genome_bed.py', args.output + '.syntheticAligned.isoforms.bed',
-    #                   args.output + '.syntheticAligned.isoform.read.map.txt', freadsname,
-    #                   args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed']
-    # pipettor.run([convertcommand])
+    bamtobedcmd = ('bedtools', 'bamtobed', '-bed12', '-i', args.output + '.syntheticAligned.bam')
+    getsscommand = ['python3', path + 'synthetic_splice_sites.py', args.output + '.syntheticAligned.bed',
+                        args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed']
+    ##NOT ADDING GTF ANNOT TO correct or collapse - I think this will save time down the line
+    correctcommand = ['python3', path + 'flair_correct.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.bed',
+                      '-g', args.output + '-syntheticFusionGenome.fa', #'-f', args.output + '-syntheticReferenceAnno.gtf',
+                      '--output', args.output + '.syntheticAligned.flair', '--shortread', args.output + '.syntheticAligned.SJ.bed']
+    collapsecommand = ['python3', path + 'flair_collapse.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.flair_all_corrected.bed',
+                      '-g', args.output + '-syntheticFusionGenome.fa', #'-f', args.output + '-syntheticReferenceAnnos.gtf',
+                      '--output', args.output + '.syntheticAligned.flair', '-r', freadsname, '--end_window', '300', '--isoformtss', #'--annotation_reliant', 'generate',
+                      '--check_splice', '--generate_map','--stringent', '--quality', '0']
+
+
+    ##currently need to run correct and collapse as subprocess because they expect specific args, need to fix this at some point I think
+    print(makesynthcommand)
+    pipettor.run([makesynthcommand])
+    pipettor.run([faidxcommand])
+    print('synth genome made')
+    pipettor.run([mm2_cmd, samtools_filter_cmd, samtools_sort_cmd])
+    pipettor.run([samtools_index_cmd])
+    pipettor.run([bamtobedcmd], stdout=args.output + '.syntheticAligned.bed')
+    pipettor.run([getsscommand])
+    pipettor.run([correctcommand])
+    pipettor.run([collapsecommand])
+
+    ###clean up isoform/gene names for args.output + '.combined.isoform.read.map.txt', '.isoforms.bed', '.isoforms.fa'
+    oldnametonewname = {}
+    out = open(args.output + '.syntheticAligned.isoforms.bed', 'w')
+    c = 0
+    for line in open(args.output + '.syntheticAligned.flair.isoforms.bed'):
+        c +=1
+        line = line.rstrip().split('\t')
+        newname = 'fusioniso' + str(c) + '_' + line[0]
+        oldnametonewname[line[3]] = newname
+        line[3] = newname
+        out.write('\t'.join(line) + '\n')
+    out.close()
+    out = open(args.output + '.syntheticAligned.isoforms.fa', 'w')
+    for line in open(args.output + '.syntheticAligned.flair.isoforms.fa'):
+        if line[0] == '>':
+            oldname = line[1:].rstrip()
+            out.write('>' + oldnametonewname[oldname] + '\n')
+        else: out.write(line)
+    out.close()
+    out = open(args.output + '.syntheticAligned.isoform.read.map.txt', 'w')
+    for line in open(args.output + '.syntheticAligned.flair.isoform.read.map.txt'):
+        line = line.split('\t', 1)
+        line[0] = oldnametonewname[line[0]]
+        out.write('\t'.join(line))
+    out.close()
+
+    #removing extra FLAIR files
+    for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
+        os.remove(filename)
+
+    convertcommand = ['python3', path + 'convert_synthetic_to_genome_bed.py', args.output + '.syntheticAligned.isoforms.bed',
+                      args.output + '.syntheticAligned.isoform.read.map.txt', freadsname,
+                      args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed']
+    pipettor.run([convertcommand])
 
 
 

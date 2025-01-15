@@ -114,6 +114,12 @@ def collapse(genomic_range='', corrected_reads=''):
 		help='''interval for which to collapse isoforms, formatted chromosome:coord1-coord2 or
 		tab-delimited; if a range is specified, then the aligned reads bam must be specified with -r
 		and the query must be a sorted, bgzip-ed bed file''')
+	parser.add_argument('--remove_internal_priming', default=False, action='store_true',
+						help='specify if want to remove reads with internal priming')
+	parser.add_argument('--intprimingthreshold', type=int, default=12,
+						help='number of bases that are at leas 75% As required to call read as internal priming')
+	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
+						help='number of bases that are at leas 75% As required to call read as internal priming')
 
 	no_arguments_passed = len(sys.argv) == 1
 	if no_arguments_passed:
@@ -300,6 +306,10 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['-i', args.annotated_bed] # annotated isoform bed file
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
+		if args.remove_internal_priming:
+			count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
+						  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
+						  args.transcriptfasta]
 		count_cmd = tuple(count_cmd)
 
 		if not args.quiet:
@@ -395,6 +405,9 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_cmd += ['--trust_ends']
 	if args.generate_map:
 		count_cmd += ['--generate_map', args.output+'isoform.read.map.txt']
+	if args.remove_internal_priming:
+		count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
+					  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
 	count_cmd = tuple(count_cmd)
 
 	if not args.quiet:

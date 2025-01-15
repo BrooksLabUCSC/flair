@@ -8,7 +8,8 @@ import math
 import os
 from collections import Counter
 from collections import namedtuple
-
+import remove_internal_priming
+import pysam
 
 def parseargs():
 	parser = argparse.ArgumentParser(description='''for counting transcript abundances after
@@ -37,6 +38,14 @@ def parseargs():
 	parser.add_argument('--fusion_dist',
 						help='''minimium distance between separate read alignments on the same chromosome to be
 		considered a fusion, otherwise no reads will be assumed to be fusions''')
+	parser.add_argument('--remove_internal_priming', default=False, action='store_true',
+					   help='specify if want to remove reads with internal priming')
+	parser.add_argument('--intprimingthreshold', type=int, default=12,
+						help='number of bases that are at leas 75% As required to call read as internal priming')
+	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
+						help='number of bases that are at leas 75% As required to call read as internal priming')
+	parser.add_argument('--transcriptomefasta',
+						help='provide transcriptome fasta aligned to if --remove_internal_priming is specified')
 	# parser.add_argument('--minimal_input',
 	# 	help='''input file is not actually a sam file, but only the info necessary''')
 	args = parser.parse_args()
@@ -63,7 +72,6 @@ def getannotinfo(args):
 
 			if line[5] == '+': transcripttoexons[name] = blocksizes
 			else: transcripttoexons[name] = blocksizes[::-1]
-
 	return transcripttoexons
 
 def check_singleexon(read_start, read_end, tlen):
@@ -125,31 +133,28 @@ def get_matchvals(args, md):
 					matchvals.append(0)
 	return matchvals
 
-def process_cigar(args, matchvals, cigar, startpos):
+def process_cigar(args, matchvals, cigarblocks, startpos):
 	matchpos = 0
-	cigarblocks = re.findall('([0-9]+)([A-Z])', cigar)
 	coveredpos = [0] * (startpos - 1)
 	queryclipping = []
 	tendpos = startpos - 1
-	# indel_detected = False
 	blockstarts, blocksizes = [], []
-	for blen, btype in cigarblocks:
-		blen = int(blen)
-		if btype == 'S' or btype == 'H':
+	for btype, blen in cigarblocks:
+		if btype in {4,5}:#btype == 'S' or btype == 'H':
 			queryclipping.append(blen)
-		elif btype == 'M' and (args.stringent or args.check_splice):
+		elif btype == 0 and (args.stringent or args.check_splice): #btype == 'M' and (args.stringent or args.check_splice):
 			# coveredpos.extend([1] * blen)
 			coveredpos.extend(matchvals[matchpos:matchpos + blen])
 			blockstarts.append(tendpos)
 			blocksizes.append(blen)
 			matchpos += blen
 			tendpos += blen
-		elif btype == 'D' or btype == 'N':
+		elif btype in {2,3}:#btype == 'D' or btype == 'N':
 			if args.stringent or args.check_splice:
 				coveredpos.extend([0] * blen)
 				tendpos += blen
 			if blen > large_indel_tolerance: return True, None, None, None, None, None #
-		elif btype == 'I':
+		elif btype == 1: #== 'I':
 			if args.stringent or args.check_splice:
 				coveredpos[-1] += blen
 			if blen > large_indel_tolerance: return True, None, None, None, None, None
@@ -212,46 +217,43 @@ class IsoAln(object):
 		self.alignscore = als
 		self.md = md
 
-def parsesamheaderline(line):
-	name = line[line.find('SN:') + 3:].split()[0]
-	if name.count('|') > 2:
-		name = name[:name.find('|')]
-	length = float(line[line.find('LN:') + 3:].split()[0])
-	return name, length
-
-def gettranscriptinfo(line):
-	line = line.rstrip().split('\t')
-	read, transcript, cigar, quality, pos = line[0], line[2], line[5], int(line[4]), int(line[3]) - 1
-	if transcript.count('|') > 2: transcript = transcript[:transcript.find('|')]
-	tags = ' '.join(line[11:])
-	if transcript == '*': alignscore, mdtag = None, None
-	else:
-		alignscore = int(tags.split('AS:i:')[1].split(' ')[0])
-		mdtag = tags.split('MD:Z:')[1].split(' ')[0]
-	return read, transcript, cigar, quality, pos, alignscore, mdtag
-
-
 def parsesam(args, transcripttoexons):
-	transcript_lengths = {}
 	lastread = None
 	curr_transcripts = {}
 	transcripttoreads = {}
-	for line in args.sam:
-		if line.startswith('@SQ'):
-			name, length = parsesamheaderline(line)
-			transcript_lengths[name] = length
-		elif not line[0] == '@':
-			read, transcript, cigar, quality, pos, alignscore, mdtag = gettranscriptinfo(line)
-			if quality >= args.quality and transcript != '*':
-				if lastread and read != lastread:
-					assignedt = getbesttranscript(curr_transcripts, args, transcripttoexons)
-					if assignedt:
-						if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
-						transcripttoreads[assignedt].append(lastread)
-					curr_transcripts = {}
-				tlen = transcript_lengths[transcript]
-				curr_transcripts[transcript] = IsoAln(transcript, quality, pos, cigar, tlen, alignscore, mdtag)
-				lastread = read
+	samfile = pysam.AlignmentFile(args.sam, 'r')
+	genome = None
+	if args.remove_internal_priming:
+		genome = pysam.FastaFile(args.transcriptomefasta)
+	for read in samfile:
+		if read.is_mapped:
+			readname = read.query_name
+			transcript = read.reference_name
+			quality = read.mapping_quality
+			if quality > args.quality:
+				##for transcriptome alignment, always take rightmost side on transcript
+				if args.remove_internal_priming:
+					notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name,
+																				   read.reference_start,
+																				   read.reference_end, False,
+																				   genome, None, transcripttoexons,
+																				   args.intprimingthreshold,
+																				   args.intprimingfracAs)
+				else: notinternalpriming = True
+				if notinternalpriming:
+					pos = read.reference_start
+					alignscore = read.get_tag('AS')
+					cigar = read.cigartuples
+					mdtag = read.get_tag('MD')
+					tlen = samfile.get_reference_length(transcript)
+					if lastread and readname != lastread:
+						assignedt = getbesttranscript(curr_transcripts, args, transcripttoexons)
+						if assignedt:
+							if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
+							transcripttoreads[assignedt].append(lastread)
+						curr_transcripts = {}
+					curr_transcripts[transcript] = IsoAln(transcript, quality, pos, cigar, tlen, alignscore, mdtag)
+					lastread = readname
 	if lastread:
 		assignedt = getbesttranscript(curr_transcripts, args, transcripttoexons)
 		if assignedt:

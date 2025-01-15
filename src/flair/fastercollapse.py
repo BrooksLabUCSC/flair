@@ -116,6 +116,14 @@ def getargs():
                         help='''specify if intermediate and temporary files are to be kept for debugging.
     		Intermediate files include: promoter-supported reads file,
     		read assignments to firstpass isoforms''')
+    parser.add_argument('--remove_internal_priming', default=False, action='store_true',
+                        help='specify if want to remove reads with internal priming')
+    parser.add_argument('--intprimingthreshold', type=int, default=12,
+                        help='number of bases that are at leas 75% As required to call read as internal priming')
+    parser.add_argument('--intprimingfracAs', type=float, default=0.6,
+                        help='number of bases that are at leas 75% As required to call read as internal priming')
+    parser.add_argument('--remove_singleexon', default=False, action='store_true',
+                        help='specify if want to remove unspliced reads')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -196,6 +204,9 @@ def getcountsamcommand(args, outputname, mapfile, isannot):
         count_cmd += ['-i', args.annotated_bed]  # annotated isoform bed file
     if args.trust_ends:
         count_cmd += ['--trust_ends']
+    if args.remove_internal_priming:
+        count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
+                      '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
     return tuple(count_cmd)
 
 

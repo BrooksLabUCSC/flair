@@ -5,6 +5,7 @@ import argparse
 import os
 import pipettor
 import pysam
+import remove_internal_priming
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 # from bam2Bed12 import bam2Bed12
 
@@ -118,18 +119,33 @@ def doalignment(args):
 
 def dofiltering(args, inbam, filterreadmap=None):
 	samfile = pysam.AlignmentFile(inbam, 'rb')#args.output + '_unfiltered.bam', "rb")
+	withsup = None
 	if args.filtertype == 'separate':
 		withsup = pysam.AlignmentFile(args.output + '_chimeric.bam', "wb", template=samfile)
 	trash = pysam.AlignmentFile(args.output + '_trash.bam', "wb", template=samfile)
 	fullyaligned = pysam.AlignmentFile(args.output + '.bam', "wb", template=samfile)
 	outbed = open(args.output + '.bed', 'w')
 	readstokeep = set()
+	annottranscriptends, genome = None, None
+	if args.remove_internal_priming:
+		annottranscriptends = remove_internal_priming.getannotends(args.gtf)
+		genome = pysam.FastaFile(args.genome)
 	if filterreadmap:
 		for line in open(filterreadmap):
 			reads = line.rstrip().split('\t', 1)[1].split(',')
 			readstokeep.update(set(reads))
 	for read in samfile.fetch():
 		if read.is_mapped and not read.is_secondary:
+			if args.remove_singleexon:
+				if read.get_cigar_stats()[0][3] == 0:
+					trash.write(read)
+					continue
+			if args.remove_internal_priming:
+				notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name, read.reference_start, read.reference_end, read.is_reverse,
+									  genome, annottranscriptends, None, args.intprimingthreshold, args.intprimingfracAs)
+				if not notinternalpriming:
+					trash.write(read)
+					continue
 			if filterreadmap:
 				if read.query_name not in readstokeep: continue
 			if read.has_tag('SA'):
@@ -198,11 +214,21 @@ def align():
 						help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
 	parser.add_argument('--maxintronlen', default='200k',
 						help='maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns')
-	parser.add_argument('-f', '--filtertype', type=str, default='keepsup',
+	parser.add_argument('--filtertype', type=str, default='keepsup',
         help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
 	parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
 		help='''Suppress minimap progress statements from being printed''')
-	
+	parser.add_argument('--remove_internal_priming', default=False, action='store_true',
+					   help='specify if want to remove reads with internal priming')
+	parser.add_argument('-f', '--gtf', type=str,
+		help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
+	parser.add_argument('--intprimingthreshold', type=int, default=12,
+						help='number of bases that are at leas 75% As required to call read as internal priming')
+	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
+						help='number of bases that are at leas 75% As required to call read as internal priming')
+	parser.add_argument('--remove_singleexon', default=False, action='store_true',
+						help='specify if want to remove unspliced reads')
+
 	no_arguments_passed = len(sys.argv) == 1
 	if no_arguments_passed:
 		parser.print_help()
