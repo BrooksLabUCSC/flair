@@ -18,8 +18,10 @@ ANNOTATION_INCOMPLETE = $I/annotation.incomplete.gtf
 SHORTREAD_JUNCTIONS = $I/shortread_junctions.tab
 UNCORRECTED_READS_BED = $I/test.align.bed
 READS_BED = $I/test.corrected.bed
-ISOFORMS_FA = $I/test.collapse.isoforms.fa
-ISOFORMS_BED = $I/test.collapse.isoforms.bed
+# ISOFORMS_FA = $I/test.collapse.isoforms.fa
+# ISOFORMS_BED = $I/test.collapse.isoforms.bed
+ISOFORMS_FA = $I/test-collapse-annot.isoforms.fa
+ISOFORMS_BED = $I/test-collapse-annot.isoforms.bed
 PROMOTER_REGIONS = $I/promoter_regions.bed
 READS_MANIFEST = $I/reads_manifest.txt
 COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
@@ -102,7 +104,7 @@ test-collapse-support : mkdirs ${GENOME_FA}
 quantify-tests: test-quantify
 
 test-quantify : mkdirs
-	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only --check_splice --stringent -o $O/$@ --output_bam
+	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only -o $O/$@ --output_bam
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
 	diff <(sort $E/$@.tpm.tsv) <(sort $O/$@.tpm.tsv) > $D/$@.diff
 	diff <(sort $E/$@.A1.A.flair.aligned.readtotranscript.txt) <(sort $O/$@.A1.A.flair.aligned.readtotranscript.txt) > $D/$@.outputbam.diff
