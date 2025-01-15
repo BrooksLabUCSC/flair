@@ -33,7 +33,7 @@ default:
 	@echo "   " make align-tests >&2
 	@exit 1
 
-test : align-tests correct-tests collapse-tests quantify-tests
+test : align-tests correct-tests collapse-tests quantify-tests \
 	quantify-tests diffexp-tests diffsplice-tests flair-scripts-tests
 
 ###
