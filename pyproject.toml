@@ -1,3 +1,37 @@
+[project]
+name = "flair"
+version = "2.1.0a"
+description = "FLAIR is a long-read transcriptomics model building and analysis package"
+authors = [
+    {name = "Angela Brooks", email = "anbrooks@ucsc.edu"},
+    {name = "Alison Tang"},
+    {name = "Jeltje van Baren", email = "jeltje.van.baren@gmail.com"},
+    {name = "Colette Felton", email = "cafelton@ucsc.edu"},
+    {name = "Cameron M. Soulette"},
+    {name = "Mark Diekhans", email = "markd@ucsc.edu"}
+]
+license = {text = "BSD 3-clause"}
+readme = "README.md"
+requires-python = "=3.12.*"
+dependencies = [
+    "pysam (>=0.22.1,<0.23.0)",
+    "pipettor (>=1.0.0,<2.0.0)",
+    "pybedtools (>=0.11.0,<0.12.0)",
+    "ncls (>=0.0.68,<0.0.69)",
+    "setuptools (>=75.8.0,<76.0.0)",
+    "mappy (>=2.28,<3.0)",
+    "scipy (>=1.15.1,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "matplotlib (>=3.10.0,<4.0.0)",
+    "seaborn (>=0.13.2,<0.14.0)",
+    "rpy2 (>=3.5.17,<4.0.0)"
+]
+
+
 [build-system]
-requires = ['setuptools>=42']
-build-backend = 'setuptools.build_meta'
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "^7.1.1"
+

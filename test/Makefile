@@ -1,17 +1,18 @@
-SHELL := /bin/bash
+root = ..
+include ${root}/defs.mk
 
 # If you want to use the install flair rather than the one it this
 # tree use:
 #   make test use_installed_flair=yes
 ifneq (${use_installed_flair},yes)
-    export PATH := ../src/flair:../bin:${PATH}
+    export PATH := ${root}/src/flair:${root}/bin:${PATH}
 endif
 
 I = test_input
 E = test_expected
 O = test_output
 D = test_diffs
-IT = test_input_tmp
+IT = input_tmp
 READS_FA = $I/reads.fa
 ANNOTATION = $I/annotation.gtf
 ANNOTATION_INCOMPLETE = $I/annotation.incomplete.gtf
@@ -69,33 +70,39 @@ collapse-tests: test-collapse test-collapse-annot test-collapse-faster test-coll
 
 # basic collapse
 test-collapse : mkdirs ${GENOME_FA}
-	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_collapse --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	rm -rf $O/$@.tmp
+	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot : mkdirs ${GENOME_FA}
-	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_collapseannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
+	rm -rf output/$@.tmo
+	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # speedy collapse
 ###this works badly on the test dataset because the test reads are error-prone and fail the built-in correct step
 test-collapse-faster : mkdirs ${GENOME_FA}
-	python3 ../src/flair/fastercollapse.py -r $(READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_faster --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	rm -rf $O/$@.tmp
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # speedy collapse annotation-reliant
 test-collapse-faster-annot : mkdirs ${GENOME_FA}
-	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	rm -rf $O/$@.tmo
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 test-collapse-faster-annot-removeintprim : mkdirs ${GENOME_FA}
-	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --remove_internal_priming
+	rm -rf $O/$@.tmp
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --remove_internal_priming
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # collapse with support
 test-collapse-support : mkdirs ${GENOME_FA}
-	flair collapse -s 0.25 -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_collapse --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	rm -rf $O/$@.tmp
+	flair collapse -s 0.25 -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.gtf.diff
 
 ###
@@ -104,7 +111,8 @@ test-collapse-support : mkdirs ${GENOME_FA}
 quantify-tests: test-quantify
 
 test-quantify : mkdirs
-	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/test.quant.temp --tpm --sample_id_only -o $O/$@ --output_bam
+	rm -rf $O/$@.tmp
+	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
 	diff <(sort $E/$@.tpm.tsv) <(sort $O/$@.tpm.tsv) > $D/$@.diff
 	diff <(sort $E/$@.A1.A.flair.aligned.readtotranscript.txt) <(sort $O/$@.A1.A.flair.aligned.readtotranscript.txt) > $D/$@.outputbam.diff
@@ -136,11 +144,11 @@ test-diffsplice : mkdirs
 flair-scripts-tests: test-predict-productivity test-diff-iso-usage
 
 test-predict-productivity : mkdirs ${GENOME_FA}
-	$(DCMD) predictProductivity -i $(ISOFORMS_BED) -g $(ANNOTATION) -f ${GENOME_FA} -o $O/$@.bed --longestORF
+	predictProductivity -i $(ISOFORMS_BED) -g $(ANNOTATION) -f ${GENOME_FA} -o $O/$@ --longestORF
 	diff <(sort $E/$@.bed) <(sort $O/$@.bed) > $D/$@.diff
 
 test-diff-iso-usage : mkdirs
-	$(DCMD) diff_iso_usage $(COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
+	diff_iso_usage $(COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
 	diff <(sort $E/$@.tsv) <(sort $O/$@.tsv) > $D/$@.diff
 
 
