@@ -146,6 +146,7 @@ flair-scripts-tests: test-predict-productivity test-diff-iso-usage
 test-predict-productivity : mkdirs ${GENOME_FA}
 	predictProductivity -i $(ISOFORMS_BED) -g $(ANNOTATION) -f ${GENOME_FA} -o $O/$@ --longestORF
 	diff <(sort $E/$@.bed) <(sort $O/$@.bed) > $D/$@.diff
+	diff <(sort $E/$@.info.tsv) <(sort $O/$@.info.tsv) > $D/$@.info.diff
 
 test-diff-iso-usage : mkdirs
 	diff_iso_usage $(COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
