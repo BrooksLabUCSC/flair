@@ -8,11 +8,11 @@ ifneq (${use_installed_flair},yes)
     export PATH := ${root}/src/flair:${root}/bin:${PATH}
 endif
 
-I = test_input
-E = test_expected
-O = test_output
-D = test_diffs
-IT = input_tmp
+I = input
+E = expected
+O = output
+D = diffs
+IT = input.tmp
 READS_FA = $I/reads.fa
 ANNOTATION = $I/annotation.gtf
 ANNOTATION_INCOMPLETE = $I/annotation.incomplete.gtf
@@ -170,5 +170,5 @@ mkdirs :
 clean :
 	rm -rf $O $D
 
-real-clean : clean
+realclean : clean
 	rm -rf ${IT}
