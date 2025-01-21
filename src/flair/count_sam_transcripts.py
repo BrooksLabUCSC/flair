@@ -41,9 +41,9 @@ def parseargs():
 	parser.add_argument('--remove_internal_priming', default=False, action='store_true',
 					   help='specify if want to remove reads with internal priming')
 	parser.add_argument('--intprimingthreshold', type=int, default=12,
-						help='number of bases that are at leas 75% As required to call read as internal priming')
+						help='number of bases that are at leas 75%% As required to call read as internal priming')
 	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
-						help='number of bases that are at leas 75% As required to call read as internal priming')
+						help='number of bases that are at leas 75%% As required to call read as internal priming')
 	parser.add_argument('--transcriptomefasta',
 						help='provide transcriptome fasta aligned to if --remove_internal_priming is specified')
 	# parser.add_argument('--minimal_input',

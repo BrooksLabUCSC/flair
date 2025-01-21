@@ -1,0 +1,42 @@
+Starting quantify...
+usage: flair quantify -r reads_manifest.tsv -i isoforms.fa [options]
+
+flair-quantify parse options
+
+options:
+  -h, --help            show this help message and exit
+  -o O, --output O      output file name base for FLAIR quantify (default:
+                        flair.quantify)
+  -t T, --threads T     minimap2 number of threads (4)
+  --temp_dir TEMP_DIR   directory to put temporary files. use './" to
+                        indicate current directory (default: python
+                        tempfile directory)
+  --sample_id_only      only use sample id in output header
+  --tpm                 Convert counts matrix to transcripts per million
+                        and output as a separate file named
+                        <output>.tpm.tsv
+  --quality QUALITY     minimum MAPQ of read assignment to an isoform (1)
+  --trust_ends          specify if reads are generated from a long read
+                        method with minimal fragmentation
+  --generate_map        create read-to-isoform assignment files for each
+                        sample (default: not specified)
+  --isoform_bed ISOFORMS, --isoformbed ISOFORMS
+                        isoform .bed file, must be specified if --stringent
+                        or check_splice is specified
+  --stringent           Supporting reads must cover 80 percent of their
+                        isoform and extend at least 25 nt into the first
+                        and last exons. If those exons are themselves
+                        shorter than 25 nt, the requirement becomes 'must
+                        start within 4 nt from the start" or "must end
+                        within 4 nt from the end"
+  --check_splice        enforce coverage of 4 out of 6 bp around each
+                        splice site and no insertions greater than 3 bp at
+                        the splice site
+  --output_bam          whether to output bam file of reads aligned to
+                        correct isoforms
+
+required named arguments:
+  -r R, --reads_manifest R
+                        Tab delimited file containing sample id, condition,
+                        batch, reads.fq
+  -i I, --isoforms I    FastA of FLAIR collapsed isoforms

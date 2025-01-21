@@ -1,0 +1,1 @@
+usage: diff_iso_usage counts_matrix colname1 colname2 diff_isos.txt

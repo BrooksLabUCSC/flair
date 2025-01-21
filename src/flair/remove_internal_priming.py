@@ -22,9 +22,9 @@ def parseargs():
     parser.add_argument('-r', '--reference',
                         help='fa file of reference genome or transcriptome')
     parser.add_argument('--intprimingthreshold', type=int, default=12,
-                        help='number of bases that are at leas 75% As required to call read as internal priming')
+                        help='number of bases that are at leas 75%% As required to call read as internal priming')
     parser.add_argument('--intprimingfracAs', type=float, default=0.6,
-                        help='number of bases that are at leas 75% As required to call read as internal priming')
+                        help='number of bases that are at leas 75%% As required to call read as internal priming')
     args = parser.parse_args()
     return args
 
