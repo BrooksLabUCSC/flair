@@ -10,21 +10,36 @@ from flair_collapse import collapse
 from flair_quantify import quantify
 import flair_combine
 
+def help():
+	"temporary help until switched to argparse"
+	help = """usage: flair <mode> --help
+modes: align, correct, collapse, quantify
+Multiple modules can be run when specified using numbers, e.g.:
+flair 1234 ..."""
+	print(help, file=sys.stderr)
+
+
 def main():
 	path = '/'.join(os.path.realpath(__file__).split('/')[:-1])+'/'
 	globals()['path'] = path
 	if len(sys.argv) < 2:
-		sys.stderr.write('usage: flair <mode> --help \n')
-		sys.stderr.write('modes: align, correct, collapse, quantify\n')
-		sys.stderr.write('Multiple modules can be run when specified using numbers, e.g.:\n')
-		sys.stderr.write('flair 1234 ...\n')
+		help()
 		sys.exit(1)
 	else:
 		mode = sys.argv[1].lower()
 	# remove mode from the sys arguments
 	sys.argv.pop(1)
 
+	if mode == '--help':
+		help()
+		sys.exit(0)
+
+	if mode == '--version':
+		print('FLAIR version:', __version__)
+		sys.exit(0)
+
 	aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
+	cur_time = None
 	start_time = time.time()
 	last_time = start_time
 	if mode == 'align' or '1' in mode:
@@ -72,7 +87,7 @@ def main():
 		print(
 			f"Flair combine took {int((cur_time - last_time) / 60)} minutes and {int((cur_time - last_time)) % 60} seconds",
 			flush=True)
-	
+
 	if mode in ['--version', '']:
 		sys.stderr.write('FLAIR v2.0.0\n')
 		sys.exit(0)

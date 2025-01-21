@@ -32,12 +32,24 @@ GENOME_FA = ${IT}/genome.fa
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
+	@echo To run tests that do not depend on R >&2
+	@echo "   " make base-tests >&2
 	@echo otherwise run individual tests by specifying test target, such as: >&2
 	@echo "   " make align-tests >&2
 	@exit 1
 
-test : align-tests correct-tests collapse-tests quantify-tests \
-	quantify-tests diffexp-tests diffsplice-tests flair-scripts-tests
+base-tests: main-tests align-tests correct-tests collapse-tests quantify-tests \
+	flair-scripts-tests
+test : base-tests diffexp-tests diffsplice-tests
+
+###
+# MAIN COMMAND
+###
+main-tests: test-main-help
+
+test-main-help: mkdirs
+	flair --help >& $O/$@.out
+	diff $E/$@.out $O/$@.out
 
 ###
 # FLAIR ALIGN
