@@ -2,7 +2,7 @@
 FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isoform definition, and alternative splicing analysis of noisy reads. FLAIR has primarily been used for nanopore cDNA, native RNA, and PacBio sequencing reads.
 
 ## FLAIR Announce Mailing list
-*If you are using FLAIR, please subscribe to the FLAIR mailing list:*
+**If you are using FLAIR, please subscribe to the FLAIR mailing list:**
 
 <https://groups.google.com/a/ucsc.edu/g/flair-announce-group>
 
