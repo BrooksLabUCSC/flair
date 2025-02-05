@@ -98,7 +98,7 @@ test-collapse : mkdirs ${GENOME_FA}
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot : mkdirs ${GENOME_FA}
-	rm -rf output/$@.tmo
+	rm -rf $O/$@.tmp
 	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
 
 test-collapse-help: mkdirs
