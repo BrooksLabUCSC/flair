@@ -2,8 +2,9 @@
 build/
 __pycache__/
 src/flair_brookslab.egg-info/
-test/test_diffs/
+test/diffs/
 test/input.tmp
-test/test_output/
+test/output/
 .DS_Store
 ._*
+
