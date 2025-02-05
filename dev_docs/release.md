@@ -1,3 +1,5 @@
+# Releasing FLAIR
+
 For each Flair release we provide the following:
 
 - pip package (basic flair; python dependencies; no bedtools, samtools, mapman)
@@ -5,7 +7,7 @@ For each Flair release we provide the following:
 - docker image (uses pip; full install)
 
 It is important to do these in the correct order, namely:
-1. Update version numbers in all relevant files
+1. Update version numbers in all relevant files (with bumpversion)
 2. Git commit; git push
 3. Make the release on github.com
 4. Create the pip package and upload it
@@ -14,12 +16,13 @@ It is important to do these in the correct order, namely:
 
 Once you have done this once and are properly set up, these six steps can be done quickly.
 
-####### 1. Update version numbers in all relevant files ###############
+# 1. Update version numbers in all relevant files ###############
 
 Version numbers should be increased following the major/minor/patch logic:
-1.6.2 to 1.6.3: bug fix
-1.6.2 to 1.7.0: code improvement
-1.6.2 to 2.0.0: adding functionality
+  - 1.6.3 to 1.6.4: if it's a bug fix
+  - 1.6.3 to 1.7.0 if new functionality
+  - 1.6.3 to 2.0.0 if adding major new functionality and incompatible changes
+    major revisions are also coordinated with papers
 
 As of this writing, the following files contain version numbers:
   ./misc/Dockerfile
