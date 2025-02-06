@@ -17,6 +17,30 @@ def main():
 
 	gtf_to_bed(args.bed, args.gtf, args.include_gene)
 
+def write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, writer):
+	blockcount = len(blockstarts)
+	if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
+		blocksizes = blocksizes[::-1]
+		blockstarts = blockstarts[::-1]
+
+	tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
+	qsize = sum(blocksizes)  # query (e.g. transcript)
+	if include_gene:
+		qname = prev_transcript+'_'+prev_gene
+	else:
+		qname = prev_transcript
+
+	blocksizes = ','.join([str(b) for b in blocksizes]) + ','
+
+	relblockstarts = [block - tstart for block in blockstarts]
+	relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
+	if qname in iso_to_cds:
+		cds_start, cds_end = iso_to_cds[qname]
+	else:
+		cds_start, cds_end = tstart, tend
+	writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
+			 cds_end, 0, blockcount, blocksizes, relblockstarts])
+
 
 def gtf_to_bed(outputfile, gtf, include_gene=False):
 	missing_chroms = set()
@@ -26,7 +50,7 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
 
 		prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand = [None, None, None, None, None, None]
 		for line in open(gtf):  # extract all exons from the gtf, keep exons grouped by transcript
-			if line.startswith('#'):
+			if line.startswith('#') or (len(line.rstrip()) == 0):
 				continue
 			line = line.rstrip().split('\t')
 			chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
@@ -43,29 +67,7 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
 			# once all the exons for a transcript are read, write the bed entry
 			if this_transcript != prev_transcript:
 				if prev_transcript:
-					blockcount = len(blockstarts)
-					if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
-						blocksizes = blocksizes[::-1]
-						blockstarts = blockstarts[::-1]
-
-					tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
-					qsize = sum(blocksizes)  # query (e.g. transcript)
-					if include_gene:
-						qname = prev_transcript+'_'+prev_gene
-					else:
-						qname = prev_transcript
-
-					blocksizes = ','.join([str(b) for b in blocksizes]) + ','
-
-					relblockstarts = [block - tstart for block in blockstarts]
-					relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-					if qname in iso_to_cds:
-						cds_start, cds_end = iso_to_cds[qname]
-					else:
-						cds_start, cds_end = tstart, tend
-					writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
-							 cds_end, 0, blockcount, blocksizes, relblockstarts])
-
+					write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, writer)
 				blockstarts, blocksizes = [], []
 				prev_transcript = this_transcript
 				prev_gene = line[8][line[8].find('gene_id')+9:]
@@ -75,29 +77,8 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
 
 			blockstarts += [start]
 			blocksizes += [end-start]
-		# print(blockcount, blockstarts)
-		# last entry...
-		blockcount = len(blockstarts)
-		this_gene = line[8][line[8].find('gene_id')+9:]
-		this_gene = this_gene[:this_gene.find('"')]
-		if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
-			blocksizes = blocksizes[::-1]
-			blockstarts = blockstarts[::-1]
-		qsize = sum(blocksizes)  # query (e.g. transcript)
-		tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
-		blocksizes = ','.join([str(b) for b in blocksizes]) + ','
-		if include_gene:
-			qname = this_transcript+'_'+this_gene
-		else:
-			qname = this_transcript
-		relblockstarts = [block - tstart for block in blockstarts]
-		relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
-		if qname in iso_to_cds:
-			cds_start, cds_end = iso_to_cds[qname]
-		else:
-			cds_start, cds_end = tstart, tend
-		writer.writerow([chrom, tstart, tend, qname, 1000, strand, cds_start, cds_end, 0,
-				 blockcount, blocksizes, relblockstarts])
+		if isinstance(line, list):
+			write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, writer)
 
 if __name__ == "__main__":
     main()
