@@ -173,8 +173,14 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 
 test-diffsplice : mkdirs
 	flair_diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/$@ -of
-	diff <(sort $O/$@/drimseq_alt3_A_v_B.tsv) <(sort $E/$@.drimseq_alt3_A_v_B.tsv) > $D/$@.alt3.diff
-	diff <(sort $O/$@/diffsplice.alt3.events.quant.tsv) <(sort $E/$@.alt3.events.quant.tsv) > $D/$@.alt3.quant.diff
+	diff $E/$@/diffsplice.alt3.events.quant.tsv $O/$@/diffsplice.alt3.events.quant.tsv
+	diff $E/$@/diffsplice.alt5.events.quant.tsv $O/$@/diffsplice.alt5.events.quant.tsv
+	diff $E/$@/diffsplice.es.events.quant.tsv $O/$@/diffsplice.es.events.quant.tsv
+	diff $E/$@/diffsplice.ir.events.quant.tsv $O/$@/diffsplice.ir.events.quant.tsv
+	diff $E/$@/drimseq_alt3_A_v_B.tsv $O/$@/drimseq_alt3_A_v_B.tsv
+	diff $E/$@/drimseq_alt5_A_v_B.tsv $O/$@/drimseq_alt5_A_v_B.tsv
+	diff $E/$@/drimseq_es_A_v_B.tsv $O/$@/drimseq_es_A_v_B.tsv
+	diff $E/$@/drimseq_ir_A_v_B.tsv $O/$@/drimseq_ir_A_v_B.tsv
 
 test-diffsplice-help: mkdirs
 	flair_diffSplice --help >&$O/$@.out
