@@ -10,40 +10,27 @@ options:
   -t THREADS, --threads THREADS
                         minimap2 number of threads (4)
   --junction_bed JUNCTION_BED
-                        annotated isoforms/junctions bed file for splice
-                        site-guided minimap2 genomic alignment
-  --nvrna               specify this flag to use native-RNA specific
-                        alignment parameters for minimap2
+                        annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment
+  --nvrna               specify this flag to use native-RNA specific alignment parameters for minimap2
   --quality QUALITY     minimum MAPQ of read alignment to the genome (1)
   --minfragmentsize MINFRAGMENTSIZE
-                        minimum size of alignment kept, used in minimap -s.
-                        More important when doing downstream fusion
-                        detection
+                        minimum size of alignment kept, used in minimap -s. More important when doing downstream
+                        fusion detection
   --maxintronlen MAXINTRONLEN
-                        maximum intron length in genomic alignment. Longer
-                        can help recover more novel isoforms with long
-                        introns
+                        maximum intron length in genomic alignment. Longer can help recover more novel isoforms with
+                        long introns
   --filtertype FILTERTYPE
-                        method of filtering chimeric alignments (potential
-                        fusion reads). Options: removesup (default),
-                        separate (required for downstream work with
-                        fusions), keepsup (keeps supplementary alignments
-                        for isoform detection, does not allow gene fusion
-                        detection)
-  --quiet               Suppress minimap progress statements from being
-                        printed
+                        method of filtering chimeric alignments (potential fusion reads). Options: removesup
+                        (default), separate (required for downstream work with fusions), keepsup (keeps supplementary
+                        alignments for isoform detection, does not allow gene fusion detection)
+  --quiet               Suppress minimap progress statements from being printed
   --remove_internal_priming
-                        specify if want to remove reads with internal
-                        priming
-  -f GTF, --gtf GTF     reference annotation, only used if
-                        --remove_internal_priming is specified, recommended
-                        if so
+                        specify if want to remove reads with internal priming
+  -f GTF, --gtf GTF     reference annotation, only used if --remove_internal_priming is specified, recommended if so
   --intprimingthreshold INTPRIMINGTHRESHOLD
-                        number of bases that are at leas 75% As required to
-                        call read as internal priming
+                        number of bases that are at leas 75% As required to call read as internal priming
   --intprimingfracAs INTPRIMINGFRACAS
-                        number of bases that are at leas 75% As required to
-                        call read as internal priming
+                        number of bases that are at leas 75% As required to call read as internal priming
   --remove_singleexon   specify if want to remove unspliced reads
 
 required named arguments:
