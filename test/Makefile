@@ -32,6 +32,11 @@ COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
 DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
 GENOME_FA = ${IT}/genome.fa
 
+# The help test results vary on screen width.  This forces them to be consistent.
+# It might seem weird to see if help works, but some it did break in the past.
+export COLUMNS = 80
+
+
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
