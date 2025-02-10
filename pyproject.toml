@@ -32,6 +32,11 @@ dependencies = [
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry]
+homepage = "https://flair.readthedocs.io/en/latest/"
+documentation = "https://flair.readthedocs.io/en/latest/"
+repository = "https://github.com/BrooksLabUCSC/flair/"
+
 [tool.poetry.group.dev.dependencies]
 flake8 = "^7.1.1"
 
