@@ -102,9 +102,9 @@ identified in orthogonal data will be thrown out.
 
 **Outputs**
 
- - ``<prefix>_all_corrected.bed`` for use in subsequent steps
- - ``<prefix>_all_inconsistent.bed`` rejected alignments
- - ``<prefix>_cannot_verify.bed`` (only if the) chromosome is not found in annotation 
+ - ``<args.output>_all_corrected.bed`` for use in subsequent steps
+ - ``<args.output>_all_inconsistent.bed`` rejected alignments
+ - ``<args.output>_cannot_verify.bed`` (only if the) chromosome is not found in annotation 
 
 
 Options
