@@ -349,7 +349,17 @@ flair quantify
 
 **Output**
 
-Isoform-by-sample counts file that can be used in the flair_diffExp and flair_diffSplice programs.
+Isoform-by-sample counts file that can be used in the flair_diffExp and flair_diffSplice programs. This program will assign each read to a specific isoform, however, not all reads will be assigned to an isoform.
+
+Default: only reports reads that align unambiguously to an isoform (reads that align equally to multiple isoforms are thrown out)
+
+check_splice: adds check for read matching reference transcript at all splice sites
+
+stringent: adds requirement for read to cover at least 25bp of the first and last exons
+
+If you need your reads to match your isoforms well, use --check_splice and --stringent, while if you need more reads assigned to isoforms for better statistical comparison, use the default.
+
+--quality 0 is also reccommended, as this allows slightly better recall as FLAIR can disambiguate some similar isoform alignments.
 
 Options
 -------
