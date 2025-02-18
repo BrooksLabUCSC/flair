@@ -255,7 +255,9 @@ Optional arguments
     --annotation_reliant	Specify transcript fasta that corresponds to transcripts 
                         in the gtf to run annotation-reliant flair collapse; to ask flair 
                         to make transcript sequences given the gtf and genome fa, use 
-                        --annotation_reliant generate.
+                        --annotation_reliant generate. With this option activated, FLAIR first
+                        aligns reads to the annotation and checks matches to annotated transcripts,
+                        then will only identify novel transcripts from remaining reads.
     
 **Options for read support**
     
