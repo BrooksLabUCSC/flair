@@ -53,6 +53,8 @@ diff_iso_usage
 
     usage: diff_iso_usage counts_matrix colname1 colname2 diff_isos.txt
 
+Calculates the usage of each isoform as a fraction of the total expression of the gene and compares this between samples.
+
 Requires four positional arguments to identify and calculate
 significance of alternative isoform usage between two samples using
 Fisher’s exact tests: (1) counts_matrix.tsv from flair-quantify, (2) the
