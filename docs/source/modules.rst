@@ -248,7 +248,10 @@ Optional arguments
     --gtf	        GTF annotation file, used for renaming FLAIR isoforms to 
                         annotated isoforms and adjusting TSS/TESs.
     --generate_map	Specify this argument to generate a txt file of read-isoform 
-                        assignments (default: not specified).
+                        assignments (default: not specified). This file can be used to 
+                        quantify isoforms, but may produce slightly different results to
+                        using FLAIR quantify. Also, a single read is assigned to a single isoform,
+                        but not all reads are assigned to isoforms.
     --annotation_reliant	Specify transcript fasta that corresponds to transcripts 
                         in the gtf to run annotation-reliant flair collapse; to ask flair 
                         to make transcript sequences given the gtf and genome fa, use 
