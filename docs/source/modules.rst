@@ -24,6 +24,8 @@ and converts the `SAM <https://en.wikipedia.org/wiki/SAM_(file_format)>`__ outpu
 Aligned reads in BED12 format can be visualized in `IGV <https://igv.org/>`__ or the 
 `UCSC Genome browser <https://genome.ucsc.edu/cgi-bin/hgGateway>`__. 
 
+Note: If you want to independently align and filter your reads and convert them to bed12, you can do so. You may want to do this if you want different alignment options - for instance, if you want to detect maximal noncanonical splice sites, you may want to align with minimap2 -un option (For this specific case to work well, you will want to run FLAIR correct with shortreads, then run collapse with --annotation_reliant and --check_splice).
+
 **Outputs**
 
  - ``flair.aligned.bam``
