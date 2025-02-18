@@ -121,7 +121,8 @@ Required arguments
     At least one of the following arguments is required:
     --shortread         Bed format splice junctions from short-read sequencing. You can 
                         generate these from SAM format files using the junctions_from_sam 
-                        program that comes with Flair.
+                        program that comes with Flair. If you align your short reads with STAR,
+                        you should use the SJ.out.tab file from STAR for this.
     --gtf	        GTF annotation file.
     
 Optional arguments
