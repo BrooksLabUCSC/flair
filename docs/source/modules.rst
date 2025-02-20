@@ -179,8 +179,8 @@ concatenated into a single file.
 
 **Please note:** Flair collapse is not yet capable of dealing with large (>1G) 
 input bed files. If you find that Flair needs a lot of memory you may want to 
-split the input bed file by chromosome and run these separately. We do intend to 
-improve this.
+follow the advice in dicussion #391 to split the bed files and reads by chromosome. 
+We do intend to improve this.
 
 **Outputs**
 
