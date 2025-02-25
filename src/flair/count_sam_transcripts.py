@@ -124,7 +124,7 @@ def check_splicesites(coveredpos, exonpos, tstart, tend):
 def get_matchvals(args, md):
 	matchvals = []
 	if args.stringent or args.check_splice:
-		mdblocks = re.findall(r'\d+|\D+', md)  # ['531', '^CCAGGTGAGCCGCCCGCG', '50', 'G', '2031']
+		mdblocks = re.findall('\d+|\D+', md)  # ['531', '^CCAGGTGAGCCGCCCGCG', '50', 'G', '2031']
 		for b in mdblocks:
 			if b[0] != '^':
 				if b.isnumeric():

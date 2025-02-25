@@ -31,6 +31,12 @@ and then change to flexible channel_priority:
  conda config --set channel_priority flexible
 ```
 
+Activate and install other Python dependencies:
+```
+conda activate flair-dev
+poetry install
+```
+
 ## Managing dependencies
 
 

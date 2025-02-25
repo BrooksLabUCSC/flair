@@ -32,6 +32,11 @@ COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
 DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
 GENOME_FA = ${IT}/genome.fa
 
+# The help test results vary on screen width.  This forces them to be consistent.
+# It might seem weird to see if help works, but some it did break in the past.
+export COLUMNS = 80
+
+
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
@@ -93,14 +98,14 @@ collapse-tests: test-collapse test-collapse-annot test-collapse-faster test-coll
 	test-collapse-support test-collapse-help test-collapse-faster-help
 
 # basic collapse
-test-collapse : mkdirs ${GENOME_FA}
+test-collapse: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
 
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
-test-collapse-annot : mkdirs ${GENOME_FA}
+test-collapse-annot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
 
