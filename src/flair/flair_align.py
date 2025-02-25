@@ -90,30 +90,21 @@ def bed_from_cigar(alignstart, is_reverse, cigartuples, readname, referencename,
 
 def doalignment(args):
 	# minimap
-	mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize), '-G', args.maxintronlen, '-t',
-			   str(args.threads), args.genome] + args.reads
-	if args.mm_index:
-		mm2_cmd[5] = args.mm_index
+	mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize),
+		   '-G', args.maxintronlen, '-t', str(args.threads)]
 	if args.nvrna:
-		mm2_cmd[3:3] = ['-uf', '-k14']
+		mm2_cmd += ['-uf', '-k14']
 	if args.junction_bed:
-		mm2_cmd[3:3] = ['--junc-bed', args.junction_bed]
-	# if str(args.keep_supplementary) != '0':
-	# 	mm2_cmd[3:3] = ['-N', str(args.keep_supplementary)]
-	# else:
-	mm2_cmd[3:3] = ['--secondary=no']
-	mm2_cmd = tuple(mm2_cmd)
+		mm2_cmd += ['--junc-bed', args.junction_bed]
+	mm2_cmd += ['-secondary=no']
+	if args.mm_index:
+		mm2_cmd += [args.mm_index]
+	else:
+		mm2_cmd += [args.genome]
+	mm2_cmd += args.reads
 
-	# samtools; the dash at the end means STDIN
-	# samtools_filter_cmd = ('samtools', 'view', '-q', str(args.quality), '-h', '-')
 	samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '_unfiltered.bam', '-')
 	samtools_index_cmd = ('samtools', 'index', args.output + '_unfiltered.bam')
-	# if not args.quiet:
-	# 	print('flair align minimap cmd:', mm2_cmd, file=sys.stderr)
-	# 	# print('flair align samtools filter cmd:', samtools_filter_cmd, file=sys.stderr)
-	# 	print('flair align samtools sort cmd:', samtools_sort_cmd, file=sys.stderr)
-	# 	print('flair align samtools index cmd:', samtools_index_cmd, file=sys.stderr)
-	# pipettor.run([mm2_cmd, samtools_filter_cmd, samtools_sort_cmd])
 	pipettor.run([mm2_cmd, samtools_sort_cmd])
 	pipettor.run([samtools_index_cmd])
 
@@ -244,7 +235,7 @@ def align():
 		args.reads = args.reads[0].split(',')
 	for rfile in args.reads:
 		if not os.path.exists(rfile):
-			sys.stderr.write(f'Check that read file {rfile} exists\n')
+			sys.stderr.write(f'Error: read file does not exist: {rfile}\n')
 			sys.exit(1)
 
 	doalignment(args)
