@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 import sys
 import re
 import argparse
@@ -88,7 +89,7 @@ def quantify(isoform_sequences=''):
 			readFileRoot = tempfile.NamedTemporaryFile().name
 			if args.temp_dir != '':
 				if not os.path.isdir(args.temp_dir):
-					if subprocess.call(['mkdir', args.temp_dir]):
+					if subprocess.call(['mkdir', '-p', args.temp_dir]):
 						sys.stderr.write('Could not make temporary directory {}\n'.format(args.temp_dir))
 						return 1
 				readFileRoot = args.temp_dir + '/' + readFileRoot[readFileRoot.rfind('/')+1:]
@@ -101,9 +102,7 @@ def quantify(isoform_sequences=''):
 
 	for num, sample in enumerate(samData, 0):
 		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
-		if args.output_bam: mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
-		else: mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
-		# mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
 		# TODO: Replace this with proper try/except Exception as ex
 		try:
@@ -140,8 +139,7 @@ def quantify(isoform_sequences=''):
 		if args.generate_map or args.output_bam:
 			count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
 
-		if subprocess.call(count_cmd):
-			return 1
+		subprocess.check_call(count_cmd)
 		for line in open(samOut+'.counts.txt'):
 			line = line.rstrip().split('\t')
 			iso, numreads = line[0], line[1]
@@ -206,5 +204,6 @@ def quantify(isoform_sequences=''):
 	return args.o+'.counts.tsv'
 
 if __name__ == '__main__':
-	quantify()
-
+	# FIXME: need proper error handling
+	status = quantify()
+	os.exit(status)

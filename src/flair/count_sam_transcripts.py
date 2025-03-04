@@ -124,7 +124,7 @@ def check_splicesites(coveredpos, exonpos, tstart, tend):
 def get_matchvals(args, md):
 	matchvals = []
 	if args.stringent or args.check_splice:
-		mdblocks = re.findall('\d+|\D+', md)  # ['531', '^CCAGGTGAGCCGCCCGCG', '50', 'G', '2031']
+		mdblocks = re.findall(r'\d+|\D+', md)  # ['531', '^CCAGGTGAGCCGCCCGCG', '50', 'G', '2031']
 		for b in mdblocks:
 			if b[0] != '^':
 				if b.isnumeric():
@@ -234,17 +234,20 @@ def parsesam(args, transcripttoexons):
 				##for transcriptome alignment, always take rightmost side on transcript
 				if args.remove_internal_priming:
 					notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name,
-																				   read.reference_start,
-																				   read.reference_end, False,
-																				   genome, None, transcripttoexons,
-																				   args.intprimingthreshold,
-																				   args.intprimingfracAs)
+													   read.reference_start,
+													   read.reference_end, False,
+													   genome, None, transcripttoexons,
+													   args.intprimingthreshold,
+													   args.intprimingfracAs)
 				else: notinternalpriming = True
 				if notinternalpriming:
 					pos = read.reference_start
-					alignscore = read.get_tag('AS')
+					try:
+						alignscore = read.get_tag('AS')
+						mdtag = read.get_tag('MD')
+					except KeyError as ex:
+						raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}' in '{args.sam.name}'") from ex
 					cigar = read.cigartuples
-					mdtag = read.get_tag('MD')
 					tlen = samfile.get_reference_length(transcript)
 					if lastread and readname != lastread:
 						assignedt = getbesttranscript(curr_transcripts, args, transcripttoexons)
