@@ -146,7 +146,7 @@ test-collapse-support : mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-help
+quantify-tests: test-quantify test-quantify-nobam test-quantify-help
 
 test-quantify : mkdirs
 	rm -rf $O/$@.tmp
@@ -154,6 +154,12 @@ test-quantify : mkdirs
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
 	diff $E/$@.tpm.tsv $O/$@.tpm.tsv
 	diff $E/$@.A1.A.flair.aligned.readtotranscript.txt $O/$@.A1.A.flair.aligned.readtotranscript.txt
+
+# without map or bam output
+test-quantify-nobam : mkdirs
+	rm -rf $O/$@.tmp
+	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
+	diff $E/$@.tpm.tsv $O/$@.tpm.tsv
 
 test-quantify-help: mkdirs
 	flair quantify --help >&$O/$@.out
