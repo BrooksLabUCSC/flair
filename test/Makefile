@@ -22,8 +22,6 @@ ANNOTATION_INCOMPLETE = $I/annotation.incomplete.gtf
 SHORTREAD_JUNCTIONS = $I/shortread_junctions.tab
 UNCORRECTED_READS_BED = $I/test.align.bed
 READS_BED = $I/test.corrected.bed
-# ISOFORMS_FA = $I/test.collapse.isoforms.fa
-# ISOFORMS_BED = $I/test.collapse.isoforms.bed
 ISOFORMS_FA = $I/test-collapse-annot.isoforms.fa
 ISOFORMS_BED = $I/test-collapse-annot.isoforms.bed
 PROMOTER_REGIONS = $I/promoter_regions.bed
@@ -63,7 +61,7 @@ test-main-help: mkdirs
 # FLAIR ALIGN
 ###
 
-align-tests: test-align test-align-intpriming test-align-help
+align-tests: test-align test-align-intpriming test-align-seg1 test-align-help
 
 test-align : mkdirs ${GENOME_FA}
 	flair align -r $(READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@
@@ -71,6 +69,10 @@ test-align : mkdirs ${GENOME_FA}
 
 test-align-intpriming : mkdirs ${GENOME_FA}
 	flair align -r $(READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(ANNOTATION) --remove_singleexon
+	diff $E/$@.bed $O/$@.bed
+
+test-align-seg1 : mkdirs ${GENOME_FA}
+	flair align -r input/seg1.cdna-ont.fastq --genome ${GENOME_FA} -t 4 -o $O/$@
 	diff $E/$@.bed $O/$@.bed
 
 test-align-help: mkdirs
@@ -82,8 +84,13 @@ test-align-help: mkdirs
 ###
 correct-tests: test-correct test-correct-help
 
-test-correct : mkdirs ${GENOME_FA}
+test-correct: mkdirs ${GENOME_FA}
 	flair correct -q $(UNCORRECTED_READS_BED) -j $(SHORTREAD_JUNCTIONS) -f $(ANNOTATION_INCOMPLETE) -g ${GENOME_FA} -o $O/$@
+	diff $E/$@_all_inconsistent.bed $O/$@_all_inconsistent.bed
+	diff $E/$@_all_corrected.bed $O/$@_all_corrected.bed
+
+test-correct-seg1: mkdirs ${GENOME_FA}
+	flair correct -q $E/test-align-seg1.bed -g ${GENOME_FA} -f input/seg1.gencodeV47.gtf -o $O/$@
 	diff $E/$@_all_inconsistent.bed $O/$@_all_inconsistent.bed
 	diff $E/$@_all_corrected.bed $O/$@_all_corrected.bed
 
@@ -95,7 +102,8 @@ test-correct-help: mkdirs
 # FLAIR COLLAPSE
 ###
 collapse-tests: test-collapse test-collapse-annot test-collapse-faster test-collapse-faster-annot test-collapse-faster-annot-removeintprim \
-	test-collapse-support test-collapse-help test-collapse-faster-help
+	test-collapse-support test-collapse-seg1 \
+	test-collapse-help test-collapse-faster-help
 
 # basic collapse
 test-collapse: mkdirs ${GENOME_FA}
@@ -108,6 +116,10 @@ test-collapse: mkdirs ${GENOME_FA}
 test-collapse-annot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
+
+test-collapse-seg1: mkdirs ${GENOME_FA}
+	rm -rf $O/$@.tmp
+	flair collapse -r $I/seg1.cdna-ont.fastq -q $E/test-correct-seg1_all_corrected.bed -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p input/seg1.promoter-regions.bed --annotation_reliant generate --stringent
 
 test-collapse-help: mkdirs
 	flair collapse --help >&$O/$@.out
@@ -146,9 +158,9 @@ test-collapse-support : mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-nobam test-quantify-help
+quantify-tests: test-quantify test-quantify-nobam test-quantify-seg1 test-quantify-help
 
-test-quantify : mkdirs
+test-quantify: mkdirs
 	rm -rf $O/$@.tmp
 	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
@@ -160,6 +172,11 @@ test-quantify-nobam : mkdirs
 	rm -rf $O/$@.tmp
 	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
 	diff $E/$@.tpm.tsv $O/$@.tpm.tsv
+
+# currently produces no output, (#437)
+test-quantify-seg1: mkdirs
+	rm -rf $O/$@.tmp
+	flair quantify -r $I/seg1.cdna-ont.fastq -i expected/test-collapse-seg1.isoforms.fa --isoform_bed expected/test-collapse-seg1.isoforms.bed --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 
 test-quantify-help: mkdirs
 	flair quantify --help >&$O/$@.out
@@ -185,7 +202,8 @@ test-diffexp-help: mkdirs
 ###
 diffsplice-tests: test-diffsplice test-diffsplice-help
 
-# NOTE: the order of the ids generated in diffsplice.es.events.quant.tsv is not stable (issue
+# NOTE: the order of the ids generated in diffsplice.es.events.quant.tsv is not stable
+# (issue #417)
 test-diffsplice : mkdirs
 	flair_diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/$@ -of
 	diff $E/$@/diffsplice.alt3.events.quant.tsv $O/$@/diffsplice.alt3.events.quant.tsv
@@ -239,10 +257,10 @@ ${GENOME_FA}:
 	zcat chr12.fa.gz chr17.fa.gz chr20.fa.gz > $@
 	rm chr12.fa.gz chr17.fa.gz chr20.fa.gz
 
-mkdirs :
+mkdirs:
 	@mkdir -p $O
 
-clean :
+clean:
 	rm -rf $O $D
 
 realclean : clean
