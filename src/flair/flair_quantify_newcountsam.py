@@ -203,8 +203,7 @@ def quantify(isoform_sequences=''):
 
 	if args.tpm:
 		subprocess.check_call(['counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv'])
-	return args.o+'.counts.tsv'
+	return 0
 
 if __name__ == '__main__':
-	quantify()
-
+	exit(quantify())

@@ -48,8 +48,7 @@ def diffExp(counts_matrix=''):
 
 	if subprocess.call(DEcommand):
 		return 1
-	return
+	return 0
 
 if __name__ == "__main__":
-    diffExp()
-
+    exit(diffExp())

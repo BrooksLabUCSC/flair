@@ -291,7 +291,6 @@ def collapse(genomic_range='', corrected_reads=''):
 
 		# minimap (results are piped into count_sam_transcripts.py)
 		mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD', args.annotation_reliant] + args.reads #'--split-prefix', 'minimap2transcriptomeindex', ##doesn't work with MD tag
-		mm2_cmd = tuple(mm2_cmd)
 
 		# count sam transcripts ; the dash at the end means STDIN
 		count_cmd = ['count_sam_transcripts.py', '--sam', '-',
@@ -310,11 +309,12 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
 						  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
 						  args.transcriptfasta]
-		count_cmd = tuple(count_cmd)
 
 		if not args.quiet:
 			sys.stderr.write('Aligning reads to reference transcripts\n')
 			sys.stderr.write('Counting supporting reads for annotated transcripts\n')
+			sys.stderr.write(' '.join(mm2_cmd) + '\n')
+			sys.stderr.write(' '.join(count_cmd) + '\n')
 		pipettor.run([mm2_cmd, count_cmd])
 
 		if not args.quiet:
@@ -413,6 +413,8 @@ def collapse(genomic_range='', corrected_reads=''):
 	if not args.quiet:
 		sys.stderr.write('Aligning reads to firstpass transcripts\n')
 		sys.stderr.write('Counting supporting reads for firstpass transcripts\n')
+		sys.stderr.write(' '.join(mm2_cmd) + '\n')
+		sys.stderr.write(' '.join(count_cmd) + '\n')
 	pipettor.run([mm2_cmd, count_cmd])
 
 	if not args.quiet:

@@ -116,7 +116,7 @@ def diffSplice(isoforms='', counts_matrix=''):
 	else:
 		# workdir only necessary for drimseq output
 		os.rmdir(workdir)
-	return
+	return 0
 
 def emptyMatrix(infile):
 	'''Returns true if file has only a header line'''
@@ -127,4 +127,4 @@ def emptyMatrix(infile):
 
 
 if __name__ == '__main__':
-    diffSplice()
+    exit(diffSplice())

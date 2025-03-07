@@ -60,43 +60,35 @@ def quantify(isoform_sequences=''):
 		args.o += '.counts_matrix.tsv'
 	if (args.stringent or args.check_splice):
 		if not args.isoforms:
-			sys.stderr.write('Please specify isoform models as .bed file using --isoform_bed\n')
-			return 1
+			raise Exception('Please specify isoform models as .bed file using --isoform_bed')
 		elif not os.path.exists(args.isoforms):
-			sys.stderr.write('Isoform models bed file path does not exist\n')
-			return 1
+			raise Exception('Isoform models bed file path does not exist')
 		elif args.isoforms.endswith('.psl'):
-			sys.stderr.write('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.\n')
-			return 1
+			raise Exception('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 	if not os.path.exists(args.i):
-		sys.stderr.write('Isoform sequences fasta file path does not exist\n')
-		return 1
+		raise Exception('Isoform sequences fasta file path does not exist')
 
 	samData = list()
 	with codecs.open(args.r, 'r', encoding='utf-8', errors='ignore') as lines:
 		for line in lines:
 			cols = line.rstrip().split('\t')
 			if len(cols) < 4:
-				sys.stderr.write(f'Expected 4 columns in tab-delimited manifest.tsv, got {len(cols)}. Exiting.\n')
-				return 1
+				raise Exception(f'Expected 4 columns in tab-delimited manifest.tsv, got {len(cols)}. Exiting.')
 
 			sample, group, batch, readFile = cols
 			if args.sample_id_only is False:
 				if '_' in sample or '_' in group or '_' in batch:
-					sys.stderr.write(f'Please do not use underscores in the id, condition, or batch fields of {args.r}. Exiting. \n')
-					return 1
+					raise Exception(f'Please do not use underscores in the id, condition, or batch fields of {args.r}.')
 
 			readFileRoot = tempfile.NamedTemporaryFile().name
 			if args.temp_dir != '':
 				if not os.path.isdir(args.temp_dir):
-					if subprocess.call(['mkdir', '-p', args.temp_dir]):
-						sys.stderr.write('Could not make temporary directory {}\n'.format(args.temp_dir))
-						return 1
+					subprocess.check_call(['mkdir', '-p', args.temp_dir])
 				readFileRoot = args.temp_dir + '/' + readFileRoot[readFileRoot.rfind('/')+1:]
 
 			if not os.path.exists(cols[3]):
-				sys.stderr.write('Query file path does not exist: {}\n'.format(cols[3]))
-				return 1
+				raise Exception('Query file path does not exist: {}'.format(cols[3]))
+
 			samData.append(cols + [readFileRoot + '.sam'])
 	sys.stderr.write('Writing temporary files with prefixes similar to {}\n'.format(readFileRoot))
 
@@ -106,18 +98,11 @@ def quantify(isoform_sequences=''):
 
 		# TODO: Replace this with proper try/except Exception as ex
 		try:
-			# samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', sample[-1], '-')
-			# samtools_index_cmd = ('samtools', 'index', sample[-1])
-			# pipettor.run([mm2_cmd, samtools_sort_cmd])
-			# pipettor.run([samtools_index_cmd])
 			if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
-				stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):
-				sys.stderr.write('Check {} file\n'.format(sample[-1]+'.mm2_stderr.txt'))
-				return 1
+					   stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):
+				raise Exception('Check {} file'.format(sample[-1]+'.mm2_stderr.txt'))
 		except:
-			sys.stderr.write('''Possible minimap2 error, please check that all file, directory,
-				and executable paths exist\n''')
-			return 1
+			raise Exception('''Possible minimap2 error, please check that all file, directory and executable paths exist''')
 		subprocess.check_call(['rm', sample[-1]+'.mm2_stderr.txt'])
 		sys.stderr.flush()
 
@@ -127,7 +112,7 @@ def quantify(isoform_sequences=''):
 		sys.stderr.write('Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \n' % (sample, batch, num+1, len(samData)))
 
 		count_cmd = ['count_sam_transcripts.py', '-s', samOut,
-			'-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
+			     '-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
 		if args.stringent:
@@ -174,10 +159,7 @@ def quantify(isoform_sequences=''):
 				line[5] = line[5].replace('H', 'S')
 				newsam.write('\t'.join(line))
 			newsam.close()
-			if subprocess.call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']):
-				sys.stderr.write(f'Samtools issue with sorting minimap2 sam\n')
-				return 1
-			# subprocess.check_call(['rm', samOut.split('.sam')[0] + '-filtered.sam'])
+			subprocess.check_call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
 
 			subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
 
@@ -204,6 +186,10 @@ def quantify(isoform_sequences=''):
 	return args.o+'.counts.tsv'
 
 if __name__ == '__main__':
+<<<<<<< HEAD
 	# FIXME: need proper error handling
 	status = quantify()
 	os.exit(status)
+=======
+	quantify()
+>>>>>>> da85f9f (Make tests consistent and use preceeding results as input.  Exit non-zero on errors that were poorly handled)

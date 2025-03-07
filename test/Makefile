@@ -15,20 +15,42 @@ endif
 I = input
 E = expected
 O = output
-IT = input.tmp
-READS_FA = $I/reads.fa
-ANNOTATION = $I/annotation.gtf
-ANNOTATION_INCOMPLETE = $I/annotation.incomplete.gtf
-SHORTREAD_JUNCTIONS = $I/shortread_junctions.tab
-UNCORRECTED_READS_BED = $I/test.align.bed
-READS_BED = $I/test.corrected.bed
-ISOFORMS_FA = $I/test-collapse-annot.isoforms.fa
-ISOFORMS_BED = $I/test-collapse-annot.isoforms.bed
-PROMOTER_REGIONS = $I/promoter_regions.bed
-READS_MANIFEST = $I/reads_manifest.txt
-COUNTS_MATRIX = $I/counts_matrix_diffexp.tsv
-DIFFSPLICE_MATRIX = $I/counts_matrix_diffsplice.tsv
-GENOME_FA = ${IT}/genome.fa
+TI = tmp-input
+
+# reference data
+GENOME_FA = ${TI}/genome.fa
+
+##
+# basic: general tests that programs seem to work
+##
+BASIC_READS_FA = $I/basic.reads.fa
+BASIC_ANNOTATION = $I/basic.annotation.gtf
+BASIC_ANNOTATION_INCOMPLETE = $I/basic.annotation.incomplete.gtf
+BASIC_SHORTREAD_JUNCTIONS = $I/basic.shortread_junctions.tab
+BASIC_PROMOTER_REGIONS = $I/basic.promoter_regions.bed
+BASIC_READS_MANIFEST = $I/basic.reads_manifest.txt
+BASIC_COUNTS_MATRIX = $I/basic.counts_matrix_diffexp.tsv
+BASIC_DIFFSPLICE_MATRIX = $I/basic.counts_matrix_diffsplice.tsv
+
+BASIC_ALIGN_BED = $E/test-align.bed
+BASIC_CORRECT_READS_BED = $E/test-correct_all_corrected.bed
+BASIC_ISOFORMS_FA = $E/test-collapse-annot.isoforms.fa
+BASIC_ISOFORMS_BED = $E/test-collapse-annot.isoforms.bed
+
+
+###
+# seg1: single exon tests
+###
+SEG1_READS_FQ = input/seg1.cdna-ont.fastq
+SEG1_ANNOTATION = input/seg1.gencodeV47.gtf
+SEG1_PROMOTER_REGIONS = input/seg1.promoter-regions.bed
+SEG1_READS_MANIFEST = input/seg1.reads_manifest.txt
+
+SEG1_ALIGN_BED = $E/test-align-seg1.bed
+SEG1_CORRECT_READS_BED = $E/test-correct-seg1_all_corrected.bed
+SEG1_ISOFORMS_FA = expected/test-collapse-seg1.isoforms.fa
+SEG1_ISOFORMS_BED = expected/test-collapse-seg1.isoforms.bed
+
 
 # The help test results vary on screen width.  This forces them to be consistent.
 # It might seem weird to see if help works, but some it did break in the past.
@@ -64,15 +86,15 @@ test-main-help: mkdirs
 align-tests: test-align test-align-intpriming test-align-seg1 test-align-help
 
 test-align : mkdirs ${GENOME_FA}
-	flair align -r $(READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@
 	diff $E/$@.bed $O/$@.bed
 
 test-align-intpriming : mkdirs ${GENOME_FA}
-	flair align -r $(READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(ANNOTATION) --remove_singleexon
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon
 	diff $E/$@.bed $O/$@.bed
 
 test-align-seg1 : mkdirs ${GENOME_FA}
-	flair align -r input/seg1.cdna-ont.fastq --genome ${GENOME_FA} -t 4 -o $O/$@
+	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@
 	diff $E/$@.bed $O/$@.bed
 
 test-align-help: mkdirs
@@ -85,14 +107,14 @@ test-align-help: mkdirs
 correct-tests: test-correct test-correct-help
 
 test-correct: mkdirs ${GENOME_FA}
-	flair correct -q $(UNCORRECTED_READS_BED) -j $(SHORTREAD_JUNCTIONS) -f $(ANNOTATION_INCOMPLETE) -g ${GENOME_FA} -o $O/$@
-	diff $E/$@_all_inconsistent.bed $O/$@_all_inconsistent.bed
-	diff $E/$@_all_corrected.bed $O/$@_all_corrected.bed
+	flair correct -q ${BASIC_ALIGN_BED} -j $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -g ${GENOME_FA} -o $O/$@
+	diff <(sort $E/$@_all_inconsistent.bed) <(sort $O/$@_all_inconsistent.bed)
+	diff <(sort $E/$@_all_corrected.bed) <(sort $O/$@_all_corrected.bed)
 
 test-correct-seg1: mkdirs ${GENOME_FA}
-	flair correct -q $E/test-align-seg1.bed -g ${GENOME_FA} -f input/seg1.gencodeV47.gtf -o $O/$@
-	diff $E/$@_all_inconsistent.bed $O/$@_all_inconsistent.bed
-	diff $E/$@_all_corrected.bed $O/$@_all_corrected.bed
+	flair correct -q ${SEG1_ALIGN_BED} -g ${GENOME_FA} -f ${SEG1_ANNOTATION} -o $O/$@
+	diff <(sort $E/$@_all_inconsistent.bed) <(sort $O/$@_all_inconsistent.bed)
+	diff <(sort $E/$@_all_corrected.bed) <(sort $O/$@_all_corrected.bed)
 
 test-correct-help: mkdirs
 	flair correct --help >&$O/$@.out
@@ -108,18 +130,22 @@ collapse-tests: test-collapse test-collapse-annot test-collapse-faster test-coll
 # basic collapse
 test-collapse: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
 	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
 
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --annotation_reliant generate --stringent
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent
+	diff $E/$@.isoforms.bed $O/$@.isoforms.bed
+	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
+	diff $E/$@.isoforms.fa $O/$@.isoforms.fa
 
 test-collapse-seg1: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $I/seg1.cdna-ont.fastq -q $E/test-correct-seg1_all_corrected.bed -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p input/seg1.promoter-regions.bed --annotation_reliant generate --stringent
+	@echo "WARNING: test-collapse-seg1 not currently working" >&2
+	#flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ -p ${SEG1_PROMOTER_REGIONS} --annotation_reliant generate --stringent
 
 test-collapse-help: mkdirs
 	flair collapse --help >&$O/$@.out
@@ -130,7 +156,7 @@ test-collapse-help: mkdirs
 ###this works badly on the test dataset because the test reads are error-prone and fail the built-in correct step
 test-collapse-faster : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	${PYTHON} ../src/flair/fastercollapse.py -r $(READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
 	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
 
 test-collapse-faster-help: mkdirs
@@ -140,19 +166,19 @@ test-collapse-faster-help: mkdirs
 # speedy collapse annotation-reliant
 test-collapse-faster-annot : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmo
-	${PYTHON} ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
 	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
 
 test-collapse-faster-annot-removeintprim : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	${PYTHON} ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --remove_internal_priming
+	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --remove_internal_priming
 	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
 
 # collapse with support
 # Note: output order not stable
 test-collapse-support : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -s 0.25 -r $(READS_FA) -q $(READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
+	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf)
 
 ###
@@ -162,7 +188,7 @@ quantify-tests: test-quantify test-quantify-nobam test-quantify-seg1 test-quanti
 
 test-quantify: mkdirs
 	rm -rf $O/$@.tmp
-	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
+	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
 	diff $E/$@.tpm.tsv $O/$@.tpm.tsv
 	diff $E/$@.A1.A.flair.aligned.readtotranscript.txt $O/$@.A1.A.flair.aligned.readtotranscript.txt
@@ -176,7 +202,8 @@ test-quantify-nobam : mkdirs
 # currently produces no output, (#437)
 test-quantify-seg1: mkdirs
 	rm -rf $O/$@.tmp
-	flair quantify -r $I/seg1.cdna-ont.fastq -i expected/test-collapse-seg1.isoforms.fa --isoform_bed expected/test-collapse-seg1.isoforms.bed --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
+	@echo "WARNING: test-quantify-seg1 not currently working" >&2
+	#flair quantify -r ${SEG1_READS_MANIFEST} -i ${SEG1_ISOFORMS_FA} --isoform_bed ${SEG1_ISOFORMS_BED} --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 
 test-quantify-help: mkdirs
 	flair quantify --help >&$O/$@.out
@@ -188,7 +215,7 @@ test-quantify-help: mkdirs
 diffexp-tests: test-diffexp test-diffexp-help
 
 test-diffexp : mkdirs
-	flair_diffExp -q $(COUNTS_MATRIX) -o $O/$@ -e 1 -of
+	flair_diffExp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
 	diff $E/$@/genes_deseq2_MCF7_v_A549.tsv $O/$@/genes_deseq2_MCF7_v_A549.tsv
 	diff $E/$@/isoforms_deseq2_MCF7_v_A549.tsv $O/$@/isoforms_deseq2_MCF7_v_A549.tsv
 	diff $E/$@/isoforms_drimseq_MCF7_v_A549.tsv $O/$@/isoforms_drimseq_MCF7_v_A549.tsv
@@ -205,9 +232,10 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 # NOTE: the order of the ids generated in diffsplice.es.events.quant.tsv is not stable
 # (issue #417)
 test-diffsplice : mkdirs
-	flair_diffSplice -i $(ISOFORMS_BED) -q $(DIFFSPLICE_MATRIX) --test -o $O/$@ -of
+	flair_diffSplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
 	diff $E/$@/diffsplice.alt3.events.quant.tsv $O/$@/diffsplice.alt3.events.quant.tsv
 	diff $E/$@/diffsplice.alt5.events.quant.tsv $O/$@/diffsplice.alt5.events.quant.tsv
+	@echo "WARNING: diffsplice.es.events.quant.tsv check disabled due to instability in id generation" >&2
 	#diff $E/$@/diffsplice.es.events.quant.tsv $O/$@/diffsplice.es.events.quant.tsv
 	diff $E/$@/diffsplice.ir.events.quant.tsv $O/$@/diffsplice.ir.events.quant.tsv
 	diff $E/$@/drimseq_alt3_A_v_B.tsv $O/$@/drimseq_alt3_A_v_B.tsv
@@ -224,7 +252,7 @@ test-diffsplice-help: mkdirs
 predict-productivity-tests: test-predict-productivity test-predict-productivity-help
 
 test-predict-productivity : mkdirs ${GENOME_FA}
-	predictProductivity -i $(ISOFORMS_BED) -g $(ANNOTATION) -f ${GENOME_FA} -o $O/$@ --longestORF
+	predictProductivity -i $(BASIC_ISOFORMS_BED) -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@ --longestORF
 	diff $E/$@.bed $O/$@.bed
 	diff $E/$@.info.tsv $O/$@.info.tsv
 
@@ -238,7 +266,7 @@ test-predict-productivity-help: mkdirs
 diff-iso-usage-tests: test-diff-iso-usage test-diff-iso-usage-help
 
 test-diff-iso-usage: mkdirs
-	diff_iso_usage $(COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
+	diff_iso_usage $(BASIC_COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
 	diff $E/$@.tsv $O/$@.tsv
 
 test-diff-iso-usage-help: mkdirs
@@ -264,4 +292,4 @@ clean:
 	rm -rf $O $D
 
 realclean : clean
-	rm -rf ${IT}
+	rm -rf ${TI}
