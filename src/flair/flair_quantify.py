@@ -186,10 +186,5 @@ def quantify(isoform_sequences=''):
 	return args.o+'.counts.tsv'
 
 if __name__ == '__main__':
-<<<<<<< HEAD
 	# FIXME: need proper error handling
-	status = quantify()
-	os.exit(status)
-=======
-	quantify()
->>>>>>> da85f9f (Make tests consistent and use preceeding results as input.  Exit non-zero on errors that were poorly handled)
+	sys.exit(quantify())

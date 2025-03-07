@@ -196,7 +196,7 @@ test-quantify: mkdirs
 # without map or bam output
 test-quantify-nobam : mkdirs
 	rm -rf $O/$@.tmp
-	flair quantify -r $(READS_MANIFEST) -i $(ISOFORMS_FA) --isoform_bed $(ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
+	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
 	diff $E/$@.tpm.tsv $O/$@.tpm.tsv
 
 # currently produces no output, (#437)
