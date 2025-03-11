@@ -196,7 +196,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		for i in range(len(bams)): # read sequences of the alignments within range
 			args.reads += [bams[i][:-3]+'fasta']
 			pipettor.Popen([('samtools', 'fasta', bams[i])], 'w', stdout=args.reads[-1]) # TODO add stderr
-		pipettor.run([('rm', bams)])  # TODO: does this work, or need join?
+		pipettor.run(['rm'] + bams)
 
 		chrom = args.range[:args.range.find(':')]
 		coord1 = args.range[args.range.find(':')+1:args.range.find('-')]
@@ -349,8 +349,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		collapse_cmd += ['-s', str(args.support)]
 	if args.quiet:
 		collapse_cmd += ['--quiet']
-	collapse_cmd = tuple(collapse_cmd)
-	pipettor.run([collapse_cmd])
+	print(" ".join((str(a) for a in collapse_cmd)), file=sys.stderr)
+	pipettor.run(collapse_cmd)
 
 
 	# filtering out subset isoforms with insufficient support
@@ -408,8 +408,6 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.remove_internal_priming:
 		count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
 					  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
-	count_cmd = tuple(count_cmd)
-
 	if not args.quiet:
 		sys.stderr.write('Aligning reads to firstpass transcripts\n')
 		sys.stderr.write('Counting supporting reads for firstpass transcripts\n')

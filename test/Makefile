@@ -145,7 +145,7 @@ test-collapse-annot: mkdirs ${GENOME_FA}
 test-collapse-seg1: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	@echo "WARNING: test-collapse-seg1 not currently working" >&2
-	#flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ -p ${SEG1_PROMOTER_REGIONS} --annotation_reliant generate --stringent
+	flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ -p ${SEG1_PROMOTER_REGIONS} --stringent
 
 test-collapse-help: mkdirs
 	flair collapse --help >&$O/$@.out
@@ -184,7 +184,7 @@ test-collapse-support : mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-nobam test-quantify-seg1 test-quantify-help
+quantify-tests: test-quantify test-quantify-nobam test-quantify-help
 
 test-quantify: mkdirs
 	rm -rf $O/$@.tmp
@@ -198,12 +198,6 @@ test-quantify-nobam : mkdirs
 	rm -rf $O/$@.tmp
 	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
 	diff $E/$@.tpm.tsv $O/$@.tpm.tsv
-
-# currently produces no output, (#437)
-test-quantify-seg1: mkdirs
-	rm -rf $O/$@.tmp
-	@echo "WARNING: test-quantify-seg1 not currently working" >&2
-	#flair quantify -r ${SEG1_READS_MANIFEST} -i ${SEG1_ISOFORMS_FA} --isoform_bed ${SEG1_ISOFORMS_BED} --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 
 test-quantify-help: mkdirs
 	flair quantify --help >&$O/$@.out
