@@ -127,25 +127,38 @@ collapse-tests: test-collapse test-collapse-annot test-collapse-faster test-coll
 	test-collapse-support test-collapse-seg1 \
 	test-collapse-help test-collapse-faster-help
 
+# macros to do comparions with expected results
+define collapse_diff
+	diff <(sort $E/$@.isoforms.bed) <(sort $O/$@.isoforms.bed)
+	diff <(sort $E/$@.isoforms.fa) <(sort $O/$@.isoforms.fa)
+	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf)
+	diff <(sort $E/$@.promoter_supported.bed) <(sort $O/$@.promoter_supported.bed)
+endef
+
+define collapse_diff_read_map
+	diff <(sort $E/$@.isoform.read.map.txt) <(sort $O/$@.isoform.read.map.txt)
+endef
+
 # basic collapse
 test-collapse: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
-	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
+	$(collapse_diff)
+	$(collapse_diff_read_map)
 
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent
-	diff $E/$@.isoforms.bed $O/$@.isoforms.bed
-	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
-	diff $E/$@.isoforms.fa $O/$@.isoforms.fa
+	$(collapse_diff)
+	$(collapse_diff_read_map)
 
 test-collapse-seg1: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	@echo "WARNING: test-collapse-seg1 not currently working" >&2
 	flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ -p ${SEG1_PROMOTER_REGIONS} --stringent
+	$(collapse_diff)
+	$(collapse_diff_read_map)
 
 test-collapse-help: mkdirs
 	flair collapse --help >&$O/$@.out
@@ -157,7 +170,8 @@ test-collapse-help: mkdirs
 test-collapse-faster : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
-	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
+	$(collapse_diff)
+	$(collapse_diff_read_map)
 
 test-collapse-faster-help: mkdirs
 	${PYTHON} ../src/flair/fastercollapse.py --help >&$O/$@.out
@@ -167,19 +181,22 @@ test-collapse-faster-help: mkdirs
 test-collapse-faster-annot : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmo
 	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
-	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
+	$(collapse_diff)
+	$(collapse_diff_read_map)
 
 test-collapse-faster-annot-removeintprim : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --remove_internal_priming
-	diff $E/$@.isoforms.gtf $O/$@.isoforms.gtf
+	$(collapse_diff)
+	$(collapse_diff_read_map)
 
 # collapse with support
-# Note: output order not stable
+# resulting  read map differs between run (see #443)
 test-collapse-support : mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
-	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf)
+	$(collapse_diff)
+	#$(collapse_diff_read_map)
 
 ###
 # FLAIR QUANTIFY
