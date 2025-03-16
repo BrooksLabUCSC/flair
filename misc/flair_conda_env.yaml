@@ -1,11 +1,8 @@
-name: flair_basic_conda_env
-# this version can only run align, correct, and collapse
-# which means it does not need r packages
+name: flair_conda_env
 channels:
+  - conda-forge
   - bioconda
   - conda
-  - Quantopian
-  - conda-forge
 dependencies:
   - python=3.6.5
   - numpy

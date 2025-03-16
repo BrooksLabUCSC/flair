@@ -1,0 +1,33 @@
+name: flair-dev
+
+# Added 
+# after activate environment, one needs to:
+#   poetry install
+
+channels:
+  - bioconda
+  - conda-forge
+
+build:
+  noarch: python
+  number: 1
+  script: "{{ PYTHON }} -m poetry install"
+
+# as of 2025-01-16, bedtools doesn't work with py 3.13
+dependencies:
+  - python =3.12
+  - poetry
+  - minimap2 >=2.28
+  - bedtools >=2.25
+  - samtools
+  - r-ggplot2
+  - r-qqman
+  - r-lazyeval
+  - bioconductor-deseq2
+  - bioconductor-drimseq
+  - bioconductor-stager
+  - bioconductor-apeglm
+  # these are needed when installing rpy2
+  - gcc
+  - zlib
+  - xz

@@ -357,8 +357,6 @@ flair quantify
 
 **Output**
 
-Isoform-by-sample counts file that can be used in the flair_diffExp and flair_diffSplice programs. This program will assign each read to a specific isoform, however, not all reads will be assigned to an isoform.
-
 Default: only reports reads that align unambiguously to an isoform (reads that align equally to multiple isoforms are thrown out)
 
 check_splice: adds check for read matching reference transcript at all splice sites
@@ -441,6 +439,9 @@ flair_diffExp
 
 **IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
 programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
+These programs are deprecated and will be removed or replaced in a future release.
+The `conda` environment no long installed `R' and the required packages.
+If you find these programs useful please submit a ticket describing your needs.
 
 .. code:: text
 
@@ -515,8 +516,7 @@ Results tables are filtered and reordered by p-value so that only p<0.05 differe
 Code requirements
 ~~~~~~~~~~~~~~~~~
 This module requires python modules and R packages that are not necessary for other Flair modules (except diffSplice).  
-
-**If you are not using the docker container or the conda installed version of Flair** you may have to install these separately:
+You must install `R" and these packages to use `diffExp` and  `diffSplice`:
 
 1. python modules: pandas, numpy, rpy2
 2. `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__
@@ -532,6 +532,9 @@ flair diffSplice
 
 **IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
 programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
+These programs are deprecated and will be removed or replaced in a future release.
+The `conda` environment no long installed `R' and the required packages.
+If you find these programs useful please submit a ticket describing your needs.
 
 .. code:: text
 

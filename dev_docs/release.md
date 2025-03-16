@@ -7,6 +7,7 @@ For each Flair release we provide the following:
 - docker image (uses pip; full install)
 
 It is important to do these in the correct order, namely:
+1.
 1. Update version numbers in all relevant files (with bumpversion)
 2. Git commit; git push
 3. Make the release on github.com
