@@ -23,38 +23,40 @@ dependencies = [
     "numpy (>=2.2,<3.0)",
 ]
 
-
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry]
+[project.urls]
 homepage = "https://flair.readthedocs.io/en/latest/"
 documentation = "https://flair.readthedocs.io/en/latest/"
 repository = "https://github.com/BrooksLabUCSC/flair/"
+
+[tool.poetry]
 packages = [
-    {include = "flair", from = "src"}
+    { include = "flair", from = "src"},
 ]
+        
+[project.scripts]
+flair = "flair.flair:main"
 
 [tool.poetry.scripts]
-assign_variants_to_transcripts = "bin.assign_variants_to_transcripts"
-# junctions_from_sam = "bin.junctions_from_sam"
-# mark_intron_retention = "bin.mark_intron_retention"
-# mark_productivity = "bin.mark_productivity"
-# normalize_counts_matrix = "bin.normalize_counts_matrix"
-# bam2Bed12 = "bin.bam2Bed12"
-# diff_iso_usage = "bin.diff_iso_usage"
-# diffsplice_fishers_exact = "bin.diffsplice_fishers_exact"
-# plot_isoform_usage = "bin.plot_isoform_usage"
-# predictProductivity = "bin.predictProductivity"
-# psl_to_bed = "bin.psl_to_bed"
-# sam_to_map = "bin.sam_to_map"
-# fasta_seq_lengths = "bin.fasta_seq_lengths"
-# gtf_to_bed = "bin.gtf_to_bed"
-# bed_to_sequence = "bin.bed_to_sequence"
-# identify_annotated_gene = "bin.identify_annotated_gene"
-# identify_gene_isoform = "bin.identify_gene_isoform"
-flair = "flair.flair:main"
+assign_variants_to_transcripts = { reference = "bin/assign_variants_to_transcripts", type = "file" }
+junctions_from_sam = { reference = "bin/junctions_from_sam", type = "file" }
+mark_intron_retention = { reference = "bin/mark_intron_retention", type = "file" }
+mark_productivity = { reference = "bin/mark_productivity", type = "file" }
+normalize_counts_matrix = { reference = "bin/normalize_counts_matrix", type = "file" }
+bam2Bed12 = { reference = "bin/bam2Bed12", type = "file" }
+plot_isoform_usage = { reference = "bin/plot_isoform_usage", type = "file" }
+predictProductivity = { reference = "bin/predictProductivity", type = "file" }
+sam_to_map = { reference = "bin/sam_to_map", type = "file" }
+fasta_seq_lengths = { reference = "bin/fasta_seq_lengths", type = "file" }
+gtf_to_bed = { reference = "bin/gtf_to_bed", type = "file" }
+bed_to_sequence = { reference = "bin/bed_to_sequence", type = "file" }
+identify_annotated_gene = { reference = "bin/identify_annotated_gene", type = "file" }
+identify_gene_isoform = { reference = "bin/identify_gene_isoform", type = "file" }
+diff_iso_usage = { reference = "bin/diff_iso_usage", type = "file" }
+diffsplice_fishers_exact = { reference = "bin/diffsplice_fishers_exact", type = "file" }
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^7.1.1"

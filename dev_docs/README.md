@@ -13,7 +13,6 @@ to get the right R pieces installed and the `rpy2` python package built:
 ```
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml
 conda activate flair-dev
-poetry install --with=dev
 ```
 
 To run the deprecated `diffExp` and `diffSplice` tests:
@@ -38,16 +37,40 @@ and then change to flexible channel_priority:
 
 ## Managing dependencies
 
-Poetry is used to manage dependencies.  There are 
+Poetry is used to manage dependencies.
 
 Poetry Cheat sheet:
-* install dependencies in virtual : `poetry install`
 * add dependency: `poetry add pysam`
 * add a development dependency: `poetry add --dev flake8`
 * show dependencies: `poetry show`
+* check `pyproject.toml`: `poetry check`
 * update dependencies to their latest version: `poetry update`
 * verify update: `poetry show --latest`
-* update `pyproject.toml` from `poetry.lock`, `poetry sync`
+* update `pyproject.toml` from `poetry.lock` file: `poetry sync`
+* install dependencies in virtual : `poetry install`
 
 
 Note you need to commit after make changes to packages or updating.
+
+
+## Testing:
+
+To run the tests using the source in the tree:
+
+```
+cd test
+make -O -j 64 test
+```
+
+To run the tests using the version of FLAIR found on PATH:
+
+```
+cd test
+make -O -j 64 test use_installed_flair=yes
+```
+
+To run the deprecated diffExp and diffSplice tests:
+```
+cd test
+make -O -j 64 test-diffexp
+```

@@ -60,15 +60,15 @@ export COLUMNS = 80
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
-	@echo To run tests that do not depend on R >&2
-	@echo "   " make base-tests >&2
+	@echo To run depricated tests that depend on R >&2
+	@echo "   " make test-diffexp >&2
 	@echo otherwise run individual tests by specifying test target, such as: >&2
 	@echo "   " make align-tests >&2
 	@exit 1
 
-base-tests: main-tests align-tests correct-tests collapse-tests quantify-tests \
+test: main-tests align-tests correct-tests collapse-tests quantify-tests \
 	predict-productivity-tests diff-iso-usage-tests
-test : base-tests diffexp-tests diffsplice-tests
+test-diffexp : diffexp-tests diffsplice-tests
 
 ###
 # MAIN COMMAND
