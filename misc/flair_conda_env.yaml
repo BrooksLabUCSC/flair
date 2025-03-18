@@ -4,7 +4,7 @@ channels:
   - bioconda
   - conda
 dependencies:
-  - python=3.6.5
+  - python=3.12
   - numpy
   - ncls
   - samtools

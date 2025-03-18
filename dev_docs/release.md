@@ -6,43 +6,62 @@ For each Flair release we provide the following:
 - conda package (uses pip; full install)
 - docker image (uses pip; full install)
 
-It is important to do these in the correct order, namely:
-1.
-1. Update version numbers in all relevant files (with bumpversion)
-2. Git commit; git push
+It is important to do these in the correct order:
+1
+1. Update dependencies
+1. Return through [pre-release testing](release-testing.md) steps
+2. Update version numbers in all relevant files using bumpversion
+2. Git commit, tag, and push
 3. Make the release on github.com
+3. Review readthedocs
 4. Create the pip package and upload it
 5. Update the conda recipe and submit
 6. Build the docker image locally using the updated Dockerfile and push it to dockerhub
 
-Once you have done this once and are properly set up, these six steps can be done quickly.
+## 1. Update dependence
 
-# 1. Update version numbers in all relevant files ###############
+poetry update
+
+## 2. pre-
+
+
+## 1. Update version numbers in all relevant files
 
 Version numbers should be increased following the major/minor/patch logic:
-  - 1.6.3 to 1.6.4: if it's a bug fix
-  - 1.6.3 to 1.7.0 if new functionality
-  - 1.6.3 to 2.0.0 if adding major new functionality and incompatible changes
-    major revisions are also coordinated with papers
+- 1.6.3 to 1.6.4: if it's a bug fix
+- 1.6.3 to 1.7.0 if new functionality
+- 1.6.3 to 2.0.0 if adding major new functionality and incompatible changes
+   major revisions are also coordinated with papers
 
 As of this writing, the following files contain version numbers:
+```
   ./misc/Dockerfile
-  ./setup.cfg  (these are the pip instructions)
+  ./setup.cfg
   ./src/flair/flair.py
-You can update these manually, or use bump2version (which can be pip installed) like so:
+```
+
+Use bump2version to increment the version numbers
+```
   bump2version --allow-dirty --verbose major|minor|patch src/flair/flair.py misc/Dockerfile setup.cfg
-Before you do this, make sure the current version is correctly listed in .bumpversion.cfg
+```
+Before you do this, make sure the current version is correctly listed in .bumpversion.cfg.
 
-####### 2. Git commit; git push #######################################
+Check that version were updated:
+```
+git diff
+```
 
-   # make sure that the version number did actually change
-   git diff 
+## 2. Git commit, tag push
+
+   git status
    git add setup.cfg src/flair/flair.py misc/Dockerfile
    git commit -m "setting up release <current release version>"
+   git tag v<version>
    git push
 
 
-####### 2.5 Check readthedocs #########################################
+
+## 2.5 Verifdy readthedocs
 
 Readthedocs occasionally changes their requirements and when that happens the build of the Flair
 documentation may start failing. To make sure that it's up and running, 
@@ -52,16 +71,17 @@ and check that the latest build Passed.
 (Builds are started immediately after every push to the master branch)
 
 
-####### 3. Make the release on github.com #############################
+##. Make the release on github.com
 
 https://github.com/BrooksLabUCSC/flair/releases
 Select Draft a new release (top right) and follow instructions
 Please do describe what's new in this release, both for our users and for your own future sanity.
 Hint: use git log to see commit messages.
 
-####### 4. Create the pip package and upload it #######################
+## 4. Create the pip package and upload it
 
-You can only do this once per release, so be careful. Pypi does not allow submission of the same release number twice.
+You can only do this once per release, so be careful. Pypi does not allow
+submission of the same release number twice.
 
     ##### the section below only needs to be done once ########
     

@@ -1,9 +1,7 @@
 # FLAIR Development
 
 Python dependencies and package creation are managed with `poetry`.
-A conda environment is use to provide the non-python environment,
-including R and dependencies. 
-
+A conda environment is use to provide the non-python environment.
 
 ## Creating the conda enviroment
 Create a new conda environment for developing FLAIR from the top of
@@ -13,11 +11,13 @@ to get the right R pieces installed and the `rpy2` python package built:
 ```
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml
 conda activate flair-dev
+pip install -e .[dev]
 ```
 
 To run the deprecated `diffExp` and `diffSplice` tests:
 ```
-conda install --name flair-dev --file misc/flair_diffexp_conda_env.yaml
+conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
+pip install -e .[diffexp]
 ```
 
 If you get warning like:
@@ -35,6 +35,21 @@ and then change to flexible channel_priority:
  conda config --set channel_priority flexible
 ```
 
+## Running FLAIR program during development.
+
+FLAIR being a flair-dev conda environment or a virtual environment 
+in pip editable mode using `pip install -e`.  However, the programs
+it `bin/` will be copied rather than linked, so they are not
+editable without a reinstall.  This will be fixed in the future.
+
+Alternatively, one can add FLAIR programs to the PATH by
+doing the following while in the top level directory of 
+the FLAIR cloned repository:
+
+```
+export PATH=$(pwd)/src/flair:$(pwd)/bin:${PATH}
+```
+
 ## Managing dependencies
 
 Poetry is used to manage dependencies.
@@ -49,28 +64,52 @@ Poetry Cheat sheet:
 * update `pyproject.toml` from `poetry.lock` file: `poetry sync`
 * install dependencies in virtual : `poetry install`
 
+Note: you need to commit after make changes to packages or updating.
 
-Note you need to commit after make changes to packages or updating.
 
+**Don't use poetry sync for now**
+
+There is no good solution to the below problem with conda and poetry
+sync.  Ignore the below  Update pyproject.toml by hand for now.
+
+If you get maddening errors from ```poetry sync``` like the following:
+```
+Path /home/conda/feedstock_root/build_artifacts/anyio_1736174388474/work for anyio does not exist
+```
+
+This is caused by a problem with the way conda install pip packages:
+
+https://github.com/conda-forge/python-ldap-feedstock/issues/28
+
+Find the location of your conda env and remove the ``direct_url.json``
+files 
+```
+which poetry
+~/miniforge3/envs/flair-dev/bin/poetry
+rm ~/miniforge3/envs/flair-dev/lib/python3.12/site-packages/*.dist-info/direct_url.json
+poetry sync
+```
 
 ## Testing:
 
 To run the tests using the source in the tree:
-
 ```
-cd test
 make -O -j 64 test
 ```
 
 To run the tests using the version of FLAIR found on PATH:
-
 ```
-cd test
 make -O -j 64 test use_installed_flair=yes
 ```
 
 To run the deprecated diffExp and diffSplice tests:
 ```
-cd test
 make -O -j 64 test-diffexp
 ```
+
+# Releasing flair
+
+The following documents cover releasing FLAIR:
+
+* [release pre-testing](release-testing.md)
+* [Releasing FLAIR](release.md)

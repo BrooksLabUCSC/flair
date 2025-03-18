@@ -1,9 +1,5 @@
 name: flair-dev
 
-# Used for creating a development conda env
-# after activate environment, one needs to:
-#   poetry install
-
 channels:
   - bioconda
   - conda-forge
