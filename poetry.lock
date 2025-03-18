@@ -1311,10 +1311,9 @@ types = ["mypy", "types-tzlocal"]
 name = "scipy"
 version = "1.15.2"
 description = "Fundamental algorithms for scientific computing in Python"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"diffexp\""
 files = [
     {file = "scipy-1.15.2-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:a2ec871edaa863e8213ea5df811cd600734f6400b4af272e1c011e69401218e9"},
     {file = "scipy-1.15.2-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:6f223753c6ea76983af380787611ae1291e3ceb23917393079dcc746ba60cfb5"},
@@ -1675,9 +1674,9 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [extras]
 dev = ["bumpversion", "flake8", "sphinx", "sphinx-rtd-theme"]
-diffexp = ["matplotlib", "pandas", "rpy2", "scipy", "seaborn"]
+diffexp = ["matplotlib", "pandas", "rpy2", "seaborn"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "4c35dbc5c54eef6d0f821f4258e75516e84db251b00bf74291c4d242b58fc858"
+content-hash = "b120032d4685bbb755818b3aed2dca837daf5236c7711206d17845d3e042987e"

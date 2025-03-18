@@ -11,6 +11,7 @@ to get the right R pieces installed and the `rpy2` python package built:
 ```
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml
 conda activate flair-dev
+make clean
 pip install -e .[dev]
 ```
 
@@ -66,29 +67,6 @@ Poetry Cheat sheet:
 
 Note: you need to commit after make changes to packages or updating.
 
-
-**Don't use poetry sync for now**
-
-There is no good solution to the below problem with conda and poetry
-sync.  Ignore the below  Update pyproject.toml by hand for now.
-
-If you get maddening errors from ```poetry sync``` like the following:
-```
-Path /home/conda/feedstock_root/build_artifacts/anyio_1736174388474/work for anyio does not exist
-```
-
-This is caused by a problem with the way conda install pip packages:
-
-https://github.com/conda-forge/python-ldap-feedstock/issues/28
-
-Find the location of your conda env and remove the ``direct_url.json``
-files 
-```
-which poetry
-~/miniforge3/envs/flair-dev/bin/poetry
-rm ~/miniforge3/envs/flair-dev/lib/python3.12/site-packages/*.dist-info/direct_url.json
-poetry sync
-```
 
 ## Testing:
 
