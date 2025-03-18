@@ -226,9 +226,7 @@ def align():
 		sys.exit(1)
 	if 'align' in sys.argv:
 		sys.argv.remove('align')
-	args, unknown = parser.parse_known_args()
-	if unknown and not args.quiet:
-		sys.stderr.write('Align unrecognized arguments: {}\n'.format(' '.join(unknown)))
+	args = parser.parse_args()
 
 	# do we have multiple inputs?
 	if ',' in args.reads[0]:

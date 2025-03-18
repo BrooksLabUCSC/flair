@@ -9,7 +9,6 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 def diffSplice(isoforms='', counts_matrix=''):
 	parser = argparse.ArgumentParser(description='flair-diffSplice parse options',
 		usage='flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]')
-#	parser.add_argument('diffSplice')
 	required = parser.add_argument_group('required named arguments')
 	if not isoforms:
 		required.add_argument('-i', '--isoforms', action='store', dest='i', required=True,
@@ -18,8 +17,6 @@ def diffSplice(isoforms='', counts_matrix=''):
 			type=str, required=True, help='tab-delimited isoform count matrix from flair quantify module')
 	required.add_argument('-o', '--out_dir', action='store', dest='o',
 		type=str, required=True, help='Output directory for tables and plots.')
-#	parser.add_argument('-o', '--output', action='store', dest='o', default='flair.diffsplice', type=str,
-#		required=False, help='output file name base for FLAIR isoforms (default: flair.diffsplice)')
 	parser.add_argument('-t', '--threads', action='store', dest='t',
 		type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq (4)')
 	parser.add_argument('--test', action='store_true', dest='test',
@@ -47,11 +44,7 @@ def diffSplice(isoforms='', counts_matrix=''):
 	parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
 		required=False, help='''Specify this argument to force overwriting of files in
 		an existing output directory''')
-	args, unknown = parser.parse_known_args()
-	if unknown:
-		sys.stderr.write('DiffSplice unrecognized arguments: {}\n'.format(' '.join(unknown)))
-		if not isoforms:
-			return 1
+	args = parser.parse_args()
 
 	if isoforms:
 		args.i = isoforms

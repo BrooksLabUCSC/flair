@@ -54,9 +54,7 @@ def detectfusions():
         parser.print_help()
         sys.exit(1)
 
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
+    args = parser.parse_args()
 
     if ',' in args.reads[0]:
         args.reads = args.reads[0].split(',')
@@ -305,11 +303,3 @@ def detectfusions():
 
 if __name__ == '__main__':
     detectfusions()
-
-
-
-
-
-
-
-

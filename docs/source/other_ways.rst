@@ -1,17 +1,6 @@
 Other ways to run FLAIR modules
 ===============================
 
-For convenience, multiple FLAIR modules can be run in the same command.
-In place of a single module name, multiple module numbers can be
-specified (module numbers: align=1, correct=2, collapse=3,
-collapse-range=3.5, quantify=4, diffExp=5, diffSplice=6). All arguments
-for the modules that will be run must be provided. For example, to run
-the align, correct, and collapse modules, the command might look like:
-
-.. code:: sh
-
-   flair 123 -r reads.fa -g genome.fa -f annotation.gtf -o flair.output --temp_dir temp_flair [optional arguments]
-
 A beta version of the collapse module, called collapse-range, has been
 developed. The corrected reads are divided into many independent
 regions, which are then subject to isoform calling separately and

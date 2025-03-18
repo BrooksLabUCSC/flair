@@ -130,10 +130,7 @@ def getargs():
         parser.print_help()
         sys.exit(1)
 
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        sys.stderr.write('unrecognized arguments: {}\n'.format(' '.join(unknown)))
-
+    args = parser.parse_args()
     args = checkfilepaths(args)
     args.quality = '0' if args.trust_ends else args.quality
     if args.mm2_args:

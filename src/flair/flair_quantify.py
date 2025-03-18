@@ -51,10 +51,7 @@ def quantify(isoform_sequences=''):
 		insertions greater than 3 bp at the splice site''')
 	parser.add_argument('--output_bam', default=False, action='store_true', dest='output_bam',
 						help='whether to output bam file of reads aligned to correct isoforms')
-	args, unknown = parser.parse_known_args()
-	if unknown:
-		sys.stderr.write('Quantify unrecognized arguments: {}\n'.format(' '.join(unknown)))
-
+	args = parser.parse_args()
 	if isoform_sequences:
 		args.i = isoform_sequences
 		args.o += '.counts_matrix.tsv'

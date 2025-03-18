@@ -12,8 +12,8 @@ import flair_combine
 
 def help():
 	"temporary help until switched to argparse"
-	help = """usage: flair <mode> --help
-modes: align, correct, collapse, quantify
+	help = """usage: flair module --help
+module: align, correct, collapse, quantify
 Multiple modules can be run when specified using numbers, e.g.:
 flair 1234 ..."""
 	print(help, file=sys.stderr)
@@ -42,14 +42,14 @@ def main():
 	cur_time = None
 	start_time = time.time()
 	last_time = start_time
-	if mode == 'align' or '1' in mode:
+	if mode == 'align':
 		print(f"Starting align...", flush=True)
 		aligned_reads = flair_align.align()
 		cur_time = time.time()
 		print(f"Flair align took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
 
-	if mode == 'correct' or '2' in mode:
+	if mode == 'correct':
 		print(f"Starting correct...", flush=True)
 		if aligned_reads:
 			corrected_reads = correct(aligned_reads=aligned_reads)
@@ -59,7 +59,7 @@ def main():
 		print(f"Flair correct took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
 
-	if mode == 'collapse' or ('3' in mode):
+	if mode == 'collapse':
 		print(f"Starting collapse...", flush=True)
 		if corrected_reads:
 			[isoforms, isoform_sequences] = collapse(corrected_reads=corrected_reads)
@@ -70,7 +70,7 @@ def main():
 		last_time = cur_time
 
 
-	if mode == 'quantify' or '4' in mode:
+	if mode == 'quantify':
 		print(f"Starting quantify...", flush=True)
 		if isoform_sequences:
 			counts_matrix = quantify(isoform_sequences=isoform_sequences)
