@@ -8,18 +8,18 @@ import tempfile
 import glob
 import pipettor
 # TODO: put all of these in utils.py
-from pull_starts import pull_starts
-from select_from_bed import select_from_bed
-from bed_to_sequence import bed_to_sequence
-from gtf_to_bed import gtf_to_bed
-from match_counts import match_counts
-from filter_collapsed_isoforms import filter_collapsed_isoforms
-from identify_gene_isoform import identify_gene_isoform
-from filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
-from get_phase_sets import get_phase_sets
-from bed_to_gtf import bed_to_gtf
-from subset_unassigned_reads import subset_unassigned_reads
-from filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
+from flair.pull_starts import pull_starts
+from flair.select_from_bed import select_from_bed
+from flair.bed_to_sequence import bed_to_sequence
+from flair.gtf_to_bed import gtf_to_bed
+from flair.match_counts import match_counts
+from flair.filter_collapsed_isoforms import filter_collapsed_isoforms
+from flair.identify_gene_isoform import identify_gene_isoform
+from flair.filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
+from flair.get_phase_sets import get_phase_sets
+from flair.bed_to_gtf import bed_to_gtf
+from flair.subset_unassigned_reads import subset_unassigned_reads
+from flair.filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
 
 run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.

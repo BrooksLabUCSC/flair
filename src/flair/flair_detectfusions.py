@@ -5,10 +5,10 @@ import argparse
 import os, glob
 import pipettor
 import pysam
-from gtf_to_bed import gtf_to_bed
-from bed_to_sequence import bed_to_sequence
-import transcriptomic_chimeras
-import genomic_chimeras
+from flair.gtf_to_bed import gtf_to_bed
+from flair.bed_to_sequence import bed_to_sequence
+from flair import transcriptomic_chimeras
+from flair import genomic_chimeras
 from collections import defaultdict
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'

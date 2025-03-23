@@ -5,7 +5,7 @@ import argparse
 import os
 import pipettor
 import pysam
-import remove_internal_priming
+from flair import remove_internal_priming
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 # from bam2Bed12 import bam2Bed12
 

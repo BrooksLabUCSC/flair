@@ -7,8 +7,8 @@ import os
 import pybedtools
 import shutil
 import uuid
-from ssUtils import addOtherJuncs, gtfToSSBed
-from ssPrep import ssPrep
+from flair.ssUtils import addOtherJuncs, gtfToSSBed
+from flair.ssPrep import ssPrep
 
 def parseargs(aligned_reads=''):
 	parser = argparse.ArgumentParser(description='flair-correct parse options',

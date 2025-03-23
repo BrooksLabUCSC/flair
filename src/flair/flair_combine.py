@@ -6,7 +6,7 @@ import os
 import pipettor
 import pysam
 import math
-from bed_to_gtf import bed_to_gtf
+from flair.bed_to_gtf import bed_to_gtf
 from statistics import mode
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 

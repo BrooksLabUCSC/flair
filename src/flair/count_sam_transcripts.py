@@ -8,7 +8,7 @@ import math
 import os
 from collections import Counter
 from collections import namedtuple
-import remove_internal_priming
+from flair import remove_internal_priming
 import pysam
 
 def parseargs():
