@@ -2,8 +2,8 @@ Modules
 ^^^^^^^
 
 ``flair`` is a wrapper script with modules for running various
-processing scripts located in ``src/flair``. Modules must be run in
-order (align, correct, collapse).
+processing scripts located in ``bin`` directory and should be install in your path by `pip` or `conda`.
+Modules must be run in order (align, correct, collapse).
 
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR align, correct, and collapse on all samples together (will generate the most comprehensive transcriptome)

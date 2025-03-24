@@ -5,7 +5,7 @@ include ${root}/defs.mk
 # tree use:
 #   make test use_installed_flair=yes
 ifneq (${use_installed_flair},yes)
-    export PATH := ${root}/src/flair:${root}/bin:${PATH}
+    export PATH := ${root}/bin:${PATH}
 endif
 
 I = input
