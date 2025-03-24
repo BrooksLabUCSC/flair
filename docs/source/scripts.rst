@@ -3,10 +3,10 @@ Additional programs
 When you ``conda install`` flair, the following helper programs will be in your $PATH:
 
 collapse_bed_files
-=================
+==================
 .. code:: sh
 
-    usage: <PATH TO FLAIR>/src/flair/collapse_bed_files.py [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-g GENOME]
+    usage: collapse_bed_files [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-g GENOME]
                              [-w ENDWINDOW] [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
 
     options:
@@ -45,7 +45,7 @@ Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation t
 For each line, the sample name and bed path is required, but the read.map.txt file is optional. Without the read.map.txt file, we have less ability to filter and more isoforms will be included. If a sample is a FLAIR run, we highly reccommend including the read.map.txt file. If you want to combine FLAIR transcriptomes with annotatated transcripts, you can convert an annotation gtf file to a bed file using 
 
 .. code:: sh
-    <PATH TO FLAIR>/src/flair/bed_to_gtf.py file.gtf > file.bed
+    bed_to_gtf file.gtf > file.bed
 
 diff_iso_usage
 ==============
