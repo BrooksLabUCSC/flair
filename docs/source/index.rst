@@ -6,15 +6,26 @@
 Welcome to FLAIR's documentation!
 =================================
 
-FLAIR Announce Mailing List
-===========================
+Staying in touch and getting help
+=================================
 
-**If you are using FLAIR, please subscribe to the FLAIR mailing list at:**
+**Please subscribe to the FLAIR announce mailing list at:**
 
-`FLAIR Announce Group <https://groups.google.com/a/ucsc.edu/g/flair-announce-group>`
+FLAIR Announce Group
+
+   https://groups.google.com/a/ucsc.edu/g/flair-announce-group
 
 This is a read-only, low volume list that will only have announcements of new
 FLAIR releases, publications, and other FLAIR-related user information.
+
+If you have questions, please ask in FLAIR GitHub Discussions:
+
+   https://github.com/BrooksLabUCSC/flair/discussions
+
+Report bugs to FLAIR GitHub Issues:
+
+   https://github.com/BrooksLabUCSC/flair/issues
+   
 
 Installing FLAIR
 ================
