@@ -205,7 +205,7 @@ there are no genes in the annotation which can be assigned to the
 isoform, a genomic coordinate is used (e.g. ``chr*:100000``).
 
 Recommended uses
---------------
+----------------
 
 **Human**
 
@@ -440,7 +440,7 @@ flair_diffExp
 **IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
 programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
 These programs are deprecated and will be removed or replaced in a future release.
-The `conda` environment no long installed `R' and the required packages.
+The `conda` environment no long installed `R` and the required packages.
 If you find these programs useful please submit a ticket describing your needs.
 
 .. code:: text
@@ -533,7 +533,7 @@ flair diffSplice
 **IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
 programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
 These programs are deprecated and will be removed or replaced in a future release.
-The `conda` environment no long installed `R' and the required packages.
+The `conda` environment no long installed `R` and the required packages.
 If you find these programs useful please submit a ticket describing your needs.
 
 .. code:: text

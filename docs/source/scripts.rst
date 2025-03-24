@@ -3,7 +3,7 @@ Additional programs
 When you ``conda install`` flair, the following helper programs will be in your $PATH:
 
 collapse_bed_files
-==============
+=================
 .. code:: sh
 
     usage: <PATH TO FLAIR>/src/flair/collapse_bed_files.py [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-g GENOME]
