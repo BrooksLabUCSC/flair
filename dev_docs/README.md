@@ -6,8 +6,7 @@ A conda environment is use to provide the non-python environment.
 ## Creating the conda enviroment
 Create a new conda environment for developing FLAIR from the top of
 the tree and add the current packages with poetry.
-This is the recommended approach, as it can be difficult
-to get the right R pieces installed and the `rpy2` python package built:
+
 ```
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml
 conda activate flair-dev
@@ -48,7 +47,7 @@ doing the following while in the top level directory of
 the FLAIR cloned repository:
 
 ```
-export PATH=$(pwd)/src/flair:$(pwd)/bin:${PATH}
+export PATH=$(pwd)/bin:${PATH}
 ```
 
 ## Managing dependencies
@@ -89,5 +88,4 @@ make -O -j 64 test-diffexp
 
 The following documents cover releasing FLAIR:
 
-* [release pre-testing](release-testing.md)
 * [Releasing FLAIR](release.md)

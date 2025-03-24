@@ -1,6 +1,6 @@
 [project]
 name = "flair"
-version = "2.1.0a"
+version = "2.0.0"
 description = "FLAIR is a long-read transcriptomics model building and analysis package"
 authors = [
     {name = "Angela Brooks", email = "anbrooks@ucsc.edu"},
@@ -30,7 +30,7 @@ dev = [
     "flake8 (>=7.1.1)",
     "sphinx (>=8.2.3,<9.0.0)",
     "sphinx-rtd-theme (>=3.0.2)",
-    "bumpversion (>=0.6.0)",
+    "bump-my-version (>=1.1.1)",
 ]
 diffexp = [
     "pandas (>=2.2.3,<3.0.0)",
@@ -44,6 +44,20 @@ homepage = "https://flair.readthedocs.io/en/latest/"
 documentation = "https://flair.readthedocs.io/en/latest/"
 repository = "https://github.com/BrooksLabUCSC/flair/"
 
+[project.scripts]
+flair = "flair.flair_cli:main"
+
+# these are needed for pip install
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+## 
+# poetry specific
+##
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
@@ -53,9 +67,6 @@ packages = [
     { include = "flair", from = "src"},
 ]
         
-[project.scripts]
-flair = "flair.flair:main"
-
 [tool.poetry.scripts]
 assign_variants_to_transcripts = { reference = "bin/assign_variants_to_transcripts", type = "file" }
 junctions_from_sam = { reference = "bin/junctions_from_sam", type = "file" }

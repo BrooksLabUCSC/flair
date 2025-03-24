@@ -1,0 +1,24 @@
+[tool.bumpversion]
+current_version = "2.0.0"
+tag_name = "v{new_version}"
+commit = false
+allow_dirty = true
+tag = true
+
+[tool.bumpversion.part.dev]
+optional_value = ".dev0"
+first_value = ".dev0"
+values = [".dev0", ".dev1", ".dev2", ".dev3"]
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+
+[[tool.bumpversion.files]]
+filename = "src/flair/flair_cli.py"
+
+[[tool.bumpversion.files]]
+filename = "misc/Dockerfile"
+
+[[tool.bumpversion.files]]
+filename = "misc/flair_conda_env.yaml"
+

@@ -7,7 +7,8 @@ channels:
 # as of 2025-01-16, bedtools doesn't work with py 3.13
 dependencies:
   - python =3.12
+  - minimap2 =2.28
+  - bedtools =2.31.1
+  - samtools =2.21
   - poetry
-  - minimap2 >=2.28
-  - bedtools >=2.25
-  - samtools
+  - pip

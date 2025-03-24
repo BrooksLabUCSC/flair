@@ -419,12 +419,12 @@ Optional arguments
                         from the end'.
     --check_splice	Enforces coverage of 4 out of 6 bp around each splice site 
                         and no insertions greater than 3 bp at the splice site.
-    --output_bam	       If selected, forces output of each reads file aligned to the 
+    --output_bam	If selected, forces output of each reads file aligned to the 
                         FLAIR transcriptome. This will be a bam with no secondary alignments
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. flair_diffExp and flair_diffSplice expect this information.
+Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The depreciated flair_diffExp and flair_diffSplice programs expect this information.
 
 .. code:: text
 
