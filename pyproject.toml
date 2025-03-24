@@ -84,3 +84,5 @@ identify_annotated_gene = { reference = "bin/identify_annotated_gene", type = "f
 identify_gene_isoform = { reference = "bin/identify_gene_isoform", type = "file" }
 diff_iso_usage = { reference = "bin/diff_iso_usage", type = "file" }
 diffsplice_fishers_exact = { reference = "bin/diffsplice_fishers_exact", type = "file" }
+collapse_bed_files = { reference = "bin/collapse_bed_files", type = "file" }
+bed_to_gtf = { reference = "bin/bed_to_gtf", type = "file" }
