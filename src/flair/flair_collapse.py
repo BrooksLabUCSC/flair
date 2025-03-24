@@ -8,18 +8,18 @@ import tempfile
 import glob
 import pipettor
 # TODO: put all of these in utils.py
-from pull_starts import pull_starts
-from select_from_bed import select_from_bed
-from bed_to_sequence import bed_to_sequence
-from gtf_to_bed import gtf_to_bed
-from match_counts import match_counts
-from filter_collapsed_isoforms import filter_collapsed_isoforms
-from identify_gene_isoform import identify_gene_isoform
-from filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
-from get_phase_sets import get_phase_sets
-from bed_to_gtf import bed_to_gtf
-from subset_unassigned_reads import subset_unassigned_reads
-from filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
+from flair.pull_starts import pull_starts
+from flair.select_from_bed import select_from_bed
+from flair.bed_to_sequence import bed_to_sequence
+from flair.gtf_to_bed import gtf_to_bed
+from flair.match_counts import match_counts
+from flair.filter_collapsed_isoforms import filter_collapsed_isoforms
+from flair.identify_gene_isoform import identify_gene_isoform
+from flair.filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
+from flair.get_phase_sets import get_phase_sets
+from flair.bed_to_gtf import bed_to_gtf
+from flair.subset_unassigned_reads import subset_unassigned_reads
+from flair.filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
 
 run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.
@@ -126,10 +126,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		parser.print_help()
 		sys.exit(1)
 
-	args, unknown = parser.parse_known_args()
-	if unknown:
-		sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
-
+	args = parser.parse_args()
 	if corrected_reads:
 		query = corrected_reads
 	else:
@@ -196,7 +193,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		for i in range(len(bams)): # read sequences of the alignments within range
 			args.reads += [bams[i][:-3]+'fasta']
 			pipettor.Popen([('samtools', 'fasta', bams[i])], 'w', stdout=args.reads[-1]) # TODO add stderr
-		pipettor.run([('rm', bams)])  # TODO: does this work, or need join?
+		pipettor.run(['rm'] + bams)
 
 		chrom = args.range[:args.range.find(':')]
 		coord1 = args.range[args.range.find(':')+1:args.range.find('-')]
@@ -349,8 +346,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		collapse_cmd += ['-s', str(args.support)]
 	if args.quiet:
 		collapse_cmd += ['--quiet']
-	collapse_cmd = tuple(collapse_cmd)
-	pipettor.run([collapse_cmd])
+	print(" ".join((str(a) for a in collapse_cmd)), file=sys.stderr)
+	pipettor.run(collapse_cmd)
 
 
 	# filtering out subset isoforms with insufficient support
@@ -408,8 +405,6 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.remove_internal_priming:
 		count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
 					  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
-	count_cmd = tuple(count_cmd)
-
 	if not args.quiet:
 		sys.stderr.write('Aligning reads to firstpass transcripts\n')
 		sys.stderr.write('Counting supporting reads for firstpass transcripts\n')

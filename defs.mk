@@ -8,6 +8,8 @@
 .PRECIOUS:
 .SECONDARY:
 
+VERSION = 2.0.0
+
 SHELL = /bin/bash
 export BASHOPTS = -beEu -o pipefail
 MAKEFLAGS += -rR

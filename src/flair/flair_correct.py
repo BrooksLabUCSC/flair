@@ -7,8 +7,8 @@ import os
 import pybedtools
 import shutil
 import uuid
-from ssUtils import addOtherJuncs, gtfToSSBed
-from ssPrep import ssPrep
+from flair.ssUtils import addOtherJuncs, gtfToSSBed
+from flair.ssPrep import ssPrep
 
 def parseargs(aligned_reads=''):
 	parser = argparse.ArgumentParser(description='flair-correct parse options',
@@ -32,16 +32,12 @@ def parseargs(aligned_reads=''):
 						help='''specify this flag to make the strand of a read consistent with the annotation during correction''')
 	parser.add_argument('-w', '--ss_window', type=int, default=15,
 						help='window size for correcting splice sites (15)')
-	# parser.add_argument('--print_check', action='store_true', default=False,
-	# 					help='Print err.txt with step checking.')
 	no_arguments_passed = len(sys.argv) == 1
 	if no_arguments_passed:
 		parser.print_help()
 		sys.exit(1)
 
-	args, unknown = parser.parse_known_args()
-	if unknown:
-		sys.stderr.write('Correct unrecognized arguments: {}\n'.format(' '.join(unknown)))
+	args = parser.parse_args()
 	return args
 
 def correct(aligned_reads='', args=None):

@@ -26,11 +26,7 @@ def diffExp(counts_matrix=''):
 	parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
 		required=False, help='''Specify this argument to force overwriting of files in
 		an existing output directory''')
-	args, unknown = parser.parse_known_args()
-	if unknown:
-		sys.stderr.write('DiffExp unrecognized arguments: {}\n'.format(' '.join(unknown)))
-		if not counts_matrix:
-			return 1
+	args = parser.parse_args()
 	if counts_matrix:
 		args.q = counts_matrix
 		args.o+'.diffExp'

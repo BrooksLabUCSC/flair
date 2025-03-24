@@ -1,18 +1,9 @@
 
 
-# import os
 import argparse
-# import gzip
-# import logging
-# import subprocess
-# import numpy as np
-# import pandas as pd
-# import re
-# from datetime import datetime
-# import logging
 import pysam
 import math
-from bed_to_gtf import bed_to_gtf
+from flair.bed_to_gtf import bed_to_gtf
 
 
 parser = argparse.ArgumentParser()

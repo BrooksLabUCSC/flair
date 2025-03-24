@@ -1,0 +1,13 @@
+name: flair_conda_env
+channels:
+  - conda-forge
+  - bioconda
+  - conda
+dependencies:
+  - python=3.12
+  - minimap2 =2.28
+  - bedtools =2.31.1
+  - samtools =2.21
+  - pip
+  - pip:
+      - flair-brookslab==v2.0.0

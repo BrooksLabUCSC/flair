@@ -1,4 +1,3 @@
-usage: flair <mode> --help
-modes: align, correct, collapse, quantify
-Multiple modules can be run when specified using numbers, e.g.:
-flair 1234 ...
+usage: flair module --help
+module: align, correct, collapse, quantify
+

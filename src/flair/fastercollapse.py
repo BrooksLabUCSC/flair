@@ -2,19 +2,19 @@
 
 import sys, argparse, os, pipettor, glob
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-from bed_to_sequence import bed_to_sequence
-from gtf_to_bed import gtf_to_bed
-from match_counts import match_counts
+from flair.bed_to_sequence import bed_to_sequence
+from flair.gtf_to_bed import gtf_to_bed
+from flair.match_counts import match_counts
 import mappy as mm
-from flair_align import doalignment, dofiltering
+from flair.flair_align import doalignment, dofiltering
 import tempfile, pysam
-from flair_correct import correct
-from filter_collapsed_isoforms import filter_collapsed_isoforms
-from identify_gene_isoform import identify_gene_isoform
-from filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
-from select_from_bed import select_from_bed
-from pull_starts import pull_starts
-from bed_to_gtf import bed_to_gtf
+from flair.flair_correct import correct
+from flair.filter_collapsed_isoforms import filter_collapsed_isoforms
+from flair.identify_gene_isoform import identify_gene_isoform
+from flair.filter_collapsed_isoforms_from_annotation import filter_collapsed_isoforms_from_annotation
+from flair.select_from_bed import select_from_bed
+from flair.pull_starts import pull_starts
+from flair.bed_to_gtf import bed_to_gtf
 
 def getargs():
     parser = argparse.ArgumentParser(description='flair-collapse parse options',
@@ -130,10 +130,7 @@ def getargs():
         parser.print_help()
         sys.exit(1)
 
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        sys.stderr.write('unrecognized arguments: {}\n'.format(' '.join(unknown)))
-
+    args = parser.parse_args()
     args = checkfilepaths(args)
     args.quality = '0' if args.trust_ends else args.quality
     if args.mm2_args:
@@ -350,6 +347,8 @@ def matchcountsonfirstpass(args, min_reads):
                  bed=args.output + '.firstpass.bed', min_reads=min_reads, isoform_file=isoform_file)
 
 def collapse(args):
+    # get programs in library in path
+    os.environ["PATH"] = os.path.dirname(__file__) + ':' + os.environ["PATH"]
     args.temp_dir = maketempdir(args)
     ###FIXME this invalidates goal of allowing fractional support - tbh maybe fractional support should be a separate option?
     min_reads = float(args.support) if float(args.support) >= 1 else 3
