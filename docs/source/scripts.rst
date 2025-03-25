@@ -38,20 +38,19 @@ Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation t
 
 .. code:: text
 
-   sample1      /path/to/sample1.FLAIR.isoforms.bed      /path/to/sample1.FLAIR.combined.isoform.read.map.txt
-   sample2      /path/to/sample2.FLAIR.isoforms.bed      /path/to/sample2.FLAIR.combined.isoform.read.map.txt
-   refanno      /path/to/refannotranscripts.bed
+    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.FLAIR.isoforms.fa sample1.read.map.txt
+    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.FLAIR.isoforms.fa sample2.read.map.txt
 
-For each line, the sample name and bed path is required, but the read.map.txt file is optional. Without the read.map.txt file, we have less ability to filter and more isoforms will be included. If a sample is a FLAIR run, we highly reccommend including the read.map.txt file. If you want to combine FLAIR transcriptomes with annotatated transcripts, you can convert an annotation gtf file to a bed file using 
-
-
-bed_to_gtf
-==========
+For each line, the sample name and bed path is required. The fasta and
+read.map.txt file is optional. Without these files there is less ability to
+filter and more isoforms will be included. If a sample is a FLAIR run, we
+highly recommend including the read.map.txt file. If you want to combine FLAIR
+transcriptomes with annotated transcripts, you can convert an annotation gtf
+file to a bed file using
 
 .. code:: sh
     bed_to_gtf file.gtf > file.bed
 
-Convert a BED file to a minimal GTF.
     
 diff_iso_usage
 ==============
