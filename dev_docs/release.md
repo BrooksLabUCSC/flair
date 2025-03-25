@@ -42,8 +42,15 @@ Poetry also needs this information:
 
 ### ReadTheDocs user setup
 
-You must be have a ReadTheDocs account and registered as an admin on the flair
+Create a ReadTheDocs account if you don't already have one and have an
+existing FLAIR a
+registered as an admin on the FLAIR
 project check here: https://app.readthedocs.org/dashboard/
+
+### DockerHub user setup
+
+If you don't https://hub.docker.com/r
+
 
 ## 1. Update CHANGELOG.md
 
@@ -51,7 +58,7 @@ Edit CHANGELOG.md outline high-level changes.  This will contain new features,
 incompatibilities, and high-visibility bug fixes.  It doesn't need to contain
 minor changes.  Review the commit logs with
 
-## 2. Update dependence
+## 2. Update dependences
 ```
    poetry update
    poetry local
@@ -208,20 +215,20 @@ Copy CHANGELOG.md entries to release description.
 
 ## 5. Update the conda recipe and submit
 
-### THIS STEP MIGHT NOT BE NECESSARY ####
-If you do not make any changes to flair's dependencies (scipy, pandas, etc) then
-the biocondabot may detect the new release and update the conda package automatically. 
-Simply wait a few days, then check the version at https://anaconda.org/bioconda/flair
-#########################################
 
 Full details are here: https://bioconda.github.io/contributor/index.html
 
 1. Fork the bioconda recipes repo: https://github.com/bioconda/bioconda-recipes/fork
 2. git clone that directory to your local computer
-3 (optional, for when you make dependency changes). create a bioconda environment for testing:
-      conda create -n bioconda -c conda-forge -c bioconda bioconda-utils pytorch
-      conda activate bioconda
-4. update the recipe in recipes/flair/meta.yaml with the new version number
+3  create a bioconda environment for testing:
+```
+      conda create -n bioconda-test -c conda-forge -c bioconda bioconda-utils pytorch
+      conda activate bioconda-test
+```
+4. update the recipe in `bioconda-recipes/recipes/recipes/flair`
+   - depends 
+   
+with the new version number
    and the pypi url and md5, found at https://pypi.org/project/flair-brookslab/(current version)/#files
 5. git commit, git push
 6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
@@ -231,7 +238,14 @@ Full details are here: https://bioconda.github.io/contributor/index.html
 	This should take care of the red 'Review Required' and 'Merging is Blocked' notifications
 7. Delete your fork.
 
-####### 6. Build the docker image locally using the updated Dockerfile and push it to dockerhub ######
+### Note: THIS STEP MIGHT NOT BE NECESSARY
+
+If you do not make any changes to flair's dependencies (scipy, pandas, etc) then
+the biocondabot may detect the new release and update the conda package automatically. 
+Simply wait a few days, then check the version at https://anaconda.org/bioconda/flair
+
+
+## 6. Build the docker image locally using the updated Dockerfile and push it to dockerhub
 
 Docker does allow you to resubmit the same version number, it will overwrite the image if you do.
 

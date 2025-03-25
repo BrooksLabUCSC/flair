@@ -40,7 +40,6 @@ BASIC_ISOFORMS_BED = $E/test-collapse-annot.isoforms.bed
 SEG1_READS_FQ = input/seg1.cdna-ont.fastq
 SEG1_ANNOTATION = input/seg1.gencodeV47.gtf
 SEG1_PROMOTER_REGIONS = input/seg1.promoter-regions.bed
-SEG1_READS_MANIFEST = input/seg1.reads_manifest.txt
 
 SEG1_ALIGN_BED = $E/test-align-seg1.bed
 SEG1_CORRECT_READS_BED = $E/test-correct-seg1_all_corrected.bed
