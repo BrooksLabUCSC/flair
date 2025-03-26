@@ -86,13 +86,16 @@ for line in open(modtranscriptsfile):
         thist = transcriptToInfo[(tname, gname)]
         newpredseq = thist.aaseq
         has5utrvars, has3utrvars = False, False
-
+        # print(tname)
         if len(seqvars) == 0: ###no change from original isoform
             predProd = thist.origpro
         else:
-            seqvars = [x.split('.') for x in seqvars.split(',')]
+            # chr2..-..65312507..2862..S..A
+            #chr2..-..65312507..2862..S..A,chr2..-..65313771..1598..S..C
+            seqvars = [x.split('..') for x in seqvars.split(',')]
             for i in range(len(seqvars)):
-                seqvars[i][0] = int(seqvars[i][0])
+                #seqvars[i][0] = int(seqvars[i][0])
+                seqvars[i] = [int(seqvars[i][3]), seqvars[i][4], seqvars[i][5]]
             seqvars.sort()
 
             if thist.origstart == thist.origstop:

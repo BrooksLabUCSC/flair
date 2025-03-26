@@ -27,7 +27,7 @@ def intronChainToestarts(ichain, start, end):
     esizes.append(end - (start + estarts[-1]))
     return esizes, estarts
 
-def getbestends2(isodata):
+def getbestends(isodata):
     bestiso = (None, None, None, None, 0)
     for info in isodata:
         if info[4] > bestiso[4]: bestiso = info
@@ -35,7 +35,7 @@ def getbestends2(isodata):
             if info[1]-info[0] > bestiso[1]-bestiso[0]: bestiso = info
     return bestiso
 
-def combineIsos2(isolist, endwindow):
+def combineIsos(isolist, endwindow):
     isolist.sort()
     isoendgroups = {}
     laststart, lastend = 0, 0
@@ -46,11 +46,11 @@ def combineIsos2(isolist, endwindow):
             currgroup.append(isoinfo)
         else:
             if len(currgroup) > 0:
-                isoendgroups[getbestends2(currgroup)] = currgroup
+                isoendgroups[getbestends(currgroup)] = currgroup
             currgroup = [isoinfo]
         laststart, lastend = start, end
     if len(currgroup) > 0:
-        isoendgroups[getbestends2(currgroup)] = currgroup
+        isoendgroups[getbestends(currgroup)] = currgroup
     return isoendgroups
 
 
@@ -188,7 +188,7 @@ def combine():
     isomap = {}
     for ichainid in intronchaintoisos:
         # chr, strand, gene, ichain = ichainid
-        collapsedIsos = combineIsos2(intronchaintoisos[ichainid], endwindow)
+        collapsedIsos = combineIsos(intronchaintoisos[ichainid], endwindow)
         isse = type(ichainid[-1]) == str
         isfusion = type(ichainid[0]) == tuple
         longestEnds = (None, None)

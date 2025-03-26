@@ -122,6 +122,7 @@ def correct(aligned_reads='', args=None):
 	readDict = dict()
 	notfound = False
 	prevchrom = False
+	tempoutfile = None
 	with open(query) as lines, open("%s_cannot_verify.bed" % args.output,'w') as nochrom:
 		outDict = dict()
 		for line in lines:
@@ -147,7 +148,8 @@ def correct(aligned_reads='', args=None):
 				#with open(outDict[chrom], 'a') as tempoutfile:
 				#print(line.rstrip(),file=outDict[chrom])
 	nochrom.close()
-	tempoutfile.close()
+	if tempoutfile:
+		tempoutfile.close()
 	if notfound is False:
 		os.remove(f'{args.output}_cannot_verify.bed')
 

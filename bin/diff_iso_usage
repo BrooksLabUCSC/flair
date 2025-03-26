@@ -73,13 +73,15 @@ with open(outfilename, 'wt') as outfile:
 			thesecounts = counts[gene][iso]
 			othercounts = [0, 0]
 			ctable = [thesecounts, othercounts]
-			if thesecounts[0] == 0 or thesecounts[1] == 0:  # do not test this isoform
-				continue
+			# if thesecounts[0] == 0 or thesecounts[1] == 0:  # do not test this isoform
+			# 	continue
 			for iso_ in counts[gene]:  # count up for all other isoforms of this gene
 				if iso_ == iso:
 					continue
 				othercounts[0] += counts[gene][iso_][0]
 				othercounts[1] += counts[gene][iso_][1]
+			if thesecounts[0] + othercounts[0] == 0 or thesecounts[1] + othercounts[1] == 0:  # do not test this isoform if no gene exp in one sample
+				continue
 			ctable[1] = othercounts
 			if ctable[0][0] + ctable[1][0] == 0 or ctable[0][1] + ctable[1][1] == 0 or not sum(ctable[1]):
 				continue

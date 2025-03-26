@@ -101,8 +101,9 @@ def quantify(isoform_sequences=''):
 
 	for num, sample in enumerate(samData, 0):
 		sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
-		if args.output_bam: mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
-		else: mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]] ###MD required for count_sam now
+		# if args.output_bam: mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+		# else: mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 		# mm2_command = ['minimap2', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
 
 		# TODO: Replace this with proper try/except Exception as ex
@@ -167,13 +168,17 @@ def quantify(isoform_sequences=''):
 					line = line.split('\t')
 					read, iso, flag = line[0], line[2], line[1]
 					if flag == '0' or flag == '16':
-						nametoseq[read] = line[9]
-						if read in readToIso and readToIso[read] == iso: newsam.write('\t'.join(line))
+						nametoseq[read] = [line[9], line[10]]
+						if read in readToIso and readToIso[read] == iso:
+							if line[4] == '0': line[4] = '60'
+							newsam.write('\t'.join(line))
 					elif read in readToIso and readToIso[read] == iso:
 						impsecondary.append(line)
 			for line in impsecondary:
-				line[9] = nametoseq[line[0]]
+				line[9] = nametoseq[line[0]][0]
+				line[10] = nametoseq[line[0]][1]
 				line[5] = line[5].replace('H', 'S')
+				if line[4] == '0': line[4] = '60'
 				newsam.write('\t'.join(line))
 			newsam.close()
 			if subprocess.call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']):

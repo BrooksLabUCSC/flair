@@ -33,7 +33,7 @@ fgenes = {}
 transcripts = {}
 ###['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'breakpointCoord', 'outerEdgeCoord', 'readSupport']
 for line in open(args.chimbp):#'31-01-2023DRR059313-transcriptomeChimericBreakpoints-correctDir.tsv'):
-    chrom, start, end, name, score, strand = line.rstrip().split('\t')
+    chrom, start, end, name, score, strand = line.rstrip().split('\t')[:6]
     start, end = max(0, int(start)), max(0, int(end))
     gene, fusion = name.split('__')
     fusion = tuple(fusion.split('--'))
@@ -45,7 +45,6 @@ for line in open(args.chimbp):#'31-01-2023DRR059313-transcriptomeChimericBreakpo
     else:
         fgenes[gene][1] = min(start, fgenes[gene][1])
         fgenes[gene][2] = max(end, fgenes[gene][2])
-
 
 genome=pysam.FastaFile(args.g)
 print('loaded genome')
@@ -62,22 +61,23 @@ for line in open(args.a):#'/private/groups/brookslab/reference_annotations/genco
     if line[0] != '#':
         line = line.split('\t')
         if line[2] == 'gene' or line[2] == 'exon' or line[2] == 'start_codon':
-            genename = line[8].split('; gene_name "')[1].split('"')[0]
-            genename += '*' + line[8].split('gene_id "')[1].split('"')[0]
+            genename = line[8].split('gene_id "')[1].split('"')[0]
+            # genename += '*' + line[8].split('gene_id "')[1].split('"')[0]
             if genename in fgenes:
                 if line[2] == 'gene':
                     ###learned that can't assume that transcript appears in anno only once - two diff ENSG can have same hugo name
                     fgenes[genename] = (line[0], min([int(line[3]) - 501, fgenes[genename][1]]), max([int(line[4])+500, fgenes[genename][2]]), line[6])
                 elif line[2] == 'exon' or line[2] == 'start_codon':
-                    tname = line[8].split('; transcript_name "')[1].split('"')[0]
+                    tname = line[8].split('transcript_id "')[1].split('"')[0]
                     if tname not in transcripts[genename]: transcripts[genename][tname] = []
                     if line[6] == '+': transcripts[genename][tname].append((int(line[3])-1, int(line[4]), line[2]))
                     else: transcripts[genename][tname].insert(0,(int(line[3])-1, int(line[4]), line[2]))
-
+# print(transcripts)
 print('loaded transcripts')
 
 out = open(prefix + '-syntheticFusionGenome.fa', 'w')#'syntheticFusionGenomeAttempt4.fa', 'w')
 annoOut = open(prefix + '-syntheticReferenceAnno.gtf', 'w')#'syntheticReferenceAnnoAttempt1.gtf', 'w')
+# sjOut = open(prefix + '-syntheticReferenceSJ.bed', 'w')#'syntheticReferenceAnnoAttempt1.gtf', 'w')
 bpOut = open(prefix + '-syntheticBreakpointLoc.bed', 'w')#'syntheticFusionBreakpointLoc.bed', 'w')
 c = 0
 for fusion in allBP:

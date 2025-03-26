@@ -189,7 +189,7 @@ def getannotatedseq(args):
                             outfilename=args.transcriptfasta)
     return args
 
-def getcountsamcommand(args, outputname, mapfile, isannot):
+def getcountsamcommand(args, refbed, outputname, mapfile, isannot):
     # count sam transcripts ; the dash at the end means STDIN
     count_cmd = ['count_sam_transcripts.py', '--sam', '-',
                  '-o', outputname, '-t', str(args.threads),
@@ -201,26 +201,29 @@ def getcountsamcommand(args, outputname, mapfile, isannot):
     if args.check_splice: #or isannot:
         count_cmd += ['--check_splice']
     if args.check_splice or args.stringent or isannot:
-        count_cmd += ['-i', args.annotated_bed]  # annotated isoform bed file
+        count_cmd += ['-i', refbed]  # annotated isoform bed file
     if args.trust_ends:
         count_cmd += ['--trust_ends']
     if args.remove_internal_priming:
         count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
                       '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
+    if args.remove_internal_priming and isannot:
+        count_cmd += ['--permissive_last_exons']
     return tuple(count_cmd)
 
 
 
-def transcriptomealignandcount(args, outputname, mapfile, isannot):
+def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname, mapfile, isannot):
     # minimap (results are piped into count_sam_transcripts.py)
     ##'--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
-    mm2_cmd = tuple(['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [args.transcriptfasta] + args.reads)
+    if type(inputreads) == str: inputreads = [inputreads]
+    mm2_cmd = tuple(['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [alignfasta] + inputreads)
     ###FIXME add in step to filter out chimeric reads here
     ###FIXME really need to go in and check on how count_sam_transcripts is working
-    count_cmd = getcountsamcommand(args, outputname, mapfile, isannot)
-    print(' '.join(mm2_cmd))
-    print(' '.join(count_cmd))
-    sys.stderr.write('Aligning and counting supporting reads for transcripts\n')
+    count_cmd = getcountsamcommand(args, refbed, outputname, mapfile, isannot)
+    # print(' '.join(mm2_cmd))
+    # print(' '.join(count_cmd))
+    # sys.stderr.write('Aligning and counting supporting reads for transcripts\n')
     pipettor.run([mm2_cmd, count_cmd])
 
 def subset_unassigned_reads(readmap, fastx, outfa):
@@ -243,12 +246,12 @@ def subset_unassigned_reads(readmap, fastx, outfa):
                     print(seq, file=outf)
     outf.close()
 
-def runreadcollapse(args):
+def runreadcollapse(args, collapseinput, collapseoutput):
     # TODO: collapse_isoforms_precise uses pool and map, which makes it difficult to capture in a function
     sys.stderr.write('Collapsing reads into firstpass isoforms\n')
-    collapse_cmd = ['collapse_isoforms_precise.py', '-q', args.query, '-t', str(args.threads),
+    collapse_cmd = ['collapse_isoforms_precise.py', '-q', collapseinput, '-t', str(args.threads),
                     '-m', str(args.max_ends), '-w', str(args.end_window), '-n', args.no_redundant,
-                    '-o', args.output + '.firstpass.unfiltered.bed']
+                    '-o', collapseoutput]
     if args.gtf and not args.no_end_adjustment:
         collapse_cmd += ['-f', args.gtf]
     if args.isoformtss:
@@ -288,7 +291,7 @@ def aligntofirstpasstranscripts(args):
     args.transcriptfasta = args.output + '.firstpass.fa'
     args.annotated_bed = args.output + '.firstpass.bed'
     mapfile = args.output + '.novel.isoform.read.map.txt' if args.generate_map or args.transcriptfasta else None
-    transcriptomealignandcount(args, args.output + '.firstpass.q.counts', mapfile, False)
+    transcriptomealignandcount(args, args.reads, args.transcriptfasta, args.annotated_bed, args.output + '.firstpass.q.counts', mapfile, False)
     return args
 
 def filterbasedonbed(args, filterfile, outsuffix):
@@ -356,22 +359,29 @@ def collapse(args):
     intermediate_files = []
     #check whether any annotation
     didannotreliant = True if args.transcriptfasta else False
-    if args.transcriptfasta:
-        args = getannotatedseq(args)
-        transcriptomealignandcount(args, args.output + '.annotated_transcripts.alignment.counts', args.output + '.annotated_transcripts.isoform.read.map.txt', True)
-        ###outputs only supported annotated transcripts to a new file
-        ###FIXME I feel like it's unnecessary to have both the counts file and the read map file - remove the counts file
-        match_counts(counts_file=args.output + '.annotated_transcripts.alignment.counts',
-                     output_file=args.output + '.annotated_transcripts.supported.bed',
-                     bed=args.annotated_bed, min_reads=args.support)
-        intermediate_files.append(args.output + '.annotated_transcripts.alignment.counts')
-
-    if os.stat(args.reads[0]).st_size > 0: ###check that there are remaining reads to align to the genome
+    if True:
+        # if True:
+    # if args.transcriptfasta:
+    #     args = getannotatedseq(args)
+    #     transcriptomealignandcount(args, args.reads, args.transcriptfasta, args.annotated_bed, args.output + '.annotated_transcripts.alignment.counts', args.output + '.annotated_transcripts.isoform.read.map.txt', True)
+    #     ###outputs only supported annotated transcripts to a new file
+    #     ###FIXME I feel like it's unnecessary to have both the counts file and the read map file - remove the counts file
+    #     match_counts(counts_file=args.output + '.annotated_transcripts.alignment.counts',
+    #                  output_file=args.output + '.annotated_transcripts.supported.bed',
+    #                  bed=args.annotated_bed, min_reads=args.support)
+    #     intermediate_files.append(args.output + '.annotated_transcripts.alignment.counts')
+    #
+    # if os.stat(args.reads[0]).st_size > 0: ###check that there are remaining reads to align to the genome
         if args.genomealignedbam:
+            sys.stderr.write('filtering bam file')
             if args.transcriptfasta:
-                dofiltering(args, args.genomealignedbam, args.output + '.annotated_transcripts.isoform.read.map.txt')
+                dofiltering(args, args.genomealignedbam)#, args.output + '.annotated_transcripts.isoform.read.map.txt')
             else:
                 dofiltering(args, args.genomealignedbam)
+            if args.remove_internal_priming or args.remove_singleexon or args.transcriptfasta:
+                pipettor.run([('samtools', 'fasta', args.output + '.bam')], stdout=open(args.output + '.genomefiltered.fasta', 'w'))
+                args.reads = [args.output + '.genomefiltered.fasta']
+                intermediate_files.append(args.output + '.genomefiltered.fasta')
         else:
             if args.transcriptfasta:
                 # get the unassigned reads separately
@@ -385,26 +395,29 @@ def collapse(args):
             doalignment(args)
             dofiltering(args, args.output + '_unfiltered.bam')
             pipettor.run([('rm', args.output + '_unfiltered.bam', args.output + '_unfiltered.bam.bai')])
-
+            if args.remove_internal_priming or args.remove_single_exon:
+                pipettor.run([('samtools', 'fasta', args.output + '.bam')], stdout=open(args.output + '.genomefiltered.fasta', 'w'))
+                args.reads = [args.output + '.genomefiltered.fasta']
+                intermediate_files.append(args.output + '.genomefiltered.fasta')
         args, intermediate_files = doprefiltering(args, intermediate_files)
         if args.shortread or args.gtf: ##only do correction if have gtf or shortread
             sys.stderr.write('Correcting splice sites\n')
             correct(args=args)
             args.query = args.output + '_all_corrected.bed'
-        ###FIXME we must load the gtf file in every step here, is there a way to just keep it loaded into memory and pass it to different steps?
-        runreadcollapse(args)
+    #     ###FIXME we must load the gtf file in every step here, is there a way to just keep it loaded into memory and pass it to different steps?
+        runreadcollapse(args, args.query, args.output + '.firstpass.unfiltered.bed')
         filterlowsupisos(args)
         renameisoforms(args)
         args = aligntofirstpasstranscripts(args)
         matchcountsonfirstpass(args, min_reads)
 
-    intermediate_files = combineannotandnovel(args, intermediate_files, min_reads, didannotreliant)
-
-    sys.stderr.write('Generating final transcriptome fasta and gtf\n')
-    bed_to_sequence(query=args.output + '.isoforms.bed', genome=args.genome, outfilename=args.output + '.isoforms.fa')
-    if args.gtf:
-        bed_to_gtf(query=args.output + '.isoforms.bed', outputfile=args.output + '.isoforms.gtf')
-    removeintermediatefiles(args, intermediate_files)
+    # intermediate_files = combineannotandnovel(args, intermediate_files, min_reads, didannotreliant)
+    #
+    # sys.stderr.write('Generating final transcriptome fasta and gtf\n')
+    # bed_to_sequence(query=args.output + '.isoforms.bed', genome=args.genome, outfilename=args.output + '.isoforms.fa')
+    # if args.gtf:
+    #     bed_to_gtf(query=args.output + '.isoforms.bed', outputfile=args.output + '.isoforms.gtf')
+    # removeintermediatefiles(args, intermediate_files)
 
 if __name__ == "__main__":
     args = getargs()

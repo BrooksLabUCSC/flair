@@ -42,8 +42,8 @@ def getannotends(annotfile):
         lastexon = None
         for line in open(annotfile):
             if line[0] != '#':
-                line = line.split('\t', 7)
-                if line[2] == 'transcript':
+                line = line.split('\t')
+                if line[2] == 'transcript' and 'basic' in line[8]:
                     chr, start, stop, strand = line[0], int(line[3]), int(line[4]), line[6]
                     if chr not in annottranscriptends: annottranscriptends[chr] = set()
                     if strand == '+':
@@ -57,7 +57,7 @@ def getannotends(annotfile):
                         else:
                             for i in range(lastexon[0], lastexon[1]-200, 200):
                                 annottranscriptends[chr].add(i)
-                elif line[2] == 'exon':
+                elif line[2] == 'exon' and 'basic' in line[8]:
                     lastexon = (int(line[3]), int(line[4]), line[6])
         for chr in annottranscriptends:
             annottranscriptends[chr] = sorted(list(annottranscriptends[chr]))
@@ -88,12 +88,14 @@ def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscr
         # reflen = genome.get_reference_length(refname)
         if annotexons and refname in annotexons:
             theseexons = annotexons[refname]
+            # print('near end', refname, read3endpos > sum(theseexons) - theseexons[-1], read3endpos, sum(theseexons) - theseexons[-1])
             if len(theseexons) > 1 and read3endpos > sum(theseexons) - theseexons[-1]:
                 return True
             elif len(theseexons) == 1 and read3endpos >= theseexons[0]-200:
                 return True
     intprimlen = checkInternalPriming(read3endpos, refname, genome, fracAs, threshold)  # , c == 1000)
     if intprimlen < threshold:  ##read doesn't have stretch of As beyond threshold
+        # print('passes threshold', intprimlen)
         return True
     # if 32034696 < read3endpos < 32034835 and intprimlen < 10: break
     # if 55205880 < read3endpos < 55205919 and intprimlen < threshold: break

@@ -120,6 +120,10 @@ def collapse(genomic_range='', corrected_reads=''):
 						help='number of bases that are at leas 75% As required to call read as internal priming')
 	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
 						help='number of bases that are at leas 75% As required to call read as internal priming')
+	parser.add_argument('--fusion_breakpoints',
+						help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
+	parser.add_argument('--allow_paralogs', default=False, action='store_true',
+						help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
 
 	no_arguments_passed = len(sys.argv) == 1
 	if no_arguments_passed:
@@ -302,7 +306,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['--stringent']
 		if args.check_splice:
 			count_cmd += ['--check_splice']
-		if args.check_splice or args.stringent:
+		if args.check_splice or args.stringent or args.fusion_breakpoints:
 			count_cmd += ['-i', args.annotated_bed] # annotated isoform bed file
 		if args.trust_ends:
 			count_cmd += ['--trust_ends']
@@ -310,6 +314,10 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
 						  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
 						  args.transcriptfasta]
+		if args.fusion_breakpoints:
+			count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
+		if args.allow_paralogs:
+			count_cmd += ['--allow_paralogs']
 		count_cmd = tuple(count_cmd)
 
 		if not args.quiet:
@@ -399,7 +407,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_cmd += ['--stringent']
 	if args.check_splice:
 		count_cmd += ['--check_splice']
-	if args.check_splice or args.stringent:
+	if args.check_splice or args.stringent or args.fusion_breakpoints:
 		count_cmd += ['-i', args.output+'firstpass.bed']
 	if args.trust_ends:
 		count_cmd += ['--trust_ends']
@@ -408,6 +416,10 @@ def collapse(genomic_range='', corrected_reads=''):
 	if args.remove_internal_priming:
 		count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
 					  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
+	if args.fusion_breakpoints:
+		count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
+	if args.allow_paralogs:
+		count_cmd += ['--allow_paralogs']
 	count_cmd = tuple(count_cmd)
 
 	if not args.quiet:

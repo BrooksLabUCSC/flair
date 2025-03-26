@@ -9,6 +9,7 @@ import pybedtools
 import numpy as np
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+compbase = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
 
 def getStarts(gtf):
     starts = list()
@@ -57,30 +58,6 @@ class SeqVar(object):
         self.pro = "UNK"
         self.sequence = seq
         self.orfs = list()
-
-# ##my version of this, chunking starts into 100kb regions of the genome
-###giving up on this, too hard for now
-# def getStarts(gtf):
-#     starts = {}#list()
-#     with open(gtf) as lines:
-#         for l in lines:
-#             if l[0] == "#": continue
-#             cols = l.rstrip().split("\t")
-#             chrom, c1, c2, strand = cols[0], int(cols[3])-1, int(cols[4]), cols[6]
-#             if cols[2] == "start_codon":
-#                 gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
-#                 gene = gene[:gene.find('"')]
-#                 # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
-#
-#                 # starts.append((chrom,c1,c2,gene,".",strand))
-#                 roundedpos = math.floor(c1/100000)
-#                 if (chrom, roundedpos) not in starts: starts[(chrom, roundedpos)] = set()
-#                 starts[(chrom, roundedpos)].add((c1, c2, strand))
-#     if (len(starts)) == 0:
-#         sys.stderr.write('ERROR, no start codons were found in', gtf)
-#         sys.exit(1)
-#     return starts
-
 
 def getStartRelPos(genomicStartPos,exon, exons, isoObj):
     '''
@@ -160,7 +137,7 @@ def getvariants():
 
     ###REMOVE, TESTING
     args.output_prefix = args.output_prefix.split('/')[-1]
-    # pipettor.run([('samtools', 'faidx', args.isoforms)])
+    pipettor.run([('samtools', 'faidx', args.isoforms)])
 
     samples, bamfiles = [], []
     for line in open(args.manifest):
@@ -170,17 +147,19 @@ def getvariants():
 
         ##run longshot on each aligned bam file
         print('running longshot on', sample)
-        longshotcmd = ('longshot', '--bam', bamfile, '--ref', args.isoforms, '--out', outprefix +  sample + '.flairaligned.vcf', '-F', '-P', '0.00001', '-q', '10', '--output-ref')#, '-d' '/private/groups/brookslab/cafelton/testflairanyvcf/simisofusionvars/longshotdebug')
+        # longshotcmd = ('longshot', '--bam', bamfile, '--ref', args.isoforms, '--out', outprefix +  sample + '.flairaligned.vcf', '-F', '-P', '0.00001', '-q', '10', '--output-ref')#, '-d' '/private/groups/brookslab/cafelton/testflairanyvcf/simisofusionvars/longshotdebug')
+        longshotcmd = ('longshot', '--bam', bamfile, '--ref', args.isoforms, '--out', args.output_prefix +  sample + '.flairaligned.vcf', '-F', '-P', '0.00001', '-q', '10', '--output-ref')#, '-d' '/private/groups/brookslab/cafelton/testflairanyvcf/simisofusionvars/longshotdebug')
         pipettor.run([longshotcmd])
-        ## break
-    #
+        # ## break
+
     print(args.output_prefix, outprefix)
     ##combine vcf files for all samples
     out = open(args.output_prefix + '.flairaligned.longshot.vcf', 'w')
     vartoalt = {}
     hasheader = False
     for sample in samples:
-        for line in open(outprefix +  sample + '.flairaligned.vcf'):
+        # for line in open(outprefix +  sample + '.flairaligned.vcf'):
+        for line in open(args.output_prefix + sample + '.flairaligned.vcf'):
             if line[0] != '#':
                 line = line.rstrip().split('\t')
                 refinfo, alt = tuple(line[:4]), line[4]
@@ -194,6 +173,35 @@ def getvariants():
         l = [r[0], int(r[1]), r[2], r[3], alts]
         out.write('\t'.join([str(x) for x in l]) + '\n')
     out.close()
+    print('done combining vcf variants')
+
+
+    isotoblocks = {}
+    genetoiso = {}
+    for line in open(args.bedisoforms):
+        line = line.rstrip().split('\t')
+        thischr, iso, dir, start, esizes, estarts = line[0], line[3], line[5], int(line[1]), [int(x) for x in line[10].split(',')[:-1]], [int(x) for x in line[11].split(',')[:-1]]
+        exonblocks = []  ##block is gstart, tstart, len
+        if dir == '-':
+            esizes = esizes[::-1]
+            estarts = estarts[::-1]
+        currtstart = 0
+        for i in range(len(esizes)):
+            exonblocks.append((currtstart, estarts[i] + start, esizes[i], thischr, dir))
+            currtstart += esizes[i]
+        exonblocks.sort()
+
+        if iso[:10] == 'fusiongene': iso = '_'.join(iso.split('_')[1:])
+        if iso not in isotoblocks: isotoblocks[iso] = exonblocks
+        else:
+            tstartadj = isotoblocks[iso][-1][0] + isotoblocks[iso][-1][2]
+            exonblocks = [(x[0] + tstartadj,) + x[1:] for x in exonblocks]
+            isotoblocks[iso].extend(exonblocks)
+
+        gene = iso.split('_')[-1]
+        if gene not in genetoiso: genetoiso[gene] = set()
+        genetoiso[gene].add(iso)
+    print('done parsing iso blocks')
 
     ###load vcf variants - could skip this and instead load variants dict directly when combining vcfs above
     ###for longshot variant calling, can force it to output ‘genotype’ snvs, but it refuses to output alt allele
@@ -203,20 +211,45 @@ def getvariants():
         if line[0] != '#':
             line = line.rstrip().split('\t')
             if len(line) == 4: line.append('')
-            chr, pos, id, ref, alt = line[:5]
+            iso, tpos, id, ref, alt = line[:5]
             alt = alt.split(',')
-            pos = int(pos)
-            if chr not in vcfvars: vcfvars[chr] = set()
+            tpos = int(tpos)
+
             for a in alt:
-                if len(a) == len(ref):  ##substitution
-                    # vcfvars[chr].add((pos, 'S', a))
-                    vcfvars[chr].add((pos, 'S'))
-                elif len(a) < len(ref):  # deletion
-                    # vcfvars[chr].add((pos, 'D', len(ref) - len(a)))
-                    vcfvars[chr].add((pos, 'D'))
-                else:
-                    # vcfvars[chr].add((pos, 'I', len(a) - len(ref)))
-                    vcfvars[chr].add((pos, 'I'))
+                if len(a) == len(ref):  thistype='S'
+                elif len(a) < len(ref): thistype='D'
+                else: thistype='i'
+
+                blocks = isotoblocks[iso]
+                genomePos = None
+                for tstart, gstart, bsize, thischr, dir in blocks:
+                    if (dir == '+' and tstart <= tpos < tstart + bsize) or (
+                            dir == '-' and tstart <= tpos - 1 < tstart + bsize):
+                        if dir == '+':
+                            genomePos = gstart + (tpos - tstart)
+                        else:
+                            genomePos = gstart + ((tstart + bsize) - (tpos - 1))
+                        break
+                if genomePos:
+                    thisgene = iso.split('_')[-1]
+                    for iso2 in genetoiso[thisgene]:
+                        blocks = isotoblocks[iso2]
+                        tpos2 = None
+                        for tstart, gstart, bsize, thischr, dir in blocks:
+                            if gstart <= genomePos < gstart + bsize:
+                                if dir == '+':
+                                    tpos2 = tstart + (genomePos-gstart)
+                                else:
+                                    tpos2 = (tstart+bsize+1) - (genomePos-gstart)
+                                break
+                        if tpos2:
+                            if iso2 not in vcfvars: vcfvars[iso2] = set()
+                            vcfvars[iso2].add((tpos2, thistype))
+                            # print(iso2, tpos2)
+
+
+
+
 
     isotoseq = {}
     isoname = None
@@ -224,19 +257,14 @@ def getvariants():
         if line[0] == '>': isoname = line[1:].rstrip()
         else: isotoseq[isoname] = line.rstrip()
 
-    # print(vcfvars)
-
-    filtervalue = 0.2
-    unassigned = frozenset()
-
-    isovarcounts, isovarfa = {}, {}
-
+    # isotomutstringtoreads = {}
+    if not os.path.exists(args.output_prefix + '_tempvarfiles'): os.makedirs(args.output_prefix + '_tempvarfiles')
+    genenames = set()
     ####this could become really unwieldy with many or large files, but for now I'm trying to not output a text file with this data, since that's also unwieldy
     for sindex in range(len(samples)):
         sample, bamfile = samples[sindex], bamfiles[sindex]
         samfile = pysam.AlignmentFile(bamfile, 'rb')
         c = 0
-        isotomutstringtoreads = {}
         for s in samfile:
             if s.is_mapped: #and not s.is_supplementary: ##not s.is_secondary and ###trusting FLAIR quantify to only output one alignment per read
                 c += 1
@@ -265,126 +293,181 @@ def getvariants():
                     if (s.reference_name in vcfvars and m[:2] in vcfvars[s.reference_name]) or (
                             m[1] == 'D' and m[2] >= 10) or (m[1] == 'I' and len(m[2]) >= 10): filteredmuts.append(m)
                 isoname = s.reference_name
-                if isoname not in isotomutstringtoreads: isotomutstringtoreads[isoname] = {}
-                thesemutations = frozenset(filteredmuts)
-                if thesemutations not in isotomutstringtoreads[isoname]: isotomutstringtoreads[isoname][thesemutations] = set()
-                # isotomutstringtoreads[isoname][thesemutations].add(sample + '__' + s.query_name)
-                isotomutstringtoreads[isoname][thesemutations].add(s.query_name)
+                genename = isoname.split('_')[-1].split('.')[0][:-2]
+                genenames.add(genename)
+                filteredmuts = ['.'.join([str(z) for z in x]) for x in filteredmuts]
+                with open(args.output_prefix + '_tempvarfiles/' + genename + '.txt', 'a') as tempvarout:
+                    tempvarout.write('\t'.join([isoname, str(sindex) + '__' + s.query_name, ','.join(filteredmuts)]) + '\n')
+
+                # if isoname not in isotomutstringtoreads: isotomutstringtoreads[isoname] = {}
+                # thesemutations = frozenset(filteredmuts)
+                # if thesemutations not in isotomutstringtoreads[isoname]: isotomutstringtoreads[isoname][thesemutations] = set()
+                # isotomutstringtoreads[isoname][thesemutations].add(str(sindex) + '__' + s.query_name)
         samfile.close()
         print('done parsing reads for', sample)
 
+    genenames = set()
+    for f in os.listdir(args.output_prefix + '_tempvarfiles/'):
+        if f[0] != '.' and 'processed' not in f:
+            genenames.add(f.split('.txt')[0])
+    # genenames = {'ENSG000001307_copy',}
+
+
+
+    genomepostosupport = {}
+    for gene in genenames:
+        alreadyprocessed = False
+        isotomutstringtoreads = {}
+        # print(gene)
+        with open(args.output_prefix + '_tempvarfiles/' + gene + '.txt', 'r') as mutstringfile:
+            for line in mutstringfile:
+                isoname, readname, mutstring = line.rstrip('\n').split('\t')
+                if '__' in mutstring:
+                    alreadyprocessed = True
+                    break
+                if mutstring == '': thesemutations = tuple()
+                else:
+                    thesemuts = [x.split('.') for x in mutstring.split(',')]
+                    thesemutations = []
+                    for m in thesemuts:
+                        m[0] = int(m[0])
+                        thesemutations.append(tuple(m))
+                    thesemutations = tuple(thesemutations)
+                if isoname not in isotomutstringtoreads: isotomutstringtoreads[isoname] = {}
+                if thesemutations not in isotomutstringtoreads[isoname]: isotomutstringtoreads[isoname][thesemutations] = set()
+                isotomutstringtoreads[isoname][thesemutations].add(readname)
+        if alreadyprocessed: continue
+        ###go through mutstrings for each transcript
+        ###convert all vars to genomic positions
+        ###get support for each var at the genomic level
+        with open(args.output_prefix + '_tempvarfiles/' + gene + '_processed.txt', 'w') as mutstringfile2:
+            for iso in isotomutstringtoreads:
+                # mutsettogenomepos = {}
+                mutsetstoreads = isotomutstringtoreads[iso]
+                blocks = isotoblocks[iso]
+                for mutset in mutsetstoreads:
+                    rcount = len(isotomutstringtoreads[iso][mutset])
+                    newmutpos = []
+                    for m in mutset: #pos, type, str
+                        tpos = m[0]
+                        genomeset = None
+                        for tstart, gstart, bsize, thischr, dir in blocks:
+                            if (dir == '+' and tstart <= tpos < tstart + bsize) or (dir == '-' and tstart <= tpos-1 < tstart + bsize):
+                                if dir == '+': genomePos = gstart + (tpos - tstart)
+                                else: genomePos = gstart + ((tstart + bsize) - (tpos-1))
+                                genomeset = (thischr, dir, str(genomePos), str(tpos), m[1], m[2])
+                                break
+                        # print(genomeset, m, blocks,)
+                        if genomeset:
+                            if genomeset not in genomepostosupport: genomepostosupport[genomeset] = rcount
+                            else: genomepostosupport[genomeset] += rcount
+                            newmutpos.append('..'.join(genomeset))
+                    mutstringfile2.write('\t'.join([iso, ','.join(newmutpos), ','.join(isotomutstringtoreads[iso][mutset])]) + '\n')
+    print('done preprocessing iso muts')
+
+    isovarcounts, isovarfa = {}, {}
+    muttexttogenomeinfo = {}
+    for gene in genenames:
+        isotomutstringtoreads = {}
+        # print(gene)
+        with open(args.output_prefix + '_tempvarfiles/' + gene + '_processed.txt', 'r') as mutstringfile3:
+            for line in mutstringfile3:
+                iso, genomemutpos, readnames = line.rstrip('\n').split('\t')
+                if iso not in isotomutstringtoreads: isotomutstringtoreads[iso] = {}
+                if genomemutpos == '': genomemutpos = frozenset()
+                else: genomemutpos = frozenset((tuple(x.split('..')) for x in genomemutpos.split(',')))
+                isotomutstringtoreads[iso][genomemutpos] = set(readnames.split(','))
         for iso in isotomutstringtoreads:
             ##for each isoform, get the count of total reads supporting each individual variant
             ##also get total reads for isoform
             ##for each individual mutation, figure out which ones pass threshold of support
-            ##go back through, make filtered set of mutstrings that only keeps mutstrings that pass support
-            totreads = 0
-            mutcounts = {}
             mutsetstoreads = isotomutstringtoreads[iso]
-            # print(mutsetstoreads)
 
+            allmuts = set()
             for mutset in mutsetstoreads:
-                reads = isotomutstringtoreads[iso][mutset]
-                rcount = len(reads)
-                totreads += rcount
-                for m in mutset:
-                    if m not in mutcounts: mutcounts[m] = 0
-                    mutcounts[m] += rcount
+                allmuts.update(mutset)
+            goodmuts = set()
+            for m in allmuts:
+                # genomeset = mutsettogenomepos[(iso, m)]
+                if genomepostosupport[m] >= 3: goodmuts.add(m)
 
             goodsupport = {}
-            updatedfiltervalue = filtervalue
-            while updatedfiltervalue < 1 and len(mutsetstoreads.keys()) > 0:
-                goodmuts = set()
-                for i in mutcounts:
-                    if mutcounts[i] > 2 and mutcounts[i] / totreads > updatedfiltervalue: goodmuts.add(i)
-                filtmutsets = {}
-                filtsettoog = {}
-                for mutset in mutsetstoreads:
-                    filtset = mutset & goodmuts
-                    if filtset not in filtmutsets:
-                        filtmutsets[filtset] = set()
-                        filtsettoog[filtset] = set()
-                    filtmutsets[filtset].update(mutsetstoreads[mutset])
-                    filtsettoog[filtset].add(mutset)
-                for mutset in filtmutsets:
-                    mutsupport = len(filtmutsets[mutset])
-                    if mutset in goodsupport:
-                        goodsupport[mutset].update(filtmutsets[mutset])
-                        for ogmutset in filtsettoog[mutset]:
-                            mutsetstoreads.pop(ogmutset)
-                    elif mutsupport > 1 and mutsupport / totreads > filtervalue:
-                        goodsupport[mutset] = filtmutsets[mutset]  # mutsupport
-                        for ogmutset in filtsettoog[mutset]:
-                            mutsetstoreads.pop(ogmutset)
-                updatedfiltervalue += 0.1
-            if len(mutsetstoreads.keys()) > 0:
-                goodsupport[unassigned] = set() ##unassigned is set to no muts currently
-                for mutset in mutsetstoreads:
-                    goodsupport[unassigned].update(mutsetstoreads[mutset])
-            # varperisocount = 1
+            for mutset in mutsetstoreads:
+                filtset = mutset & goodmuts
+                if filtset not in goodsupport: goodsupport[filtset] = isotomutstringtoreads[iso][mutset]
+                else: goodsupport[filtset].update(isotomutstringtoreads[iso][mutset])
+
             for mutpos in goodsupport:
-                mutinfo = [list(x) for x in sorted(list(mutpos))]
+                # print(mutpos, len(goodsupport[mutpos]))
+
+
+                # genometext = []
+                # for m in mutpos:
+                #     # genomeset = mutsettogenomepos[(iso, m)]
+                #     genometext.append('.'.join(m))
+
+                mutinfo = sorted([x[:3] + (int(x[3])-1, ) + x[4:] for x in mutpos], reverse=True, key=lambda x:x[3])
                 ##getting read sequence
-                for x in range(len(mutinfo)):
-                    mutinfo[x][0] = mutinfo[x][0] - 1
-                mutinfo.sort(reverse=True)
+                # for x in range(len(mutinfo)):
+                #     mutinfo[x] = list(mutinfo[x])
+                #     mutinfo[x][0] = mutinfo[x][0] - 1
+
+                # mutinfo.sort(reverse=True)
                 thisseq = list(isotoseq[iso])
                 realmutpos = []
-                for pos, muttype, alt in mutinfo:
+                for thischr, strand, genomepos, pos, muttype, alt in mutinfo:
+                    # print(len(thisseq), thischr, strand, pos, muttype, alt)
                     if muttype == 'S':
                         thisseq[pos] = alt
                     elif muttype == 'D':
-                        count = alt
+                        count = int(alt)
                         thisseq = thisseq[:pos] + thisseq[pos + count:]
-                        realmutpos = [(x[0] - count, x[1], x[2]) for x in realmutpos]
+                        realmutpos = [x[:3] + (x[3]-count, ) + x[4:] for x in realmutpos]
                     elif muttype == 'I':
                         count = len(alt)
                         thisseq = thisseq[:pos] + list(alt) + thisseq[pos:]
-                        realmutpos = [(x[0] + count, x[1], x[2]) for x in realmutpos]
-                    realmutpos.append((pos, muttype, alt))
+                        realmutpos = [x[:3] + (x[3]+count, ) + x[4:] for x in realmutpos]
+                    realmutpos.append((thischr, strand, genomepos, pos, muttype, alt))
                 realmutpos.sort()
 
                 if len(realmutpos) == 0: muttotext = 'nomuts'
-                # elif mutpos == unassigned: muttotext = 'unassigned'
                 else:
-                    muttotext = ','.join(['.'.join([str(y) for y in x]) for x in realmutpos])
-                # outname = str(varperisocount) + '-' + iso + '__' + muttotext
-                outname = iso + '__' + muttotext
+                    muttotext = ','.join(['..'.join([str(y) for y in x]) for x in realmutpos])
+                # genometext = ','.join(genometext)
 
-                ###goal: output counts table and fa file
-                # stor = {s:0 for s in samples}
-                # for r in goodsupport[mutpos]:
-                #     s = r.split('__')[0]
-                #     stor[s] += 1
+                outname = iso + '__' + muttotext
+                # muttexttogenomeinfo[outname] = genometext
 
                 if iso not in isovarcounts: isovarcounts[iso] = {}
                 if outname not in isovarcounts[iso]:
                     isovarcounts[iso][outname] = [0 for s in samples]
                     isovarfa[outname] = ''.join(thisseq)
 
-                isovarcounts[iso][outname][sindex] = len(goodsupport[mutpos])
-
-                # outcounts = [outname] + [str(stor[s]) for s in samples]
-                # isomutsout.write('\t'.join(outcounts) + '\n')
-
-                # ##writing out fasta line
-                # # isomutsfa.write('>' + outname + '\n')
-                # isomutsfa.write('>' + str(varperisocount) + '-' + iso + ' ' + muttotext + '\n')
-                # isomutsfa.write(''.join(thisseq) + '\n')
-                # # varperisocount += 1
+                # isovarcounts[iso][outname][sindex] = len(goodsupport[mutpos])
+                for r in goodsupport[mutpos]:
+                    s = int(r.split('__')[0])
+                    isovarcounts[iso][outname][s] += 1
 
 
     isomutsout = open(args.output_prefix + '.isoswithvars.counts.tsv', 'w')
     isomutsfa = open(args.output_prefix + '.isoswithvars.fa', 'w')
-    isomutsout.write('\t'.join(['isoname__muts'] + samples) + '\n')
+    isomutsout.write('\t'.join(['isoname', 'varsontranscript', 'varsongenome'] + samples) + '\n')
+    genomevarsout = open(args.output_prefix + '.isovars.genomicpos.bed', 'w')
+    for gset in genomepostosupport:
+        if genomepostosupport[gset] >= 3:
+            #genomeset = (thischr, dir, str(genomePos), str(tpos), m[1], m[2])
+            # genomevarsout.write('\t'.join([gset[0], str(gset[2]-1), str(gset[2]), '.'.join([str(x) for x in gset[3:]]), '0', gset[1]]) + '\n')
+            genomevarsout.write('\t'.join([gset[0], str(int(gset[2])-1), gset[2], str(genomepostosupport[gset]) + '-' + '..'.join(gset[3:]), '0', gset[1]]) + '\n')
 
     for iso in isovarcounts:
         varperisocount = 1
         for isovar in isovarcounts[iso]:
+            # genometext = muttexttogenomeinfo[isovar]
             i, m = isovar.split('__')
             counts = isovarcounts[iso][isovar]
             outseq = isovarfa[isovar]
             outname = str(varperisocount) + '-' + iso
+            # isomutsout.write('\t'.join([outname, m, genometext] + [str(x) for x in counts]) + '\n')
             isomutsout.write('\t'.join([outname, m] + [str(x) for x in counts]) + '\n')
             isomutsfa.write('>' + outname + ' ' + m + '\n')
             isomutsfa.write(outseq + '\n')
@@ -392,29 +475,110 @@ def getvariants():
 
     isomutsout.close()
     isomutsfa.close()
+    genomevarsout.close()
 
 
 
-    print('done generating variant-aware transcript models, aligning to genome for visualization')
-    #
-    ##align isoform models to the genome
-    ###align to transcriptome with --secondary=no
-    mm2_cmd = ('minimap2', '-ax', 'splice', '-s', '40', '-t', '4', '--secondary=no', args.genome, args.output_prefix + '.isoswithvars.fa')
-    samtools_sort_cmd = ('samtools', 'sort', '-o', args.output_prefix + '.isoswithvars.bam', '-')
-    samtools_index_cmd = ('samtools', 'index', args.output_prefix + '.isoswithvars.bam')
-    pipettor.run([mm2_cmd, samtools_sort_cmd])
-    pipettor.run([samtools_index_cmd])
+    # print('done generating variant-aware transcript models, aligning to genome for visualization')
+    # #
+    # ##align isoform models to the genome
+    # ###align to transcriptome with --secondary=no
+    # mm2_cmd = ('minimap2', '-ax', 'splice', '-s', '40', '-t', '12', '--secondary=no', args.genome, args.output_prefix + '.isoswithvars.fa')
+    # samtools_sort_cmd = ('samtools', 'sort', '-o', args.output_prefix + '.isoswithvars.bam', '-')
+    # samtools_index_cmd = ('samtools', 'index', args.output_prefix + '.isoswithvars.bam')
+    # pipettor.run([mm2_cmd, samtools_sort_cmd])
+    # pipettor.run([samtools_index_cmd])
 
-    ##get productivity for transcripts without variants
-    print('getting prod')
-    prodcmd = ('predictProductivity', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
-    pipettor.run([prodcmd])
 
+
+
+    # ##get productivity for transcripts without variants
+    # print('getting prod')
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
+    prodcmd = (path + '../../bin/predictProductivity-Feb25-2', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
+    pipettor.run([prodcmd])
+    # print(' '.join(prodcmd))
+
     ##adjust productivity prediction to account for variants
     prodcmd = ('python3', path + 'predict_aaseq_withvar.py', args.output_prefix + '.isoforms.productivity.info.tsv',
                 args.output_prefix + '.isoswithvars.fa', args.output_prefix + '.isoswithvars.productivity.info.tsv')
     pipettor.run([prodcmd])
+
+
+    ##need to get counts table for productivity and aaseq
+    isotoprodaaseq, aaseqtoinfo, genetoaaseqtocounts, genetoprodtocounts = {}, {}, {}, {}
+    aaseqcount = 1
+    for line in open(args.output_prefix + '.isoswithvars.productivity.info.tsv'):
+        line = line.rstrip().split('\t')
+        isoname, prod = line[0], line[1]
+        if len(line) == 2: aaseq = ''
+        else: aaseq = line[-1]
+        gname = isoname.split('_')[-1]
+        if prod != 'PRO': aaseq = 'NOTPRO'
+        else:
+            if (gname, aaseq) not in aaseqtoinfo:
+                aaseqtoinfo[(gname, aaseq)] = [aaseqcount, []]
+                aaseqcount += 1
+            aaseqtoinfo[(gname, aaseq)][1].append(isoname)
+            aaseq = 'aaseq' + str(aaseqtoinfo[(gname, aaseq)][0])
+        isotoprodaaseq[isoname] = (gname, prod, aaseq)
+
+    for line in open(args.output_prefix + '.isoswithvars.counts.tsv'):
+        line = line.rstrip().split('\t')
+        # if line[0] != 'isoname__muts':
+        if line[0] != 'isoname':
+            isoname = line[0]#'__'.join(line[0].split('__')[:-1])
+            counts = [int(x) for x in line[2:]]#[2:]]
+            if isoname in isotoprodaaseq:
+                gname, prod, aaseq = isotoprodaaseq[isoname]
+                if gname not in genetoprodtocounts:
+                    genetoprodtocounts[gname] = {}
+                    genetoaaseqtocounts[gname] = {}
+                if prod not in genetoprodtocounts[gname]: genetoprodtocounts[gname][prod] = counts
+                else: genetoprodtocounts[gname][prod] = [genetoprodtocounts[gname][prod][x] + counts[x] for x in range(len(counts))]
+                if aaseq not in genetoaaseqtocounts[gname]: genetoaaseqtocounts[gname][aaseq] = counts
+                else: genetoaaseqtocounts[gname][aaseq] = [genetoaaseqtocounts[gname][aaseq][x] + counts[x] for x in range(len(counts))]
+        else:
+            countssamples = line[1:]
+
+
+    out = open(args.output_prefix + '.aaseq.key.tsv', 'w')
+    for gname, aaseq in aaseqtoinfo:
+        aaseqid, tlist = aaseqtoinfo[(gname, aaseq)]
+        out.write('\t'.join([gname, 'aaseq' + str(aaseqid), ','.join(tlist), aaseq]) + '\n')
+    out.close()
+
+    out = open(args.output_prefix + '.aaseq.counts.tsv', 'w')
+    out.write('\t'.join(['aaseqid_gene'] + countssamples) + '\n')
+    for gname in genetoaaseqtocounts:
+        for id in genetoaaseqtocounts[gname]:
+            counts = genetoaaseqtocounts[gname][id]
+            out.write('\t'.join([id + '_' + gname] + [str(x) for x in counts]) + '\n')
+    out.close()
+
+    prodtypes = ['PRO', 'PTC', 'NST', 'NGO']
+    out = open(args.output_prefix + '.productivity.counts.tsv', 'w')
+    out.write('\t'.join(['productivity_gene'] + countssamples) + '\n')
+    for gname in genetoprodtocounts:
+        for p in prodtypes:
+            if p in genetoprodtocounts[gname]:
+                counts = genetoprodtocounts[gname][p]
+                out.write('\t'.join([p + '_' + gname] + [str(x) for x in counts]) + '\n')
+    out.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     ##future desire - get proper bed file with orfs from predicting productivity from variant-aware transcripts
 
@@ -562,81 +726,9 @@ def getvariants():
 
 
 
-    ##need to get counts table for productivity and aaseq
-    isotoprodaaseq, aaseqtoinfo, genetoaaseqtocounts, genetoprodtocounts = {}, {}, {}, {}
-    aaseqcount = 1
-    for line in open(args.output_prefix + '.isoswithvars.productivity.info.tsv'):
-        line = line.rstrip().split('\t')
-        isoname, prod = line[0], line[1]
-        if len(line) == 2: aaseq = ''
-        else: aaseq = line[-1]
-        gname = isoname.split('_')[-1]
-        if prod != 'PRO': aaseq = 'NOTPRO'
-        else:
-            if (gname, aaseq) not in aaseqtoinfo:
-                aaseqtoinfo[(gname, aaseq)] = [aaseqcount, []]
-                aaseqcount += 1
-            aaseqtoinfo[(gname, aaseq)][1].append(isoname)
-            aaseq = 'aaseq' + str(aaseqtoinfo[(gname, aaseq)][0])
-        isotoprodaaseq[isoname] = (gname, prod, aaseq)
 
-    for line in open(args.output_prefix + '.isoswithvars.counts.tsv'):
-        line = line.rstrip().split('\t')
-        if line[0] != 'isoname__muts':
-            isoname = line[0]#'__'.join(line[0].split('__')[:-1])
-            counts = [int(x) for x in line[2:]]
-            if isoname in isotoprodaaseq:
-                gname, prod, aaseq = isotoprodaaseq[isoname]
-                if gname not in genetoprodtocounts:
-                    genetoprodtocounts[gname] = {}
-                    genetoaaseqtocounts[gname] = {}
-                if prod not in genetoprodtocounts[gname]: genetoprodtocounts[gname][prod] = counts
-                else: genetoprodtocounts[gname][prod] = [genetoprodtocounts[gname][prod][x] + counts[x] for x in range(len(counts))]
-                if aaseq not in genetoaaseqtocounts[gname]: genetoaaseqtocounts[gname][aaseq] = counts
-                else: genetoaaseqtocounts[gname][aaseq] = [genetoaaseqtocounts[gname][aaseq][x] + counts[x] for x in range(len(counts))]
-        else:
-            countssamples = line[1:]
 
-    # for line in open(args.output_prefix + '.isoswithvars.counts.tsv'):
-    #     line = line.rstrip().split('\t')
-    #     if line[0] != 'isoname__muts':
-    #         isoname = '__'.join(line[0].split('__')[:-1])
-    #         counts = [int(x) for x in line[1:]]
-    #         if isoname in isotoprodaaseq:
-    #             gname, prod, aaseq = isotoprodaaseq[isoname]
-    #             if gname not in genetoprodtocounts:
-    #                 genetoprodtocounts[gname] = {}
-    #                 genetoaaseqtocounts[gname] = {}
-    #             if prod not in genetoprodtocounts[gname]: genetoprodtocounts[gname][prod] = counts
-    #             else: genetoprodtocounts[gname][prod] = [genetoprodtocounts[gname][prod][x] + counts[x] for x in range(len(counts))]
-    #             if aaseq not in genetoaaseqtocounts[gname]: genetoaaseqtocounts[gname][aaseq] = counts
-    #             else: genetoaaseqtocounts[gname][aaseq] = [genetoaaseqtocounts[gname][aaseq][x] + counts[x] for x in range(len(counts))]
-    #     else:
-    #         countssamples = line[1:]
 
-    out = open(args.output_prefix + '.aaseq.key.tsv', 'w')
-    for gname, aaseq in aaseqtoinfo:
-        aaseqid, tlist = aaseqtoinfo[(gname, aaseq)]
-        out.write('\t'.join([gname, 'aaseq' + str(aaseqid), ','.join(tlist), aaseq]) + '\n')
-    out.close()
-
-    out = open(args.output_prefix + '.aaseq.counts.tsv', 'w')
-    out.write('\t'.join(['aaseqid_gene'] + countssamples) + '\n')
-    for gname in genetoaaseqtocounts:
-        for id in genetoaaseqtocounts[gname]:
-            counts = genetoaaseqtocounts[gname][id]
-            out.write('\t'.join([id + '_' + gname] + [str(x) for x in counts]) + '\n')
-    out.close()
-
-    prodtypes = ['PRO', 'PTC', 'NST', 'NGO']
-    out = open(args.output_prefix + '.productivity.counts.tsv', 'w')
-    out.write('\t'.join(['productivity_gene'] + countssamples) + '\n')
-    for gname in genetoprodtocounts:
-        for p in prodtypes:
-            if p in genetoprodtocounts[gname]:
-                counts = genetoprodtocounts[gname][p]
-                out.write('\t'.join([p + '_' + gname] + [str(x) for x in counts]) + '\n')
-    out.close()
 
 
 

@@ -89,8 +89,12 @@ test-collapse-faster-annot : mkdirs ${GENOME_FA}
 	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS)
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
+test-collapse-faster-annot-prealigned : mkdirs ${GENOME_FA}
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ --genomealignedbam $I/test-align.bam
+	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
+
 test-collapse-faster-annot-removeintprim : mkdirs ${GENOME_FA}
-	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ -p $(PROMOTER_REGIONS) --remove_internal_priming
+	python3 ../src/flair/fastercollapse.py -r $(READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/temp_fasterannot --keep_intermediate -f $(ANNOTATION) -o $O/$@ --remove_internal_priming
 	diff <(sort $E/$@.isoforms.gtf) <(sort $O/$@.isoforms.gtf) > $D/$@.isoforms.gtf.diff
 
 # collapse with support
