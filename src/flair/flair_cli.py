@@ -4,6 +4,7 @@ import sys
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import time
+from flair import VERSION
 from flair import flair_align
 from flair.flair_correct import correct
 from flair.flair_collapse import collapse
@@ -12,8 +13,10 @@ from flair import flair_combine
 
 def help():
 	"temporary help until switched to argparse"
-	help = """usage: flair module --help
+	help = f"""usage: flair module --help
 module: align, correct, collapse, quantify
+
+Version {VERSION}
 """
 	print(help, file=sys.stderr)
 
@@ -36,7 +39,7 @@ def main():
 		sys.exit(0)
 
 	if mode == '--version':
-		print('FLAIR version:', __version__)
+		sys.stderr.write(f'FLAIR {VERSION}\n')
 		sys.exit(0)
 
 	aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
@@ -88,10 +91,6 @@ def main():
 		print(
 			f"Flair combine took {int((cur_time - last_time) / 60)} minutes and {int((cur_time - last_time)) % 60} seconds",
 			flush=True)
-
-	if mode in ['--version', '']:
-		sys.stderr.write('FLAIR v2.0.0\n')
-		sys.exit(0)
 
 	if mode == 'collapse-range':
 		sys.stderr.write('ERROR: This version of flair does not support collapse-range.\n')

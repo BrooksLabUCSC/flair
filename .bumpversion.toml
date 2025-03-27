@@ -12,13 +12,21 @@ values = [".dev0", ".dev1", ".dev2", ".dev3"]
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
-filename = "src/flair/flair_cli.py"
+filename = "src/flair/__init__.py"
+search = "VERSION = \"{current_version}\""
+replace = "VERSION = \"{new_version}\""
 
 [[tool.bumpversion.files]]
 filename = "misc/Dockerfile"
+search = "flair-brookslab==v{current_version}"
+replace = "flair-brookslab==v{new_version}"
 
 [[tool.bumpversion.files]]
 filename = "misc/flair_conda_env.yaml"
+search = "flair-brookslab==v{current_version}"
+replace = "flair-brookslab==v{new_version}"
 

@@ -1,3 +1,4 @@
+#!/bin/bash -e
 GENOME_FA=genome.fa
 CORRECTED_BED=all_corrected.bed
 ANNOTATION_GTF=annotation.gtf

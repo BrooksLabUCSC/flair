@@ -188,7 +188,7 @@ pyproject.toml
 defs.mk
 misc/Dockerfile
 misc/flair_conda_env.yaml
-src/flair/flair_cli.py
+src/flair/__init__.py
 ```
 
 Use `bump-my-version` to increment the version numbers:
@@ -351,3 +351,4 @@ The reason that the build takes long is that pysam doesn't have a fast installat
 Mail an announcement, including `CHANGELOG.md` summary to
 `flair-announce-group@ucsc.edu`.
 
+🍷🍷
