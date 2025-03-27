@@ -105,13 +105,14 @@ https://packages.ubuntu.com/.
 
 
 ## 4. Create a clean conda flair-dev environment
+
 ```
 conda deactivate  # if you are in a flair environment
 conda env remove --name flair-dev --yes
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
-pip install -e .[dev]
+pip install .[dev]
 ```
    
 ## 5. Run pre-release tests
