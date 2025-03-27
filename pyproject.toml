@@ -1,6 +1,6 @@
 [project]
-name = "flair"
-version = "2.0.0"
+name = "flair-brookslab"
+version = "2.1.0"
 description = "FLAIR is a long-read transcriptomics model building and analysis package"
 authors = [
     {name = "Angela Brooks", email = "anbrooks@ucsc.edu"},

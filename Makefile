@@ -8,7 +8,6 @@ include ${root}/defs.mk
 # or use
 #   make test-installed
 
-
 default:
 
 doc:
@@ -35,8 +34,10 @@ test-diffexp-installed:
 ##
 pip_test_env = pip_test_env
 
-pypi_url = https://upload.pypi.org/legacy/
-testpypi_url = https://test.pypi.org/legacy/
+PYPI_UPLOAD_URL = https://upload.pypi.org/legacy/
+PYPI_INSTALL_URL = https://pypi.org/simple/
+TESTPYPI_UPLOAD_URL = https://test.pypi.org/legacy/
+TESTPYPI_INSTALL_URL = https://test.pypi.org/simple/
 
 define pip_env_setup
 	rm -rf ${pip_test_env}
@@ -55,26 +56,26 @@ build: clean
 # test if pip install locally
 test-pip:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir ./dist/flair-${VERSION}-py3-none-any.whl
+	${pip_env_act} && pip install --no-cache-dir ./dist/${PACKAGE_NAME}-py3-none-any.whl
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 # testpypy
 publish-testpypi: build
-	poetry publish -r testpypi --build
+	poetry publish -r testpypi
 
 test-testpypi:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir  --index-url=${testpypi_url} flair-brookslab==${version}
+	${pip_env_act} && pip install --no-cache-dir  --index-url=${TESTPYPI_INSTALL_URL} --extra-index-url=${PYPI_INSTALL_URL} flair-brookslab==${VERSION}
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 
 # pypy
 publish-pypi: build
-	poetry publish --build
+	poetry publish
 
 test-pypi:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir  --index-url=${pypi_url} flair-brookslab==${version}
+	${pip_env_act} && pip install --no-cache-dir  --index-url=${PYPI_INSTALL_URL} flair-brookslab==${VERSION}
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 

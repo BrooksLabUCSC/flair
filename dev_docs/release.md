@@ -206,7 +206,7 @@ git diff
 
 ## 9. Build distribution and test pipe install
 ```
-make build
+make clean build
 make -O -j 32 test-pip
 ```
 
@@ -216,15 +216,17 @@ Build without installing FLAIR:
 ```
 docker build --build-arg FLAIR_INSTALL=no --network=host -t brookslab/flair:<version> misc
 ```
-Note that is can be very slow or fail on network errors without `--network=host`/
+Note that is can be very slow or fail on network errors without `--network=host`.
 
 
 Install FLAIR and test.
 ```
-docker run --rm -it -v $(pwd):/mnt/flair brookslab/flair:<version> bash
+docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
-% pip install .
+% pip install --break-system-packages .
+% make clean
 % make -O -j 64 test-installed
+% make clean
 % exit
 ```
 ## 11. Test PyPi with testpypi
@@ -332,7 +334,7 @@ docker tag brookslab/flair:<version> brookslab/flair:latest
 Test the Docker image
 
 ```
-docker run --rm -it -v $(pwd):/mnt/flair brookslab/flair:<version> bash
+docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
 % make -O -j 64 test-installed
 % exit

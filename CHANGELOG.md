@@ -1,6 +1,6 @@
 # Manor user-visible changes
 
-## [2.1.0] - 2025-??-??
+## [2.1.0] 2025-03-27
 * Numerous bug fixes.
 * Removed support for PSL format.
 * Remove `flair 123` to run multiple modules at once.

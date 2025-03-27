@@ -12,4 +12,4 @@ dependencies:
   - samtools =1.21
   - pip
   - pip:
-      - flair-brookslab==v2.0.0
+      - flair-brookslab==v2.1.0

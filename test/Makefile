@@ -92,7 +92,7 @@ test-diffexp: diffexp-tests diffsplice-tests
 main-tests: test-main-help
 
 test-main-help: mkdirs
-	flair --help >& $O/$@.out
+	flair --help 2>&1 | fgrep -v Version> $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
