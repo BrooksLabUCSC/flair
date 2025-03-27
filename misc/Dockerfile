@@ -1,6 +1,9 @@
-FROM ubuntu:22.04
+# 24.04 LTS (Noble Numbat)
+FROM ubuntu:24.04
+LABEL maintainer="Mark Diekhans <markd@ucsc.edu>"
 
-MAINTAINER Mark Diekhans, markd@ucsc.edu
+# Controls if FLAIR will be installed, don't install for testing before publishing
+ARG FLAIR_INSTALL=yes
 
 # deal with tzdata timezone question
 # see https://dev.to/setevoy/docker-configure-tzdata-and-timezone-during-build-20bk
@@ -17,13 +20,21 @@ RUN apt-get update && apt-get install -y \
 	pkg-config \
         libc-bin \
         libc6-dev \
-	samtools \
-	bedtools \
-	minimap2 \
-	python3 \
-	python3-pip 
+	bedtools=2.31.1+dfsg-2 \
+        minimap2=2.26+dfsg-1build1 \
+        python3=3.12.3-0ubuntu2 \
+	python3-pip=24.0+dfsg-1ubuntu1
 
-RUN pip install flair-brookslab==2.0.0
+#  24.04.2 Noble has an old samtool package, download newer from a subsequent release
+RUN \
+   wget -nv -O /tmp/samtools.deb http://mirrors.kernel.org/ubuntu/pool/universe/s/samtools/samtools_1.21-1_amd64.deb && \
+   wget -nv -O /tmp/libhts3t64.deb http://mirrors.kernel.org/ubuntu/pool/universe/h/htslib/libhts3t64_1.21+ds-1_amd64.deb && \
+   apt-get install -y /tmp/libhts3t64.deb /tmp/samtools.deb
+
+
+RUN if [ "$FLAIR_INSTALL" = "yes" ]; then \
+        RUN pip install --break-system-packages flair-brookslab==2.0.0 ; \
+     fi
 
 RUN mkdir /data
 WORKDIR /data

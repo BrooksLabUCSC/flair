@@ -4,7 +4,7 @@ channels:
   - bioconda
   - conda-forge
 
-# as of 2025-01-16, bedtools doesn't work with py 3.13
+# bedtools 2.31.1 doesn't work with Python 3.13
 dependencies:
   - python =3.12
   - minimap2 =2.28
