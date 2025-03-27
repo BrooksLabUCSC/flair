@@ -4,6 +4,9 @@ include ${root}/defs.mk
 # If you want to use the install flair rather than the one in this
 # tree use:
 #   make test use_installed_flair=yes
+#
+# or use
+#   make test-installed
 
 
 default:
@@ -12,14 +15,19 @@ doc:
 	${MAKE} -C docs html
 
 ##
-# test targets
+# test targets, the xx-installed test with the installed FLAIR rather than the
+# tree.
 ##
 .PHONY: test
 test:
 	${MAKE} -C test test use_installed_flair=${use_installed_flair}
+test-installed:
+	${MAKE} -C test test use_installed_flair=yes
 
 test-diffexp:
 	${MAKE} -C test test-diffexp use_installed_flair=${use_installed_flair}
+test-diffexp-installed:
+	${MAKE} -C test test-diffexp use_installed_flair=yes
 
 
 ##

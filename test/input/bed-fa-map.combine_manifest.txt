@@ -1,0 +1,1 @@
+A1	isoforms	expected/test-collapse.isoforms.bed	expected/test-collapse.isoforms.fa	expected/test-collapse.isoform.read.map.txt

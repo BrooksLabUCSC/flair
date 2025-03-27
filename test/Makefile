@@ -40,7 +40,6 @@ BASIC_ISOFORMS_BED = $E/test-collapse-annot.isoforms.bed
 SEG1_READS_FQ = input/seg1.cdna-ont.fastq
 SEG1_ANNOTATION = input/seg1.gencodeV47.gtf
 SEG1_PROMOTER_REGIONS = input/seg1.promoter-regions.bed
-SEG1_READS_MANIFEST = input/seg1.reads_manifest.txt
 
 SEG1_ALIGN_BED = $E/test-align-seg1.bed
 SEG1_CORRECT_READS_BED = $E/test-correct-seg1_all_corrected.bed
@@ -83,7 +82,7 @@ default:
 	@exit 1
 
 test: main-tests align-tests correct-tests collapse-tests quantify-tests \
-	predict-productivity-tests diff-iso-usage-tests
+	predict-productivity-tests diff-iso-usage-tests combine-tests
 
 test-diffexp: diffexp-tests diffsplice-tests
 
@@ -228,6 +227,41 @@ test-collapse-faster-annot-removeintprim: mkdirs ${GENOME_FA}
 test-collapse-faster-help: mkdirs
 	${PYTHON} ../src/flair/fastercollapse.py --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
+
+###
+# FLAIR COMBINE
+###
+
+define combine_diff
+	$(call cmp_expect,$@/combined.bed)
+	$(call cmp_expect,$@/combined.counts.tsv)
+	$(call cmp_expect,$@/combined.isoform.map.txt)
+endef
+define combine_fa_diff
+	$(call combine_diff)
+	$(call cmp_expect,$@/combined.fa)
+endef
+
+combine-tests: test-combine-bed-only test-combine-bed-fa test-combine-bed-fa-map
+
+test-combine-bed-only: mkdirs
+	rm -rf $O/$@
+	mkdir -p $O/$@
+	../bin/flair_combine --manifest=input/bed-only.combine_manifest.txt -o $O/$@/combined
+	$(call combine_diff)
+
+test-combine-bed-fa: mkdirs
+	rm -rf $O/$@
+	mkdir -p $O/$@
+	../bin/flair_combine --manifest=input/bed-fa.combine_manifest.txt -o $O/$@/combined
+	$(call combine_fa_diff)
+
+test-combine-bed-fa-map: mkdirs
+	rm -rf $O/$@
+	mkdir -p $O/$@
+	../bin/flair_combine --manifest=input/bed-fa-map.combine_manifest.txt -o $O/$@/combined
+	$(call combine_fa_diff)
+
 
 ###
 # FLAIR QUANTIFY

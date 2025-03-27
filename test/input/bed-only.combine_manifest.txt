@@ -1,0 +1,1 @@
+A1	isoforms	expected/test-collapse.isoforms.bed
