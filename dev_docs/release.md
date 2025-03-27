@@ -78,11 +78,22 @@ project check here: https://app.readthedocs.org/dashboard/
 Create a DockerHub account if you don't have one and ask a current
 lab admin to add you to the brookslab organization.
 
-## 1. Update CHANGELOG.md
+## 1. Update CHANGELOG.md and copyrights
 
 Edit CHANGELOG.md outline high-level changes.  This will contain new features,
 incompatibilities, and high-visibility bug fixes.  It doesn't need to contain
-minor changes.  Review the commit logs with
+minor changes.  Review the commit logs with:
+
+```
+git log 2.0.0..HEAD --pretty=format:"%h %an: %s"
+```
+
+Copyrights in needed in:
+
+- `LICENSE.txt`
+- `docs/source/conf.py`
+
+Also update authors in `docs/source/conf.py`.
 
 ## 2. Update python dependencies
 ```
@@ -112,7 +123,7 @@ conda env remove --name flair-dev --yes
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
-pip install .[dev]
+pip install -e .[dev]
 ```
    
 ## 5. Run pre-release tests
@@ -135,7 +146,7 @@ make -O -j 64 test-diffexp
 ```
 make doc
 ```
-Review `docs/build/html/` in your web browser.
+Review `docs/build/html/index.html` in your web browser.
 Push any changes to github master.
 
 ## 7. Verify and review ReadTheDocs
