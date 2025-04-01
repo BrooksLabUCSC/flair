@@ -10,6 +10,19 @@ This is a read-only, low volume list that will only have announcement of new
 FLAIR releases, publications and other FLAIR-related user information.
 
 
+## IMPORTANT: BioConda release is not available as of 2025-03-31
+
+You can build a Conda environment with the following steps:
+
+```
+git clone git@github.com:BrooksLabUCSC/flair.git
+cd flair
+git checkout v2.1.0
+conda env create -n flair -f misc/flair_conda_env.yaml
+conda activate flair
+pip install .
+```
+
 ## Documentation
 
 The complete Flair manual is available via [readthedocs](https://flair.readthedocs.io/en/latest/)

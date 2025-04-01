@@ -27,7 +27,7 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 10. Test Docker locally
 - [] 11. Test PyPi with testpypi
 - [] 12. Git commit, tag push
-- [] 13. Create the pip package and upload it
+- [] 13. Create pip package and test
 - [] 14. Make the release on github.com
 - [] 15. Update the conda recipe and submit
 - [] 16. Build the docker image and push it to dockerhub
@@ -255,13 +255,13 @@ bump-my-version bump --current-version 2.0.0.dev0 --new-version 2.0.0
 ## 12. Git commit, tag push
 ```
    git status
-   git commit -am "setting up release <current release version>"
-   git tag -a v<version> -m "Release v<version>"
+   git commit -am "FLAIR <version> release"
+   git tag -a v<version> -m "Release <version>"
    git push
    git push --tags
 ```
 
-## 13. Create the pip package and upload it
+## 13. Create pip package, and test
 
 You can only do this once per release, so be sure to doe the testpipy test
 first.  PyPi does not allow submission of the same release number twice.  If
@@ -280,23 +280,33 @@ The pypi package name is `flair-brookslab`.
 
 Select Draft a new release (top right) and follow instructions
 
-Copy CHANGELOG.md entries to release description.
+Copy CHANGELOG.md entry to release description.
 
+Set these options:
+- Set as the latest release 
+- Create a discussion for this release 
 
 ## 15. Update the conda recipe and submit
-
 
 Full details are here: https://bioconda.github.io/contributor/index.html
 
 1. fork the bioconda recipes repo: https://github.com/bioconda/bioconda-recipes/fork
-2. git clone that directory to your local computer
-3  create a bioconda environment for testing:
+2. git clone that repo to your local computer
+3. update the recipe `bioconda-recipes/recipes/recipes/flair/meta.yaml` with
+   - new version number,
+   - correct dependencies, these must be explicitly listed in meta.yaml
+   - pypi URL and sha256 of the `.whl` source file found at https://pypi.org/project/flair-brookslab/#files
+   - pipettor URL for script: pip install
+4  create a local bioconda environment and test:
 ```
-   conda create -n bioconda-test -c conda-forge -c bioconda bioconda-utils pytorch
+   cd ../bioconda-recipes/
+   conda create -n bioconda-test -c conda-forge -c bioconda bioconda-utils pytorch --yes
    conda activate bioconda-test
+   bioconda-utils build --mulled-test recipes config.yml --packages flair
+   conda deactivate
+   conda env remove -n bioconda-test --yes
 ```
-4. update the recipe `bioconda-recipes/recipes/recipes/flair/meta.yaml` with the new version number,
-   correct dependencies, and the pypi url and md5, found at https://pypi.org/project/flair-brookslab/(current version)/#files
+
 5. git commit; git push
 6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
    This starts a testing process. Once all checks have passed and a green mark appears, 
@@ -342,6 +352,7 @@ docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version
 
 Push to Dockerhub:
 ```
+docker login -u <username>
 docker push brookslab/flair:<version>
 docker push brookslab/flair:latest
 ```

@@ -1,4 +1,4 @@
-# Manor user-visible changes
+# Major user-visible changes
 
 ## [2.1.0] 2025-03-27
 * Numerous bug fixes.
