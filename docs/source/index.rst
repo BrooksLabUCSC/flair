@@ -6,6 +6,19 @@
 Welcome to FLAIR's documentation!
 =================================
 
+FLAIR Announce Mailing List
+===========================
+
+**If you are using FLAIR, please subscribe to the FLAIR mailing list at:**
+
+`FLAIR Announce Group <https://groups.google.com/a/ucsc.edu/g/flair-announce-group>`
+
+This is a read-only, low volume list that will only have announcements of new
+FLAIR releases, publications, and other FLAIR-related user information.
+
+Installing FLAIR
+================
+
 FLAIR can be conda installed using 
 
 .. code:: sh

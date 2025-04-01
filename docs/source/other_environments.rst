@@ -45,9 +45,9 @@ Requirements
 
 If you do not use ``pip install`` or ``conda env create```, you will also need:
 
-4. python v3.6+ and python modules: 
+4. python v3.12+ and python modules: 
 
-   * numpy=1.9.*
+   * numpy=1.12.*
    * ncls
    * pybedtools
    * mappy

@@ -1,0 +1,26 @@
+Starting correct...
+usage: flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]
+
+flair-correct parse options
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        output name base (default: flair)
+  -t THREADS, --threads THREADS
+                        number of threads (4)
+  --nvrna               specify this flag to make the strand of a read consistent with the annotation during
+                        correction
+  -w SS_WINDOW, --ss_window SS_WINDOW
+                        window size for correcting splice sites (15)
+
+required named arguments:
+  -q QUERY, --query QUERY
+                        uncorrected bed12 file
+  -g GENOME, --genome GENOME
+                        FastA of reference genome
+
+at least one of the following arguments is required:
+  -j SHORTREAD, --shortread SHORTREAD
+                        bed format splice junctions from short-read sequencing
+  -f GTF, --gtf GTF     GTF annotation file

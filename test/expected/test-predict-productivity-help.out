@@ -1,0 +1,17 @@
+usage: predictProductivity -i isoforms.bed -f genome.fa -g annotations.gtf -o outputprefix
+
+predictProductivity - a tool.
+
+options:
+  -h, --help            show this help message and exit
+  -i INPUT_ISOFORMS, --input_isoforms INPUT_ISOFORMS
+                        Input collapsed isoforms in bed12 format.
+  -g GTF, --gtf GTF     Gencode annotation file.
+  -f GENOME_FASTA, --genome_fasta GENOME_FASTA
+                        Fasta file containing transcript sequences.
+  -o OUTPUT, --output OUTPUT
+                        prefix of output files
+  --quiet               Do not display progress
+  --append_column       Append prediction as an additional column in file
+  --firstTIS            Defined ORFs by the first annotated TIS.
+  --longestORF          Defined ORFs by the longest open reading frame.

@@ -3,6 +3,15 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 
 The complete Flair manual is available via [readthedocs](https://flair.readthedocs.io/en/latest/)
 
+## FLAIR Announce Mailing list
+**If you are using FLAIR, please subscribe to the FLAIR mailing list:**
+
+<https://groups.google.com/a/ucsc.edu/g/flair-announce-group>
+
+This is a read-only, low volume list that will only have announcement of new
+FLAIR releases, publications and other FLAIR-related user information.
+
+
 # FLAIR3 usage 
 variant + fusion-aware isoform detection + AA-seq prediction
 

@@ -197,11 +197,11 @@ def align():
 		usage='flair_align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
 	required = parser.add_argument_group('required named arguments')
 	atleastone = parser.add_argument_group('Either one of the following arguments is required')
-	required.add_argument('-r', '--reads', nargs='+', type=str, required=True, 
+	required.add_argument('-r', '--reads', nargs='+', type=str, required=True,
 		help='FastA/FastQ files of raw reads')
-	atleastone.add_argument('-g', '--genome', type=str, 
+	atleastone.add_argument('-g', '--genome', type=str,
 		help='FastA of reference genome, can be minimap2 indexed')
-	atleastone.add_argument('--mm_index', type=str, default='', 
+	atleastone.add_argument('--mm_index', type=str, default='',
 		help='minimap2 index .mmi file')
 	parser.add_argument('-o', '--output', default='flair.aligned',
 		help='output file name base (default: flair.aligned)')
@@ -226,9 +226,9 @@ def align():
 	parser.add_argument('-f', '--gtf', type=str,
 		help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
 	parser.add_argument('--intprimingthreshold', type=int, default=12,
-						help='number of bases that are at leas 75% As required to call read as internal priming')
+						help='number of bases that are at leas 75%% As required to call read as internal priming')
 	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
-						help='number of bases that are at leas 75% As required to call read as internal priming')
+						help='number of bases that are at leas 75%% As required to call read as internal priming')
 	parser.add_argument('--remove_singleexon', default=False, action='store_true',
 						help='specify if want to remove unspliced reads')
 
@@ -262,4 +262,3 @@ def align():
 
 if __name__ == "__main__":
 	align()
-

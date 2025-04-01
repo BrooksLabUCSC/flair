@@ -165,17 +165,13 @@ def rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads):
     R('d <- dmPrecision(filtered, design = design_full, BPPARAM=BiocParallel::MulticoreParam(numThread))')
     R('d <- dmFit(d, design = design_full, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
 
-    #print(rpy2.__version__)
-    #print(np.__version__)
     R('contrast = colnames(design_full)[2]')
 
     R('d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=BiocParallel::MulticoreParam(numThread))')
-    #res = R('merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
-    #res.to_csv(resOut, sep='\t')
     R('res <- merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     # raw output
     res = R('res')
-    res.to_csv(resOut, sep='\t')
+    res.to_csvfile(resOut, sep='\t')
 
     # order by adjusted p value
     R('res <- res[order(res[,"adj_pvalue"]),]')

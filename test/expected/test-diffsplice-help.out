@@ -1,0 +1,30 @@
+usage: flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
+
+flair-diffSplice parse options
+
+options:
+  -h, --help            show this help message and exit
+  -t T, --threads T     Number of threads for parallel DRIMSeq (4)
+  --test                Run DRIMSeq statistical testing
+  --drim1 DRIM1         The minimum number of samples that have coverage over an AS event inclusion/exclusion for
+                        DRIMSeq testing; events with too few samples are filtered out and not tested (6)
+  --drim2 DRIM2         The minimum number of samples expressing the inclusion of an AS event; events with too few
+                        samples are filtered out and not tested (3)
+  --drim3 DRIM3         The minimum number of reads covering an AS event inclusion/exclusion for DRIMSeq testing,
+                        events with too few samples are filtered out and not tested (15)
+  --drim4 DRIM4         The minimum number of reads covering an AS event inclusion for DRIMSeq testing, events with
+                        too few samples are filtered out and not tested (5)
+  --batch               If specified with --test, DRIMSeq will perform batch correction
+  --conditionA CONDITIONA
+                        Implies --test. Specify one condition corresponding to samples in the counts_matrix to be
+                        compared against condition2; by default, the first two unique conditions are used
+  --conditionB CONDITIONB
+                        Specify another condition corresponding to samples in the counts_matrix to be compared
+                        against conditionA
+  -of, --out_dir_force  Specify this argument to force overwriting of files in an existing output directory
+
+required named arguments:
+  -i I, --isoforms I    isoforms in bed format
+  -q Q, --counts_matrix Q
+                        tab-delimited isoform count matrix from flair quantify module
+  -o O, --out_dir O     Output directory for tables and plots.
