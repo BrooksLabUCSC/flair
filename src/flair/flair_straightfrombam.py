@@ -427,29 +427,36 @@ def combinefinalends(currgroup):
         return bestiso
 
 
-def collapseendgroups(readends, dogetbestends=True):
-    sortedends = sorted(readends)  # [start1, end1, strand1, name1], []
-    isoendgroups = []  # {}
-    laststart, lastend = 0, 0
-    currgroup = []
+def groupreadsbyends(readinfos, sortindex, end_window):
+    sortedends = sorted(readinfos, key=lambda x:x[sortindex])
+    newgroups, group = [], []
+    lastedge = 0
     for isoinfo in sortedends:
-        start, end = isoinfo[0], isoinfo[1]
-        if start - laststart <= args.end_window and end - lastend <= args.end_window:
-            currgroup.append(isoinfo)
+        edge = isoinfo[sortindex]
+        if edge-lastedge <= end_window:
+            group.append(isoinfo)
         else:
-            if len(currgroup) > 0:
-                if dogetbestends:
-                    isoendgroups.append(list(getbestends(currgroup)) + [[x[3] for x in currgroup]])
-                else:
-                    isoendgroups.append(combinefinalends(currgroup))
-            currgroup = [isoinfo]
-        laststart, lastend = start, end
-    if len(currgroup) > 0:
+            if len(group) > 0: newgroups.append(group)
+            group = [isoinfo]
+        lastedge = edge
+    if len(group) > 0: newgroups.append(group)
+    return newgroups
+
+def collapseendgroups(readends, dogetbestends=True):
+    # print([x[:2] for x in readends])
+    startgroups = groupreadsbyends(readends, 0, args.end_window)
+    allendgroups, isoendgroups = [], []
+    for startgroup in startgroups:
+        allendgroups.extend(groupreadsbyends(startgroup, 1, args.end_window))
+    for endgroup in allendgroups:
         if dogetbestends:
-            isoendgroups.append(list(getbestends(currgroup)) + [[x[3] for x in currgroup]])
+            isoendgroups.append(list(getbestends(endgroup)) + [[x[3] for x in endgroup]])
         else:
-            isoendgroups.append(combinefinalends(currgroup))
+            isoendgroups.append(combinefinalends(endgroup))
+    # print([x[:2] for x in isoendgroups])
     return isoendgroups
+
+
 
 
 def addpresetargs(args):
@@ -1077,12 +1084,14 @@ if __name__ == "__main__":
 
 ##flair correct -g GRCh38.chr22.genome.fa -f gencode.v38.annotation.chr22.gtf --shortread /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -q WTC11.ENCFF370NFS.chr22.genomealigned.bed -o wtc11-chr22-ogflair/031325
 ###flair collapse -g GRCh38.chr22.genome.fa -f gencode.v38.annotation.chr22.gtf --quality 0 --isoformtss --stringent --check_splice --annotation_reliant generate --no_gtf_end_adjustment --keep_intermediate -q wtc11-chr22-ogflair/031325_all_corrected.bed -r WTC11.ENCFF370NFS.chr22.genomealigned.fasta -o wtc11-chr22-ogflair/031325
-##time python3 /private/groups/brookslab/cafelton/git-flair/flair/src/flair/flair_straightfrombam_copy.py -g GRCh38.chr22.genome.fa -f gencode.v38.annotation.chr22.gtf --shortread /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab --stringent --check_splice --transcriptfasta generate -b WTC11.ENCFF370NFS.chr22.genomealigned.bam -o wtc11-chr22-straightfrombam/031325
+##time python3 /private/groups/brookslab/cafelton/git-flair/flair/src/flair/flair_straightfrombam.py -g GRCh38.chr22.genome.fa -f gencode.v38.annotation.chr22.gtf --shortread /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab --stringent --check_splice -b WTC11.ENCFF370NFS.chr22.genomealigned.bam -o wtc11-chr22-straightfrombam/040125
 
 """
 
 python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-ogflair/031325.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 031725
 cd ../../wtc11-chr22-straightfrombam/squanti
 python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/031325.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 031725
+
+python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/040125.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 040125
 
 """
