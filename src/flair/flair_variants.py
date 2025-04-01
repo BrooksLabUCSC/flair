@@ -492,8 +492,8 @@ def getvariants():
 
 
 
-    # ##get productivity for transcripts without variants
-    # print('getting prod')
+    # # ##get productivity for transcripts without variants
+    # # print('getting prod')
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
     prodcmd = (path + '../../bin/predictProductivity-Feb25-2', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
     pipettor.run([prodcmd])
@@ -539,7 +539,7 @@ def getvariants():
                 if aaseq not in genetoaaseqtocounts[gname]: genetoaaseqtocounts[gname][aaseq] = counts
                 else: genetoaaseqtocounts[gname][aaseq] = [genetoaaseqtocounts[gname][aaseq][x] + counts[x] for x in range(len(counts))]
         else:
-            countssamples = line[1:]
+            countssamples = line[3:]
 
 
     out = open(args.output_prefix + '.aaseq.key.tsv', 'w')
