@@ -75,6 +75,12 @@ def getargs():
 
 
 def checkfilepaths(args):
+    if not args.genomealignedbam:
+        sys.stderr.write(f'Please include the --genomealignedbam option\n')
+        sys.exit(1)
+    if not args.genome:
+        sys.stderr.write(f'Please include the --genome option\n')
+        sys.exit(1)
     if not os.path.exists(args.genomealignedbam):
         sys.stderr.write(f'Aligned reads file path does not exist: {args.genomealignedbam}\n')
         sys.exit(1)
