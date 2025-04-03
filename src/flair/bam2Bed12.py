@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-from samJuncs import SAM
+from flair.samJuncs import SAM
 
 ########################################################################
 # CommandLine
@@ -99,12 +99,12 @@ def bam2Bed12(alignmentFile, bedoutput='/dev/stdout', keep_supplementary=False):
 			flags = str(flags)
 
 			# set correct color
-                        # Bed format needs a strand. The readJuncs function infers strand based on 
-                        # alignment orientation and splice direction (ts tag in SAM) if possible, or 
+                        # Bed format needs a strand. The readJuncs function infers strand based on
+                        # alignment orientation and splice direction (ts tag in SAM) if possible, or
                         # is set to None if not
 			rgbcolor = unknownTxn
 			if juncDirection == "+":
-				rgbcolor = positiveTxn		
+				rgbcolor = positiveTxn
 			elif juncDirection == "-":
 				rgbcolor = negativeTxn
 			else:
@@ -113,8 +113,8 @@ def bam2Bed12(alignmentFile, bedoutput='/dev/stdout', keep_supplementary=False):
 				juncDirection = "+" if flags == "0" else "-"
 
 			sizes = ",".join(str(x) for x in sizes) + ','
-			starts = ",".join(str(x) for x in starts) + ','	
-			
+			starts = ",".join(str(x) for x in starts) + ','
+
 			outitems = [chrom, startPos, endPos, read, score, juncDirection, startPos,
 			    	endPos, rgbcolor, blocks, sizes, starts]
 			outstring = ('\t').join([str(x) for x in outitems])
@@ -124,5 +124,5 @@ def bam2Bed12(alignmentFile, bedoutput='/dev/stdout', keep_supplementary=False):
 if __name__ == "__main__":
 	'''When bam2Bed12 is called as a standalone program it prints to STDOUT'''
 	myCommandLine = CommandLine()
-	bam2Bed12(alignmentFile = myCommandLine.args['input_bam'], 
+	bam2Bed12(alignmentFile = myCommandLine.args['input_bam'],
 	   keep_supplementary = myCommandLine.args['keep_supplementary'])

@@ -3,18 +3,29 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to FLAIR's documentation!
+Welcome to FLAIR's Documentation!
 =================================
 
-FLAIR Announce Mailing List
-===========================
+Staying in touch and getting help
+=================================
 
-**If you are using FLAIR, please subscribe to the FLAIR mailing list at:**
+**Please subscribe to the FLAIR announce mailing list at:**
 
-`FLAIR Announce Group <https://groups.google.com/a/ucsc.edu/g/flair-announce-group>`
+FLAIR Announce Group
+
+   https://groups.google.com/a/ucsc.edu/g/flair-announce-group
 
 This is a read-only, low volume list that will only have announcements of new
 FLAIR releases, publications, and other FLAIR-related user information.
+
+If you have questions, please ask in FLAIR GitHub Discussions:
+
+   https://github.com/BrooksLabUCSC/flair/discussions
+
+Report bugs to FLAIR GitHub Issues:
+
+   https://github.com/BrooksLabUCSC/flair/issues
+   
 
 Installing FLAIR
 ================
@@ -50,12 +61,25 @@ Please read for more description of the methods.
 .. figure:: img/flair_workflow_compartmentalized.png
 
 
+If you have multiple samples and want to compare them on a single
+transcriptome, you have two options:
+
+Run flair correct and collapse individually on each sample, then combine your
+transcriptomes using ``collapse_bed_files`` (see Additional programs). This method
+will be faster and easier, but you may miss some low-expression transcripts.
+
+Your other option is to merge your samples before running FLAIR. If using
+PacBio reads, be careful doing this, as the reads may not have unique IDs. You
+may need to label each read with its sample ID to keep the read IDs
+unique. You can either merge the FASTA/FASTQ files before running FLAIR
+(simplest, recommended), or merge the bed files after running FLAIR correct,
+making sure to run FLAIR collapse with a list of all of your read files.
+            
 It is recommended to combine all samples together prior to running
-flair-collapse for isoform assembly by concatenating corrected read
-``bed`` files together. Following the creation of an isoform
-reference from flair-collapse, consequent steps will assign reads from
-each sample individually to isoforms of the combined assembly for
-downstream analyses.
+``flair-collapse`` for isoform assembly by concatenating corrected read ``bed``
+files together. Following the creation of an isoform reference from
+``flair-collapse``, consequent steps will assign reads from each sample
+individually to isoforms of the combined assembly for downstream analyses.
 
 .. toctree::
    :maxdepth: 2

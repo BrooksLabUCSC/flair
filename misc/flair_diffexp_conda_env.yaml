@@ -1,0 +1,24 @@
+name: flair-diffexp
+
+# This supplements flair environment to add dependencies for deprecated
+# diffexp and diffsplice functionality.  After activating, 
+# 
+#   conda env update --name flair --file misc/flair_diffexp_conda_env.yaml
+#   pip install -e flair-brookslab[diffexp]
+
+channels:
+  - bioconda
+  - conda-forge
+
+dependencies:
+  - r-ggplot2
+  - r-qqman
+  - r-lazyeval
+  - bioconductor-deseq2
+  - bioconductor-drimseq
+  - bioconductor-stager
+  - bioconductor-apeglm
+  # these are needed when installing rpy2
+  - gcc
+  - zlib
+  - xz

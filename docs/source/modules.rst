@@ -2,8 +2,8 @@ Modules
 ^^^^^^^
 
 ``flair`` is a wrapper script with modules for running various
-processing scripts located in ``src/flair``. Modules are assumed to be run in
-order (align, correct, collapse), but can be run separately.
+processing scripts located in ``bin`` directory and should be install in your path by `pip` or `conda`.
+Modules must be run in order (align, correct, collapse).
 
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR align, correct, and collapse on all samples together (will generate the most comprehensive transcriptome)
@@ -23,6 +23,8 @@ This module aligns reads to the genome using `minimap2 <https://github.com/lh3/m
 and converts the `SAM <https://en.wikipedia.org/wiki/SAM_(file_format)>`__ output to `BED12 <https://genome.ucsc.edu/FAQ/FAQformat.html#format14>`__.
 Aligned reads in BED12 format can be visualized in `IGV <https://igv.org/>`__ or the 
 `UCSC Genome browser <https://genome.ucsc.edu/cgi-bin/hgGateway>`__. 
+
+Note: If you want to independently align and filter your reads and convert them to bed12, you can do so. You may want to do this if you want different alignment options - for instance, if you want to detect maximal noncanonical splice sites, you may want to align with minimap2 -un option (For this specific case to work well, you will want to run FLAIR correct with shortreads, then run collapse with --annotation_reliant and --check_splice).
 
 **Outputs**
 
@@ -102,9 +104,9 @@ identified in orthogonal data will be thrown out.
 
 **Outputs**
 
- - ``<prefix>_all_corrected.bed`` for use in subsequent steps
- - ``<prefix>_all_inconsistent.bed`` rejected alignments
- - ``<prefix>_cannot_verify.bed`` (only if the) chromosome is not found in annotation 
+ - ``<args.output>_all_corrected.bed`` for use in subsequent steps
+ - ``<args.output>_all_inconsistent.bed`` rejected alignments
+ - ``<args.output>_cannot_verify.bed`` (only if the) chromosome is not found in annotation 
 
 
 Options
@@ -121,7 +123,8 @@ Required arguments
     At least one of the following arguments is required:
     --shortread         Bed format splice junctions from short-read sequencing. You can 
                         generate these from SAM format files using the junctions_from_sam 
-                        program that comes with Flair.
+                        program that comes with Flair. If you align your short reads with STAR,
+                        you should use the SJ.out.tab file from STAR for this.
     --gtf	        GTF annotation file.
     
 Optional arguments
@@ -176,8 +179,8 @@ concatenated into a single file.
 
 **Please note:** Flair collapse is not yet capable of dealing with large (>1G) 
 input bed files. If you find that Flair needs a lot of memory you may want to 
-split the input bed file by chromosome and run these separately. We do intend to 
-improve this.
+follow the advice in dicussion #391 to split the bed files and reads by chromosome. 
+We do intend to improve this.
 
 **Outputs**
 
@@ -202,7 +205,7 @@ there are no genes in the annotation which can be assigned to the
 isoform, a genomic coordinate is used (e.g. ``chr*:100000``).
 
 Recommended uses
---------------
+----------------
 
 **Human**
 
@@ -248,11 +251,16 @@ Optional arguments
     --gtf	        GTF annotation file, used for renaming FLAIR isoforms to 
                         annotated isoforms and adjusting TSS/TESs.
     --generate_map	Specify this argument to generate a txt file of read-isoform 
-                        assignments (default: not specified).
+                        assignments (default: not specified). This file can be used to 
+                        quantify isoforms, but may produce slightly different results to
+                        using FLAIR quantify. Also, a single read is assigned to a single isoform,
+                        but not all reads are assigned to isoforms.
     --annotation_reliant	Specify transcript fasta that corresponds to transcripts 
                         in the gtf to run annotation-reliant flair collapse; to ask flair 
                         to make transcript sequences given the gtf and genome fa, use 
-                        --annotation_reliant generate.
+                        --annotation_reliant generate. With this option activated, FLAIR first
+                        aligns reads to the annotation and checks matches to annotated transcripts,
+                        then will only identify novel transcripts from remaining reads.
     
 **Options for read support**
     
@@ -349,7 +357,15 @@ flair quantify
 
 **Output**
 
-Isoform-by-sample counts file that can be used in the flair_diffExp and flair_diffSplice programs.
+Default: only reports reads that align unambiguously to an isoform (reads that align equally to multiple isoforms are thrown out)
+
+check_splice: adds check for read matching reference transcript at all splice sites
+
+stringent: adds requirement for read to cover at least 25bp of the first and last exons
+
+If you need your reads to match your isoforms well, use --check_splice and --stringent, while if you need more reads assigned to isoforms for better statistical comparison, use the default.
+
+--quality 0 is also reccommended, as this allows slightly better recall as FLAIR can disambiguate some similar isoform alignments.
 
 Options
 -------
@@ -403,12 +419,12 @@ Optional arguments
                         from the end'.
     --check_splice	Enforces coverage of 4 out of 6 bp around each splice site 
                         and no insertions greater than 3 bp at the splice site.
-    --output_bam	       If selected, forces output of each reads file aligned to the 
+    --output_bam	If selected, forces output of each reads file aligned to the 
                         FLAIR transcriptome. This will be a bam with no secondary alignments
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. flair_diffExp and flair_diffSplice expect this information.
+Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The depreciated flair_diffExp and flair_diffSplice programs expect this information.
 
 .. code:: text
 
@@ -423,6 +439,9 @@ flair_diffExp
 
 **IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
 programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
+These programs are deprecated and will be removed or replaced in a future release.
+The `conda` environment no long installed `R` and the required packages.
+If you find these programs useful please submit a ticket describing your needs.
 
 .. code:: text
 
@@ -497,8 +516,7 @@ Results tables are filtered and reordered by p-value so that only p<0.05 differe
 Code requirements
 ~~~~~~~~~~~~~~~~~
 This module requires python modules and R packages that are not necessary for other Flair modules (except diffSplice).  
-
-**If you are not using the docker container or the conda installed version of Flair** you may have to install these separately:
+You must install `R" and these packages to use `diffExp` and  `diffSplice`:
 
 1. python modules: pandas, numpy, rpy2
 2. `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__
@@ -514,6 +532,9 @@ flair diffSplice
 
 **IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
 programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
+These programs are deprecated and will be removed or replaced in a future release.
+The `conda` environment no long installed `R` and the required packages.
+If you find these programs useful please submit a ticket describing your needs.
 
 .. code:: text
 
