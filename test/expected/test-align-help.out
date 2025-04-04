@@ -38,7 +38,7 @@ options:
                         number of bases that are at leas 75% As required to
                         call read as internal priming
   --intprimingfracAs INTPRIMINGFRACAS
-                        number of bases that are at leas 75% As required to
+                        number of bases that are at least 75% As required to
                         call read as internal priming
   --remove_singleexon   specify if want to remove unspliced reads
 

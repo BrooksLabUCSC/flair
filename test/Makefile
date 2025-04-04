@@ -89,7 +89,7 @@ default:
 test: main-tests align-tests correct-tests collapse-tests quantify-tests \
 	predict-productivity-tests diff-iso-usage-tests combine-tests
 
-test-diffexp: diffexp-tests diffsplice-tests
+test-diffexpsplice: diffexp-tests diffsplice-tests
 
 ###
 # MAIN COMMAND
