@@ -266,7 +266,7 @@ def main():
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(outDir, 'workdir')
-    
+
     if force_dir:
         if not os.path.exists(workdir):
             os.makedirs(workdir)
@@ -318,7 +318,7 @@ def main():
         except subprocess.CalledProcessError:
             print(f'WARNING, running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details')
         sys.stdout.flush()
-    
+
         try:
             subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
@@ -326,7 +326,7 @@ def main():
         except subprocess.CalledProcessError:
             print(f'WARNING, running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details')
         sys.stdout.flush()
-    
+
         try:
             subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
@@ -345,3 +345,13 @@ if __name__ == "__main__":
     threads    = myCommandLine.args['threads']
     force_dir  = myCommandLine.args['of']
     main()
+
+
+##
+# Most of FLAIR uses tab indents and this is set by default for
+# emacs in .dir-locals.el, this file doesn't, so override
+#
+# Local Variables:
+# mode: python
+# indent-tabs-mode: nil
+# End:

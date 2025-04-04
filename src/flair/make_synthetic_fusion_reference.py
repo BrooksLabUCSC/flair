@@ -165,3 +165,11 @@ out.close()
 annoOut.close()
 bpOut.close()
 
+##
+# Most of FLAIR uses tab indents and this is set by default for
+# emacs in .dir-locals.el, this file doesn't, so override
+#
+# Local Variables:
+# mode: python
+# indent-tabs-mode: nil
+# End:
