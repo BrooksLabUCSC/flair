@@ -48,7 +48,7 @@ def detectfusions():
                         help='''Suppress minimap progress statements from being printed''')
     parser.add_argument('-s', '--support', type=float, default=3.0,
                         help='''minimum number of supporting reads for a fusion (3)''')
-    parser.add_argument('--maxloci', type=int, default=1,
+    parser.add_argument('--maxloci', type=int, default=2,
                         help='''max loci detected in fusion. Set higher for detection of 3-gene+ fusions''')
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
 
@@ -78,13 +78,6 @@ def detectfusions():
             sys.stderr.write('GTF file path does not exist\n')
         sys.exit(1)
 
-    # ###haven't actually needed this yet lol
-    # if not args.annotated_bed:
-    #     if not args.quiet:
-    #         sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
-    #     args.annotated_bed = args.output + 'annotated_transcripts.bed'
-    #     # gtf to bed
-    #     gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True, chrom_sizes=False)
 
     if args.annotated_fa == 'generate':
         # get transcript sequences

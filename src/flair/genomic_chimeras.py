@@ -172,13 +172,16 @@ def idGenomicChimeras(bam, annot, geneannot, genetoinfo, minsup, maxloci=10, req
                         alignblocks[i][1].append(alignedloci[i][1][1])
                         aligngenes[i].append((alignedloci[i][2], alignedloci[i][4])) ###gene, chr
             # print(l, readsup, [set(x) for x in aligngenes], alignblocks)
-            # print('readsup', readsup >= minsup)
+            shortgenes = [list(set([z[0] for z in x])) for x in aligngenes]
+            # if aligngenes[0][0][0].split('.')[0] == 'ENSG00000141510': print(shortgenes, 'readsup', readsup >= minsup)
             if readsup >= minsup:
                 consistentGenes = True
                 # print(aligngenes)
                 for i in range(numloci):
                     if len(set(aligngenes[i])) > 1: consistentGenes = False
                 # print('consgenes', consistentGenes)
+                # if aligngenes[0][0][0].split('.')[0] == 'ENSG00000141510': print(shortgenes, 'consgenes', consistentGenes)
+
                 if consistentGenes:  # check that gene orders for all reads are consistent
                     ###to start, no clustering, take simple min/max
                     for i in range(numloci):
@@ -223,31 +226,42 @@ def idGenomicChimeras(bam, annot, geneannot, genetoinfo, minsup, maxloci=10, req
                         else: end5 += 1000
                         mindisttostart = min([abs(end5-x) for x in firstgenetstarts])
                         # print(mindisttostart, end5, firstgenetstarts)
-                        if aligngenes[1][0].split('.')[0] == 'ENSG00000204390':
-                            print(firstgenedir)
-                            print(firstgenetstarts)
-                            print(alignblocks[0])
-                            print(end5)
-                            print([abs(end5-x) for x in firstgenetstarts])
-                            print(mindisttostart)
-                        qdist = [median(x) for x in qdist]
+                        # if aligngenes[0][0].split('.')[0] == 'ENSG00000141510':
+                        #     print(firstgenedir)
+                        #     print(firstgenetstarts)
+                        #     print(alignblocks[0])
+                        #     print(end5)
+                        #     print([abs(end5-x) for x in firstgenetstarts])
+                        #     print(mindisttostart)
+                        #     print(qdist)
                         if ((firstgenedir == '+' and alignblocks[0][0] < alignblocks[0][1]) or (
                                 firstgenedir == '-' and alignblocks[0][0] > alignblocks[0][1]))\
-                                and (reqdisttostart == None or mindisttostart <= reqdisttostart) and max([abs(x) for x in qdist]) <= 10:
-                            ###['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'leftCoord', 'rightCoord', 'readSupport']
-                            fname = '__'.join([x[0] for x in aligngenes])
-                            fusiontoinfo[fname] = {'reads': set(goodreads), 'disttostart':[mindisttostart], 'qdist':qdist}
-                            for i in range(numloci):
-                                # fusiontoinfo[fname][i] = [aligngenes[i][0], aligngenes[i][2], alignblocks[i][0],
-                                #                    alignblocks[i][1]]
+                                and (reqdisttostart == None or mindisttostart <= reqdisttostart):
+                            simscores = []
+                            for qdistlist in qdist:
+                                simscore = []
+                                qdistlist = sorted(qdistlist)
+                                for i in range(1, len(qdistlist)):
+                                    simscore.append(qdistlist[i] - qdistlist[i-1])
+                                simscores.append(median(simscore))
+                            # qdist = [median(x) for x in qdist]
+                            # if aligngenes[0][0].split('.')[0] == 'ENSG00000141510': print('simscores', simscores, max([abs(min(x)) for x in qdist]), max([abs(min(x)) for x in qdist]) <= 10, max(simscores) <= 3)
+                            if max([abs(median(x)) for x in qdist]) <= 10 or (max([abs(min(x)) for x in qdist]) <= 10 and max(simscores) <= 3): ###alignments have to either have few gaps or be very consistent
+                                ###['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'leftCoord', 'rightCoord', 'readSupport']
+                                # if aligngenes[0][0].split('.')[0] == 'ENSG00000141510': print(shortgenes, 'passes firstgenedir', alignblocks)
+                                fname = '__'.join([x[0] for x in aligngenes])
+                                fusiontoinfo[fname] = {'reads': set(goodreads), 'disttostart':[mindisttostart], 'qdist':qdist}
+                                for i in range(numloci):
+                                    # fusiontoinfo[fname][i] = [aligngenes[i][0], aligngenes[i][2], alignblocks[i][0],
+                                    #                    alignblocks[i][1]]
 
-                                fusiontoinfo[fname][aligngenes[i][0]] = [aligngenes[i][1], alignblocks[i][0], alignblocks[i][1]]
-                            # for i in range(numloci):
-                            #     outline = ['__'.join([x[0] for x in aligngenes]), aligngenes[i][0],
-                            #                "gene" + str(i), aligngenes[i][2], alignblocks[i][0], alignblocks[i][1],
-                            #                readsup]
-                            #     if i == 0: outline.append(','.join(goodreads))
-                            #     fusionsout.write('\t'.join([str(x) for x in outline]) + '\n')
+                                    fusiontoinfo[fname][aligngenes[i][0]] = [aligngenes[i][1], alignblocks[i][0], alignblocks[i][1]]
+                                # for i in range(numloci):
+                                #     outline = ['__'.join([x[0] for x in aligngenes]), aligngenes[i][0],
+                                #                "gene" + str(i), aligngenes[i][2], alignblocks[i][0], alignblocks[i][1],
+                                #                readsup]
+                                #     if i == 0: outline.append(','.join(goodreads))
+                                #     fusionsout.write('\t'.join([str(x) for x in outline]) + '\n')
     return fusiontoinfo
     # fusionsout.close()
 

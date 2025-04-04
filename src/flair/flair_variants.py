@@ -3,7 +3,7 @@
 import sys
 import argparse
 import os, glob, math
-import pipettor
+import pipettor, subprocess
 import pysam
 import pybedtools
 import numpy as np
@@ -131,7 +131,6 @@ def getvariants():
 
 
     args = parser.parse_args()
-
     outprefix = '/'.join(args.output_prefix.split('/')[:-1])
     if len(outprefix) > 0: outprefix = outprefix + '/'
 
@@ -148,10 +147,20 @@ def getvariants():
         ##run longshot on each aligned bam file
         print('running longshot on', sample)
         # longshotcmd = ('longshot', '--bam', bamfile, '--ref', args.isoforms, '--out', outprefix +  sample + '.flairaligned.vcf', '-F', '-P', '0.00001', '-q', '10', '--output-ref')#, '-d' '/private/groups/brookslab/cafelton/testflairanyvcf/simisofusionvars/longshotdebug')
-        longshotcmd = ('longshot', '--bam', bamfile, '--ref', args.isoforms, '--out', args.output_prefix +  sample + '.flairaligned.vcf', '-F', '-P', '0.00001', '-q', '10', '--output-ref')#, '-d' '/private/groups/brookslab/cafelton/testflairanyvcf/simisofusionvars/longshotdebug')
+        longshotcmd = ('longshot', '--bam', bamfile, '--ref', args.isoforms, '--out', args.output_prefix + '.' +  sample + '.flairaligned.vcf', '-F', '-P', '0.00001', '-q', '10', '--output-ref')#, '-d' '/private/groups/brookslab/cafelton/testflairanyvcf/simisofusionvars/longshotdebug')
         pipettor.run([longshotcmd])
         # ## break
-
+  #       print(sample)
+  #       clair3cmd = 'run_clair3.sh \
+  # --bam_fn="' + bamfile + '" \
+  # --ref_fn="' + args.isoforms + '" \
+  # --threads="12" \
+  # --platform="ont" \
+  # --model_path="${CONDA_PREFIX}/bin/models/r941_prom_sup_g5014" \
+  # --output="' + args.output_prefix +  sample + '.flairaligned.clair3.vcf' + '" \
+  # --include_all_ctgs'
+  #       subprocess.call(clair3cmd, shell=True)
+  #       break
     print(args.output_prefix, outprefix)
     ##combine vcf files for all samples
     out = open(args.output_prefix + '.flairaligned.longshot.vcf', 'w')
@@ -159,7 +168,7 @@ def getvariants():
     hasheader = False
     for sample in samples:
         # for line in open(outprefix +  sample + '.flairaligned.vcf'):
-        for line in open(args.output_prefix + sample + '.flairaligned.vcf'):
+        for line in open(args.output_prefix + '.' + sample + '.flairaligned.vcf'):
             if line[0] != '#':
                 line = line.rstrip().split('\t')
                 refinfo, alt = tuple(line[:4]), line[4]

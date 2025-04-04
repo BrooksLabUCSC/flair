@@ -58,7 +58,7 @@ for line in open('/private/groups/brookslab/reference_annotations/gencode.v38.an
 locustopartners = {}
 for line in open(isoformsbed):
     fnames = set(line.split('\t',1)[0].split('--'))
-    fnames = {x.split('.')[0] for x in fnames}
+    fnames = {x.split('.')[0] if x[:3] != 'chr' else x.split('-')[0] + '-' + str(round(int(x.split('-')[1]), -6)) for x in fnames}
     for i in fnames:
         other = fnames - {i,}
         newother = frozenset([genetoparalogs[g] if g in genetoparalogs else g for g in other])
@@ -74,10 +74,11 @@ for line in open(isoformsbed):
     line = line.split('\t')
     iso, start, esizes, estarts = line[3], int(line[1]), [int(x) for x in line[10].split(',')[:-1]], [int(x) for x in line[11].split(',')[:-1]]
     fusionchr = line[0]
-    fgenes, ispromiscuous = set([x.split('.')[0] for x in fusionchr.split('--')]), False
+    fgenes, ispromiscuous = set([x.split('.')[0] if x[:3] != 'chr' else x.split('-')[0] + '-' + str(round(int(x.split('-')[1]), -6)) for x in fusionchr.split('--')]), False
     areparalogs, areig, allnames = [], [], set()
     for g in fgenes:
         if len(locustopartners[g]) > maxpromiscuity:
+            print(g, locustopartners[g])
             ispromiscuous = True
             # print(g, locustopartners[g])
         if g in genetoname:
@@ -107,6 +108,7 @@ for line in open(isoformsbed):
         # else: areparalogs.append(False)
     synthinfo = [x.split('..') for x in synthchrtoinfo[fusionchr].split('--')]
     synthinfo = [[y[0], y[1], int(y[2]), int(y[3])] for y in synthinfo]
+    print(iso, len(isoreadsup[iso]), ispromiscuous, areparalogs, areig, allnames)
     if len(isoreadsup[iso]) >= 1 and not ispromiscuous and any(x==False for x in areparalogs) and any(x==False for x in areig) and len(allnames) > 1 and 'chrM' not in [x[1] for x in synthinfo]:
         # synthinfo = [x.split('..') for x in synthchrtoinfo[fusionchr].split('--')]
         # synthinfo = [[y[0], y[1], int(y[2]), int(y[3])] for y in synthinfo]

@@ -80,6 +80,7 @@ def checkInternalPriming(read3endpos, thischr, genome, reqfreq, threshold):  # ,
         # if 32034696 < read3endpos < 32034835 and maxlen < 10:
         # if 55205880 < read3endpos < 55205919 and maxlen < threshold:
         #     print(genomeseqnearend, maxlen, maxfreq)
+    # print(maxlen, maxfreq)
     return maxlen  # >= threshold
 
 def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscriptends, annotexons, threshold, fracAs):
@@ -111,6 +112,7 @@ def processbamfile(bamfile, outfile, annottranscriptends, annotexons, reference,
     outbam = pysam.AlignmentFile(outfile, 'wb', template=samfile)
     for read in samfile:
         if read.is_mapped:
+            print(read.query_name)
             isgood = removeinternalpriming(read.reference_name, read.reference_start, read.reference_end, read.is_reverse, genome, annottranscriptends, annotexons, threshold, fracAs)
             if isgood:
                 outbam.write(read)

@@ -150,6 +150,7 @@ def dofiltering(args, inbam, filterreadmap=None):
 					trash.write(read)
 					continue
 			if args.remove_internal_priming:
+				# print(read.query_name)
 				notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name, read.reference_start, read.reference_end, read.is_reverse,
 									  genome, annottranscriptends, None, args.intprimingthreshold, args.intprimingfracAs)
 				# print(read.query_name, notinternalpriming)
@@ -227,8 +228,8 @@ def align():
 		help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
 	parser.add_argument('--intprimingthreshold', type=int, default=12,
 						help='number of bases that are at leas 75%% As required to call read as internal priming')
-	parser.add_argument('--intprimingfracAs', type=float, default=0.6,
-						help='number of bases that are at leas 75%% As required to call read as internal priming')
+	parser.add_argument('--intprimingfracAs', type=float, default=0.75,
+						help='number of bases that are at least 75%% As required to call read as internal priming')
 	parser.add_argument('--remove_singleexon', default=False, action='store_true',
 						help='specify if want to remove unspliced reads')
 
