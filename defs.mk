@@ -8,6 +8,9 @@
 .PRECIOUS:
 .SECONDARY:
 
+VERSION = 2.1.0
+PACKAGE_NAME = flair-brookslab-${VERSION}
+
 SHELL = /bin/bash
 export BASHOPTS = -beEu -o pipefail
 MAKEFLAGS += -rR

@@ -8,7 +8,7 @@ import math
 import os
 from collections import Counter
 from collections import namedtuple
-import remove_internal_priming
+from flair import remove_internal_priming
 import pysam
 
 def parseargs():
@@ -290,17 +290,20 @@ def parsesam(args, transcripttoexons, transcripttobpssindex):
 				if args.remove_internal_priming:
 					intprimannot = transcripttoexons if args.permissive_last_exons else None
 					notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name,
-																				   read.reference_start,
-																				   read.reference_end, False,
-																				   genome, None, intprimannot,
-																				   args.intprimingthreshold,
-																				   args.intprimingfracAs)
+													   read.reference_start,
+													   read.reference_end, False,
+													   genome, None, transcripttoexons,
+													   args.intprimingthreshold,
+													   args.intprimingfracAs)
 				else: notinternalpriming = True
 				if notinternalpriming:
 					pos = read.reference_start
-					alignscore = read.get_tag('AS')
+					try:
+						alignscore = read.get_tag('AS')
+						mdtag = read.get_tag('MD')
+					except KeyError as ex:
+						raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}' in '{args.sam.name}'") from ex
 					cigar = read.cigartuples
-					mdtag = read.get_tag('MD')
 					tlen = samfile.get_reference_length(transcript)
 					if lastread and readname != lastread:
 						if testtname in curr_transcripts: print('\n', lastread, curr_transcripts.keys())

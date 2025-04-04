@@ -16,6 +16,16 @@ It is also possible to get the full Flair setup as a docker image:
     docker pull brookslab/flair:latest
     docker run -w /usr/data -v [your_path_to_data]:/usr/data brookslab/flair:latest flair [align/correct/...]
 
+You can build a Conda environment from the source tree with
+.. code:: sh
+
+    git clone git@github.com:BrooksLabUCSC/flair.git
+    cd flair
+    git checkout v<version-tag>
+    conda env create -n flair -f misc/flair_conda_env.yaml
+    conda activate flair
+    pip install .
+    
 
 Other methods (not recommended)
 -------------------------------

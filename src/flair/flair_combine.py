@@ -6,7 +6,7 @@ import os
 import pipettor
 import pysam
 import math
-from bed_to_gtf import bed_to_gtf
+from flair.bed_to_gtf import bed_to_gtf
 from statistics import mode
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
@@ -91,10 +91,12 @@ def combine():
     bedfiles, mapfiles, samples, fafiles = [], [], [], []
     for line in open(manifest):
         line = line.rstrip().split('\t')
+        if not (3 <= len(line) <= 5):
+            raise Exception(f'Expected between 3 to 5 columns in manifest, got {len(line)}: line {line_num} {manifest}')
         samples.append(line[0] + '__' + line[1])
         bedfiles.append(line[2])
         if len(line) > 3: fafiles.append(line[3])
-        else: fafiles.append('')
+        else: fafiles.append('')           # FIXME: switch to None
         if len(line) > 4: mapfiles.append(line[4])
         else: mapfiles.append('')
 
@@ -305,3 +307,12 @@ def combine():
 
 if __name__ == "__main__":
     combine()
+
+##
+# Most of FLAIR uses tab indents and this is set by default for
+# emacs in .dir-locals.el, this file doesn't, so override
+#
+# Local Variables:
+# mode: python
+# indent-tabs-mode: nil
+# End:

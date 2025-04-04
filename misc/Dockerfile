@@ -1,40 +1,40 @@
-FROM ubuntu:22.04
+# 24.04 LTS (Noble Numbat)
+FROM ubuntu:24.04
+LABEL maintainer="Mark Diekhans <markd@ucsc.edu>"
 
-MAINTAINER Jeltje van Baren, jeltje.van.baren@gmail.com
+# Controls if FLAIR will be installed, don't install for testing before publishing
+ARG FLAIR_INSTALL=yes
 
 # deal with tzdata timezone question
 # see https://dev.to/setevoy/docker-configure-tzdata-and-timezone-during-build-20bk
-ENV TZ=America/Los_Angeles
+ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-#Install Essentials
+# Install Essentials
 RUN apt-get update && apt-get install -y \
-	wget \
 	build-essential \
-	cmake \
+	wget \
+        gcc \
+        make \
 	git \
 	pkg-config \
-	libcurl4-openssl-dev \
-	libssl-dev \
-	libxml2-dev \
-	samtools \
-	bedtools \
-	minimap2 \
-	r-base \
-	salmon \
-	python3 \
-	python3-pip 
+        libc-bin \
+        libc6-dev \
+	bedtools=2.31.1+dfsg-2 \
+        minimap2=2.26+dfsg-1build1 \
+        python3=3.12.3-0ubuntu2 \
+	python3-pip=24.0+dfsg-1ubuntu1
 
-RUN pip install flair-brookslab==2.0.0 \
-	rpy2 \
-	pandas \
-	matplotlib \
-	scipy \
-	seaborn
+#  24.04.2 Noble has an old samtool package, download newer from a subsequent release
+RUN \
+   wget -nv -O /tmp/samtools.deb http://mirrors.kernel.org/ubuntu/pool/universe/s/samtools/samtools_1.21-1_amd64.deb && \
+   wget -nv -O /tmp/libhts3t64.deb http://mirrors.kernel.org/ubuntu/pool/universe/h/htslib/libhts3t64_1.21+ds-1_amd64.deb && \
+   apt-get install -y /tmp/libhts3t64.deb /tmp/samtools.deb
 
-RUN R -e 'update.packages(ask=FALSE)'
-RUN R -e 'install.packages(c("devtools", "BiocManager", "ggplot2", "qqman", "lazyeval"))'
-RUN R -e 'requireNamespace("BiocManager"); BiocManager::install(c("DRIMSeq", "stageR", "DESeq2", "apeglm"))' 
+
+RUN if [ "$FLAIR_INSTALL" = "yes" ]; then \
+        pip install --break-system-packages flair-brookslab==v2.1.0 ; \
+    fi
 
 RUN mkdir /data
 WORKDIR /data

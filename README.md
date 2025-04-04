@@ -1,8 +1,6 @@
 # flair
 FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isoform definition, and alternative splicing analysis of noisy reads. FLAIR has primarily been used for nanopore cDNA, native RNA, and PacBio sequencing reads.
 
-The complete Flair manual is available via [readthedocs](https://flair.readthedocs.io/en/latest/)
-
 ## FLAIR Announce Mailing list
 **If you are using FLAIR, please subscribe to the FLAIR mailing list:**
 
@@ -11,6 +9,23 @@ The complete Flair manual is available via [readthedocs](https://flair.readthedo
 This is a read-only, low volume list that will only have announcement of new
 FLAIR releases, publications and other FLAIR-related user information.
 
+
+## IMPORTANT: BioConda release is not available as of 2025-03-31
+
+You can build a Conda environment with the following steps:
+
+```
+git clone git@github.com:BrooksLabUCSC/flair.git
+cd flair
+git checkout v2.1.0
+conda env create -n flair -f misc/flair_conda_env.yaml
+conda activate flair
+pip install .
+```
+
+## Documentation
+
+The complete Flair manual is available via [readthedocs](https://flair.readthedocs.io/en/latest/)
 
 # FLAIR3 usage 
 variant + fusion-aware isoform detection + AA-seq prediction

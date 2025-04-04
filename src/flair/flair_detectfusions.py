@@ -5,10 +5,10 @@ import argparse
 import os, glob
 import pipettor
 import pysam
-from gtf_to_bed import gtf_to_bed
-from bed_to_sequence import bed_to_sequence
-import transcriptomic_chimeras
-import genomic_chimeras
+from flair.gtf_to_bed import gtf_to_bed
+from flair.bed_to_sequence import bed_to_sequence
+from flair import transcriptomic_chimeras
+from flair import genomic_chimeras
 from collections import defaultdict
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -57,9 +57,7 @@ def detectfusions():
         parser.print_help()
         sys.exit(1)
 
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        sys.stderr.write('Collapse unrecognized arguments: {}\n'.format(' '.join(unknown)))
+    args = parser.parse_args()
 
     if ',' in args.reads[0]:
         args.reads = args.reads[0].split(',')
@@ -328,11 +326,3 @@ def detectfusions():
 
 if __name__ == '__main__':
     detectfusions()
-
-
-
-
-
-
-
-

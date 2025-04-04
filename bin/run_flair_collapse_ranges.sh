@@ -1,3 +1,4 @@
+#!/bin/bash -e
 GENOME_FA=genome.fa
 CORRECTED_BED=all_corrected.bed
 ANNOTATION_GTF=annotation.gtf
@@ -19,4 +20,4 @@ parallel -a $CORRECTED_BED.ranges.bed python ../flair.py collapse -q $CORRECTED_
 # concatenate results from all regions
 cat $TEMP_DIR/temp*isoforms.bed > $OUTFILE_NAME.isoforms.bed
 cat $TEMP_DIR/temp*isoforms.fa > $OUTFILE_NAME.isoforms.fa
-cat $TEMP_DIR/temp*isoforms.gtf > $OUTFILE_NAME.isoforms.btf
+cat $TEMP_DIR/temp*isoforms.gtf > $OUTFILE_NAME.isoforms.gtf

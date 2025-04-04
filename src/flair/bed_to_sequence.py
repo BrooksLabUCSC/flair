@@ -2,8 +2,6 @@
 import sys, csv, os, argparse, pysam, subprocess
 from collections import namedtuple
 
-# from filter_collapsed_isoforms_from_annotation import split_iso_gene
-
 
 def main():
 	parser = argparse.ArgumentParser(description='options',
