@@ -8,15 +8,21 @@ Create a new conda environment for developing FLAIR from the top of
 the tree and add the current packages with poetry.
 
 ```
-conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml
+conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
 pip install -e .[dev]
 ```
 
+If you want to install on the dependencies without an editable FLAIR, use
+```
+poetry install  --no-root
+```
+instead of `pip install`.
+
 To run the deprecated `diffExp` and `diffSplice` tests:
 ```
-conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
+conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml --yes
 pip install -e .[diffexp]
 ```
 
