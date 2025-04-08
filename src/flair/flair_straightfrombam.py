@@ -334,7 +334,7 @@ def getannotinfo(gtf, allregions):
                 this_transcript = this_transcript[:this_transcript.find('"')]
                 this_gene = line[8].split('gene_id "')[1].split('"')[0].replace('_', '-')
                 if (this_transcript, this_gene) not in allchromtotranscripttoexons[chrom]:
-                    allchromtotranscripttoexons[chrom][(this_transcript, this_gene)] = [None, []]
+                    allchromtotranscripttoexons[chrom][(this_transcript, this_gene)] = [(None, None, strand), []]
 
                 if ty == 'transcript':
                     allchromtotranscripttoexons[chrom][(this_transcript, this_gene)][0] = (start, end, strand)
@@ -343,6 +343,9 @@ def getannotinfo(gtf, allregions):
     for rchrom in allchromtotranscripttoexons:
         for transcript, gene in allchromtotranscripttoexons[rchrom]:
             tstart, tend, strand = allchromtotranscripttoexons[rchrom][(transcript, gene)][0]
+            if tstart == None:
+                tstart = min([x[0] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
+                tend = max([x[1] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
             for rstart, rend in chromtoregions[rchrom]:
                 if rstart < tstart < rend or rstart < tend < rend:
                     thisregion = (rchrom, rstart, rend)
@@ -1064,8 +1067,10 @@ def collapse(args):
 
     shutil.rmtree(tempDir)
 
-    genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
+    if not args.noaligntoannot:
+        genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
                                             args.output + '.matchannot.bed', 'a', {})  # , {})
+    else: genetojuncstoends = {}
     genetojuncstoends = processdetectedisos(args, args.output + '.novelisos.read.map.txt',
                                             args.output + '.firstpass.bed', 'n',
                                             genetojuncstoends)  # , genetoisoorigins)
