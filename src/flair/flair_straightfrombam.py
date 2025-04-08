@@ -408,15 +408,15 @@ def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname,
     pipettor.run([mm2_cmd, count_cmd])
 
 
-def getbestends(currgroup):
+def getbestends(currgroup, end_window):
     bestends = []
     for start1, end1, strand1, name1 in currgroup:
         score, weightedscore = 0, 0
         for start2, end2, strand2, name2 in currgroup:
-            if abs(start1 - start2) <= args.end_window and abs(end1 - end2) <= args.end_window:
+            if abs(start1 - start2) <= end_window and abs(end1 - end2) <= end_window:
                 score += 2
-                weightedscore += ((args.end_window - abs(start1 - start2)) / args.end_window) + \
-                                 ((args.end_window - abs(end1 - end2)) / args.end_window)
+                weightedscore += ((end_window - abs(start1 - start2)) / end_window) + \
+                                 ((end_window - abs(end1 - end2)) / end_window)
         bestends.append((weightedscore, start1, end1, strand1, name1))
     bestends.sort(reverse=True)
     ###DO I WANT TO ADD CORRECTION TO NEARBY ANNOTATED TSS/TTS????
@@ -451,15 +451,15 @@ def groupreadsbyends(readinfos, sortindex, end_window):
     if len(group) > 0: newgroups.append(group)
     return newgroups
 
-def collapseendgroups(readends, dogetbestends=True):
+def collapseendgroups(end_window, readends, dogetbestends=True):
     # print([x[:2] for x in readends])
-    startgroups = groupreadsbyends(readends, 0, args.end_window)
+    startgroups = groupreadsbyends(readends, 0, end_window)
     allendgroups, isoendgroups = [], []
     for startgroup in startgroups:
-        allendgroups.extend(groupreadsbyends(startgroup, 1, args.end_window))
+        allendgroups.extend(groupreadsbyends(startgroup, 1, end_window))
     for endgroup in allendgroups:
         if dogetbestends:
-            isoendgroups.append(list(getbestends(endgroup)) + [[x[3] for x in endgroup]])
+            isoendgroups.append(list(getbestends(endgroup, end_window)) + [[x[3] for x in endgroup]])
         else:
             isoendgroups.append(combinefinalends(endgroup))
     # print([x[:2] for x in isoendgroups])
@@ -609,7 +609,7 @@ def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpass
     firstpassunfiltered, firstpassjunctoname = {}, {}
     with open(tempprefix + '.firstpass.unfiltered.bed', 'w') as isoout:
         for juncs in sjtoends:
-            goodendswithsupreads = collapseendgroups(sjtoends[juncs])
+            goodendswithsupreads = collapseendgroups(args.end_window, sjtoends[juncs])
             ###single exon - collapse overlapping intervals if need to pick best for each region
             if juncs == ():
                 groupedgoodendswithsupreads = groupfirstpasssingleexon(goodendswithsupreads)
@@ -906,7 +906,7 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
             gtflines, tstarts, tends = [], [], []
             for chrom, strand, juncs in genetojuncstoends[gene]:
                 endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
-                endslist = collapseendgroups(endslist, False)
+                endslist = collapseendgroups(args.end_window, endslist, False)
 
                 # start, end, isoid, ogisotoreads[isoid]
                 ###TODO could try accounting for all reads assigned to isoforms - assign them to closest ends
@@ -998,7 +998,8 @@ def runcollapsebychrom(listofargs):
     pipettor.run([tuple(temptoremove)])
 
 
-def collapse(args):
+def collapsefrombam():
+    args = getargs()
     args = addpresetargs(args)
     genome = pysam.FastaFile(args.genome)
     allchrom = genome.references
@@ -1080,8 +1081,7 @@ def collapse(args):
 
 
 if __name__ == "__main__":
-    args = getargs()
-    collapse(args)
+    collapsefrombam()
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 ##cd /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test

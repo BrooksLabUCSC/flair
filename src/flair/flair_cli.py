@@ -10,6 +10,7 @@ from flair.flair_correct import correct
 from flair.flair_collapse import collapse
 from flair.flair_quantify import quantify
 from flair.flair_combine import combine
+from flair_straightfrombam import collapsefrombam
 
 def help():
 	"temporary help until switched to argparse"
@@ -74,6 +75,12 @@ def main():
 		print(f"Flair collapse took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
 		last_time = cur_time
 
+	if mode == 'transcriptome':
+		print(f"Starting transcriptome generation...", flush=True)
+		collapsefrombam()
+		cur_time = time.time()
+		print(f"Flair transcriptome generation took {int((cur_time - last_time)/60)} minutes and {int((cur_time - last_time))%60} seconds", flush=True)
+		last_time = cur_time
 
 	if mode == 'quantify':
 		print(f"Starting quantify...", flush=True)
@@ -103,6 +110,7 @@ def main():
 		sys.stderr.write('You can run flair_diffexp and flair_diffsplice as separate programs.\n')
 		sys.exit(1)
 
+	cur_time = time.time()
 	print(f"\nFlair took {int((cur_time - start_time)/60)} minutes and {int((cur_time - start_time))%60} seconds and finished without issues.\n\nFLAIR HAS FINISHED\n\n", flush=True)
 
 
