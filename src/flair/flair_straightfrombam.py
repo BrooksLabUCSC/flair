@@ -341,32 +341,33 @@ def getannotinfo(gtf, allregions):
                 elif ty == 'exon':
                     allchromtotranscripttoexons[chrom][(this_transcript, this_gene)][1].append((start, end))
     for rchrom in allchromtotranscripttoexons:
-        for transcript, gene in allchromtotranscripttoexons[rchrom]:
-            tstart, tend, strand = allchromtotranscripttoexons[rchrom][(transcript, gene)][0]
-            if tstart == None:
-                tstart = min([x[0] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
-                tend = max([x[1] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
-            for rstart, rend in chromtoregions[rchrom]:
-                if rstart < tstart < rend or rstart < tend < rend:
-                    thisregion = (rchrom, rstart, rend)
-                    sortedexons = sorted(allchromtotranscripttoexons[rchrom][(transcript, gene)][1])
-                    regionstoannotdata[thisregion].transcripttoexons[(transcript, gene)] = tuple(sortedexons)
-                    juncs = []
-                    for i in range(len(sortedexons) - 1):
-                        juncs.append((sortedexons[i][1], sortedexons[i + 1][0]))
-                    regionstoannotdata[thisregion].alltranscripts.append((transcript, gene, strand))
-                    if len(juncs) == 0:
-                        regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
-                    else:
-                        regionstoannotdata[thisregion].juncstotranscript[tuple(juncs)] = (transcript, gene)
-                        if gene not in regionstoannotdata[thisregion].genetoannotjuncs:
-                            regionstoannotdata[thisregion].genetoannotjuncs[gene] = set()
-                        for j in juncs:
-                            if j not in regionstoannotdata[thisregion].junctogene:
-                                regionstoannotdata[thisregion].junctogene[j] = set()
-                            regionstoannotdata[thisregion].junctogene[j].add((transcript, gene))
-                            regionstoannotdata[thisregion].genetoannotjuncs[gene].add(j)
-                    regionstoannotdata[thisregion].allannotse = sorted(regionstoannotdata[thisregion].allannotse)
+        if rchrom in chromtoregions: ##only get annot for regions that exist in reads
+            for transcript, gene in allchromtotranscripttoexons[rchrom]:
+                tstart, tend, strand = allchromtotranscripttoexons[rchrom][(transcript, gene)][0]
+                if tstart == None:
+                    tstart = min([x[0] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
+                    tend = max([x[1] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
+                for rstart, rend in chromtoregions[rchrom]:
+                    if rstart < tstart < rend or rstart < tend < rend:
+                        thisregion = (rchrom, rstart, rend)
+                        sortedexons = sorted(allchromtotranscripttoexons[rchrom][(transcript, gene)][1])
+                        regionstoannotdata[thisregion].transcripttoexons[(transcript, gene)] = tuple(sortedexons)
+                        juncs = []
+                        for i in range(len(sortedexons) - 1):
+                            juncs.append((sortedexons[i][1], sortedexons[i + 1][0]))
+                        regionstoannotdata[thisregion].alltranscripts.append((transcript, gene, strand))
+                        if len(juncs) == 0:
+                            regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
+                        else:
+                            regionstoannotdata[thisregion].juncstotranscript[tuple(juncs)] = (transcript, gene)
+                            if gene not in regionstoannotdata[thisregion].genetoannotjuncs:
+                                regionstoannotdata[thisregion].genetoannotjuncs[gene] = set()
+                            for j in juncs:
+                                if j not in regionstoannotdata[thisregion].junctogene:
+                                    regionstoannotdata[thisregion].junctogene[j] = set()
+                                regionstoannotdata[thisregion].junctogene[j].add((transcript, gene))
+                                regionstoannotdata[thisregion].genetoannotjuncs[gene].add(j)
+                        regionstoannotdata[thisregion].allannotse = sorted(regionstoannotdata[thisregion].allannotse)
     return regionstoannotdata  # juncstotranscript, junctogene, allannotse, genetoannotjuncs, transcripttoexons, chromtotranscript
 
 
