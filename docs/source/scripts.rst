@@ -6,35 +6,35 @@ collapse_bed_files
 ==================
 .. code:: sh
 
-usage: flair_combine [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-w ENDWINDOW]
-                     [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
+    usage: flair_combine [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-w ENDWINDOW]
+                         [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
 
-options:
-  -h, --help            show this help message and exit
-  -m MANIFEST, --manifest MANIFEST
-                        path to manifest files that points to transcriptomes to combine.
-                        Each line of file should be tab separated with sample name, sample
-                        type (isoform or fusionisoform), path/to/isoforms.bed,
-                        path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
-                        read.map.txt files are not required, although if .fa files are not
-                        provided for each sample a .fa output will not be generated
-  -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
-                        path to collapsed_output.bed file. default: 'collapsed_flairomes'
-  -w ENDWINDOW, --endwindow ENDWINDOW
-                        window for comparing ends of isoforms with the same intron chain.
-                        Default:200bp
-  -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
-                        minimum percent usage required in one sample to keep isoform in
-                        combined transcriptome. Default:10
-  -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
-                        to gtf
-  -s, --include_se      whether to include single exon isoforms. Default: dont include
-  -f FILTER, --filter FILTER
-                        type of filtering. Options: usageandlongest(default), usageonly,
-                        none, or a number for the total count of reads required to call an
-                        isoform
+    options:
+      -h, --help            show this help message and exit
+      -m MANIFEST, --manifest MANIFEST
+                            path to manifest files that points to transcriptomes to combine.
+                            Each line of file should be tab separated with sample name, sample
+                            type (isoform or fusionisoform), path/to/isoforms.bed,
+                            path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
+                            read.map.txt files are not required, although if .fa files are not
+                            provided for each sample a .fa output will not be generated
+      -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+                            path to collapsed_output.bed file. default: 'collapsed_flairomes'
+      -w ENDWINDOW, --endwindow ENDWINDOW
+                            window for comparing ends of isoforms with the same intron chain.
+                            Default:200bp
+      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
+                            minimum percent usage required in one sample to keep isoform in
+                            combined transcriptome. Default:10
+      -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
+                            to gtf
+      -s, --include_se      whether to include single exon isoforms. Default: dont include
+      -f FILTER, --filter FILTER
+                            type of filtering. Options: usageandlongest(default), usageonly,
+                            none, or a number for the total count of reads required to call an
+                            isoform
 
-Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
+    Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
 
 .. code:: text
 
@@ -49,6 +49,7 @@ transcriptomes with annotated transcripts, you can convert an annotation gtf
 file to a bed file using
 
 .. code:: sh
+
     bed_to_gtf file.gtf > file.bed
 
     

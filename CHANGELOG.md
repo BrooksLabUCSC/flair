@@ -1,5 +1,8 @@
 # Major user-visible changes
 
+## [2.1.1] 2025-04-10
+* converted all programs to use console scripts to allow BioConda to work
+
 ## [2.1.0] 2025-03-27
 * Numerous bug fixes.
 * Removed support for PSL format.
