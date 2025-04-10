@@ -295,8 +295,7 @@ Full details are here: https://bioconda.github.io/contributor/index.html
 3. update the recipe `bioconda-recipes/recipes/recipes/flair/meta.yaml` with
    - new version number,
    - correct dependencies, these must be explicitly listed in meta.yaml
-   - pypi URL and sha256 of the `.whl` source file found at https://pypi.org/project/flair-brookslab/#files
-   - pipettor URL for script: pip install
+   - pypi URL and sha256 of the `.tar.gz` source file found at https://pypi.org/project/flair-brookslab/#files
 4  create a local bioconda environment and test:
 ```
    cd ../bioconda-recipes/
@@ -307,6 +306,10 @@ Full details are here: https://bioconda.github.io/contributor/index.html
    conda env remove -n bioconda-test --yes
 ```
 
+If there are errors in the build, add the option `--keep-old-work` to build environment
+for inspection.
+
+  
 5. git commit; git push
 6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
    This starts a testing process. Once all checks have passed and a green mark appears, 
