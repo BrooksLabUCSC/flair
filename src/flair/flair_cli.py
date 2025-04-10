@@ -4,7 +4,7 @@ import sys
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import time
-from flair import VERSION
+from flair import VERSION, set_unix_path
 from flair import flair_align
 from flair.flair_correct import correct
 from flair.flair_collapse import collapse
@@ -22,8 +22,8 @@ Version {VERSION}
 
 
 def main():
-	# get programs in library in path
-	os.environ["PATH"] = os.path.dirname(__file__) + ':' + os.environ["PATH"]
+	set_unix_path()
+
 	path = '/'.join(os.path.realpath(__file__).split('/')[:-1])+'/'
 	globals()['path'] = path
 	if len(sys.argv) < 2:

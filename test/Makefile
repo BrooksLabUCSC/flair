@@ -6,6 +6,7 @@ include ${root}/defs.mk
 #   make test use_installed_flair=yes
 ifneq (${use_installed_flair},yes)
     export PATH := ${root}/bin:${PATH}
+    export PYTHONPATH := ${root}/src:${PYTHONPATH}
 endif
 
 I = input
