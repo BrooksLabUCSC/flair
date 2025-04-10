@@ -33,7 +33,7 @@ RUN \
 
 
 RUN if [ "$FLAIR_INSTALL" = "yes" ]; then \
-        pip install --break-system-packages flair-brookslab==v2.1.0 ; \
+        pip install --break-system-packages flair-brookslab==v2.1.1 ; \
     fi
 
 RUN mkdir /data
