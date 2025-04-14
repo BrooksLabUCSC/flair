@@ -58,6 +58,9 @@ def getargs():
             comprehensive--default set + all subset isoforms;
             ginormous--comprehensive set + single exon subset isoforms''')
 
+    parser.add_argument('--splittoregion', default=False, action='store_true',
+                        help='''force running on each region of non-overlapping reads, no matter the file size''')
+
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
@@ -571,6 +574,7 @@ def groupfirstpasssingleexon(goodendswithsupreads):
         thisgroup.append([weightedscore, start, end, strand, name, endsupport])
         if end > lastend: lastend = end
     if len(thisgroup) > 0: furthergroups.append(thisgroup)
+    print('single exon groups: ', len(furthergroups), file=sys.stderr)
     return furthergroups
 
 
@@ -975,6 +979,7 @@ def runcollapsebychrom(listofargs):
                                                                                                  rchrom, sjtoends,
                                                                                                  firstpasssingleexons)
 
+    print('firstpass unfiltered: ', len(firstpassunfiltered.keys()), file=sys.stderr)
     firstpass = filterfirstpassisos(args, firstpassunfiltered, firstpassjunctoname, firstpasssingleexons,
                                     junctogene, supannottranscripttojuncs, annottranscripttoexons)
     print('firstpass isos: ', len(firstpass.keys()), file=sys.stderr)
@@ -1008,7 +1013,7 @@ def collapsefrombam():
     sys.stderr.write('Getting regions\n')
     t1 = time.time()
     allregions = []
-    if os.path.getsize(args.genomealignedbam) < 1e+9:  # less than 1G
+    if os.path.getsize(args.genomealignedbam) < 1e+9 and not args.splittoregion:  # less than 1G
         for chrom in allchrom:
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))
@@ -1021,6 +1026,7 @@ def collapsefrombam():
             chrom, start, end = line[0], int(line[1]), int(line[2])
             allregions.append((chrom, start, end))
     sys.stderr.write('Number of regions ' + str(len(allregions)) + '\n')
+    # print(allregions, file=sys.stderr)
     sys.stderr.write('Generating splice site database\n')
     knownchromosomes, annotationFiles = generateKnownSSDatabase(args, tempDir)
 
@@ -1048,7 +1054,7 @@ def collapsefrombam():
                               allannottranscripts])
             tempprefixes.append(tempprefix)
     t2 = time.time()
-    print('region overhead', t2 - t1)
+    print('region overhead', t2 - t1, file=sys.stderr)
     sys.stderr.write('running by chunk\n')
     p = Pool(args.threads)
     childErrs = set()
