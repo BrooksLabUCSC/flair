@@ -7,6 +7,7 @@ from ssUtils import addOtherJuncs, gtfToSSBed
 from ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 from multiprocessing import Pool
 import time
+from collections import Counter
 
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
@@ -413,15 +414,24 @@ def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname,
 
 
 def getbestends(currgroup, end_window):
+    if len(currgroup) > 1000:
+        print('number of reads in end group:', len(currgroup), file=sys.stderr)
     bestends = []
-    for start1, end1, strand1, name1 in currgroup:
-        score, weightedscore = 0, 0
-        for start2, end2, strand2, name2 in currgroup:
-            if abs(start1 - start2) <= end_window and abs(end1 - end2) <= end_window:
-                score += 2
-                weightedscore += ((end_window - abs(start1 - start2)) / end_window) + \
-                                 ((end_window - abs(end1 - end2)) / end_window)
-        bestends.append((weightedscore, start1, end1, strand1, name1))
+    if len(currgroup) > int(end_window):
+        allstarts = Counter([x[0] for x in currgroup])
+        allends = Counter([x[1] for x in currgroup])
+        for start1, end1, strand1, name1 in currgroup:
+            weightedscore = allstarts[start1] + allends[end1]
+            bestends.append((weightedscore, start1, end1, strand1, name1))
+    else:
+        for start1, end1, strand1, name1 in currgroup:
+            score, weightedscore = 0, 0
+            for start2, end2, strand2, name2 in currgroup:
+                if abs(start1 - start2) <= end_window and abs(end1 - end2) <= end_window:
+                    score += 2
+                    weightedscore += ((end_window - abs(start1 - start2)) / end_window) + \
+                                     ((end_window - abs(end1 - end2)) / end_window)
+            bestends.append((weightedscore, start1, end1, strand1, name1))
     bestends.sort(reverse=True)
     ###DO I WANT TO ADD CORRECTION TO NEARBY ANNOTATED TSS/TTS????
     return bestends[0]
@@ -466,7 +476,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
             isoendgroups.append(list(getbestends(endgroup, end_window)) + [[x[3] for x in endgroup]])
         else:
             isoendgroups.append(combinefinalends(endgroup))
-    # print([x[:2] for x in isoendgroups])
+    # print('end group length: ', len(isoendgroups))
     return isoendgroups
 
 
@@ -543,9 +553,11 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                             junctionBoundaryDict):
     sjtoends = {}
     shortchromfasta = open(tempprefix + 'reads.notannotmatch.fasta', 'w')
+    c = 0
     for read in samfile.fetch(rchrom, int(rstart), int(rend)):
         if not read.is_secondary and not read.is_supplementary:
             if read.query_name not in goodaligntoannot:
+                c += 1
                 shortchromfasta.write('>' + read.query_name + '\n')
                 shortchromfasta.write(read.get_forward_sequence() + '\n')
                 if read.mapping_quality >= args.quality:
@@ -561,6 +573,7 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                         sjtoends[junckey].append(
                             (correctedread.start, correctedread.end, correctedread.strand, correctedread.name))
     shortchromfasta.close()
+    print('reads to align to firstpass: ', c, file=sys.stderr)
     return sjtoends
 
 
@@ -987,8 +1000,10 @@ def runcollapsebychrom(listofargs):
     if not args.noaligntoannot and len(allannottranscripts) > 0:
         temptoremove.extend([tempprefix + '.annotated_transcripts.bed', tempprefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
+        print('writing firstpass', file=sys.stderr)
         getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
                                       allannotse, genetoannotjuncs, genome)
+        print('aligning to firstpass', file=sys.stderr)
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -1007,8 +1022,10 @@ def runcollapsebychrom(listofargs):
 def collapsefrombam():
     args = getargs()
     args = addpresetargs(args)
+    print('loading genome', file=sys.stderr)
     genome = pysam.FastaFile(args.genome)
     allchrom = genome.references
+    print('making temp dir', file=sys.stderr)
     tempDir = makecorrecttempdir()
     sys.stderr.write('Getting regions\n')
     t1 = time.time()
@@ -1111,5 +1128,10 @@ cd ../../wtc11-chr22-straightfrombam/squanti
 python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/031325.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 031725
 
 python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/040125.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 040125
+
+
+
+python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/041425.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o sqanti-041425
+python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/041425-2.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o sqanti-041425-2
 
 """
