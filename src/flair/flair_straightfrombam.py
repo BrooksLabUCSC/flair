@@ -7,6 +7,7 @@ from ssUtils import addOtherJuncs, gtfToSSBed
 from ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 from multiprocessing import Pool
 import time
+from collections import Counter
 
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
@@ -57,6 +58,9 @@ def getargs():
             default--subset isoforms are removed based on support;
             comprehensive--default set + all subset isoforms;
             ginormous--comprehensive set + single exon subset isoforms''')
+
+    parser.add_argument('--splittoregion', default=False, action='store_true',
+                        help='''force running on each region of non-overlapping reads, no matter the file size''')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -334,36 +338,40 @@ def getannotinfo(gtf, allregions):
                 this_transcript = this_transcript[:this_transcript.find('"')]
                 this_gene = line[8].split('gene_id "')[1].split('"')[0].replace('_', '-')
                 if (this_transcript, this_gene) not in allchromtotranscripttoexons[chrom]:
-                    allchromtotranscripttoexons[chrom][(this_transcript, this_gene)] = [None, []]
+                    allchromtotranscripttoexons[chrom][(this_transcript, this_gene)] = [(None, None, strand), []]
 
                 if ty == 'transcript':
                     allchromtotranscripttoexons[chrom][(this_transcript, this_gene)][0] = (start, end, strand)
                 elif ty == 'exon':
                     allchromtotranscripttoexons[chrom][(this_transcript, this_gene)][1].append((start, end))
     for rchrom in allchromtotranscripttoexons:
-        for transcript, gene in allchromtotranscripttoexons[rchrom]:
-            tstart, tend, strand = allchromtotranscripttoexons[rchrom][(transcript, gene)][0]
-            for rstart, rend in chromtoregions[rchrom]:
-                if rstart < tstart < rend or rstart < tend < rend:
-                    thisregion = (rchrom, rstart, rend)
-                    sortedexons = sorted(allchromtotranscripttoexons[rchrom][(transcript, gene)][1])
-                    regionstoannotdata[thisregion].transcripttoexons[(transcript, gene)] = tuple(sortedexons)
-                    juncs = []
-                    for i in range(len(sortedexons) - 1):
-                        juncs.append((sortedexons[i][1], sortedexons[i + 1][0]))
-                    regionstoannotdata[thisregion].alltranscripts.append((transcript, gene, strand))
-                    if len(juncs) == 0:
-                        regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
-                    else:
-                        regionstoannotdata[thisregion].juncstotranscript[tuple(juncs)] = (transcript, gene)
-                        if gene not in regionstoannotdata[thisregion].genetoannotjuncs:
-                            regionstoannotdata[thisregion].genetoannotjuncs[gene] = set()
-                        for j in juncs:
-                            if j not in regionstoannotdata[thisregion].junctogene:
-                                regionstoannotdata[thisregion].junctogene[j] = set()
-                            regionstoannotdata[thisregion].junctogene[j].add((transcript, gene))
-                            regionstoannotdata[thisregion].genetoannotjuncs[gene].add(j)
-                    regionstoannotdata[thisregion].allannotse = sorted(regionstoannotdata[thisregion].allannotse)
+        if rchrom in chromtoregions: ##only get annot for regions that exist in reads
+            for transcript, gene in allchromtotranscripttoexons[rchrom]:
+                tstart, tend, strand = allchromtotranscripttoexons[rchrom][(transcript, gene)][0]
+                if tstart == None:
+                    tstart = min([x[0] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
+                    tend = max([x[1] for x in allchromtotranscripttoexons[rchrom][(transcript, gene)][1]])
+                for rstart, rend in chromtoregions[rchrom]:
+                    if rstart < tstart < rend or rstart < tend < rend:
+                        thisregion = (rchrom, rstart, rend)
+                        sortedexons = sorted(allchromtotranscripttoexons[rchrom][(transcript, gene)][1])
+                        regionstoannotdata[thisregion].transcripttoexons[(transcript, gene)] = tuple(sortedexons)
+                        juncs = []
+                        for i in range(len(sortedexons) - 1):
+                            juncs.append((sortedexons[i][1], sortedexons[i + 1][0]))
+                        regionstoannotdata[thisregion].alltranscripts.append((transcript, gene, strand))
+                        if len(juncs) == 0:
+                            regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
+                        else:
+                            regionstoannotdata[thisregion].juncstotranscript[tuple(juncs)] = (transcript, gene)
+                            if gene not in regionstoannotdata[thisregion].genetoannotjuncs:
+                                regionstoannotdata[thisregion].genetoannotjuncs[gene] = set()
+                            for j in juncs:
+                                if j not in regionstoannotdata[thisregion].junctogene:
+                                    regionstoannotdata[thisregion].junctogene[j] = set()
+                                regionstoannotdata[thisregion].junctogene[j].add((transcript, gene))
+                                regionstoannotdata[thisregion].genetoannotjuncs[gene].add(j)
+                        regionstoannotdata[thisregion].allannotse = sorted(regionstoannotdata[thisregion].allannotse)
     return regionstoannotdata  # juncstotranscript, junctogene, allannotse, genetoannotjuncs, transcripttoexons, chromtotranscript
 
 
@@ -405,16 +413,25 @@ def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname,
     pipettor.run([mm2_cmd, count_cmd])
 
 
-def getbestends(currgroup):
+def getbestends(currgroup, end_window):
+    if len(currgroup) > 1000:
+        print('number of reads in end group:', len(currgroup), file=sys.stderr)
     bestends = []
-    for start1, end1, strand1, name1 in currgroup:
-        score, weightedscore = 0, 0
-        for start2, end2, strand2, name2 in currgroup:
-            if abs(start1 - start2) <= args.end_window and abs(end1 - end2) <= args.end_window:
-                score += 2
-                weightedscore += ((args.end_window - abs(start1 - start2)) / args.end_window) + \
-                                 ((args.end_window - abs(end1 - end2)) / args.end_window)
-        bestends.append((weightedscore, start1, end1, strand1, name1))
+    if len(currgroup) > int(end_window):
+        allstarts = Counter([x[0] for x in currgroup])
+        allends = Counter([x[1] for x in currgroup])
+        for start1, end1, strand1, name1 in currgroup:
+            weightedscore = allstarts[start1] + allends[end1]
+            bestends.append((weightedscore, start1, end1, strand1, name1))
+    else:
+        for start1, end1, strand1, name1 in currgroup:
+            score, weightedscore = 0, 0
+            for start2, end2, strand2, name2 in currgroup:
+                if abs(start1 - start2) <= end_window and abs(end1 - end2) <= end_window:
+                    score += 2
+                    weightedscore += ((end_window - abs(start1 - start2)) / end_window) + \
+                                     ((end_window - abs(end1 - end2)) / end_window)
+            bestends.append((weightedscore, start1, end1, strand1, name1))
     bestends.sort(reverse=True)
     ###DO I WANT TO ADD CORRECTION TO NEARBY ANNOTATED TSS/TTS????
     return bestends[0]
@@ -448,18 +465,18 @@ def groupreadsbyends(readinfos, sortindex, end_window):
     if len(group) > 0: newgroups.append(group)
     return newgroups
 
-def collapseendgroups(readends, dogetbestends=True):
+def collapseendgroups(end_window, readends, dogetbestends=True):
     # print([x[:2] for x in readends])
-    startgroups = groupreadsbyends(readends, 0, args.end_window)
+    startgroups = groupreadsbyends(readends, 0, end_window)
     allendgroups, isoendgroups = [], []
     for startgroup in startgroups:
-        allendgroups.extend(groupreadsbyends(startgroup, 1, args.end_window))
+        allendgroups.extend(groupreadsbyends(startgroup, 1, end_window))
     for endgroup in allendgroups:
         if dogetbestends:
-            isoendgroups.append(list(getbestends(endgroup)) + [[x[3] for x in endgroup]])
+            isoendgroups.append(list(getbestends(endgroup, end_window)) + [[x[3] for x in endgroup]])
         else:
             isoendgroups.append(combinefinalends(endgroup))
-    # print([x[:2] for x in isoendgroups])
+    # print('end group length: ', len(isoendgroups))
     return isoendgroups
 
 
@@ -536,9 +553,11 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                             junctionBoundaryDict):
     sjtoends = {}
     shortchromfasta = open(tempprefix + 'reads.notannotmatch.fasta', 'w')
+    c = 0
     for read in samfile.fetch(rchrom, int(rstart), int(rend)):
         if not read.is_secondary and not read.is_supplementary:
             if read.query_name not in goodaligntoannot:
+                c += 1
                 shortchromfasta.write('>' + read.query_name + '\n')
                 shortchromfasta.write(read.get_forward_sequence() + '\n')
                 if read.mapping_quality >= args.quality:
@@ -554,6 +573,7 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                         sjtoends[junckey].append(
                             (correctedread.start, correctedread.end, correctedread.strand, correctedread.name))
     shortchromfasta.close()
+    print('reads to align to firstpass: ', c, file=sys.stderr)
     return sjtoends
 
 
@@ -567,6 +587,7 @@ def groupfirstpasssingleexon(goodendswithsupreads):
         thisgroup.append([weightedscore, start, end, strand, name, endsupport])
         if end > lastend: lastend = end
     if len(thisgroup) > 0: furthergroups.append(thisgroup)
+    print('single exon groups: ', len(furthergroups), file=sys.stderr)
     return furthergroups
 
 
@@ -606,7 +627,7 @@ def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpass
     firstpassunfiltered, firstpassjunctoname = {}, {}
     with open(tempprefix + '.firstpass.unfiltered.bed', 'w') as isoout:
         for juncs in sjtoends:
-            goodendswithsupreads = collapseendgroups(sjtoends[juncs])
+            goodendswithsupreads = collapseendgroups(args.end_window, sjtoends[juncs])
             ###single exon - collapse overlapping intervals if need to pick best for each region
             if juncs == ():
                 groupedgoodendswithsupreads = groupfirstpasssingleexon(goodendswithsupreads)
@@ -903,7 +924,7 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
             gtflines, tstarts, tends = [], [], []
             for chrom, strand, juncs in genetojuncstoends[gene]:
                 endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
-                endslist = collapseendgroups(endslist, False)
+                endslist = collapseendgroups(args.end_window, endslist, False)
 
                 # start, end, isoid, ogisotoreads[isoid]
                 ###TODO could try accounting for all reads assigned to isoforms - assign them to closest ends
@@ -971,6 +992,7 @@ def runcollapsebychrom(listofargs):
                                                                                                  rchrom, sjtoends,
                                                                                                  firstpasssingleexons)
 
+    print('firstpass unfiltered: ', len(firstpassunfiltered.keys()), file=sys.stderr)
     firstpass = filterfirstpassisos(args, firstpassunfiltered, firstpassjunctoname, firstpasssingleexons,
                                     junctogene, supannottranscripttojuncs, annottranscripttoexons)
     print('firstpass isos: ', len(firstpass.keys()), file=sys.stderr)
@@ -978,8 +1000,10 @@ def runcollapsebychrom(listofargs):
     if not args.noaligntoannot and len(allannottranscripts) > 0:
         temptoremove.extend([tempprefix + '.annotated_transcripts.bed', tempprefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
+        print('writing firstpass', file=sys.stderr)
         getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
                                       allannotse, genetoannotjuncs, genome)
+        print('aligning to firstpass', file=sys.stderr)
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -995,15 +1019,18 @@ def runcollapsebychrom(listofargs):
     pipettor.run([tuple(temptoremove)])
 
 
-def collapse(args):
+def collapsefrombam():
+    args = getargs()
     args = addpresetargs(args)
+    print('loading genome', file=sys.stderr)
     genome = pysam.FastaFile(args.genome)
     allchrom = genome.references
+    print('making temp dir', file=sys.stderr)
     tempDir = makecorrecttempdir()
     sys.stderr.write('Getting regions\n')
     t1 = time.time()
     allregions = []
-    if os.path.getsize(args.genomealignedbam) < 1e+9:  # less than 1G
+    if os.path.getsize(args.genomealignedbam) < 1e+9 and not args.splittoregion:  # less than 1G
         for chrom in allchrom:
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))
@@ -1016,6 +1043,7 @@ def collapse(args):
             chrom, start, end = line[0], int(line[1]), int(line[2])
             allregions.append((chrom, start, end))
     sys.stderr.write('Number of regions ' + str(len(allregions)) + '\n')
+    # print(allregions, file=sys.stderr)
     sys.stderr.write('Generating splice site database\n')
     knownchromosomes, annotationFiles = generateKnownSSDatabase(args, tempDir)
 
@@ -1043,7 +1071,7 @@ def collapse(args):
                               allannottranscripts])
             tempprefixes.append(tempprefix)
     t2 = time.time()
-    print('region overhead', t2 - t1)
+    print('region overhead', t2 - t1, file=sys.stderr)
     sys.stderr.write('running by chunk\n')
     p = Pool(args.threads)
     childErrs = set()
@@ -1064,8 +1092,10 @@ def collapse(args):
 
     shutil.rmtree(tempDir)
 
-    genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
+    if not args.noaligntoannot:
+        genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
                                             args.output + '.matchannot.bed', 'a', {})  # , {})
+    else: genetojuncstoends = {}
     genetojuncstoends = processdetectedisos(args, args.output + '.novelisos.read.map.txt',
                                             args.output + '.firstpass.bed', 'n',
                                             genetojuncstoends)  # , genetoisoorigins)
@@ -1075,8 +1105,7 @@ def collapse(args):
 
 
 if __name__ == "__main__":
-    args = getargs()
-    collapse(args)
+    collapsefrombam()
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 ##cd /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test
@@ -1099,5 +1128,10 @@ cd ../../wtc11-chr22-straightfrombam/squanti
 python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/031325.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 031725
 
 python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/040125.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o 040125
+
+
+
+python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/041425.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o sqanti-041425
+python /private/groups/brookslab/cafelton/bin/lrgasp-challenge-1-evaluation-main/sqanti3_lrgasp.challenge1.py /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/wtc11-chr22-straightfrombam/041425-2.isoforms.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/gencode.v38.annotation.chr22.gtf /private/groups/brookslab/cafelton/testflairanyvcf/simNMD/smallchr22test/GRCh38.chr22.genome.fa --gtf --cage_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/refTSS.human.bed --polyA_motif_list /private/groups/brookslab/cafelton/lrgasp-wtc11/polyA_list.txt --polyA_peak /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all_polyApeaks.bed -c /private/groups/brookslab/cafelton/lrgasp-wtc11/WTC11_all.SJ.out.tab -o sqanti-041425-2
 
 """
