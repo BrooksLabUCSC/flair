@@ -303,10 +303,11 @@ def combine():
     if args.convert_gtf:
         bed_to_gtf(query=outprefix + '.bed', outputfile=outprefix + '.gtf')
 
-
+def main():
+    combine()
 
 if __name__ == "__main__":
-    combine()
+    main()
 
 ##
 # Most of FLAIR uses tab indents and this is set by default for

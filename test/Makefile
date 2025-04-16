@@ -6,6 +6,7 @@ include ${root}/defs.mk
 #   make test use_installed_flair=yes
 ifneq (${use_installed_flair},yes)
     export PATH := ${root}/bin:${PATH}
+    export PYTHONPATH := ${root}/src:${PYTHONPATH}
 endif
 
 I = input
@@ -247,19 +248,19 @@ combine-tests: test-combine-bed-only test-combine-bed-fa test-combine-bed-fa-map
 test-combine-bed-only: mkdirs
 	rm -rf $O/$@
 	mkdir -p $O/$@
-	../bin/flair_combine --manifest=input/bed-only.combine_manifest.txt -o $O/$@/combined
+	flair_combine --manifest=input/bed-only.combine_manifest.txt -o $O/$@/combined
 	$(call combine_diff)
 
 test-combine-bed-fa: mkdirs
 	rm -rf $O/$@
 	mkdir -p $O/$@
-	../bin/flair_combine --manifest=input/bed-fa.combine_manifest.txt -o $O/$@/combined
+	flair_combine --manifest=input/bed-fa.combine_manifest.txt -o $O/$@/combined
 	$(call combine_fa_diff)
 
 test-combine-bed-fa-map: mkdirs
 	rm -rf $O/$@
 	mkdir -p $O/$@
-	../bin/flair_combine --manifest=input/bed-fa-map.combine_manifest.txt -o $O/$@/combined
+	flair_combine --manifest=input/bed-fa-map.combine_manifest.txt -o $O/$@/combined
 	$(call combine_fa_diff)
 
 
