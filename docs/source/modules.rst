@@ -177,7 +177,7 @@ flair-collapse. In addition, all raw read fastq/fasta files should
 either be specified after ``--reads`` with space/comma separators or
 concatenated into a single file.
 
-**Please note:** Flair collapse is not yet capable of dealing with large (>1G) 
+**Please note:** Flair collapse is not yet capable of dealing with large (>1G)
 input bed files. If you find that Flair needs a lot of memory you may want to 
 follow the advice in dicussion #391 to split the bed files and reads by chromosome. 
 We do intend to improve this.
@@ -203,6 +203,11 @@ that is assigned to the isoform is based on whichever annotated gene has
 the greatest number of splice junctions shared with the isoform. If
 there are no genes in the annotation which can be assigned to the
 isoform, a genomic coordinate is used (e.g. ``chr*:100000``).
+
+If you need to know which reads specifically match each isoform, you can run with ``--generate_map``.
+Running ``--generate_map --check_splice --stringent`` will require each read assigned to the isoform
+to both have the exact same splice sites and cover 25bp into the first and last exons. Otherwise, you
+may get reads that support the isoform but do not fully cover it.
 
 Recommended uses
 ----------------
