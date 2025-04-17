@@ -8,7 +8,7 @@
 .PRECIOUS:
 .SECONDARY:
 
-VERSION = 2.1.1
+VERSION = 2.1.2
 PACKAGE_NAME = flair-brookslab-${VERSION}
 PACKAGE_FILE_PREFIX = flair_brookslab-${VERSION}
 

@@ -1,5 +1,9 @@
 # Major user-visible changes
 
+## [2.1.2] 2025-04-17
+* Address issue getting BioConda to work
+* Bug fixes for collapse command line parsing
+
 ## [2.1.1] 2025-04-10
 * converted all programs to use console scripts to allow BioConda to work
 

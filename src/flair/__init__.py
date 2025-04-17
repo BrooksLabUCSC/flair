@@ -1,4 +1,4 @@
-VERSION = "2.1.1"
+VERSION = "2.1.2"
 import os
 
 def set_unix_path():
