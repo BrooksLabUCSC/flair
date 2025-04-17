@@ -3,7 +3,10 @@
 Python dependencies and package creation are managed with `poetry`.
 A conda environment is use to provide the non-python environment.
 
-## Creating the conda enviroment
+## Creating the conda environment and installing FLAIR
+
+**This is the recommend method FLAIR developers.**
+
 Create a new conda environment for developing FLAIR from the top of
 the tree and add the current packages with poetry.
 
@@ -14,7 +17,7 @@ make clean
 pip install -e .[dev]
 ```
 
-If you want to install on the dependencies without an editable FLAIR, use
+If you want to install only the dependencies without an FLAIR, use:
 ```
 poetry install  --no-root
 ```
@@ -38,24 +41,15 @@ conda install mamba -c conda-forge
 ```
 and then change to flexible channel_priority:
 ```
- conda config --set channel_priority flexible
+conda config --set channel_priority flexible
 ```
 
-## Running FLAIR program during development.
+## Running FLAIR program during development
 
-FLAIR being a flair-dev conda environment or a virtual environment 
-in pip editable mode using `pip install -e`.  However, the programs
-it `bin/` will be copied rather than linked, so they are not
-editable without a reinstall.  This will be fixed in the future.
-
-Alternatively, one can add FLAIR programs to the PATH by
-doing the following while in the top level directory of 
-the FLAIR cloned repository:
-
-```
-export PATH=$(pwd)/bin:${PATH}
-export PYTHONPATH=$(pwd)/src:${PYTHONPATH}
-```
+The preferred way to run FLAIR is using flair-dev conda environment as
+described above, which will have it in the PATH.  By using the `-e`
+(`--editable`) option to `pip`, edits to the source tree will be reflected in
+the conda environment without a need for another install.
 
 ## Managing dependencies
 
