@@ -1,10 +1,16 @@
 #! /usr/bin/env python3
 
-import sys, argparse, os, pipettor, glob, uuid, shutil
+import sys
+import argparse
+import os
+import pipettor
+import glob
+import uuid
+import shutil
 import pysam
-from flair_align import inferMM2JuncStrand, intronChainToestarts
-from ssUtils import addOtherJuncs, gtfToSSBed
-from ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
+from flair.flair_align import inferMM2JuncStrand, intronChainToestarts
+from flair.ssUtils import addOtherJuncs, gtfToSSBed
+from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 from multiprocessing import Pool
 import time
 from collections import Counter
@@ -42,6 +48,8 @@ def getargs():
                 insertions greater than 3 bp at the splice site''')
     parser.add_argument('--quality', type=int, default=0,
                         help='minimum MAPQ of read assignment to an isoform (1)')
+    parser.add_argument('-w', '--end_window', type=int, default=100,
+                        help='window size for comparing TSS/TES (100)')
 
     parser.add_argument('--noaligntoannot', default=False, action='store_true',
                         help='''related to old annotation_reliant, now specify if you don't want an initial alignment to the annotated sequences and only want transcript detection from the genomic alignment. Will be slightly faster but less accurate if the annotation is good''')
@@ -414,8 +422,8 @@ def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname,
 
 
 def getbestends(currgroup, end_window):
-    if len(currgroup) > 1000:
-        print('number of reads in end group:', len(currgroup), file=sys.stderr)
+    # if len(currgroup) > 1000:
+    # print('number of reads in end group:', len(currgroup), file=sys.stderr)
     bestends = []
     if len(currgroup) > int(end_window):
         allstarts = Counter([x[0] for x in currgroup])
@@ -484,7 +492,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 
 def addpresetargs(args):
     args.mm2_args = []
-    args.end_window = 100
+    # args.end_window = 100
     args.trust_ends = False
     args.remove_internal_priming = False
     args.isoformtss = True

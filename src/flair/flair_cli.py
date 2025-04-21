@@ -10,7 +10,7 @@ from flair.flair_correct import correct
 from flair.flair_collapse import collapse
 from flair.flair_quantify import quantify
 from flair.flair_combine import combine
-from flair_straightfrombam import collapsefrombam
+from flair.flair_straightfrombam import collapsefrombam
 
 def help():
 	"temporary help until switched to argparse"
