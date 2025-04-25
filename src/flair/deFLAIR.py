@@ -19,13 +19,19 @@
 
 import os
 import sys
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-import pandas as pd
-import numpy as np
 import subprocess
 import codecs
 import errno
 from collections import Counter
+
+from flair import check_diffexp_dependencies
+
+check_diffexp_dependencies()
+
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import numpy as np
+import pandas as pd
+
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])
@@ -266,7 +272,7 @@ def main():
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(outDir, 'workdir')
-    
+
     if force_dir:
         if not os.path.exists(workdir):
             os.makedirs(workdir)
@@ -318,7 +324,7 @@ def main():
         except subprocess.CalledProcessError:
             print(f'WARNING, running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details')
         sys.stdout.flush()
-    
+
         try:
             subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
                             "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
@@ -326,7 +332,7 @@ def main():
         except subprocess.CalledProcessError:
             print(f'WARNING, running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details')
         sys.stdout.flush()
-    
+
         try:
             subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
                              "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
