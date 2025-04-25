@@ -248,7 +248,7 @@ def detectfusions():
     # bamtobedcmd = ('bamToBed', '-bed12', '-i', args.output + '.syntheticAligned.bam')
     bamtobedcmd = ('bedtools', 'bamtobed', '-bed12', '-i', args.output + '.syntheticAligned.bam')
     getsscommand = ['python3', path + 'synthetic_splice_sites.py', args.output + '.syntheticAligned.bed',
-                        args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed', args.output + '-syntheticBreakpointLoc.bed', '8', '2']#'15', '2']
+                        args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed', args.output + '-syntheticBreakpointLoc.bed', '8', '2', args.output + '-syntheticFusionGenome.fa']#'15', '2']
     ##NOT ADDING GTF ANNOT TO correct or collapse - I think this will save time down the line
     correctcommand = ['python3', path + 'flair_correct.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.bed',
                       '-g', args.output + '-syntheticFusionGenome.fa', '-f', args.output + '-syntheticReferenceAnno.gtf',
@@ -316,8 +316,8 @@ def detectfusions():
     out.close()
 
     # #removing extra FLAIR files
-    # for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
-    #     os.remove(filename)
+    for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
+        os.remove(filename)
 
 
 
