@@ -266,10 +266,10 @@ def collapse(genomic_range='', corrected_reads=''):
 			sys.stderr.write('ERROR: not enough reads in', precollapse)
 			sys.exit(1)
 
-	if args.annotation_reliant:
+	if args.annotation_reliant or args.remove_internal_priming:
 		if not args.generate_map:
 			args.generate_map = True
-		if args.annotation_reliant == 'generate' or not args.annotated_bed:
+		if (not args.annotation_reliant and args.remove_internal_priming) or args.annotation_reliant == 'generate' or not args.annotated_bed:
 			if not os.path.exists(args.gtf):
 				if not args.gtf:
 					sys.stderr.write('Please specify annotated gtf with -f for --annotation_reliant generate\n')
@@ -283,7 +283,7 @@ def collapse(genomic_range='', corrected_reads=''):
 			# gtf to bed
 			gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
 
-		if args.annotation_reliant == 'generate':
+		if (not args.annotation_reliant and args.remove_internal_priming) or args.annotation_reliant == 'generate':
 			# get transcript sequences
 			args.annotation_reliant = args.output+'annotated_transcripts.fa'
 			bed_to_sequence(query=args.output+'annotated_transcripts.bed', genome=args.genome,
@@ -309,7 +309,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		if args.remove_internal_priming:
 			count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
 						  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
-						  args.transcriptfasta]
+						  args.annotation_reliant]
 		if args.fusion_breakpoints:
 			count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
 		if args.allow_paralogs:
@@ -413,7 +413,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		count_cmd += ['--generate_map', args.output+'isoform.read.map.txt']
 	if args.remove_internal_priming:
 		count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
-					  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
+					  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.annotation_reliant]
 	if args.fusion_breakpoints:
 		count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
 	if args.allow_paralogs:
