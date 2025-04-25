@@ -19,13 +19,19 @@
 
 import os
 import sys
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-import pandas as pd
-import numpy as np
 import subprocess
 import codecs
 import errno
 from collections import Counter
+
+from flair import check_diffexp_dependencies
+
+check_diffexp_dependencies()
+
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import numpy as np
+import pandas as pd
+
 
 scriptPath = os.path.realpath(__file__)
 path = "/".join(scriptPath.split("/")[:-1])

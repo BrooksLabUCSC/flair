@@ -50,6 +50,10 @@ On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use
 
 Note that mamba currently fails to install FLAIR on Mac ARM64.
 
+
+Using FLAIR
+===========
+
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
 alignment steps and splice site filters to increase confidence in the
