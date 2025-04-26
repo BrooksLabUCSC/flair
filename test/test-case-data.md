@@ -25,3 +25,7 @@ Files:
 * seg1.cdna-ont.fastq -  LRGASP WTC11 cDNA ONT reads
 * seg1.gencodeV47.gtf - from GENCODE V47, as some test cases added from LRGASP
 * seg1.promoter-regions.bed - from encodeCcreCombined
+
+## others
+
+* tiny.sam - A few records from test-align.bam output

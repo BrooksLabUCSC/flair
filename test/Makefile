@@ -87,7 +87,8 @@ default:
 	@exit 1
 
 test: main-tests align-tests correct-tests collapse-tests quantify-tests \
-	predict-productivity-tests diff-iso-usage-tests combine-tests
+	predict-productivity-tests diff-iso-usage-tests combine-tests \
+	other-progs-tests
 
 test-diffexpsplice: diffexp-tests diffsplice-tests
 
@@ -322,6 +323,17 @@ test-diff-iso-usage: mkdirs
 test-diff-iso-usage-help: mkdirs
 	diff_iso_usage --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
+
+##
+# Other programs
+##
+other-progs-tests: test-bam2bed12
+
+test-bam2bed12: mkdirs
+	samtools view -b input/tiny.sam >output/$@.bam
+	samtools index output/$@.bam
+	bam2Bed12 -i output/$@.bam > output/$@.bed
+	$(call cmp_expect,$@.bed)
 
 ##
 # build test input files
