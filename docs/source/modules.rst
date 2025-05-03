@@ -432,6 +432,53 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
    ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
 
+flair combine
+=============
+.. code:: sh
+
+    usage: flair_combine [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-w ENDWINDOW]
+                         [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
+
+    options:
+      -h, --help            show this help message and exit
+      -m MANIFEST, --manifest MANIFEST
+                            path to manifest files that points to transcriptomes to combine.
+                            Each line of file should be tab separated with sample name, sample
+                            type (isoform or fusionisoform), path/to/isoforms.bed,
+                            path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
+                            read.map.txt files are not required, although if .fa files are not
+                            provided for each sample a .fa output will not be generated
+      -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+                            path to collapsed_output.bed file. default: 'collapsed_flairomes'
+      -w ENDWINDOW, --endwindow ENDWINDOW
+                            window for comparing ends of isoforms with the same intron chain.
+                            Default:200bp
+      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
+                            minimum percent usage required in one sample to keep isoform in
+                            combined transcriptome. Default:10
+      -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
+                            to gtf
+      -s, --include_se      whether to include single exon isoforms. Default: dont include
+      -f FILTER, --filter FILTER
+                            type of filtering. Options: usageandlongest(default), usageonly,
+                            none, or a number for the total count of reads required to call an
+                            isoform
+
+    Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
+
+.. code:: text
+
+    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.FLAIR.isoforms.fa sample1.read.map.txt
+    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.FLAIR.isoforms.fa sample2.read.map.txt
+
+For each line, the sample name and bed path is required. The fasta and
+read.map.txt file is optional. Without these files there is less ability to
+filter and more isoforms will be included. If a sample is a FLAIR run, we
+highly recommend including the read.map.txt file. If you want to combine FLAIR
+transcriptomes with annotated transcripts, you can convert an annotation gtf
+file to a bed file using
+
+
 .. _diffexp-label:
 
 flair diffexp

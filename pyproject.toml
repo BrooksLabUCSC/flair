@@ -57,13 +57,12 @@ predictProductivity = "flair.predictProductivity:main"
 sam_to_map = "flair.sam_to_map:main"
 fasta_seq_lengths = "flair.fasta_seq_lengths:main"
 gtf_to_bed = "flair.gtf_to_bed:main"
+bed_to_gtf = "flair.bed_to_gtf:main"
 bed_to_sequence = "flair.bed_to_sequence:main"
 identify_annotated_gene = "flair.identify_annotated_gene:main"
 identify_gene_isoform = "flair.identify_gene_isoform:main"
 diff_iso_usage = "flair.diff_iso_usage:main"
 diffsplice_fishers_exact = "flair.diffsplice_fishers_exact:main"
-flair_combine = "flair.flair_combine:main"
-bed_to_gtf = "flair.bed_to_gtf:main"
 
 
 # these are needed for pip install

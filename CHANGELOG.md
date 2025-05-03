@@ -4,7 +4,8 @@
 * Returned diffexp and diffsplice as standard modules.  The BioConda
   environment does not include the dependencies for these modules
   and required software does not run on Apple Silicon (ARM64) systems.
-  
+* Finished conversion of flair combine to a full module.  The
+  `flair_combine` program is now `flair combine`.
 
 ## [2.1.2] 2025-04-17
 * Address issue getting BioConda to work
