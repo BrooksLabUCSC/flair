@@ -53,20 +53,29 @@ the conda environment without a need for another install.
 
 ## Managing dependencies
 
-Poetry is used to manage dependencies.
+Poetry is used to manage dependencies and build PyPi packages.
+The poetry lock facility to manage indirect dependencies is not
+used due to incompatibility with conda.  Only top-level dependencies
+are managed for FLAIR.
 
-Poetry Cheat sheet:
-* add dependency: `poetry add pysam`
-* add a development dependency: `poetry add --dev flake8`
+Protry
+* add dependency to `pyproject.toml`: `poetry add pysam`
+* add a development dependency to `pyproject.toml`: `poetry add --dev flake8`
 * show dependencies: `poetry show`
+* show current and latest version of dependencies: `poetry show --latest`
+* show outdated dependencies: `poetry show --outdated`
+* update a dependency: `poetry add pysam@<version>`
+* update a dependency to the latest: `poetry add pysam@latest`
 * check `pyproject.toml`: `poetry check`
-* update dependencies to their latest version: `poetry update`
-* verify update: `poetry show --latest`
-* update `pyproject.toml` from `poetry.lock` file: `poetry sync`
-* install dependencies in virtual : `poetry install`
+* updated the lock file: `poetry update`
 
-Note: you need to commit after make changes to packages or updating.
+Normally `pip` is used to install rather than `poetry install`.  Updating the
+lock file servers only serves as a reference due to Conda issues.
 
+The `poetry sync` to install exact version of dependencies due to Conda has
+incorrectly creating a `direct_url.json` in the `site-packages/* dist-info`
+directories. Removing these files still results in failures for unknown
+reasons, so  `poetry sync` is not used.
 
 ## Testing:
 
