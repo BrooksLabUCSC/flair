@@ -308,17 +308,8 @@ def collapse(genomic_range='', corrected_reads=''):
 			count_cmd += ['--trust_ends']
 		if args.remove_internal_priming:
 			count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
-						  '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
-<<<<<<< HEAD
-						  args.transcriptfasta]
-		if args.fusion_breakpoints:
-			count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
-		if args.allow_paralogs:
-			count_cmd += ['--allow_paralogs']
-		count_cmd = tuple(count_cmd)
-=======
-						  args.annotation_reliant]
->>>>>>> 9a38122 (edited collapse to resolve issue #466)
+				      '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
+				      args.annotation_reliant]
 
 		if not args.quiet:
 			sys.stderr.write('Aligning reads to reference transcripts\n')
