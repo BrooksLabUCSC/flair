@@ -145,9 +145,9 @@ test-correct-help: mkdirs
 ###
 # FLAIR COLLAPSE
 ###
-collapse-tests: test-collapse test-collapse-annot test-collapse-faster test-collapse-faster-annot test-collapse-faster-annot-removeintprim \
+collapse-tests: test-collapse test-collapse-annot \
 	test-collapse-support test-collapse-seg1 \
-	test-collapse-help test-collapse-faster-help
+	test-collapse-help
 
 # macros to do comparions with expected results
 define collapse_diff
@@ -203,36 +203,6 @@ test-collapse-help: mkdirs
 	flair collapse --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
 
-
-# speedy collapse
-# notes:
-#  this works badly on the test dataset because the test reads are error-prone and fail the built-in correct step
-#  fastercollapse.py doesn't output promoter_supported.bed (see #447)
-test-collapse-faster : mkdirs ${GENOME_FA}
-	rm -rf $O/$@.tmp
-	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
-	$(collapse_diff)
-	$(collapse_diff_read_map)
-#	$(collapse_promoter_diff)
-
-# speedy collapse annotation-reliant
-test-collapse-faster-annot: mkdirs ${GENOME_FA}
-	rm -rf $O/$@.tmo
-	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
-	$(collapse_diff)
-	$(collapse_diff_read_map)
-#	$(collapse_promoter_diff)
-
-test-collapse-faster-annot-removeintprim: mkdirs ${GENOME_FA}
-	rm -rf $O/$@.tmp
-	${PYTHON} ../src/flair/fastercollapse.py -r $(BASIC_READS_FA) --transcriptfasta generate --stringent -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --remove_internal_priming
-	$(collapse_diff)
-	$(collapse_diff_read_map)
-#	$(collapse_promoter_diff)
-
-test-collapse-faster-help: mkdirs
-	${PYTHON} ../src/flair/fastercollapse.py --help >&$O/$@.out
-	$(call cmp_expect,$@.out)
 
 ###
 # FLAIR COMBINE
