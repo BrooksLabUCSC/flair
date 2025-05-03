@@ -7,7 +7,8 @@ Modules must be run in order (align, correct, collapse).
 
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR align, correct, and collapse on all samples together (will generate the most comprehensive transcriptome)
- - Run FLAIR align, correct, and collapse on each sample separately (using the --generate_map option in collapse), then combine the transcriptomes later using the collapse_bed_files script (more documentation in additional programs section)
+ - Run FLAIR align, correct, and collapse on each sample separately
+ - Use FLAIR combine to merge results
 
 .. _align-label:
 
