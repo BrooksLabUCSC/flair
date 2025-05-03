@@ -27,17 +27,19 @@ Report bugs to FLAIR GitHub Issues:
    https://github.com/BrooksLabUCSC/flair/issues
    
 
+.. _installing-label:
+
 Installing FLAIR
 ================
 
-FLAIR can be conda installed using 
+FLAIR can be conda installed using:
 
 .. code:: sh
 
    conda create -n flair -c conda-forge -c bioconda flair
    conda activate flair
 
-On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use
+On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use:
 
 .. code:: sh
 
@@ -49,6 +51,13 @@ On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use
    conda install flair
 
 Note that mamba currently fails to install FLAIR on Mac ARM64.
+
+If you are going to use the `diffexp` or `diffsplice` modules,
+you need to add addition packages to the Conda environment with: 
+
+.. code:: sh
+
+   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_diffexp_conda_env.yaml
 
 
 Using FLAIR
@@ -80,9 +89,9 @@ unique. You can either merge the FASTA/FASTQ files before running FLAIR
 making sure to run FLAIR collapse with a list of all of your read files.
             
 It is recommended to combine all samples together prior to running
-``flair-collapse`` for isoform assembly by concatenating corrected read ``bed``
+``flair collapse`` for isoform assembly by concatenating corrected read ``BED``
 files together. Following the creation of an isoform reference from
-``flair-collapse``, consequent steps will assign reads from each sample
+``flair collapse``, consequent steps will assign reads from each sample
 individually to isoforms of the combined assembly for downstream analyses.
 
 .. toctree::

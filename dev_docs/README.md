@@ -23,9 +23,9 @@ poetry install  --no-root
 ```
 instead of `pip install`.
 
-To run the deprecated `diffExp` and `diffSplice` tests:
+To run `diffExp` and `diffSplice` tests:
 ```
-conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml --yes
+conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .[diffexp]
 ```
 
@@ -89,9 +89,14 @@ To run the tests using the version of FLAIR found on PATH:
 make -O -j 64 test use_installed_flair=yes
 ```
 
-To run the deprecated diffExp and diffSplice tests:
+To run the diffExp and diffSplice tests:
 ```
-make -O -j 64 test-diffexp
+make -O -j 64 test-expdiff
+```
+
+To run all tests:
+```
+make -O -j 64 test-all
 ```
 
 # Releasing flair

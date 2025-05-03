@@ -11,4 +11,7 @@ dependencies:
   - bedtools =2.31.1
   - samtools =1.21
   - poetry
+  - sphinx
+  - sphinx_rtd_theme
+  - sphinx-argparse
   - pip

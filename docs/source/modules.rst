@@ -424,7 +424,7 @@ Optional arguments
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The depreciated flair_diffExp and flair_diffSplice programs expect this information.
+Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The `flair diffexp` and `flair diffsplice` modules expect this information.
 
 .. code:: text
 
@@ -434,18 +434,16 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
 
 .. _diffexp-label:
 
-flair_diffExp
+flair diffexp
 =============
 
-**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
-programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
-These programs are deprecated and will be removed or replaced in a future release.
-The `conda` environment no long installed `R` and the required packages.
-If you find these programs useful please submit a ticket describing your needs.
+
+The standard `conda` environment no long installed `R` and the required packages.
+These maybe added do the environment as describe in :ref:`installing-label` 
 
 .. code:: text
 
-   usage: flair_diffExp -q counts_matrix.tsv --out_dir out_dir [options]
+   usage: flair diffexp -q counts_matrix.tsv --out_dir out_dir [options]
 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
@@ -513,32 +511,17 @@ Flair does not remove low count genes as long as they are expressed in all sampl
 
 Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. Unfiltered tables can be found in ``workdir``
 
-Code requirements
-~~~~~~~~~~~~~~~~~
-This module requires python modules and R packages that are not necessary for other Flair modules (except diffSplice).  
-You must install `R" and these packages to use `diffExp` and  `diffSplice`:
-
-1. python modules: pandas, numpy, rpy2
-2. `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__
-3. `ggplot2 <https://ggplot2.tidyverse.org>`__
-4. `qqman <https://cran.r-project.org/web/packages/qqman/index.html>`__
-5. `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
-6. `stageR <http://bioconductor.org/packages/release/bioc/html/stageR.html>`__
-
 .. _diffsplice-label:
 
-flair diffSplice
+flair diffsplice
 ================
 
-**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
-programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
-These programs are deprecated and will be removed or replaced in a future release.
-The `conda` environment no long installed `R` and the required packages.
-If you find these programs useful please submit a ticket describing your needs.
+The standard `conda` environment no long installed `R` and the required packages.
+These maybe added do the environment as describe in :ref:`installing-label` 
 
 .. code:: text
 
-   usage: flair_diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
+   usage: flair diffsplice -i isoforms.bed -q counts_matrix.tsv [options]
 
 This module calls alternative splicing (AS) events from isoforms. Currently supports
 the following AS events: 

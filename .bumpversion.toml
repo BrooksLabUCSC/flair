@@ -35,3 +35,8 @@ filename = "misc/flair_conda_env.yaml"
 search = "flair-brookslab==v{current_version}"
 replace = "flair-brookslab==v{new_version}"
 
+[[tool.bumpversion.files]]
+filename = "misc/flair_diffexp_conda_env.yaml"
+search = "flair-brookslab[diffexp]==v{current_version}"
+replace = "flair-brookslab[diffexp]==v{new_version}"
+

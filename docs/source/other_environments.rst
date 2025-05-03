@@ -1,7 +1,8 @@
-Other environments
-==================
+Other installation methods
+==========================
 
-The easiest way to install FLAIR and all of its dependencies is via conda:
+The easiest way to install FLAIR and all of its dependencies is via Conda from
+BioConda:
 
 .. code:: sh
 
@@ -9,6 +10,13 @@ The easiest way to install FLAIR and all of its dependencies is via conda:
    conda activate flair
    flair [align/correct/...]
 
+The ``flair diffexp`` and ``flair diffsplice`` modules require adding additional packages
+to the Conda environment:
+
+.. code:: sh
+
+   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_diffexp_conda_env.yaml
+   
 It is also possible to get the full FLAIR setup as a docker image:
 
 .. code:: sh
@@ -16,14 +24,14 @@ It is also possible to get the full FLAIR setup as a docker image:
     docker pull brookslab/flair:latest
     docker run -w /usr/data -v [your_path_to_data]:/usr/data brookslab/flair:latest flair [align/correct/...]
 
-You can build a Conda environment from GitHub, for example for release v2.1.0:
+You can build a Conda environment from GitHub release assets, for example for release v2.1.2:
 
 .. code:: sh
 
-    conda env create -n flair -f https://raw.githubusercontent.com/BrooksLabUCSC/flair/refs/tags/v2.1.0/misc/flair_conda_env.yaml
+    conda env create -n flair -f https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_conda_env.yaml
     conda activate flair
     
-You can also build a Conda environment from the source tree with
+You can also build a Conda environment from the source tree with:
 .. code:: sh
 
     git clone git@github.com:BrooksLabUCSC/flair.git
@@ -79,28 +87,21 @@ lets you know it has been fixed.
 Once you have cloned the repository, navigate to the `/flair` directory. Follow the
 steps as described under Download the latest release.
 
-flair_diffExp and flair_diffSplice
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+flair diffexp and diffsplice
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Two other programs are available in the source tree, although they now deprecated:
-``flair_diffExp``, and ``flair_diffSplice``.  The dependencies are not
-include in the standard conda or pip installs.  The following packages are required
+The ``flair diffexp`` and ``flair diffsplice`` modules require additional packages
+that are not include the standard conda or pip installs.   These dependencies
+are require and some do not work on Apple Silicon:
 
-  - Cython
-  - pandas
-  - rpy2=2.9.*
-  - R
-  - r-ggplot2=2.2.1
-  - r-qqman
-  - bioconductor-deseq2
-  - bioconductor-drimseq
-  - bioconductor-stager
-  - matplotlib
-  - seaborn
+- `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__
+- `ggplot2 <https://ggplot2.tidyverse.org>`__
+- `qqman <https://cran.r-project.org/web/packages/qqman/index.html>`__
+- `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
+- `stageR <http://bioconductor.org/packages/release/bioc/html/stageR.html>`__
+- Python modules: pandas, numpy, rpy2
 
-These maybe added to standard conda environment with:
+To install the addition Python modules with pip:
+.. code:: sh
 
-```
-conda env update --name flair --file misc/flair_diffexp_conda_env.yaml
-pip install -e .[diffexp]
-```
+   pip install -e .[diffexp]

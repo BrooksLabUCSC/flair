@@ -64,8 +64,6 @@ diff_iso_usage = "flair.diff_iso_usage:main"
 diffsplice_fishers_exact = "flair.diffsplice_fishers_exact:main"
 flair_combine = "flair.flair_combine:main"
 bed_to_gtf = "flair.bed_to_gtf:main"
-flair_diffExp = "flair.flair_diffExp:main"
-flair_diffSplice = "flair.flair_diffSplice:main"
 
 
 # these are needed for pip install
