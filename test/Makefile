@@ -72,8 +72,10 @@ endef
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
-	@echo To run depricated tests that depend on R >&2
-	@echo "   " make test-diffexp >&2
+	@echo To run expression diff tests that depend on R >&2
+	@echo "   " make test-diffexpress >&2
+	@echo To run all tests >&2
+	@echo "   " make test-all >&2
 	@echo otherwise run individual tests by specifying test target, such as: >&2
 	@echo "   " make align-tests >&2
 	@echo remove output files: >&2
@@ -86,7 +88,9 @@ test: main-tests align-tests correct-tests collapse-tests quantify-tests \
 	predict-productivity-tests diff-iso-usage-tests combine-tests \
 	other-progs-tests
 
-test-diffexp: diffexp-tests diffsplice-tests
+test-diffexpress: diffexp-tests diffsplice-tests
+
+test-all: test test-diffexpress
 
 ###
 # MAIN COMMAND
@@ -293,13 +297,13 @@ test-quantify-help: mkdirs
 diffexp-tests: test-diffexp test-diffexp-help
 
 test-diffexp : mkdirs
-	flair_diffExp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
+	flair diffexp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
 	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
-	flair_diffExp --help >&$O/$@.out
+	flair diffexp --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
@@ -311,7 +315,7 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 # (issue #417)
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
-	flair_diffSplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
+	flair diffsplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
 	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
 #	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
@@ -320,7 +324,7 @@ test-diffsplice: mkdirs
 #	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-help: mkdirs
-	flair_diffSplice --help >&$O/$@.out
+	flair diffsplice --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
 
 

@@ -133,12 +133,12 @@ make -O -j 64 test
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
-Include conda dependencies deprecated diff expression support and tests.
+Include conda dependencies deprecated expression diff support and tests.
 This does not work on Apple ARM systems.
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .[diffexp]
-make -O -j 64 test-diffexp
+make -O -j 64 test-expdiff
 ```
 
 ## 6. Check documentation
