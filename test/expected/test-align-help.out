@@ -13,7 +13,7 @@ options:
                         guided minimap2 genomic alignment
   --nvrna               specify this flag to use native-RNA specific alignment
                         parameters for minimap2
-  --quality QUALITY     minimum MAPQ of read alignment to the genome (1)
+  --quality QUALITY     minimum MAPQ of read alignment to the genome (0)
   --minfragmentsize MINFRAGMENTSIZE
                         minimum size of alignment kept, used in minimap -s.
                         More important when doing downstream fusion detection

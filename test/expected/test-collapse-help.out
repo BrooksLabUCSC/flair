@@ -32,7 +32,7 @@ options:
                         site
   --trust_ends          specify if reads are generated from a long read method
                         with minimal fragmentation
-  --quality QUALITY     minimum MAPQ of read assignment to an isoform (1)
+  --quality QUALITY     minimum MAPQ of read assignment to an isoform (0)
   --longshot_bam LONGSHOT_BAM
                         bam from longshot containing haplotype information for
                         each read

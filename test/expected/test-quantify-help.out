@@ -12,7 +12,7 @@ options:
   --sample_id_only      only use sample id in output header
   --tpm                 Convert counts matrix to transcripts per million and
                         output as a separate file named <output>.tpm.tsv
-  --quality QUALITY     minimum MAPQ of read assignment to an isoform (1)
+  --quality QUALITY     minimum MAPQ of read assignment to an isoform (0)
   --trust_ends          specify if reads are generated from a long read method
                         with minimal fragmentation
   --generate_map        create read-to-isoform assignment files for each

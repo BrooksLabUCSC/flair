@@ -65,8 +65,7 @@ Optional arguments
     --junction_bed	Annotated isoforms/junctions bed file for splice site-guided 
                         minimap2 genomic alignment.
     --nvrna		Use native-RNA specific alignment parameters for minimap2 (-u f -k 14)
-    --quality		Minimum MAPQ score of read alignment to the genome. The default is 1, 
-                        which is the lowest possible score.
+    --quality		Minimum MAPQ score of read alignment to the genome. The default is 0.
     -N                  Retain at most INT secondary alignments from minimap2 (default 0). Please 
                         proceed with caution, changing this setting is only useful if you know 
                         there are closely related homologs elsewhere in the genome. It will 
@@ -281,7 +280,7 @@ Optional arguments
                         fasta file using gtf_to_bed
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
-    --quality	        Minimum MAPQ of read assignment to an isoform (default: 1).
+    --quality	        Minimum MAPQ of read assignment to an isoform (default: 0).
     
 **Variant options**
     
@@ -407,7 +406,7 @@ Optional arguments
                         directory (default: python tempfile directory).
     --sample_id_only	Only use sample id in output header instead of a concatenation 
                         of id, condition, and batch.
-    --quality	        Minimum MAPQ of read assignment to an isoform (default 1). 
+    --quality	        Minimum MAPQ of read assignment to an isoform (default 0). 
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
     --generate_map	Create read-to-isoform assignment files for each sample.

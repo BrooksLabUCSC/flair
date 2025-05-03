@@ -61,8 +61,8 @@ def collapse(genomic_range='', corrected_reads=''):
 		insertions greater than 3 bp at the splice site''')
 	parser.add_argument('--trust_ends', default=False, action='store_true',
 		help='specify if reads are generated from a long read method with minimal fragmentation')
-	parser.add_argument('--quality', type=int,  default=1,
-		help='minimum MAPQ of read assignment to an isoform (1)')
+	parser.add_argument('--quality', type=int,  default=0,
+		help='minimum MAPQ of read assignment to an isoform (0)')
 	# variant options
 	parser.add_argument('--longshot_bam',  default='',
 		help='bam from longshot containing haplotype information for each read')
@@ -155,7 +155,7 @@ def collapse(genomic_range='', corrected_reads=''):
 		query = args.temp_dir+run_id+'.sorted.bed.gz'
 		args.quiet = True
 
-	args.quality = '0' if args.trust_ends else args.quality
+	args.quality = 0 if args.trust_ends else args.quality
 	args.output += '.'
 	min_reads = float(args.support) if float(args.support) >= 1 else 3
 
