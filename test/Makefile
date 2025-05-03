@@ -85,7 +85,7 @@ default:
 	@exit 1
 
 test: main-tests align-tests correct-tests collapse-tests quantify-tests \
-	predict-productivity-tests diff-iso-usage-tests combine-tests \
+	combine-tests predict-productivity-tests diff-iso-usage-tests \
 	other-progs-tests
 
 test-diffexpress: diffexp-tests diffsplice-tests

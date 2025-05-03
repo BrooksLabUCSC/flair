@@ -199,8 +199,8 @@ def align():
 		help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
 	parser.add_argument('--nvrna', action='store_true', default=False,
 		help='specify this flag to use native-RNA specific alignment parameters for minimap2')
-	parser.add_argument('--quality', type=int, default=1,
-		help='minimum MAPQ of read alignment to the genome (1)')
+	parser.add_argument('--quality', type=int, default=0,
+		help='minimum MAPQ of read alignment to the genome (0)')
 	parser.add_argument('--minfragmentsize', type=int, default=80,
 						help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
 	parser.add_argument('--maxintronlen', default='200k',

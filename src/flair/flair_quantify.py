@@ -34,8 +34,8 @@ def quantify(isoform_sequences=''):
 		help='''only use sample id in output header''')
 	parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
 		help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
-	parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
-		help='''minimum MAPQ of read assignment to an isoform (1)''')
+	parser.add_argument('--quality', type=int, action='store', dest='quality', default=0,
+		help='''minimum MAPQ of read assignment to an isoform (0)''')
 	parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
 		help='specify if reads are generated from a long read method with minimal fragmentation')
 	parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
