@@ -4,11 +4,16 @@
 * Returned diffexp and diffsplice as standard modules.  The BioConda
   environment does not include the dependencies for these modules
   and required software does not run on Apple Silicon (ARM64) systems.
-* Finished conversion of flair combine to a full module.  The
-  `flair_combine` program is now `flair combine`.
-* Changed default MAPQ minimum quality score to 0. This allows more reads to be used in identifying
-  isoforms, which tends to improve the overall models with out adversely affecting the accuracy.
-
+* The flair combine functionality is now to a module.  The
+  `flair_combine` program is run with `flair combine`.
+* Changed default MAPQ minimum quality score to 0. This allows more reads to
+  be used in identifying isoforms, which tends to improve the overall models
+  with out adversely affecting the accuracy.
+* GitHub releases include the Conda YAML files for building FLAIR
+  environments.  Useful if the BioConda release has not been manually
+  reviewed.
+* The FLAIR Docker now includes all dependencies to run diffexp and diffsplice.
+* Reorganized the installation documentation
 
 ## [2.1.2] 2025-04-17
 * Address issue getting BioConda to work

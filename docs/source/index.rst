@@ -27,12 +27,10 @@ Report bugs to FLAIR GitHub Issues:
    https://github.com/BrooksLabUCSC/flair/issues
    
 
-.. _installing-label:
-
 Installing FLAIR
 ================
 
-FLAIR can be conda installed using:
+FLAIR can be conda installed from BioConda using:
 
 .. code:: sh
 
@@ -59,6 +57,13 @@ you need to add addition packages to the Conda environment with:
 
    conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_diffexp_conda_env.yaml
 
+BioConda release are often delayed by the manual review process.  To get the
+latest release, a Conda environment maybe created directly from GitHub with:
+
+.. code:: sh
+
+   conda env create -n flair -c conda-forge --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_conda_env.yaml
+   
 
 Using FLAIR
 ===========
@@ -78,7 +83,7 @@ If you have multiple samples and want to compare them on a single
 transcriptome, you have two options:
 
 Run flair correct and collapse individually on each sample, then combine your
-transcriptomes using ``collapse_bed_files`` (see Additional programs). This method
+transcriptomes using ``flair combine``. This method
 will be faster and easier, but you may miss some low-expression transcripts.
 
 Your other option is to merge your samples before running FLAIR. If using
@@ -98,12 +103,11 @@ individually to isoforms of the combined assembly for downstream analyses.
    :maxdepth: 2
    :caption: Contents:
 
-   requirements.rst
+   installing.rst
    modules.rst
    scripts.rst
    flair2_functions.rst
    other_ways.rst
-   other_environments.rst
    testrun.rst
    example_files.rst
    faqs.rst
