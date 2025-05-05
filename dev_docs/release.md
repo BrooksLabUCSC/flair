@@ -23,7 +23,7 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 6. Check documentation
 - [] 7. Verify and review ReadTheDocs
 - [] 8. Update version numbers in all relevant files
-- [] 9. Build distribution and test pipe install
+- [] 9. Build distribution and test pip install
 - [] 10. Test Docker locally
 - [] 11. Test PyPi with testpypi
 - [] 12. Git commit, tag push
@@ -109,7 +109,7 @@ git commit -am 'updated dependencies'
 Review dependency versions in misc/*_conda_env.yaml to see if they should be
 updated.  Use `conda search <package>` to find versions.
 
-The FLAIR version in `misc/flair_conda_env.yaml` is updated by bump-my-version
+The FLAIR version in `misc/*.yaml` files are updated by bump-my-version.
 
 Edit `misc/Dockerfile` to have the same non-Python package dependencies as the conda
 files.  Also ensure that the Docker Ubuntu versions is a current LTS release.
@@ -135,12 +135,12 @@ make -O -j 64 test
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
-Include conda dependencies deprecated expression diff support and tests.
+Include conda dependencies for diff expression support and tests.
 This does not work on Apple ARM systems.
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .[diffexp]
-make -O -j 64 test-expdiff
+make -O -j 64 test-diffexpresss
 ```
 
 ## 6. Check documentation
@@ -273,6 +273,9 @@ The pypi package name is `flair-brookslab`.
 Select Draft a new release (top right) and follow instructions
 
 Copy CHANGELOG.md entry to release description.
+
+Add the three Conda `misc/*.yaml` files as assets of the release
+to support direct creation of Conda environments via the URLs.
 
 Set these options:
 - Set as the latest release 
