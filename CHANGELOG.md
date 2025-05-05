@@ -13,7 +13,7 @@
   environments.  Useful if the BioConda release has not been manually
   reviewed.
 * The FLAIR Docker now includes all dependencies to run diffexp and diffsplice.
-* Reorganized the installation documentation
+* Reorganized the installation documentation.
 
 ## [2.1.2] 2025-04-17
 * Address issue getting BioConda to work
