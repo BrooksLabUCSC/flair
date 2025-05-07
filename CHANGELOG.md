@@ -14,6 +14,8 @@
   reviewed.
 * The FLAIR Docker now includes all dependencies to run diffexp and diffsplice.
 * Reorganized the installation documentation.
+* Fixed flair_quantify --output_bam crash
+* Other bug fixes
 
 ## [2.1.2] 2025-04-17
 * Address issue getting BioConda to work

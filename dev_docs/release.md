@@ -100,7 +100,7 @@ Also update authors in `docs/source/conf.py`.
 ## 2. Update python dependencies
 ```
 poetry update
-poetry local
+poetry lock
 git commit -am 'updated dependencies'
 ```
 
@@ -131,7 +131,7 @@ pip install -e .[dev]
 ## 5. Run pre-release tests
 
 ```
-make -O -j 64 test
+make -k -O -j 64 test
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
@@ -140,7 +140,7 @@ This does not work on Apple ARM systems.
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .[diffexp]
-make -O -j 64 test-diffexpresss
+make -k -O -j 64 test-diffexpress
 ```
 
 ## 6. Check documentation
@@ -209,7 +209,7 @@ git diff
 ## 9. Build distribution and test pipe install
 ```
 make clean build
-make -O -j 32 test-pip
+make -k -O -j 32 test-pip
 ```
 
 ## 10. Test Docker locally
@@ -227,7 +227,7 @@ docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version
 % cd /mnt/flair
 % pip install --break-system-packages .
 % make clean
-% make -O -j 64 test-installed
+% make -k -O -j 64 test-installed
 % make clean
 % exit
 ```
@@ -237,7 +237,7 @@ To upload to testpypi and test
 
 ```
 make publish-testpypi
-make -O -j 32 test-testpypi
+make -k -O -j 32 test-testpypi
 ```
 
 If an error occurs, delete can the testpypi release.
@@ -262,8 +262,8 @@ goes wrong, re-release with a new patch version.
 The pypi package name is `flair-brookslab`.
 
 ```
-   make publish-pypi
-   make -O -j 32 test-pypi
+make publish-pypi
+make -k -O -j 32 test-pypi
 ```
 
 ## 14. Make the release on github.com
@@ -347,7 +347,7 @@ Test the Docker image
 ```
 docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
-% make -O -j 64 test-installed
+% make -k -O -j 64 test-installed
 % exit
 ```
 
