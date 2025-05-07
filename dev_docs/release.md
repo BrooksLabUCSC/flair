@@ -29,7 +29,7 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 12. Git commit, tag push
 - [] 13. Create pip package and test
 - [] 14. Make the release on github.com
-- [] 15. Update the conda recipe and submit
+- [] 15. Update the BioConda recipe and submit
 - [] 16. Build the docker image and push it to dockerhub
 - [] 17. Set the release as latest in the PyPi
 - [] 18. Set the release latest in GitHub
@@ -281,13 +281,14 @@ Set these options:
 - Set as the latest release 
 - Create a discussion for this release 
 
-## 15. Update the conda recipe and submit
+## 15. Update the BioConda recipe and submit
 
 Full details are here: https://bioconda.github.io/contributor/index.html
 
 1. fork the bioconda recipes repo: https://github.com/bioconda/bioconda-recipes/fork
-2. git clone that repo to your local computer
-3. update the recipe `bioconda-recipes/recipes/recipes/flair/meta.yaml` with
+   if you already have a fork, sync with master on GitHub
+2. git clone or pull that repo to your local computer
+3. update the recipe `bioconda-recipes/recipes/flair/meta.yaml` with
    - new version number,
    - correct dependencies from pyproject.yaml, these must be explicitly listed in meta.yaml
      - NOTE: check numpy version against conda-forge
@@ -295,11 +296,11 @@ Full details are here: https://bioconda.github.io/contributor/index.html
 4  create a local bioconda environment and test:
 ```
    cd ../bioconda-recipes/
+   conda env remove -n bioconda-test --yes
    conda create -n bioconda-test -c conda-forge -c bioconda bioconda-utils pytorch --yes
    conda activate bioconda-test
    bioconda-utils build --mulled-test recipes config.yml --packages flair >&build.out
    conda deactivate
-   conda env remove -n bioconda-test --yes
 ```
 
 Inspect `build.out` for problems.  There maybe unimportant warning labels as
@@ -307,11 +308,16 @@ Inspect `build.out` for problems.  There maybe unimportant warning labels as
 in the build, add the option `--keep-old-work` to build command to save output
 for inspection.
 
+NOTE: If there are NameResolutionErrors in the file, this is due to needing to 
+`--network=host` with Docker, however there is no way to pass it in.
+Just give up and push and let the bot check it/
+
   
-5. git commit; git push
+5. git commit -am 'FLAIR v2.2.0 release' && git push
 6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
+   Title of pull request should be "Update FLAIR <version> release"
    This starts a testing process. Once all checks have passed and a green mark appears, 
-   add this comment to the pull request:
+   Once tit has passed, add this comment to the pull request:
 	    @BiocondaBot please add label
    This should take care of the red 'Review Required' and 'Merging is Blocked' notifications
 
@@ -338,7 +344,7 @@ number should have been updated by `bump-my-version`.
 
 From the ./misc directory, build the image:
 ```
-docker build --network=host -t brookslab/flair:<version> misc
+docker build --network=host -t brookslab/flair:<version> misc >& build.log
 docker tag brookslab/flair:<version> brookslab/flair:latest
 ```
 
@@ -347,7 +353,7 @@ Test the Docker image
 ```
 docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
-% make -k -O -j 64 test-installed
+% make -k -O -j 64 test-installed test-diffexpress-installed
 % exit
 ```
 
