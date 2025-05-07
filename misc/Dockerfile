@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y \
         minimap2=2.26+dfsg-1build1 \
         python3=3.12.3-0ubuntu2 \
 	python3-pip=24.0+dfsg-1ubuntu1 \
+        libtirpc-dev \
         r-base
 
 #  24.04.2 Noble has an old samtool package, download newer from a subsequent release

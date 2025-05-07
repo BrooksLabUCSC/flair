@@ -25,7 +25,7 @@ test-installed:
 
 test-diffexpress:
 	${MAKE} -C test test-diffexpress use_installed_flair=${use_installed_flair}
-test-diffexp-installed:
+test-diffexpress-installed:
 	${MAKE} -C test test-diffexpress use_installed_flair=yes
 
 
