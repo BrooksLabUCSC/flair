@@ -39,7 +39,7 @@ RUN Rscript -e 'options(repos = c(CRAN = "https://cloud.r-project.org")); \
   BiocManager::install(c("DRIMSeq", "stageR", "DESeq2", "apeglm"), ask = FALSE)'
 
 RUN if [ "$FLAIR_INSTALL" = "yes" ]; then \
-        pip install --break-system-packages flair-brookslab[diffexp]==v2.1.2 ; \
+        pip install --break-system-packages flair-brookslab[diffexp]==v2.2.0 ; \
     fi
 
 RUN mkdir /data
