@@ -1,6 +1,6 @@
 # Major user-visible changes
 
-## [2.2.0]
+## [2.2.0] 2025-05-06
 * Returned diffexp and diffsplice as standard modules.  The BioConda
   environment does not include the dependencies for these modules
   and required software does not run on Apple Silicon (ARM64) systems.
