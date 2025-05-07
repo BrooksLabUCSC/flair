@@ -30,40 +30,8 @@ Report bugs to FLAIR GitHub Issues:
 Installing FLAIR
 ================
 
-FLAIR can be conda installed from BioConda using:
+See  :ref:`installing-label` for instructions on the various approache to install FLAIR.
 
-.. code:: sh
-
-   conda create -n flair -c conda-forge -c bioconda flair
-   conda activate flair
-
-On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use:
-
-.. code:: sh
-
-   CONDA_SUBDIR=osx-64 conda create -n flair
-   conda activate flair
-   conda config --env --set subdir osx-64
-   conda config --add channels bioconda
-   conda config --add channels conda-forge
-   conda install flair
-
-Note that mamba currently fails to install FLAIR on Mac ARM64.
-
-If you are going to use the `diffexp` or `diffsplice` modules,
-you need to add addition packages to the Conda environment with: 
-
-.. code:: sh
-
-   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_diffexp_conda_env.yaml
-
-BioConda release are often delayed by the manual review process.  To get the
-latest release, a Conda environment maybe created directly from GitHub with:
-
-.. code:: sh
-
-   conda env create -n flair -c conda-forge --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.1.2/flair_conda_env.yaml
-   
 
 Using FLAIR
 ===========
