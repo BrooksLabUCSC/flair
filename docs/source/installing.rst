@@ -42,7 +42,7 @@ a Conda environment from a release in GitHub, use:
 
 .. code:: sh
 
-   conda env create -n flair -c conda-forge --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.2.0/flair_conda_env.yaml
+   conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.2.0/flair_conda_env.yaml
    conda activate flair
    
 To add the `diffexp` or `diffsplice` dependencies:
