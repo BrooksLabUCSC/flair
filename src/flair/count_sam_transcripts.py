@@ -230,7 +230,7 @@ def parsesam(args, transcripttoexons):
 			readname = read.query_name
 			transcript = read.reference_name
 			quality = read.mapping_quality
-			if quality > args.quality:
+			if quality >= args.quality:
 				##for transcriptome alignment, always take rightmost side on transcript
 				if args.remove_internal_priming:
 					notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name,

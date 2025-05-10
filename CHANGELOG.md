@@ -1,5 +1,10 @@
 # Major user-visible changes
 
+## [2.2.1]
+* fixed case where --quality=0 default didn't work, as it tested for greater
+  than the cutoff.
+
+
 ## [2.2.0] 2025-05-06
 * Returned diffexp and diffsplice as standard modules.  The BioConda
   environment does not include the dependencies for these modules
