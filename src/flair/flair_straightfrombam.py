@@ -104,8 +104,8 @@ def makecorrecttempdir():
 
 def bin_search(query, data):
     """ Query is a coordinate interval. Binary search for the query in sorted data,
-	which is a list of coordinates. Finishes when an overlapping value of query and
-	data exists and returns the index in data. """
+        which is a list of coordinates. Finishes when an overlapping value of query and
+        data exists and returns the index in data. """
     i = int(round(len(data) / 2))  # binary search prep
     lower, upper = 0, len(data)
     while True:
@@ -248,7 +248,7 @@ class BedRead(object):
                 refpos += block[1]
                 if block[0] in {0, 7, 8}: hasmatch = True  # match
         # dirtowrite = '-' if is_reverse else '+'
-        # chr1	476363	497259	ENST00000455464.7_ENSG00000237094.12	1000	-	476363	497259	0	3	582,169,151,	0,8676,20745,
+        # chr1  476363  497259  ENST00000455464.7_ENSG00000237094.12    1000    -       476363  497259  0       3       582,169,151,    0,8676,20745,
         esizes, estarts = intronChainToestarts(intronblocks, alignstart, refpos)
         if juncDirection not in {'+', '-'}:
             juncDirection = "-" if is_reverse else "+"

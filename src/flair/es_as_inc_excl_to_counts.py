@@ -37,12 +37,3 @@ with open(sys.argv[2]) as fin2:
         print("exclusion_%s" % exon,exon,"\t".join(str(x) for x in excVals),excIsos,sep="\t")
 
         #print(exon,"\t".join("%.2f" % x for x in incVals/totVals))
-
-##
-# Most of FLAIR uses tab indents and this is set by default for
-# emacs in .dir-locals.el, this file doesn't, so override
-#
-# Local Variables:
-# mode: python
-# indent-tabs-mode: nil
-# End:

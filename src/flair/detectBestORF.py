@@ -53,9 +53,9 @@ def parseGTFline(l):
 def getStarts(gtf):
     starts = []
     for l in open(gtf):
-            if l[0] != "#":
-                startinfo = parseGTFline(l)
-                if startinfo: starts.append(startinfo)
+        if l[0] != "#":
+            startinfo = parseGTFline(l)
+            if startinfo: starts.append(startinfo)
     if (len(starts)) == 0:
         sys.stderr.write('ERROR, no start codons were found in', gtf)
         sys.exit(1)
@@ -290,13 +290,3 @@ def getorfs(args):
 if __name__ == "__main__":
     args = getargs()
     getorfs(args)
-
-
-##
-# Most of FLAIR uses tab indents and this is set by default for
-# emacs in .dir-locals.el, this file doesn't, so override
-#
-# Local Variables:
-# mode: python
-# indent-tabs-mode: nil
-# End:

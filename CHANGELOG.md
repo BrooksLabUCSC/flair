@@ -1,8 +1,10 @@
 # Major user-visible changes
 
 ## [2.2.1]
-* fixed case where --quality=0 default didn't work, as it tested for greater
+* Fixed case where --quality=0 default didn't work, as it tested for greater
   than the cutoff.
+* Converted all Python code to use 4-space indentation.  Previpoust some code
+  used tabs, other used 4-spaces.
 
 
 ## [2.2.0] 2025-05-06

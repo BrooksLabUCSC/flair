@@ -214,7 +214,7 @@ def getvariants():
 
     ###load vcf variants - could skip this and instead load variants dict directly when combining vcfs above
     ###for longshot variant calling, can force it to output ‘genotype’ snvs, but it refuses to output alt allele
-	###current workaround is to make the longshot vcf report positions only, but that doesn’t seem good long-term
+        ###current workaround is to make the longshot vcf report positions only, but that doesn’t seem good long-term
     vcfvars = {}
     for line in open(args.output_prefix + '.flairaligned.longshot.vcf'):
         if line[0] != '#':
@@ -743,6 +743,3 @@ def getvariants():
 
 if __name__ == "__main__":
     getvariants()
-
-
-
