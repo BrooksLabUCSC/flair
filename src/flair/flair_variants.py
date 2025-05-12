@@ -149,11 +149,12 @@ def combine_vcf_files(vcffilelist, outvcfname):
 def get_bedisoform_info(bedisofile):
     isotoblocks = {}
     genetoiso = {}
+    chrregiontogenes, genestoboundaries = {}, {}
     for line in open(bedisofile):
         line = line.rstrip().split('\t')
-        thischr, iso, dir, start, esizes, estarts = line[0], line[3], line[5], int(line[1]), \
+        thischr, iso, dir, start, esizes, estarts, end = line[0], line[3], line[5], int(line[1]), \
                                                     [int(x) for x in line[10].split(',')[:-1]], \
-                                                    [int(x) for x in line[11].split(',')[:-1]]
+                                                    [int(x) for x in line[11].split(',')[:-1]], int(line[2])
         exonblocks = []  ##block is gstart, tstart, len
         if dir == '-':
             esizes = esizes[::-1]
@@ -175,9 +176,16 @@ def get_bedisoform_info(bedisofile):
         gene = iso.split('_')[-1]
         if gene not in genetoiso: genetoiso[gene] = set()
         genetoiso[gene].add(iso)
-    return isotoblocks, genetoiso
+        chromregion = (thischr, math.floor(start/(10**7)) * 10**7)
+        if chromregion not in chrregiontogenes: chrregiontogenes[chromregion] = set()
+        chrregiontogenes[chromregion].add(gene)
+        if gene not in genestoboundaries: genestoboundaries[gene] = [thischr, dir, start, end]
+        else:
+            if start < genestoboundaries[gene][2]: genestoboundaries[gene][2] = start
+            if end > genestoboundaries[gene][3]: genestoboundaries[gene][3] = end
+    return isotoblocks, genetoiso,chrregiontogenes, genestoboundaries
 
-def extract_vcf_vars(vcffilename, isotoblocks, genetoiso):
+def extract_vcf_vars(vcffilename, isotoblocks, genetoiso, chrregiontogenes, genestoboundaries):
     ###load vcf variants - could skip this and instead load variants dict directly when combining vcfs above
     ###for longshot variant calling, can force it to output ‘genotype’ snvs, but it refuses to output alt allele
     ###current workaround is to make the longshot vcf report positions only, but that doesn’t seem good long-term
@@ -186,44 +194,41 @@ def extract_vcf_vars(vcffilename, isotoblocks, genetoiso):
         if line[0] != '#':
             line = line.rstrip().split('\t')
             if len(line) == 4: line.append('')
-            iso, tpos, id, ref, alt = line[:5]
+            chrom, gpos, id, ref, alt = line[:5]
             alt = alt.split(',')
-            tpos = int(tpos)
+            gpos = int(gpos)
+            chromregion1, chromregion2 = (chrom, math.floor(gpos/(10**7)) * 10**7), (chrom, (math.floor(gpos/(10**7))+1) * 10**7)
+            potgenes = set()
+            if chromregion1 in chrregiontogenes: potgenes.update(chrregiontogenes[chromregion1])
+            if chromregion2 in chrregiontogenes: potgenes.update(chrregiontogenes[chromregion2])
+            ###chrom region - what if start and end of gene are in different rounding blocks??
 
-            for a in alt:
-                if len(a) == len(ref):
-                    thistype = 'S'
-                elif len(a) < len(ref):
-                    thistype = 'D'
-                else:
-                    thistype = 'i'
-
-                blocks = isotoblocks[iso]
-                genomePos = None
-                for tstart, gstart, bsize, thischr, dir in blocks:
-                    if (dir == '+' and tstart <= tpos < tstart + bsize) or (
-                            dir == '-' and tstart <= tpos - 1 < tstart + bsize):
-                        if dir == '+':
-                            genomePos = gstart + (tpos - tstart)
-                        else:
-                            genomePos = gstart + ((tstart + bsize) - (tpos - 1))
-                        break
-                if genomePos:
-                    thisgene = iso.split('_')[-1]
-                    for iso2 in genetoiso[thisgene]:
+            ###First need to get what genes overlap with this genomic pos
+            ###Then go through transcripts in that gene and save the transcript pos of the variant
+            ###Don't forget to correct for strand for alt!!
+            for gene in potgenes:
+                genechr, genedir, genestart, geneend = genestoboundaries[gene]
+                if genestart <= gpos < geneend:
+                    for iso2 in genetoiso[gene]:
                         blocks = isotoblocks[iso2]
                         tpos2 = None
                         for tstart, gstart, bsize, thischr, dir in blocks:
-                            if gstart <= genomePos < gstart + bsize:
+                            if gstart <= gpos < gstart + bsize:
                                 if dir == '+':
-                                    tpos2 = tstart + (genomePos - gstart)
+                                    tpos2 = tstart + (gpos - gstart)
                                 else:
-                                    tpos2 = (tstart + bsize + 1) - (genomePos - gstart)
+                                    tpos2 = (tstart + bsize + 1) - (gpos - gstart)
                                 break
                         if tpos2:
                             if iso2 not in vcfvars: vcfvars[iso2] = set()
-                            vcfvars[iso2].add((tpos2, thistype))
-                            # print(iso2, tpos2)
+                            for a in alt:
+                                if len(a) == len(ref):
+                                    thistype = 'S'
+                                elif len(a) < len(ref):
+                                    thistype = 'D'
+                                else:
+                                    thistype = 'I'
+                                vcfvars[iso2].add((tpos2, thistype))
     return vcfvars
 
 def parse_isoform_fa(isoformfile):
@@ -540,11 +545,11 @@ def getvariants():
 
     ###Load reference data
     sampledata = extract_sample_data(args.manifest)
-    isotoblocks, genetoiso = get_bedisoform_info(args.bedisoforms)
+    isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = get_bedisoform_info(args.bedisoforms)
     print('done parsing iso blocks')
     vcffilename = args.output_prefix + '.flairaligned.longshot.vcf'
     combine_vcf_files([x[2] for x in sampledata], vcffilename)
-    vcfvars = extract_vcf_vars(vcffilename, isotoblocks, genetoiso)
+    vcfvars = extract_vcf_vars(vcffilename, isotoblocks, genetoiso, chrregiontogenes, genestoboundaries)
     print('done combining vcf variants')
     isotoseq = parse_isoform_fa(args.isoforms)
     tempdir = make_temp_dir(args.output_prefix)
