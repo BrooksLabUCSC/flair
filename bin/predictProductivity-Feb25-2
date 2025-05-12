@@ -360,6 +360,7 @@ def translate(seq):
         'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': '_',
         'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
     }
+    seq = seq.upper()
     protein = ""
     if len(seq) % 3 == 0:
         for i in range(0, len(seq), 3):

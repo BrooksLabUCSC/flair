@@ -149,7 +149,7 @@ def quantify(isoform_sequences=''):
 					if flag == '0' or flag == '16':
 						nametoseq[read] = [line[9], line[10]]
 						if read in readToIso and readToIso[read] == iso:
-							if line[4] == '0': line[4] = '60'
+							# if line[4] == '0': line[4] = '60'
 							newsam.write('\t'.join(line))
 					elif read in readToIso and readToIso[read] == iso:
 						impsecondary.append(line)
@@ -157,7 +157,7 @@ def quantify(isoform_sequences=''):
 				line[9] = nametoseq[line[0]][0]
 				line[10] = nametoseq[line[0]][1]
 				line[5] = line[5].replace('H', 'S')
-				if line[4] == '0': line[4] = '60'
+				# if line[4] == '0': line[4] = '60'
 				newsam.write('\t'.join(line))
 			newsam.close()
 			subprocess.check_call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
@@ -188,4 +188,5 @@ def quantify(isoform_sequences=''):
 
 if __name__ == '__main__':
 	# FIXME: need proper error handling
-	sys.exit(quantify())
+	# sys.exit(quantify())
+	quantify()

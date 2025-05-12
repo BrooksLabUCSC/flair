@@ -18,8 +18,8 @@ from collections import Counter
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 
-def getargs():
-    parser = argparse.ArgumentParser(description='flair-collapse parse options',
+def get_args():
+    parser = argparse.ArgumentParser(description='flair transcriptome parse options',
                                      usage='''python3 flair_straightfrombam.py -g genome.fa -b reads.genomealigned.bam [options]''')
     parser.add_argument('-b', '--genomealignedbam',
                         help='Optional: sorted and indexed bam file (or files) aligned to the genome. Only use this if you have already aligned reads to the genome for some other purpose')
@@ -46,8 +46,8 @@ def getargs():
     parser.add_argument('--check_splice', default=False, action='store_true',
                         help='''enforce coverage of 4 out of 6 bp around each splice site and no
                 insertions greater than 3 bp at the splice site''')
-    parser.add_argument('--quality', type=int, default=0,
-                        help='minimum MAPQ of read assignment to an isoform (1)')
+    # parser.add_argument('--quality', type=int, default=0,
+    #                     help='minimum MAPQ of read assignment to an isoform (1)')
     parser.add_argument('-w', '--end_window', type=int, default=100,
                         help='window size for comparing TSS/TES (100)')
 
@@ -79,14 +79,15 @@ def getargs():
     if unknown:
         sys.stderr.write('unrecognized arguments: {}\n'.format(' '.join(unknown)))
 
-    args = checkfilepaths(args)
+    check_file_paths(args)
+    args = add_preset_args(args)
     # args.quality = '0' if args.trust_ends else args.quality
     # if args.mm2_args:
     #     args.mm2_args = args.mm2_args.split(',')
     return args
 
 
-def checkfilepaths(args):
+def check_file_paths(args):
     if not args.genomealignedbam:
         sys.stderr.write(f'Please include the --genomealignedbam option\n')
         sys.exit(1)
@@ -99,6 +100,14 @@ def checkfilepaths(args):
     if not os.path.exists(args.genome):
         sys.stderr.write('Genome file path does not exist: {}\n'.format(args.genome))
         sys.exit(1)
+
+
+def add_preset_args(args):
+    args.mm2_args = []
+    args.quality = 0
+    args.trust_ends = False
+    args.remove_internal_priming = False
+    args.isoformtss = True
     return args
 
 
@@ -490,13 +499,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 
 
 
-def addpresetargs(args):
-    args.mm2_args = []
-    # args.end_window = 100
-    args.trust_ends = False
-    args.remove_internal_priming = False
-    args.isoformtss = True
-    return args
+
 
 
 def identifygoodmatchtoannot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome):
@@ -1028,8 +1031,7 @@ def runcollapsebychrom(listofargs):
 
 
 def collapsefrombam():
-    args = getargs()
-    args = addpresetargs(args)
+    args = get_args()
     print('loading genome', file=sys.stderr)
     genome = pysam.FastaFile(args.genome)
     allchrom = genome.references
