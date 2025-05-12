@@ -173,6 +173,3 @@ for line in open(modtranscriptsfile):
         if has5utrvars: utrvars.append('5utr')
         if has3utrvars: utrvars.append('3utr')
         out.write('\t'.join([tinfo, predProd, ','.join(utrvars),  newpredseq]) + '\n')
-
-
-

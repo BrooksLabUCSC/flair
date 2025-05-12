@@ -47,8 +47,8 @@ class CommandLine(object):
 # TODO: is juncs always a real bed file?
 
         if len(sys.argv) == 1:
-                self.parser.print_help()
-                sys.exit(1)
+            self.parser.print_help()
+            sys.exit(1)
         self.args = vars(self.parser.parse_args())
 
 
@@ -333,7 +333,7 @@ def buildIntervalTree(knownJuncsFile, wiggle, currentChr, errFile):
             if intronBoundary1 not in junctionBoundaryDict:
                 ss = junctObj(intronBoundary1,strand,intronBoundary1Type)
                 ss.support.add(annoType)
-		# TODO: turtles all the way down?! Why.
+                # TODO: turtles all the way down?! Why.
                 ss.ssCorr = ss
 
                 # SS window
@@ -363,7 +363,7 @@ def buildIntervalTree(knownJuncsFile, wiggle, currentChr, errFile):
     # ncls does not allow empty creation, so make one nonsense entry
     intervalTree = NCLS([-1], [-1], [-1])
     if len(intronranges) > 0:
-	# x is a new reference to the same dict
+        # x is a new reference to the same dict
         x = intronranges
         intervalTree = NCLS([val[0]-1 for val in x], [val[1]+1 for val in x], [val[2] for val in x])
     if errFile:

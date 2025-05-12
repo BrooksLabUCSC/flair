@@ -11,7 +11,7 @@ import pysam
 
 def parseargs():
     parser = argparse.ArgumentParser(description='''for removing internal priming reads from bam file
-		usage=python3 remove_internal_priming.py -b bamfile -o outputfile -a annotgtf''')
+                usage=python3 remove_internal_priming.py -b bamfile -o outputfile -a annotgtf''')
     parser.add_argument('-o', '--output', help='output file name (also .bam)')
     parser.add_argument('-b', '--bam',
                         help='input bam file, can be aligned to genome or transcriptome')

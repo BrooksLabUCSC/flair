@@ -19,7 +19,7 @@ def def_value():
 def detectfusions():
     parser = argparse.ArgumentParser(description='flair-detectfusions parse options',
                                      usage='''flair detectfusions -g genome.fa -q query.bed
-		-r <reads.fq>/<reads.fa> [options]''')
+                -r <reads.fq>/<reads.fa> [options]''')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-g', '--genome',
                           type=str, required=True, help='FastA of reference genome')
@@ -33,11 +33,11 @@ def detectfusions():
                         help='output file name base for FLAIR isoforms (default: flair.collapse)')
     parser.add_argument('--annotated_fa', default=False,
                         help='''specify transcript fasta that corresponds to transcripts in the gtf to run annotation-
-        		reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
-        		type --annotated_fa generate''')
+                        reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
+                        type --annotated_fa generate''')
     # parser.add_argument('--annotated_bed', default=False,
     #                     help='''bedfile of annotated isoforms; if this isn't provided,
-    # 		flair will generate the bedfile from the gtf. eventually this argument will be removed''')
+    #           flair will generate the bedfile from the gtf. eventually this argument will be removed''')
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (4)')
     parser.add_argument('--minfragmentsize', type=int, default=40,

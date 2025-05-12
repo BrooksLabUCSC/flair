@@ -1,5 +1,5 @@
 usage: flair collapse -g genome.fa -q query.bed
-		-r <reads.fq>/<reads.fa> [options]
+            -r <reads.fq>/<reads.fa> [options]
 
 flair-collapse parse options
 
