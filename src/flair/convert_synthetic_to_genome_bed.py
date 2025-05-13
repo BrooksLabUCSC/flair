@@ -37,7 +37,7 @@ for line in open(os.path.realpath(__file__).split('convert_')[0] + 'dgd_Hsa_all_
     # genetoname[gname] = hname
     if group not in grouptogenes: grouptogenes[group] = set()
     grouptogenes[group].add(gname)
-    #5	244	2	69321074	69338940	1	ENSG00000205572	SERF1B	small EDRK-rich factor 1B (centromeric) [Source:HGNC Symbol;Acc:10756]
+    #5  244     2       69321074        69338940        1       ENSG00000205572 SERF1B  small EDRK-rich factor 1B (centromeric) [Source:HGNC Symbol;Acc:10756]
 for group in grouptogenes:
     gset = grouptogenes[group]
     for g in gset:

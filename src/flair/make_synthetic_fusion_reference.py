@@ -164,4 +164,3 @@ for fusion in allBP:
 out.close()
 annoOut.close()
 bpOut.close()
-

@@ -407,6 +407,3 @@ if __name__ == '__main__':
 #                                 fusionsout.write('\t'.join([str(x) for x in outline]) + '\n')
 #
 #     fusionsout.close()
-
-
-
