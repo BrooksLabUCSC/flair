@@ -23,11 +23,13 @@ poetry install  --no-root
 ```
 instead of `pip install`.
 
-To run `diffExp` and `diffSplice` tests:
+To run `diffexp` and `diffsplice`, install the dependencies with:
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .[diffexp]
 ```
+Note, the `pip` edit install is needed, as this environment install the
+released version of FLAIR from PyPi.
 
 If you get warning like:
 ```
