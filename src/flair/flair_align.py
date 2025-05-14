@@ -148,7 +148,7 @@ def dofiltering(args, inbam, filterreadmap=None):
                     trash.write(read)
                 else:
                     mapq = read.mapping_quality
-                    if mapq > args.quality:
+                    if mapq >= args.quality:
                         fullyaligned.write(read)
                         juncstrand = inferMM2JuncStrand(read)
                         bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
@@ -158,7 +158,7 @@ def dofiltering(args, inbam, filterreadmap=None):
                         trash.write(read)
             else:
                 mapq = read.mapping_quality
-                if mapq > args.quality:
+                if mapq >= args.quality:
                     fullyaligned.write(read)
                     juncstrand = inferMM2JuncStrand(read)
                     bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples, read.query_name,
