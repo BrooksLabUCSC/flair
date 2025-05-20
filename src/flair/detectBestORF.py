@@ -53,9 +53,9 @@ def parseGTFline(l):
 def getStarts(gtf):
     starts = []
     for l in open(gtf):
-            if l[0] != "#":
-                startinfo = parseGTFline(l)
-                if startinfo: starts.append(startinfo)
+        if l[0] != "#":
+            startinfo = parseGTFline(l)
+            if startinfo: starts.append(startinfo)
     if (len(starts)) == 0:
         sys.stderr.write('ERROR, no start codons were found in', gtf)
         sys.exit(1)

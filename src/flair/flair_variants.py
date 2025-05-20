@@ -579,6 +579,3 @@ def getvariants():
 
 if __name__ == "__main__":
     getvariants()
-
-
-

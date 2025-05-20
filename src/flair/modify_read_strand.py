@@ -38,5 +38,3 @@ import transcriptomic_chimeras
 #     print(readtoaligns[read])
 
 ###need to flip strand in bam file and generate new fasta of reads
-
-

@@ -55,7 +55,7 @@ def combineIsos(isolist, endwindow):
 
 
 revcomp_dict = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 'R': 'Y',
-	'Y':'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
+        'Y':'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
 
 
 def revcomp(seq):
@@ -307,12 +307,3 @@ def combine():
 
 if __name__ == "__main__":
     combine()
-
-##
-# Most of FLAIR uses tab indents and this is set by default for
-# emacs in .dir-locals.el, this file doesn't, so override
-#
-# Local Variables:
-# mode: python
-# indent-tabs-mode: nil
-# End:
