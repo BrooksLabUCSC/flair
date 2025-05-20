@@ -105,12 +105,12 @@ def check_singleexon(read_start, read_end, tlen):
 		return False
 
 def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
-	if blocksize < 25: # if the terminal exon is sufficiently short, relax by 5 bp bc drna misses bases on 5' end
-		return disttoend < 5
-	elif trust_ends:
+	# if blocksize <= 25: # if the terminal exon is sufficiently short, relax by 5 bp bc drna misses bases on 5' end
+	# 	return disttoend < 5
+	if trust_ends:
 		return disttoend <= trust_ends_window
 	else:
-		return disttoblock > 25
+		return disttoblock > min(25, blocksize-6)
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends):
 	left_coverage = check_exonenddist(first_blocksize, read_start, trust_ends, first_blocksize-read_start)
@@ -118,7 +118,7 @@ def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, t
 	# print(first_blocksize-read_start, read_end - (tlen - last_blocksize), read_start, read_end)
 	return right_coverage and left_coverage
 
-def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends):
+def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends, tname):
 	matchpos = len([x for x in coveredpos if x == 1])
 	###I think that the 80% of the transcript rule is less important than the exists in both first and last exons. Could add a toggle for this though.
 	# if matchpos/tlen < 0.8:
@@ -126,8 +126,9 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
 	# else:
 	read_start, read_end = blockstarts[0], blockstarts[-1] + blocksizes[-1]
 	first_blocksize, last_blocksize = exonpos[0], exonpos[-1]
+	if tname == testtname: print(read_start, read_end, first_blocksize, last_blocksize, (tlen - last_blocksize), len(exonpos))
 	# covers enough bases into the first and last exons
-	if len(blocksizes) == 1:  # single exon transcript
+	if len(exonpos) == 1:  # single exon transcript
 		return check_singleexon(read_start, read_end, tlen)
 	else:
 		return check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends)
@@ -179,7 +180,7 @@ def process_cigar(args, matchvals, cigarblocks, startpos):
 	matchpos = 0
 	coveredpos = [0] * (startpos - 1)
 	queryclipping = []
-	tendpos = startpos - 1
+	tendpos = startpos
 	blockstarts, blocksizes = [], []
 	for btype, blen in cigarblocks:
 		if btype in {4,5}:#btype == 'S' or btype == 'H':
@@ -217,14 +218,16 @@ def check_stringentandsplice(args, transcripttoexons, tname, coveredpos, tlen, b
 	if args.stringent or args.check_splice or args.fusion_breakpoints:
 		exoninfo = checktranscriptinannot(transcripttoexons, tname)
 		passesstringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
-										  args.trust_ends) if args.stringent else True
+										  args.trust_ends, tname) if args.stringent else True
 		passessplice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if args.check_splice else True
 		passesfusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcripttobpssindex) if args.fusion_breakpoints else True
 		if tname == testtname:#'ENST00000225792.10_ENSG00000108654.15':
-			print(tname, passesstringent, passessplice)#exoninfo, tlen)
+			print(tname, passesstringent, passessplice, exoninfo, tlen)
 	return passesstringent and passessplice and passesfusion
 
-testtname = 'none'#'3d4bbb61-d051-fe95-ea33-6d6621617e8b_ENSG00000169246.16--ENSG00000135049.16:23000'
+# testtname = '30:506|87df51b7-459f-4c5c-9d4f-740dcfdfd130_chrXII:373000'#'3d4bbb61-d051-fe95-ea33-6d6621617e8b_ENSG00000169246.16--ENSG00000135049.16:23000'
+testtname = 'none'#'ENST00000336985.11_ENSG00000186654.21'#'3d4bbb61-d051-fe95-ea33-6d6621617e8b_ENSG00000169246.16--ENSG00000135049.16:23000'
+
 
 def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
 	###parse CIGAR + MD tag to ID transcript pos covered by alignment

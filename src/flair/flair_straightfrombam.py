@@ -429,6 +429,7 @@ def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname,
     # sys.stderr.write('Aligning and counting supporting reads for transcripts\n')
     pipettor.run([mm2_cmd, count_cmd])
 
+###START METHODS TO EDIT
 
 def getbestends(currgroup, end_window):
     # if len(currgroup) > 1000:
@@ -482,6 +483,13 @@ def groupreadsbyends(readinfos, sortindex, end_window):
     if len(group) > 0: newgroups.append(group)
     return newgroups
 
+###MAIN METHOD - CALLS OTHERS IN GROUP
+###readends is a list containing elements with: (read.start, read.end, read.strand, read.name)
+###If the reads are spliced, the group will contain only the info for reads with a shared splice junction
+###if the reads are unspliced, the group will contain info for all unspliced reads in a given chromosome/region, depending on how you're parallelizing
+###The output is a list containing elements with: [weighted.end.score, group.start, group.end, group.strand, representative.read.name, [list of all read names in group]]
+###weighted.end.score (represents how many reads have ends similar to this exact position)
+###You can rewrite this to redo the grouping method, but please maintain the inputs and outputs.
 def collapseendgroups(end_window, readends, dogetbestends=True):
     # print([x[:2] for x in readends])
     startgroups = groupreadsbyends(readends, 0, end_window)
@@ -489,6 +497,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
     for startgroup in startgroups:
         allendgroups.extend(groupreadsbyends(startgroup, 1, end_window))
     for endgroup in allendgroups:
+        # print(min([x[0] for x in endgroup]), max([x[1] for x in endgroup]), len(endgroup))
         if dogetbestends:
             isoendgroups.append(list(getbestends(endgroup, end_window)) + [[x[3] for x in endgroup]])
         else:
@@ -496,7 +505,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
     # print('end group length: ', len(isoendgroups))
     return isoendgroups
 
-
+#####END METHODS TO EDIT
 
 
 
@@ -603,7 +612,7 @@ def groupfirstpasssingleexon(goodendswithsupreads):
 
 
 def filterendsbyredundantandsupport(args, goodendswithsupreads):
-    bestends, nopass = [], []
+    bestends = []
     for i in range(len(goodendswithsupreads)):
         goodendswithsupreads[i][-1] = len(goodendswithsupreads[i][-1])  ##last val is read support
     goodendswithsupreads.sort(key=lambda x: [x[0], x[2] - x[1]],
@@ -627,42 +636,34 @@ def filterendsbyredundantandsupport(args, goodendswithsupreads):
             thisbest = goodendswithsupreads[0]
             thisbest[-1] = juncsupport  ####all reads for junc are counted as support
             bestends.append(thisbest)
-    else:
-        thisbest = goodendswithsupreads[0]
-        thisbest[-1] = juncsupport
-        nopass.append(thisbest)
-    return bestends, nopass
+    return bestends
 
 
 def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpasssingleexons):
     firstpassunfiltered, firstpassjunctoname = {}, {}
-    with open(tempprefix + '.firstpass.unfiltered.bed', 'w') as isoout:
+    with open(tempprefix + '.firstpass.unfiltered.bed', 'w') as isoout, open(tempprefix + '.firstpass.reallyunfiltered.bed', 'w') as isoout2:
         for juncs in sjtoends:
             goodendswithsupreads = collapseendgroups(args.end_window, sjtoends[juncs])
-            ###single exon - collapse overlapping intervals if need to pick best for each region
-            if juncs == ():
-                groupedgoodendswithsupreads = groupfirstpasssingleexon(goodendswithsupreads)
-            else:
-                groupedgoodendswithsupreads = [goodendswithsupreads]
+            for bestscore, beststart, bestend, beststrand, bestname, thesereads in goodendswithsupreads:
+                thisscore = len(thesereads)
+                thisiso = BedRead()
+                thisiso.generatefromvals(thischrom, beststart, bestend, bestname, thisscore, beststrand, juncs)
+                isoout2.write('\t'.join(thisiso.getbedline()) + '\n')
+            if juncs == (): bestends = [x[:-1] + [len(x[-1])] for x in goodendswithsupreads if len(x[-1]) >= args.support]
+            else: bestends = filterendsbyredundantandsupport(args, goodendswithsupreads)
+            for bestscore, beststart, bestend, beststrand, bestname, thisscore in bestends:
+                thisiso = BedRead()
+                thisiso.generatefromvals(thischrom, beststart, bestend, bestname, thisscore, beststrand, juncs)
+                firstpassunfiltered[bestname] = thisiso
+                isoout.write('\t'.join(thisiso.getbedline()) + '\n')
+                if juncs == ():
+                    firstpasssingleexons.add((thisiso.exons[0][0], thisiso.exons[0][1], thisiso.name))
+                else:
+                    for j in juncs:
+                        if j not in firstpassjunctoname: firstpassjunctoname[j] = set()
+                        firstpassjunctoname[j].add(bestname)
+                    firstpasssingleexons.update(thisiso.exons)
 
-            for goodendswithsupreads in groupedgoodendswithsupreads:
-                bestends, nopass = filterendsbyredundantandsupport(args, goodendswithsupreads)
-                for bestscore, beststart, bestend, beststrand, bestname, thisscore in bestends:
-                    thisiso = BedRead()
-                    thisiso.generatefromvals(thischrom, beststart, bestend, bestname, thisscore, beststrand, juncs)
-                    firstpassunfiltered[bestname] = thisiso
-                    isoout.write('\t'.join(thisiso.getbedline()) + '\n')
-                    if juncs == ():
-                        firstpasssingleexons.add((thisiso.exons[0][0], thisiso.exons[0][1], thisiso.name))
-                    else:
-                        for j in juncs:
-                            if j not in firstpassjunctoname: firstpassjunctoname[j] = set()
-                            firstpassjunctoname[j].add(bestname)
-                        firstpasssingleexons.update(thisiso.exons)
-                for bestscore, beststart, bestend, beststrand, bestname, thisscore in nopass:
-                    thisiso = BedRead()
-                    thisiso.generatefromvals(thischrom, beststart, bestend, bestname, thisscore, beststrand, juncs)
-                    isoout.write('\t'.join(thisiso.getbedline()) + '\n')
     firstpasssingleexons = sorted(list(firstpasssingleexons))
     return firstpassunfiltered, firstpassjunctoname, firstpasssingleexons
 
@@ -936,20 +937,19 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
             for chrom, strand, juncs in genetojuncstoends[gene]:
                 endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
                 endslist = collapseendgroups(args.end_window, endslist, False)
-
                 # start, end, isoid, ogisotoreads[isoid]
                 ###TODO could try accounting for all reads assigned to isoforms - assign them to closest ends
                 ###not sure how much of an issue this is
-                if args.no_redundant == 'best_only':
-                    endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
-                    endslist = [endslist[0]]
-                elif args.no_redundant == 'longest':
-                    endslist.sort(key=lambda x: [x[1] - x[0]], reverse=True)
-                    endslist = [endslist[0]]
-                else:
-                    endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
-                    endslist = endslist[:args.max_ends]
-
+                if juncs != ():
+                    if args.no_redundant == 'best_only':
+                        endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
+                        endslist = [endslist[0]]
+                    elif args.no_redundant == 'longest':
+                        endslist.sort(key=lambda x: [x[1] - x[0]], reverse=True)
+                        endslist = [endslist[0]]
+                    else:
+                        endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
+                        endslist = endslist[:args.max_ends]
                 nametousedcounts = {}
                 for isoinfo in endslist:
                     marker, iso = isoinfo[2]
@@ -1097,7 +1097,7 @@ def collapsefrombam():
         combinetempfilesbysuffix(args, tempprefixes,
                                  ['.matchannot.counts.tsv', '.matchannot.read.map.txt', '.matchannot.bed'])
     combinetempfilesbysuffix(args, tempprefixes,
-                             ['.firstpass.unfiltered.bed', '.firstpass.bed', '.novelisos.counts.tsv',
+                             ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed', '.novelisos.counts.tsv',
                               '.novelisos.read.map.txt'])
 
     shutil.rmtree(tempDir)
