@@ -5,6 +5,7 @@
   than the cutoff.
 * Converted all Python code to use 4-space indentation.  Previpoust some code
   used tabs, other used 4-spaces.
+* Added missing dependencies for plot_isoform_usage.
 
 
 ## [2.2.0] 2025-05-06

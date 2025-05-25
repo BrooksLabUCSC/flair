@@ -86,7 +86,7 @@ default:
 
 test: main-tests align-tests correct-tests collapse-tests quantify-tests \
 	combine-tests predict-productivity-tests diff-iso-usage-tests \
-	other-progs-tests
+	plot-usage-tests other-progs-tests
 
 test-diffexpress: diffexp-tests diffsplice-tests
 
@@ -324,6 +324,16 @@ test-diff-iso-usage: mkdirs
 test-diff-iso-usage-help: mkdirs
 	diff_iso_usage --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
+
+##
+# plot isoform usage
+##
+plot-usage-tests: test-plot-usage
+
+test-plot-usage: mkdirs
+	plot_isoform_usage expected/test-predict-productivity.bed expected/test-collapse-annot.annotated_transcripts.alignment.counts ENSG00000133703.12 -o output/$@
+	file output/test-plot-usage_isoforms.png | grep 'PNG image data' >/dev/null
+	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
 ##
 # Other programs
