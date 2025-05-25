@@ -135,7 +135,7 @@ plot_isoform_usage
 ==================
 .. code:: sh
 
-    plot_isoform_usage <isoforms.bed> counts_matrix.tsv gene_name 
+    plot_isoform_usage isoforms.bed counts_matrix.tsv gene_name 
 
 Visualization script for FLAIR isoform structures and the percent usage
 of each isoform in each sample for a given gene. If you supply the
@@ -167,8 +167,8 @@ For example:
 .. code:: sh
 
     positional arguments:
-      isoforms              isoforms in bed format
-      counts_matrix         genomic sequence
+      isoforms              isoforms in bed format from predictProductivity
+      counts_matrix         isoform counts
       gene_name             Name of gene, must correspond with the gene names in
                             the isoform and counts matrix files
     
