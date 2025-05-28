@@ -499,7 +499,7 @@ These maybe added do the environment as describe in :ref:`installing-label`
 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
-3 or more replicates. It does so by running these R packages:
+3 or more replicates. Please have your control condition name (from the flair quantify manifest file) be alphabetically lower than your test condition for best results (eg ctl and test = good, untreated and treated = less good). It does so by running these R packages:
 
  - `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__ on genes and isoforms. This tests for differential expression.
  - `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.
