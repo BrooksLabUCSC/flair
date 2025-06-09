@@ -402,9 +402,10 @@ def main():
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
-            if bedCols[3][:10] == 'fusiongene' and bedCols[3][10] != '1': continue
-            elif bedCols[3][:10] == 'fusiongene': bedCols[3] = '_'.join(bedCols[3].split('_')[1:])
-            isoObj = isoformObjs[bedCols[3]]
+            #if bedCols[3][:10] == 'fusiongene' and bedCols[3][10] != '1': continue ###this is a problem child
+            if bedCols[3][:10] == 'fusiongene': isoname = '_'.join(bedCols[3].split('_')[1:])
+            else: isoname = bedCols[3]
+            isoObj = isoformObjs[isoname]
 
             if defineORF == 'longest':
                 isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
@@ -419,10 +420,21 @@ def main():
                 bedCols[3] = "%s_%s_%s" % (iso, pro, gene)
 
             bedCols[8] = beaut[pro]
-            if isoObj.strand == "+":
-                bedCols[6],bedCols[7] = str(start),str(end)
+            if 'fusiongene' in bedCols[3]:
+                if not int(bedCols[1]) < start < int(bedCols[2]) and not int(bedCols[1]) < end < int(bedCols[2]):
+                    bedCols[6],bedCols[7] = bedCols[1], bedCols[1]
+                else:
+                    if isoObj.strand == "+":
+                        if int(bedCols[1]) < start < int(bedCols[2]): bedCols[6] = str(start)
+                        if int(bedCols[1]) < end < int(bedCols[2]): bedCols[7] = str(end)
+                    else:
+                        if int(bedCols[1]) < start < int(bedCols[2]): bedCols[7] = str(start)
+                        if int(bedCols[1]) < end < int(bedCols[2]): bedCols[6] = str(end)
             else:
-                bedCols[7],bedCols[6] = str(start),str(end)
+                if isoObj.strand == "+":
+                    bedCols[6],bedCols[7] = str(start),str(end)
+                else:
+                    bedCols[7],bedCols[6] = str(start),str(end)
             bedout.write("\t".join(bedCols) + '\n')
             infoout.write('\t'.join([bedCols[3], str(tisPos), str(tisPos+orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos+orfLen])]) + '\n')
 
