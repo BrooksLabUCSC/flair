@@ -151,6 +151,7 @@ def combine():
                 else:
                     isousage, isocounts = 1, 0
                 if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
+                isoname = ''.join(isoname.split('_PAR_Y'))
                 intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
         else: ##not loading fusion reads
             for line in open(bedfiles[i]):
@@ -170,6 +171,7 @@ def combine():
                     else:
                         isousage, isocounts = 1, 0
                     if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
+                    isoname = ''.join(isoname.split('_PAR_Y'))
                     intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
 
         if generatefa:
@@ -177,7 +179,9 @@ def combine():
             sampletoseq[sample] = {}
             for line in open(fafiles[i]):
                 if line[0] == '>': last = line[1:].rstrip()
-                else: sampletoseq[sample][last] = line.rstrip()
+                else:
+                    last = ''.join(last.split('_PAR_Y'))
+                    sampletoseq[sample][last] = line.rstrip()
 
     finalisostosupport = {}
 
@@ -210,22 +214,30 @@ def combine():
                 maxisousage = max([x[4] for x in theseisos])
                 totisocounts = sum([x[5] for x in theseisos])
                 if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest') or (args.filter.isnumeric() and totisocounts > int(args.filter)):  # True:#
-                    outname = None
-                    for i in theseisos:
-                        if i[3][:4] == 'ENST' and len(i[3].split('ENSG')[0]) < 25 and len(i[3].split('ENSG')) == 2:
-                            outname = str(isocount) + '-' + str(ichainendscount) + '_' + i[3]
-                            break
-                    if not outname:
-                        outgene = None
-                        for i in theseisos:
-                            if len(i[3].split('ENSG')) > 1: outgene = 'ENSG' + i[3].split('ENSG')[-1]
-                            if not outgene or outgene[:4] != 'ENSG':
-                                if len(i[3].split('chr')) > 1: outgene = 'chr' + i[3].split('chr')[-1]
-                        if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
+                    if isfusion:
+                        outgene = mode([x[3].split('_')[-1] for x in theseisos])
                         outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
+                    else:
+                        outname = None
+                        for i in theseisos:
+                            if i[3][:4] == 'ENST' and len(i[3].split('ENSG')[0]) < 25 and len(i[3].split('ENSG')) == 2:
+                                outname = str(isocount) + '-' + str(ichainendscount) + '_' + i[3]
+                                break
+                        if not outname:
+                            outgene = None
+                            for i in theseisos:
+                                if len(i[3].split('ENSG')) > 1: outgene = 'ENSG' + i[3].split('ENSG')[-1]
+                                if not outgene or outgene[:4] != 'ENSG':
+                                    if len(i[3].split('chr')) > 1: outgene = 'chr' + i[3].split('chr')[-1]
+                            if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
+                            outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
+
 
                     ###output bed line
                     if isfusion:
+                        # print(ichainid)
+                        # print([x[3] for x in theseisos])
+                        # print(outname)
                         ichainid = [list(x) for x in ichainid]
                         #[chr, strand, start, end, ichain]
                         if ichainid[0][1] == '+': ichainid[0][2] = start

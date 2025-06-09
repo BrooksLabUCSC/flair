@@ -94,7 +94,7 @@ def main():
 
     if mode == 'combine':
         print(f"Starting combine...", flush=True)
-        flair_combine.combine()
+        combine()
         cur_time = time.time()
         print(
                 f"Flair combine took {int((cur_time - last_time) / 60)} minutes and {int((cur_time - last_time)) % 60} seconds",
