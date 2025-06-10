@@ -100,7 +100,7 @@ flair correct
 
 This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions.
 If your genome annotation is sparse, please also use short-reads. Any reads with splice sites not near splice sites
-identified in orthogonal data will be thrown out.
+identified in orthogonal data will be thrown out. YOU WILL NOT GET NOVEL SPLICE JUNCTIONS UNLESS YOU PROVIDE SHORT-READ DATA
 
 **Outputs**
 
