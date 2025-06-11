@@ -5,15 +5,6 @@ import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import time
 from flair import VERSION, set_unix_path
-# <<<<<<< HEAD
-# from flair import flair_align
-# from flair.flair_correct import correct
-# from flair.flair_collapse import collapse
-# from flair.flair_quantify import quantify
-# from flair.flair_combine import combine
-# from flair.flair_straightfrombam import collapsefrombam
-# =======
-# >>>>>>> origin/dev
 
 def help():
     "temporary help until switched to argparse"
