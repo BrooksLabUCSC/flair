@@ -23,10 +23,10 @@ test:
 test-installed:
 	${MAKE} -C test test use_installed_flair=yes
 
-test-diffexp:
-	${MAKE} -C test test-diffexp use_installed_flair=${use_installed_flair}
-test-diffexp-installed:
-	${MAKE} -C test test-diffexp use_installed_flair=yes
+test-diffexpress:
+	${MAKE} -C test test-diffexpress use_installed_flair=${use_installed_flair}
+test-diffexpress-installed:
+	${MAKE} -C test test-diffexpress use_installed_flair=yes
 
 
 ##

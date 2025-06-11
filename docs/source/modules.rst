@@ -7,7 +7,8 @@ Modules must be run in order (align, correct, collapse).
 
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR align, correct, and collapse on all samples together (will generate the most comprehensive transcriptome)
- - Run FLAIR align, correct, and collapse on each sample separately (using the --generate_map option in collapse), then combine the transcriptomes later using the collapse_bed_files script (more documentation in additional programs section)
+ - Run FLAIR align, correct, and collapse on each sample separately
+ - Use FLAIR combine to merge results
 
 .. _align-label:
 
@@ -64,8 +65,7 @@ Optional arguments
     --junction_bed	Annotated isoforms/junctions bed file for splice site-guided 
                         minimap2 genomic alignment.
     --nvrna		Use native-RNA specific alignment parameters for minimap2 (-u f -k 14)
-    --quality		Minimum MAPQ score of read alignment to the genome. The default is 1, 
-                        which is the lowest possible score.
+    --quality		Minimum MAPQ score of read alignment to the genome. The default is 0.
     -N                  Retain at most INT secondary alignments from minimap2 (default 0). Please 
                         proceed with caution, changing this setting is only useful if you know 
                         there are closely related homologs elsewhere in the genome. It will 
@@ -280,7 +280,7 @@ Optional arguments
                         fasta file using gtf_to_bed
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
-    --quality	        Minimum MAPQ of read assignment to an isoform (default: 1).
+    --quality	        Minimum MAPQ of read assignment to an isoform (default: 0).
     
 **Variant options**
     
@@ -406,7 +406,7 @@ Optional arguments
                         directory (default: python tempfile directory).
     --sample_id_only	Only use sample id in output header instead of a concatenation 
                         of id, condition, and batch.
-    --quality	        Minimum MAPQ of read assignment to an isoform (default 1). 
+    --quality	        Minimum MAPQ of read assignment to an isoform (default 0). 
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
     --generate_map	Create read-to-isoform assignment files for each sample.
@@ -424,7 +424,7 @@ Optional arguments
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The depreciated flair_diffExp and flair_diffSplice programs expect this information.
+Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The `flair diffexp` and `flair diffsplice` modules expect this information.
 
 .. code:: text
 
@@ -432,20 +432,65 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
    ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
 
-.. _diffexp-label:
-
-flair_diffExp
+flair combine
 =============
+.. code:: sh
 
-**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
-programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
-These programs are deprecated and will be removed or replaced in a future release.
-The `conda` environment no long installed `R` and the required packages.
-If you find these programs useful please submit a ticket describing your needs.
+    usage: flair_combine [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-w ENDWINDOW]
+                         [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
+
+    options:
+      -h, --help            show this help message and exit
+      -m MANIFEST, --manifest MANIFEST
+                            path to manifest files that points to transcriptomes to combine.
+                            Each line of file should be tab separated with sample name, sample
+                            type (isoform or fusionisoform), path/to/isoforms.bed,
+                            path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
+                            read.map.txt files are not required, although if .fa files are not
+                            provided for each sample a .fa output will not be generated
+      -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+                            path to collapsed_output.bed file. default: 'collapsed_flairomes'
+      -w ENDWINDOW, --endwindow ENDWINDOW
+                            window for comparing ends of isoforms with the same intron chain.
+                            Default:200bp
+      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
+                            minimum percent usage required in one sample to keep isoform in
+                            combined transcriptome. Default:10
+      -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
+                            to gtf
+      -s, --include_se      whether to include single exon isoforms. Default: dont include
+      -f FILTER, --filter FILTER
+                            type of filtering. Options: usageandlongest(default), usageonly,
+                            none, or a number for the total count of reads required to call an
+                            isoform
+
+    Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
 
 .. code:: text
 
-   usage: flair_diffExp -q counts_matrix.tsv --out_dir out_dir [options]
+    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.FLAIR.isoforms.fa sample1.read.map.txt
+    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.FLAIR.isoforms.fa sample2.read.map.txt
+
+For each line, the sample name and bed path is required. The fasta and
+read.map.txt file is optional. Without these files there is less ability to
+filter and more isoforms will be included. If a sample is a FLAIR run, we
+highly recommend including the read.map.txt file. If you want to combine FLAIR
+transcriptomes with annotated transcripts, you can convert an annotation gtf
+file to a bed file using
+
+
+.. _diffexp-label:
+
+flair diffexp
+=============
+
+
+The standard `conda` environment no long installed `R` and the required packages.
+These maybe added do the environment as describe in :ref:`installing-label` 
+
+.. code:: text
+
+   usage: flair diffexp -q counts_matrix.tsv --out_dir out_dir [options]
 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
@@ -513,32 +558,17 @@ Flair does not remove low count genes as long as they are expressed in all sampl
 
 Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. Unfiltered tables can be found in ``workdir``
 
-Code requirements
-~~~~~~~~~~~~~~~~~
-This module requires python modules and R packages that are not necessary for other Flair modules (except diffSplice).  
-You must install `R" and these packages to use `diffExp` and  `diffSplice`:
-
-1. python modules: pandas, numpy, rpy2
-2. `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__
-3. `ggplot2 <https://ggplot2.tidyverse.org>`__
-4. `qqman <https://cran.r-project.org/web/packages/qqman/index.html>`__
-5. `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
-6. `stageR <http://bioconductor.org/packages/release/bioc/html/stageR.html>`__
-
 .. _diffsplice-label:
 
-flair diffSplice
+flair diffsplice
 ================
 
-**IMPORTANT NOTE**: diffExp and diffSplice are not currently part of the main flair code. Instead they are supplied as separate
-programs named flair_diffExp and flair_diffSplice. They take the same inputs as before.
-These programs are deprecated and will be removed or replaced in a future release.
-The `conda` environment no long installed `R` and the required packages.
-If you find these programs useful please submit a ticket describing your needs.
+The standard `conda` environment no long installed `R` and the required packages.
+These maybe added do the environment as describe in :ref:`installing-label` 
 
 .. code:: text
 
-   usage: flair_diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
+   usage: flair diffsplice -i isoforms.bed -q counts_matrix.tsv [options]
 
 This module calls alternative splicing (AS) events from isoforms. Currently supports
 the following AS events: 

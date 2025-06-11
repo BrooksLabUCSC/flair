@@ -4,9 +4,13 @@ import sys
 import argparse
 import subprocess
 import os
+from flair import set_unix_path, check_diffexp_dependencies
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
+check_diffexp_dependencies()
+
 def diffSplice(isoforms='', counts_matrix=''):
+    set_unix_path()
     parser = argparse.ArgumentParser(description='flair-diffSplice parse options',
             usage='flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]')
     required = parser.add_argument_group('required named arguments')

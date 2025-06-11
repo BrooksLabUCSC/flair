@@ -121,8 +121,11 @@ def bam2Bed12(alignmentFile, bedoutput='/dev/stdout', keep_supplementary=False):
             outf.write(f'{outstring}\n')
     outf.close()
 
-if __name__ == "__main__":
+def main():
     '''When bam2Bed12 is called as a standalone program it prints to STDOUT'''
     myCommandLine = CommandLine()
     bam2Bed12(alignmentFile = myCommandLine.args['input_bam'],
-       keep_supplementary = myCommandLine.args['keep_supplementary'])
+              keep_supplementary = myCommandLine.args['keep_supplementary'])
+
+if __name__ == "__main__":
+    main()

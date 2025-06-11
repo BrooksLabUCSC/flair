@@ -30,25 +30,11 @@ Report bugs to FLAIR GitHub Issues:
 Installing FLAIR
 ================
 
-FLAIR can be conda installed using 
+See  :ref:`installing-label` for instructions on the various approache to install FLAIR.
 
-.. code:: sh
 
-   conda create -n flair -c conda-forge -c bioconda flair
-   conda activate flair
-
-On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use
-
-.. code:: sh
-
-   CONDA_SUBDIR=osx-64 conda create -n flair
-   conda activate flair
-   conda config --env --set subdir osx-64
-   conda config --add channels bioconda
-   conda config --add channels conda-forge
-   conda install flair
-
-Note that mamba currently fails to install FLAIR on Mac ARM64.
+Using FLAIR
+===========
 
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
@@ -65,7 +51,7 @@ If you have multiple samples and want to compare them on a single
 transcriptome, you have two options:
 
 Run flair correct and collapse individually on each sample, then combine your
-transcriptomes using ``collapse_bed_files`` (see Additional programs). This method
+transcriptomes using ``flair combine``. This method
 will be faster and easier, but you may miss some low-expression transcripts.
 
 Your other option is to merge your samples before running FLAIR. If using
@@ -76,21 +62,20 @@ unique. You can either merge the FASTA/FASTQ files before running FLAIR
 making sure to run FLAIR collapse with a list of all of your read files.
             
 It is recommended to combine all samples together prior to running
-``flair-collapse`` for isoform assembly by concatenating corrected read ``bed``
+``flair collapse`` for isoform assembly by concatenating corrected read ``BED``
 files together. Following the creation of an isoform reference from
-``flair-collapse``, consequent steps will assign reads from each sample
+``flair collapse``, consequent steps will assign reads from each sample
 individually to isoforms of the combined assembly for downstream analyses.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   requirements.rst
+   installing.rst
    modules.rst
    scripts.rst
    flair2_functions.rst
    other_ways.rst
-   other_environments.rst
    testrun.rst
    example_files.rst
    faqs.rst

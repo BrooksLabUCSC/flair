@@ -23,15 +23,17 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 6. Check documentation
 - [] 7. Verify and review ReadTheDocs
 - [] 8. Update version numbers in all relevant files
-- [] 9. Build distribution and test pipe install
+- [] 9. Build distribution and test pip install
 - [] 10. Test Docker locally
 - [] 11. Test PyPi with testpypi
 - [] 12. Git commit, tag push
 - [] 13. Create pip package and test
 - [] 14. Make the release on github.com
-- [] 15. Update the conda recipe and submit
+- [] 15. Update the BioConda recipe and submit
 - [] 16. Build the docker image and push it to dockerhub
-- [] 17. Announce release
+- [] 17. Set the release as latest in the PyPi
+- [] 18. Set the release latest in GitHub
+- [] 19. Announce release
 
 
 ## Onetime account setup
@@ -88,9 +90,9 @@ minor changes.  Review the commit logs with:
 git log 2.0.0..HEAD --pretty=format:"%h %an: %s"
 ```
 
-Copyrights in needed in:
+Copyrights are needed in:
 
-- `LICENSE.txt`
+- `LICENSE`
 - `docs/source/conf.py`
 
 Also update authors in `docs/source/conf.py`.
@@ -98,7 +100,7 @@ Also update authors in `docs/source/conf.py`.
 ## 2. Update python dependencies
 ```
 poetry update
-poetry local
+poetry lock
 git commit -am 'updated dependencies'
 ```
 
@@ -107,7 +109,7 @@ git commit -am 'updated dependencies'
 Review dependency versions in misc/*_conda_env.yaml to see if they should be
 updated.  Use `conda search <package>` to find versions.
 
-The FLAIR version in `misc/flair_conda_env.yaml` is updated by bump-my-version
+The FLAIR version in `misc/*.yaml` files are updated by bump-my-version.
 
 Edit `misc/Dockerfile` to have the same non-Python package dependencies as the conda
 files.  Also ensure that the Docker Ubuntu versions is a current LTS release.
@@ -129,16 +131,16 @@ pip install -e .[dev]
 ## 5. Run pre-release tests
 
 ```
-make -O -j 64 test
+make -k -O -j 64 test
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
-Include conda dependencies deprecated diff expression support and tests.
+Include conda dependencies for diff expression support and tests.
 This does not work on Apple ARM systems.
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .[diffexp]
-make -O -j 64 test-diffexp
+make -k -O -j 64 test-diffexpress
 ```
 
 ## 6. Check documentation
@@ -193,7 +195,7 @@ src/flair/__init__.py
 
 Use `bump-my-version` to increment the version numbers:
 ```
-bump-my-version bump major|minor|patch
+bump-my-version bump <major|minor|patch>
 ```
 Before you do this, make sure the current version is correctly listed in `.bumpversion.cfg`.
 
@@ -207,7 +209,7 @@ git diff
 ## 9. Build distribution and test pipe install
 ```
 make clean build
-make -O -j 32 test-pip
+make -k -O -j 32 test-pip
 ```
 
 ## 10. Test Docker locally
@@ -225,7 +227,7 @@ docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version
 % cd /mnt/flair
 % pip install --break-system-packages .
 % make clean
-% make -O -j 64 test-installed
+% make -k -O -j 64 test-installed
 % make clean
 % exit
 ```
@@ -235,22 +237,11 @@ To upload to testpypi and test
 
 ```
 make publish-testpypi
-make -O -j 32 test-testpypi
+make -k -O -j 32 test-testpypi
 ```
 
-If an error occurs, you can not update testpypi, instead you must create a dev
-version, such as `2.1.0.dev0` with:
+If an error occurs, delete can the testpypi release.
 
-```
-bump-my-version bump dev
-```
-
-Then repeat above publish testing.  Once all is working you can reset to the new
-release version without `.dev0` the with a command in the form
-
-```
-bump-my-version bump --current-version 2.0.0.dev0 --new-version 2.0.0
-```
 
 ## 12. Git commit, tag push
 ```
@@ -264,14 +255,15 @@ bump-my-version bump --current-version 2.0.0.dev0 --new-version 2.0.0
 ## 13. Create pip package, and test
 
 You can only do this once per release, so be sure to doe the testpipy test
-first.  PyPi does not allow submission of the same release number twice.  If
-something goes wrong, re-release with a new patch version.
+first.  PyPi does not allow submission of the same release number twice.
+While you can delete a release, you can not reuse the file names. If something
+goes wrong, re-release with a new patch version.
 
 The pypi package name is `flair-brookslab`.
 
 ```
-   make publish-pypi
-   make -O -j 32 test-pypi
+make publish-pypi
+make -k -O -j 32 test-pypi
 ```
 
 ## 14. Make the release on github.com
@@ -282,35 +274,50 @@ Select Draft a new release (top right) and follow instructions
 
 Copy CHANGELOG.md entry to release description.
 
+Add the three Conda `misc/*.yaml` files as assets of the release
+to support direct creation of Conda environments via the URLs.
+
 Set these options:
 - Set as the latest release 
 - Create a discussion for this release 
 
-## 15. Update the conda recipe and submit
+## 15. Update the BioConda recipe and submit
 
 Full details are here: https://bioconda.github.io/contributor/index.html
 
 1. fork the bioconda recipes repo: https://github.com/bioconda/bioconda-recipes/fork
-2. git clone that repo to your local computer
-3. update the recipe `bioconda-recipes/recipes/recipes/flair/meta.yaml` with
+   if you already have a fork, sync with master on GitHub
+2. git clone or pull that repo to your local computer
+3. update the recipe `bioconda-recipes/recipes/flair/meta.yaml` with
    - new version number,
-   - correct dependencies, these must be explicitly listed in meta.yaml
-   - pypi URL and sha256 of the `.whl` source file found at https://pypi.org/project/flair-brookslab/#files
-   - pipettor URL for script: pip install
+   - correct dependencies from pyproject.yaml, these must be explicitly listed in meta.yaml
+     - NOTE: check numpy version against conda-forge
+   - pypi URL and sha256 of the `.tar.gz` source file found at https://pypi.org/project/flair-brookslab/#files
 4  create a local bioconda environment and test:
 ```
    cd ../bioconda-recipes/
+   conda env remove -n bioconda-test --yes
    conda create -n bioconda-test -c conda-forge -c bioconda bioconda-utils pytorch --yes
    conda activate bioconda-test
-   bioconda-utils build --mulled-test recipes config.yml --packages flair
+   bioconda-utils build --mulled-test recipes config.yml --packages flair >&build.out
    conda deactivate
-   conda env remove -n bioconda-test --yes
 ```
 
-5. git commit; git push
+Inspect `build.out` for problems.  There maybe unimportant warning labels as
+`ERR` that do not relate to the FLAIR and can be ignore.  If there are errors
+in the build, add the option `--keep-old-work` to build command to save output
+for inspection.
+
+NOTE: If there are NameResolutionErrors in the file, this is due to needing to 
+`--network=host` with Docker, however there is no way to pass it in.
+Just give up and push and let the bot check it/
+
+  
+5. git commit -am 'FLAIR v2.2.0 release' && git push
 6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
+   Title of pull request should be "Update FLAIR <version> release"
    This starts a testing process. Once all checks have passed and a green mark appears, 
-   add this comment to the pull request:
+   Once tit has passed, add this comment to the pull request:
 	    @BiocondaBot please add label
    This should take care of the red 'Review Required' and 'Merging is Blocked' notifications
 
@@ -337,7 +344,7 @@ number should have been updated by `bump-my-version`.
 
 From the ./misc directory, build the image:
 ```
-docker build --network=host -t brookslab/flair:<version> misc
+docker build --network=host -t brookslab/flair:<version> misc >& build.log
 docker tag brookslab/flair:<version> brookslab/flair:latest
 ```
 
@@ -346,7 +353,7 @@ Test the Docker image
 ```
 docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
-% make -O -j 64 test-installed
+% make -k -O -j 64 test-installed test-diffexpress-installed
 % exit
 ```
 
@@ -359,7 +366,13 @@ docker push brookslab/flair:latest
 
 The reason that the build takes long is that pysam doesn't have a fast installation method.
 
-## 17. Announce release
+## 17. Set the release as the latest in PyPi
+
+## 18. Set the release latest in GitHub
+- Change from pre-release to latest release
+- Create a discussion for this release 
+
+## 19. Announce release
 
 Mail an announcement, including `CHANGELOG.md` summary to
 `flair-announce-group@ucsc.edu`.

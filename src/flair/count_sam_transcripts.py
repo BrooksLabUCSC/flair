@@ -31,8 +31,9 @@ def parseargs():
                                             help='number of threads to use')
     parser.add_argument('-w', '--window', type=int, default=10,
                                             help='number of bases for determining which end is best match (10)')
-    parser.add_argument('--quality', default=1, type=int,
-                                            help='minimum quality threshold to consider if ends are to be trusted (1)')
+
+    parser.add_argument('--quality', default=0, type=int,
+                                            help='minimum quality threshold to consider if ends are to be trusted (0)')
     parser.add_argument('--generate_map',
                                             help='''specify an output path for a txt file of which isoform each read is assigned to''')
     parser.add_argument('--fusion_dist',

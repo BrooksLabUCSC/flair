@@ -4,11 +4,15 @@ import sys
 import argparse
 import subprocess
 import os
+from flair import set_unix_path, check_diffexp_dependencies
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+
+check_diffexp_dependencies()
 
 # TODO: this is a complex interface to runDE, merge the two
 
 def diffExp(counts_matrix=''):
+    set_unix_path()
     parser = argparse.ArgumentParser(description='flair-diffExp parse options',
             usage='flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
 #       parser.add_argument('diffExp')
