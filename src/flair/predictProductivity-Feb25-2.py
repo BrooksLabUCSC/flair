@@ -121,7 +121,6 @@ def getStarts(gtf):
     if (len(starts)) == 0:
         sys.stderr.write('ERROR, no start codons were found in', gtf)
         sys.exit(1)
-    #sys.stderr.write(','.join(tnamenmdexcep))
     return starts, tnamenmdexcep
 
 
@@ -195,8 +194,6 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     genomicPos = int()
     distance   = 0
 
-    #if isoname == 'flairiso24082-1_ENSG00000105173.14--chr19-27666000': print(isoname, exonSizes, orfEndPos, allExons)
-
     for num,e in enumerate(exonSizes,0):
 
         distance += e
@@ -217,7 +214,6 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
             if exonWithStop is None:
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)
-
 
             if allExons[-2][3] != allExons[-1][3]: ###allow stop codon in second to last exon if fusion breakpoint between second to last and last exon
                 if num == len(exonSizes)-2:
@@ -330,8 +326,6 @@ def predict(bed, starts, isoDict, nmdexcep):
                 #else if a stop was reached...
                 else:
                     orfEndPos = len(fiveUTR)+i+3
-
-                    #if iso == 'flairiso24082-1_ENSG00000105173.14--chr19-27666000': print(o.exons, relativeStart, i, orfEndPos)
                     genomicStopPos, ptc, ptcdecidingpoint = checkPTC(orfEndPos, o.allEsizes, o.allExons, nmdexcep, iso)
                     ptc = "PTC" if ptc else "PRO"
                     o.orfs.append([ptc, startPos, genomicStopPos, orfEndPos - relativeStart, relativeStart])
@@ -402,7 +396,6 @@ def main():
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
-            #if bedCols[3][:10] == 'fusiongene' and bedCols[3][10] != '1': continue ###this is a problem child
             if bedCols[3][:10] == 'fusiongene': isoname = '_'.join(bedCols[3].split('_')[1:])
             else: isoname = bedCols[3]
             isoObj = isoformObjs[isoname]

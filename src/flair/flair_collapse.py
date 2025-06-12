@@ -489,6 +489,7 @@ def collapse(genomic_range='', corrected_reads=''):
     if not args.keep_intermediate:
         files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
         files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
+        subprocess.check_call(['rm'] + files_to_remove)
         #subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
         #subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
     return [args.output+'isoforms.bed', args.output+'isoforms.fa']

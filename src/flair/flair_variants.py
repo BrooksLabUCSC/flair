@@ -122,7 +122,7 @@ def parse_args():
 def extract_sample_data(manifestfile):
     sampledata = []
     for line in open(manifestfile):
-        sample, bamfile, vcffile = line.rstrip().split('\t')
+        sample, bamfile, vcffile = line.rstrip().split() #('\t')
         sampledata.append([sample, bamfile, vcffile])
     return sampledata
 

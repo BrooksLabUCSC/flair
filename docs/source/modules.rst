@@ -177,7 +177,7 @@ flair-collapse. In addition, all raw read fastq/fasta files should
 either be specified after ``--reads`` with space/comma separators or
 concatenated into a single file.
 
-**Please note:** Flair collapse is not yet capable of dealing with large (>1G) 
+**Please note:** Flair collapse is not yet capable of dealing with large (>1G)
 input bed files. If you find that Flair needs a lot of memory you may want to 
 follow the advice in dicussion #391 to split the bed files and reads by chromosome. 
 We do intend to improve this.
@@ -203,6 +203,11 @@ that is assigned to the isoform is based on whichever annotated gene has
 the greatest number of splice junctions shared with the isoform. If
 there are no genes in the annotation which can be assigned to the
 isoform, a genomic coordinate is used (e.g. ``chr*:100000``).
+
+If you need to know which reads specifically match each isoform, you can run with ``--generate_map``.
+Running ``--generate_map --check_splice --stringent`` will require each read assigned to the isoform
+to both have the exact same splice sites and cover 25bp into the first and last exons. Otherwise, you
+may get reads that support the isoform but do not fully cover it.
 
 Recommended uses
 ----------------
@@ -494,7 +499,7 @@ These maybe added do the environment as describe in :ref:`installing-label`
 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
-3 or more replicates. It does so by running these R packages:
+3 or more replicates. Please have your control condition name (from the flair quantify manifest file) be alphabetically lower than your test condition for best results (eg ctl and test = good, untreated and treated = less good). It does so by running these R packages:
 
  - `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__ on genes and isoforms. This tests for differential expression.
  - `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.

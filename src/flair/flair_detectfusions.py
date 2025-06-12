@@ -114,6 +114,7 @@ def detectfusions():
 
         pipettor.run([('rm', args.output + '_unfilteredtranscriptome.bam', args.output + '_unfilteredtranscriptome.bam.bai')])
         args.transcriptchimbam = args.output + '_transcriptomechimeric.bam'
+        print('aligned to transcriptome')
 
 
     geneannot, genetoinfo, annot, genetoexons = {}, {}, {}, {}
@@ -236,6 +237,12 @@ def detectfusions():
                 linecount += 1
     freads.close()
     print('done processing fusion reads')
+
+
+
+    if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
+        print('no preliminary fusions detected. Exiting')
+        return
 
     makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
                         '-o', args.output, '-c', args.output + '.prelimfusions.bed']

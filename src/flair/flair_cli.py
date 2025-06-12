@@ -18,8 +18,6 @@ Version {VERSION}
 
 def main():
     set_unix_path()
-
-    # FIXME: what is this for?
     path = '/'.join(os.path.realpath(__file__).split('/')[:-1])+'/'
     globals()['path'] = path
     if len(sys.argv) < 2:

@@ -31,7 +31,6 @@ def parseargs():
                                             help='number of threads to use')
     parser.add_argument('-w', '--window', type=int, default=10,
                                             help='number of bases for determining which end is best match (10)')
-
     parser.add_argument('--quality', default=0, type=int,
                                             help='minimum quality threshold to consider if ends are to be trusted (0)')
     parser.add_argument('--generate_map',
@@ -235,7 +234,6 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
     ##filter out reads with long indels
     ###generate list of 0s and 1s - transcript pos with match to query, val > 1 = insertion
     passingtranscripts = []
-    # print(tinfo)
     for tname in tinfo:
         thist = tinfo[tname]
         ###process MD tag here to query positions with mismatches

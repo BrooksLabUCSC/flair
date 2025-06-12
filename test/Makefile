@@ -273,8 +273,7 @@ test-diffexp : mkdirs
 	flair diffexp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
 	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
-	# FIXME: this was most likely drop due to test input changes
-	#$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help >&$O/$@.out
@@ -339,10 +338,55 @@ test-plot-usage: mkdirs
 	file output/test-plot-usage_isoforms.png | grep 'PNG image data' >/dev/null
 	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
+
+other-progs-tests: test-bam2bed12 test-prod test-transcriptome test-variants test-fusion
+
+###
+# predictProductivity
+###
+
+test-prod: mkdirs
+	predictProductivity -i expected/test-collapse-annot.isoforms.bed -f ${GENOME_FA} -g $(BASIC_ANNOTATION) -o output/$@ --longestORF
+	$(call cmp_expect,$@.bed)
+
+
+###
+# flair transcriptome
+###
+
+
+test-transcriptome: mkdirs
+	flair transcriptome  -b output/test-align.bam -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --annotation_reliant generate --stringent
+	$(call cmp_expect,$@.isoforms.bed)
+
+###
+# flair variants
+###
+
+test-variants: mkdirs
+	minimap2 -ax map-ont --secondary=no ${GENOME_FA} input/basic.reads.4.fa | samtools view -hb - | samtools sort - > $O/$@.genomealigned.bam
+	samtools index $O/$@.genomealigned.bam
+	samtools faidx $(BASIC_ISOFORMS_FA)
+	longshot --force_overwrite --bam $O/$@.genomealigned.bam --ref ${GENOME_FA} --out $O/$@.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
+	echo 's1    output/test-quantify.B1.B.flair.aligned.bam   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
+	python3 ${root}/src/flair/flair_variants.py -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
+	$(call cmp_expect_sort,$@.isoswithvars.counts.tsv)
+	###these don't work because the aaseq ID numbers end up different if the isoswithvars file ends up sorted differently
+	#$(call cmp_expect_sort,$@.aaseq.counts.tsv)
+	#$(call cmp_expect_sort,$@.aaseq.key.tsv)
+
+
+###
+# flair fusion
+###
+test-fusion: mkdirs
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
+	python3 ${root}/src/flair/flair_detectfusions.py -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa output/test-collapse-annot.annotated_transcripts.fa -s 2
+	$(call cmp_expect,$@-syntheticBreakpointLoc.bed)
+
 ##
 # Other programs
 ##
-other-progs-tests: test-bam2bed12
 
 test-bam2bed12: mkdirs
 	samtools view -b input/tiny.sam >output/$@.bam
