@@ -566,7 +566,7 @@ def getvariants():
 
     # # ##get productivity for transcripts without variants
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
-    prodcmd = (path + '../../bin/predictProductivity-Feb25-2', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
+    prodcmd = (path + '../../bin/predictProductivity', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
     pipettor.run([prodcmd])
 
     ##adjust productivity prediction to account for variants
