@@ -339,7 +339,7 @@ test-plot-usage: mkdirs
 	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
 
-other-progs-tests: test-bam2bed12 test-prod test-transcriptome test-variants test-fusion
+other-progs-tests: test-bam2bed12 test-prod test-transcriptome test-fusion test-variants
 
 ###
 # predictProductivity
@@ -356,11 +356,12 @@ test-prod: mkdirs
 
 
 test-transcriptome: mkdirs
-	flair transcriptome  -b output/test-align.bam -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --annotation_reliant generate --stringent
+	flair transcriptome  -b output/test-align.bam -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
 	$(call cmp_expect,$@.isoforms.bed)
 
 ###
 # flair variants
+# FIXME need to add better checks for AAseq results, however the inconsistent sorting of the variants leads to inconsistent AAseq IDs which are hard to check
 ###
 
 test-variants: mkdirs
@@ -369,11 +370,8 @@ test-variants: mkdirs
 	samtools faidx $(BASIC_ISOFORMS_FA)
 	longshot --force_overwrite --bam $O/$@.genomealigned.bam --ref ${GENOME_FA} --out $O/$@.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
 	echo 's1    output/test-quantify.B1.B.flair.aligned.bam   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
-	python3 ${root}/src/flair/flair_variants.py -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
+	flair variants -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call cmp_expect_sort,$@.isoswithvars.counts.tsv)
-	###these don't work because the aaseq ID numbers end up different if the isoswithvars file ends up sorted differently
-	#$(call cmp_expect_sort,$@.aaseq.counts.tsv)
-	#$(call cmp_expect_sort,$@.aaseq.key.tsv)
 
 
 ###
@@ -381,7 +379,7 @@ test-variants: mkdirs
 ###
 test-fusion: mkdirs
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
-	python3 ${root}/src/flair/flair_detectfusions.py -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa output/test-collapse-annot.annotated_transcripts.fa -s 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa output/test-collapse-annot.annotated_transcripts.fa -s 2
 	$(call cmp_expect,$@-syntheticBreakpointLoc.bed)
 
 ##

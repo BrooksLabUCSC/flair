@@ -45,7 +45,7 @@ def main():
         correct()
 
     elif mode == 'transcriptome':
-        from flair.flair_straightfrombam import collapsefrombam
+        from flair.flair_transcriptome import collapsefrombam
         collapsefrombam()
 
     elif mode == 'collapse':
@@ -59,6 +59,14 @@ def main():
     elif mode == 'combine':
         from flair import flair_combine
         flair_combine.combine()
+
+    elif mode == 'variants':
+        from flair.flair_variants import getvariants
+        getvariants()
+
+    elif mode == 'fusion':
+        from flair.flair_fusion import detectfusions
+        detectfusions()
 
     elif mode == 'collapse-range':
         sys.stderr.write('ERROR: This version of flair does not support collapse-range.\n')
