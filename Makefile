@@ -56,7 +56,7 @@ build: clean
 # test if pip install locally
 test-pip:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir ./dist/${PACKAGE_NAME}-py3-none-any.whl
+	${pip_env_act} && pip install --no-cache-dir ./dist/${PACKAGE_FILE_PREFIX}-py3-none-any.whl
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 # testpypy

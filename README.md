@@ -9,49 +9,9 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 This is a read-only, low volume list that will only have announcement of new
 FLAIR releases, publications and other FLAIR-related user information.
 
-
-## IMPORTANT: BioConda release is not available as of 2025-03-31
-
-You can build a Conda environment with the following steps:
-
-```
-git clone git@github.com:BrooksLabUCSC/flair.git
-cd flair
-git checkout v2.1.0
-conda env create -n flair -f misc/flair_conda_env.yaml
-conda activate flair
-pip install .
-```
-
 ## Documentation
 
 The complete Flair manual is available via [readthedocs](https://flair.readthedocs.io/en/latest/)
-
-# FLAIR3 usage 
-variant + fusion-aware isoform detection + AA-seq prediction
-
-In misc there is a file for running this whole pipeline if your files are named consistently with sequential numbers
-
-## For each individual sample:
-
-- FLAIR align with options: -f separate --minfragmentsize 40
-- FLAIR correct standard
-- FLAIR collapse with options: --generate_map --annotation_reliant generate --stringent --check_splice --quality 0 --isoformtss -n longest
-- flair_detectfusions.py with options: -b sample.flair.align_chimeric.bam --annotated_fa sample.flair.collapse.annotated_transcripts.fa
-    - uses files from FLAIR align and collapse as input
-
-## For combining all samples and doing futher analysis:
-
-- Make combine manifest (tab separated) with two lines per sample (one line for normal isoforms, one for fusion isoforms) as follows:
-    - sampleid, [isoform OR fusionisoform], sample.isoforms.bed, sample.isoforms.fa, sample.combined.isoform.read.map.txt
-- FLAIR combine with default parameters
-- Make quantify manifest (tab separated) with one line per sample as follows:
-    - sampleid, condition, batch, sample.reads.fa
-- FLAIR quantify with options: -i experiment.combined.isoforms.fa --output_bam --quality 0
-- Make variant calling manifest file (tab separated) with one line per sample as follows:
-    - sampleid, sample.flair.quantify.aligned.bam
-- flair_variants.py with normal inputs
-    - this requires longshot to be installed and runnable in your path
 
 ## Cite FLAIR <a name="cite"></a>
 If you use or discuss FLAIR, please cite the following [paper](https://www.nature.com/articles/s41467-020-15171-6):

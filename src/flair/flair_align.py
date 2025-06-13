@@ -245,7 +245,7 @@ def align():
     ##run filtering
     dofiltering(args, args.output + '_unfiltered.bam')
 
-    # pipettor.run([('rm', args.output + '_unfiltered.bam', args.output + '_unfiltered.bam.bai')])
+    pipettor.run([('rm', args.output + '_unfiltered.bam', args.output + '_unfiltered.bam.bai')])
     bedout = args.output + '.bed'
     # bam2Bed12(bamout, bedout, args.keep_supplementary)
     return bedout

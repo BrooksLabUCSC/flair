@@ -18,8 +18,6 @@ Version {VERSION}
 
 def main():
     set_unix_path()
-
-    # FIXME: what is this for?
     path = '/'.join(os.path.realpath(__file__).split('/')[:-1])+'/'
     globals()['path'] = path
     if len(sys.argv) < 2:
@@ -37,36 +35,38 @@ def main():
         sys.stderr.write(f'FLAIR {VERSION}\n')
         sys.exit(0)
 
-    aligned_reads, corrected_reads, isoforms, isoform_sequences, counts_matrix = [0]*5
     start_time = time.time()
     if mode == 'align':
         from flair import flair_align
-        aligned_reads = flair_align.align()
+        flair_align.align()
 
     elif mode == 'correct':
         from flair.flair_correct import correct
-        if aligned_reads:
-            corrected_reads = correct(aligned_reads=aligned_reads)
-        else:
-            corrected_reads = correct()
+        correct()
+
+    elif mode == 'transcriptome':
+        from flair.flair_transcriptome import collapsefrombam
+        collapsefrombam()
 
     elif mode == 'collapse':
         from flair.flair_collapse import collapse
-        if corrected_reads:
-            collapse(corrected_reads=corrected_reads)
-        else:
-            collapse()
+        collapse()
 
     elif mode == 'quantify':
         from flair.flair_quantify import quantify
-        if isoform_sequences:
-            counts_matrix = quantify(isoform_sequences=isoform_sequences)
-        else:
-            counts_matrix = quantify()
+        quantify()
 
     elif mode == 'combine':
         from flair import flair_combine
         flair_combine.combine()
+
+    elif mode == 'variants':
+        from flair.flair_variants import getvariants
+        getvariants()
+
+    elif mode == 'fusion':
+        from flair.flair_fusion import detectfusions
+        detectfusions()
 
     elif mode == 'collapse-range':
         sys.stderr.write('ERROR: This version of flair does not support collapse-range.\n')

@@ -61,6 +61,7 @@ for line in open(referencetranscriptfile):
         tinfo, orfstart, orfstop, ptcpoint, seq = line
         tinfo = tinfo.split('_')
         tname, propred, gname = '_'.join(tinfo[:-2]), tinfo[-2], tinfo[-1]
+        if 'fusiongene' in tname: tname = '_'.join(tname.split('_')[1:])
         transcriptToInfo[(tname, gname)] = TranscriptInfo(seq, int(orfstart), int(orfstop), propred, ptcpoint)
 
 cl = modtranscriptsfile.split('-')[0]
@@ -81,7 +82,7 @@ for line in open(modtranscriptsfile):
         temp = '-'.join(tinfo.split('-')[1:])
         tname = '_'.join(temp.split('_')[:-1])
         gname = temp.split('_')[-1]
-
+        if last[0] == '1-flairiso23973-1_ENSG00000105173.14--chr19-27666000': print(tname, gname, (tname, gname) in transcriptToInfo)
         if (tname, gname) not in transcriptToInfo: continue
         thist = transcriptToInfo[(tname, gname)]
         newpredseq = thist.aaseq

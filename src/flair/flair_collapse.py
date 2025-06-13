@@ -197,7 +197,8 @@ def collapse(genomic_range='', corrected_reads=''):
         for i in range(len(bams)): # read sequences of the alignments within range
             args.reads += [bams[i][:-3]+'fasta']
             pipettor.Popen([('samtools', 'fasta', bams[i])], 'w', stdout=args.reads[-1]) # TODO add stderr
-        pipettor.run(['rm'] + bams)
+        for f in bams:
+            os.remove(f)
 
         chrom = args.range[:args.range.find(':')]
         coord1 = args.range[args.range.find(':')+1:args.range.find('-')]
@@ -308,8 +309,13 @@ def collapse(genomic_range='', corrected_reads=''):
             count_cmd += ['--trust_ends']
         if args.remove_internal_priming:
             count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
-                          '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
-                          args.annotation_reliant]
+                                      '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta',
+                                      args.annotation_reliant]
+        if args.fusion_breakpoints:
+            count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
+        if args.allow_paralogs:
+            count_cmd += ['--allow_paralogs']
+        count_cmd = tuple(count_cmd)
 
         if not args.quiet:
             sys.stderr.write('Aligning reads to reference transcripts\n')
@@ -480,12 +486,12 @@ def collapse(genomic_range='', corrected_reads=''):
         bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
     files_to_remove = [args.output+'firstpass.fa', alignout+'q.counts']
-    #subprocess.check_call(['rm', '-rf', args.output+'firstpass.fa', alignout+'q.counts'])
     if not args.keep_intermediate:
         files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
         files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
-        #subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
-        #subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
+        for f in files_to_remove:
+            os.remove(f)
+
     return [args.output+'isoforms.bed', args.output+'isoforms.fa']
 
 if __name__ == "__main__":
