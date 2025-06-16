@@ -35,6 +35,8 @@ def parseargs():
                                             help='minimum quality threshold to consider if ends are to be trusted (0)')
     parser.add_argument('--generate_map',
                                             help='''specify an output path for a txt file of which isoform each read is assigned to''')
+    parser.add_argument('--output_bam',
+                        help='''specify an output path for the bam file aligned to the transcriptome if desired''')
     parser.add_argument('--fusion_dist',
                                             help='''minimium distance between separate read alignments on the same chromosome to be
             considered a fusion, otherwise no reads will be assumed to be fusions''')
@@ -250,13 +252,12 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
             for t in passingtranscripts:
                 if t[:3] == bestmetrics: besttranscripts.append(t[-1])
             return besttranscripts
-        else: return passingtranscripts[0][-1]
+        else: return [passingtranscripts[0][-1],]
     else: return None
 
 class IsoAln(object):
-    def __init__(self, name=None, q=None, p=None, cigar=None, tlen=None, als=None, md=None):
+    def __init__(self, name=None, p=None, cigar=None, tlen=None, als=None, md=None):
         self.name = name
-        self.q = q
         self.startpos = p
         self.cigar = cigar
         self.tlen = tlen
@@ -283,7 +284,7 @@ def parsesam(args, transcripttoexons, transcripttobpssindex):
                     notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name,
                                                                                        read.reference_start,
                                                                                        read.reference_end, False,
-                                                                                       genome, None, transcripttoexons,
+                                                                                       genome, None, intprimannot,
                                                                                        args.intprimingthreshold,
                                                                                        args.intprimingfracAs)
                 else: notinternalpriming = True
@@ -298,31 +299,19 @@ def parsesam(args, transcripttoexons, transcripttobpssindex):
                     tlen = samfile.get_reference_length(transcript)
                     if lastread and readname != lastread:
                         if testtname in curr_transcripts: print('\n', lastread, curr_transcripts.keys())
-                        if args.allow_paralogs:
-                            assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
-                            if assignedts:
-                                for assignedt in assignedts:
-                                    if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
-                                    transcripttoreads[assignedt].append(lastread)
-                        else:
-                            assignedt = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
-                            if assignedt:
+                        assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
+                        if assignedts:
+                            for assignedt in assignedts:
                                 if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
                                 transcripttoreads[assignedt].append(lastread)
 
                         curr_transcripts = {}
-                    curr_transcripts[transcript] = IsoAln(transcript, quality, pos, cigar, tlen, alignscore, mdtag)
+                    curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
                     lastread = readname
     if lastread:
-        if args.allow_paralogs:
-            assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
-            if assignedts:
-                for assignedt in assignedts:
-                    if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
-                    transcripttoreads[assignedt].append(lastread)
-        else:
-            assignedt = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
-            if assignedt:
+        assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
+        if assignedts:
+            for assignedt in assignedts:
                 if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
                 transcripttoreads[assignedt].append(lastread)
 

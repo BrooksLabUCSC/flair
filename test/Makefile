@@ -251,8 +251,8 @@ test-quantify: mkdirs
 	rm -rf $O/$@.tmp
 	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
+	$(call cmp_expect_sort,$@.A1.A.flair.aligned.readtotranscript.txt)
 	$(call cmp_expect,$@.tpm.tsv)
-	$(call cmp_expect,$@.A1.A.flair.aligned.readtotranscript.txt)
 
 # without map or bam output
 test-quantify-nobam : mkdirs

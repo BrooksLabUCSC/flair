@@ -295,7 +295,7 @@ def collapse(genomic_range='', corrected_reads=''):
         mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD', args.annotation_reliant] + args.reads #'--split-prefix', 'minimap2transcriptomeindex', ##doesn't work with MD tag
 
         # count sam transcripts ; the dash at the end means STDIN
-        count_cmd = ['count_sam_transcripts.py', '--sam', '-',
+        count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
                 '-o', args.output+'annotated_transcripts.alignment.counts', '-t', str(args.threads),
                 '--quality', str(args.quality), '-w', str(args.end_window),
                 '--generate_map', args.output+'annotated_transcripts.isoform.read.map.txt']
@@ -400,7 +400,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
     # count the number of supporting reads for each first-pass isoform
     count_file = args.output+'firstpass.q.counts'
-    count_cmd = ['count_sam_transcripts.py', '--sam', '-',
+    count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
             '-o', count_file, '-t', str(args.threads), '--quality', str(args.quality), '-w', str(args.end_window)]
     if args.stringent:
         count_cmd += ['--stringent']

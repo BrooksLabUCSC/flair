@@ -424,8 +424,8 @@ def getannotinfo(gtf, allregions):
 
 def getcountsamcommand(args, refbed, outputname, mapfile, isannot):
     # count sam transcripts ; the dash at the end means STDIN
-    count_cmd = ['count_sam_transcripts.py', '--sam', '-',
-                 '-o', outputname, '-t', str(args.threads),
+    count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
+                 '-o', outputname, '-t', 1, ###feeding 1 thread in because this is already multithreaded here
                  '--quality', str(args.quality), '-w', str(args.end_window)]
     if mapfile:
         count_cmd += ['--generate_map', mapfile]
@@ -618,7 +618,7 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                             sjtoends[junckey] = []
                         sjtoends[junckey].append((correctedread.start, correctedread.end, correctedread.strand, correctedread.name))
     shortchromfasta.close()
-    print('reads to align to firstpass: ', c, file=sys.stderr)
+    # print('reads to align to firstpass: ', c, file=sys.stderr)
     return sjtoends
 
 
@@ -1020,29 +1020,29 @@ def runcollapsebychrom(listofargs):
     # load splice junctions for chrom
     intervalTree, junctionBoundaryDict = buildIntervalTree(splicesiteannot_chrom, args.ss_window, rchrom, False)
 
-    print('processing reads into firstpass transcripts for', rchrom, rstart, rend, file=sys.stderr)
+    # print('processing reads into firstpass transcripts for', rchrom, rstart, rend, file=sys.stderr)
     samfile = pysam.AlignmentFile(args.genomealignedbam, 'rb')
     sjtoends = filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goodaligntoannot, intervalTree,
                                        junctionBoundaryDict)
     samfile.close()
-    print('intron chains:', len(sjtoends.keys()), file=sys.stderr)
+    # print('intron chains:', len(sjtoends.keys()), file=sys.stderr)
 
     firstpassunfiltered, firstpassjunctoname, firstpasssingleexons = processjuncstofirstpassisos(args, tempprefix,
                                                                                                  rchrom, sjtoends,
                                                                                                  firstpasssingleexons)
 
-    print('firstpass unfiltered: ', len(firstpassunfiltered.keys()), file=sys.stderr)
+    # print('firstpass unfiltered: ', len(firstpassunfiltered.keys()), file=sys.stderr)
     firstpass = filterfirstpassisos(args, firstpassunfiltered, firstpassjunctoname, firstpasssingleexons,
                                     junctogene, supannottranscripttojuncs, annottranscripttoexons)
-    print('firstpass isos: ', len(firstpass.keys()), file=sys.stderr)
+    # print('firstpass isos: ', len(firstpass.keys()), file=sys.stderr)
     temptoremove = [tempprefix + '.reads.fasta', tempprefix + 'reads.notannotmatch.fasta']
     if not args.noaligntoannot and len(allannottranscripts) > 0:
         temptoremove.extend([tempprefix + '.annotated_transcripts.bed', tempprefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
-        print('writing firstpass', file=sys.stderr)
+        # print('writing firstpass', file=sys.stderr)
         getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
                                       allannotse, genetoannotjuncs, genome)
-        print('aligning to firstpass', file=sys.stderr)
+        # print('aligning to firstpass', file=sys.stderr)
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -1110,8 +1110,12 @@ def collapsefrombam():
     sys.stderr.write('running by chunk\n')
     p = Pool(args.threads)
     childErrs = set()
+    c = 1
     for i in p.imap(runcollapsebychrom, chunkcmds):
+        sys.stderr.write(f'\rdone running chunk {c} of {len(chunkcmds)}')
         childErrs.add(i)
+        c += 1
+    sys.stderr.write('\n')
     p.close()
     p.join()
     if len(childErrs) > 1:
