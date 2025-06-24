@@ -83,32 +83,32 @@ def quantify(isoform_sequences=''):
                     subprocess.check_call(['mkdir', '-p', args.temp_dir])
                 readFileRoot = args.temp_dir + '/' + readFileRoot[readFileRoot.rfind('/')+1:]
 
-            if not os.path.exists(cols[3]):
-                raise Exception('Query file path does not exist: {}'.format(cols[3]))
+            if not os.path.exists(readFile):
+                raise Exception('Query file path does not exist: {}'.format(readFile))
 
             samData.append(cols + [readFileRoot + '.sam'])
     sys.stderr.write('Writing temporary files with prefixes similar to {}\n'.format(readFileRoot))
 
-    for num, sample in enumerate(samData, 0):
-        sys.stderr.write('Step 1/3. Aligning sample %s_%s, %s/%s \n' % (sample[0], sample[2], num+1, len(samData)))
-        mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, sample[-2]]
+    for num, data in enumerate(samData, 0):
+        sample, group, batch, readFile, samOut = data
+        sys.stderr.write('Aligning sample %s_%s, %s/%s \n' % (sample, batch, num+1, len(samData)))
+        mm2_command = ['minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, readFile]
 
         # TODO: Replace this with proper try/except Exception as ex
         try:
-            if subprocess.call(mm2_command, stdout=open(sample[-1], 'w'),
-                               stderr=open(sample[-1]+'.mm2_stderr.txt', 'w')):
-                raise Exception('Check {} file'.format(sample[-1]+'.mm2_stderr.txt'))
+            if subprocess.call(mm2_command, stdout=open(samOut, 'w'),
+                               stderr=open(samOut+'.mm2_stderr.txt', 'w')):
+                raise Exception('Check {} file'.format(samOut+'.mm2_stderr.txt'))
         except:
             raise Exception('''Possible minimap2 error, please check that all file, directory and executable paths exist''')
-        subprocess.check_call(['rm', sample[-1]+'.mm2_stderr.txt'])
+        subprocess.check_call(['rm', samOut+'.mm2_stderr.txt'])
         sys.stderr.flush()
 
-    countData = dict()
-    for num, data in enumerate(samData):
-        sample, group, batch, readFile, samOut = data
-        sys.stderr.write('Step 2/3. Quantifying isoforms for sample %s_%s: %s/%s \n' % (sample, batch, num+1, len(samData)))
 
-        count_cmd = ['count_sam_transcripts.py', '-s', samOut,
+
+        sys.stderr.write('Quantifying isoforms for sample %s_%s: %s/%s \n' % (sample, batch, num+1, len(samData)))
+
+        count_cmd = ['filter_transcriptome_align.py', '-s', samOut,
                      '-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
         if args.trust_ends:
             count_cmd += ['--trust_ends']
@@ -118,55 +118,63 @@ def quantify(isoform_sequences=''):
             count_cmd += ['--check_splice']
         if args.check_splice or args.stringent:
             count_cmd += ['-i', args.isoforms]
-        if args.generate_map or args.output_bam:
+        if args.generate_map:
             count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
+        if args.output_bam:
+            count_cmd += ['--output_bam', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']
+
 
         subprocess.check_call(count_cmd)
+        sys.stderr.flush()
+
+        # if args.output_bam:
+        #     sys.stderr.write('Filtering bam reads for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
+        #     readToIso = {}
+        #     for line in open(args.o+'.'+sample+'.'+group+'.isoform.read.map.txt'):
+        #         line = line.rstrip().split('\t', 1)
+        #         for r in line[1].split(','):
+        #             readToIso[r] = line[0]
+        #
+        #     newsam = open(samOut.split('.sam')[0] + '-filtered.sam', 'w')
+        #     nametoseq = {}
+        #     impsecondary = []
+        #     for line in open(samOut):
+        #         if line[0] == '@': newsam.write(line)
+        #         else:
+        #             line = line.split('\t')
+        #             read, iso, flag = line[0], line[2], line[1]
+        #             if flag == '0' or flag == '16':
+        #                 nametoseq[read] = [line[9], line[10]]
+        #                 if read in readToIso and readToIso[read] == iso:
+        #                     # if line[4] == '0': line[4] = '60'
+        #                     newsam.write('\t'.join(line))
+        #             elif read in readToIso and readToIso[read] == iso:
+        #                 impsecondary.append(line)
+        #     for line in impsecondary:
+        #         line[9] = nametoseq[line[0]][0]
+        #         line[10] = nametoseq[line[0]][1]
+        #         line[5] = line[5].replace('H', 'S')
+        #         # if line[4] == '0': line[4] = '60'
+        #         newsam.write('\t'.join(line))
+        #     newsam.close()
+        #     subprocess.check_call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
+        #     subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
+        #
+        # subprocess.check_call(['rm', samOut])
+
+    sys.stderr.write('Writing counts to {} \n'.format(args.o + '.counts.tsv'))
+    countData = dict()
+    for num, data in enumerate(samData):
+        sample, group, batch, readFile, samOut = data
         for line in open(samOut+'.counts.txt'):
             line = line.rstrip().split('\t')
             iso, numreads = line[0], line[1]
             if iso not in countData:
                 countData[iso] = np.zeros(len(samData))
             countData[iso][num] = numreads
-        sys.stderr.flush()
 
-        if args.output_bam:
-            sys.stderr.write('Step 2.5/3. Filtering bam reads for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
-            readToIso = {}
-            for line in open(args.o+'.'+sample+'.'+group+'.isoform.read.map.txt'):
-                line = line.rstrip().split('\t', 1)
-                for r in line[1].split(','):
-                    readToIso[r] = line[0]
 
-            newsam = open(samOut.split('.sam')[0] + '-filtered.sam', 'w')
-            nametoseq = {}
-            impsecondary = []
-            for line in open(samOut):
-                if line[0] == '@': newsam.write(line)
-                else:
-                    line = line.split('\t')
-                    read, iso, flag = line[0], line[2], line[1]
-                    if flag == '0' or flag == '16':
-                        nametoseq[read] = [line[9], line[10]]
-                        if read in readToIso and readToIso[read] == iso:
-                            if line[4] == '0': line[4] = '60'
-                            newsam.write('\t'.join(line))
-                    elif read in readToIso and readToIso[read] == iso:
-                        impsecondary.append(line)
-            for line in impsecondary:
-                line[9] = nametoseq[line[0]][0]
-                line[10] = nametoseq[line[0]][1]
-                line[5] = line[5].replace('H', 'S')
-                if line[4] == '0': line[4] = '60'
-                newsam.write('\t'.join(line))
-            newsam.close()
-            subprocess.check_call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
 
-            subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
-
-        subprocess.check_call(['rm', samOut])
-
-    sys.stderr.write('Step 3/3. Writing counts to {} \n'.format(args.o+'.counts.tsv'))
     countMatrix = open(args.o+'.counts.tsv', 'w')
 
     if args.sample_id_only:

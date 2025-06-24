@@ -114,6 +114,7 @@ def detectfusions():
 
         pipettor.run([('rm', args.output + '_unfilteredtranscriptome.bam', args.output + '_unfilteredtranscriptome.bam.bai')])
         args.transcriptchimbam = args.output + '_transcriptomechimeric.bam'
+        print('aligned to transcriptome')
 
 
     geneannot, genetoinfo, annot, genetoexons = {}, {}, {}, {}
@@ -237,6 +238,12 @@ def detectfusions():
     freads.close()
     print('done processing fusion reads')
 
+
+
+    if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
+        print('no preliminary fusions detected. Exiting')
+        return
+
     makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
                         '-o', args.output, '-c', args.output + '.prelimfusions.bed']
     faidxcommand = ['samtools', 'faidx', args.output + '-syntheticFusionGenome.fa']
@@ -248,7 +255,7 @@ def detectfusions():
     # bamtobedcmd = ('bamToBed', '-bed12', '-i', args.output + '.syntheticAligned.bam')
     bamtobedcmd = ('bedtools', 'bamtobed', '-bed12', '-i', args.output + '.syntheticAligned.bam')
     getsscommand = ['python3', path + 'synthetic_splice_sites.py', args.output + '.syntheticAligned.bed',
-                        args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed', args.output + '-syntheticBreakpointLoc.bed', '8', '2']#'15', '2']
+                        args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed', args.output + '-syntheticBreakpointLoc.bed', '8', '2', args.output + '-syntheticFusionGenome.fa']#'15', '2']
     ##NOT ADDING GTF ANNOT TO correct or collapse - I think this will save time down the line
     correctcommand = ['python3', path + 'flair_correct.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.bed',
                       '-g', args.output + '-syntheticFusionGenome.fa', '-f', args.output + '-syntheticReferenceAnno.gtf',
@@ -316,8 +323,8 @@ def detectfusions():
     out.close()
 
     # #removing extra FLAIR files
-    # for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
-    #     os.remove(filename)
+    for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
+        os.remove(filename)
 
 
 

@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import argparse
+import pysam
+import shutil
+from flair.count_sam_transcripts import *
+from flair.flair_transcriptome import makecorrecttempdir
+from multiprocessing import Pool
+from time import sleep
+
+
+def generate_alignment_obj_for_read(args, genome, transcripttoexons, transcriptaligns, header):
+    filteredtranscriptaligns = {}
+    for alignment in transcriptaligns:
+        transcript = alignment.reference_name
+        if args.remove_internal_priming:
+            intprimannot = transcripttoexons if args.permissive_last_exons else None
+            notinternalpriming = remove_internal_priming.removeinternalpriming(alignment.reference_name,
+                                                                               alignment.reference_start,
+                                                                               alignment.reference_end, False,
+                                                                               genome, None, intprimannot,
+                                                                               args.intprimingthreshold,
+                                                                               args.intprimingfracAs)
+        else:
+            notinternalpriming = True
+        if transcript == 'HISEQ:1287:HKCG7BCX3:1:1102:8019:82885': print(notinternalpriming)
+        if notinternalpriming:
+            pos = alignment.reference_start
+            try:
+                alignscore = alignment.get_tag('AS')
+                mdtag = alignment.get_tag('MD')
+            except KeyError as ex:
+                raise Exception(f"Missing AS or MD tag in alignment of '{alignment.query_name}' in '{args.sam}'") from ex
+            cigar = alignment.cigartuples
+            tlen = header.get_reference_length(transcript)
+            filteredtranscriptaligns[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
+    return filteredtranscriptaligns
+
+
+
+def process_read_chunk(chunkindex, tempDir, transcripttoexons, transcripttobpssindex, readstoaligns, args, headeroutfilename):
+    genome = None
+    if args.remove_internal_priming:
+        genome = pysam.FastaFile(args.transcriptomefasta)
+
+    headerfile = pysam.AlignmentFile(headeroutfilename, 'rb')
+    if args.output_bam:
+        tempOutFile = pysam.AlignmentFile(tempDir + 'readChunk' + str(chunkindex) + '.bam', 'wb', template=headerfile)
+
+    results = []
+
+    for readname in readstoaligns:
+        transcriptaligns = [pysam.AlignedSegment.fromstring(x, headerfile.header) for x in readstoaligns[readname]]
+        filteredtranscriptaligns = generate_alignment_obj_for_read(args, genome, transcripttoexons, transcriptaligns, headerfile.header)
+        finaltnames = []
+        if len(filteredtranscriptaligns) > 0:
+            assignedts = getbesttranscript(filteredtranscriptaligns, args, transcripttoexons, transcripttobpssindex)
+            if assignedts:
+                for assignedt in assignedts:
+                    finaltnames.append(assignedt)
+                    results.append((readname, assignedt))
+        if args.output_bam and len(finaltnames) > 0:
+            readseq, readerr = None, None
+            for alignment in transcriptaligns:
+                if not alignment.is_secondary: #supplementary already filtered earlier
+                    readseq = alignment.query_sequence
+                    readerr = alignment.query_qualities
+
+            for alignment in transcriptaligns:
+                if alignment.reference_name in finaltnames:
+                    alignment.mapping_quality = 60
+                    if alignment.is_secondary:
+                        alignment.query_sequence = readseq
+                        alignment.query_qualities = readerr
+                        if alignment.is_reverse:
+                            alignment.flag = 16
+                        else:
+                            alignment.flag = 0
+                        alignment.cigarstring = alignment.cigarstring.replace('H', 'S')
+                    tempOutFile.write(alignment)
+    if genome:
+        genome.close()
+    if args.output_bam:
+        tempOutFile.close()
+    sys.stderr.write(f'\rcompleted chunk {chunkindex}')
+    return results
+
+
+def report_thread_error(error):
+    print('error: ', file=sys.stderr)
+    print(error, file=sys.stderr)
+    sys.exit(1)
+
+
+
+def process_alignments(args, transcripttoexons, transcripttobpssindex):
+    sys.stderr.write('processing alignments\n')
+    samfile = pysam.AlignmentFile(args.sam, 'r')
+    tempDir = makecorrecttempdir()
+    headeroutfilename = tempDir + 'headerfile.bam'
+    hfile = pysam.AlignmentFile(headeroutfilename, 'wb', template=samfile)
+    hfile.close()
+
+    lastname = None
+    lastaligns = []
+    readchunk = {}
+    chunksize = 1000
+    chunkindex = 1
+
+    chunkresults = []
+
+    p = Pool(args.threads)
+
+    args.sam = '' # required to pass args to multiprocessing
+
+    for read in samfile:
+        readname = read.query_name
+        if readname != lastname:
+            if len(readchunk) == chunksize:
+                numrunningthreads = 10000
+                # not sure this is necessary, but this is to prevent having too much data in ram waiting to be passed to a thread
+                while numrunningthreads >= args.threads:
+                    numrunningthreads = 0
+                    for r in chunkresults:
+                        if not r.ready(): numrunningthreads += 1
+                    sleep(0.1)
+
+
+                sys.stderr.write(f'\rstarting chunk {chunkindex}')
+                r = p.apply_async(process_read_chunk, #samfile.header,
+                                     args=(chunkindex,tempDir, transcripttoexons, transcripttobpssindex, readchunk, args, headeroutfilename),
+                                     error_callback=report_thread_error)
+                chunkresults.append(r)
+                readchunk = {}
+                chunkindex += 1
+            if len(lastaligns) > 0:
+                readchunk[lastname] = lastaligns
+                lastaligns = []
+            lastname = readname
+        # removing supplementary alignments has the biggest effect on the output. I think we should do it though
+        if read.is_mapped and not read.is_supplementary and read.mapping_quality >= args.quality:
+            lastaligns.append(read.to_string())
+    if len(lastaligns) > 0:
+        readchunk[lastname] = lastaligns
+    if len(readchunk) > 0:
+        sys.stderr.write(f'\rstarting chunk {chunkindex}')
+        r = p.apply_async(process_read_chunk,  # samfile.header,
+                          args=(chunkindex, tempDir, transcripttoexons, transcripttobpssindex, readchunk, args,
+                                headeroutfilename),
+                          error_callback=report_thread_error)
+        chunkresults.append(r)
+
+    p.close()
+    p.join()
+    sys.stderr.write('\nstarting to combine temp files\n')
+
+    transcripttoreads = {}
+    for i in range(len(chunkresults)):
+        for read, transcript in chunkresults[i].get():
+            if transcript not in transcripttoreads: transcripttoreads[transcript] = []
+            transcripttoreads[transcript].append(read)
+    write_output(args, transcripttoreads)
+
+    if args.output_bam:
+        outfile = pysam.AlignmentFile(tempDir + 'combined_unsorted.bam', 'wb', template=samfile)
+        for i in range(len(chunkresults)):
+            tempfile = pysam.AlignmentFile(tempDir + 'readChunk' + str(i+1) + '.bam', 'rb')
+            for read in tempfile:
+                outfile.write(read)
+            tempfile.close()
+        outfile.close()
+        pysam.sort('-o', args.output_bam, tempDir + 'combined_unsorted.bam')
+        pysam.index(args.output_bam)
+    shutil.rmtree(tempDir)
+
+if __name__ == '__main__':
+    sys.stderr.write('processing annotation\n')
+    args = parseargs()
+    args = checkargs(args)
+    transcripttoexons, transcripttobpssindex = getannotinfo(args)
+    process_alignments(args, transcripttoexons, transcripttobpssindex)
+
+

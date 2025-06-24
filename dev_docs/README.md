@@ -15,6 +15,7 @@ conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
 pip install -e .[dev]
+
 ```
 
 If you want to install only the dependencies without an FLAIR, use:
@@ -48,10 +49,12 @@ conda config --set channel_priority flexible
 
 ## Running FLAIR program during development
 
+
 The preferred way to run FLAIR is using flair-dev conda environment as
 described above, which will have it in the PATH.  By using the `-e`
 (`--editable`) option to `pip`, edits to the source tree will be reflected in
 the conda environment without a need for another install.
+
 
 ## Managing dependencies
 
