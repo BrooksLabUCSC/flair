@@ -6,9 +6,88 @@ processing scripts located in ``bin`` directory and should be install in your pa
 Modules must be run in order (align, correct, collapse).
 
 If you want to compare multiple samples, there are two primary ways of doing this:
- - Combine the fastq or fasta reads of all samples and run FLAIR align, correct, and collapse on all samples together (will generate the most comprehensive transcriptome)
- - Run FLAIR align, correct, and collapse on each sample separately
+ - Combine the fastq or fasta reads of all samples and run FLAIR align, correct, and collapse (or FLAIR transcriptome) on all samples together (will generate the most comprehensive transcriptome)
+ - Run FLAIR align, correct, and collapse (or FLAIR transcriptome) on each sample separately (better for large sets of samples)
  - Use FLAIR combine to merge results
+
+.. _transcriptome-label:
+
+flair transcriptome
+===========
+
+.. code:: text
+
+    usage: usage: flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]
+
+
+This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
+This is 3x faster and uses 20x less memory than correct + collapse.
+To get aligned reads, you can use FLAIR align or just run the following command to generate the bam file to use as input.
+minimap2 -ax splice -s 80 -G 200k -t 20 --secondary=no genome.fa sample.fastq | samtools view -hb - | samtools sort - > sample.genomealigned.bam; samtools index sample.genomealigned.bam
+This module DOES NOT currently have all of the options included in collapse, such as promoter/3' end filtering.
+Other options have been simplified or combined. For instance, the collapse --annotation_reliant option from
+flair collapse is now the default. To run without relying on annotation as strongly, specify --noaligntoannot
+
+
+**Outputs**
+
+ - ``flair.isoforms.bed``
+ - ``flair.isoforms.gtf``
+ - ``flair.isoforms.fa``
+ - ``flair.read.map.txt``
+
+Options
+-------
+
+Required arguments
+~~~~~~~~~~~~~~~~~~
+
+.. code:: text
+
+    -b --genomealignedbam    Sorted and indexed bam file aligned to the genome
+    -g --genome    Reference genome in fasta format
+
+
+Optional arguments
+~~~~~~~~~~~~~~~~~~
+
+.. code:: text
+
+ -o --output
+                        output file name base for FLAIR isoforms (default: flair.collapse)
+  -t --threads
+                        minimap2 number of threads (4)
+  -f --gtf              [HIGHLY RECOMMENDED] GTF annotation file, used for renaming FLAIR isoforms 
+                        to annotated isoforms and adjusting TSS/TESs
+  -j --shortread
+                        [HIGHLY RECOMMENDED] bed format splice junctions from short-read sequencing. 
+                        NO NOVEL SPLICE SITES WILL BE DETECTED WITHOUT ORTHOGONAL SHORT READS
+  --ss_window
+                        window size for correcting splice sites (15)
+  -s  --support
+                        minimum number of supporting reads for an isoform (3)
+  --stringent           [HIGHLY RECOMMENDED] specify if all supporting reads need to be full-length 
+                        (spanning 25 bp of the first and last exons)
+  --check_splice        [HIGHLY RECOMMENDED] enforce coverage of 4 out of 6 bp around each splice site 
+                        and no insertions greater than 3 bp at the splice site DON'T USE WITH DATA WITH HIGH ERROR RATES (old direct-RNA)
+  -w --end_window
+                        window size for comparing TSS/TES (100)
+  --noaligntoannot      related to old annotation_reliant, now specify if you don't want an initial alignment 
+                        to the annotated sequences and only want transcript detection from the
+                        genomic alignment. Will be slightly faster but less accurate if the annotation is good
+  -n --no_redundant 
+                        For each unique splice junction chain, report options include: none--best TSSs/TESs chosen for each unique set of splice junctions; longest--single TSS/TES
+                        chosen to maximize length; best_only--single most supported TSS/TES used in conjunction chosen (none)
+  --max_ends            maximum number of TSS/TES picked per isoform (2)
+  --filter              Report options include: 
+                            default--subset isoforms are removed based on support;
+                            nosubset--any isoforms that are a proper set of another isoform are removed;
+                            comprehensive--default set + all subset isoforms; 
+                            ginormous--comprehensive set + single exon subset isoforms
+  --splittoregion       force running on each region of non-overlapping reads, no matter the file size 
+                        default: parallelize by chromosome if file is <1G, otherwise parallelize on all regions of non-overlapping reads
+
+
 
 .. _align-label:
 
@@ -100,7 +179,7 @@ flair correct
 
 This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions.
 If your genome annotation is sparse, please also use short-reads. Any reads with splice sites not near splice sites
-identified in orthogonal data will be thrown out. YOU WILL NOT GET NOVEL SPLICE JUNCTIONS UNLESS YOU PROVIDE SHORT-READ DATA
+identified in orthogonal data will be thrown out.
 
 **Outputs**
 
@@ -436,6 +515,8 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
    id   sample1_condition1_batch1  sample2_condition1_batch1  sample3_condition1_batch1  sample4_condition2_batch1  sample5_condition2_batch1  sample6_condition2_batch1
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
    ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
+
+.. _combine-label:
 
 flair combine
 =============
