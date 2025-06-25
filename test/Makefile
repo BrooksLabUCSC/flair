@@ -371,7 +371,8 @@ test-variants: mkdirs
 	longshot --force_overwrite --bam $O/$@.genomealigned.bam --ref ${GENOME_FA} --out $O/$@.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
 	echo 's1    output/test-quantify.B1.B.flair.aligned.bam   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
 	flair variants -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
-	$(call cmp_expect_sort,$@.isoswithvars.counts.tsv)
+	$(call cmp_expect,$@.isoswithvars.counts.tsv)
+	$(call cmp_expect,$@.aaseq.counts.tsv)
 
 
 ###
