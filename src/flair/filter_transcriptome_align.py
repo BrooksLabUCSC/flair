@@ -40,7 +40,8 @@ def generate_alignment_obj_for_read(args, genome, transcripttoexons, transcripta
 
 
 
-def process_read_chunk(chunkindex, tempDir, transcripttoexons, transcripttobpssindex, readstoaligns, args, headeroutfilename):
+def process_read_chunk(chunkinfo):
+    chunkindex, readstoaligns, tempDir, transcripttoexons, transcripttobpssindex, args, headeroutfilename = chunkinfo
     genome = None
     if args.remove_internal_priming:
         genome = pysam.FastaFile(args.transcriptomefasta)
@@ -84,7 +85,7 @@ def process_read_chunk(chunkindex, tempDir, transcripttoexons, transcripttobpssi
         genome.close()
     if args.output_bam:
         tempOutFile.close()
-    sys.stderr.write(f'\rcompleted chunk {chunkindex}')
+    # sys.stderr.write(f'\rcompleted chunk {chunkindex}')
     return results
 
 
@@ -94,45 +95,18 @@ def report_thread_error(error):
     sys.exit(1)
 
 
-
-def process_alignments(args, transcripttoexons, transcripttobpssindex):
-    sys.stderr.write('processing alignments\n')
-    samfile = pysam.AlignmentFile(args.sam, 'r')
-    tempDir = makecorrecttempdir()
-    headeroutfilename = tempDir + 'headerfile.bam'
-    hfile = pysam.AlignmentFile(headeroutfilename, 'wb', template=samfile)
-    hfile.close()
-
+def bam_to_read_aligns(samfile, chunksize, tempDir, transcripttoexons, transcripttobpssindex,
+                                            args, headeroutfilename):
     lastname = None
     lastaligns = []
     readchunk = {}
-    chunksize = 1000
     chunkindex = 1
-
-    chunkresults = []
-
-    p = Pool(args.threads)
-
-    args.sam = '' # required to pass args to multiprocessing
-
     for read in samfile:
         readname = read.query_name
         if readname != lastname:
             if len(readchunk) == chunksize:
-                numrunningthreads = 10000
-                # not sure this is necessary, but this is to prevent having too much data in ram waiting to be passed to a thread
-                while numrunningthreads >= args.threads:
-                    numrunningthreads = 0
-                    for r in chunkresults:
-                        if not r.ready(): numrunningthreads += 1
-                    sleep(0.1)
-
-
                 sys.stderr.write(f'\rstarting chunk {chunkindex}')
-                r = p.apply_async(process_read_chunk, #samfile.header,
-                                     args=(chunkindex,tempDir, transcripttoexons, transcripttobpssindex, readchunk, args, headeroutfilename),
-                                     error_callback=report_thread_error)
-                chunkresults.append(r)
+                yield (chunkindex, readchunk, tempDir, transcripttoexons, transcripttobpssindex, args, headeroutfilename)
                 readchunk = {}
                 chunkindex += 1
             if len(lastaligns) > 0:
@@ -146,10 +120,44 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
         readchunk[lastname] = lastaligns
     if len(readchunk) > 0:
         sys.stderr.write(f'\rstarting chunk {chunkindex}')
-        r = p.apply_async(process_read_chunk,  # samfile.header,
-                          args=(chunkindex, tempDir, transcripttoexons, transcripttobpssindex, readchunk, args,
-                                headeroutfilename),
-                          error_callback=report_thread_error)
+        yield (chunkindex, readchunk, tempDir, transcripttoexons, transcripttobpssindex, args, headeroutfilename)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def process_alignments(args, transcripttoexons, transcripttobpssindex):
+    sys.stderr.write('processing alignments\n')
+    samfile = pysam.AlignmentFile(args.sam, 'r')
+    tempDir = makecorrecttempdir()
+    headeroutfilename = tempDir + 'headerfile.bam'
+    hfile = pysam.AlignmentFile(headeroutfilename, 'wb', template=samfile)
+    hfile.close()
+
+    chunksize = 1000
+
+    chunkresults = []
+
+    p = Pool(args.threads)
+
+    args.sam = '' # required to pass args to multiprocessing
+
+    # write method to yield chunks
+    # for chunk in chunkyielder
+
+    for r in p.imap_unordered(process_read_chunk, bam_to_read_aligns(samfile, chunksize, tempDir, transcripttoexons,
+                                                                transcripttobpssindex, args, headeroutfilename)):
         chunkresults.append(r)
 
     p.close()
@@ -158,7 +166,7 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
 
     transcripttoreads = {}
     for i in range(len(chunkresults)):
-        for read, transcript in chunkresults[i].get():
+        for read, transcript in chunkresults[i]:
             if transcript not in transcripttoreads: transcripttoreads[transcript] = []
             transcripttoreads[transcript].append(read)
     write_output(args, transcripttoreads)
