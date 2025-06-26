@@ -534,7 +534,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 
 
 
-def identifygoodmatchtoannot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome):
+def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome):
     goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = [], set(), {}
     if not args.noaligntoannot and len(alltranscripts) > 0:
         transcripttostrand = {}
@@ -1011,7 +1011,7 @@ def runcollapsebychrom(listofargs):
                  stdout=open(tempprefix + '.reads.fasta', 'w'))
     # then align reads to transcriptome and run count_sam_transcripts
     genome = pysam.FastaFile(args.genome)
-    goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = identifygoodmatchtoannot(args, tempprefix,
+    goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = identify_good_match_to_annot(args, tempprefix,
                                                                                                  rchrom,
                                                                                                  annottranscripttoexons,
                                                                                                  allannottranscripts,

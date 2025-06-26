@@ -44,8 +44,6 @@ def detectfusions():
                         help='minimap2 number of threads (4)')
     parser.add_argument('--minfragmentsize', type=int, default=40,
                         help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
-    parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
-                        help='''Suppress minimap progress statements from being printed''')
     parser.add_argument('-s', '--support', type=float, default=3.0,
                         help='''minimum number of supporting reads for a fusion (3)''')
     parser.add_argument('--maxloci', type=int, default=2,
@@ -79,6 +77,8 @@ def detectfusions():
 
     if args.annotated_fa == 'generate':
         # get transcript sequences
+        args.annotated_bed = args.output + 'annotated_transcripts.bed'
+        gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
         args.annotated_fa = args.output + 'annotated_transcripts.fa'
         bed_to_sequence(query=args.output + 'annotated_transcripts.bed', genome=args.genome,
                         outfilename=args.annotated_fa)
