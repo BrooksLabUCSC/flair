@@ -266,10 +266,15 @@ flair-collapse. In addition, all raw read fastq/fasta files should
 either be specified after ``--reads`` with space/comma separators or
 concatenated into a single file.
 
-**Please note:** Flair collapse is not yet capable of dealing with large (>1G)
+**Please note:** Flair collapse can be laggy on large (>1G)
 input bed files. If you find that Flair needs a lot of memory you may want to 
 follow the advice in dicussion #391 to split the bed files and reads by chromosome. 
-We do intend to improve this.
+You can also run FLAIR transcriptome instead, which has much better 
+parallelization and data flow
+
+If you want to get CDS and produced amino acid sequence predictions,
+you can run predictProductivity (see Additional programs) once you
+have obtained a FLAIR transcriptome from either collapse or transcriptome.
 
 **Outputs**
 
@@ -439,6 +444,66 @@ For more information on the Longshot variant caller, see its `github page <https
                         a sorted, bgzip-ed bed file.
 
 
+
+.. _fusions-label:
+
+flair fusion
+==============
+
+.. code:: text
+
+    usage: flair fusion -g genome.fa -r sample.fastq -b sample.genomealigned_chimeric.bam -f annot.gtf --annotated_fa [generate] [-o OUTPUT_PREFIX]
+
+This identifies gene fusions and generates a fusion transcriptome. 
+To incorporate this fusion transcriptome in downstream analysis, 
+use flair combine to merge it with normal isoforms. 
+
+**Output**
+
+sample.fusions.isoforms.bed
+    Bed file of fusion transcriptome (each fusion has a line for each locus in the fusion, 
+    and position in the fusion is specified by the fusiongeneX prefix in the name field
+sample.fusions.isoforms.fa
+    Fasta file of fusion transcriptome
+sample.syntheticAligned.isoform.read.map
+    read map of reads to fusion isoforms
+
+Required Options
+-------
+
+.. code:: text
+
+  -g --genome
+                        FastA of reference genome
+  -r READS [READS ...], --reads READS [READS ...]
+                        FastA/FastQ files of raw reads, can specify multiple files
+  -b --genomechimbam
+                        bam file of chimeric reads from genomic alignment from flair align run with --filtertype separate
+  -f --gtf              GTF annotation file
+  --annotated_fa 
+                        transcriptome sequences file; to ask flair to make 
+                        transcript sequences given the gtf and genome fa, type --annotated_fa generate
+
+Other Options
+-------
+
+.. code:: text
+
+  --transcriptchimbam TRANSCRIPTCHIMBAM
+                        Optional: bam file of chimeric reads from transcriptomic alignment. 
+                        If not provided, this will be made for you
+  -o OUTPUT, --output OUTPUT
+                        output file name base for FLAIR isoforms
+  -t --threads
+                        minimap2 number of threads (4)
+  --minfragmentsize 
+                        minimum size of alignment kept, used in minimap -s (40)
+  -s --support
+                        minimum number of supporting reads for a fusion (3)
+  --maxloci             max loci detected in fusion. Set higher for detection of 3-gene+ fusions
+
+
+
 .. _combine-label:
 
 flair combine
@@ -473,12 +538,16 @@ flair combine
                             none, or a number for the total count of reads required to call an
                             isoform
 
-    Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
+    Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format. If the transcriptome is from FLAIR collapse or transcriptome, but isoform in the second column, if it is from FLAIR fusion, put fusionisoform in the second column:
+
+Manifest example:
 
 .. code:: text
 
-    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.FLAIR.isoforms.fa sample1.read.map.txt
-    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.FLAIR.isoforms.fa sample2.read.map.txt
+    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.read.map.txt
+    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.read.map.txt
+    sample1	fusionisoform	sample1.fusion.isoforms.bed	sample1.fusion.isoforms.fa	sample1.fusion.read.map.txt
+    sample2	fusionisoform	sample2.fusion.isoforms.bed	sample2.fusion.isoforms.fa	sample2.fusion.read.map.txt
 
 For each line, the sample name and bed path is required. The fasta and
 read.map.txt file is optional. Without these files there is less ability to
@@ -526,7 +595,7 @@ Required arguments
     --reads_manifest    Tab delimited file containing sample id, condition, batch, 
                         reads.fq, where reads.fq is the path to the sample fastq file. 
 
-Reads manifest example:
+Manifest example:
 
 .. code:: text
 
@@ -578,6 +647,7 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
    id   sample1_condition1_batch1  sample2_condition1_batch1  sample3_condition1_batch1  sample4_condition2_batch1  sample5_condition2_batch1  sample6_condition2_batch1
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
    ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
+
 
 
 .. _variants-label:
