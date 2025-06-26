@@ -146,6 +146,7 @@ def correct(aligned_reads='', args=None):
     nochrom.close()
     if tempoutfile:
         tempoutfile.close()
+
     if notfound is False:
         os.remove(f'{args.output}_cannot_verify.bed')
 

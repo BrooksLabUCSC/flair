@@ -76,8 +76,10 @@ endef
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
-	@echo To run depricated tests that depend on R >&2
-	@echo "   " make test-diffexp >&2
+	@echo To run expression diff tests that depend on R >&2
+	@echo "   " make test-diffexpress >&2
+	@echo To run all tests >&2
+	@echo "   " make test-all >&2
 	@echo otherwise run individual tests by specifying test target, such as: >&2
 	@echo "   " make align-tests >&2
 	@echo remove output files: >&2
@@ -87,9 +89,16 @@ default:
 	@exit 1
 
 test: main-tests align-tests correct-tests collapse-tests quantify-tests \
-	predict-productivity-tests diff-iso-usage-tests combine-tests
+	combine-tests predict-productivity-tests diff-iso-usage-tests \
+	plot-usage-tests other-progs-tests
 
-test-diffexpsplice: diffexp-tests diffsplice-tests
+test-diffexpress: diffexp-tests diffsplice-tests
+
+test-all: test test-diffexpress
+
+test-help: test-main-help test-align-help test-correct-help test-collapse-help \
+           test-quantify-help test-diffexp-help test-diffsplice-help \
+           test-predict-productivity-help test-diff-iso-usage-help
 
 ###
 # MAIN COMMAND
@@ -222,19 +231,19 @@ combine-tests: test-combine-bed-only test-combine-bed-fa test-combine-bed-fa-map
 test-combine-bed-only: mkdirs
 	rm -rf $O/$@
 	mkdir -p $O/$@
-	../bin/flair_combine --manifest=input/bed-only.combine_manifest.txt -o $O/$@/combined
+	flair combine --manifest=input/bed-only.combine_manifest.txt -o $O/$@/combined
 	$(call combine_diff)
 
 test-combine-bed-fa: mkdirs
 	rm -rf $O/$@
 	mkdir -p $O/$@
-	../bin/flair_combine --manifest=input/bed-fa.combine_manifest.txt -o $O/$@/combined
+	flair combine --manifest=input/bed-fa.combine_manifest.txt -o $O/$@/combined
 	$(call combine_fa_diff)
 
 test-combine-bed-fa-map: mkdirs
 	rm -rf $O/$@
 	mkdir -p $O/$@
-	../bin/flair_combine --manifest=input/bed-fa-map.combine_manifest.txt -o $O/$@/combined
+	flair combine --manifest=input/bed-fa-map.combine_manifest.txt -o $O/$@/combined
 	$(call combine_fa_diff)
 
 ###
@@ -246,8 +255,8 @@ test-quantify: mkdirs
 	rm -rf $O/$@.tmp
 	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --generate_map --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@ --output_bam
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
+	$(call cmp_expect_sort,$@.A1.A.flair.aligned.readtotranscript.txt)
 	$(call cmp_expect,$@.tpm.tsv)
-	$(call cmp_expect,$@.A1.A.flair.aligned.readtotranscript.txt)
 
 # without map or bam output
 test-quantify-nobam : mkdirs
@@ -265,13 +274,13 @@ test-quantify-help: mkdirs
 diffexp-tests: test-diffexp test-diffexp-help
 
 test-diffexp : mkdirs
-	flair_diffExp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
+	flair diffexp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
 	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
-	flair_diffExp --help >&$O/$@.out
+	flair diffexp --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
@@ -283,16 +292,16 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 # (issue #417)
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
-	flair_diffSplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
-	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
+	flair diffsplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
+	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
 #	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
 #	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
 #	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-help: mkdirs
-	flair_diffSplice --help >&$O/$@.out
+	flair diffsplice --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
 
 
@@ -322,6 +331,71 @@ test-diff-iso-usage: mkdirs
 test-diff-iso-usage-help: mkdirs
 	diff_iso_usage --help >&$O/$@.out
 	$(call cmp_expect,$@.out)
+
+##
+# plot isoform usage
+##
+plot-usage-tests: test-plot-usage
+
+test-plot-usage: mkdirs
+	plot_isoform_usage expected/test-predict-productivity.bed expected/test-collapse-annot.annotated_transcripts.alignment.counts ENSG00000133703.12 -o output/$@
+	file output/test-plot-usage_isoforms.png | grep 'PNG image data' >/dev/null
+	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
+
+
+other-progs-tests: test-bam2bed12 test-prod test-transcriptome test-fusion test-variants
+
+###
+# predictProductivity
+###
+
+test-prod: mkdirs
+	predictProductivity -i expected/test-collapse-annot.isoforms.bed -f ${GENOME_FA} -g $(BASIC_ANNOTATION) -o output/$@ --longestORF
+	$(call cmp_expect,$@.bed)
+
+
+###
+# flair transcriptome
+###
+
+
+test-transcriptome: mkdirs
+	flair transcriptome  -b output/test-align.bam -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
+	$(call cmp_expect,$@.isoforms.bed)
+
+###
+# flair variants
+# FIXME need to add better checks for AAseq results, however the inconsistent sorting of the variants leads to inconsistent AAseq IDs which are hard to check
+###
+
+test-variants: mkdirs
+	minimap2 -ax map-ont --secondary=no ${GENOME_FA} input/basic.reads.4.fa | samtools view -hb - | samtools sort - > $O/$@.genomealigned.bam
+	samtools index $O/$@.genomealigned.bam
+	samtools faidx $(BASIC_ISOFORMS_FA)
+	longshot --force_overwrite --bam $O/$@.genomealigned.bam --ref ${GENOME_FA} --out $O/$@.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
+	echo 's1    output/test-quantify.B1.B.flair.aligned.bam   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
+	flair variants -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
+	$(call cmp_expect,$@.isoswithvars.counts.tsv)
+	$(call cmp_expect,$@.aaseq.counts.tsv)
+
+
+###
+# flair fusion
+###
+test-fusion: mkdirs
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa output/test-collapse-annot.annotated_transcripts.fa -s 2
+	$(call cmp_expect,$@-syntheticBreakpointLoc.bed)
+
+##
+# Other programs
+##
+
+test-bam2bed12: mkdirs
+	samtools view -b input/tiny.sam >output/$@.bam
+	samtools index output/$@.bam
+	bam2Bed12 -i output/$@.bam > output/$@.bed
+	$(call cmp_expect,$@.bed)
 
 ##
 # build test input files

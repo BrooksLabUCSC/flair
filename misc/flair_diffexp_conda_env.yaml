@@ -1,10 +1,9 @@
 name: flair-diffexp
 
-# This supplements flair environment to add dependencies for deprecated
-# diffexp and diffsplice functionality.  After activating, 
+# This supplements flair environment to add dependencies diffexp and
+# diffsplice functionality.  After activating,
 # 
 #   conda env update --name flair --file misc/flair_diffexp_conda_env.yaml
-#   pip install -e flair-brookslab[diffexp]
 
 channels:
   - bioconda
@@ -22,3 +21,10 @@ dependencies:
   - gcc
   - zlib
   - xz
+  - pip
+  - pip:
+      - flair-brookslab[diffexp]==v2.2.0
+      - pandas>=2.2.3,<3.0.0
+      - matplotlib>=3.10.0,<4.0.0
+      - seaborn>=0.13.2,<0.14.0
+      - rpy2>=3.5.17,<4.0.0

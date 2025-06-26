@@ -45,7 +45,7 @@ class CommandLine(object):
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description=' predictProductivity - a tool.',
-                                             add_help=True, #default is True
+                                             add_help=True, # default is True
                                              prefix_chars='-',
                                              usage='%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf -o outputprefix')
         # Add args
@@ -111,7 +111,6 @@ def getStarts(gtf):
             if cols[2] == "start_codon":
                 gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
                 gene = gene[:gene.find('"')]
-                # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
 
                 starts.append((chrom,c1,c2,gene,".",strand))
             if cols[2] == 'transcript':
@@ -121,7 +120,6 @@ def getStarts(gtf):
     if (len(starts)) == 0:
         sys.stderr.write('ERROR, no start codons were found in', gtf)
         sys.exit(1)
-    #sys.stderr.write(','.join(tnamenmdexcep))
     return starts, tnamenmdexcep
 
 
@@ -155,7 +153,7 @@ def getSeqs(bed, genome):
     with open(bt.seqfn) as entries:
         for entry in entries:
             read,seq  = entry.split()
-            # accommodate different bedtools versions
+            # accommodate different bedtools versions - they use different separators
             iso = read.split('::')[0]
             iso = iso.split("(")[0]
             if iso[:10] == 'fusiongene': iso = '_'.join(iso.split('_')[1:])
@@ -177,7 +175,7 @@ def getStartRelPos(genomicStartPos,exon, exons, isoObj):
     if isoObj.strand == "+":
         relativeStart = genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])
     elif isoObj.strand == "-":
-        relativeStart = sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])) - 3
+        relativeStart = sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])) #- 3
 
     return relativeStart
 
@@ -194,8 +192,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     ptc  = None
     genomicPos = int()
     distance   = 0
-
-    #if isoname == 'flairiso24082-1_ENSG00000105173.14--chr19-27666000': print(isoname, exonSizes, orfEndPos, allExons)
+    maxdistfromexonedge = 55
 
     for num,e in enumerate(exonSizes,0):
 
@@ -218,28 +215,26 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)
 
-
-            if allExons[-2][3] != allExons[-1][3]: ###allow stop codon in second to last exon if fusion breakpoint between second to last and last exon
+            # allow stop codon in second to last exon if fusion breakpoint between second to last and last exon
+            if allExons[-2][3] != allExons[-1][3]:
                 if num == len(exonSizes)-2:
                     ptc = False
                     break
-                elif distToJunc > 55 or num < len(exonSizes)-3:
+                elif distToJunc > maxdistfromexonedge or num < len(exonSizes)-3:
                     ptc = True
                     break
 
-            if distToJunc > 55 or num < len(exonSizes)-2:
+            if distToJunc > maxdistfromexonedge or num < len(exonSizes)-2:
                 ptc = True
                 break
 
     if len(exonSizes) == 1: ptcpointont = 0
     elif allExons[-2][3] != allExons[-1][3]:
         if len(exonSizes) == 2: ptcpointont = 0
-        elif exonSizes[-3] < 55: ptcpointont = sum(exonSizes[:-3])
-        else: ptcpointont = sum(exonSizes[:-2]) - 55
-    elif exonSizes[-2] < 55: ptcpointont = sum(exonSizes[:-2])
-    else: ptcpointont = sum(exonSizes[:-1]) - 55
-
-    #if isoname == 'flairiso24082-1_ENSG00000105173.14--chr19-27666000': print(num, exonWithStop, ptc, ptcpointont)
+        elif exonSizes[-3] < maxdistfromexonedge: ptcpointont = sum(exonSizes[:-3])
+        else: ptcpointont = sum(exonSizes[:-2]) - maxdistfromexonedge
+    elif exonSizes[-2] < maxdistfromexonedge: ptcpointont = sum(exonSizes[:-2])
+    else: ptcpointont = sum(exonSizes[:-1]) - maxdistfromexonedge
 
     isoname = isoname.split('_')[-2]
     if isoname[-2] == '-': isoname = isoname[:-2]
@@ -260,7 +255,7 @@ def predict(bed, starts, isoDict, nmdexcep):
     b6 = bt.bed6()
     st = pybedtools.BedTool(starts)
 
-    ####NEED TO REWRITE THIS SO WE GET EXON INFO FROM BED FILE, THEN SEPARATELY GET STARTS FROM OVERLAP
+    # FIXME NEED TO REWRITE THIS SO WE GET EXON INFO FROM BED FILE, THEN SEPARATELY GET STARTS FROM OVERLAP
     for intersection in b6:
         read   = intersection[3]
         exonCoord = (int(intersection[1]),int(intersection[2]))
@@ -281,12 +276,10 @@ def predict(bed, starts, isoDict, nmdexcep):
         read   = intersection[3]
         exonCoord = (int(intersection[1]),int(intersection[2]))
         elen = exonCoord[1]-exonCoord[0]
-        #if read[:10] == 'fusiongene': print(read)
-        if read[:10] == 'fusiongene' and read[10] != '1': continue ###only getting starts for 5' genes
+        if read[:10] == 'fusiongene' and read[10] != '1': continue # only getting starts for 5' genes
         if read[:10] == 'fusiongene': read = '_'.join(read.split('_')[1:])
-        #iso,gene = read.split("_")
         overlap  = intersection[-1]
-        goStart  = int(intersection[-6])
+        goStart  = int(intersection[-6]) if intersection[5] == '+' else int(intersection[-5])
         isoDict[read].strand = intersection[5]
         isoDict[read].chrom = intersection[0]
         isoDict[read].exons.add(exonCoord)
@@ -299,7 +292,6 @@ def predict(bed, starts, isoDict, nmdexcep):
     for iso,o in isoDict.items():
         exons = list(o.exons)
         exons.sort()
-        #print(iso, sum(o.allEsizes), o.allEsizes)
         if len(o.starts) < 1:
             o.orfs.append(["NGO", exons[0][0], exons[0][0], 0, 0])
 
@@ -312,8 +304,6 @@ def predict(bed, starts, isoDict, nmdexcep):
                 # Next find first stop codon
                 stopReached = False
                 for i in range(0, len(rest), 3):
-                    #codon = rest[i:i+3] unused
-
                     if rest[i:i+3] in stops:
                         stopReached = True
                         break
@@ -325,18 +315,14 @@ def predict(bed, starts, isoDict, nmdexcep):
                 if not stopReached:
                     orfEndPos = len(fiveUTR)+i
                     o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], orfEndPos-relativeStart, relativeStart])
-                    #o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], relativeStart])
 
-                #else if a stop was reached...
+                # else if a stop was reached...
                 else:
                     orfEndPos = len(fiveUTR)+i+3
-
-                    #if iso == 'flairiso24082-1_ENSG00000105173.14--chr19-27666000': print(o.exons, relativeStart, i, orfEndPos)
                     genomicStopPos, ptc, ptcdecidingpoint = checkPTC(orfEndPos, o.allEsizes, o.allExons, nmdexcep, iso)
                     ptc = "PTC" if ptc else "PRO"
                     o.orfs.append([ptc, startPos, genomicStopPos, orfEndPos - relativeStart, relativeStart])
                     o.ptcpoint = ptcdecidingpoint
-                    #o.orfs.append([ptc, startPos, genomicStopPos, relativeStart])
 
     return isoDict
 
@@ -402,7 +388,6 @@ def main():
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
-            #if bedCols[3][:10] == 'fusiongene' and bedCols[3][10] != '1': continue ###this is a problem child
             if bedCols[3][:10] == 'fusiongene': isoname = '_'.join(bedCols[3].split('_')[1:])
             else: isoname = bedCols[3]
             isoObj = isoformObjs[isoname]

@@ -1,14 +1,386 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 
+########################################################################
+# File: diaFLAIR.py
+#  executable: diaFLAIR.py
+# Purpose: wrapper for Differential Isoform Analyses
+#
+#
+# Author: Cameron M. Soulette
+# History:      cms 01/17/2019 Created
+#
+########################################################################
+
+
+########################################################################
+# Hot Imports & Global Variable
+########################################################################
+
+
+import os
 import sys
 import argparse
 import subprocess
-import os
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import codecs
+import errno
+from collections import Counter
+from statistics import median,stdev
+from scipy.stats import ttest_ind, ranksums
+from statsmodels.stats.multitest import multipletests
+from statistics import median, mean
 
-# TODO: this is a complex interface to runDE, merge the two
+from flair import check_diffexp_dependencies, set_unix_path
+
+check_diffexp_dependencies()
+
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import numpy as np
+import pandas as pd
+
+
+
+scriptPath = os.path.realpath(__file__)
+path = "/".join(scriptPath.split("/")[:-1])
+runDE = path + "/" + "runDE.py"
+runDU = path + "/" + "runDU.py"
+
+
+########################################################################
+# Isoform
+########################################################################
+
+
+class Isoform(object):
+    '''
+    Object to handle isoform related data.
+
+    attributes:
+
+    methods:
+
+    '''
+
+    def __init__(self, tid=None, gid=None):
+        self.name = tid
+        self.parent = gid
+
+        self.exp  = None
+#        self.usage   = None
+
+#        self.deseq2AdjP  = float()
+#        self.drimseqAdjP = float()
+
+#        self.deseq2FC = float()
+#        self.deltaIPU = float()
+
+
+########################################################################
+# Gene
+########################################################################
+
+
+class Gene(object):
+    '''
+    Object to handle gene related data.
+
+    attributes:
+
+    methods:
+
+    '''
+
+    def __init__(self, gid=None):
+#        self.transcripts = list()
+        self.name = gid
+
+        self.exp  = None
+
+#        self.deseq2AdjP  = float()
+
+#        self.deseq2FC = float()
+
+########################################################################
+# Functions
+########################################################################
+
+
+def getsigfromnormbygene(outname, filename):#, mycl):
+    allids, allpval, alldeltas = [], [], []
+    genetototcounts = {}
+    for line in open(filename):
+        line = line.rstrip().split('\t')
+        if line[0] != 'ids':
+            gene = line[0].split('_')[-1]
+            counts = [int(x) for x in line[1:]]
+            if gene not in genetototcounts: genetototcounts[gene] = [0 for x in range(len(counts))]
+            genetototcounts[gene] = [genetototcounts[gene][x] + counts[x] for x in range(len(counts))]
+
+    for line in open(filename):
+        line = line.rstrip().split('\t')
+        if line[0] != 'ids':
+            id = line[0]#'_'.join(line[0].split('_')[:-1])
+            gene = id.split('_')[-1]
+            wtcounts = [int(x) for x in line[1:4]]
+            varcounts = [int(x) for x in line[4:]]
+            deltaval = median(varcounts)-median(wtcounts)
+            wttot, vartot = mean(genetototcounts[gene][:3]), mean(genetototcounts[gene][3:])
+            deltausage = (mean(varcounts)/vartot if vartot > 0 else 0)-(mean(wtcounts)/wttot if wttot > 0 else 0)
+            if abs(deltaval) > 3:
+                pval = ttest_ind(wtcounts, varcounts).pvalue
+                # pval = ranksums(wtcounts, varcounts).pvalue ###doesn't work, too stringent
+                allids.append(id)
+                allpval.append(pval)
+                alldeltas.append(deltausage)#(deltaval/ ((sum(wtcounts) + sum(varcounts))/(len(wtcounts) + len(varcounts))))
+    corrpval = list(multipletests(allpval)[1])
+    out = open(outname, 'w')
+    for i in range(len(allids)):
+        gene = allids[i]
+        if corrpval[i] < 0.05:
+            # if gene not in siginfo: siginfo[gene] = {c: '' for c in celllines}
+            # mysig = getsig(corrpval[i])
+            # if len(mysig) > len(siginfo[gene][mycl]): siginfo[gene][mycl] = mysig
+            out.write('\t'.join([gene, str(round(alldeltas[i], 3)), str(corrpval[i])]) + '\n')
+
+
+
+def separateTables(f, thresh, samples, groups, outDir):
+
+    genes, isoforms = dict(), dict()
+    duplicateID = 1
+
+    with codecs.open(f, "r", encoding='utf-8', errors='ignore') as lines:
+        cols = next(lines).split("\t")
+
+        if len(cols) < 7:
+            print("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols),file=sys.stderr)
+            sys.exit(1)
+
+        for num, line in enumerate(lines):
+
+            data = line.rstrip().split("\t")
+            if len(data) < 7:
+                print("** Error. Found %s columns in matrix on line %s, expected >6. Exiting." % (len(data), num),file=sys.stderr)
+                sys.exit(1)
+
+            name = data[0]
+            counts = np.asarray(data[1:], dtype=float)
+            iso, gene   = name, name.split("_")[-1]
+            if "-" in gene:
+                gene = gene.split("-")[0]
+            m = iso.count("_")
+            if m > 1:
+                iso = iso.replace("_","",1)
+
+            if gene not in genes:
+                genes[gene] = Gene(gene)
+                genes[gene].exp = np.zeros(len(counts))
+
+            geneObj = genes[gene]
+            geneObj.exp += counts
+
+            if iso not in isoforms:
+                isoforms[iso] = Isoform(iso)
+                isoforms[iso].exp = counts
+
+            else:
+                duplicateID += 1
+                iso = iso + "-" + str(duplicateID)
+                isoforms[iso] = Isoform(iso)
+                isoforms[iso].exp = counts
+
+            isoformObj = isoforms[iso]
+            isoformObj.parent = geneObj
+
+    # get group indices for filterin tables
+    groups = np.asarray(groups)
+    g1Ind  = np.where(groups == groups[0])[0]
+    g2Ind  = np.where(groups == groups[-1])[0]
+
+    #make gene table first
+    geneIDs = np.asarray(list(genes.keys()))
+    vals    = np.asarray([genes[x].exp for x in geneIDs])
+    # genes must be expressed in all samples of at least one group
+    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
+    filteredGeneVals = vals[filteredRows]
+    filteredGeneIDs  = geneIDs[filteredRows]
+
+    # now do isoforms
+    isoformIDs = np.asarray(list(isoforms.keys()))
+    vals = np.asarray([isoforms[x].exp for x in isoformIDs])
+    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
+    filteredIsoVals = vals[filteredRows]
+    filteredIsoIDs  = isoformIDs[filteredRows]
+
+    geneDF  = pd.DataFrame(filteredGeneVals,columns=samples, index=filteredGeneIDs)
+    isoDF = pd.DataFrame(filteredIsoVals,columns=samples, index=filteredIsoIDs)
+
+    geneDF.to_csv(outDir + "/filtered_gene_counts_ds2.tsv", sep="\t")
+    isoDF.to_csv(outDir + "/filtered_iso_counts_ds2.tsv", sep="\t")
+
+    # also make table for drimm-seq
+    isoformIDs = np.asarray([[y.parent.name,x] for x,y in isoforms.items()])
+    vals = np.asarray([isoforms[x[-1]].exp for x in isoformIDs])
+    #isoformIDs = isoformIDs.reshape(len(isoformIDs),1)
+    allIso = np.hstack((isoformIDs,vals))
+    isoDF  = pd.DataFrame(allIso, columns=['gene_id','feature_id']+samples)
+    isoDF.to_csv(outDir + "/filtered_iso_counts_drim.tsv", sep="\t")
+    return genes, isoforms
+
+
+def calc_gene_norm_sig(workdir, quantTable, outDir):
+    ###DO sample normalization
+    genetosampletotot = {}
+    lines = []
+    out = open(workdir + '/counts.normbygene.tsv', 'w')
+    for line in open(quantTable):
+        line = line.rstrip().split('\t')
+        if line[0] == 'ids':
+            out.write('\t'.join(line) + '\n')
+        else:
+            oggenes = line[0].split('_')[-1]
+            genes = oggenes.split('--')
+            isoname = '_'.join(line[0].split('_')[:-1])
+            l = len(line)
+            for gene in genes:
+                if '--' in oggenes:  ##is fusion
+                    line[0] = isoname + '_' + oggenes + '_' + gene
+
+                counts = [float(x) for x in line[1:]]
+                lines.append([line[0]] + counts)
+                if gene not in genetosampletotot: genetosampletotot[gene] = [0 for x in range(len(counts))]
+                genetosampletotot[gene] = [genetosampletotot[gene][x] + counts[x] for x in range(len(counts))]
+    for l in lines:
+        gene = l[0].split('_')[-1]
+        thisgenetot = genetosampletotot[gene]
+        geneavg = sum(thisgenetot) / len(thisgenetot)
+        thesecounts = l[1:]
+        thesecounts = [(thesecounts[x] / thisgenetot[x]) * geneavg if thisgenetot[x] > 0 else 0 for x in
+                       range(len(thisgenetot))]
+        thesecounts = [str(round(x)) for x in thesecounts]
+        out.write('\t'.join([l[0]] + thesecounts) + '\n')
+    out.close()
+
+    getsigfromnormbygene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
+
+
+def calculate_sig(args):
+
+    '''
+    '''
+
+    outDir     = args.o
+    quantTable = args.q
+    sFilter    = args.e
+    threads    = args.t
+    force_dir  = args.of
+
+    # Get sample data info
+    with open(quantTable) as l:
+        header = next(l).split()[1:]
+
+    samples = ["%s_%s" % (h,num) for num,h in enumerate(header)]
+    try:
+        groups  = [x.split("_")[1] for x in header]
+        batches = [x.split("_")[-1] for x in header]
+        combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
+    except IndexError:
+        raise Exception("** Error. diffExp requires column headers to contain sample, group, and batch, separated by '_'")
+    except Exception as ex:
+        raise Exception("** deFlair FAILED for %s" % (quantTable)) from ex
+
+    groupCounts = Counter(groups)
+    if len(list(groupCounts.keys())) != 2:
+        print("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)
+        sys.exit(1)
+    elif min(list(groupCounts.values())) < 3:
+        print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.", file=sys.stderr)
+        sys.exit(1)
+    elif set(groups).intersection(set(batches)):
+        print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.", file=sys.stderr)
+        sys.exit(1)
+    elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
+        print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.", file=sys.stderr)
+        sys.exit(1)
+
+    # Create output directory including a working directory for intermediate files.
+    workdir = os.path.join(outDir, 'workdir')
+
+    if force_dir:
+        if not os.path.exists(workdir):
+            os.makedirs(workdir)
+        pass
+    elif not os.path.exists(outDir):
+        try:
+            os.makedirs(workdir, 0o700)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+    else:
+        print("** Error. Name '%s' already exists. Choose another name for out_dir" % outDir, file=sys.stderr)
+        sys.exit(1)
+
+
+    calc_gene_norm_sig(workdir, quantTable, outDir)
+
+
+    # Convert count tables to dataframe and update isoform objects.
+    genes, isoforms = separateTables(quantTable, sFilter, samples, groups, workdir)
+
+    # checks linear combination
+    if len(combos) == 2:
+        header        = ['sample_id','condition']
+        formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
+        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
+        formulaDF     = formulaDF.set_index('sample_id')
+
+    elif len(set(batches)) > 1:
+        header        = ['sample_id','condition','batch']
+        formulaMatrix = [[x,y,z] for x,y,z in zip(samples,groups,batches)]
+        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
+        formulaDF     = formulaDF.set_index('sample_id')
+
+    else:
+        header        = ['sample_id','condition']
+        formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
+        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
+        formulaDF     = formulaDF.set_index('sample_id')
+
+    formulaMatrixFile = workdir + "/formula_matrix.tsv"
+    isoMatrixFile     = workdir + "/filtered_iso_counts_ds2.tsv"
+    geneMatrixFile    = workdir + "/filtered_gene_counts_ds2.tsv"
+    drimMatrixFile    = workdir + "/filtered_iso_counts_drim.tsv"
+
+    formulaDF.to_csv(formulaMatrixFile, sep='\t')
+
+    with open("%s/dge_stderr.txt" % workdir,"w") as out1:
+
+        try:
+            subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
+                            "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
+                            "--prefix", "genes_deseq2", "--formula", formulaMatrixFile], stderr=out1)
+        except subprocess.CalledProcessError:
+            print(f'WARNING, running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details')
+        sys.stdout.flush()
+
+        try:
+            subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
+                            "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
+                            "--prefix", "isoforms_deseq2", "--formula", formulaMatrixFile], stderr=out1)
+        except subprocess.CalledProcessError:
+            print(f'WARNING, running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details')
+        sys.stdout.flush()
+
+        try:
+            subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
+                             "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
+                             "--prefix", "isoforms_drimseq", "--formula", formulaMatrixFile], stderr=out1)
+        except subprocess.CalledProcessError:
+            print(f'WARNING, running DRIMSeq failed, please check {workdir}/dge_stderr.txt for details')
+        sys.stdout.flush()
+
 
 def diffExp(counts_matrix=''):
+    set_unix_path()
     parser = argparse.ArgumentParser(description='flair-diffExp parse options',
             usage='flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
 #       parser.add_argument('diffExp')
@@ -29,22 +401,15 @@ def diffExp(counts_matrix=''):
     args = parser.parse_args()
     if counts_matrix:
         args.q = counts_matrix
-        args.o+'.diffExp'
+        args.o = args.o+'.diffExp'
 
     if not os.path.exists(args.q):
         sys.stderr.write('Counts matrix file path does not exist\n')
         return 1
 
-    runDE = 'deFLAIR.py'
-#       DEcommand = [sys.executable, '-W ignore', runDE, '--filter', str(args.e), '--threads',
-    DEcommand = [runDE, '--filter', str(args.e), '--threads',
-            str(args.t), '--outDir', args.o, '--matrix', args.q]
-    if args.of:
-        DEcommand += ['-of']
+    calculate_sig(args)
 
-    if subprocess.call(DEcommand):
-        return 1
-    return 0
+
 
 if __name__ == "__main__":
     exit(diffExp())

@@ -23,10 +23,10 @@ test:
 test-installed:
 	${MAKE} -C test test use_installed_flair=yes
 
-test-diffexp:
-	${MAKE} -C test test-diffexp use_installed_flair=${use_installed_flair}
-test-diffexp-installed:
-	${MAKE} -C test test-diffexp use_installed_flair=yes
+test-diffexpress:
+	${MAKE} -C test test-diffexpress use_installed_flair=${use_installed_flair}
+test-diffexpress-installed:
+	${MAKE} -C test test-diffexpress use_installed_flair=yes
 
 
 ##
@@ -56,7 +56,7 @@ build: clean
 # test if pip install locally
 test-pip:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir ./dist/${PACKAGE_NAME}-py3-none-any.whl
+	${pip_env_act} && pip install --no-cache-dir ./dist/${PACKAGE_FILE_PREFIX}-py3-none-any.whl
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 # testpypy

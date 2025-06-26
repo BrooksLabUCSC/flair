@@ -44,8 +44,6 @@ def detectfusions():
                         help='minimap2 number of threads (4)')
     parser.add_argument('--minfragmentsize', type=int, default=40,
                         help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
-    parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
-                        help='''Suppress minimap progress statements from being printed''')
     parser.add_argument('-s', '--support', type=float, default=3.0,
                         help='''minimum number of supporting reads for a fusion (3)''')
     parser.add_argument('--maxloci', type=int, default=2,
@@ -79,6 +77,8 @@ def detectfusions():
 
     if args.annotated_fa == 'generate':
         # get transcript sequences
+        args.annotated_bed = args.output + 'annotated_transcripts.bed'
+        gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
         args.annotated_fa = args.output + 'annotated_transcripts.fa'
         bed_to_sequence(query=args.output + 'annotated_transcripts.bed', genome=args.genome,
                         outfilename=args.annotated_fa)
@@ -114,6 +114,7 @@ def detectfusions():
 
         pipettor.run([('rm', args.output + '_unfilteredtranscriptome.bam', args.output + '_unfilteredtranscriptome.bam.bai')])
         args.transcriptchimbam = args.output + '_transcriptomechimeric.bam'
+        print('aligned to transcriptome')
 
 
     geneannot, genetoinfo, annot, genetoexons = {}, {}, {}, {}
@@ -236,6 +237,12 @@ def detectfusions():
                 linecount += 1
     freads.close()
     print('done processing fusion reads')
+
+
+
+    if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
+        print('no preliminary fusions detected. Exiting')
+        return
 
     makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
                         '-o', args.output, '-c', args.output + '.prelimfusions.bed']

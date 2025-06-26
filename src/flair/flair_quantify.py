@@ -34,8 +34,8 @@ def quantify(isoform_sequences=''):
             help='''only use sample id in output header''')
     parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
             help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
-    parser.add_argument('--quality', type=int, action='store', dest='quality', default=1,
-            help='''minimum MAPQ of read assignment to an isoform (1)''')
+    parser.add_argument('--quality', type=int, action='store', dest='quality', default=0,
+            help='''minimum MAPQ of read assignment to an isoform (0)''')
     parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
             help='specify if reads are generated from a long read method with minimal fragmentation')
     parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
@@ -108,7 +108,7 @@ def quantify(isoform_sequences=''):
 
         sys.stderr.write('Quantifying isoforms for sample %s_%s: %s/%s \n' % (sample, batch, num+1, len(samData)))
 
-        count_cmd = ['count_sam_transcripts.py', '-s', samOut,
+        count_cmd = ['filter_transcriptome_align.py', '-s', samOut,
                      '-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
         if args.trust_ends:
             count_cmd += ['--trust_ends']
@@ -118,46 +118,49 @@ def quantify(isoform_sequences=''):
             count_cmd += ['--check_splice']
         if args.check_splice or args.stringent:
             count_cmd += ['-i', args.isoforms]
-        if args.generate_map or args.output_bam:
+        if args.generate_map:
             count_cmd += ['--generate_map', args.o+'.'+sample+'.'+group+'.isoform.read.map.txt']
+        if args.output_bam:
+            count_cmd += ['--output_bam', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']
+
 
         subprocess.check_call(count_cmd)
         sys.stderr.flush()
 
-        if args.output_bam:
-            sys.stderr.write('Filtering bam reads for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
-            readToIso = {}
-            for line in open(args.o+'.'+sample+'.'+group+'.isoform.read.map.txt'):
-                line = line.rstrip().split('\t', 1)
-                for r in line[1].split(','):
-                    readToIso[r] = line[0]
-
-            newsam = open(samOut.split('.sam')[0] + '-filtered.sam', 'w')
-            nametoseq = {}
-            impsecondary = []
-            for line in open(samOut):
-                if line[0] == '@': newsam.write(line)
-                else:
-                    line = line.split('\t')
-                    read, iso, flag = line[0], line[2], line[1]
-                    if flag == '0' or flag == '16':
-                        nametoseq[read] = [line[9], line[10]]
-                        if read in readToIso and readToIso[read] == iso:
-                            # if line[4] == '0': line[4] = '60'
-                            newsam.write('\t'.join(line))
-                    elif read in readToIso and readToIso[read] == iso:
-                        impsecondary.append(line)
-            for line in impsecondary:
-                line[9] = nametoseq[line[0]][0]
-                line[10] = nametoseq[line[0]][1]
-                line[5] = line[5].replace('H', 'S')
-                # if line[4] == '0': line[4] = '60'
-                newsam.write('\t'.join(line))
-            newsam.close()
-            subprocess.check_call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
-            subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
-
-        subprocess.check_call(['rm', samOut])
+        # if args.output_bam:
+        #     sys.stderr.write('Filtering bam reads for sample %s_%s: %s/%s \r' % (sample, batch, num+1, len(samData)))
+        #     readToIso = {}
+        #     for line in open(args.o+'.'+sample+'.'+group+'.isoform.read.map.txt'):
+        #         line = line.rstrip().split('\t', 1)
+        #         for r in line[1].split(','):
+        #             readToIso[r] = line[0]
+        #
+        #     newsam = open(samOut.split('.sam')[0] + '-filtered.sam', 'w')
+        #     nametoseq = {}
+        #     impsecondary = []
+        #     for line in open(samOut):
+        #         if line[0] == '@': newsam.write(line)
+        #         else:
+        #             line = line.split('\t')
+        #             read, iso, flag = line[0], line[2], line[1]
+        #             if flag == '0' or flag == '16':
+        #                 nametoseq[read] = [line[9], line[10]]
+        #                 if read in readToIso and readToIso[read] == iso:
+        #                     # if line[4] == '0': line[4] = '60'
+        #                     newsam.write('\t'.join(line))
+        #             elif read in readToIso and readToIso[read] == iso:
+        #                 impsecondary.append(line)
+        #     for line in impsecondary:
+        #         line[9] = nametoseq[line[0]][0]
+        #         line[10] = nametoseq[line[0]][1]
+        #         line[5] = line[5].replace('H', 'S')
+        #         # if line[4] == '0': line[4] = '60'
+        #         newsam.write('\t'.join(line))
+        #     newsam.close()
+        #     subprocess.check_call(['samtools', 'sort', '-@', str(args.t), samOut.split('.sam')[0] + '-filtered.sam', '-o', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
+        #     subprocess.check_call(['samtools', 'index', args.o+'.'+sample+'.'+group+'.flair.aligned.bam'])
+        #
+        # subprocess.check_call(['rm', samOut])
 
     sys.stderr.write('Writing counts to {} \n'.format(args.o + '.counts.tsv'))
     countData = dict()
@@ -193,5 +196,4 @@ def quantify(isoform_sequences=''):
 
 if __name__ == '__main__':
     # FIXME: need proper error handling
-    # sys.exit(quantify())
-    quantify()
+    sys.exit(quantify())

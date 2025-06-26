@@ -61,8 +61,8 @@ def collapse(genomic_range='', corrected_reads=''):
             insertions greater than 3 bp at the splice site''')
     parser.add_argument('--trust_ends', default=False, action='store_true',
             help='specify if reads are generated from a long read method with minimal fragmentation')
-    parser.add_argument('--quality', type=int,  default=1,
-            help='minimum MAPQ of read assignment to an isoform (1)')
+    parser.add_argument('--quality', type=int,  default=0,
+            help='minimum MAPQ of read assignment to an isoform (0)')
     # variant options
     parser.add_argument('--longshot_bam',  default='',
             help='bam from longshot containing haplotype information for each read')
@@ -155,7 +155,7 @@ def collapse(genomic_range='', corrected_reads=''):
         query = args.temp_dir+run_id+'.sorted.bed.gz'
         args.quiet = True
 
-    args.quality = '0' if args.trust_ends else args.quality
+    args.quality = 0 if args.trust_ends else args.quality
     args.output += '.'
     min_reads = float(args.support) if float(args.support) >= 1 else 3
 
@@ -197,7 +197,8 @@ def collapse(genomic_range='', corrected_reads=''):
         for i in range(len(bams)): # read sequences of the alignments within range
             args.reads += [bams[i][:-3]+'fasta']
             pipettor.Popen([('samtools', 'fasta', bams[i])], 'w', stdout=args.reads[-1]) # TODO add stderr
-        pipettor.run(['rm'] + bams)
+        for f in bams:
+            os.remove(f)
 
         chrom = args.range[:args.range.find(':')]
         coord1 = args.range[args.range.find(':')+1:args.range.find('-')]
@@ -294,7 +295,7 @@ def collapse(genomic_range='', corrected_reads=''):
         mm2_cmd = ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD', args.annotation_reliant] + args.reads #'--split-prefix', 'minimap2transcriptomeindex', ##doesn't work with MD tag
 
         # count sam transcripts ; the dash at the end means STDIN
-        count_cmd = ['count_sam_transcripts.py', '--sam', '-',
+        count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
                 '-o', args.output+'annotated_transcripts.alignment.counts', '-t', str(args.threads),
                 '--quality', str(args.quality), '-w', str(args.end_window),
                 '--generate_map', args.output+'annotated_transcripts.isoform.read.map.txt']
@@ -399,7 +400,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
     # count the number of supporting reads for each first-pass isoform
     count_file = args.output+'firstpass.q.counts'
-    count_cmd = ['count_sam_transcripts.py', '--sam', '-',
+    count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
             '-o', count_file, '-t', str(args.threads), '--quality', str(args.quality), '-w', str(args.end_window)]
     if args.stringent:
         count_cmd += ['--stringent']
@@ -485,12 +486,12 @@ def collapse(genomic_range='', corrected_reads=''):
         bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
     files_to_remove = [args.output+'firstpass.fa', alignout+'q.counts']
-    #subprocess.check_call(['rm', '-rf', args.output+'firstpass.fa', alignout+'q.counts'])
     if not args.keep_intermediate:
         files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
         files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
-        #subprocess.check_call(['rm', args.output+'firstpass.q.counts', args.output+'firstpass.bed'])
-        #subprocess.check_call(['rm', '-rf'] + glob.glob(args.temp_dir+'*'+tempfile_name+'*') + align_files + intermediate)
+        for f in files_to_remove:
+            os.remove(f)
+
     return [args.output+'isoforms.bed', args.output+'isoforms.fa']
 
 if __name__ == "__main__":

@@ -122,7 +122,7 @@ def parse_args():
 def extract_sample_data(manifestfile):
     sampledata = []
     for line in open(manifestfile):
-        sample, bamfile, vcffile = line.rstrip().split('\t')
+        sample, bamfile, vcffile = line.rstrip().split() #('\t')
         sampledata.append([sample, bamfile, vcffile])
     return sampledata
 
@@ -451,9 +451,9 @@ def write_varisos(outprefix, samplenames, isovarcounts, isovarfa):
     isomutsfa = open(outprefix + '.isoswithvars.fa', 'w')
     isomutsout.write('\t'.join(['isoname', 'varsontranscript', 'varsongenome'] + samplenames) + '\n')
 
-    for iso in isovarcounts:
+    for iso in sorted(list(isovarcounts.keys())):
         varperisocount = 1
-        for isovar in isovarcounts[iso]:
+        for isovar in sorted(list(isovarcounts[iso].keys())):
             # genometext = muttexttogenomeinfo[isovar]
             i, m = isovar.split('__')
             counts = isovarcounts[iso][isovar]
@@ -566,7 +566,7 @@ def getvariants():
 
     # # ##get productivity for transcripts without variants
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
-    prodcmd = (path + '../../bin/predictProductivity-Feb25-2', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
+    prodcmd = (path + '../../bin/predictProductivity', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
     pipettor.run([prodcmd])
 
     ##adjust productivity prediction to account for variants

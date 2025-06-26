@@ -11,12 +11,12 @@ from statistics import mode
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 
-def bedReadToIntronChain(line): #line is a list of strings from a tab separated line
+def bedReadToIntronChain(line): # line is a list of strings from a tab separated line
     dir, start, esizes, estarts = line[5], int(line[1]), [int(x) for x in line[10].rstrip(',').split(',')], [int(x) for x in line[11].rstrip(',').split(',')]
     introns = []
     for i in range(len(esizes) - 1):
         introns.append((start + estarts[i] + esizes[i], start + estarts[i + 1]))
-    # if dir == '-': introns = [x[::-1] for x in introns[::-1]]
+    # strand is not accounted for here, all intron chains will be left to right
     return tuple(introns)
 
 def intronChainToestarts(ichain, start, end):
@@ -64,6 +64,12 @@ def revcomp(seq):
         rev_seq.append(revcomp_dict[seq[i]])
     return ''.join(rev_seq)
 
+def cleanisoname(isoname):
+    # removes PAR_Y from end of isoform IDs
+    # this is deprecated in new gencode annot, but required for backwards compatibility
+    # the _ are disruptive downstream
+    return ''.join(isoname.split('_PAR_Y'))
+
 
 def combine():
     parser = argparse.ArgumentParser()
@@ -95,10 +101,14 @@ def combine():
             raise Exception(f'Expected between 3 to 5 columns in manifest, got {len(line)}: line {line_num} {manifest}')
         samples.append(line[0] + '__' + line[1])
         bedfiles.append(line[2])
-        if len(line) > 3: fafiles.append(line[3])
-        else: fafiles.append('')           # FIXME: switch to None
-        if len(line) > 4: mapfiles.append(line[4])
-        else: mapfiles.append('')
+        if len(line) > 3:
+            fafiles.append(line[3])
+        else:
+            fafiles.append('')           # FIXME: switch to None
+        if len(line) > 4:
+            mapfiles.append(line[4])
+        else:
+            mapfiles.append('')
 
     generatefa = all([len(x) > 0 for x in fafiles])
 
@@ -124,9 +134,12 @@ def combine():
                 line = line.rstrip().split('\t')
                 chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
                 isoname = '_'.join(isoname.split('_')[1:])
-                if int(line[9]) > 1:  ichain = bedReadToIntronChain(line)
-                else: ichain = chr + '-' + str(int(round(start, -4)))
-                if isoname not in fnametoinfo: fnametoinfo[isoname] = []
+                if int(line[9]) > 1:
+                    ichain = bedReadToIntronChain(line)
+                else:
+                    ichain = chr + '-' + str(int(round(start, -4)))
+                if isoname not in fnametoinfo:
+                    fnametoinfo[isoname] = []
                 fnametoinfo[isoname].append([chr, strand, start, end, ichain])
             for isoname in fnametoinfo:
                 gene = isoname.split('_')[-1]
@@ -150,16 +163,17 @@ def combine():
                     isocounts = isotoreads[isoname]
                 else:
                     isousage, isocounts = 1, 0
-                if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
-                isoname = ''.join(isoname.split('_PAR_Y'))
+                if ichainid not in intronchaintoisos:
+                    intronchaintoisos[ichainid] = []
+                isoname = cleanisoname(isoname)
                 intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
-        else: ##not loading fusion reads
+        else: # not loading fusion reads
             for line in open(bedfiles[i]):
                 line = line.rstrip().split('\t')
                 chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
                 gene = isoname.split('_')[-1]
                 ichain = None
-                if int(line[9]) > 1:  ###removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
+                if int(line[9]) > 1:  # removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
                     ichain = bedReadToIntronChain(line)
                 elif args.include_se:
                     ichain = chr + '-' + str(int(round(start, -4)))
@@ -170,27 +184,29 @@ def combine():
                         isocounts = isotoreads[isoname]
                     else:
                         isousage, isocounts = 1, 0
-                    if ichainid not in intronchaintoisos: intronchaintoisos[ichainid] = []
-                    isoname = ''.join(isoname.split('_PAR_Y'))
+                    if ichainid not in intronchaintoisos:
+                        intronchaintoisos[ichainid] = []
+                    isoname = cleanisoname(isoname)
                     intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
 
         if generatefa:
             last = None
             sampletoseq[sample] = {}
             for line in open(fafiles[i]):
-                if line[0] == '>': last = line[1:].rstrip()
+                if line[0] == '>':
+                    last = line[1:].rstrip()
                 else:
-                    last = ''.join(last.split('_PAR_Y'))
+                    last = cleanisoname(last)
                     sampletoseq[sample][last] = line.rstrip()
 
     finalisostosupport = {}
 
-    # chromtobedinfo = {}
     isocount = 1
     outbed, outcounts = open(outprefix + '.bed', 'w'), open(outprefix + '.counts.tsv', 'w')
-    if generatefa: outfa = open(outprefix + '.fa', 'w')
+    if generatefa:
+        outfa = open(outprefix + '.fa', 'w')
     outmap = open(outprefix + '.isoform.map.txt', 'w')
-    ###Need to remove gene from ichain!!
+    # FIXME Need to remove gene from ichain!!
     isomap = {}
     for ichainid in intronchaintoisos:
         # chr, strand, gene, ichain = ichainid
@@ -203,22 +219,28 @@ def combine():
         totintronchaincounts = 0
         ichainendscount = 1
         for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
-            if abs(end - start) > biggestdiff: longestEnds = (start, end)
+            if abs(end - start) > biggestdiff:
+                longestEnds = (start, end)
             maxisousage = max([x[4] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
             totintronchaincounts += sum([x[5] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
-            if maxisousage > maxintronchainusage: maxintronchainusage = maxisousage
+            if maxisousage > maxintronchainusage:
+                maxintronchainusage = maxisousage
         if args.filter == 'none' or maxintronchainusage > minpercentusage or (args.filter.isnumeric() and totintronchaincounts > int(args.filter)):
             for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
                 theseisos = collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]
-                theseisos.sort(key=lambda x: x[1] - x[0], reverse=True)  ##longest first
+                theseisos.sort(key=lambda x: x[1] - x[0], reverse=True)  # longest first
                 maxisousage = max([x[4] for x in theseisos])
                 totisocounts = sum([x[5] for x in theseisos])
-                if args.filter == 'none' or maxisousage > minpercentusage or ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest') or (args.filter.isnumeric() and totisocounts > int(args.filter)):  # True:#
+                if args.filter == 'none' or maxisousage > minpercentusage or \
+                        ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest') or \
+                        (args.filter.isnumeric() and totisocounts > int(args.filter)):
                     if isfusion:
                         outgene = mode([x[3].split('_')[-1] for x in theseisos])
                         outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
                     else:
                         outname = None
+                        # this is for prioritizing annotated transcript names above unannotated transcript names
+                        # FIXME breaks if annotation is not gencode/ensembl
                         for i in theseisos:
                             if i[3][:4] == 'ENST' and len(i[3].split('ENSG')[0]) < 25 and len(i[3].split('ENSG')) == 2:
                                 outname = str(isocount) + '-' + str(ichainendscount) + '_' + i[3]
@@ -226,28 +248,34 @@ def combine():
                         if not outname:
                             outgene = None
                             for i in theseisos:
-                                if len(i[3].split('ENSG')) > 1: outgene = 'ENSG' + i[3].split('ENSG')[-1]
+                                if len(i[3].split('ENSG')) > 1:
+                                    outgene = 'ENSG' + i[3].split('ENSG')[-1]
                                 if not outgene or outgene[:4] != 'ENSG':
-                                    if len(i[3].split('chr')) > 1: outgene = 'chr' + i[3].split('chr')[-1]
-                            if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
+                                    if len(i[3].split('chr')) > 1:
+                                        outgene = 'chr' + i[3].split('chr')[-1]
+                            if not outgene:
+                                outgene = mode([x[3].split('_')[-1] for x in theseisos])
                             outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
 
 
-                    ###output bed line
+                    # output bed line
                     if isfusion:
-                        # print(ichainid)
-                        # print([x[3] for x in theseisos])
-                        # print(outname)
                         ichainid = [list(x) for x in ichainid]
-                        #[chr, strand, start, end, ichain]
-                        if ichainid[0][1] == '+': ichainid[0][2] = start
-                        else: ichainid[0][3] = start
-                        if ichainid[-1][1] == '+': ichainid[-1][3] = end
-                        else: ichainid[-1][2] = end
+                        # ichain id is: [chr, strand, start, end, ichain]
+                        if ichainid[0][1] == '+':
+                            ichainid[0][2] = start
+                        else:
+                            ichainid[0][3] = start
+                        if ichainid[-1][1] == '+':
+                            ichainid[-1][3] = end
+                        else:
+                            ichainid[-1][2] = end
                         for gindex in range(len(ichainid)):
                             chr, strand, fstart, fend, ichain = ichainid[gindex]
-                            if type(ichain) == str: esizes, estarts = [fend - fstart], [0]
-                            else: esizes, estarts = intronChainToestarts(ichain, fstart, fend)
+                            if type(ichain) == str:
+                                esizes, estarts = [fend - fstart], [0]
+                            else:
+                                esizes, estarts = intronChainToestarts(ichain, fstart, fend)
                             outbed.write('\t'.join([chr, str(fstart), str(fend),
                                                     'fusiongene' + str(gindex+1) + '_' + outname, '1000', strand,
                                                     str(fstart), str(fend), '0',str(len(esizes)),
@@ -263,10 +291,8 @@ def combine():
                             '\t'.join([chr, str(start), str(end), outname, '1000', strand, str(start), str(end), '0',
                                        str(len(esizes)), ','.join([str(x) for x in esizes]) + ',',
                                        ','.join([str(x) for x in estarts]) + ',']) + '\n')
-                        # if chr not in chromtobedinfo: chromtobedinfo[chr] = []
-                        # chromtobedinfo[chr].append([start, end, outname, strand, esizes, estarts])
 
-                    ##output sequence
+                    # output sequence
                     if generatefa:
                         isoseq = sampletoseq[sample][isoname]
                         outfa.write('>' + outname + '\n' + isoseq + '\n')
@@ -275,13 +301,16 @@ def combine():
                     for i in theseisos:
                         if i[3].split('_')[-1][:4] == 'ENSG':
                             outgene = i[3].split('_')[-1]
-                    if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
+                    if not outgene:
+                        outgene = mode([x[3].split('_')[-1] for x in theseisos])
                     outname = 'lowexpiso_' + outgene
 
-                if outname not in isomap: isomap[outname] = []
+                if outname not in isomap:
+                    isomap[outname] = []
                 isomap[outname].extend([x[2] + '..' + x[3] for x in theseisos])
-                ##get counts
-                if outname not in finalisostosupport: finalisostosupport[outname] = {x: 0 for x in samples}
+                # get counts
+                if outname not in finalisostosupport:
+                    finalisostosupport[outname] = {x: 0 for x in samples}
                 for isoinfo in theseisos:
                     finalisostosupport[outname][isoinfo[2]] += isoinfo[5]
                 ichainendscount += 1
@@ -291,14 +320,17 @@ def combine():
             for i in theseisos:
                 if i[3].split('_')[-1][:4] == 'ENSG':
                     outgene = i[3].split('_')[-1]
-            if not outgene: outgene = mode([x[3].split('_')[-1] for x in theseisos])
+            if not outgene:
+                outgene = mode([x[3].split('_')[-1] for x in theseisos])
             outname = 'lowexpiso_' + outgene
-            if outname not in isomap: isomap[outname] = []
+            if outname not in isomap:
+                isomap[outname] = []
             for info in collapsedIsos:
                 theseisos = collapsedIsos[info]
                 isomap[outname].extend([x[2] + '..' + x[3] for x in theseisos])
     outbed.close()
-    if generatefa: outfa.close()
+    if generatefa:
+        outfa.close()
 
     for newiso in isomap:
         outmap.write(newiso + '\t' + '\t'.join(isomap[newiso]) + '\n')
@@ -315,7 +347,8 @@ def combine():
     if args.convert_gtf:
         bed_to_gtf(query=outprefix + '.bed', outputfile=outprefix + '.gtf')
 
-
+def main():
+    combine()
 
 if __name__ == "__main__":
-    combine()
+    main()
