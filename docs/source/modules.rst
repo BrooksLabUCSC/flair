@@ -24,7 +24,8 @@ This module generates a transcriptome of high confidence isoforms (bed, gtf, and
 This is 3x faster and uses 20x less memory than correct + collapse.
 To get aligned reads, you can use FLAIR align or just run the following command to generate the bam file to use as input.
 minimap2 -ax splice -s 80 -G 200k -t 20 --secondary=no genome.fa sample.fastq | samtools view -hb - | samtools sort - > sample.genomealigned.bam; samtools index sample.genomealigned.bam
-This module DOES NOT currently have all of the options included in collapse, such as promoter/3' end filtering.
+If you want to run downstream fusion detection with FLAIR fusion, run flair align with --filtertype separate to generate a separate file of chimeric alignments
+This module does not currently have all of the options included in collapse, such as promoter/3' end filtering.
 Other options have been simplified or combined. For instance, the collapse --annotation_reliant option from
 flair collapse is now the default. To run without relying on annotation as strongly, specify --noaligntoannot
 
@@ -135,21 +136,30 @@ Optional arguments
 
 .. code:: text
 
-    --help		Show all options.
-    --output		Name base for output files (default: flair.aligned). You can supply 
-                        an output directory (e.g. output/flair_aligned) but it has to exist; 
-                        Flair will not create it. If you run the same command twice, Flair 
-                        will overwrite the files without warning.
-    --threads		Number of processors to use (default 4).
-    --junction_bed	Annotated isoforms/junctions bed file for splice site-guided 
-                        minimap2 genomic alignment.
-    --nvrna		Use native-RNA specific alignment parameters for minimap2 (-u f -k 14)
-    --quality		Minimum MAPQ score of read alignment to the genome. The default is 0.
-    -N                  Retain at most INT secondary alignments from minimap2 (default 0). Please 
-                        proceed with caution, changing this setting is only useful if you know 
-                        there are closely related homologs elsewhere in the genome. It will 
-                        likely decrease the quality of Flair's final results.
-    --quiet		Dont print progress statements.
+  -o OUTPUT, --output OUTPUT
+                        output file name base (default: flair.aligned)
+  -t THREADS, --threads THREADS
+                        minimap2 number of threads (4)
+  --junction_bed JUNCTION_BED
+                        annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment
+  --nvrna               specify this flag to use native-RNA specific alignment parameters for minimap2
+  --quality QUALITY     minimum MAPQ of read alignment to the genome (0)
+  --minfragmentsize MINFRAGMENTSIZE
+                        minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection
+  --maxintronlen MAXINTRONLEN
+                        maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns
+  --filtertype FILTERTYPE
+                        method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup
+                        (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)
+  --quiet               Suppress minimap progress statements from being printed
+  --remove_internal_priming
+                        specify if want to remove reads with internal priming
+  -f GTF, --gtf GTF     reference annotation, only used if --remove_internal_priming is specified, recommended if so
+  --intprimingthreshold INTPRIMINGTHRESHOLD
+                        number of bases that are at leas 75% As required to call read as internal priming
+  --intprimingfracAs INTPRIMINGFRACAS
+                        number of bases that are at least 75% As required to call read as internal priming
+  --remove_singleexon   specify if want to remove unspliced reads
     
 
 Notes
@@ -427,7 +437,60 @@ For more information on the Longshot variant caller, see its `github page <https
                         chromosome:coord1-coord2 or tab-delimited; if a range is specified, 
                         then the --reads argument must be a BAM file and --query must be 
                         a sorted, bgzip-ed bed file.
-    
+
+
+.. _combine-label:
+
+flair combine
+=============
+.. code:: sh
+
+    usage: flair_combine [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-w ENDWINDOW]
+                         [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
+
+    options:
+      -h, --help            show this help message and exit
+      -m MANIFEST, --manifest MANIFEST
+                            path to manifest files that points to transcriptomes to combine.
+                            Each line of file should be tab separated with sample name, sample
+                            type (isoform or fusionisoform), path/to/isoforms.bed,
+                            path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
+                            read.map.txt files are not required, although if .fa files are not
+                            provided for each sample a .fa output will not be generated
+      -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+                            path to collapsed_output.bed file. default: 'collapsed_flairomes'
+      -w ENDWINDOW, --endwindow ENDWINDOW
+                            window for comparing ends of isoforms with the same intron chain.
+                            Default:200bp
+      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
+                            minimum percent usage required in one sample to keep isoform in
+                            combined transcriptome. Default:10
+      -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
+                            to gtf
+      -s, --include_se      whether to include single exon isoforms. Default: dont include
+      -f FILTER, --filter FILTER
+                            type of filtering. Options: usageandlongest(default), usageonly,
+                            none, or a number for the total count of reads required to call an
+                            isoform
+
+    Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
+
+.. code:: text
+
+    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.FLAIR.isoforms.fa sample1.read.map.txt
+    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.FLAIR.isoforms.fa sample2.read.map.txt
+
+For each line, the sample name and bed path is required. The fasta and
+read.map.txt file is optional. Without these files there is less ability to
+filter and more isoforms will be included. If a sample is a FLAIR run, we
+highly recommend including the read.map.txt file. If you want to combine FLAIR
+transcriptomes with annotated transcripts, you can convert an annotation gtf
+file to a bed file using gtf_to_bed (see Additional Programs)
+
+Flair combine will generate a counts file, but for the most accurate quantification, we recommend 
+running FLAIR quantify using all samples against the combined transcriptome
+
+
 
 .. _quantify-label:
 
@@ -441,7 +504,7 @@ flair quantify
 
 **Output**
 
-Default: only reports reads that align unambiguously to an isoform (reads that align equally to multiple isoforms are thrown out)
+Default: identifes the best isoform assignment based on alignment quality, fraction of read aligned, and fraction of transcript aligned
 
 check_splice: adds check for read matching reference transcript at all splice sites
 
@@ -516,53 +579,69 @@ Unless ``--sample_id_only`` is specified, the output counts file concatenates id
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
    ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
 
-.. _combine-label:
 
-flair combine
-=============
-.. code:: sh
+.. _variants-label:
 
-    usage: flair_combine [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-w ENDWINDOW]
-                         [-p MINPERCENTUSAGE] [-c] [-s] [-f FILTER]
 
-    options:
-      -h, --help            show this help message and exit
-      -m MANIFEST, --manifest MANIFEST
-                            path to manifest files that points to transcriptomes to combine.
-                            Each line of file should be tab separated with sample name, sample
-                            type (isoform or fusionisoform), path/to/isoforms.bed,
-                            path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
-                            read.map.txt files are not required, although if .fa files are not
-                            provided for each sample a .fa output will not be generated
-      -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
-                            path to collapsed_output.bed file. default: 'collapsed_flairomes'
-      -w ENDWINDOW, --endwindow ENDWINDOW
-                            window for comparing ends of isoforms with the same intron chain.
-                            Default:200bp
-      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
-                            minimum percent usage required in one sample to keep isoform in
-                            combined transcriptome. Default:10
-      -c, --convert_gtf     [optional] whether to convert the combined transcriptome bed file
-                            to gtf
-      -s, --include_se      whether to include single exon isoforms. Default: dont include
-      -f FILTER, --filter FILTER
-                            type of filtering. Options: usageandlongest(default), usageonly,
-                            none, or a number for the total count of reads required to call an
-                            isoform
-
-    Combines FLAIR transcriptomes or with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format:
+flair variants
+==============
 
 .. code:: text
 
-    sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.FLAIR.isoforms.fa sample1.read.map.txt
-    sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.FLAIR.isoforms.fa sample2.read.map.txt
+    usage: flair variants -m manifest.tsv -i isoforms.fa -b isoforms.bed -g genome.fa -f annot.gtf [-o OUTPUT_PREFIX]
 
-For each line, the sample name and bed path is required. The fasta and
-read.map.txt file is optional. Without these files there is less ability to
-filter and more isoforms will be included. If a sample is a FLAIR run, we
-highly recommend including the read.map.txt file. If you want to combine FLAIR
-transcriptomes with annotated transcripts, you can convert an annotation gtf
-file to a bed file using
+This does not call variants, it integrates already called variants with 
+isoforms to understand allele-specific isoform expression and allele bias.
+Before running this module, you need to run a variant caller on each of your
+samples individually. We recommend longshot with the following command:
+longshot --force_overwrite --bam sample.genomealigned.bam --ref genome.fa --out sample.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
+You can use other variant calling tools or even variants called from WGS though.
+You will also need to have run FLAIR quantify with the --output_bam option
+so you have files of each sample aligned to the transcriptome.
+
+**Output**
+
+sample.isoforms.productivity.bed
+    This is your isoforms with CDS annotation. Does not account for impact of variants.
+sample.isovars.genomicpos.bed
+    Genomic position of final set of variants
+sample.isoswithvars.fa
+    Sequences of variant-aware isoforms
+sample.isoswithvars.counts.tsv
+    Counts of variant-aware isoforms for each sample (large set, hard to do stats)
+sample.aaseq.counts.tsv
+    Counts of amino acid sequences for each sample (compact set, great for stats)
+sample.aaseq.key.tsv
+    Key of actual amino acid sequence associated with isoform/aaseq ID
+
+Options
+-------
+
+.. code:: text
+
+  -m --manifest
+                        path to manifest files that points to sample files (see below). Each line of file
+                        should be tab separated.
+  -o --output_prefix
+                        path to collapsed_output.bed file. default: 'flair'
+  -i --isoforms
+                        path to transcriptome fasta file
+  -b --bedisoforms
+                        path to transcriptome bed file
+  -g --genome
+                        FastA of reference genome
+  -f --gtf              GTF annotation file
+
+Manifest example:
+
+Make sure bam files are from FLAIR quantify with --output_bam, 
+not aligned to the genome
+
+.. code:: text
+
+   sample1      sample1.flair.aligned.bam      sample1.genomealigned.variants.vcf
+   sample2      sample2.flair.aligned.bam      sample2.genomealigned.variants.vcf
+   sample3      sample3.flair.aligned.bam      sample3.genomealigned.variants.vcf
 
 
 .. _diffexp-label:
