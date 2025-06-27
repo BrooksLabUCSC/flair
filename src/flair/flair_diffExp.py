@@ -54,10 +54,6 @@ class Isoform(object):
     '''
     Object to handle isoform related data.
 
-    attributes:
-
-    methods:
-
     '''
 
     def __init__(self, tid=None, gid=None):
@@ -65,13 +61,6 @@ class Isoform(object):
         self.parent = gid
 
         self.exp  = None
-#        self.usage   = None
-
-#        self.deseq2AdjP  = float()
-#        self.drimseqAdjP = float()
-
-#        self.deseq2FC = float()
-#        self.deltaIPU = float()
 
 
 ########################################################################
@@ -83,10 +72,6 @@ class Gene(object):
     '''
     Object to handle gene related data.
 
-    attributes:
-
-    methods:
-
     '''
 
     def __init__(self, gid=None):
@@ -95,30 +80,31 @@ class Gene(object):
 
         self.exp  = None
 
-#        self.deseq2AdjP  = float()
-
-#        self.deseq2FC = float()
 
 ########################################################################
 # Functions
 ########################################################################
 
 
-def getsigfromnormbygene(outname, filename):#, mycl):
-    allids, allpval, alldeltas = [], [], []
+def get_gene_to_counts(filename):
     genetototcounts = {}
     for line in open(filename):
         line = line.rstrip().split('\t')
         if line[0] != 'ids':
             gene = line[0].split('_')[-1]
             counts = [int(x) for x in line[1:]]
-            if gene not in genetototcounts: genetototcounts[gene] = [0 for x in range(len(counts))]
+            if gene not in genetototcounts:
+                genetototcounts[gene] = [0 for x in range(len(counts))]
             genetototcounts[gene] = [genetototcounts[gene][x] + counts[x] for x in range(len(counts))]
+    return genetototcounts
 
+
+def do_mtc_ttest(filename, genetototcounts):
+    allids, allpval, alldeltas = [], [], []
     for line in open(filename):
         line = line.rstrip().split('\t')
         if line[0] != 'ids':
-            id = line[0]#'_'.join(line[0].split('_')[:-1])
+            id = line[0]
             gene = id.split('_')[-1]
             wtcounts = [int(x) for x in line[1:4]]
             varcounts = [int(x) for x in line[4:]]
@@ -130,15 +116,25 @@ def getsigfromnormbygene(outname, filename):#, mycl):
                 # pval = ranksums(wtcounts, varcounts).pvalue ###doesn't work, too stringent
                 allids.append(id)
                 allpval.append(pval)
-                alldeltas.append(deltausage)#(deltaval/ ((sum(wtcounts) + sum(varcounts))/(len(wtcounts) + len(varcounts))))
+                alldeltas.append(deltausage)
     corrpval = list(multipletests(allpval)[1])
+    return allids, alldeltas, corrpval
+
+
+def get_sig_from_norm_by_gene(outname, filename):
+    """
+    This function runs t-tests with multiple testing correction on a file of isoforms counts normalized by gene
+    This method essentially does differential isoform usage testing, but accounts for differences in gene expression
+    This is better for detecting novel transcripts than DRIM-seq
+    """
+
+    genetototcounts = get_gene_to_counts(filename)
+    allids, alldeltas, corrpval = do_mtc_ttest(filename, genetototcounts)
+
     out = open(outname, 'w')
     for i in range(len(allids)):
         gene = allids[i]
         if corrpval[i] < 0.05:
-            # if gene not in siginfo: siginfo[gene] = {c: '' for c in celllines}
-            # mysig = getsig(corrpval[i])
-            # if len(mysig) > len(siginfo[gene][mycl]): siginfo[gene][mycl] = mysig
             out.write('\t'.join([gene, str(round(alldeltas[i], 3)), str(corrpval[i])]) + '\n')
 
 
@@ -152,15 +148,13 @@ def separateTables(f, thresh, samples, groups, outDir):
         cols = next(lines).split("\t")
 
         if len(cols) < 7:
-            print("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols),file=sys.stderr)
-            sys.exit(1)
+            raise ValueError("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols))
 
         for num, line in enumerate(lines):
 
             data = line.rstrip().split("\t")
             if len(data) < 7:
-                print("** Error. Found %s columns in matrix on line %s, expected >6. Exiting." % (len(data), num),file=sys.stderr)
-                sys.exit(1)
+                raise ValueError("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols))
 
             name = data[0]
             counts = np.asarray(data[1:], dtype=float)
@@ -227,8 +221,11 @@ def separateTables(f, thresh, samples, groups, outDir):
     return genes, isoforms
 
 
-def calc_gene_norm_sig(workdir, quantTable, outDir):
-    ###DO sample normalization
+def calc_gene_norm_sig(workdir, quantTable):
+    """
+    Make a file of counts normalized by gene.
+    This is not a standard normalization method, only used for downstream stats.
+    """
     genetosampletotot = {}
     lines = []
     out = open(workdir + '/counts.normbygene.tsv', 'w')
@@ -259,8 +256,6 @@ def calc_gene_norm_sig(workdir, quantTable, outDir):
         thesecounts = [str(round(x)) for x in thesecounts]
         out.write('\t'.join([l[0]] + thesecounts) + '\n')
     out.close()
-
-    getsigfromnormbygene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
 
 
 def calculate_sig(args):
@@ -320,8 +315,8 @@ def calculate_sig(args):
         sys.exit(1)
 
 
-    calc_gene_norm_sig(workdir, quantTable, outDir)
-
+    calc_gene_norm_sig(workdir, quantTable)
+    get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
 
     # Convert count tables to dataframe and update isoform objects.
     genes, isoforms = separateTables(quantTable, sFilter, samples, groups, workdir)
