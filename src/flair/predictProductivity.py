@@ -175,7 +175,7 @@ def getStartRelPos(genomicStartPos,exon, exons, isoObj):
     if isoObj.strand == "+":
         relativeStart = genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])
     elif isoObj.strand == "-":
-        relativeStart = sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])) - 3
+        relativeStart = sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])) #- 3
 
     return relativeStart
 
@@ -279,7 +279,7 @@ def predict(bed, starts, isoDict, nmdexcep):
         if read[:10] == 'fusiongene' and read[10] != '1': continue # only getting starts for 5' genes
         if read[:10] == 'fusiongene': read = '_'.join(read.split('_')[1:])
         overlap  = intersection[-1]
-        goStart  = int(intersection[-6])
+        goStart  = int(intersection[-6]) if intersection[5] == '+' else int(intersection[-5])
         isoDict[read].strand = intersection[5]
         isoDict[read].chrom = intersection[0]
         isoDict[read].exons.add(exonCoord)

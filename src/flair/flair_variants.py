@@ -451,9 +451,9 @@ def write_varisos(outprefix, samplenames, isovarcounts, isovarfa):
     isomutsfa = open(outprefix + '.isoswithvars.fa', 'w')
     isomutsout.write('\t'.join(['isoname', 'varsontranscript', 'varsongenome'] + samplenames) + '\n')
 
-    for iso in isovarcounts:
+    for iso in sorted(list(isovarcounts.keys())):
         varperisocount = 1
-        for isovar in isovarcounts[iso]:
+        for isovar in sorted(list(isovarcounts[iso].keys())):
             # genometext = muttexttogenomeinfo[isovar]
             i, m = isovar.split('__')
             counts = isovarcounts[iso][isovar]

@@ -20,13 +20,13 @@ from collections import Counter
 
 def get_args():
     parser = argparse.ArgumentParser(description='flair transcriptome parse options',
-                                     usage='''python3 flair_straightfrombam.py -g genome.fa -b reads.genomealigned.bam [options]''')
+                                     usage='''flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]''')
     parser.add_argument('-b', '--genomealignedbam',
-                        help='Optional: sorted and indexed bam file (or files) aligned to the genome. Only use this if you have already aligned reads to the genome for some other purpose')
+                        help='Sorted and indexed bam file aligned to the genome')
     parser.add_argument('-g', '--genome', type=str,
                         help='FastA of reference genome, can be minimap2 indexed')
-    parser.add_argument('-o', '--output', default='flair.collapse',
-                        help='output file name base for FLAIR isoforms (default: flair.collapse)')
+    parser.add_argument('-o', '--output', default='flair',
+                        help='output file name base for FLAIR isoforms (default: flair)')
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (4)')
     parser.add_argument('-f', '--gtf', default='',
@@ -38,11 +38,10 @@ def get_args():
                         help='window size for correcting splice sites (15)')
 
     parser.add_argument('-s', '--support', type=float, default=3.0,
-                        help='''minimum number of supporting reads for an isoform;
-                if s < 1, it will be treated as a percentage of expression of the gene (3)''')
+                        help='''minimum number of supporting reads for an isoform (3)''')
     parser.add_argument('--stringent', default=False, action='store_true',
                         help='''specify if all supporting reads need to be full-length
-                (80%% coverage and spanning 25 bp of the first and last exons)''')
+                (spanning 25 bp of the first and last exons)''')
     parser.add_argument('--check_splice', default=False, action='store_true',
                         help='''enforce coverage of 4 out of 6 bp around each splice site and no
                 insertions greater than 3 bp at the splice site''')
@@ -535,7 +534,7 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 
 
 
-def identifygoodmatchtoannot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome):
+def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome):
     goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = [], set(), {}
     if not args.noaligntoannot and len(alltranscripts) > 0:
         transcripttostrand = {}
@@ -1012,7 +1011,7 @@ def runcollapsebychrom(listofargs):
                  stdout=open(tempprefix + '.reads.fasta', 'w'))
     # then align reads to transcriptome and run count_sam_transcripts
     genome = pysam.FastaFile(args.genome)
-    goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = identifygoodmatchtoannot(args, tempprefix,
+    goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = identify_good_match_to_annot(args, tempprefix,
                                                                                                  rchrom,
                                                                                                  annottranscripttoexons,
                                                                                                  allannottranscripts,

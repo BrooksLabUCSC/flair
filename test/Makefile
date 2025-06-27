@@ -96,6 +96,10 @@ test-diffexpress: diffexp-tests diffsplice-tests
 
 test-all: test test-diffexpress
 
+test-help: test-main-help test-align-help test-correct-help test-collapse-help \
+           test-quantify-help test-diffexp-help test-diffsplice-help \
+           test-predict-productivity-help test-diff-iso-usage-help
+
 ###
 # MAIN COMMAND
 ###
@@ -273,7 +277,7 @@ test-diffexp : mkdirs
 	flair diffexp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
 	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help >&$O/$@.out
@@ -289,10 +293,10 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
 	flair diffsplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
-	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
 #	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
 #	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
 #	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
@@ -371,7 +375,8 @@ test-variants: mkdirs
 	longshot --force_overwrite --bam $O/$@.genomealigned.bam --ref ${GENOME_FA} --out $O/$@.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
 	echo 's1    output/test-quantify.B1.B.flair.aligned.bam   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
 	flair variants -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
-	$(call cmp_expect_sort,$@.isoswithvars.counts.tsv)
+	$(call cmp_expect,$@.isoswithvars.counts.tsv)
+	$(call cmp_expect,$@.aaseq.counts.tsv)
 
 
 ###

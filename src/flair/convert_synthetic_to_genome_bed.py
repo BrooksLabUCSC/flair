@@ -29,7 +29,7 @@ for line in open(breakpointfile):
 grouptogenes = {}
 genetoparalogs = {}
 # genetoname = {}
-for line in open(os.path.realpath(__file__).split('convert_')[0] + 'dgd_Hsa_all_v71.tsv'):
+for line in open(os.path.realpath(__file__).split('convert_')[0] + '../../bin/dgd_Hsa_all_v71.tsv'):
     line = line.split('\t')
     group = line[1]
     gname = line[6]
