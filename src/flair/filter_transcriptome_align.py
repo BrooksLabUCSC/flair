@@ -122,21 +122,6 @@ def bam_to_read_aligns(samfile, chunksize, tempDir, transcripttoexons, transcrip
         sys.stderr.write(f'\rstarting chunk {chunkindex}')
         yield (chunkindex, readchunk, tempDir, transcripttoexons, transcripttobpssindex, args, headeroutfilename)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def process_alignments(args, transcripttoexons, transcripttobpssindex):
     sys.stderr.write('processing alignments\n')
     samfile = pysam.AlignmentFile(args.sam, 'r')
