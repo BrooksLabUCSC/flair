@@ -485,7 +485,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # if args.gtf:
         bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
-    files_to_remove = [args.output+'firstpass.fa', alignout+'q.counts']
+    files_to_remove = [args.output+'firstpass.fa']
     if not args.keep_intermediate:
         files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
         files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK

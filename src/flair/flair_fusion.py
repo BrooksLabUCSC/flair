@@ -241,7 +241,10 @@ def detectfusions():
 
 
     if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
-        print('no preliminary fusions detected. Exiting')
+        print('no fusions detected. Exiting')
+        for file in [args.output + '.fusions.isoforms.bed', args.output + '.fusions.isoforms.fa']:
+            f = open(file)
+            f.close()
         return
 
     makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
