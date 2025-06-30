@@ -2,9 +2,9 @@
 """Support for command line parsing"""
 import argparse
 import logging
-from pycbio import NoStackError, exceptionFormat
-from pycbio.sys.objDict import ObjDict
-from pycbio.sys import loggingOps
+from flair.pycbio import NoStackError, exceptionFormat
+from flair.pycbio.sys.objDict import ObjDict
+from flair.pycbio.sys import loggingOps
 
 def getOptionalArgs(parser, args):
     """Get the parse command line option arguments (-- or - options) as an

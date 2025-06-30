@@ -3,8 +3,8 @@
 # table lifted from
 #  https://pypi.org/project/webcolors/
 
-from pycbio import PycbioException
-from pycbio.sys.color import Color
+from flair.pycbio import PycbioException
+from flair.pycbio.sys.color import Color
 
 def _mkcolor(rgb8):
     return Color.fromPackRgb8(rgb8)

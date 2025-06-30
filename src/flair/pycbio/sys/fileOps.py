@@ -11,7 +11,7 @@ import tempfile
 import pipettor
 from shutil import which
 from contextlib import contextmanager
-from pycbio import PycbioException
+from flair.pycbio import PycbioException
 
 # FIXME: normalize file line read routines to all take fh or name, remove redundant code.
 
