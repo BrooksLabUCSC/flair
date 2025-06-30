@@ -28,6 +28,22 @@ test-diffexpress:
 test-diffexpress-installed:
 	${MAKE} -C test test-diffexpress use_installed_flair=yes
 
+##
+# lint check with flake8
+#   see .flake8 for configuration
+#   due to to gradual cleanup of code, flake8.mk is the list of files to check
+##
+include flake8.mk
+lint: flake8
+pycbio-lint: pycbio-flake8
+
+flake8:
+	${FLAKE8} --color=never ${FLAKE8_CHECK}
+
+PYCBIO_DIR = src/flair/pycbio
+pycbio-flake8:
+	${FLAKE8} --color=never --config=${PYCBIO_DIR}/setup.cfg ${PYCBIO_DIR}
+
 
 ##
 # test environment for pip install
