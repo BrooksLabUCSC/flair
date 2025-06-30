@@ -209,7 +209,7 @@ def align():
                                             help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
     parser.add_argument('--maxintronlen', default='200k',
                                             help='maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns')
-    parser.add_argument('--filtertype', type=str, default='keepsup',
+    parser.add_argument('--filtertype', type=str, default='removesup',
     help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
     parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
             help='''Suppress minimap progress statements from being printed''')
@@ -237,9 +237,10 @@ def align():
         args.reads = args.reads[0].split(',')
     for rfile in args.reads:
         if not os.path.exists(rfile):
-            sys.stderr.write(f'Error: read file does not exist: {rfile}\n')
-            sys.exit(1)
+            raise ValueError(f'Error: read file does not exist: {rfile}')
 
+    if args.filtertype not in {'keepsup', 'removesup', 'separate'}:
+        raise ValueError(f'filtertype {args.filtertype} is not valid. Use keepsup, removesup, or separate')
     doalignment(args)
 
     ##run filtering
