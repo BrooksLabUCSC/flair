@@ -8,8 +8,6 @@ import pysam
 import math
 from flair.bed_to_gtf import bed_to_gtf
 from statistics import mode
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-
 
 def bedReadToIntronChain(line): # line is a list of strings from a tab separated line
     dir, start, esizes, estarts = line[5], int(line[1]), [int(x) for x in line[10].rstrip(',').split(',')], [int(x) for x in line[11].rstrip(',').split(',')]

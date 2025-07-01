@@ -2,7 +2,6 @@
 
 import os
 import sys
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 from multiprocessing import Pool
 import pysam
 

@@ -6,9 +6,9 @@ import os, glob, math
 import pipettor, subprocess
 import pysam
 import pybedtools
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 compbase = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
 
 def getStarts(gtf):

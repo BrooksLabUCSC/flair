@@ -6,8 +6,6 @@ import os
 import pipettor
 import pysam
 from flair import remove_internal_priming
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-# from bam2Bed12 import bam2Bed12
 
 def intronChainToestarts(ichain, start, end):
     esizes, estarts = [], [0,]

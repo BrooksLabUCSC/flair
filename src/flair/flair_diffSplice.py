@@ -5,7 +5,6 @@ import argparse
 import subprocess
 import os
 from flair import set_unix_path, check_diffexp_dependencies
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 check_diffexp_dependencies()
 
