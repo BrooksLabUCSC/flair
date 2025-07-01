@@ -1,4 +1,25 @@
-usage: flair module --help
-module: align, correct, collapse, quantify
+usage: flair [-h] [--version] [--log-stderr] [--log-level LOG_LEVEL]
+             [--log-conf LOG_CONF] [--log-debug]
+             {align,correct,transcriptome,collapse,quantify,combine,variants,fusion,diffexp,diffsplice}
+             ...
 
+Run a FLAIR module. This program is the main entry point for running FLAIR
+analysis.
 
+positional arguments:
+  {align,correct,transcriptome,collapse,quantify,combine,variants,fusion,diffexp,diffsplice}
+                        name of module to run
+  module_args           arguments to module
+
+options:
+  -h, --help            show this help message and exit
+  --version             print FLAIR version
+  --log-stderr          also log to stderr, even when logging to syslog
+  --log-level LOG_LEVEL
+                        Set level to case-insensitive symbolic value, one of
+                        CRITICAL, DEBUG, ERROR, FATAL, INFO, NOTSET, WARN,
+                        WARNING
+  --log-conf LOG_CONF   Python logging configuration file, see
+                        logging.config.fileConfig()
+  --log-debug           short-cut that that sets --log-stderr and --log-
+                        level=DEBUG

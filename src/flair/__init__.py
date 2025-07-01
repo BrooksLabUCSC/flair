@@ -1,5 +1,6 @@
-VERSION = "2.2.0"
 import os
+
+VERSION = "2.2.0"
 
 def set_unix_path():
     "add programs in package to PATH."
@@ -13,8 +14,8 @@ def check_diffexp_dependencies():
     """Called by wrapper programs for doing the different expression analysis to
     check if the optional dependencies are install,"""
     try:
-        import rpy2
-        import numpy
+        import rpy2  # noqa
+        import numpy  # noqa
     except ModuleNotFoundError as ex:
         raise Exception("A FLAIR dependency for differential expression analysis is not installed.\n"
                         "See FLAIR documentation for information on installing the needed packages") from ex
