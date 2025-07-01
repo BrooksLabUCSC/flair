@@ -343,7 +343,7 @@ test-plot-usage: mkdirs
 	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
 
-other-progs-tests: test-bam2bed12 test-transcriptome test-fusion test-variants
+other-progs-tests: test-transcriptome test-fusion test-variants
 
 
 ###
@@ -377,17 +377,8 @@ test-variants: mkdirs
 test-fusion: mkdirs
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa output/test-collapse-annot.annotated_transcripts.fa -s 2
-	$(call cmp_expect,$@-syntheticBreakpointLoc.bed)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
 
-##
-# Other programs
-##
-
-test-bam2bed12: mkdirs
-	samtools view -b input/tiny.sam >output/$@.bam
-	samtools index output/$@.bam
-	bam2Bed12 -i output/$@.bam > output/$@.bed
-	$(call cmp_expect,$@.bed)
 
 ##
 # build test input files

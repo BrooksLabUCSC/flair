@@ -15,6 +15,12 @@ from collections import defaultdict
 def def_value():
     return set()
 
+def report_nofusions(outputprefix):
+    print('no fusions detected. Exiting', file=sys.stderr)
+    for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa']:
+        f = open(file, 'w')
+        f.close()
+
 def detectfusions():
     parser = argparse.ArgumentParser(description='flair-detectfusions parse options',
                                      usage='''flair detectfusions -g genome.fa -q query.bed
@@ -237,17 +243,17 @@ def detectfusions():
     freads.close()
     print('done processing fusion reads')
 
-
-
-    if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
-        print('no fusions detected. Exiting')
-        for file in [args.output + '.fusions.isoforms.bed', args.output + '.fusions.isoforms.fa']:
-            f = open(file, 'w')
-            f.close()
+    if os.path.getsize(args.output + '.prelimfusions.bed') == 0:
+        report_nofusions(args.output)
         return
+
 
     makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
                         '-o', args.output, '-c', args.output + '.prelimfusions.bed']
+    if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
+        report_nofusions(args.output)
+        return
+
     faidxcommand = ['samtools', 'faidx', args.output + '-syntheticFusionGenome.fa']
     mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize), '-t', str(args.threads), '-un',
                '--secondary=no', '-G', '1000k', args.output + '-syntheticFusionGenome.fa', freadsname]
