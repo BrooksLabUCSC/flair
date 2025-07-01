@@ -2,9 +2,9 @@
 """Support for command line parsing"""
 import argparse
 import logging
-from pycbio import NoStackError, exceptionFormat
-from pycbio.sys.objDict import ObjDict
-from pycbio.sys import loggingOps
+from flair.pycbio import NoStackError, exceptionFormat
+from flair.pycbio.sys.objDict import ObjDict
+from flair.pycbio.sys import loggingOps
 
 def splitOptionsArgs(parser, inargs):
     """Split command line arguments into two objects one of option arguments
