@@ -4,7 +4,6 @@ Operations associated with logging
 import logging
 import os
 import sys
-import argparse
 from logging.handlers import SysLogHandler
 
 
@@ -109,7 +108,7 @@ def setupNullLogger(logger, level=logging.INFO):
     return setupLogger(logger, handler)
 
 
-def addCmdOptions(parser, *, defaultLevel=logging.INFO):
+def addCmdOptions(parser, *, defaultLevel=logging.INFO, inclSyslog=False):
     """
     Add command line options related to logging.  None of these are defaulted,
     as one might need to determine if they were explicitly set. The use case
@@ -125,10 +124,10 @@ def addCmdOptions(parser, *, defaultLevel=logging.INFO):
     def validateLevel(levelStr):
         parseLevel(levelStr)
         return levelStr
-
-    parser.add_argument("--syslog-facility", type=validateFacility,
-                        help="Set syslog facility to case-insensitive symbolic value, if not specified, logging is not done to stderr, "
-                        " one of {}".format(", ".join(getFacilityNames())))
+    if inclSyslog:
+        parser.add_argument("--syslog-facility", type=validateFacility,
+                            help="Set syslog facility to case-insensitive symbolic value, if not specified, logging is not done to stderr, "
+                            " one of {}".format(", ".join(getFacilityNames())))
     parser.add_argument("--log-stderr", action="store_true",
                         help="also log to stderr, even when logging to syslog")
     parser.add_argument("--log-level", type=validateLevel, default=defaultLevel,
@@ -137,19 +136,6 @@ def addCmdOptions(parser, *, defaultLevel=logging.INFO):
                         help="Python logging configuration file, see logging.config.fileConfig()")
     parser.add_argument("--log-debug", action="store_true",
                         help="short-cut that that sets --log-stderr and --log-level=DEBUG")
-
-    # deprecated names
-    parser.add_argument("--syslogFacility", type=validateFacility, dest="syslog_Facility",
-                        help=argparse.SUPPRESS)
-    parser.add_argument("--logStderr", action="store_true", dest="log_stderr",
-                        help=argparse.SUPPRESS)
-    parser.add_argument("--logLevel", type=validateLevel, default=defaultLevel, dest="log_level",
-                        help=argparse.SUPPRESS)
-    parser.add_argument("--logConfFile", dest="log_conf",
-                        help=argparse.SUPPRESS)
-    parser.add_argument("--logDebug", action="store_true", dest="log_debug",
-                        help=argparse.SUPPRESS)
-
 
 def setupFromCmd(args, *, logger=None, prog=None):
     """configure logging based on command options. Prog is used it to set the
@@ -167,9 +153,10 @@ def setupFromCmd(args, *, logger=None, prog=None):
         prog = os.path.basename(sys.argv[0])
     logger = _loggerBySpec(logger)
     level = _convertLevel(args.log_level) if args.log_level is not None else logging.WARN
-    if args.syslog_facility is not None:
+    haveFacility = ('syslog_facility' in args) and (args.syslog_facility is not None)
+    if haveFacility:
         setupSyslogLogger(logger, args.syslog_facility, level, prog=prog)
-    if (args.syslog_facility is None) or args.log_stderr:
+    if (not haveFacility) or args.log_stderr:
         setupStderrLogger(logger, level)
     if args.log_conf is not None:
         logging.config.fileConfig(args.log_conf)

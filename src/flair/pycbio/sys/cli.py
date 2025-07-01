@@ -2,9 +2,9 @@
 """Support for command line parsing"""
 import argparse
 import logging
-from flair.pycbio import NoStackError, exceptionFormat
-from flair.pycbio.sys.objDict import ObjDict
-from flair.pycbio.sys import loggingOps
+from pycbio import NoStackError, exceptionFormat
+from pycbio.sys.objDict import ObjDict
+from pycbio.sys import loggingOps
 
 def splitOptionsArgs(parser, inargs):
     """Split command line arguments into two objects one of option arguments
@@ -27,15 +27,15 @@ class ArgumentParserExtras(argparse.ArgumentParser):
     related options.  Also can parse splitting options and positional
     arguments into separate objects.
     """
-    def __init__(self, *args, add_profiler=False, **kwargs):
+    def __init__(self, *args, incl_syslog=False, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_profiler = add_profiler
+        self.incl_syslog = incl_syslog
 
     def add_extras(self):
         """Add extra options to parser, done just before parse
         so they are last in the help list.  Override to add other options.
         """
-        loggingOps.addCmdOptions(self)
+        loggingOps.addCmdOptions(self, inclSyslog=self.incl_syslog)
 
     def process_extras(self, args):
         """Process extras after argments have been parsed"""

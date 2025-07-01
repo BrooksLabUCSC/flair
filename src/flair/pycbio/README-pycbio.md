@@ -25,7 +25,7 @@ the updated so that git has the edit history.
   make pycbio-flake8
   make -j 32 test
 
-  git commit -am 'migration of pycbio blah'
+  git commit -am 'flair mods of pycbio blah'
   git push
   git checkout dev
   git merge pycbio_import
