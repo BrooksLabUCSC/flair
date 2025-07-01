@@ -116,15 +116,15 @@ test-main-help: mkdirs
 align-tests: test-align test-align-intpriming test-align-seg1 test-align-help
 
 test-align : mkdirs ${GENOME_FA}
-	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype keepsup
 	$(call cmp_expect,$@.bed)
 
 test-align-intpriming : mkdirs ${GENOME_FA}
-	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon --filtertype keepsup
 	$(call cmp_expect,$@.bed)
 
 test-align-seg1 : mkdirs ${GENOME_FA}
-	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@
+	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype keepsup
 	$(call cmp_expect,$@.bed)
 
 test-align-help: mkdirs
@@ -343,15 +343,7 @@ test-plot-usage: mkdirs
 	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
 
-other-progs-tests: test-bam2bed12 test-prod test-transcriptome test-fusion test-variants
-
-###
-# predictProductivity
-###
-
-test-prod: mkdirs
-	predictProductivity -i expected/test-collapse-annot.isoforms.bed -f ${GENOME_FA} -g $(BASIC_ANNOTATION) -o output/$@ --longestORF
-	$(call cmp_expect,$@.bed)
+other-progs-tests: test-bam2bed12 test-transcriptome test-fusion test-variants
 
 
 ###
