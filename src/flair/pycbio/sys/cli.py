@@ -6,21 +6,26 @@ from flair.pycbio import NoStackError, exceptionFormat
 from flair.pycbio.sys.objDict import ObjDict
 from flair.pycbio.sys import loggingOps
 
-def getOptionalArgs(parser, args):
-    """Get the parse command line option arguments (-- or - options) as an
-    object where the options are fields in the object.  Useful for packaging up
+def splitOptionsArgs(parser, inargs):
+    """Split command line arguments into two objects one of option arguments
+    (-- or - options) and one of positional arguments.  Useful for packaging up
     a large number of options to pass around."""
 
     opts = ObjDict()
-    for act in parser._actions:
-        if (len(act.option_strings) > 0) and (act.dest != 'help'):
-            setattr(opts, act.dest, getattr(args, act.dest))
-    return opts
+    args = ObjDict()
+    optnames = set([a.dest for a in parser._actions if a.option_strings])
+
+    for name, value in vars(inargs).items():
+        if name in optnames:
+            opts[name] = value
+        else:
+            args[name] = value
+    return opts, args
 
 class ArgumentParserExtras(argparse.ArgumentParser):
     """Wrapper around ArgumentParser that adds logging
-    related options.  Also can parse splitting options and arguments
-    into separate objects.
+    related options.  Also can parse splitting options and positional
+    arguments into separate objects.
     """
     def __init__(self, *args, add_profiler=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -47,11 +52,10 @@ class ArgumentParserExtras(argparse.ArgumentParser):
         """Get the parse command line option arguments (-- or - arguments) as an
         object where the options are fields in the object.  Useful for packaging up
         a large number of options to pass around without the temptation to pass
-        the positional args as well. Returns (opts, args).  The options are not
-        removed from args.
+        the positional args as well. Returns (opts, args).
         """
         args = self.parse_args()
-        return getOptionalArgs(self, args), args
+        return splitOptionsArgs(self, args)
 
 class ErrorHandler:
     """Command line error handling. This is a context manager that wraps execution
