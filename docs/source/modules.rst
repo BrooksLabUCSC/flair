@@ -87,6 +87,10 @@ Optional arguments
                             ginormous--comprehensive set + single exon subset isoforms
   --splittoregion       force running on each region of non-overlapping reads, no matter the file size 
                         default: parallelize by chromosome if file is <1G, otherwise parallelize on all regions of non-overlapping reads
+  --predictCDS          specify if you want to predict the CDS of the final isoforms. 
+                        Will be output in the final bed file but not the gtf file. 
+                        Productivity annotation is also added in the name field, 
+                        which is detailed further in the predictProductivity documentation
 
 
 
@@ -360,6 +364,10 @@ Optional arguments
                         --annotation_reliant generate. With this option activated, FLAIR first
                         aligns reads to the annotation and checks matches to annotated transcripts,
                         then will only identify novel transcripts from remaining reads.
+    --predictCDS        specify if you want to predict the CDS of the final isoforms. 
+                        Will be output in the final bed file but not the gtf file. 
+                        Productivity annotation is also added in the name field, 
+                        which is detailed further in the predictProductivity documentation
     
 **Options for read support**
     
