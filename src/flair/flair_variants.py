@@ -565,12 +565,11 @@ def getvariants():
     # align_variso_models(args.output_prefix, args.genome) ###TAKES TOO LONG, ADD OPTION TO TOGGLE
 
     # # ##get productivity for transcripts without variants
-    path = os.path.dirname(os.path.realpath(__file__)) + '/'
-    prodcmd = (path + '../../bin/predictProductivity', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
+    prodcmd = ('predictProductivity.py', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
     pipettor.run([prodcmd])
 
     ##adjust productivity prediction to account for variants
-    prodcmd = ('python3', path + 'predict_aaseq_withvar.py', args.output_prefix + '.isoforms.productivity.info.tsv',
+    prodcmd = ('predict_aaseq_withvar.py', args.output_prefix + '.isoforms.productivity.info.tsv',
                 args.output_prefix + '.isoswithvars.fa', args.output_prefix + '.isoswithvars.productivity.info.tsv')
     pipettor.run([prodcmd])
 

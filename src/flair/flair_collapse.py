@@ -124,6 +124,8 @@ def collapse(genomic_range='', corrected_reads=''):
                                             help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
                                             help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
+    parser.add_argument('--predictCDS', default=False, action='store_true',
+                        help='specify if you want to predict the CDS of the final isoforms. Will be output in the final bed file but not the gtf file.')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -483,11 +485,21 @@ def collapse(genomic_range='', corrected_reads=''):
 
         # convert isoform bed to gtf
         # if args.gtf:
-        bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
+    bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
-    files_to_remove = [args.output+'firstpass.fa']
+    if args.predictCDS:
+        prodcmd = ('predictProductivity',
+                   '-i', args.output+ 'isoforms.bed',
+                   '-o', args.output + 'isoforms.CDS',
+                   '--gtf', args.gtf,
+                   '--genome_fasta', args.genome,
+                   '--longestORF')
+        pipettor.run([prodcmd])
+        os.rename(args.output + 'isoforms.CDS.bed', args.output + 'isoforms.bed')
+        os.remove(args.output + 'isoforms.CDS.info.tsv')
+
     if not args.keep_intermediate:
-        files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
+        files_to_remove = [args.output + 'firstpass.fa', args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
         files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
         for f in files_to_remove:
             os.remove(f)
