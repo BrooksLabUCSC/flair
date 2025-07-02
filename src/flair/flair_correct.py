@@ -7,6 +7,7 @@ import os
 import pybedtools
 import shutil
 import uuid
+import pipettor
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import ssPrep
 
@@ -186,6 +187,10 @@ def correct(aligned_reads='', args=None):
         for chrom in readDict:
             with open(os.path.join(tempDir, "%s_corrected.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, corrected, 1024*1024*10)
+    pipettor.run([('bedtools', 'sort', '-i', correct_bed)], stdout=args.output + '_all_corrected.sorted.bed')
+    shutil.move(args.output + '_all_corrected.sorted.bed', correct_bed)
+    pipettor.run([('bedtools', 'sort', '-i', args.output + '_all_inconsistent.bed')], stdout=args.output + '_all_inconsistent.sorted.bed')
+    shutil.move(args.output + '_all_inconsistent.sorted.bed', args.output + '_all_inconsistent.bed')
     if printErr:
         shutil.move(printErrFname, f'{args.output}.err')
     shutil.rmtree(tempDir)
