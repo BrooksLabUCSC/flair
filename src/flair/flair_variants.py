@@ -7,6 +7,7 @@ import pipettor, subprocess
 import pysam
 import pybedtools
 import numpy as np
+import shutil
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 compbase = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
@@ -242,9 +243,11 @@ def parse_isoform_fa(isoformfile):
     return isotoseq
 
 def make_temp_dir(outprefix):
-    if not os.path.exists(outprefix + '_tempvarfiles'):
-        os.makedirs(outprefix + '_tempvarfiles')
-    return outprefix + '_tempvarfiles/'
+    dir = outprefix + '_tempvarfiles/'
+    if os.path.exists(dir):
+        shutil.rmtree(dir)
+    os.makedirs(dir)
+    return dir
 
 def parse_single_bam_read(s, tempdir, vcfvars, sampleindex):
     thesemutations = []
