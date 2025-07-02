@@ -125,7 +125,10 @@ def collapse(genomic_range='', corrected_reads=''):
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
                                             help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
     parser.add_argument('--predictCDS', default=False, action='store_true',
-                        help='specify if you want to predict the CDS of the final isoforms. Will be output in the final bed file but not the gtf file.')
+                        help='specify if you want to predict the CDS of the final isoforms. '
+                             'Will be output in the final bed file but not the gtf file. '
+                             'Productivity annotation is also added in the name field, '
+                             'which is detailed further in the predictProductivity documentation')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
