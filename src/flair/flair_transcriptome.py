@@ -30,7 +30,8 @@ def get_args():
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (4)')
     parser.add_argument('-f', '--gtf', default='',
-                        help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
+                        help='GTF annotation file, used for renaming FLAIR isoforms '
+                             'to annotated isoforms and adjusting TSS/TESs')
 
     parser.add_argument('-j', '--shortread', type=str, default='',
                         help='bed format splice junctions from short-read sequencing')
@@ -51,7 +52,10 @@ def get_args():
                         help='window size for comparing TSS/TES (100)')
 
     parser.add_argument('--noaligntoannot', default=False, action='store_true',
-                        help='''related to old annotation_reliant, now specify if you don't want an initial alignment to the annotated sequences and only want transcript detection from the genomic alignment. Will be slightly faster but less accurate if the annotation is good''')
+                        help='''related to old annotation_reliant, now specify if you don't want 
+                        an initial alignment to the annotated sequences and only want transcript 
+                        detection from the genomic alignment.
+                         Will be slightly faster but less accurate if the annotation is good''')
     parser.add_argument('-n', '--no_redundant', default='none',
                         help='''For each unique splice junction chain, report options include:
             none--best TSSs/TESs chosen for each unique set of splice junctions;
@@ -68,6 +72,11 @@ def get_args():
 
     parser.add_argument('--splittoregion', default=False, action='store_true',
                         help='''force running on each region of non-overlapping reads, no matter the file size''')
+    parser.add_argument('--predictCDS', default=False, action='store_true',
+                        help='specify if you want to predict the CDS of the final isoforms. '
+                             'Will be output in the final bed file but not the gtf file. '
+                             'Productivity annotation is also added in the name field, '
+                             'which is detailed further in the predictProductivity documentation')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -1139,6 +1148,16 @@ def collapsefrombam():
                                             genetojuncstoends)
 
     combineannotnovelwriteout(args, genetojuncstoends, genome)
+    if args.predictCDS:
+        prodcmd = ('predictProductivity',
+                   '-i', args.output+'.isoforms.bed',
+                   '-o', args.output + '.isoforms.CDS',
+                   '--gtf', args.gtf,
+                   '--genome_fasta', args.genome,
+                   '--longestORF')
+        pipettor.run([prodcmd])
+        os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
+        os.remove(args.output + '.isoforms.CDS.info.tsv')
     genome.close()
 
 

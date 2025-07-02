@@ -197,6 +197,12 @@ test-collapse: mkdirs ${GENOME_FA}
 	$(collapse_diff_read_map)
 	$(collapse_promoter_diff)
 
+test-collapse-predcds: mkdirs ${GENOME_FA}
+	rm -rf $O/$@.tmp
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --predictCDS
+	$(collapse_diff)
+	$(collapse_diff_read_map)
+
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot: mkdirs ${GENOME_FA}
@@ -359,17 +365,22 @@ test-plot-usage: mkdirs
 	file $O/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
 
-other-progs-tests: test-transcriptome test-fusion test-variants
+other-progs-tests: transcriptome-tests test-fusion test-variants
 
 
 ###
 # flair transcriptome
 ###
 
+transcriptome-tests: test-transcriptome test-transcriptome-predcds
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
-	$(call cmp_expect,$@.isoforms.bed)
+	$(collapse_diff)
+
+test-transcriptome-predcds: mkdirs
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --predictCDS
+	$(collapse_diff)
 
 ###
 # flair variants
