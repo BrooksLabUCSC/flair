@@ -94,7 +94,7 @@ default:
 	@echo "   " make real-clean >&2
 	@exit 1
 
-test: main-tests align-tests correct-tests collapse-tests quantify-tests \
+test: test-help align-tests correct-tests collapse-tests quantify-tests \
 	combine-tests predict-productivity-tests diff-iso-usage-tests \
 	plot-usage-tests other-progs-tests
 
@@ -109,7 +109,6 @@ test-help: test-main-help test-align-help test-correct-help test-collapse-help \
 ###
 # MAIN COMMAND
 ###
-main-tests: test-main-help
 
 test-main-help: mkdirs
 	flair --help 2>&1 | fgrep -v Version> $O/$@.out
