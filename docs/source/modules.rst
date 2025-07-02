@@ -777,7 +777,8 @@ Optional arguments
     --help	        Show this help message and exit
     --threads	        Number of threads for parallel DRIMSeq.
     --exp_thresh	Read count expression threshold. Isoforms in which both 
-                        conditions contain fewer than E reads are filtered out (Default E=10)
+                        conditions contain fewer than E reads are filtered out (Default E=10) 
+                        (This option requires that all replicates in either condition have > exp_thresh reads)
     --out_dir_force	Specify this argument to force overwriting of files in 
                         an existing output directory
 
