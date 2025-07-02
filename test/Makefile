@@ -309,17 +309,15 @@ test-diffexp-help: mkdirs
 ###
 diffsplice-tests: test-diffsplice test-diffsplice-help
 
-# NOTE: the order of the ids generated in diffsplice.es.events.quant.tsv is not stable
-# (issue #417)
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
 	flair diffsplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
 	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
-#	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
 	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
-#	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
-#	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-help: mkdirs
 	flair diffsplice --help >&$O/$@.out

@@ -75,10 +75,10 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 
                     writer.writerow(['inclusion_'+feature_suffix, event] +
                             alljuncs[chrom][fiveprime][inclusion]['counts'] +
-                            [','.join(alljuncs[chrom][fiveprime][inclusion]['isos'])])
+                            [','.join(sorted(alljuncs[chrom][fiveprime][inclusion]['isos']))])
                     writer.writerow(['exclusion_'+feature_suffix, event] +
                             alljuncs[chrom][fiveprime][exclusion]['counts'] +
-                            [','.join(alljuncs[chrom][fiveprime][exclusion]['isos'])])
+                            [','.join(sorted(alljuncs[chrom][fiveprime][exclusion]['isos']))])
                     n += 1
 
 
@@ -186,8 +186,8 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
             event = chrom_clean+':'+str(j[0])+'-'+str(j[1])
             writer.writerow(['inclusion_'+event, event] +
                     ir_junctions[chrom][j]['inclusion']['counts'] +
-                    [','.join(ir_junctions[chrom][j]['inclusion']['isos'])])
+                    [','.join(sorted(ir_junctions[chrom][j]['inclusion']['isos']))])
             writer.writerow(['exclusion_'+event, event] +
                     ir_junctions[chrom][j]['exclusion']['counts'] +
-                    [','.join(ir_junctions[chrom][j]['exclusion']['isos'])])
+                    [','.join(sorted(ir_junctions[chrom][j]['exclusion']['isos']))])
         ir_junctions[chrom] = None
