@@ -38,6 +38,12 @@ BASIC_CORRECT_READS_BED = $E/test-correct_all_corrected.bed
 BASIC_ISOFORMS_FA = $E/test-collapse-annot.isoforms.fa
 BASIC_ISOFORMS_BED = $E/test-collapse-annot.isoforms.bed
 
+##
+# Files generate by tests that are used by other tests.
+# These enfoce files being create in the right order.
+## 
+TEST_ALIGN_BAM = $O/test-align.bam
+TEST_QUANTIFY_B1_BAM = $O/test-quantify.B1.B.flair.aligned.bam
 
 ###
 # seg1: single exon tests
@@ -118,6 +124,8 @@ align-tests: test-align test-align-intpriming test-align-seg1 test-align-help
 test-align : mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype keepsup
 	$(call cmp_expect,$@.bed)
+
+${TEST_ALIGN_BAM}: test-align
 
 test-align-intpriming : mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon --filtertype keepsup
@@ -264,6 +272,8 @@ test-quantify: mkdirs
 	$(call cmp_expect_sort,$@.A1.A.flair.aligned.readtotranscript.txt)
 	$(call cmp_expect,$@.tpm.tsv)
 
+${TEST_QUANTIFY_B1_BAM}: test-quantify
+
 # without map or bam output
 test-quantify-nobam : mkdirs
 	rm -rf $O/$@.tmp
@@ -344,9 +354,9 @@ test-diff-iso-usage-help: mkdirs
 plot-usage-tests: test-plot-usage
 
 test-plot-usage: mkdirs
-	plot_isoform_usage expected/test-predict-productivity.bed expected/test-collapse-annot.annotated_transcripts.alignment.counts ENSG00000133703.12 -o output/$@
-	file output/test-plot-usage_isoforms.png | grep 'PNG image data' >/dev/null
-	file output/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
+	plot_isoform_usage expected/test-predict-productivity.bed expected/test-collapse-annot.annotated_transcripts.alignment.counts ENSG00000133703.12 -o $O/$@
+	file $O/test-plot-usage_isoforms.png | grep 'PNG image data' >/dev/null
+	file $O/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
 
 other-progs-tests: test-transcriptome test-fusion test-variants
@@ -357,8 +367,8 @@ other-progs-tests: test-transcriptome test-fusion test-variants
 ###
 
 
-test-transcriptome: mkdirs
-	flair transcriptome  -b output/test-align.bam -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
+test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
 	$(call cmp_expect,$@.isoforms.bed)
 
 ###
@@ -366,12 +376,12 @@ test-transcriptome: mkdirs
 # FIXME need to add better checks for AAseq results, however the inconsistent sorting of the variants leads to inconsistent AAseq IDs which are hard to check
 ###
 
-test-variants: mkdirs ${GENOME_FA}
+test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 	minimap2 -ax map-ont --secondary=no ${GENOME_FA} input/basic.reads.4.fa | samtools view -hb - | samtools sort - > $O/$@.genomealigned.bam
 	samtools index $O/$@.genomealigned.bam
 	samtools faidx $(BASIC_ISOFORMS_FA)
 	longshot --force_overwrite --bam $O/$@.genomealigned.bam --ref ${GENOME_FA} --out $O/$@.genomealigned.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
-	echo 's1    output/test-quantify.B1.B.flair.aligned.bam   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
+	echo 's1    ${TEST_QUANTIFY_B1_BAM}   $O/$@.genomealigned.longshot.vcf' > $O/$@.varmanifest.tsv
 	flair variants -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call cmp_expect,$@.isoswithvars.counts.tsv)
 	$(call cmp_expect,$@.aaseq.counts.tsv)
@@ -380,9 +390,9 @@ test-variants: mkdirs ${GENOME_FA}
 ###
 # flair fusion
 ###
-test-fusion: mkdirs
+test-fusion: mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
-	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa output/test-collapse-annot.annotated_transcripts.fa -s 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa expected/test-collapse-annot.annotated_transcripts.fa -s 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 
 
