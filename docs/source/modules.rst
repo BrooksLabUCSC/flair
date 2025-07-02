@@ -548,7 +548,7 @@ flair combine
 
     Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format. If the transcriptome is from FLAIR collapse or transcriptome, but isoform in the second column, if it is from FLAIR fusion, put fusionisoform in the second column:
 
-Manifest example:
+Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
@@ -603,7 +603,7 @@ Required arguments
     --reads_manifest    Tab delimited file containing sample id, condition, batch, 
                         reads.fq, where reads.fq is the path to the sample fastq file. 
 
-Manifest example:
+Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
