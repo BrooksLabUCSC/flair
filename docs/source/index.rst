@@ -77,7 +77,6 @@ individually to isoforms of the combined assembly for downstream analyses.
    flair2_functions.rst
    other_ways.rst
    testrun.rst
-   example_files.rst
    faqs.rst
    cite.rst
 
