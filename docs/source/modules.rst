@@ -548,7 +548,7 @@ flair combine
 
     Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format. If the transcriptome is from FLAIR collapse or transcriptome, but isoform in the second column, if it is from FLAIR fusion, put fusionisoform in the second column:
 
-Manifest example:
+Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
@@ -603,7 +603,7 @@ Required arguments
     --reads_manifest    Tab delimited file containing sample id, condition, batch, 
                         reads.fq, where reads.fq is the path to the sample fastq file. 
 
-Manifest example:
+Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
@@ -777,7 +777,8 @@ Optional arguments
     --help	        Show this help message and exit
     --threads	        Number of threads for parallel DRIMSeq.
     --exp_thresh	Read count expression threshold. Isoforms in which both 
-                        conditions contain fewer than E reads are filtered out (Default E=10)
+                        conditions contain fewer than E reads are filtered out (Default E=10) 
+                        (This option requires that all replicates in either condition have > exp_thresh reads)
     --out_dir_force	Specify this argument to force overwriting of files in 
                         an existing output directory
 
