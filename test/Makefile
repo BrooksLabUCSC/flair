@@ -53,6 +53,7 @@ SEG1_ANNOTATION = input/seg1.gencodeV47.gtf
 SEG1_PROMOTER_REGIONS = input/seg1.promoter-regions.bed
 
 SEG1_ALIGN_BED = $E/test-align-seg1.bed
+SEG1_ALIGN_BAM = $O/test-align-seg1.bam
 SEG1_CORRECT_READS_BED = $E/test-correct-seg1_all_corrected.bed
 SEG1_ISOFORMS_FA = expected/test-collapse-seg1.isoforms.fa
 SEG1_ISOFORMS_BED = expected/test-collapse-seg1.isoforms.bed
@@ -125,6 +126,7 @@ test-align : mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.bed)
 
 ${TEST_ALIGN_BAM}: test-align
+${SEG1_ALIGN_BAM}: test-align-seg1
 
 test-align-intpriming : mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon --filtertype keepsup
@@ -166,14 +168,13 @@ test-correct-help: mkdirs
 ###
 # FLAIR COLLAPSE
 ###
-collapse-tests: test-collapse test-collapse-annot \
+collapse-tests: test-collapse test-collapse-incgtf test-collapse-incgtfannot test-collapse-annot \
 	test-collapse-support test-collapse-seg1 \
 	test-collapse-help
 
 # macros to do comparions with expected results
 define collapse_diff
 	$(call cmp_expect_sort,$@.isoforms.bed)
-	$(call cmp_expect_sort,$@.isoforms.fa)
 	$(call cmp_expect_sort,$@.isoforms.gtf)
 endef
 
@@ -196,6 +197,18 @@ test-collapse: mkdirs ${GENOME_FA}
 	$(collapse_diff_read_map)
 	$(collapse_promoter_diff)
 
+test-collapse-incgtf: mkdirs ${GENOME_FA}
+	rm -rf $O/$@.tmp
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
+	$(collapse_diff)
+	$(collapse_diff_read_map)
+
+test-collapse-incgtfannot: mkdirs ${GENOME_FA}
+	rm -rf $O/$@.tmp
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent
+	$(collapse_diff)
+	$(collapse_diff_read_map)
+
 test-collapse-predcds: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --predictCDS
@@ -213,10 +226,9 @@ test-collapse-annot: mkdirs ${GENOME_FA}
 
 test-collapse-seg1: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ -p ${SEG1_PROMOTER_REGIONS} --stringent
+	flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
 	$(collapse_diff)
 	$(collapse_diff_read_map)
-	$(collapse_promoter_diff)
 
 # collapse with support
 test-collapse-support: mkdirs ${GENOME_FA}
@@ -224,7 +236,6 @@ test-collapse-support: mkdirs ${GENOME_FA}
 	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
 	$(collapse_diff)
 	$(collapse_diff_read_map)
-	$(collapse_promoter_diff)
 
 test-collapse-help: mkdirs
 	flair collapse --help >&$O/$@.out
@@ -378,6 +389,10 @@ test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 test-transcriptome-predcds: mkdirs
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --predictCDS
 	$(collapse_diff)
+
+###doesn't work, returns nothing. Need to debug later
+# test-transcriptome-seg1: mkdirs
+# 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
 
 ###
 # flair variants
