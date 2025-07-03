@@ -171,7 +171,7 @@ def rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads):
     R('res <- merge(proportions(d),results(d,level="feature"), by=c("feature_id","gene_id"))')
     # raw output
     res = R('res')
-    res.to_csv(resOut, sep='\t')
+    res.to_csvfile(resOut, sep='\t')
 
     # order by adjusted p value
     R('res <- res[order(res[,"adj_pvalue"]),]')
