@@ -59,11 +59,11 @@ def quantify(isoform_sequences=''):
         if not args.isoforms:
             raise Exception('Please specify isoform models as .bed file using --isoform_bed')
         elif not os.path.exists(args.isoforms):
-            raise Exception('Isoform models bed file path does not exist')
+            raise Exception('Isoform models bed file path does not exist: ' + args.isoforms)
         elif args.isoforms.endswith('.psl'):
             raise Exception('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
     if not os.path.exists(args.i):
-        raise Exception('Isoform sequences fasta file path does not exist')
+        raise Exception('Isoform sequences fasta file path does not exist: ' + args.i)
 
     samData = list()
     with codecs.open(args.r, 'r', encoding='utf-8', errors='ignore') as lines:
