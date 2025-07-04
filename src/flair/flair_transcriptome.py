@@ -77,6 +77,10 @@ def get_args():
                              'Will be output in the final bed file but not the gtf file. '
                              'Productivity annotation is also added in the name field, '
                              'which is detailed further in the predictProductivity documentation')
+    parser.add_argument('--keep_intermediate', default=False, action='store_true',
+                        help='''specify if intermediate and temporary files are to be kept for debugging.
+                Intermediate files include: promoter-supported reads file,
+                read assignments to firstpass isoforms''')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -967,8 +971,8 @@ def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
 
 
 def combineannotnovelwriteout(args, genetojuncstoends, genome):
-    with open(args.output + '.isoforms.bed', 'w') as isoout, open(args.output + '.read.map.txt', 'w') as mapout, open(
-            args.output + '.isoforms.gtf', 'w') as gtfout, open(args.output + '.isoforms.fa', 'w') as seqout:
+    with open(args.output + '.isoforms.bed', 'w') as isoout, open(args.output + '.isoform.read.map.txt', 'w') as mapout, open(
+            args.output + '.isoforms.gtf', 'w') as gtfout, open(args.output + '.isoforms.fa', 'w') as seqout, open(args.output + '.isoform.counts.txt', 'w') as countsout:
         for gene in genetojuncstoends:
             gtflines, tstarts, tends = [], [], []
             for chrom, strand, juncs in genetojuncstoends[gene]:
@@ -1002,6 +1006,7 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                     tends.append(isoinfo[1])
                     gtflines.extend(gtffortranscript)
                     mapout.write(iso + '_' + gene + '\t' + ','.join(isoinfo[3]) + '\n')
+                    countsout.write(iso + '_' + gene + '\t' + str(len(isoinfo[3])) + '\n')
                     seqout.write('>' + iso + '_' + gene + '\n')
                     seqout.write(tseq + '\n')
             gtflines.insert(0, [chrom, 'FLAIR', 'gene', min(tstarts) + 1, max(tends), '.', gtflines[0][6], '.',
@@ -1137,7 +1142,8 @@ def collapsefrombam():
                              ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed', '.novelisos.counts.tsv',
                               '.novelisos.read.map.txt'])
 
-    shutil.rmtree(tempDir)
+    if not args.keep_intermediate:
+        shutil.rmtree(tempDir)
 
     if not args.noaligntoannot:
         genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
@@ -1148,6 +1154,19 @@ def collapsefrombam():
                                             genetojuncstoends)
 
     combineannotnovelwriteout(args, genetojuncstoends, genome)
+    if not args.keep_intermediate:
+        files_to_remove = ['.firstpass.reallyunfiltered.bed',
+                           '.firstpass.unfiltered.bed',
+                           '.firstpass.bed',
+                           '.novelisos.counts.tsv',
+                           '.novelisos.read.map.txt']
+        if not args.noaligntoannot:
+            files_to_remove += ['.matchannot.bed',
+                           '.matchannot.counts.tsv',
+                           '.matchannot.read.map.txt']
+        for f in files_to_remove:
+            os.remove(args.output + f)
+
     if args.predictCDS:
         prodcmd = ('predictProductivity',
                    '-i', args.output+'.isoforms.bed',
