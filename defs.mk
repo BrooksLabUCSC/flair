@@ -14,7 +14,7 @@ PACKAGE_FILE_PREFIX = flair_brookslab-${VERSION}
 
 SHELL = /bin/bash
 export BASHOPTS = -beEu -o pipefail
-MAKEFLAGS += -rR
+MAKEFLAGS += -rRw
 
 POETRY = poetry
 PYTHON = python3
