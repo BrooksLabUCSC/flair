@@ -394,7 +394,7 @@ test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --noaligntoannot
 	$(collapse_diff)
 
-test-transcriptome-predcds: mkdirs
+test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --predictCDS
 	$(collapse_diff)
 

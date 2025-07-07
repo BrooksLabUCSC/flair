@@ -13,7 +13,7 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 .. _transcriptome-label:
 
 flair transcriptome
-===========
+===================
 
 .. code:: text
 
@@ -456,7 +456,7 @@ For more information on the Longshot variant caller, see its `github page <https
 .. _fusions-label:
 
 flair fusion
-==============
+============
 
 .. code:: text
 
@@ -477,7 +477,7 @@ sample.syntheticAligned.isoform.read.map
     read map of reads to fusion isoforms
 
 Required Options
--------
+----------------
 
 .. code:: text
 
@@ -493,7 +493,7 @@ Required Options
                         transcript sequences given the gtf and genome fa, type --annotated_fa generate
 
 Other Options
--------
+-------------
 
 .. code:: text
 
