@@ -170,7 +170,6 @@ def generateKnownSSDatabase(args, tempDir):
         if addFlag == False:
             sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))
             sys.exit(1)
-    knownSS = dict()
 
     sys.stderr = sys.__stderr__
 
@@ -180,18 +179,17 @@ def generateKnownSSDatabase(args, tempDir):
         sys.exit(1)
 
     annotationFiles = dict()
-    chrom2 = set()
-    for chrom, data in juncs.items():
-        if len(data) > 0:
-            chrom2.add(chrom)
-            annotationFiles[chrom] = os.path.join(tempDir, "%s_known_juncs.bed" % chrom)
-            with open(os.path.join(tempDir, "%s_known_juncs.bed" % chrom), "w") as out:
+    for chrom in chromosomes:
+        annotationFiles[chrom] = os.path.join(tempDir, "%s_known_juncs.bed" % chrom)
+        with open(os.path.join(tempDir, "%s_known_juncs.bed" % chrom), "w") as out:
+            if chrom in juncs:
+                data = juncs[chrom]
                 sortedData = sorted(list(data.keys()), key=lambda item: item[0])
                 for k in sortedData:
                     annotation = data[k]
                     c1, c2, strand = k
                     print(chrom, c1, c2, annotation, ".", strand, sep="\t", file=out)
-    return chrom2, annotationFiles
+    return chromosomes, annotationFiles
 
 
 def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
@@ -1068,8 +1066,9 @@ def runcollapsebychrom(listofargs):
             tempprefix + '.novelisos.read.map.txt', 'w') as mapout:
             pass
     genome.close()
-    for f in temptoremove:
-        os.remove(f)
+    if not args.keep_intermediate:
+        for f in temptoremove:
+            os.remove(f)
 
 
 def collapsefrombam():

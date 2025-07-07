@@ -383,7 +383,7 @@ other-progs-tests: transcriptome-tests test-fusion test-variants
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds
+transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds test-transcriptome-seg1
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
@@ -398,8 +398,10 @@ test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
 	$(collapse_diff)
 
 ###doesn't work, returns nothing. Need to debug later
-# test-transcriptome-seg1: mkdirs
-# 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
+test-transcriptome-seg1: mkdirs
+	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
+	$(collapse_diff)
+
 
 ###
 # flair variants
@@ -422,7 +424,7 @@ test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 ###
 test-fusion: mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
-	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa expected/test-collapse-annot.annotated_transcripts.fa -s 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 
 
