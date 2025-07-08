@@ -176,16 +176,9 @@ def runDRIMSeq(outdir, threads, drim1, drim2, drim3, drim4, conditionA, conditio
         quantDF[[col]] = quantDF[[col]] + 1
 
     # Convert pandas to R data frame.
-    rpy2_version = rpy2.__version__
-    rpy2_version = float(rpy2_version[:rpy2_version.rfind('.')])
-    if rpy2_version >= 3.4:
-        with localconverter(ro.default_converter + pandas2ri.converter):
-            samples = ro.conversion.py2rpy(formulaDF)
-            counts = ro.conversion.py2rpy(quantDF)
-    else:
-        pandas2ri.activate()
-        samples = pandas2ri.py2ri(formulaDF)
-        counts = pandas2ri.py2ri(quantDF)
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        samples = ro.conversion.py2rpy(formulaDF)
+        counts = ro.conversion.py2rpy(quantDF)
 
     # DRIMSEQ part.
     if "batch" in list(formulaDF): R.assign('batch', samples.rx2('batch'))
