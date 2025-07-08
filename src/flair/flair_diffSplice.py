@@ -2,9 +2,9 @@
 
 import sys
 import argparse
-import subprocess
 import os
-from flair import set_unix_path, check_diffexp_dependencies
+import pipettor
+from flair import FlairError, set_unix_path, check_diffexp_dependencies
 
 check_diffexp_dependencies()
 
@@ -79,11 +79,11 @@ def diffSplice(isoforms='', counts_matrix=''):
         return 1
 
     filebase = os.path.join(args.o, 'diffsplice')
-    subprocess.check_call(['call_diffsplice_events.py', args.i, filebase, args.q])
-    subprocess.check_call(['es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
-    subprocess.check_call(['es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
-            stdout=open(filebase+'.es.events.quant.tsv', 'w'))
-    subprocess.check_call(['rm', filebase+'.es.events.tsv'])
+    pipettor.run(['call_diffsplice_events.py', args.i, filebase, args.q])
+    pipettor.run(['es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
+    pipettor.run(['es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
+                 stdout=open(filebase+'.es.events.quant.tsv', 'w'))
+    os.unlink(filebase+'.es.events.tsv')
 
     if args.test or args.conditionA:
         sys.stderr.write('DRIMSeq testing for each AS event type\n')
@@ -105,10 +105,11 @@ def diffSplice(isoforms='', counts_matrix=''):
                     sys.stderr.write(f'{event} event matrix file empty, not running DRIMSeq\n')
                     continue
                 cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
-                if subprocess.call(cur_command, stderr=ds_stderr):
-                    print(f'\nDRIMSeq failed on {event} event')
-                    print(f'Check {workdir}/ds.stderr.txt for details.\nCommand was:')
-                    print(' '.join([x for x in cur_command]))
+                try:
+                    pipettor.run(cur_command, stderr=ds_stderr)
+                except pipettor.ProcessException as exc:
+                    raise FlairError(f"DRIMSeq failed on `{event}' event"
+                                     f'Check {workdir}/ds.stderr.txt for details') from exc
     else:
         # workdir only necessary for drimseq output
         os.rmdir(workdir)

@@ -13,7 +13,7 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 .. _transcriptome-label:
 
 flair transcriptome
-===========
+===================
 
 .. code:: text
 
@@ -87,6 +87,10 @@ Optional arguments
                             ginormous--comprehensive set + single exon subset isoforms
   --splittoregion       force running on each region of non-overlapping reads, no matter the file size 
                         default: parallelize by chromosome if file is <1G, otherwise parallelize on all regions of non-overlapping reads
+  --predictCDS          specify if you want to predict the CDS of the final isoforms. 
+                        Will be output in the final bed file but not the gtf file. 
+                        Productivity annotation is also added in the name field, 
+                        which is detailed further in the predictProductivity documentation
 
 
 
@@ -360,6 +364,10 @@ Optional arguments
                         --annotation_reliant generate. With this option activated, FLAIR first
                         aligns reads to the annotation and checks matches to annotated transcripts,
                         then will only identify novel transcripts from remaining reads.
+    --predictCDS        specify if you want to predict the CDS of the final isoforms. 
+                        Will be output in the final bed file but not the gtf file. 
+                        Productivity annotation is also added in the name field, 
+                        which is detailed further in the predictProductivity documentation
     
 **Options for read support**
     
@@ -448,7 +456,7 @@ For more information on the Longshot variant caller, see its `github page <https
 .. _fusions-label:
 
 flair fusion
-==============
+============
 
 .. code:: text
 
@@ -469,7 +477,7 @@ sample.syntheticAligned.isoform.read.map
     read map of reads to fusion isoforms
 
 Required Options
--------
+----------------
 
 .. code:: text
 
@@ -485,7 +493,7 @@ Required Options
                         transcript sequences given the gtf and genome fa, type --annotated_fa generate
 
 Other Options
--------
+-------------
 
 .. code:: text
 
@@ -540,7 +548,7 @@ flair combine
 
     Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation transcriptomes to generate accurate combined transcriptome. Only the manifest file is required. Manifest file is in the following format. If the transcriptome is from FLAIR collapse or transcriptome, but isoform in the second column, if it is from FLAIR fusion, put fusionisoform in the second column:
 
-Manifest example:
+Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
@@ -595,7 +603,7 @@ Required arguments
     --reads_manifest    Tab delimited file containing sample id, condition, batch, 
                         reads.fq, where reads.fq is the path to the sample fastq file. 
 
-Manifest example:
+Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
@@ -769,7 +777,8 @@ Optional arguments
     --help	        Show this help message and exit
     --threads	        Number of threads for parallel DRIMSeq.
     --exp_thresh	Read count expression threshold. Isoforms in which both 
-                        conditions contain fewer than E reads are filtered out (Default E=10)
+                        conditions contain fewer than E reads are filtered out (Default E=10) 
+                        (This option requires that all replicates in either condition have > exp_thresh reads)
     --out_dir_force	Specify this argument to force overwriting of files in 
                         an existing output directory
 

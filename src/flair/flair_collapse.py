@@ -6,6 +6,7 @@ import os
 import tempfile
 import glob
 import pipettor
+import shutil
 # TODO: put all of these in utils.py
 from flair.pull_starts import pull_starts
 from flair.select_from_bed import select_from_bed
@@ -123,6 +124,11 @@ def collapse(genomic_range='', corrected_reads=''):
                                             help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
                                             help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
+    parser.add_argument('--predictCDS', default=False, action='store_true',
+                        help='specify if you want to predict the CDS of the final isoforms. '
+                             'Will be output in the final bed file but not the gtf file. '
+                             'Productivity annotation is also added in the name field, '
+                             'which is detailed further in the predictProductivity documentation')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -138,7 +144,9 @@ def collapse(genomic_range='', corrected_reads=''):
     # housekeeping stuff
     tempfile_dir = tempfile.NamedTemporaryFile().name
     tempfile_name = tempfile_dir[tempfile_dir.rfind('/')+1:]+'.'
+    namedTempDir = True
     if args.temp_dir == '':
+        namedTempDir = False
         args.temp_dir = tempfile_dir+'/'
         if not args.quiet:
             sys.stderr.write('Writing temporary files to {}\t\n'.format(args.temp_dir))
@@ -240,7 +248,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # select reads that contain promoters
         precollapse = args.output+'promoter_supported.bed' # filename of promoter-supported, corrected reads
         select_from_bed(bedtools_output, query, precollapse)
-        intermediate += [tss_bedfile, precollapse]
+        intermediate += [precollapse]
 
     if args.threeprime:
         if not args.quiet:
@@ -258,7 +266,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # select reads that contain ends
         precollapse = args.output+'tes_supported.bed' # filename of 3' end-supported, corrected reads
         select_from_bed(bedtools_output, query, precollapse)
-        intermediate += [tes_bedfile, precollapse]
+        intermediate += [precollapse]
 
     if args.range: # for collapse_range, make sure the minimum number of reads is present
         count = len(open(precollapse).readlines())
@@ -340,7 +348,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # TODO: Get rid of this args renaming!
         precollapse = args.output+'unassigned.bed'
         args.reads = [subset_reads]
-        intermediate += [subset_reads, precollapse]
+        intermediate += [subset_reads, precollapse, args.annotation_reliant, args.annotated_bed, supported_bed]
 
 
     # TODO: collapse_isoforms_precise uses pool and map, which makes it difficult to capture in a function
@@ -451,6 +459,18 @@ def collapse(genomic_range='', corrected_reads=''):
                 outputfile=filter_output,
                 new_map=args.output+'combined.isoform.read.map.txt')
         os.rename(filter_output, mc_output)
+        intermediate += [args.output+'annotated_transcripts.isoform.read.map.txt',
+                         args.output + 'annotated_transcripts.alignment.counts', count_file]
+        os.rename(args.output+'combined.isoform.read.map.txt', args.output+'isoform.read.map.txt')
+        out = open(args.output + 'isoform.counts.txt', 'w')
+        for line in open(args.output+'isoform.read.map.txt'):
+            line = line.split('\t', 1)
+            rcounts = len(line[1].split(','))
+            out.write(line[0] + '\t' + str(rcounts) + '\n')
+        out.close()
+
+    else:
+        os.rename(count_file, args.output + 'isoform.counts.txt')
 
     # TODO: Test this section, longshot has not been tested at all
     if not args.range: # also write .fa and .gtf files
@@ -482,14 +502,28 @@ def collapse(genomic_range='', corrected_reads=''):
 
         # convert isoform bed to gtf
         # if args.gtf:
-        bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
+    bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
-    files_to_remove = [args.output+'firstpass.fa']
+    if args.predictCDS:
+        prodcmd = ('predictProductivity',
+                   '-i', args.output+ 'isoforms.bed',
+                   '-o', args.output + 'isoforms.CDS',
+                   '--gtf', args.gtf,
+                   '--genome_fasta', args.genome,
+                   '--longestORF')
+        pipettor.run([prodcmd])
+        os.rename(args.output + 'isoforms.CDS.bed', args.output + 'isoforms.bed')
+        os.remove(args.output + 'isoforms.CDS.info.tsv')
+
     if not args.keep_intermediate:
-        files_to_remove += [args.output+'firstpass.q.counts', args.output+'firstpass.bed'] + intermediate
-        files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*') # TODO: CHECK
+        files_to_remove = [args.output + 'firstpass.fa', args.output+'firstpass.bed'] + intermediate
+        if namedTempDir:
+            shutil.rmtree(args.temp_dir)
+        else:
+            files_to_remove += glob.glob(args.temp_dir+'*'+tempfile_name+'*')
         for f in files_to_remove:
             os.remove(f)
+
 
     return [args.output+'isoforms.bed', args.output+'isoforms.fa']
 

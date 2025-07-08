@@ -129,6 +129,7 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
     headeroutfilename = tempDir + 'headerfile.bam'
     hfile = pysam.AlignmentFile(headeroutfilename, 'wb', template=samfile)
     hfile.close()
+    pysam.index(tempDir + 'headerfile.bam')
 
     chunksize = 1000
 

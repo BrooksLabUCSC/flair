@@ -8,6 +8,7 @@ import pysam
 import pybedtools
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
+import shutil
 
 compbase = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
 
@@ -242,9 +243,11 @@ def parse_isoform_fa(isoformfile):
     return isotoseq
 
 def make_temp_dir(outprefix):
-    if not os.path.exists(outprefix + '_tempvarfiles'):
-        os.makedirs(outprefix + '_tempvarfiles')
-    return outprefix + '_tempvarfiles/'
+    dir = outprefix + '_tempvarfiles/'
+    if os.path.exists(dir):
+        shutil.rmtree(dir)
+    os.makedirs(dir)
+    return dir
 
 def parse_single_bam_read(s, tempdir, vcfvars, sampleindex):
     thesemutations = []
@@ -565,12 +568,11 @@ def getvariants():
     # align_variso_models(args.output_prefix, args.genome) ###TAKES TOO LONG, ADD OPTION TO TOGGLE
 
     # # ##get productivity for transcripts without variants
-    path = os.path.dirname(os.path.realpath(__file__)) + '/'
-    prodcmd = (path + '../../bin/predictProductivity', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
+    prodcmd = ('predictProductivity.py', '-i', args.bedisoforms, '-o', args.output_prefix + '.isoforms.productivity', '--gtf', args.gtf, '--genome_fasta', args.genome, '--longestORF')
     pipettor.run([prodcmd])
 
     ##adjust productivity prediction to account for variants
-    prodcmd = ('python3', path + 'predict_aaseq_withvar.py', args.output_prefix + '.isoforms.productivity.info.tsv',
+    prodcmd = ('predict_aaseq_withvar.py', args.output_prefix + '.isoforms.productivity.info.tsv',
                 args.output_prefix + '.isoswithvars.fa', args.output_prefix + '.isoswithvars.productivity.info.tsv')
     pipettor.run([prodcmd])
 

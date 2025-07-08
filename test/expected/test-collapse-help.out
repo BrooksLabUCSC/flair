@@ -100,6 +100,11 @@ options:
                         genome
   --allow_paralogs      specify if want to allow reads to be assigned to
                         multiple paralogs with equivalent alignment
+  --predictCDS          specify if you want to predict the CDS of the final
+                        isoforms. Will be output in the final bed file but not
+                        the gtf file. Productivity annotation is also added in
+                        the name field, which is detailed further in the
+                        predictProductivity documentation
 
 required named arguments:
   -q QUERY, --query QUERY

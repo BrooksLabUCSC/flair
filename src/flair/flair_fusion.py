@@ -38,10 +38,10 @@ def detectfusions():
                         help='Optional: bam file of chimeric reads from transcriptomic alignment. If not provided, this will be made for you')
     parser.add_argument('-o', '--output', default='flair.fusion',
                         help='output file name base for FLAIR isoforms (default: flair.collapse)')
-    parser.add_argument('--annotated_fa', default=False,
-                        help='''specify transcript fasta that corresponds to transcripts in the gtf to run annotation-
-                        reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
-                        type --annotated_fa generate''')
+    # parser.add_argument('--annotated_fa', default=False,
+    #                     help='''specify transcript fasta that corresponds to transcripts in the gtf to run annotation-
+    #                     reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
+    #                     type --annotated_fa generate''')
     # parser.add_argument('--annotated_bed', default=False,
     #                     help='''bedfile of annotated isoforms; if this isn't provided,
     #           flair will generate the bedfile from the gtf. eventually this argument will be removed''')
@@ -80,13 +80,13 @@ def detectfusions():
         sys.exit(1)
 
 
-    if args.annotated_fa == 'generate':
-        # get transcript sequences
-        args.annotated_bed = args.output + 'annotated_transcripts.bed'
-        gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
-        args.annotated_fa = args.output + 'annotated_transcripts.fa'
-        bed_to_sequence(query=args.output + 'annotated_transcripts.bed', genome=args.genome,
-                        outfilename=args.annotated_fa)
+    # if args.annotated_fa == 'generate':
+    # get transcript sequences
+    args.annotated_bed = args.output + 'annotated_transcripts.bed'
+    gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
+    args.annotated_fa = args.output + 'annotated_transcripts.fa'
+    bed_to_sequence(query=args.output + 'annotated_transcripts.bed', genome=args.genome,
+                    outfilename=args.annotated_fa)
 
     ####NEED TO REMEMBER THAT FUSION DETECTION RELIES ON HAVING PROPERLY STRANDED READS - need to add stranding step and/or better documentation on this
 

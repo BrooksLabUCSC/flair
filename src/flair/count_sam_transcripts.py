@@ -8,7 +8,7 @@ import math
 import os
 from collections import Counter
 from collections import namedtuple
-from flair import remove_internal_priming
+from flair.remove_internal_priming import removeinternalpriming
 import pysam
 
 def parseargs():
@@ -281,7 +281,7 @@ def parsesam(args, transcripttoexons, transcripttobpssindex):
                 # for transcriptome alignment, always take rightmost side on transcript
                 if args.remove_internal_priming:
                     intprimannot = transcripttoexons if args.permissive_last_exons else None
-                    notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name,
+                    notinternalpriming = removeinternalpriming(read.reference_name,
                                                                                        read.reference_start,
                                                                                        read.reference_end, False,
                                                                                        genome, None, intprimannot,
