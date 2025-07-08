@@ -4,6 +4,8 @@ import csv
 import os
 import argparse
 
+from flair.gtf_to_bed import get_iso_info
+
 def main():
     parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
             each isoform and renames the isoform''',
@@ -89,8 +91,8 @@ def update_tn_dicts(chrom, junctions, prev_transcript, prev_exon, junc_to_tn,
         junc_to_tn[chrom] = {}
         tn_to_juncs[chrom] = {}
         all_se[chrom] = []
-    if not junctions:
-        all_se[chrom] += [prev_exon]
+    if not junctions or len(junctions) == 0:
+        all_se[chrom].append(prev_exon)
     else:
         tn_to_juncs[chrom][prev_transcript] = junctions
         for j in junctions:
@@ -113,7 +115,6 @@ def update_gene_dicts(chrom, j, gene, junctions, gene_unique_juncs, junc_to_gene
 
 def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proportion_annotated_covered=0.8,
                           gene_only=False, annotation_reliant=False):
-    prev_transcript, prev_exon = '', ''
     junc_to_tn = {}  # matches intron to transcript; chrom: {intron: [transcripts], ... }
     tn_to_juncs = {}  # matches transcript to intron; i.e. chrom: {transcript_name: (junction1, junction2), ... }
     all_se = {}  # all single exon genes
@@ -121,49 +122,20 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
     gene_unique_juncs = {}  # matches a gene to its set of unique splice junctions
 
     if gtf:
-        for line in open(gtf):
-            # extract all exons from the gtf, keep exons grouped by transcript
-            # only works if the exons are sorted by coordinates and grouped by transcript
-            if line.startswith('#'):
-                continue
-            line = line.rstrip().split('\t')
-            chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
-            if ty != 'exon':
-                continue
-            this_transcript = line[8][line[8].find('transcript_id')+15:]
-            this_transcript = this_transcript[:this_transcript.find('"')]
+        iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf, adjustpos=False)
 
+        for transcript in iso_to_info:
+            chrom, strand, gene = iso_to_info[transcript]
+            exons = sorted(iso_to_exons[transcript])
             if chrom not in junc_to_gene:
                 junc_to_gene[chrom] = {}
+            junctions = set()
+            for i in range(len(exons)-1):
+                junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom, (exons[i][1], exons[i+1][0]), gene,
+                                                                               junctions,gene_unique_juncs, junc_to_gene)
 
-            if this_transcript != prev_transcript:
-                if prev_transcript:
-                    junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions,
-                            prev_transcript, prev_exon, junc_to_tn, tn_to_juncs, all_se)
-                junctions = set()
-                prev_transcript = this_transcript
-            elif strand == '-' and end < prev_start:
-                junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
-                        (end, prev_start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
-            else:
-                junctions, gene_unique_juncs, junc_to_gene = update_gene_dicts(chrom,
-                        (prev_end, start), prev_gene, junctions, gene_unique_juncs, junc_to_gene)
-
-            prev_start, prev_end = start, end
-            if field_name not in line[8]:
-                # sys.stderr.write('{} not in {}\n'.format(args.field_name, line[8]))
-                # sys.exit(1)
-                prev_gene = 'NA'
-            else:
-                prev_gene = line[8][line[8].find(field_name)+len(field_name)+2:]
-                prev_gene = prev_gene[:prev_gene.find('"')]
-                prev_gene = prev_gene.replace('_', '-')
-
-            prev_exon = (start, end, prev_gene)
-
-        if ty == 'exon' and prev_transcript:
-            junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, prev_transcript,
-                    prev_exon, junc_to_tn, tn_to_juncs, all_se)
+            junc_to_tn, tn_to_juncs, all_se = update_tn_dicts(chrom, junctions, transcript, (exons[-1][0], exons[-1][1], gene),
+                                                              junc_to_tn, tn_to_juncs, all_se)
 
         for chrom in all_se:
             all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
