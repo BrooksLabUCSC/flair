@@ -119,21 +119,25 @@ test-main-help: mkdirs
 # FLAIR ALIGN
 ###
 
-align-tests: test-align test-align-intpriming test-align-seg1 test-align-help
+align-tests: test-align test-align-intpriming test-align-seg1 test-align-separate test-align-help
 
 test-align : mkdirs ${GENOME_FA}
-	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype keepsup
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@
 	$(call cmp_expect,$@.bed)
 
 ${TEST_ALIGN_BAM}: test-align
 ${SEG1_ALIGN_BAM}: test-align-seg1
 
+test-align-separate : mkdirs ${GENOME_FA}
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate
+	$(call cmp_expect,$@.bed)
+
 test-align-intpriming : mkdirs ${GENOME_FA}
-	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon --filtertype keepsup
+	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --remove_internal_priming -f $(BASIC_ANNOTATION) --remove_singleexon
 	$(call cmp_expect,$@.bed)
 
 test-align-seg1 : mkdirs ${GENOME_FA}
-	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype keepsup
+	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@
 	$(call cmp_expect,$@.bed)
 
 test-align-help: mkdirs
@@ -199,13 +203,13 @@ test-collapse: mkdirs ${GENOME_FA}
 
 test-collapse-incgtf: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $I/basic.annotation.incomplete.scrambled.gtf -o $O/$@
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
 test-collapse-incgtfannot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $I/basic.annotation.incomplete.scrambled.gtf -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
@@ -222,7 +226,6 @@ test-collapse-annot: mkdirs ${GENOME_FA}
 	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent
 	$(collapse_diff)
 	$(collapse_diff_read_map)
-	$(collapse_promoter_diff)
 
 test-collapse-seg1: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
@@ -380,10 +383,14 @@ other-progs-tests: transcriptome-tests test-fusion test-variants
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-predcds
+transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds test-transcriptome-seg1
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
+	$(collapse_diff)
+
+test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --noaligntoannot
 	$(collapse_diff)
 
 test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
@@ -391,8 +398,10 @@ test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
 	$(collapse_diff)
 
 ###doesn't work, returns nothing. Need to debug later
-# test-transcriptome-seg1: mkdirs
-# 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
+test-transcriptome-seg1: mkdirs
+	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
+	$(collapse_diff)
+
 
 ###
 # flair variants
@@ -415,7 +424,7 @@ test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 ###
 test-fusion: mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
-	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ --annotated_fa expected/test-collapse-annot.annotated_transcripts.fa -s 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 
 

@@ -103,8 +103,8 @@ def doalignment(args):
         mm2_cmd += [args.genome]
     mm2_cmd += args.reads
 
-    samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '_unfiltered.bam', '-')
-    samtools_index_cmd = ('samtools', 'index', args.output + '_unfiltered.bam')
+    samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '.bam', '-')
+    samtools_index_cmd = ('samtools', 'index', args.output + '.bam')
     pipettor.run([mm2_cmd, samtools_sort_cmd])
     pipettor.run([samtools_index_cmd])
 
@@ -113,8 +113,6 @@ def dofiltering(args, inbam, filterreadmap=None):
     withsup = None
     if args.filtertype == 'separate':
         withsup = pysam.AlignmentFile(args.output + '_chimeric.bam', "wb", template=samfile)
-    trash = pysam.AlignmentFile(args.output + '_trash.bam', "wb", template=samfile)
-    fullyaligned = pysam.AlignmentFile(args.output + '.bam', "wb", template=samfile)
     outbed = open(args.output + '.bed', 'w')
     readstoremove = set()
     annottranscriptends, genome = None, None
@@ -126,19 +124,18 @@ def dofiltering(args, inbam, filterreadmap=None):
         for line in open(filterreadmap):
             reads = line.rstrip().split('\t', 1)[1].split(',')
             readstoremove.update(set(reads))
+    totalalignments, mappednotsec, supplementary, primary = 0, 0, 0, 0
     for read in samfile.fetch():
+        totalalignments += 1
         if read.is_mapped and not read.is_secondary:
+            mappednotsec += 1
             mapq = read.mapping_quality
             if mapq < args.quality:
-                trash.write(read)
                 continue
-            if filterreadmap:
-                if read.query_name in readstoremove:
-                    filteredout.write(read)
-                    continue
-            if args.remove_singleexon:
-                if read.get_cigar_stats()[0][3] == 0:
-                    trash.write(read)
+            if filterreadmap and read.query_name in readstoremove:
+                filteredout.write(read)
+                continue
+            if args.remove_singleexon and read.get_cigar_stats()[0][3] == 0:
                     continue
             if args.remove_internal_priming:
                 # print(read.query_name)
@@ -146,29 +143,30 @@ def dofiltering(args, inbam, filterreadmap=None):
                                                           genome, annottranscriptends, None, args.intprimingthreshold, args.intprimingfracAs)
                 # print(read.query_name, notinternalpriming)
                 if not notinternalpriming:
-                    trash.write(read)
                     continue
+
+            if read.is_supplementary: supplementary += 1
+            else: primary += 1
+
             if read.has_tag('SA'):
                 if args.filtertype == 'separate':
                     withsup.write(read)
-                elif args.filtertype == 'removesup':
-                    trash.write(read)
-                elif read.is_supplementary:
-                    trash.write(read)
-                else:
-                    fullyaligned.write(read)
+                elif not read.is_supplementary or args.filtertype == 'keepsup':
                     juncstrand = inferMM2JuncStrand(read)
                     bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
                                                                      read.query_name, read.reference_name, mapq, juncstrand)
                     outbed.write('\t'.join(bedline) + '\n')
             else:
-                fullyaligned.write(read)
                 juncstrand = inferMM2JuncStrand(read)
                 bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples, read.query_name,
                                                                  read.reference_name, mapq, juncstrand)
                 outbed.write('\t'.join(bedline) + '\n')
-        else:
-            trash.write(read)
+
+    sys.stderr.write(f'total alignments in bam file (includes unaligned reads): {totalalignments}\n')
+    sys.stderr.write(f'total non-secondary alignments: {mappednotsec}\n')
+    sys.stderr.write(f'total primary alignments with quality >= {args.quality}: {primary}\n')
+    sys.stderr.write(f'total supplementary alignments with quality >= {args.quality}: {supplementary}\n')
+
     samfile.close()
     if filterreadmap:
         filteredout.close()
@@ -176,11 +174,7 @@ def dofiltering(args, inbam, filterreadmap=None):
     if args.filtertype == 'separate':
         withsup.close()
         pysam.index(args.output + '_chimeric.bam')
-    trash.close()
-    fullyaligned.close()
     outbed.close()
-    pysam.index(args.output + '_trash.bam')
-    pysam.index(args.output + '.bam')
 
 
 # note to self: select interpreter for conda
@@ -244,9 +238,8 @@ def align():
     doalignment(args)
 
     ##run filtering
-    dofiltering(args, args.output + '_unfiltered.bam')
+    dofiltering(args, args.output + '.bam')
 
-    pipettor.run([('rm', args.output + '_unfiltered.bam', args.output + '_unfiltered.bam.bai')])
     bedout = args.output + '.bed'
     # bam2Bed12(bamout, bedout, args.keep_supplementary)
     return bedout
