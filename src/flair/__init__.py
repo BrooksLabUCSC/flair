@@ -1,6 +1,10 @@
 VERSION = "2.2.0"
 import os
 
+class FlairError(Exception):
+    """General error contrition in FLAIR"""
+    pass
+
 def set_unix_path():
     "add programs in package to PATH."
 
