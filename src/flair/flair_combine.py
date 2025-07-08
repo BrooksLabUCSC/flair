@@ -98,7 +98,7 @@ def combine():
     for line in open(manifest):
         line = line.rstrip().split('\t')
         if not (3 <= len(line) <= 5):
-            raise Exception(f'Expected between 3 to 5 columns in manifest, got {len(line)}: line {line_num} {manifest}')
+            raise Exception(f'Expected between 3 to 5 columns in manifest, got {len(line)} in {manifest}')
         samples.append(line[0] + '__' + line[1])
         bedfiles.append(line[2])
         if len(line) > 3:
