@@ -251,6 +251,7 @@ def detectfusions():
 
     makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', args.gtf, '-g', args.genome,
                         '-o', args.output, '-c', args.output + '.prelimfusions.bed']
+    pipettor.run([makesynthcommand])
     if os.path.getsize(args.output + '-syntheticFusionGenome.fa') == 0:
         report_nofusions(args.output)
         return
@@ -278,7 +279,6 @@ def detectfusions():
     ##currently need to run correct and collapse as subprocess because they expect specific args, need to fix this at some point I think
     # print(makesynthcommand)
 
-    pipettor.run([makesynthcommand])
     pipettor.run([faidxcommand])
     print('synth genome made')
     pipettor.run([mm2_cmd, samtools_filter_cmd, samtools_sort_cmd])
