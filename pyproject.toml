@@ -38,7 +38,7 @@ diffexp = [
     "matplotlib (>=3.10.0,<4.0.0)",
     "seaborn (>=0.13.2,<0.14.0)",
     "statsmodels (>=0.14.4)",
-    "rpy2 (>=3.6.1,<3.7)",
+    "rpy2 (>=3.5.0,<3.6)",
 ]
 
 [project.urls]

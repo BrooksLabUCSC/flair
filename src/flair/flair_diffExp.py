@@ -20,7 +20,6 @@
 import os
 import sys
 import argparse
-import subprocess
 import codecs
 import errno
 from collections import Counter
@@ -28,8 +27,9 @@ from statistics import median,stdev
 from scipy.stats import ttest_ind, ranksums
 from statsmodels.stats.multitest import multipletests
 from statistics import median, mean
+import pipettor
 
-from flair import check_diffexp_dependencies, set_unix_path
+from flair import FlairError, check_diffexp_dependencies, set_unix_path
 
 check_diffexp_dependencies()
 
@@ -350,27 +350,26 @@ def calculate_sig(args):
     with open("%s/dge_stderr.txt" % workdir,"w") as out1:
 
         try:
-            subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
-                            "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
-                            "--prefix", "genes_deseq2", "--formula", formulaMatrixFile], stderr=out1)
-        except subprocess.CalledProcessError:
-            print(f'WARNING, running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details')
+            pipettor.run([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
+                          "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
+                          "--prefix", "genes_deseq2", "--formula", formulaMatrixFile], stderr=out1)
+        except pipettor.ProcessException as exc:
+            raise FlairError(f'running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details') from exc
+
+        try:
+            pipettor.run([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
+                          "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
+                          "--prefix", "isoforms_deseq2", "--formula", formulaMatrixFile], stderr=out1)
+        except pipettor.ProcessException as exc:
+            raise FlairError(f'running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details') from exc
         sys.stdout.flush()
 
         try:
-            subprocess.check_call([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
-                            "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
-                            "--prefix", "isoforms_deseq2", "--formula", formulaMatrixFile], stderr=out1)
-        except subprocess.CalledProcessError:
-            print(f'WARNING, running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details')
-        sys.stdout.flush()
-
-        try:
-            subprocess.check_call([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
-                             "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
-                             "--prefix", "isoforms_drimseq", "--formula", formulaMatrixFile], stderr=out1)
-        except subprocess.CalledProcessError:
-            print(f'WARNING, running DRIMSeq failed, please check {workdir}/dge_stderr.txt for details')
+            pipettor.run([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
+                          "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
+                          "--prefix", "isoforms_drimseq", "--formula", formulaMatrixFile], stderr=out1)
+        except pipettor.ProcessException as exc:
+            raise FlairError(f'running DRIMSeq failed, please check {workdir}/dge_stderr.txt for details') from exc
         sys.stdout.flush()
 
 
