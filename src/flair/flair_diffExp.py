@@ -12,60 +12,42 @@
 ########################################################################
 
 
-########################################################################
-# Hot Imports & Global Variable
-########################################################################
-
-
 import os
+import os.path as osp
 import sys
 import argparse
-import codecs
 import errno
+import csv
 from collections import Counter
-from statistics import median,stdev
-from scipy.stats import ttest_ind, ranksums
+from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 from statistics import median, mean
 import pipettor
 
-from flair import FlairError, check_diffexp_dependencies, set_unix_path
-
-check_diffexp_dependencies()
+from flair import FlairError, FlairInputDataError, set_unix_path
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
-import pandas as pd
 
 
-
-scriptPath = os.path.realpath(__file__)
-path = "/".join(scriptPath.split("/")[:-1])
-runDE = path + "/" + "runDE.py"
-runDU = path + "/" + "runDU.py"
+pkgdir = osp.dirname(osp.realpath(__file__))
+diffExp_deseq2 = osp.join(pkgdir, "diffExp_deseq2.R")
+diffExp_drimseq = osp.join(pkgdir, "diffExp_drimseq.R")
 
 
-########################################################################
-# Isoform
-########################################################################
+##
+# Isoform and gene classes
+##
 
-
-class Isoform(object):
+class Isoform:
     '''
     Object to handle isoform related data.
-
     '''
 
-    def __init__(self, tid=None, gid=None):
+    def __init__(self, tid, parent, counts):
         self.name = tid
-        self.parent = gid
-
-        self.exp  = None
-
-
-########################################################################
-# Gene
-########################################################################
+        self.parent = parent
+        self.exp = counts
 
 
 class Gene(object):
@@ -74,11 +56,9 @@ class Gene(object):
 
     '''
 
-    def __init__(self, gid=None):
-#        self.transcripts = list()
+    def __init__(self, gid, counts):
         self.name = gid
-
-        self.exp  = None
+        self.exp = counts
 
 
 ########################################################################
@@ -108,9 +88,9 @@ def do_mtc_ttest(filename, genetototcounts):
             gene = id.split('_')[-1]
             wtcounts = [int(x) for x in line[1:4]]
             varcounts = [int(x) for x in line[4:]]
-            deltaval = median(varcounts)-median(wtcounts)
+            deltaval = median(varcounts) - median(wtcounts)
             wttot, vartot = mean(genetototcounts[gene][:3]), mean(genetototcounts[gene][3:])
-            deltausage = (mean(varcounts)/vartot if vartot > 0 else 0)-(mean(wtcounts)/wttot if wttot > 0 else 0)
+            deltausage = (mean(varcounts) / vartot if vartot > 0 else 0) - (mean(wtcounts) / wttot if wttot > 0 else 0)
             if abs(deltaval) > 3:
                 pval = ttest_ind(wtcounts, varcounts).pvalue
                 # pval = ranksums(wtcounts, varcounts).pvalue ###doesn't work, too stringent
@@ -137,99 +117,114 @@ def get_sig_from_norm_by_gene(outname, filename):
         if corrpval[i] < 0.05:
             out.write('\t'.join([gene, str(round(alldeltas[i], 3)), str(corrpval[i])]) + '\n')
 
+def quant_row_check(linenum, row):
+    if len(row) < 7:
+        raise ValueError(f"line {linenum}: found {len(row)} columns in counts matrix, expected >6")
 
+def quant_table_reader(quant_table_tsv):
+    """Generator for rows of (name, counts) from counts file"""
+    try:
+        with open(quant_table_tsv, "r", encoding='utf-8', errors='ignore') as fh:
+            csvreader = csv.reader(fh, delimiter='\t')
+            cols = next(csvreader)
+            quant_row_check(1, cols)
+            for linenum, row in enumerate(csvreader, start=2):
+                quant_row_check(linenum, row)
+                yield row[0], np.asarray(row[1:], dtype=float)
+    except Exception as exc:
+        raise FlairInputDataError(f"error parsing counts table: {quant_table_tsv}") from exc
 
-def separateTables(f, thresh, samples, groups, outDir):
+def write_name_values_tsv(samples, names, values, out_tsv):
+    "write gene or isoform matrix tsv"
+    with open(out_tsv, 'w') as fh:
+        writer = csv.writer(fh, delimiter='\t', dialect='unix', quoting=csv.QUOTE_NONE)
+        writer.writerow([''] + samples)
+        for name, value in zip(names, values):
+            writer.writerow([name] + list(value))
 
+def write_tsv(columns, rows, out_tsv):
+    """write a TSV.  """
+    with open(out_tsv, 'w') as fh:
+        writer = csv.writer(fh, delimiter='\t', dialect='unix', quoting=csv.QUOTE_NONE)
+        writer.writerow(columns)
+        for row in rows:
+            writer.writerow(row)
+
+def separate_tables(quant_table_tsv, thresh, samples, groups, outDir):
     genes, isoforms = dict(), dict()
     duplicateID = 1
 
-    with codecs.open(f, "r", encoding='utf-8', errors='ignore') as lines:
-        cols = next(lines).split("\t")
+    for name, counts in quant_table_reader(quant_table_tsv):
+        # FIXME: gene name parsing needs to be moved to a common module
+        iso, gene = name, name.split("_")[-1]
+        if "-" in gene:
+            gene = gene.split("-")[0]
+        m = iso.count("_")
+        if m > 1:
+            iso = iso.replace("_", "", 1)
 
-        if len(cols) < 7:
-            raise ValueError("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols))
+        if gene not in genes:
+            genes[gene] = Gene(gene, np.zeros(len(counts)))
 
-        for num, line in enumerate(lines):
+        geneObj = genes[gene]
+        geneObj.exp += counts
 
-            data = line.rstrip().split("\t")
-            if len(data) < 7:
-                raise ValueError("** Error. Found %s columns in counts matrix, expected >6. Exiting." % len(cols))
-
-            name = data[0]
-            counts = np.asarray(data[1:], dtype=float)
-            iso, gene   = name, name.split("_")[-1]
-            if "-" in gene:
-                gene = gene.split("-")[0]
-            m = iso.count("_")
-            if m > 1:
-                iso = iso.replace("_","",1)
-
-            if gene not in genes:
-                genes[gene] = Gene(gene)
-                genes[gene].exp = np.zeros(len(counts))
-
-            geneObj = genes[gene]
-            geneObj.exp += counts
-
-            if iso not in isoforms:
-                isoforms[iso] = Isoform(iso)
-                isoforms[iso].exp = counts
-
-            else:
-                duplicateID += 1
-                iso = iso + "-" + str(duplicateID)
-                isoforms[iso] = Isoform(iso)
-                isoforms[iso].exp = counts
-
-            isoformObj = isoforms[iso]
-            isoformObj.parent = geneObj
+        if iso not in isoforms:
+            isoforms[iso] = Isoform(iso, geneObj, counts)
+        else:
+            duplicateID += 1
+            iso = iso + "-" + str(duplicateID)
+            isoforms[iso] = Isoform(iso, geneObj, counts)
 
     # get group indices for filterin tables
     groups = np.asarray(groups)
-    g1Ind  = np.where(groups == groups[0])[0]
-    g2Ind  = np.where(groups == groups[-1])[0]
+    g1Ind = np.where(groups == groups[0])[0]
+    g2Ind = np.where(groups == groups[-1])[0]
 
-    #make gene table first
+    # make gene table first
     geneIDs = np.asarray(list(genes.keys()))
-    vals    = np.asarray([genes[x].exp for x in geneIDs])
+    vals = np.asarray([genes[x].exp for x in geneIDs])
+    if len(geneIDs) == 0:
+        raise FlairInputDataError(f"no genes parsed from {quant_table_tsv}")
+
     # genes must be expressed in all samples of at least one group
-    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
+    filteredRows = (np.min(vals[:, g1Ind], axis=1) > thresh) | (np.min(vals[:, g2Ind], axis=1) > thresh)
     filteredGeneVals = vals[filteredRows]
-    filteredGeneIDs  = geneIDs[filteredRows]
+    filteredGeneIDs = geneIDs[filteredRows]
+    write_name_values_tsv(samples, filteredGeneIDs, filteredGeneVals,
+                          outDir + "/filtered_gene_counts_ds2.tsv")
 
     # now do isoforms
     isoformIDs = np.asarray(list(isoforms.keys()))
     vals = np.asarray([isoforms[x].exp for x in isoformIDs])
-    filteredRows = (np.min(vals[:,g1Ind],axis=1) > thresh) | (np.min(vals[:,g2Ind],axis=1) > thresh)
+    filteredRows = (np.min(vals[:, g1Ind], axis=1) > thresh) | (np.min(vals[:, g2Ind], axis=1) > thresh)
     filteredIsoVals = vals[filteredRows]
-    filteredIsoIDs  = isoformIDs[filteredRows]
+    filteredIsoIDs = isoformIDs[filteredRows]
 
-    geneDF  = pd.DataFrame(filteredGeneVals,columns=samples, index=filteredGeneIDs)
-    isoDF = pd.DataFrame(filteredIsoVals,columns=samples, index=filteredIsoIDs)
+    write_name_values_tsv(samples, filteredIsoIDs, filteredIsoVals,
+                          outDir + "/filtered_iso_counts_ds2.tsv")
 
-    geneDF.to_csv(outDir + "/filtered_gene_counts_ds2.tsv", sep="\t")
-    isoDF.to_csv(outDir + "/filtered_iso_counts_ds2.tsv", sep="\t")
-
-    # also make table for drimm-seq
-    isoformIDs = np.asarray([[y.parent.name,x] for x,y in isoforms.items()])
+    # also make table for drimm-seq.  It must have a unique row undex
+    # added to prevent 'DataFrame contains duplicated elements in the index'
+    isoformIDs = np.asarray([[y.parent.name, x] for x, y in isoforms.items()])
     vals = np.asarray([isoforms[x[-1]].exp for x in isoformIDs])
-    #isoformIDs = isoformIDs.reshape(len(isoformIDs),1)
-    allIso = np.hstack((isoformIDs,vals))
-    isoDF  = pd.DataFrame(allIso, columns=['gene_id','feature_id']+samples)
-    isoDF.to_csv(outDir + "/filtered_iso_counts_drim.tsv", sep="\t")
+    indices = np.arange(isoformIDs.shape[0]).reshape(-1, 1)
+    allIso = np.hstack((indices, isoformIDs, vals))
+    write_tsv(['irow', 'gene_id', 'feature_id'] + samples, allIso,
+              outDir + "/filtered_iso_counts_drim.tsv")
     return genes, isoforms
 
 
-def calc_gene_norm_sig(workdir, quantTable):
+def calc_gene_norm_sig(workdir, quant_table_tsv):
     """
     Make a file of counts normalized by gene.
     This is not a standard normalization method, only used for downstream stats.
     """
     genetosampletotot = {}
     lines = []
+    # FIXME: just load into memory rather than reading three timnes!!
     out = open(workdir + '/counts.normbygene.tsv', 'w')
-    for line in open(quantTable):
+    for line in open(quant_table_tsv):
         line = line.rstrip().split('\t')
         if line[0] == 'ids':
             out.write('\t'.join(line) + '\n')
@@ -239,12 +234,13 @@ def calc_gene_norm_sig(workdir, quantTable):
             isoname = '_'.join(line[0].split('_')[:-1])
             l = len(line)
             for gene in genes:
-                if '--' in oggenes:  ##is fusion
+                if '--' in oggenes:  # is fusion ?
                     line[0] = isoname + '_' + oggenes + '_' + gene
 
                 counts = [float(x) for x in line[1:]]
                 lines.append([line[0]] + counts)
-                if gene not in genetosampletotot: genetosampletotot[gene] = [0 for x in range(len(counts))]
+                if gene not in genetosampletotot:
+                    genetosampletotot[gene] = [0 for x in range(len(counts))]
                 genetosampletotot[gene] = [genetosampletotot[gene][x] + counts[x] for x in range(len(counts))]
     for l in lines:
         gene = l[0].split('_')[-1]
@@ -257,31 +253,46 @@ def calc_gene_norm_sig(workdir, quantTable):
         out.write('\t'.join([l[0]] + thesecounts) + '\n')
     out.close()
 
+def run_deseq2(prefix, workdir, groups, batches, matrixFile, outDir, formulaMatrixFile):
+    stderr = f"{workdir}/{prefix}.txt"
+    try:
+        with open(stderr, "w") as stderr_fh:
+            pipettor.run(["Rscript", diffExp_deseq2, "--group1", groups[0], "--group2", groups[-1],
+                          "--batch", batches[0], "--matrix", matrixFile, "--outDir", outDir,
+                          "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
+    except pipettor.ProcessException as exc:
+        raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
+
+def run_dirmseq(prefix, workdir, threads, groups, batches, matrixFile, outDir, formulaMatrixFile):
+    stderr = f"{workdir}/{prefix}.txt"
+    try:
+        with open(stderr, "w") as stderr_fh:
+            pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--group1", groups[0], "--group2", groups[-1],
+                          "--batch", batches[0], "--matrix", matrixFile, "--outDir", outDir,
+                          "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
+    except pipettor.ProcessException as exc:
+        raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
+
 
 def calculate_sig(args):
+    outDir = args.o
+    quant_table_tsv = args.q
+    sFilter = args.e
+    threads = args.t
+    force_dir = args.of
 
-    '''
-    '''
-
-    outDir     = args.o
-    quantTable = args.q
-    sFilter    = args.e
-    threads    = args.t
-    force_dir  = args.of
-
+    # FIXME convert to just loading table upfront
     # Get sample data info
-    with open(quantTable) as l:
+    with open(quant_table_tsv) as l:
         header = next(l).split()[1:]
 
-    samples = ["%s_%s" % (h,num) for num,h in enumerate(header)]
+    samples = ["%s_%s" % (h, num) for num, h in enumerate(header)]
     try:
-        groups  = [x.split("_")[1] for x in header]
+        groups = [x.split("_")[1] for x in header]
         batches = [x.split("_")[-1] for x in header]
-        combos  = set([(groups.index(x),batches.index(y)) for x,y in zip(groups,batches)])
+        combos = set([(groups.index(x), batches.index(y)) for x, y in zip(groups, batches)])
     except IndexError:
-        raise Exception("** Error. diffExp requires column headers to contain sample, group, and batch, separated by '_'")
-    except Exception as ex:
-        raise Exception("** deFlair FAILED for %s" % (quantTable)) from ex
+        raise FlairInputDataError("diffExp requires column headers to contain sample, group, and batch, separated by '_'")
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:
@@ -314,96 +325,66 @@ def calculate_sig(args):
         print("** Error. Name '%s' already exists. Choose another name for out_dir" % outDir, file=sys.stderr)
         sys.exit(1)
 
-
-    calc_gene_norm_sig(workdir, quantTable)
+    calc_gene_norm_sig(workdir, quant_table_tsv)
     get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
 
     # Convert count tables to dataframe and update isoform objects.
-    genes, isoforms = separateTables(quantTable, sFilter, samples, groups, workdir)
+    genes, isoforms = separate_tables(quant_table_tsv, sFilter, samples, groups, workdir)
 
     # checks linear combination
     if len(combos) == 2:
-        header        = ['sample_id','condition']
-        formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
-        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
-        formulaDF     = formulaDF.set_index('sample_id')
-
+        header = ['sample_id', 'condition']
+        formulaMatrix = [[x, y] for x, y in zip(samples, groups)]
     elif len(set(batches)) > 1:
-        header        = ['sample_id','condition','batch']
-        formulaMatrix = [[x,y,z] for x,y,z in zip(samples,groups,batches)]
-        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
-        formulaDF     = formulaDF.set_index('sample_id')
-
+        header = ['sample_id', 'condition', 'batch']
+        formulaMatrix = [[x, y, z] for x, y, z in zip(samples, groups, batches)]
     else:
-        header        = ['sample_id','condition']
-        formulaMatrix = [[x,y] for x,y in zip(samples,groups)]
-        formulaDF     = pd.DataFrame(formulaMatrix,columns=header)
-        formulaDF     = formulaDF.set_index('sample_id')
+        header = ['sample_id', ' condition']
+        formulaMatrix = [[x, y] for x, y in zip(samples, groups)]
 
     formulaMatrixFile = workdir + "/formula_matrix.tsv"
-    isoMatrixFile     = workdir + "/filtered_iso_counts_ds2.tsv"
-    geneMatrixFile    = workdir + "/filtered_gene_counts_ds2.tsv"
-    drimMatrixFile    = workdir + "/filtered_iso_counts_drim.tsv"
+    write_tsv(header, formulaMatrix, formulaMatrixFile)
 
-    formulaDF.to_csv(formulaMatrixFile, sep='\t')
+    isoMatrixFile = workdir + "/filtered_iso_counts_ds2.tsv"
+    geneMatrixFile = workdir + "/filtered_gene_counts_ds2.tsv"
+    drimMatrixFile = workdir + "/filtered_iso_counts_drim.tsv"
 
-    with open("%s/dge_stderr.txt" % workdir,"w") as out1:
+    # DESeq2 genes & isoforms
+    run_deseq2("genes_deseq2", workdir, groups, batches, geneMatrixFile, outDir, formulaMatrixFile)
+    run_deseq2("isoforms_deseq2", workdir, groups, batches, isoMatrixFile, outDir, formulaMatrixFile)
 
-        try:
-            pipettor.run([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", geneMatrixFile, "--outDir", outDir,
-                          "--prefix", "genes_deseq2", "--formula", formulaMatrixFile], stderr=out1)
-        except pipettor.ProcessException as exc:
-            raise FlairError(f'running DESeq2 on genes failed, please check {workdir}/dge_stderr.txt for details') from exc
-
-        try:
-            pipettor.run([sys.executable, runDE, "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", isoMatrixFile, "--outDir", outDir,
-                          "--prefix", "isoforms_deseq2", "--formula", formulaMatrixFile], stderr=out1)
-        except pipettor.ProcessException as exc:
-            raise FlairError(f'running DESeq2 on isoforms failed, please check {workdir}/dge_stderr.txt for details') from exc
-        sys.stdout.flush()
-
-        try:
-            pipettor.run([sys.executable, runDU, "--threads", str(threads), "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", drimMatrixFile, "--outDir", outDir,
-                          "--prefix", "isoforms_drimseq", "--formula", formulaMatrixFile], stderr=out1)
-        except pipettor.ProcessException as exc:
-            raise FlairError(f'running DRIMSeq failed, please check {workdir}/dge_stderr.txt for details') from exc
-        sys.stdout.flush()
-
+    # DIRMSeq
+    run_dirmseq("isoforms_drimseq", workdir, threads, groups, batches, drimMatrixFile, outDir, formulaMatrixFile)
 
 def diffExp(counts_matrix=''):
     set_unix_path()
     parser = argparse.ArgumentParser(description='flair-diffExp parse options',
-            usage='flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
+                                     usage='flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
 #       parser.add_argument('diffExp')
     required = parser.add_argument_group('required named arguments')
     if not counts_matrix:
         required.add_argument('-q', '--counts_matrix', action='store', dest='q',
-                type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
+                              type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
     required.add_argument('-o', '--out_dir', action='store', dest='o',
-            type=str, required=True, help='Output directory for tables and plots.')
+                          type=str, required=True, help='Output directory for tables and plots.')
     parser.add_argument('-t', '--threads', action='store', dest='t',
-            type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq.')
+                        type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq.')
     parser.add_argument('-e', '--exp_thresh', action='store', dest='e', type=int, required=False,
-            default=10, help='''Read count expression threshold. Isoforms in which
-            both conditions contain fewer than E reads are filtered out (Default E=10)''')
+                        default=10, help='''Read count expression threshold. Isoforms in which
+                        both conditions contain fewer than E reads are filtered out (Default E=10)''')
     parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
-            required=False, help='''Specify this argument to force overwriting of files in
-            an existing output directory''')
+                        required=False, help='''Specify this argument to force overwriting of files in
+                        an existing output directory''')
     args = parser.parse_args()
     if counts_matrix:
         args.q = counts_matrix
-        args.o = args.o+'.diffExp'
+        args.o = args.o + '.diffExp'
 
     if not os.path.exists(args.q):
         sys.stderr.write('Counts matrix file path does not exist\n')
         return 1
 
     calculate_sig(args)
-
-
 
 if __name__ == "__main__":
     exit(diffExp())
