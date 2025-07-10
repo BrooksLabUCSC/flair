@@ -8,29 +8,16 @@ A conda environment is use to provide the non-python environment.
 **This is the recommend method FLAIR developers.**
 
 Create a new conda environment for developing FLAIR from the top of
-the tree and add the current packages with poetry.
+the tree and add the current packages with poetry.  This includes the
+diffexp and diffsplice dependencies
 
 ```
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
-pip install -e .[dev]
+pip install -e .[dev,diffexp]
 
 ```
-
-If you want to install only the dependencies without an FLAIR, use:
-```
-poetry install  --no-root
-```
-instead of `pip install`.
-
-To run `diffexp` and `diffsplice`, install the dependencies with:
-```
-conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
-pip install -e .[diffexp]
-```
-Note, the `pip` edit install is needed, as this environment install the
-released version of FLAIR from PyPi.
 
 If you get warning like:
 ```
