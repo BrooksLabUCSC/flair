@@ -1,6 +1,9 @@
 # Major user-visible changes
 
-## [2.2.1]
+## [next release]
+* Removed dependencies on pandas and rpy2.
+
+## [2.2.1] 2025-04-06
 * Fixed case where --quality=0 default didn't work, as it tested for greater
   than the cutoff.
 * Converted all Python code to use 4-space indentation.  Previpoust some code
