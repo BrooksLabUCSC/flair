@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 
 try:

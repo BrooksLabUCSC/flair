@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+import os
+import argparse
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import sys
-import argparse
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mplpatches
 import seaborn as sns

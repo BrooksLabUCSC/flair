@@ -16,3 +16,12 @@ dependencies:
   - sphinx_rtd_theme
   - sphinx-argparse
   - pip
+  - r-argparse
+  - r-ggplot2
+  - r-qqman
+  - r-lazyeval
+  - r-data.table
+  - bioconductor-deseq2
+  - bioconductor-drimseq
+  - bioconductor-stager
+  - bioconductor-apeglm

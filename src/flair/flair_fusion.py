@@ -11,7 +11,6 @@ from flair import transcriptomic_chimeras
 from flair import genomic_chimeras
 from collections import defaultdict
 
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 def def_value():
     return set()

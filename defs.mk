@@ -18,4 +18,4 @@ MAKEFLAGS += -rRw
 
 POETRY = poetry
 PYTHON = python3
-FLAKE8 = ${python} -m flake8
+FLAKE8 = ${PYTHON} -m flake8
