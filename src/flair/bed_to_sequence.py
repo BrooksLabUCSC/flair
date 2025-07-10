@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys, csv, os, argparse, pysam, subprocess
-
+import pysam
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -252,23 +252,11 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
         ignore = False
         models_to_write = []
 
-        for line in open(genome):
-            line = line.rstrip()
-            if line.startswith('>'):
-                if not chrom:
-                    chrom = line.split()[0][1:]
-                    continue
-                if chrom in beddata:  # or bed
-                    write_sequences(beddata[chrom], seq)
 
-                chrom = line.split()[0][1:]
-                ignore = chrom not in beddata
-                seq = ''
-            elif not ignore:
-                seq += line.upper()
+        genome = pysam.FastaFile(genome)
+        for chrom in beddata:
+            write_sequences(beddata[chrom], genome.fetch(chrom).upper())
 
-        if chrom in beddata:  # last chromosome
-            write_sequences(beddata[chrom], seq)
 
 
     if models_out:
