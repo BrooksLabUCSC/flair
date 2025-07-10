@@ -3,11 +3,15 @@
 import sys
 import argparse
 import os
+import os.path as osp
 import pipettor
-from flair import FlairError, set_unix_path, check_diffexp_dependencies
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
+from flair import FlairError, set_unix_path
 
-check_diffexp_dependencies()
+pkgdir = osp.dirname(osp.realpath(__file__))
+diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
+
+# FIXME: restructure, odd the say argument parsing is done bases on function
+# arguments
 
 def diffSplice(isoforms='', counts_matrix=''):
     set_unix_path()
@@ -88,9 +92,8 @@ def diffSplice(isoforms='', counts_matrix=''):
 
     if args.test or args.conditionA:
         sys.stderr.write('DRIMSeq testing for each AS event type\n')
-        drim1, drim2, drim3, drim4 = [str(x) for x in [args.drim1, args.drim2, args.drim3, args.drim4]]
-        ds_command = ['runDS.py', '--threads', str(args.t), '--outDir', args.o,
-                '--drim1', drim1, '--drim2', drim2, '--drim3', drim3, '--drim4', drim4]
+        ds_command = ['Rscript', diffSplice_drimSeq, '--threads', args.t, '--outDir', args.o,
+                      '--drim1', args.drim1, '--drim2', args.drim2, '--drim3', args.drim3, '--drim4', args.drim4]
         if args.batch:
             ds_command += ['--batch']
         if args.conditionA:
