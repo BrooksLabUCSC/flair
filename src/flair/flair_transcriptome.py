@@ -165,7 +165,7 @@ def generateKnownSSDatabase(args, tempDir):
 
     # Do the same for the other juncs file.
     if args.shortread:
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome,
+        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes,
                                                     False, knownSS, False, False)
         if addFlag == False:
             sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))

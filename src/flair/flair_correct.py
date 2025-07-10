@@ -4,7 +4,6 @@ import argparse
 import sys
 from multiprocessing import Pool
 import os
-import pybedtools
 import shutil
 import uuid
 import pipettor
@@ -13,14 +12,12 @@ from flair.ssPrep import ssPrep
 
 def parseargs(aligned_reads=''):
     parser = argparse.ArgumentParser(description='flair-correct parse options',
-                                                                     usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
+                                                                     usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
     required = parser.add_argument_group('required named arguments')
     atleastone = parser.add_argument_group('at least one of the following arguments is required')
     if not aligned_reads:
         required.add_argument('-q', '--query', type=str, required=True,
                                                   help='uncorrected bed12 file')
-    required.add_argument('-g', '--genome', type=str, required=True,
-                                              help='FastA of reference genome')
     atleastone.add_argument('-j', '--shortread', type=str, default='',
                                                     help='bed format splice junctions from short-read sequencing')
     atleastone.add_argument('-f', '--gtf', default='',
@@ -54,15 +51,6 @@ def correct(aligned_reads='', args=None):
     if not args.nvrna:
         resolveStrand = True
 
-    if os.path.isfile(args.genome+".fai"):
-        pass
-    else:
-        testString = """
-                chrX 1  100   feature1  0 +
-        """
-        # TODO: Does this create .fai?
-        pybedtools.BedTool(testString, from_string=True)
-
     # make temp dir for dumping
     tempDirName = str(uuid.uuid4())
     try:
@@ -92,7 +80,7 @@ def correct(aligned_reads='', args=None):
 
     # Do the same for the other juncs file.
     if args.shortread:
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome,
+        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if addFlag == False:
             sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))
@@ -158,7 +146,7 @@ def correct(aligned_reads='', args=None):
 
 #               outDict[chrom].close()
 
-        cmds.append([reads, juncs, args.genome, args.ss_window, chrom, resolveStrand,
+        cmds.append([reads, juncs, args.ss_window, chrom, resolveStrand,
       tempDir, printErrFname])
 
     if printErr:

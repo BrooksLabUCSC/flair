@@ -382,7 +382,6 @@ def main():
     myCommandLine = CommandLine()
     readsBed        = myCommandLine.args['input_bed']
     knownJuncsFile  = myCommandLine.args['juncs']
-    genomeFa            = myCommandLine.args['genome_fasta']
     wiggle        = myCommandLine.args['wiggleWindow']
     out           = myCommandLine.args['output_fname']
     resolveStrand = myCommandLine.args['correctStrand']
@@ -390,16 +389,16 @@ def main():
     errFile    = myCommandLine.args['check_file']
 
     # WARNING: out is a chromosome name and interpreted as such.
-    ssPrep([readsBed, knownJuncsFile, genomeFa, wiggle, out, resolveStrand, workingDir, errFile])
+    ssPrep([readsBed, knownJuncsFile, wiggle, out, resolveStrand, workingDir, errFile])
 
 
 def ssPrep(x):
     '''one argument so we can run p.map from the main program'''
-    readsBed, knownJuncsFile, genomeFa, wiggle, chrom, resolveStrand, workingDir, errFile = x
+    readsBed, knownJuncsFile, wiggle, chrom, resolveStrand, workingDir, errFile = x
 
     if errFile:
         with open(errFile,'a+') as fo:
-            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (readsBed, wiggle, knownJuncsFile, genomeFa), file=fo)
+            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (readsBed, wiggle, knownJuncsFile), file=fo)
 
     # Build interval tree of known juncs
     intervalTree, junctionBoundaryDict = buildIntervalTree(knownJuncsFile, wiggle, chrom, errFile)
