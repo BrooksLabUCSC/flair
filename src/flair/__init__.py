@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+VERSION = "2.2.0"
+
 class FlairError(Exception):
     """General error condition in FLAIR"""
     pass

@@ -5,7 +5,64 @@ import argparse
 import os
 import pipettor
 import pysam
+from flair.pycbio.sys import cli
 from flair import remove_internal_priming
+
+FILTER_KEEPSUP = 'keysup'
+FILTER_REMOVESUP = 'removesup'
+FILTER_SEPARATE = 'separate'
+FILTERS = (FILTER_KEEPSUP, FILTER_REMOVESUP, FILTER_SEPARATE)
+
+def parse_args():
+    desc = ""
+    parser = cli.ArgumentParserExtras(description=desc)
+
+    reads = parser.add_argument_group('required named arguments')
+    reads.add_argument('-r', '--reads', nargs='+', type=str, required=True,
+                          help='FASTA/FASTQ file(s) of raw reads, either space or comma separated')
+    genome = parser.add_argument_group('Either one of the following arguments is required')
+    genome.add_argument('-g', '--genome', type=str,
+                        help='FastA of reference genome, can be minimap2 indexed')
+    genome.add_argument('--mm_index', type=str, default='',
+                        help='minimap2 index .mmi file')
+    parser.add_argument('-o', '--output', default='flair.aligned',
+                        help='output file name base (default: flair.aligned)')
+    parser.add_argument('-t', '--threads', type=int, default=4,
+                        help='minimap2 number of threads (4)')
+    parser.add_argument('--junction_bed', default='',
+                        help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
+    parser.add_argument('--nvrna', action='store_true', default=False,
+                        help='specify this flag to use native-RNA specific alignment parameters for minimap2')
+    parser.add_argument('--quality', type=int, default=0,
+                        help='minimum MAPQ of read alignment to the genome (0)')
+    parser.add_argument('--minfragmentsize', type=int, default=80,
+                        help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
+    parser.add_argument('--maxintronlen', default='200k',
+                        help='maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns')
+    parser.add_argument('--filtertype', type=str, choices=FILTERS, default=FILTER_REMOVESUP,
+                        help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
+    parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
+                        help='''Suppress minimap progress statements from being printed''')
+    parser.add_argument('--remove_internal_priming', default=False, action='store_true',
+                        help='specify if want to remove reads with internal priming')
+    parser.add_argument('-f', '--gtf', type=str,
+                        help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
+    parser.add_argument('--intprimingthreshold', type=int, default=12,
+                        help='number of bases that are at leas 75%% As required to call read as internal priming')
+    parser.add_argument('--intprimingfracAs', type=float, default=0.75,
+                        help='number of bases that are at least 75%% As required to call read as internal priming')
+    parser.add_argument('--remove_singleexon', default=False, action='store_true',
+                        help='specify if want to remove unspliced reads')
+    args = parser.parse_args()
+
+    reads = []
+    for rfiles in args.reads:
+        for rfile in rfiles.split(','):
+            if not os.path.exists(rfile):
+                raise ValueError(f'Error: read file does not exist: {rfile}')
+            reads.append(rfile)
+    args.reads = reads
+    return args
 
 def intronChainToestarts(ichain, start, end):
     esizes, estarts = [], [0,]
@@ -107,7 +164,7 @@ def doalignment(args):
     pipettor.run([samtools_index_cmd])
 
 def dofiltering(args, inbam, filterreadmap=None):
-    samfile = pysam.AlignmentFile(inbam, 'rb')#args.output + '_unfiltered.bam', "rb")
+    samfile = pysam.AlignmentFile(inbam, 'rb')
     withsup = None
     if args.filtertype == 'separate':
         withsup = pysam.AlignmentFile(args.output + '_chimeric.bam', "wb", template=samfile)
@@ -175,72 +232,14 @@ def dofiltering(args, inbam, filterreadmap=None):
     outbed.close()
 
 
-# note to self: select interpreter for conda
 def align():
-    parser = argparse.ArgumentParser(description='flair-align parse options',
-            usage='flair_align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
-    required = parser.add_argument_group('required named arguments')
-    atleastone = parser.add_argument_group('Either one of the following arguments is required')
-    required.add_argument('-r', '--reads', nargs='+', type=str, required=True,
-            help='FastA/FastQ files of raw reads')
-    atleastone.add_argument('-g', '--genome', type=str,
-            help='FastA of reference genome, can be minimap2 indexed')
-    atleastone.add_argument('--mm_index', type=str, default='',
-            help='minimap2 index .mmi file')
-    parser.add_argument('-o', '--output', default='flair.aligned',
-            help='output file name base (default: flair.aligned)')
-    parser.add_argument('-t', '--threads', type=int, default=4,
-            help='minimap2 number of threads (4)')
-    parser.add_argument('--junction_bed', default='',
-            help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
-    parser.add_argument('--nvrna', action='store_true', default=False,
-            help='specify this flag to use native-RNA specific alignment parameters for minimap2')
-    parser.add_argument('--quality', type=int, default=0,
-            help='minimum MAPQ of read alignment to the genome (0)')
-    parser.add_argument('--minfragmentsize', type=int, default=80,
-                                            help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
-    parser.add_argument('--maxintronlen', default='200k',
-                                            help='maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns')
-    parser.add_argument('--filtertype', type=str, default='removesup',
-    help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
-    parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
-            help='''Suppress minimap progress statements from being printed''')
-    parser.add_argument('--remove_internal_priming', default=False, action='store_true',
-                                       help='specify if want to remove reads with internal priming')
-    parser.add_argument('-f', '--gtf', type=str,
-            help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
-    parser.add_argument('--intprimingthreshold', type=int, default=12,
-                                            help='number of bases that are at leas 75%% As required to call read as internal priming')
-    parser.add_argument('--intprimingfracAs', type=float, default=0.75,
-                                            help='number of bases that are at least 75%% As required to call read as internal priming')
-    parser.add_argument('--remove_singleexon', default=False, action='store_true',
-                                            help='specify if want to remove unspliced reads')
-
-    no_arguments_passed = len(sys.argv) == 1
-    if no_arguments_passed:
-        parser.print_help()
-        sys.exit(1)
-    if 'align' in sys.argv:
-        sys.argv.remove('align')
-    args = parser.parse_args()
-
-    # do we have multiple inputs?
-    if ',' in args.reads[0]:
-        args.reads = args.reads[0].split(',')
-    for rfile in args.reads:
-        if not os.path.exists(rfile):
-            raise ValueError(f'Error: read file does not exist: {rfile}')
-
-    if args.filtertype not in {'keepsup', 'removesup', 'separate'}:
-        raise ValueError(f'filtertype {args.filtertype} is not valid. Use keepsup, removesup, or separate')
+    args = parse_args()
     doalignment(args)
-
-    ##run filtering
     dofiltering(args, args.output + '.bam')
+    return args.output + '.bed'
 
-    bedout = args.output + '.bed'
-    # bam2Bed12(bamout, bedout, args.keep_supplementary)
-    return bedout
+def main():
+    align()
 
 if __name__ == "__main__":
-    align()
+    main()

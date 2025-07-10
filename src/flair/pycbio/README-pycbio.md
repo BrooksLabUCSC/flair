@@ -9,23 +9,14 @@ share as a dependable package.  Thus select packages and modules are
 import into FLAIR.
 
 Python modules are added by checking in the pycbio_import branch with minimal
-modification, including changing package names to flair.pycbio.   The pycbio
-tests are not imported.
+modification for changing the names to flair.pycbio.  The pycbio tests are not
+imported.
 
-Step to add or update modules.  The unmodified files are first commited,
-the updated so that git has the edit history.
+To add or update a pycbio module, copy it into appropriate place under src/flair/pycbio/
+and run:
 
+```
+sed --in-place -r -e 's/^from pycbio/from flair.pycbio/'  src/flair/pycbio/thefile.py
+```
 
-  git checkout pycbio_import
-  git merge dev
-  # copy in or update files and add
-  git commit -am 'import of pycbio blah'
-  # edit files to fixed imports, etc
-
-  make pycbio-flake8
-  make -j 32 test
-
-  git commit -am 'flair mods of pycbio blah'
-  git push
-  git checkout dev
-  git merge pycbio_import
+Then test and commit.
