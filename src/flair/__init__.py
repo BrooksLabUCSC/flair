@@ -1,5 +1,4 @@
 import os
-import subprocess
 
 VERSION = "2.2.0"
 
