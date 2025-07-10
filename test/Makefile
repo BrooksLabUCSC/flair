@@ -398,7 +398,7 @@ test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
 	$(collapse_diff)
 
 ###doesn't work, returns nothing. Need to debug later
-test-transcriptome-seg1: mkdirs
+test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
 	$(collapse_diff)
 
