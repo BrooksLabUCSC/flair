@@ -1,4 +1,4 @@
-usage: flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]
+usage: flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]
 
 flair-correct parse options
 
@@ -16,8 +16,6 @@ options:
 required named arguments:
   -q QUERY, --query QUERY
                         uncorrected bed12 file
-  -g GENOME, --genome GENOME
-                        FastA of reference genome
 
 at least one of the following arguments is required:
   -j SHORTREAD, --shortread SHORTREAD

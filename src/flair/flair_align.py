@@ -22,7 +22,7 @@ def parse_args():
                           help='FASTA/FASTQ file(s) of raw reads, either space or comma separated')
     genome = parser.add_argument_group('Either one of the following arguments is required')
     genome.add_argument('-g', '--genome', type=str,
-                        help='FastA of reference genome, can be minimap2 indexed')
+                        help='FASTA of reference genome, can be minimap2 indexed')
     genome.add_argument('--mm_index', type=str, default='',
                         help='minimap2 index .mmi file')
     parser.add_argument('-o', '--output', default='flair.aligned',

@@ -1,4 +1,4 @@
-usage: flair [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
+usage: align [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
              [-o OUTPUT] [-t THREADS] [--junction_bed JUNCTION_BED] [--nvrna]
              [--quality QUALITY] [--minfragmentsize MINFRAGMENTSIZE]
              [--maxintronlen MAXINTRONLEN]
@@ -8,6 +8,9 @@ usage: flair [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
              [--intprimingfracAs INTPRIMINGFRACAS] [--remove_singleexon]
              [--log-stderr] [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
              [--log-debug]
+
+FLAIR align outputs an unfiltered bam file and a filtered bed file for use in
+the downstream pipeline
 
 options:
   -h, --help            show this help message and exit
@@ -64,5 +67,5 @@ required named arguments:
 
 Either one of the following arguments is required:
   -g GENOME, --genome GENOME
-                        FastA of reference genome, can be minimap2 indexed
+                        FASTA of reference genome, can be minimap2 indexed
   --mm_index MM_INDEX   minimap2 index .mmi file

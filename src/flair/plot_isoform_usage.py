@@ -11,12 +11,11 @@ import matplotlib.patches as mplpatches
 import seaborn as sns
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='options',
-                                     usage='''plot_isoform_usage isoforms.bed counts_matrix.tsv gene_name [options]
-                                     The script will produce two images, one of the isoform models and another of the usage proportions.
-  The most highly expressed isoforms across all the samples will be plotted.
-  The minor isoforms are aggregated into a gray bar. You can toggle min_reads or
-  color_palette to plot more isoforms. Run with --help for options''')
+    desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
+    The most highly expressed isoforms across all the samples will be plotted.
+    The minor isoforms are aggregated into a gray bar. You can toggle min_reads or
+    color_palette to plot more isoforms.'''
+    parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('isoforms', type=str, action='store',
                         help='isoforms in bed format')
     parser.add_argument('counts_matrix', type=str, action='store',

@@ -41,7 +41,7 @@ def move_opts_to_argv(opts, module_argv):
 
 def flair_module_run(opts, module, module_argv):  # noqa: C901
     start_time = time.time()
-    sys.argv = [sys.argv[0]] + module_argv
+    sys.argv = [sys.argv[1]] + module_argv
 
     # delay import modules until needed to speed startup
     if module == 'align':

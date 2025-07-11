@@ -1,0 +1,59 @@
+usage: flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]
+
+flair transcriptome parse options
+
+options:
+  -h, --help            show this help message and exit
+  -b GENOMEALIGNEDBAM, --genomealignedbam GENOMEALIGNEDBAM
+                        Sorted and indexed bam file aligned to the genome
+  -g GENOME, --genome GENOME
+                        FastA of reference genome, can be minimap2 indexed
+  -o OUTPUT, --output OUTPUT
+                        output file name base for FLAIR isoforms (default:
+                        flair)
+  -t THREADS, --threads THREADS
+                        minimap2 number of threads (4)
+  -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
+                        to annotated isoforms and adjusting TSS/TESs
+  -j SHORTREAD, --shortread SHORTREAD
+                        bed format splice junctions from short-read sequencing
+  --ss_window SS_WINDOW
+                        window size for correcting splice sites (15)
+  -s SUPPORT, --support SUPPORT
+                        minimum number of supporting reads for an isoform (3)
+  --stringent           specify if all supporting reads need to be full-length
+                        (spanning 25 bp of the first and last exons)
+  --check_splice        enforce coverage of 4 out of 6 bp around each splice
+                        site and no insertions greater than 3 bp at the splice
+                        site
+  -w END_WINDOW, --end_window END_WINDOW
+                        window size for comparing TSS/TES (100)
+  --noaligntoannot      related to old annotation_reliant, now specify if you
+                        don't want an initial alignment to the annotated
+                        sequences and only want transcript detection from the
+                        genomic alignment. Will be slightly faster but less
+                        accurate if the annotation is good
+  -n NO_REDUNDANT, --no_redundant NO_REDUNDANT
+                        For each unique splice junction chain, report options
+                        include: none--best TSSs/TESs chosen for each unique
+                        set of splice junctions; longest--single TSS/TES
+                        chosen to maximize length; best_only--single most
+                        supported TSS/TES used in conjunction chosen (none)
+  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (2)
+  --filter FILTER       Report options include: nosubset--any isoforms that
+                        are a proper set of another isoform are removed;
+                        default--subset isoforms are removed based on support;
+                        comprehensive--default set + all subset isoforms;
+                        ginormous--comprehensive set + single exon subset
+                        isoforms
+  --splittoregion       force running on each region of non-overlapping reads,
+                        no matter the file size
+  --predictCDS          specify if you want to predict the CDS of the final
+                        isoforms. Will be output in the final bed file but not
+                        the gtf file. Productivity annotation is also added in
+                        the name field, which is detailed further in the
+                        predictProductivity documentation
+  --keep_intermediate   specify if intermediate and temporary files are to be
+                        kept for debugging. Intermediate files include:
+                        promoter-supported reads file, read assignments to
+                        firstpass isoforms
