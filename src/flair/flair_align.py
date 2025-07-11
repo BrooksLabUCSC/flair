@@ -5,6 +5,7 @@ import argparse
 import os
 import pipettor
 import pysam
+import logging
 from flair.pycbio.sys import cli
 from flair import remove_internal_priming
 
@@ -217,10 +218,10 @@ def dofiltering(args, inbam, filterreadmap=None):
                                                                  read.reference_name, mapq, juncstrand)
                 outbed.write('\t'.join(bedline) + '\n')
 
-    sys.stderr.write(f'total alignments in bam file (includes unaligned reads): {totalalignments}\n')
-    sys.stderr.write(f'total non-secondary alignments: {mappednotsec}\n')
-    sys.stderr.write(f'total primary alignments with quality >= {args.quality}: {primary}\n')
-    sys.stderr.write(f'total supplementary alignments with quality >= {args.quality}: {supplementary}\n')
+    logging.info(f'total alignments in bam file (includes unaligned reads): {totalalignments}')
+    logging.info(f'total non-secondary alignments: {mappednotsec}')
+    logging.info(f'total primary alignments with quality >= {args.quality}: {primary}')
+    logging.info(f'total supplementary alignments with quality >= {args.quality}: {supplementary}')
 
     samfile.close()
     if filterreadmap:

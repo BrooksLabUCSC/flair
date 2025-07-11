@@ -52,11 +52,10 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False):
         end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
 
         if '_' not in name and not force:
-            sys.stderr.write('Entry name should contain underscore-delimited transcriptid and geneid like so:\
-            ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n')
-            sys.stderr.write('So no GTF conversion was done. Please run identify_gene_isoform first\n')
-            sys.stderr.write('for best results, or run with --force\n')
-            sys.exit(1)
+            raise ValueError('Entry name should contain underscore-delimited transcriptid and geneid like so: \n'
+                             'ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n'
+                             'So no GTF conversion was done. Please run identify_gene_isoform first\n'
+                             'for best results, or run with --force')
 
         if ';' in name:
             name = name.replace(';', ':')

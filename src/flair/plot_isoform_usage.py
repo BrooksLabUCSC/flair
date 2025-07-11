@@ -90,11 +90,9 @@ def parse_bed(bedfh, names=False, plotany=False, keepiso=set()):
         else:
             return info, lowbound, upbound, strand, usednames
     except NameError:
-        sys.stderr.write('Check that the gene name is present in the bed file\n')
-        sys.exit(1)
+        raise NameError('Check that the gene name is present in the bed file')
     except Exception as e:
-        sys.stderr.write('{}\n'.format(e))
-        sys.exit(1)
+        raise e
 
 
 def pack(data, rev=True, color=False, tosort=True):
@@ -257,9 +255,8 @@ def plot_isoform_usage(args):
     proportions = [gray_bar[0]] + proportions_color
 
     if len(proportions) == 1:
-        sys.stderr.write('''Needs more than 1 isoform with sufficient representation, check gene_name in
-            your counts file, then try toggling min_reads\n''')
-        sys.exit(1)
+        raise ValueError('''Needs more than 1 isoform with sufficient representation, check gene_name in
+            your counts file, then try toggling min_reads''')
 
     proportions = sorted(proportions, key=lambda x:x[1])[::-1]
     heights = [0]*len(sample_ids)

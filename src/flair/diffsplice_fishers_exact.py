@@ -11,22 +11,19 @@ try:
     colname2 = sys.argv[3]
     outfilename = sys.argv[4]
 except:
-    print('usage: diffsplice_fishers_exact events.quant.tsv colname1 colname2 out.fishers.tsv')
-    sys.exit()
+    raise ValueError('usage: diffsplice_fishers_exact events.quant.tsv colname1 colname2 out.fishers.tsv')
 
 header = events_quant.readline().rstrip().split('\t')
 
 if colname1 in header:
     col1 = header.index(colname1)
 else:
-    sys.stderr.write('Could not find {} in {}\n'.format(colname1, ' '.join(header)))
-    sys.exit(1)
+    raise ValueError('Could not find {} in {}\n'.format(colname1, ' '.join(header)))
 
 if colname2 in header:
     col2 = header.index(colname2)
 else:
-    sys.stderr.write('Could not find {} in {}\n'.format(colname2, ' '.join(header)))
-    sys.exit(1)
+    raise ValueError('Could not find {} in {}\n'.format(colname2, ' '.join(header)))
 
 events = {}
 for line in events_quant:

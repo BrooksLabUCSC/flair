@@ -61,8 +61,7 @@ def parseargs():
 def checkargs(args):
     if args.stringent or args.fusion_dist or args.check_splice or args.fusion_breakpoints:
         if not os.path.exists(args.isoforms):
-            sys.stderr.write('A valid isoforms bed file needs to be specified: {}\n'.format(args.isoforms))
-            sys.exit(1)
+            raise ValueError(f'A valid isoforms bed file needs to be specified: {args.isoforms}')
     if args.fusion_dist:
         args.trust_ends = True
     return args

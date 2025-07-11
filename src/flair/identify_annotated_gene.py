@@ -9,8 +9,7 @@ try:
     outfilename = sys.argv[3]
     genepred = sys.argv[2][-3:].lower() == 'gp'
 except:
-    sys.stderr.write('usage: identify_annotated_gene.py psl ref.gtf/ref.gp isos_matched.psl \n')
-    sys.exit(1)
+    raise ValueError('usage: identify_annotated_gene.py psl ref.gtf/ref.gp isos_matched.psl')
 
 
 def get_junctions(line):
@@ -101,8 +100,7 @@ else:
             prev_gene = prev_gene[:prev_gene.find(',')]
             this_transcript = line[8][line[8].find('transcript_id')+14:]
         else:
-            sys.stderr.write('GTF format info column gene and transcript ids not recognized\n')
-            sys.exit(1)
+            raise ValueError('GTF format info column gene and transcript ids not recognized')
 
         if this_transcript != prev_transcript:
             if prev_transcript:

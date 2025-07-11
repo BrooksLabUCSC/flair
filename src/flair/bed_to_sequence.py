@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys, csv, os, argparse, pysam, subprocess
 import pysam
+import logging
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -24,15 +25,14 @@ def main():
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error("No arguments passed, please provide genome and bed isoform files")
     args = parser.parse_args()
 
     if args.vcf and not (args.vcf and args.isoform_haplotypes):
-        sys.stderr.write('Must provide both vcf and haplotype information if vcf is provided\n')
-        sys.exit(1)
+        raise ValueError('Must provide both vcf and haplotype information if vcf is provided')
 
     if (not args.vcf and args.models_out) or (not args.bed and args.models_out):
-        sys.stderr.write('Not going to write isoform models without vcf or in BED format\n')
+        logging.info('Not going to write isoform models without vcf or in BED format')
         args.models_out = ''
 
     bed_to_sequence(query=args.bed, genome=args.genome, outfilename=args.outfilename,

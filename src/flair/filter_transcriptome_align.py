@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import pysam
+import logging
 import shutil
 from flair.count_sam_transcripts import *
 from flair.flair_transcriptome import makecorrecttempdir
@@ -85,14 +86,11 @@ def process_read_chunk(chunkinfo):
         genome.close()
     if args.output_bam:
         tempOutFile.close()
-    # sys.stderr.write(f'\rcompleted chunk {chunkindex}')
     return results
 
 
 def report_thread_error(error):
-    print('error: ', file=sys.stderr)
-    print(error, file=sys.stderr)
-    sys.exit(1)
+    raise ValueError(error)
 
 
 def bam_to_read_aligns(samfile, chunksize, tempDir, transcripttoexons, transcripttobpssindex,
@@ -105,7 +103,7 @@ def bam_to_read_aligns(samfile, chunksize, tempDir, transcripttoexons, transcrip
         readname = read.query_name
         if readname != lastname:
             if len(readchunk) == chunksize:
-                sys.stderr.write(f'\rstarting chunk {chunkindex}')
+                logging.info(f'\rstarting chunk {chunkindex}')
                 yield (chunkindex, readchunk, tempDir, transcripttoexons, transcripttobpssindex, args, headeroutfilename)
                 readchunk = {}
                 chunkindex += 1
@@ -119,11 +117,11 @@ def bam_to_read_aligns(samfile, chunksize, tempDir, transcripttoexons, transcrip
     if len(lastaligns) > 0:
         readchunk[lastname] = lastaligns
     if len(readchunk) > 0:
-        sys.stderr.write(f'\rstarting chunk {chunkindex}')
+        logging.info(f'\rstarting chunk {chunkindex}')
         yield (chunkindex, readchunk, tempDir, transcripttoexons, transcripttobpssindex, args, headeroutfilename)
 
 def process_alignments(args, transcripttoexons, transcripttobpssindex):
-    sys.stderr.write('processing alignments\n')
+    logging.info('processing alignments')
     samfile = pysam.AlignmentFile(args.sam, 'r')
     tempDir = makecorrecttempdir()
     headeroutfilename = tempDir + 'headerfile.bam'
@@ -148,7 +146,7 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
 
     p.close()
     p.join()
-    sys.stderr.write('\nstarting to combine temp files\n')
+    logging.info('starting to combine temp files')
 
     transcripttoreads = {}
     for i in range(len(chunkresults)):
@@ -170,7 +168,7 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
     shutil.rmtree(tempDir)
 
 if __name__ == '__main__':
-    sys.stderr.write('processing annotation\n')
+    logging.info('processing annotation')
     args = parseargs()
     args = checkargs(args)
     transcripttoexons, transcripttobpssindex = getannotinfo(args)

@@ -8,8 +8,7 @@ try:
     outfilename = sys.argv[2]
     txtout = sys.argv[3]
 except:
-    sys.stderr.write('usage: mark_intron_retention in.bed out_isoforms.bed out_introns.txt\n')
-    sys.exit(1)
+    raise ValueError('usage: mark_intron_retention in.bed out_isoforms.bed out_introns.txt')
 
 
 def overlap(coords0, coords1):

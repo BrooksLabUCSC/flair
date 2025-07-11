@@ -25,8 +25,7 @@ def getStarts(gtf):
 
                 starts.append((chrom,c1,c2,gene,".",strand))
     if (len(starts)) == 0:
-        sys.stderr.write('ERROR, no start codons were found in', gtf)
-        sys.exit(1)
+        raise ValueError(f'ERROR, no start codons were found in {gtf}')
     return starts
 
 class Isoform(object):

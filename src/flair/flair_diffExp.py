@@ -339,17 +339,13 @@ def calculate_sig(args):
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:
-        print("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
     elif min(list(groupCounts.values())) < 3:
-        print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
     elif set(groups).intersection(set(batches)):
-        print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
     elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
-        print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(outDir, 'workdir')
@@ -365,8 +361,7 @@ def calculate_sig(args):
             if e.errno != errno.EEXIST:
                 raise
     else:
-        print("** Error. Name '%s' already exists. Choose another name for out_dir" % outDir, file=sys.stderr)
-        sys.exit(1)
+        raise ValueError(f"** Error. Name {outDir} already exists. Choose another name for out_dir")
 
     calc_gene_norm_sig(workdir, quant_table_tsv)
     get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
@@ -424,8 +419,7 @@ def diffExp(counts_matrix=''):
         args.o = args.o + '.diffExp'
 
     if not os.path.exists(args.q):
-        sys.stderr.write('Counts matrix file path does not exist\n')
-        return 1
+        raise ValueError('Counts matrix file path does not exist')
 
     calculate_sig(args)
 

@@ -28,6 +28,7 @@ import optparse
 import math
 import re
 import pysam
+import logging
 
 #############
 # CONSTANTS #
@@ -79,9 +80,8 @@ class OptionParser(optparse.OptionParser):
 
         # Assumes the option's 'default' is set to None!
         if getattr(self.values, option.dest) is None:
-            print("%s option not supplied" % option)
             self.print_help()
-            sys.exit(1)
+            raise ValueError(f"{option} option not supplied")
 
 
 class JcnInfo:
@@ -125,12 +125,9 @@ class JcnInfo:
             chr = "chr" + chr
 
         if self.name != name:
-            print("Not the same name of the junctions: %s, %s" % (self.name,
-                                                                  name))
-            sys.exit(1)
+            raise ValueError(f"Not the same name of the junctions: {self.name}, {name}")
         if self.chr != chr:
-            print("Error with chromosome: %s, %s" % (self.name, name))
-            sys.exit(1)
+            raise ValueError(f"Error with chromosome: {self.name}, {name}")
 
         if self.strand != strand and self.strand != '.':
             if verbosity:
@@ -138,19 +135,15 @@ class JcnInfo:
             self.strand = "."
 
         if self.intron_start != intron_start:
-            print("Error with intron start: %d, %d" % (self.intron_start, intron_start))
-            sys.exit(1)
+            raise ValueError(f"Error with intron start: {self.intron_start}, {intron_start}")
         if self.intron_end != intron_end:
-            print("Error with intron end: %d, %d" % (self.intron_end, intron_end))
-            sys.exit(1)
+            raise ValueError(f"Error with intron end: {self.intron_end}, {intron_end}")
 
         # Check blocks start
         if (self.rightmost_end - self.longest_second_block) != (chromEnd - second_block):
-            print("Error with second block in %s, %s" % (self.name, name))
-            sys.exit(1)
+            raise ValueError(f"Error with second block in  {self.name}, {name}")
         if (self.leftmost_start + self.longest_first_block) != (chromStart + first_block):
-            print("Error with first block %s, %s" % (self.name, name))
-            sys.exit(1)
+            raise ValueError(f"Error with first block {self.name}, {name}")
 
         if chromStart < self.leftmost_start:
             self.leftmost_start = chromStart
@@ -256,9 +249,8 @@ def main():
             sam_files.append(pysam.Samfile(sam_file, "rb"))
     #        sam_file = gzip.open(options.sam_file)
         else:
-            print("Error in -s: Expecting .sam or .bam file.")
             opt_parser.print_help()
-            sys.exit(1)
+            raise ValueError("Error in -s: Expecting .sam or .bam file.")
 
     unique_only = options.unique_only
 
@@ -338,8 +330,7 @@ def main():
             sam_elems = line.split("\t")
 
             if len(sam_elems) < 11:
-                print("Error in SAM file: Expecting at least 11 columns in SAM file.")
-                sys.exit(1)
+                raise ValueError("Error in SAM file: Expecting at least 11 columns in SAM file.")
 
             q_name = sam_elems[0]
 
@@ -412,9 +403,7 @@ def main():
 
                 if read_len:
                     if this_read_len != read_len:
-                        print("Expecting reads of length: %d" % read_len)
-                        print(line)
-                        sys.exit(1)
+                        raise ValueError(f"Expecting reads of length: {read_len} not {this_read_len}")
 
                 #chr_end = chr_start + this_read_len - 1
 
@@ -478,8 +467,7 @@ def main():
                         jcn_strand = almost_strand.lstrip(":")
 
                         if jcn_strand != "+" and jcn_strand != "-" and jcn_strand != ".":
-                            print("Error in strand information for: %s" % line)
-                            sys.exit(1)
+                            raise ValueError(f"Error in strand information for: {line}")
 
                 # Now insert all introns into jcn dictionary.
                 for intron_info in introns_info:
@@ -615,9 +603,8 @@ def main():
     #     jcn2qname_file.close()
 
     if strandFlag == False:
-        sys.stdout.write('\nWARNING, no stranded junctions were found\n.')
+        logging.info('WARNING, no stranded junctions were found.')
 
-    sys.exit(0)
 
 ############
 # END_MAIN #
@@ -704,8 +691,7 @@ def extended_to_simple_cigar(cigar):
     for m in matches:
         num, op = int(m[0]), m[1]
         if op not in ['=', 'X', 'N']:
-            sys.stderr.write('Unexpectted operator in extended cigar:{}\n'.format(cigar))
-            sys.exit()
+            raise ValueError(f'Unexpectted operator in extended cigar:{cigar}')
         if op in ['=', 'X'] and prevop in ['=', 'X']:
             prevnum += num
         else:
@@ -743,8 +729,7 @@ def getForcedJunctions(forced_junction_file):
 
         # Slicing list in case strand is included in the file
         if len(lineList) < 3:
-            print("Problem with forced junction file. Needs to be tab-delimited: chr start end")
-            sys.exit(1)
+            raise ValueError("Problem with forced junction file. Needs to be tab-delimited: chr start end")
 
         if not lineList[0].startswith("chr"):
             lineList[0] = "chr" + lineList[0]

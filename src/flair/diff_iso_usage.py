@@ -63,9 +63,8 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
         line = line.rstrip().split('\t')
         iso_gene, count1, count2 = line[0], float(line[col1]), float(line[col2])
         if '_' not in iso_gene:
-            sys.stderr.write('Please run identify_annotated_gene first so that isoforms\
-                    can be grouped by their parent genes\n')
-            sys.exit(1)
+            raise ValueError('Incorrect isoform names: Please run identify_annotated_gene first so that \n'
+                             'isoforms can be grouped by their parent genes\n')
         iso, gene = split_iso_gene(iso_gene)
         if gene not in counts:
             counts[gene] = {}

@@ -9,6 +9,7 @@ import uuid
 import pipettor
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import ssPrep
+import logging
 
 def parseargs(aligned_reads=''):
     parser = argparse.ArgumentParser(description='flair-correct parse options',
@@ -33,7 +34,7 @@ def parseargs(aligned_reads=''):
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error('No arguments passed')
 
     args = parser.parse_args()
     return args
@@ -58,8 +59,7 @@ def correct(aligned_reads='', args=None):
         tempDir = os.path.join(current_directory, tempDirName)
         os.mkdir(tempDir)
     except OSError:
-        print("Creation of the directory %s failed" % tempDirName)
-        sys.exit(1)
+        raise OSError("Creation of the directory %s failed" % tempDirName)
 
     # There are a few functions that evaluate what verbose is defined as.
     # Instead of passing it around, just global it.
@@ -83,14 +83,12 @@ def correct(aligned_reads='', args=None):
         juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if addFlag == False:
-            sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))
-            sys.exit(1)
+            raise ValueError(f'ERROR Added no extra junctions from {args.shortread}\n')
     knownSS = dict()
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
-        print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("No junctions from GTF or junctionsBed to correct with. Exiting...")
 
     annotations = dict()
     for chrom, data in juncs.items():
@@ -162,8 +160,7 @@ def correct(aligned_reads='', args=None):
     p.close()
     p.join()
     if len(childErrs) > 1:
-        print(childErrs,file=sys.stderr)
-        sys.exit(1)
+        raise Exception(childErrs)
 
     with open("%s_all_inconsistent.bed" % args.output,'wb') as inconsistent:
         for chrom in readDict:

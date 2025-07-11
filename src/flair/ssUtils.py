@@ -3,6 +3,7 @@
 import sys
 import pysam
 import re
+import logging
 
 basetocomp = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N'}
 def revcomp(seq):
@@ -11,8 +12,6 @@ def revcomp(seq):
 
 
 def addOtherJuncs(juncs, bedJuncs, chromosomes, printErrFname, known, verbose, printErr):
-    verbose = False
-    if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
     cols = None
 
     with open(bedJuncs) as l:

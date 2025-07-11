@@ -5,6 +5,7 @@ import argparse
 import os
 import os.path as osp
 import pipettor
+import logging
 from flair import FlairError, set_unix_path
 
 pkgdir = osp.dirname(osp.realpath(__file__))
@@ -59,11 +60,9 @@ def diffSplice(isoforms='', counts_matrix=''):
         args.q = counts_matrix
 
     if not os.path.exists(args.q):
-        sys.stderr.write('Counts matrix file path does not exist\n')
-        return 1
+        raise ValueError('Counts matrix file path does not exist')
     if not os.path.exists(args.i):
-        sys.stderr.write('Isoform bed file path does not exist\n')
-        return 1
+        raise ValueError('Isoform bed file path does not exist')
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(args.o, 'workdir')
@@ -77,11 +76,9 @@ def diffSplice(isoforms='', counts_matrix=''):
         except OSError as ex:
             raise OSError("** ERROR cannot create directory %s" % (workdir)) from ex
     else:
-        sys.stderr.write(f'** Error. Name {args.o} already exists. Choose another name for out_dir\n')
-        return 1
+        raise ValueError(f'** Error. Name {args.o} already exists. Choose another name for out_dir')
     if args.i.endswith('psl'):
-        sys.stderr.write('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.\n')
-        return 1
+        raise ValueError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
     filebase = os.path.join(args.o, 'diffsplice')
     pipettor.run(['call_diffsplice_events.py', args.i, filebase, args.q])
@@ -91,14 +88,14 @@ def diffSplice(isoforms='', counts_matrix=''):
     os.unlink(filebase+'.es.events.tsv')
 
     if args.test or args.conditionA:
-        sys.stderr.write('DRIMSeq testing for each AS event type\n')
+        logging.info('DRIMSeq testing for each AS event type')
         ds_command = ['Rscript', diffSplice_drimSeq, '--threads', args.t, '--outDir', args.o,
                       '--drim1', args.drim1, '--drim2', args.drim2, '--drim3', args.drim3, '--drim4', args.drim4]
         if args.batch:
             ds_command += ['--batch']
         if args.conditionA:
             if not args.conditionB:
-                sys.stderr.write('Both conditionA and conditionB must be specified, or both left unspecified\n')
+                logging.info('Both conditionA and conditionB must be specified, or both left unspecified')
                 return 1
             ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
@@ -106,7 +103,7 @@ def diffSplice(isoforms='', counts_matrix=''):
             for event in ['es', 'alt5', 'alt3', 'ir']:
                 matrixfile = f'{filebase}.{event}.events.quant.tsv'
                 if emptyMatrix(matrixfile):
-                    sys.stderr.write(f'{event} event matrix file empty, not running DRIMSeq\n')
+                    logging.info(f'{event} event matrix file empty, not running DRIMSeq\n')
                     continue
                 cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
                 try:
