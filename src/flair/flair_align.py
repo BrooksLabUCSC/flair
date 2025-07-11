@@ -14,7 +14,7 @@ FILTER_SEPARATE = 'separate'
 FILTERS = (FILTER_KEEPSUP, FILTER_REMOVESUP, FILTER_SEPARATE)
 
 def parse_args():
-    desc = ""
+    desc = "FLAIR align outputs an unfiltered bam file and a filtered bed file for use in the downstream pipeline"
     parser = cli.ArgumentParserExtras(description=desc)
 
     reads = parser.add_argument_group('required named arguments')

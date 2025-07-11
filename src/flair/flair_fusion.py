@@ -330,6 +330,8 @@ def detectfusions():
         elif good: out.write(line)
     out.close()
 
+    os.rename(args.output + '.syntheticAligned.isoform.read.map.txt', args.output + '.fusion.isoform.read.map.txt')
+
     # #removing extra FLAIR files
     for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
         os.remove(filename)

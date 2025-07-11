@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
 import sys
-import pybedtools
+import pysam
 import re
 
-def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbose, printErr):
+basetocomp = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N'}
+def revcomp(seq):
+    seq = list(seq.upper())[::-1]
+    return ''.join([basetocomp[x] for x in seq])
+
+
+def addOtherJuncs(juncs, bedJuncs, chromosomes, printErrFname, known, verbose, printErr):
     verbose = False
     if verbose: sys.stderr.write("Step 2/5: Processing additional junction file  %s ..." % (bedJuncs))
     cols = None
@@ -63,51 +69,23 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, fa, printErrFname, known, verbos
             if key in juncs[chrom]:
                 juncs[chrom][key] = "both"
                 continue
-            tempJuncs.append((chrom,c1,c2,"%s,%s,%s,%s" % (chrom,c1,c2,strand),0,strand))
+            tempJuncs.append((chrom,c1,c2,strand))
             addedFlag = True
     if addedFlag == False:
         return juncs, chromosomes, addedFlag
 
-    try:
-        btJuncs = pybedtools.BedTool(tempJuncs)
-        # TODO: This gives a warning if a chromosome is not found. Find a way to capture these.
-        dinucSeq = btJuncs.sequence(fi=fa, s=True, tab=True, name=True)
-        with open(dinucSeq.seqfn) as fileObj:
-            for i in fileObj:
-                header,seq = i.rstrip().split()
-                chrom,c1,c2,strand = header.split(",")
-                c1,c2 = int(c1),int(c2)
-                if "+" in strand:
-                    strand = strand[strand.rfind('+')]
-                elif "-" in strand:
-                    strand = strand[strand.rfind('-')]
-                key = (c1,c2, strand)
-                known1,known2 = known.get((chrom,c1),None),known.get((chrom,c2),None)
+    for chrom,c1,c2,strand in tempJuncs:
+        key = (c1, c2, strand)
+        known1, known2 = known.get((chrom, c1), None), known.get((chrom, c2), None)
+        if known1 is not None:
+            if known1 != strand:
+                continue
+        if known2 is not None:
+            if known2 != strand:
+                continue
 
-                if known1 is not None:
-                    if known1 != strand:
-                        continue
-                    else:
-                        pass
-                else:
-                    pass
-
-                if known2 is not None:
-                    if known2 != strand:
-                        continue
-                    else:
-                        pass
-                else:
-                    pass
-
-                fivePrime = seq[:2]
-                if key not in juncs[chrom]:
-                    juncs[chrom][key] = "sr"
-                elif fivePrime == "GT":
-                    juncs[chrom][key] = "sr"
-
-    except Exception as ex:
-        raise Exception("** ERROR Splice site motif filtering failed. Check that pybedtools and bedtools are in your PATH") from ex
+        if key not in juncs[chrom]:
+            juncs[chrom][key] = "sr"
 
     if printErr:
         with open(printErrFname,'a+') as fo:
