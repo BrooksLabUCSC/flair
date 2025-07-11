@@ -8,7 +8,7 @@ matplotlib.use("Agg")
 import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as mplpatches
-import seaborn as sns
+import matplotlib.colors as mcolors
 
 def parse_args():
     desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
@@ -36,8 +36,8 @@ def parse_args():
     return parser.parse_args()
 
 hex_colors = ['#ba748a', '#3498db', "#34495e"]
-name_colors = ['windows blue', 'faded green', 'dusty purple', 'amber']
-gray = sns.xkcd_palette(["greyish"])
+name_colors = ['xkcd:windows blue', 'xkcd:faded green', 'xkcd:dusty purple', 'xkcd:amber']
+gray = "xkcd:greyish"
 reverse_complement = {'C': 'G', 'G': 'C', 'A': 'T', 'T': 'A'}
 
 def parse_bed(bedfh, names=False, plotany=False, keepiso=set()):
@@ -200,12 +200,12 @@ def plot_isoform_usage(args):
     if not args.o:
         args.o = args.gene_name
 
-    color_palette = sns.xkcd_palette(name_colors) + sns.color_palette(hex_colors)
+    color_palette = name_colors + hex_colors
     base_colors = {'C': color_palette[0], 'A': color_palette[1], 'G': color_palette[4], 'T': color_palette[5]}
     if args.palette:
         color_palette = []
         for line in open(args.palette):
-            color_palette += sns.color_palette(line.rstrip())
+            color_palette += line.rstrip()
 
     keepiso = {}  # isoforms that they have a sufficient proportion of reads mapping to them
     sample_ids = counts_matrix.readline().rstrip().split('\t')[1:]
@@ -223,7 +223,7 @@ def plot_isoform_usage(args):
                        right=False, labelright=False,
                        top=False, labeltop=False, labelsize=8)
 
-    gray_bar = [['lowexpr']+[0]*len(sample_ids)+gray]  # the minor isoform bar is gray
+    gray_bar = [['lowexpr']+[0]*len(sample_ids)+[gray]]  # the minor isoform bar is gray
 
     for line in counts_matrix:
         line = line.rstrip().split('\t')

@@ -14,5 +14,3 @@ dependencies:
   - pip:
       - flair-brookslab==v2.2.0
       - matplotlib>=3.10.0,<4.0.0
-      - statsmodels>=0.14.4
-      - seaborn>=0.13.2,<0.14.0

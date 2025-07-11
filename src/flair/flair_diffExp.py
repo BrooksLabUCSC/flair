@@ -20,9 +20,9 @@ import errno
 import csv
 from collections import Counter
 from scipy.stats import ttest_ind
-from statsmodels.stats.multitest import multipletests
 from statistics import median, mean
 import pipettor
+import numpy as np
 
 from flair import FlairError, FlairInputDataError, set_unix_path
 
@@ -64,6 +64,49 @@ class Gene(object):
 ########################################################################
 # Functions
 ########################################################################
+
+
+def multipletests(pvals, alpha=0.05, method='hs'):
+    """adapted from statsmodels.stats.multitest
+    does holm-sidak correction"""
+    pvals = np.asarray(pvals)
+    alphaf = alpha  # Notation ?
+
+    sortind = np.argsort(pvals)
+    pvals = np.take(pvals, sortind)
+
+    ntests = len(pvals)
+    alphacSidak = 1 - np.power((1. - alphaf), 1. / ntests)
+    alphacBonf = alphaf / float(ntests)
+
+    alphacSidak_all = 1 - np.power((1. - alphaf),
+                                   1. / np.arange(ntests, 0, -1))
+    notreject = pvals > alphacSidak_all
+    del alphacSidak_all
+
+    nr_index = np.nonzero(notreject)[0]
+    if nr_index.size == 0:
+        # nonreject is empty, all rejected
+        notrejectmin = len(pvals)
+    else:
+        notrejectmin = np.min(nr_index)
+    notreject[notrejectmin:] = True
+    reject = ~notreject
+    del notreject
+
+    pvals_corrected_raw = 1 - np.power((1. - pvals),
+                                       np.arange(ntests, 0, -1))
+    pvals_corrected = np.maximum.accumulate(pvals_corrected_raw)
+    del pvals_corrected_raw
+
+    if not pvals_corrected is None:  # not necessary anymore
+        pvals_corrected[pvals_corrected > 1] = 1
+    pvals_corrected_ = np.empty_like(pvals_corrected)
+    pvals_corrected_[sortind] = pvals_corrected
+    del pvals_corrected
+    reject_ = np.empty_like(reject)
+    reject_[sortind] = reject
+    return reject_, pvals_corrected_, alphacSidak, alphacBonf
 
 
 def get_gene_to_counts(filename):
