@@ -1227,22 +1227,6 @@ files = [
 wcwidth = "*"
 
 [[package]]
-name = "pybedtools"
-version = "0.12.0"
-description = "Wrapper around BEDTools for bioinformatics work"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "pybedtools-0.12.0.tar.gz", hash = "sha256:8786ec9f6579c81363c00b437344438df79cf128860e5cae2466926181547249"},
-]
-
-[package.dependencies]
-numpy = "*"
-pandas = "*"
-pysam = "*"
-
-[[package]]
 name = "pycodestyle"
 version = "2.14.0"
 description = "Python style guide checker"

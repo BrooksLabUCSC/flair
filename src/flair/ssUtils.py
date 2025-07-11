@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-import pybedtools
 import pysam
 import re
 
@@ -75,22 +74,18 @@ def addOtherJuncs(juncs, bedJuncs, chromosomes, printErrFname, known, verbose, p
     if addedFlag == False:
         return juncs, chromosomes, addedFlag
 
-    try:
-        for chrom,c1,c2,strand in tempJuncs:
-            key = (c1, c2, strand)
-            known1, known2 = known.get((chrom, c1), None), known.get((chrom, c2), None)
-            if known1 is not None:
-                if known1 != strand:
-                    continue
-            if known2 is not None:
-                if known2 != strand:
-                    continue
+    for chrom,c1,c2,strand in tempJuncs:
+        key = (c1, c2, strand)
+        known1, known2 = known.get((chrom, c1), None), known.get((chrom, c2), None)
+        if known1 is not None:
+            if known1 != strand:
+                continue
+        if known2 is not None:
+            if known2 != strand:
+                continue
 
-            if key not in juncs[chrom]:
-                juncs[chrom][key] = "sr"
-
-    except Exception as ex:
-        raise Exception("** ERROR Splice site motif filtering failed. Check that pybedtools and bedtools are in your PATH") from ex
+        if key not in juncs[chrom]:
+            juncs[chrom][key] = "sr"
 
     if printErr:
         with open(printErrFname,'a+') as fo:

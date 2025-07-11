@@ -18,7 +18,8 @@
 
 
 import sys
-import pybedtools
+import pipettor
+import os
 ########################################################################
 # CommandLine
 ########################################################################
@@ -101,7 +102,10 @@ class Isoform(object):
 
 
 def getStarts(gtf):
-    starts = list()
+    # starts = list()
+    starts = 'tmp_predictProd_starts.bed'
+    scount = 0
+    out = open(starts, 'w')
     tnamenmdexcep = set()
     with open(gtf) as lines:
         for l in lines:
@@ -111,13 +115,15 @@ def getStarts(gtf):
             if cols[2] == "start_codon":
                 gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
                 gene = gene[:gene.find('"')]
-
-                starts.append((chrom,c1,c2,gene,".",strand))
+                scount += 1
+                out.write('\t'.join([str(x) for x in [chrom,c1,c2,gene,".",strand]]) + '\n')
+                # starts.append((chrom,c1,c2,gene,".",strand))
             if cols[2] == 'transcript':
                 if 'NMD_exception' in cols[8]:
                     transcript = cols[8].split('transcript_id "')[1].split('"')[0]
                     tnamenmdexcep.add(transcript)
-    if (len(starts)) == 0:
+    out.close()
+    if scount == 0:
         sys.stderr.write('ERROR, no start codons were found in', gtf)
         sys.exit(1)
     return starts, tnamenmdexcep
@@ -148,18 +154,22 @@ def split_iso_gene(iso_gene):
 def getSeqs(bed, genome):
 
     isoDict = dict()
-    bt = pybedtools.BedTool(bed)
-    bt.sequence(fi=genome, tab=True, s=True, split=True, name=True)
-    with open(bt.seqfn) as entries:
-        for entry in entries:
-            read,seq  = entry.split()
+    dr = pipettor.DataReader()
+    bedtools_cmd = ('bedtools', 'getfasta', '-fi', genome, '-bed', bed, '-tab', '-split', '-s', '-name')
+    pipettor.run([bedtools_cmd], stdout=dr)
+
+    for entry in dr.data.split('\n'):
+        if len(entry) > 0:
+            read, seq = entry.split()
             # accommodate different bedtools versions - they use different separators
+
             iso = read.split('::')[0]
             iso = iso.split("(")[0]
             if iso[:10] == 'fusiongene': iso = '_'.join(iso.split('_')[1:])
             if iso not in isoDict:
                 isoDict[iso] = Isoform(iso,seq)
-            else: isoDict[iso].sequence = isoDict[iso].sequence + seq
+            else:
+                isoDict[iso].sequence = isoDict[iso].sequence + seq
     return isoDict
 
 
@@ -175,6 +185,7 @@ def getStartRelPos(genomicStartPos,exon, exons, isoObj):
     if isoObj.strand == "+":
         relativeStart = genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])
     elif isoObj.strand == "-":
+        # print('calc', sum(isoObj.exonSizes), genomicStartPos - exons[exonNum][0], sum(isoObj.exonSizes[:exonNum]), sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])))
         relativeStart = sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])) #- 3
 
     return relativeStart
@@ -249,44 +260,52 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     return genomicPos, ptc, ptcpointont
 
 
+def get_exons(bedline):
+    gstart = int(bedline[1])
+    esizes, estarts = [int(x) for x in bedline[10].rstrip(',').split(',')], \
+                      [int(x) for x in bedline[11].rstrip(',').split(',')],
+    return [(gstart+estarts[i], gstart+estarts[i]+esizes[i]) for i in range(len(esizes))]
+
+
 def predict(bed, starts, isoDict, nmdexcep):
+    for line in open(bed):
+        line = line.rstrip().split('\t')
+        read   = line[3]
+        strand = line[5]
+        for exonCoord in get_exons(line):
+            elen = exonCoord[1]-exonCoord[0]
+            if read[:10] == 'fusiongene':
+                fusionindex = read.split('_')[0]
+                read = '_'.join(read.split('_')[1:])
+            else: fusionindex = "NA"
+            if strand == '+':
+                isoDict[read].allEsizes.append(elen)
+                isoDict[read].allExons.append((exonCoord[0], exonCoord[1], strand, fusionindex))
+            elif strand == '-':
+                isoDict[read].allEsizes.insert(0, elen)
+                isoDict[read].allExons.insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
 
-    bt = pybedtools.BedTool(bed)
-    b6 = bt.bed6()
-    st = pybedtools.BedTool(starts)
+    dr = pipettor.DataReader()
+    bedtools_cmd = ('bedtools', 'intersect', '-a', bed, '-b', starts, '-split', '-s', '-wao')
+    pipettor.run([bedtools_cmd], stdout=dr)
+    os.remove(starts)
 
-    # FIXME NEED TO REWRITE THIS SO WE GET EXON INFO FROM BED FILE, THEN SEPARATELY GET STARTS FROM OVERLAP
-    for intersection in b6:
-        read   = intersection[3]
-        exonCoord = (int(intersection[1]),int(intersection[2]))
-        elen = exonCoord[1]-exonCoord[0]
-        if read[:10] == 'fusiongene':
-            fusionindex = read.split('_')[0]
-            read = '_'.join(read.split('_')[1:])
-        else: fusionindex = "NA"
-        if intersection[5] == '+':
-            isoDict[read].allEsizes.append(elen)
-            isoDict[read].allExons.append((exonCoord[0], exonCoord[1], intersection[5], fusionindex))
-        elif intersection[5] == '-':
-            isoDict[read].allEsizes.insert(0, elen)
-            isoDict[read].allExons.insert(0, (exonCoord[0], exonCoord[1], intersection[5], fusionindex))
+    for intersection in dr.data.split('\n'):
+        if len(intersection) > 0:
+            intersection = intersection.split('\t')
+            read   = intersection[3]
+            if read[:10] == 'fusiongene' and read[10] != '1': continue # only getting starts for 5' genes
+            if read[:10] == 'fusiongene': read = '_'.join(read.split('_')[1:])
+            overlap  = intersection[-1]
+            goStart  = int(intersection[-6]) if intersection[5] == '+' else int(intersection[-5])
+            if intersection[5] != intersection[-2]: overlap = '0' ##if start is not on same strand, doesn't count
+            isoDict[read].strand = intersection[5]
+            isoDict[read].chrom = intersection[0]
 
-    bt_st = b6.intersect(st, s=True, split=True, wao=True)
-    for intersection in bt_st:
-        read   = intersection[3]
-        exonCoord = (int(intersection[1]),int(intersection[2]))
-        elen = exonCoord[1]-exonCoord[0]
-        if read[:10] == 'fusiongene' and read[10] != '1': continue # only getting starts for 5' genes
-        if read[:10] == 'fusiongene': read = '_'.join(read.split('_')[1:])
-        overlap  = intersection[-1]
-        goStart  = int(intersection[-6]) if intersection[5] == '+' else int(intersection[-5])
-        isoDict[read].strand = intersection[5]
-        isoDict[read].chrom = intersection[0]
-        isoDict[read].exons.add(exonCoord)
-        if overlap != "3":
-            continue
-        else:
-            isoDict[read].starts.add((exonCoord,goStart))
+            for exonCoord in get_exons(intersection):
+                isoDict[read].exons.add(exonCoord)
+                if overlap == "3" and exonCoord[0] <= goStart <= exonCoord[1]:
+                    isoDict[read].starts.add((exonCoord,goStart))
 
     stops = set(['TAA','TGA','TAG'])
     for iso,o in isoDict.items():
@@ -300,7 +319,6 @@ def predict(bed, starts, isoDict, nmdexcep):
                 exon,startPos = start
                 relativeStart = getStartRelPos(startPos,exon,exons,o)
                 fiveUTR,rest  = o.sequence[:relativeStart], o.sequence[relativeStart:].upper()
-
                 # Next find first stop codon
                 stopReached = False
                 for i in range(0, len(rest), 3):

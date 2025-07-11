@@ -2,6 +2,7 @@
 
 ## [next release]
 * Removed dependencies on pandas and rpy2.
+* Remove -g genome option from correct
 
 ## [2.2.1] 2025-04-06
 * Fixed case where --quality=0 default didn't work, as it tested for greater
