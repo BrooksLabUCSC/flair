@@ -1,4 +1,5 @@
 import os
+from flair.pycbio import NoStackError
 
 VERSION = "2.2.0"
 
@@ -6,7 +7,7 @@ class FlairError(Exception):
     """General error condition in FLAIR"""
     pass
 
-class FlairInputDataError(Exception):
+class FlairInputDataError(FlairError, NoStackError):
     """Error in FLAIR input data"""
     pass
 

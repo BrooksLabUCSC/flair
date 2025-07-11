@@ -1,0 +1,18 @@
+usage: variants [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-i ISOFORMS]
+                [-b BEDISOFORMS] -g GENOME -f GTF
+
+options:
+  -h, --help            show this help message and exit
+  -m MANIFEST, --manifest MANIFEST
+                        path to manifest files that points to sample names +
+                        bam files aligned to transcriptome. Each line of file
+                        should be tab separated.
+  -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+                        path to collapsed_output.bed file. default: 'flair'
+  -i ISOFORMS, --isoforms ISOFORMS
+                        path to transcriptome fasta file
+  -b BEDISOFORMS, --bedisoforms BEDISOFORMS
+                        path to transcriptome bed file
+  -g GENOME, --genome GENOME
+                        FastA of reference genome
+  -f GTF, --gtf GTF     GTF annotation file

@@ -80,6 +80,7 @@ define cmp_expect_sort
 	diff <(sort $E/${1}) <(sort $O/${1})
 endef
 
+
 default:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
@@ -95,9 +96,9 @@ default:
 	@echo "   " make real-clean >&2
 	@exit 1
 
-test: test-help align-tests correct-tests collapse-tests quantify-tests \
+test:  align-tests correct-tests collapse-tests quantify-tests \
 	combine-tests predict-productivity-tests diff-iso-usage-tests \
-	plot-usage-tests other-progs-tests
+	plot-usage-tests transcriptome-tests fusion-tests variants-tests
 
 test-diffexpress: diffexp-tests diffsplice-tests
 
@@ -105,14 +106,15 @@ test-all: test test-diffexpress
 
 test-help: test-main-help test-align-help test-correct-help test-collapse-help \
            test-quantify-help test-diffexp-help test-diffsplice-help \
-           test-predict-productivity-help test-diff-iso-usage-help
+           test-predict-productivity-help test-diff-iso-usage-help \
+	   test-plot-usage-help test-transcriptome-help test-variants-help
 
 ###
 # MAIN COMMAND
 ###
 
 test-main-help: mkdirs
-	flair --help 2>&1 | fgrep -v Version> $O/$@.out
+	flair --help | fgrep -v Version> $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
@@ -141,7 +143,7 @@ test-align-seg1 : mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.bed)
 
 test-align-help: mkdirs
-	flair align --help >&$O/$@.out
+	flair align --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
@@ -159,15 +161,9 @@ test-correct-seg1: mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@_all_inconsistent.bed)
 	$(call cmp_expect,$@_all_corrected.bed)
 
-
-# FIXME this is temp disable as ncls get a warning with python 3.12:
-#   .../python3.12/site-packages/ncls/__init__.py:2:
-#    UserWarning: pkg_resources is deprecated as an API.
-#   See https://setuptools.pypa.io/en/latest/pkg_resources.html.
-
 test-correct-help: mkdirs
-#	flair correct --help >&$O/$@.out
-#	$(call cmp_expect,$@.out)
+	flair correct --help > $O/$@.out
+	$(call cmp_expect,$@.out)
 
 ###
 # FLAIR COLLAPSE
@@ -241,7 +237,7 @@ test-collapse-support: mkdirs ${GENOME_FA}
 	$(collapse_diff_read_map)
 
 test-collapse-help: mkdirs
-	flair collapse --help >&$O/$@.out
+	flair collapse --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 
@@ -300,7 +296,7 @@ test-quantify-nobam : mkdirs
 	$(call cmp_expect,$@.tpm.tsv)
 
 test-quantify-help: mkdirs
-	flair quantify --help >&$O/$@.out
+	flair quantify --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
@@ -315,7 +311,7 @@ test-diffexp : mkdirs
 	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
-	flair diffexp --help >&$O/$@.out
+	flair diffexp --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ###
@@ -334,7 +330,7 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-help: mkdirs
-	flair diffsplice --help >&$O/$@.out
+	flair diffsplice --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 
@@ -349,7 +345,7 @@ test-predict-productivity : mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.info.tsv)
 
 test-predict-productivity-help: mkdirs
-	predictProductivity --help >&$O/$@.out
+	predictProductivity --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ##
@@ -362,28 +358,29 @@ test-diff-iso-usage: mkdirs
 	$(call cmp_expect,$@.tsv)
 
 test-diff-iso-usage-help: mkdirs
-	diff_iso_usage --help >&$O/$@.out
+	diff_iso_usage --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
 ##
 # plot isoform usage
 ##
-plot-usage-tests: test-plot-usage
+plot-usage-tests: test-plot-usage test-plot-usage-help
 
 test-plot-usage: mkdirs
 	plot_isoform_usage expected/test-predict-productivity.bed expected/test-collapse-annot.annotated_transcripts.alignment.counts ENSG00000133703.12 -o $O/$@
 	file $O/test-plot-usage_isoforms.png | grep 'PNG image data' >/dev/null
 	file $O/test-plot-usage_usage.png | grep 'PNG image data' >/dev/null
 
-
-other-progs-tests: transcriptome-tests test-fusion test-variants
-
+test-plot-usage-help: mkdirs
+	plot_isoform_usage --help > $O/$@.out
+	$(call cmp_expect,$@.out)
 
 ###
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds test-transcriptome-seg1
+transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds \
+	test-transcriptome-seg1 test-transcriptome-help
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
@@ -397,16 +394,21 @@ test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --predictCDS
 	$(collapse_diff)
 
-###doesn't work, returns nothing. Need to debug later
+# FIXME: doesn't work, returns nothing. Need to debug later
 test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --stringent
 	$(collapse_diff)
+
+test-transcriptome-help: mkdirs
+	flair transcriptome --help > $O/$@.out
+	$(call cmp_expect,$@.out)
 
 
 ###
 # flair variants
 # FIXME need to add better checks for AAseq results, however the inconsistent sorting of the variants leads to inconsistent AAseq IDs which are hard to check
 ###
+variants-tests:  test-variants test-variants-help
 
 test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 	minimap2 -ax map-ont --secondary=no ${GENOME_FA} input/basic.reads.4.fa | samtools view -hb - | samtools sort - > $O/$@.genomealigned.bam
@@ -418,14 +420,24 @@ test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 	$(call cmp_expect,$@.isoswithvars.counts.tsv)
 	$(call cmp_expect,$@.aaseq.counts.tsv)
 
+test-variants-help: mkdirs
+	flair variants --help > $O/$@.out
+	$(call cmp_expect,$@.out)
+
 
 ###
 # flair fusion
 ###
+fusion-tests: test-fusion test-fusion-help
+
 test-fusion: mkdirs ${GENOME_FA}
 	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
+
+test-fusion-help: mkdirs
+	flair fusion  --help > $O/$@.out
+	$(call cmp_expect,$@.out)
 
 
 ##

@@ -1,0 +1,35 @@
+usage: flair detectfusions -g genome.fa -q query.bed
+                -r <reads.fq>/<reads.fa> [options]
+
+flair-detectfusions parse options
+
+options:
+  -h, --help            show this help message and exit
+  -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
+                        to annotated isoforms and adjusting TSS/TESs
+  --transcriptchimbam TRANSCRIPTCHIMBAM
+                        Optional: bam file of chimeric reads from
+                        transcriptomic alignment. If not provided, this will
+                        be made for you
+  -o OUTPUT, --output OUTPUT
+                        output file name base for FLAIR isoforms (default:
+                        flair.collapse)
+  -t THREADS, --threads THREADS
+                        minimap2 number of threads (4)
+  --minfragmentsize MINFRAGMENTSIZE
+                        minimum size of alignment kept, used in minimap -s.
+                        More important when doing downstream fusion detection
+  -s SUPPORT, --support SUPPORT
+                        minimum number of supporting reads for a fusion (3)
+  --maxloci MAXLOCI     max loci detected in fusion. Set higher for detection
+                        of 3-gene+ fusions
+
+required named arguments:
+  -g GENOME, --genome GENOME
+                        FastA of reference genome
+  -r READS [READS ...], --reads READS [READS ...]
+                        FastA/FastQ files of raw reads, can specify multiple
+                        files
+  -b GENOMECHIMBAM, --genomechimbam GENOMECHIMBAM
+                        bam file of chimeric reads from genomic alignment from
+                        flair align
