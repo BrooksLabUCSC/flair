@@ -9,6 +9,9 @@ usage: flair [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
              [--log-stderr] [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
              [--log-debug]
 
+FLAIR align outputs an unfiltered bam file and a filtered bed file for use in
+the downstream pipeline
+
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
