@@ -194,6 +194,7 @@ flair correct
 This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions.
 If your genome annotation is sparse, please also use short-reads. Any reads with splice sites not near splice sites
 identified in orthogonal data will be thrown out.
+FLAIR WILL NOT DETECT NOVEL SPLICE SITES UNLESS YOU PROVIDE ORTHOGONAL SHORT-READ SUPPORT FOR THEM
 
 **Outputs**
 
@@ -460,7 +461,7 @@ flair fusion
 
 .. code:: text
 
-    usage: flair fusion -g genome.fa -r sample.fastq -b sample.genomealigned_chimeric.bam -f annot.gtf --annotated_fa [generate] [-o OUTPUT_PREFIX]
+    usage: flair fusion -g genome.fa -r sample.fastq -b sample.genomealigned_chimeric.bam -f annot.gtf [-o OUTPUT_PREFIX]
 
 This identifies gene fusions and generates a fusion transcriptome. 
 To incorporate this fusion transcriptome in downstream analysis, 
@@ -488,9 +489,6 @@ Required Options
   -b --genomechimbam
                         bam file of chimeric reads from genomic alignment from flair align run with --filtertype separate
   -f --gtf              GTF annotation file
-  --annotated_fa 
-                        transcriptome sequences file; to ask flair to make 
-                        transcript sequences given the gtf and genome fa, type --annotated_fa generate
 
 Other Options
 -------------
@@ -527,7 +525,7 @@ flair combine
                             path to manifest files that points to transcriptomes to combine.
                             Each line of file should be tab separated with sample name, sample
                             type (isoform or fusionisoform), path/to/isoforms.bed,
-                            path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and
+                            path/to/isoforms.fa, path/to/isoform.read.map.txt. fa and
                             read.map.txt files are not required, although if .fa files are not
                             provided for each sample a .fa output will not be generated
       -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
@@ -554,8 +552,8 @@ Manifest example (we suggest using absolute file paths to point to your files th
 
     sample1	isoform	sample1.FLAIR.isoforms.bed	sample1.FLAIR.isoforms.fa	sample1.read.map.txt
     sample2	isoform	sample2.FLAIR.isoforms.bed	sample2.FLAIR.isoforms.fa	sample2.read.map.txt
-    sample1	fusionisoform	sample1.fusion.isoforms.bed	sample1.fusion.isoforms.fa	sample1.fusion.read.map.txt
-    sample2	fusionisoform	sample2.fusion.isoforms.bed	sample2.fusion.isoforms.fa	sample2.fusion.read.map.txt
+    sample1	fusionisoform	sample1.fusion.isoforms.bed	sample1.fusion.isoforms.fa	sample1.fusion.isoform.read.map.txt
+    sample2	fusionisoform	sample2.fusion.isoforms.bed	sample2.fusion.isoforms.fa	sample2.fusion.isoform.read.map.txt
 
 For each line, the sample name and bed path is required. The fasta and
 read.map.txt file is optional. Without these files there is less ability to
@@ -599,7 +597,7 @@ Required arguments
 
 .. code:: text
 
-    --isoforms          Fasta of Flair collapsed isoforms
+    --isoforms          Fasta of Flair collapsed or combined isoforms
     --reads_manifest    Tab delimited file containing sample id, condition, batch, 
                         reads.fq, where reads.fq is the path to the sample fastq file. 
 
