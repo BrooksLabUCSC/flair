@@ -73,6 +73,7 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
 
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+        writer.writerow(['geneID', 'isoID', 'fisher_pval', 'this_iso_sample1_count', 'this_iso_sample2_count', 'other_isos_sample1_count', 'other_isos_sample2_count'])
         geneordered = sorted(counts.keys())
         for gene in geneordered:
             generes = []

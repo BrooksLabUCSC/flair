@@ -1,3 +1,4 @@
+geneID	isoID	fisher_pval	this_iso_sample1_count	this_iso_sample2_count	other_isos_sample1_count	other_isos_sample2_count
 ENSG00000001084.13	da915b4c-f774-4096-9cdb-6594a2d62030	NA	9.0	29.0	0	0
 ENSG00000004059.11	ENST00000000233.10	NA	314.0	354.0	0	0
 ENSG00000004478.8	ENST00000001008.6	NA	56.0	24.0	0	0
