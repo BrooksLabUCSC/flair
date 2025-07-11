@@ -8,6 +8,7 @@ import pysam
 import logging
 from flair.pycbio.sys import cli
 from flair import remove_internal_priming
+from flair import FlairInputDataError
 
 FILTER_KEEPSUP = 'keysup'
 FILTER_REMOVESUP = 'removesup'
@@ -60,7 +61,7 @@ def parse_args():
     for rfiles in args.reads:
         for rfile in rfiles.split(','):
             if not os.path.exists(rfile):
-                raise ValueError(f'Error: read file does not exist: {rfile}')
+                raise FlairInputDataError(f'Error: read file does not exist: {rfile}')
             reads.append(rfile)
     args.reads = reads
     return args

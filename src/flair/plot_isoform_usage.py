@@ -9,6 +9,7 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as mplpatches
 import matplotlib.colors as mcolors
+from flair import FlairInputDataError
 
 def parse_args():
     desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
@@ -255,7 +256,7 @@ def plot_isoform_usage(args):
     proportions = [gray_bar[0]] + proportions_color
 
     if len(proportions) == 1:
-        raise ValueError('''Needs more than 1 isoform with sufficient representation, check gene_name in
+        raise FlairInputDataError('''Needs more than 1 isoform with sufficient representation, check gene_name in
             your counts file, then try toggling min_reads''')
 
     proportions = sorted(proportions, key=lambda x:x[1])[::-1]

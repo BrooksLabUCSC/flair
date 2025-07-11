@@ -15,6 +15,7 @@ from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 from multiprocessing import Pool
 import time
 from collections import Counter
+from flair import FlairInputDataError
 
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
@@ -109,13 +110,13 @@ def get_args():
 
 def check_file_paths(args):
     if not args.genomealignedbam:
-        raise ValueError(f'Please include the --genomealignedbam option')
+        raise FlairInputDataError(f'Please include the --genomealignedbam option')
     if not args.genome:
-        raise ValueError(f'Please include the --genome option\n')
+        raise FlairInputDataError(f'Please include the --genome option\n')
     if not os.path.exists(args.genomealignedbam):
-        raise ValueError(f'Aligned reads file path does not exist: {args.genomealignedbam}')
+        raise FlairInputDataError(f'Aligned reads file path does not exist: {args.genomealignedbam}')
     if not os.path.exists(args.genome):
-        raise ValueError('Genome file path does not exist: {}\n'.format(args.genome))
+        raise FlairInputDataError('Genome file path does not exist: {}\n'.format(args.genome))
 
 
 def add_preset_args(args):
@@ -174,11 +175,11 @@ def generateKnownSSDatabase(args, tempDir):
         juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if addFlag == False:
-            raise ValueError(f'ERROR Added no extra junctions from {shortread}')
+            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}')
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
-        raise ValueError("No junctions from GTF or junctionsBed to correct with")
+        raise FlairInputDataError("No junctions from GTF or junctionsBed to correct with")
 
     annotationFiles = dict()
     for chrom in chromosomes:

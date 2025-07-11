@@ -162,7 +162,7 @@ def get_sig_from_norm_by_gene(outname, filename):
 
 def quant_row_check(linenum, row):
     if len(row) < 7:
-        raise ValueError(f"line {linenum}: found {len(row)} columns in counts matrix, expected >6")
+        raise FlairInputDataError(f"line {linenum}: found {len(row)} columns in counts matrix, expected >6")
 
 def quant_table_reader(quant_table_tsv):
     """Generator for rows of (name, counts) from counts file"""
@@ -339,13 +339,13 @@ def calculate_sig(args):
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:
-        raise ValueError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
+        raise FlairInputDataError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
     elif min(list(groupCounts.values())) < 3:
-        raise ValueError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
+        raise FlairInputDataError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
     elif set(groups).intersection(set(batches)):
-        raise ValueError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
+        raise FlairInputDataError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
     elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
-        raise ValueError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
+        raise FlairInputDataError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(outDir, 'workdir')
@@ -361,7 +361,7 @@ def calculate_sig(args):
             if e.errno != errno.EEXIST:
                 raise
     else:
-        raise ValueError(f"** Error. Name {outDir} already exists. Choose another name for out_dir")
+        raise FlairInputDataError(f"** Error. Name {outDir} already exists. Choose another name for out_dir")
 
     calc_gene_norm_sig(workdir, quant_table_tsv)
     get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
@@ -419,7 +419,7 @@ def diffExp(counts_matrix=''):
         args.o = args.o + '.diffExp'
 
     if not os.path.exists(args.q):
-        raise ValueError('Counts matrix file path does not exist')
+        raise FlairInputDataError('Counts matrix file path does not exist')
 
     calculate_sig(args)
 

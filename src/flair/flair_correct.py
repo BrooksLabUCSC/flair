@@ -9,6 +9,7 @@ import uuid
 import pipettor
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import ssPrep
+from flair import FlairInputDataError
 
 import logging
 
@@ -48,7 +49,6 @@ def parseargs(aligned_reads=''):
 
     if not (args.junction_tab or args.junction_bed):
         logging.info('No short-read junctions provided. NO NOVEL SPLICE SITES WILL BE DETECTED.')
-
     return args
 
 def correct(aligned_reads='', args=None):
@@ -100,12 +100,12 @@ def correct(aligned_reads='', args=None):
         juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if addFlag == False:
-            raise ValueError(f'ERROR Added no extra junctions from {shortread}\n')
+            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}\n')
     knownSS = dict()
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
-        raise ValueError("No junctions from GTF or junctionsBed to correct with. Exiting...")
+        raise FlairInputDataError("No junctions from GTF or junctionsBed to correct with. Exiting...")
 
     annotations = dict()
     for chrom, data in juncs.items():

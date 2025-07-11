@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+from flair import FlairInputDataError
 
 try:
     fasta = open(sys.argv[1])
@@ -11,7 +12,7 @@ try:
     else:
         outfilename2 = ''
 except:
-    raise ValueError('usage: fasta_seq_lengths fasta outfilename [outfilename2]\n')
+    raise FlairInputDataError('usage: fasta_seq_lengths fasta outfilename [outfilename2]\n')
 
 length_frequencies = {}
 with open(outfilename, 'wt') as outfile:

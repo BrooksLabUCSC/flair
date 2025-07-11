@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+from flair import FlairInputDataError
 
 try:
     psl = open(sys.argv[1])
@@ -9,7 +10,7 @@ try:
     outfilename = sys.argv[3]
     genepred = sys.argv[2][-3:].lower() == 'gp'
 except:
-    raise ValueError('usage: identify_annotated_gene.py psl ref.gtf/ref.gp isos_matched.psl')
+    raise FlairInputDataError('usage: identify_annotated_gene.py psl ref.gtf/ref.gp isos_matched.psl')
 
 
 def get_junctions(line):

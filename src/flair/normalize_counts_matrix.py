@@ -4,6 +4,7 @@ import csv
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
+from flair import FlairInputDataError
 
 try:
     matrix = open(sys.argv[1])
@@ -17,7 +18,7 @@ try:
     else:
         gtf = ''
 except:
-    raise ValueError('usage: normalize_counts_matrix matrix outmatrix [cpm/uq/median] [gtf]\n'
+    raise FlairInputDataError('usage: normalize_counts_matrix matrix outmatrix [cpm/uq/median] [gtf]\n'
                      'gtf if normalization by protein coding gene counts only')
 
 protein_coding = set()

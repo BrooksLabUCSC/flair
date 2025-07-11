@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import argparse
+from flair import FlairInputDataError
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -52,7 +53,7 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False):
         end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
 
         if '_' not in name and not force:
-            raise ValueError('Entry name should contain underscore-delimited transcriptid and geneid like so: \n'
+            raise FlairInputDataError('Entry name should contain underscore-delimited transcriptid and geneid like so: \n'
                              'ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n'
                              'So no GTF conversion was done. Please run identify_gene_isoform first\n'
                              'for best results, or run with --force')

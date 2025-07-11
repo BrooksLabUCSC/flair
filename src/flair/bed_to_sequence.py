@@ -2,6 +2,7 @@
 import sys, csv, os, argparse, pysam, subprocess
 import pysam
 import logging
+from flair import FlairInputDataError
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -29,7 +30,7 @@ def main():
     args = parser.parse_args()
 
     if args.vcf and not (args.vcf and args.isoform_haplotypes):
-        raise ValueError('Must provide both vcf and haplotype information if vcf is provided')
+        raise FlairInputDataError('Must provide both vcf and haplotype information if vcf is provided')
 
     if (not args.vcf and args.models_out) or (not args.bed and args.models_out):
         logging.info('Not going to write isoform models without vcf or in BED format')

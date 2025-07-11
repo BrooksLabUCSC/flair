@@ -20,6 +20,7 @@
 import sys
 import pipettor
 import os
+from flair import FlairInputDataError
 ########################################################################
 # CommandLine
 ########################################################################
@@ -124,7 +125,7 @@ def getStarts(gtf):
                     tnamenmdexcep.add(transcript)
     out.close()
     if scount == 0:
-        raise ValueError(f'ERROR, no start codons were found in {gtf}')
+        raise FlairInputDataError(f'ERROR, no start codons were found in {gtf}')
     return starts, tnamenmdexcep
 
 
@@ -390,7 +391,7 @@ def main():
     elif myCommandLine.args['longestORF']:
         defineORF = 'longest'
     else:
-        raise ValueError('** ERR. Select method for ORF definition with --firstTIS or --longestORF')
+        raise FlairInputDataError('** ERR. Select method for ORF definition with --firstTIS or --longestORF')
 
     starts, nmdexcep      = getStarts(gtf)
     isoformObjs = getSeqs(bed, genome)

@@ -3,6 +3,7 @@ import sys
 import csv
 import math
 import os
+from flair import FlairInputDataError
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
         tol = 100 if len(sys.argv) <= 4 else int(sys.argv[4])
         keep_extra_column = len(sys.argv) > 5
     except:
-        raise ValueError('usage: filter_collapsed_isoforms.py collapsed.bed (nosubset|default|comprehensive|ginormous) '
+        raise FlairInputDataError('usage: filter_collapsed_isoforms.py collapsed.bed (nosubset|default|comprehensive|ginormous) '
                          'filtered.bed [tolerance] [keep_extra_column]\n')
     filter_collapsed_isoforms(query, mode=mode, tol=tol, outfile=bedout,
                        keep_extra_column=keep_extra_column)

@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+from flair import FlairInputDataError
 
 try:
     bedfh = open(sys.argv[1])
@@ -12,7 +13,7 @@ try:
         counts_tsv = ''
     wiggle = 10  # minimum distance apart for alt SS to be tested
 except:
-    raise ValueError('usage: call_diffsplice_events.py in.bed out.tsv [counts_tsv]\n')
+    raise FlairInputDataError('usage: call_diffsplice_events.py in.bed out.tsv [counts_tsv]\n')
 
 
 def get_junctions_bed(starts, sizes):

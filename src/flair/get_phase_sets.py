@@ -4,6 +4,7 @@ import csv
 import os
 import argparse
 import pysam
+from flair import FlairInputDataError
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -91,9 +92,9 @@ def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensi
         phase_sets[isoform][(ps_tag,hp_tag)] += 1
 
     if num_reads_in_bam == 0:
-        raise ValueError(f'No reads in bam {bam} (get_phase_sets.py)')
+        raise FlairInputDataError(f'No reads in bam {bam} (get_phase_sets.py)')
     elif (num_reads_in_bam - num_unassigned)/len(read_isoform) < 0.9:
-        raise ValueError(f'{num_unassigned} out of {num_reads_in_bam} reads not assigned to an isoform, '
+        raise FlairInputDataError(f'{num_unassigned} out of {num_reads_in_bam} reads not assigned to an isoform, '
                          f'{len(read_isoform)} reads in map')
 
     bam.close()

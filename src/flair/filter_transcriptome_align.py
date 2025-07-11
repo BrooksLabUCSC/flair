@@ -10,6 +10,7 @@ from flair.count_sam_transcripts import *
 from flair.flair_transcriptome import makecorrecttempdir
 from multiprocessing import Pool
 from time import sleep
+from flair import FlairInputDataError
 
 
 def generate_alignment_obj_for_read(args, genome, transcripttoexons, transcriptaligns, header):

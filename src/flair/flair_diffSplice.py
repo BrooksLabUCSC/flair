@@ -6,7 +6,7 @@ import os
 import os.path as osp
 import pipettor
 import logging
-from flair import FlairError, set_unix_path
+from flair import FlairError, set_unix_path, FlairInputDataError
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
@@ -60,9 +60,9 @@ def diffSplice(isoforms='', counts_matrix=''):
         args.q = counts_matrix
 
     if not os.path.exists(args.q):
-        raise ValueError('Counts matrix file path does not exist')
+        raise FlairInputDataError('Counts matrix file path does not exist')
     if not os.path.exists(args.i):
-        raise ValueError('Isoform bed file path does not exist')
+        raise FlairInputDataError('Isoform bed file path does not exist')
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(args.o, 'workdir')
@@ -76,9 +76,9 @@ def diffSplice(isoforms='', counts_matrix=''):
         except OSError as ex:
             raise OSError("** ERROR cannot create directory %s" % (workdir)) from ex
     else:
-        raise ValueError(f'** Error. Name {args.o} already exists. Choose another name for out_dir')
+        raise FlairInputDataError(f'** Error. Name {args.o} already exists. Choose another name for out_dir')
     if args.i.endswith('psl'):
-        raise ValueError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
+        raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
     filebase = os.path.join(args.o, 'diffsplice')
     pipettor.run(['call_diffsplice_events.py', args.i, filebase, args.q])

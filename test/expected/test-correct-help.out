@@ -8,7 +8,7 @@ options:
                         if providing short-read junctions, minimum junction
                         support required to keep junction. If your junctions
                         file is in bed format, the score field will be used
-                        for read support.
+                        for read support. Default=1
   -o OUTPUT, --output OUTPUT
                         output name base (default: flair)
   -t THREADS, --threads THREADS

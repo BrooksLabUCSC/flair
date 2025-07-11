@@ -3,6 +3,7 @@
 import os
 import sys
 from ncls import NCLS
+from flair import FlairInputDataError
 
 ########################################################################
 # CommandLine
@@ -48,7 +49,7 @@ class CommandLine(object):
 
         if len(sys.argv) == 1:
             self.parser.print_help()
-            raise ValueError("No arguments provided, please provide bed and junction files")
+            raise FlairInputDataError("No arguments provided, please provide bed and junction files")
         self.args = vars(self.parser.parse_args())
 
 
@@ -85,7 +86,7 @@ class BED12(object):
         self.fname = fname
 
         if not os.path.isfile(fname):
-            raise ValueError(f"{fname} does not exist")
+            raise FlairInputDataError(f"{fname} does not exist")
 
     def getLine(self):
 

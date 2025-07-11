@@ -4,6 +4,7 @@ import sys
 import os
 import csv
 import mappy as mm
+from flair import FlairInputDataError
 
 def main():
     readmap = sys.argv[1]
@@ -48,7 +49,7 @@ def subset_unassigned_reads(readmap, query, support, output, fastx, outfa):
 
     diff = len(headers_keep - headers_used)
     if diff > 0:
-        raise ValueError(f'{diff} names do not match any names in fastq file(s)\n'
+        raise FlairInputDataError(f'{diff} names do not match any names in fastq file(s)\n'
                          f'e.g. {list(headers_keep - headers_used)[0]} in bed but not in fastq')
 
 if __name__ == "__main__":

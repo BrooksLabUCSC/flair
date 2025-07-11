@@ -5,11 +5,13 @@ import argparse
 import os, glob
 import pipettor
 import pysam
+import logging
 from flair.gtf_to_bed import gtf_to_bed
 from flair.bed_to_sequence import bed_to_sequence
 from flair import transcriptomic_chimeras
 from flair import genomic_chimeras
 from collections import defaultdict
+from flair import FlairInputDataError
 
 
 def def_value():
@@ -59,15 +61,15 @@ def detectfusions():
         args.reads = args.reads[0].split(',')
     for rfile in args.reads:
         if not os.path.exists(rfile):
-            raise ValueError(f'Read file path does not exist: {rfile}')
+            raise FlairInputDataError(f'Read file path does not exist: {rfile}')
 
     if not os.path.exists(args.genome):
-        raise ValueError(f'Genome file path does not exist: {args.genome}')
+        raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
     if not os.path.exists(args.gtf):
         if not args.gtf:
-            raise ValueError('Please specify annotated gtf with -f ')
+            raise FlairInputDataError('Please specify annotated gtf with -f ')
         else:
-            raise ValueError('GTF file path does not exist')
+            raise FlairInputDataError('GTF file path does not exist')
 
 
     # if args.annotated_fa == 'generate':

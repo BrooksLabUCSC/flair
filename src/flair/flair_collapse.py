@@ -21,6 +21,7 @@ from flair.get_phase_sets import get_phase_sets
 from flair.bed_to_gtf import bed_to_gtf
 from flair.subset_unassigned_reads import subset_unassigned_reads
 from flair.filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
+from flair import FlairInputDataError
 
 run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.
@@ -170,15 +171,15 @@ def collapse(genomic_range='', corrected_reads=''):
         args.reads = args.reads[0].split(',')
     for rfile in args.reads:
         if not os.path.exists(rfile):
-            raise ValueError(f'Read file path does not exist: {rfile}\n')
+            raise FlairInputDataError(f'Read file path does not exist: {rfile}\n')
     if not os.path.exists(query):
-        raise ValueError('Query file path does not exist: {}\n'.format(query))
+        raise FlairInputDataError('Query file path does not exist: {}\n'.format(query))
     if not os.path.exists(args.genome):
-        raise ValueError('Genome file path does not exist: {}\n'.format(args.genome))
+        raise FlairInputDataError('Genome file path does not exist: {}\n'.format(args.genome))
     if os.stat(query).st_size == 0:
-        raise ValueError('Query file is empty\n')
+        raise FlairInputDataError('Query file is empty\n')
     if float(args.support) < 1 and not args.gtf:
-        raise ValueError('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
+        raise FlairInputDataError('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
 
     if args.range:
         # subset out the read sequences and corrected reads corresponding to the specified range
@@ -187,7 +188,7 @@ def collapse(genomic_range='', corrected_reads=''):
             args.range = args.range[0]+':'+args.range[1]+'-'+args.range[2]
         args.output += args.range+'.'
         if args.reads[0][-3:] != 'bam':
-            raise ValueError('Must provide genome alignment BAM with -r if range is specified\n')
+            raise FlairInputDataError('Must provide genome alignment BAM with -r if range is specified\n')
         bams = []
         for i in range(len(args.reads)): # subset bam file for alignments within range
             bams += [args.temp_dir+tempfile_name+args.range+str(i)+'.bam']
@@ -217,12 +218,12 @@ def collapse(genomic_range='', corrected_reads=''):
             raise Exception("** tabix FAILED for %s. File needs to be a sorted, bgzip-ed, tabix-indexed bed file if range is specified") from ex
     else:
         if query.endswith('psl'):
-            raise ValueError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
+            raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
         precollapse = query # query file unchanged
         args.reads = args.reads[0].split(',') if ',' in args.reads[0] else args.reads # read sequences
         for r in args.reads:
             if not os.path.exists(query):
-                raise ValueError(f'Check that read file {r} exists')
+                raise FlairInputDataError(f'Check that read file {r} exists')
 
     intermediate = []
     if args.promoters:
@@ -269,9 +270,9 @@ def collapse(genomic_range='', corrected_reads=''):
         if (not args.annotation_reliant and args.remove_internal_priming) or args.annotation_reliant == 'generate' or not args.annotated_bed:
             if not os.path.exists(args.gtf):
                 if not args.gtf:
-                    raise ValueError('Please specify annotated gtf with -f for --annotation_reliant generate')
+                    raise FlairInputDataError('Please specify annotated gtf with -f for --annotation_reliant generate')
                 else:
-                    raise ValueError('GTF file path does not exist')
+                    raise FlairInputDataErrorr('GTF file path does not exist')
 
             logging.info('Making transcript fasta using annotated gtf and genome sequence')
             args.annotated_bed = args.output+'annotated_transcripts.bed'
