@@ -9,6 +9,7 @@ import uuid
 import pipettor
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import ssPrep
+
 import logging
 
 def parseargs(aligned_reads=''):
@@ -19,10 +20,17 @@ def parseargs(aligned_reads=''):
     if not aligned_reads:
         required.add_argument('-q', '--query', type=str, required=True,
                                                   help='uncorrected bed12 file')
-    atleastone.add_argument('-j', '--shortread', type=str, default='',
-                                                    help='bed format splice junctions from short-read sequencing')
     atleastone.add_argument('-f', '--gtf', default='',
-                                                    help='GTF annotation file')
+                            help='GTF annotation file')
+    mutexc = atleastone.add_mutually_exclusive_group(required=False)
+    mutexc.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
+                                               'Use this option if you aligned your short-reads with STAR, '
+                                               'STAR will automatically output this file')
+    mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
+                                               '(can be generated from short-read alignment with junctions_from_sam)')
+    parser.add_argument('--junction_support', type = int, default=1,
+                        help='if providing short-read junctions, minimum junction support required to keep junction. '
+                             'If your junctions file is in bed format, the score field will be used for read support. Default=1')
     parser.add_argument('-o', '--output', default='flair',
                                             help='output name base (default: flair)')
     parser.add_argument('-t', '--threads', type=int, default=4,
@@ -37,6 +45,10 @@ def parseargs(aligned_reads=''):
         parser.error('No arguments passed')
 
     args = parser.parse_args()
+
+    if not (args.junction_tab or args.junction_bed):
+        logging.info('No short-read junctions provided. NO NOVEL SPLICE SITES WILL BE DETECTED.')
+
     return args
 
 def correct(aligned_reads='', args=None):
@@ -79,11 +91,16 @@ def correct(aligned_reads='', args=None):
         juncs, chromosomes, knownSS = gtfToSSBed(args.gtf, knownSS, printErr, printErrFname, verbose)
 
     # Do the same for the other juncs file.
-    if args.shortread:
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes,
+    if args.junction_tab or args.junction_bed:
+        if args.junction_tab:
+            shortread, type = args.junction_tab, 'tab'
+        else:
+            shortread, type = args.junction_bed, 'bed'
+
+        juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if addFlag == False:
-            raise ValueError(f'ERROR Added no extra junctions from {args.shortread}\n')
+            raise ValueError(f'ERROR Added no extra junctions from {shortread}\n')
     knownSS = dict()
 
     # added to allow annotations not to be used.

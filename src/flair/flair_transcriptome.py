@@ -34,8 +34,15 @@ def get_args():
                         help='GTF annotation file, used for renaming FLAIR isoforms '
                              'to annotated isoforms and adjusting TSS/TESs')
 
-    parser.add_argument('-j', '--shortread', type=str, default='',
-                        help='bed format splice junctions from short-read sequencing')
+    mutexc = parser.add_mutually_exclusive_group(required=False)
+    mutexc.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
+                                               'Use this option if you aligned your short-reads with STAR, '
+                                               'STAR will automatically output this file')
+    mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
+                                               '(can be generated from short-read alignment with junctions_from_sam)')
+    parser.add_argument('--junction_support', type=int, default=1,
+                        help='if providing short-read junctions, minimum junction support required to keep junction. '
+                             'If your junctions file is in bed format, the score field will be used for read support.')
     parser.add_argument('--ss_window', type=int, default=15,
                         help='window size for correcting splice sites (15)')
 
@@ -159,11 +166,15 @@ def generateKnownSSDatabase(args, tempDir):
         juncs, chromosomes, knownSS = gtfToSSBed(args.gtf, knownSS, False, False, False)
 
     # Do the same for the other juncs file.
-    if args.shortread:
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes,
+    if args.junction_tab or args.junction_bed:
+        if args.junction_tab:
+            shortread, type = args.junction_tab, 'tab'
+        else:
+            shortread, type = args.junction_bed, 'bed'
+        juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if addFlag == False:
-            raise ValueError(f'ERROR Added no extra junctions from {args.shortread}')
+            raise ValueError(f'ERROR Added no extra junctions from {shortread}')
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:

@@ -4,6 +4,7 @@ import sys
 import pysam
 import re
 import logging
+import os
 
 basetocomp = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N'}
 def revcomp(seq):
@@ -11,65 +12,50 @@ def revcomp(seq):
     return ''.join([basetocomp[x] for x in seq])
 
 
-def addOtherJuncs(juncs, bedJuncs, chromosomes, printErrFname, known, verbose, printErr):
-    cols = None
-
-    with open(bedJuncs) as l:
-        for num,ll in enumerate(l,0):
-            cols = ll.rstrip().split()
-            if num > 10:
-                break
-
+def addOtherJuncs(juncs, filetype, bedJuncs, minsup, chromosomes, printErrFname, known, verbose, printErr):
     # guess what kind of bedFile
-    if cols is None:
+    if os.path.getsize(bedJuncs) == 0:
         raise Exception("Empty junctions BED file, not supported")
 
-    if cols[-1] == "+" or cols[-1] == "-":
+    if filetype == 'bed':
         # normal bed
-        strandCol = -1
+        strandCol = 5
         starOffset = 0
-
-    elif len(cols) == 12:
-        # bed12
-        raise Exception("Bed12 not currently supported for other_juncs.bed. Please convert to bed6.")
-
-    elif cols[3] == "0" or cols[3] == "1" or cols[3] == "2":
-        # star junc.tab
+        scorecol=4
+    else: #filetype == 'tab'
         strandCol = 3
         starOffset = 1
-
-    else:
-        raise Exception("Cannot find strand info for %s. Is this bed6 or STAR_juncs.tab file?" % bedJuncs)
-
-    if printErr:
-        with open(printErrFname,'a+') as fo:
-            print("** Adding other juncs, assuming file is %s" % "bed6" if strandCol == -1 else "STAR", file=fo)
+        scorecol = 6
 
     tempJuncs = list()
     addedFlag = False
     with open(bedJuncs,'r') as bedLines:
         for line in bedLines:
             cols = line.rstrip().split()
-            chrom, c1, c2, strand = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol]
+            if len(cols) == 12:
+                raise Exception("Bed12 not currently supported for short-read junctions. Please convert to bed6 or bed9.")
 
-            if chrom not in juncs:
-                juncs[chrom] = dict()
+            chrom, c1, c2, strand, score = cols[0], int(cols[1])-starOffset, int(cols[2]), cols[strandCol], int(cols[scorecol])
 
-            if c2-c1 < 5:
-                continue
+            if score >= minsup:
+                if chrom not in juncs:
+                    juncs[chrom] = dict()
 
-            if starOffset:
-                if strand == "1": strand = "+"
-                elif strand == "2": strand = "-"
-                else: continue
+                if c2-c1 < 5:
+                    continue
 
-            chromosomes.add(chrom)
-            key = (c1, c2, strand)
-            if key in juncs[chrom]:
-                juncs[chrom][key] = "both"
-                continue
-            tempJuncs.append((chrom,c1,c2,strand))
-            addedFlag = True
+                if filetype == 'tab':
+                    if strand == "1": strand = "+"
+                    elif strand == "2": strand = "-"
+                    else: continue
+
+                chromosomes.add(chrom)
+                key = (c1, c2, strand)
+                if key in juncs[chrom]:
+                    juncs[chrom][key] = "both"
+                    continue
+                tempJuncs.append((chrom,c1,c2,strand))
+                addedFlag = True
     if addedFlag == False:
         return juncs, chromosomes, addedFlag
 

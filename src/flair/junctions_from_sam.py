@@ -566,14 +566,11 @@ def main():
 
             intron_left = jcn_str[jcn_str.find(':')+1:jcn_str.find('-')]
             intron_right = jcn_str[jcn_str.find('-')+1:]
-            if jcn2JcnInfo[jcn_str].strand == '+':
+            if jcn2JcnInfo[jcn_str].strand in {'+', '-'}:
                 strandFlag = True
-                jcn_strand = '1'
-            elif jcn2JcnInfo[jcn_str].strand == '-':
-                strandFlag = True
-                jcn_strand = '2'
+                jcn_strand = jcn2JcnInfo[jcn_str].strand
             else:
-                jcn_strand = '0'
+                jcn_strand = '.'
             # bed_line = "%s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%s\t2\t%s\t%s\n" % (jcn2JcnInfo[jcn_str].chr,
             #                                                                 jcn2JcnInfo[jcn_str].leftmost_start,
             #                                                                 jcn2JcnInfo[jcn_str].rightmost_end,
@@ -586,11 +583,12 @@ def main():
             #                                                                 ",".join([repr(jcn2JcnInfo[jcn_str].longest_first_block),
             #                                                                           repr(jcn2JcnInfo[jcn_str].longest_second_block)]),
             #                                                                 ",".join(["0",repr(jcn2JcnInfo[jcn_str].second_block_start)]))
-            bed_line = "%s\t%s\t%s\t%s\t%d\n" % (jcn2JcnInfo[jcn_str].chr,
+            bed_line = '\t'.join([jcn2JcnInfo[jcn_str].chr,
                                                 intron_left,
                                                 intron_right,
-                                                jcn_strand,
-                                                len(jcn2JcnInfo[jcn_str].block_list))
+                                                '.',
+                                                str(len(jcn2JcnInfo[jcn_str].block_list)),
+                                                 jcn_strand]) + '\n'
             junction_bed_file.write(bed_line)
 
     junction_bed_file.close()
