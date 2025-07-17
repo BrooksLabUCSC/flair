@@ -7,6 +7,7 @@ import scipy.stats as sps
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
 
+
 def parse_args():
     desc = """Calculates the usage of each isoform as a fraction of the total expression
     of the gene and compares this between samples."""
@@ -63,9 +64,8 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
         line = line.rstrip().split('\t')
         iso_gene, count1, count2 = line[0], float(line[col1]), float(line[col2])
         if '_' not in iso_gene:
-            sys.stderr.write('Please run identify_annotated_gene first so that isoforms\
-                    can be grouped by their parent genes\n')
-            sys.exit(1)
+            raise FlairInputDataError('Incorrect isoform names: Please run identify_annotated_gene first so that \n'
+                             'isoforms can be grouped by their parent genes\n')
         iso, gene = split_iso_gene(iso_gene)
         if gene not in counts:
             counts[gene] = {}
@@ -73,6 +73,7 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
 
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+        writer.writerow(['geneID', 'isoID', 'fisher_pval', 'this_iso_sample1_count', 'this_iso_sample2_count', 'other_isos_sample1_count', 'other_isos_sample2_count'])
         geneordered = sorted(counts.keys())
         for gene in geneordered:
             generes = []

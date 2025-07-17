@@ -5,6 +5,7 @@ import csv
 import argparse
 import math
 import os
+import logging
 import multiprocessing as mp
 
 parser = argparse.ArgumentParser(description='collapse parse options',
@@ -590,8 +591,7 @@ if gtfname:
                 annot_tes[chrom] = set()
             annot_tss[chrom].add(start)
             annot_tes[chrom].add(end)
-    if not quiet:
-        sys.stderr.write('Annotated ends extracted from GTF\n')
+    logging.info('Annotated ends extracted from GTF')
 
 isoforms = {}  # spliced isoforms
 all_se_by_chrom = {}  # single-exon reads grouped by exact start and end site
@@ -636,8 +636,7 @@ for line in query:
         isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
     isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
 
-if not quiet:
-    sys.stderr.write('Read data extracted\n')
+logging.info('Read data extracted')
 
 chrom_names = []  # sorted by descending total number of unique single-exon isoforms
 for chrom in all_se_by_chrom:
@@ -656,8 +655,7 @@ singleexon = {}  # single-exon isoforms
 for r in res:  # combine results
     singleexon.update(r)
 
-if not quiet:
-    sys.stderr.write('Single-exon genes grouped, collapsing\n')
+logging.info('Single-exon genes grouped, collapsing')
 
 with open(outputfname, 'wt') as outfile:
     writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

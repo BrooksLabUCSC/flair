@@ -7,6 +7,7 @@ import tempfile
 import glob
 import pipettor
 import shutil
+import logging
 # TODO: put all of these in utils.py
 from flair.pull_starts import pull_starts
 from flair.select_from_bed import select_from_bed
@@ -20,6 +21,7 @@ from flair.get_phase_sets import get_phase_sets
 from flair.bed_to_gtf import bed_to_gtf
 from flair.subset_unassigned_reads import subset_unassigned_reads
 from flair.filter_isoforms_by_proportion_of_gene_expr import filter_isoforms_by_proportion_of_gene_expr
+from flair import FlairInputDataError
 
 run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.
@@ -133,7 +135,7 @@ def collapse(genomic_range='', corrected_reads=''):
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error('No arguments passed, please provide options')
 
     args = parser.parse_args()
     if corrected_reads:
@@ -148,8 +150,7 @@ def collapse(genomic_range='', corrected_reads=''):
     if args.temp_dir == '':
         namedTempDir = False
         args.temp_dir = tempfile_dir+'/'
-        if not args.quiet:
-            sys.stderr.write('Writing temporary files to {}\t\n'.format(args.temp_dir))
+        logging.info(f'Writing temporary files to {args.temp_dir}\t')
     if not os.path.isdir(args.temp_dir): # make temporary directory
         pipettor.run([('mkdir', args.temp_dir)])
 
@@ -170,20 +171,15 @@ def collapse(genomic_range='', corrected_reads=''):
         args.reads = args.reads[0].split(',')
     for rfile in args.reads:
         if not os.path.exists(rfile):
-            sys.stderr.write(f'Read file path does not exist: {rfile}\n')
-            sys.exit(1)
+            raise FlairInputDataError(f'Read file path does not exist: {rfile}\n')
     if not os.path.exists(query):
-        sys.stderr.write('Query file path does not exist: {}\n'.format(query))
-        sys.exit(1)
+        raise FlairInputDataError('Query file path does not exist: {}\n'.format(query))
     if not os.path.exists(args.genome):
-        sys.stderr.write('Genome file path does not exist: {}\n'.format(args.genome))
-        sys.exit(1)
+        raise FlairInputDataError('Genome file path does not exist: {}\n'.format(args.genome))
     if os.stat(query).st_size == 0:
-        sys.stderr.write('Query file is empty\n')
-        sys.exit(1)
+        raise FlairInputDataError('Query file is empty\n')
     if float(args.support) < 1 and not args.gtf:
-        sys.stderr.write('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
-        sys.exit(1)
+        raise FlairInputDataError('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
 
     if args.range:
         # subset out the read sequences and corrected reads corresponding to the specified range
@@ -192,8 +188,7 @@ def collapse(genomic_range='', corrected_reads=''):
             args.range = args.range[0]+':'+args.range[1]+'-'+args.range[2]
         args.output += args.range+'.'
         if args.reads[0][-3:] != 'bam':
-            sys.stderr.write('Must provide genome alignment BAM with -r if range is specified\n')
-            sys.exit(1)
+            raise FlairInputDataError('Must provide genome alignment BAM with -r if range is specified\n')
         bams = []
         for i in range(len(args.reads)): # subset bam file for alignments within range
             bams += [args.temp_dir+tempfile_name+args.range+str(i)+'.bam']
@@ -223,19 +218,16 @@ def collapse(genomic_range='', corrected_reads=''):
             raise Exception("** tabix FAILED for %s. File needs to be a sorted, bgzip-ed, tabix-indexed bed file if range is specified") from ex
     else:
         if query.endswith('psl'):
-            sys.stderr.write('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.\n')
-            sys.exit(1)
+            raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
         precollapse = query # query file unchanged
         args.reads = args.reads[0].split(',') if ',' in args.reads[0] else args.reads # read sequences
         for r in args.reads:
             if not os.path.exists(query):
-                sys.stderr.write('Check that read file {} exists\n'.format(r))
-                sys.exit(1)
+                raise FlairInputDataError(f'Check that read file {r} exists')
 
     intermediate = []
     if args.promoters:
-        if not args.quiet:
-            sys.stderr.write('Filtering out reads without promoter-supported TSS\n')
+        logging.info('Filtering out reads without promoter-supported TSS')
         # get the starts
         tss_bedfile = args.temp_dir+tempfile_name+'tss.bed'
         pull_starts(query, tss_bedfile)
@@ -251,8 +243,7 @@ def collapse(genomic_range='', corrected_reads=''):
         intermediate += [precollapse]
 
     if args.threeprime:
-        if not args.quiet:
-            sys.stderr.write('Filtering out reads without TES support\n')
+        logging.info('Filtering out reads without TES support')
 
         # get the ends
         tes_bedfile = args.temp_dir+tempfile_name+'tes.bed'
@@ -271,8 +262,7 @@ def collapse(genomic_range='', corrected_reads=''):
     if args.range: # for collapse_range, make sure the minimum number of reads is present
         count = len(open(precollapse).readlines())
         if count < min_reads:
-            sys.stderr.write('ERROR: not enough reads in', precollapse)
-            sys.exit(1)
+            raise ValueError(f'ERROR: not enough reads in {precollapse}')
 
     if args.annotation_reliant or args.remove_internal_priming:
         if not args.generate_map:
@@ -280,13 +270,11 @@ def collapse(genomic_range='', corrected_reads=''):
         if (not args.annotation_reliant and args.remove_internal_priming) or args.annotation_reliant == 'generate' or not args.annotated_bed:
             if not os.path.exists(args.gtf):
                 if not args.gtf:
-                    sys.stderr.write('Please specify annotated gtf with -f for --annotation_reliant generate\n')
+                    raise FlairInputDataError('Please specify annotated gtf with -f for --annotation_reliant generate')
                 else:
-                    sys.stderr.write('GTF file path does not exist\n')
-                sys.exit(1)
+                    raise FlairInputDataErrorr('GTF file path does not exist')
 
-            if not args.quiet:
-                sys.stderr.write('Making transcript fasta using annotated gtf and genome sequence\n')
+            logging.info('Making transcript fasta using annotated gtf and genome sequence')
             args.annotated_bed = args.output+'annotated_transcripts.bed'
             # gtf to bed
             gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
@@ -324,15 +312,10 @@ def collapse(genomic_range='', corrected_reads=''):
             count_cmd += ['--allow_paralogs']
         count_cmd = tuple(count_cmd)
 
-        if not args.quiet:
-            sys.stderr.write('Aligning reads to reference transcripts\n')
-            sys.stderr.write('Counting supporting reads for annotated transcripts\n')
-            sys.stderr.write(' '.join(mm2_cmd) + '\n')
-            sys.stderr.write(' '.join(count_cmd) + '\n')
+        logging.info('Aligning to and counting read support for annotated transcripts')
         pipettor.run([mm2_cmd, count_cmd])
 
-        if not args.quiet:
-            sys.stderr.write('Setting up unassigned reads for flair-collapse novel isoform detection\n')
+        logging.info('Setting up unassigned reads for flair-collapse novel isoform detection')
         # match counts
         counts_file = args.output+'annotated_transcripts.alignment.counts'
         supported_bed = args.output+'annotated_transcripts.supported.bed'
@@ -363,7 +346,6 @@ def collapse(genomic_range='', corrected_reads=''):
         collapse_cmd += ['-s', str(args.support)]
     if args.quiet:
         collapse_cmd += ['--quiet']
-    print(" ".join((str(a) for a in collapse_cmd)), file=sys.stderr)
     pipettor.run(collapse_cmd)
 
 
@@ -377,8 +359,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
     # rename first-pass isoforms to annotated transcript IDs if they match
     # if args.gtf:
-    if not args.quiet:
-        sys.stderr.write('Renaming isoforms using gtf\n')
+    logging.info('Renaming isoforms using gtf')
     identify_gene_isoform(query=args.output+'firstpass.bed', gtf=args.gtf,
             outfilename=args.output+'firstpass.named.bed', annotation_reliant=args.annotation_reliant)
 
@@ -395,11 +376,6 @@ def collapse(genomic_range='', corrected_reads=''):
     bed_to_sequence(query=args.output+'firstpass.bed', genome=args.genome, outfilename=args.output+'firstpass.fa')
 
     # reassign reads to first-pass isoforms
-    if not args.quiet:
-        sys.stderr.write('Aligning reads to first-pass isoform reference\n')
-#       align_files = []  # TODO: this doesn't get filled
-    alignout = args.temp_dir + tempfile_name + 'firstpass.'
-
     # minimap
     if args.mm2_args:
         args.mm2_args = args.mm2_args.split(',')
@@ -428,15 +404,10 @@ def collapse(genomic_range='', corrected_reads=''):
         count_cmd += ['--allow_paralogs']
     count_cmd = tuple(count_cmd)
 
-    if not args.quiet:
-        sys.stderr.write('Aligning reads to firstpass transcripts\n')
-        sys.stderr.write('Counting supporting reads for firstpass transcripts\n')
-        sys.stderr.write(' '.join(mm2_cmd) + '\n')
-        sys.stderr.write(' '.join(count_cmd) + '\n')
+    logging.info('Aligning to and counting reads for firstpass transcripts')
     pipettor.run([mm2_cmd, count_cmd])
 
-    if not args.quiet:
-        sys.stderr.write('Filtering isoforms by read coverage\n')
+    logging.info('Filtering isoforms by read coverage')
 
     # match counts
     mc_output = args.output+'isoforms.bed'
@@ -482,10 +453,6 @@ def collapse(genomic_range='', corrected_reads=''):
                     outiso=args.output+'isoforms.ls.bed')
             os.rename(args.output+'isoforms.ls.bed', args.output+'isoforms.bed')
 
-#                       subprocess.check_call([sys.executable, path+'get_phase_sets.py', '-i', args.output+'isoforms.bed',
-#                               '-b', args.longshot_bam, '-m', args.output+'combined.isoform.read.map.txt',
-#                               '-o', args.output+'phase_sets.txt', '--out_iso', args.output+'isoforms.bed'])
-
             bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
                     outfilename=args.output+'isoforms.fa',
                     vcfinput=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt',
@@ -494,14 +461,6 @@ def collapse(genomic_range='', corrected_reads=''):
             bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
                     outfilename=args.output+'isoforms.fa')
 
-        # to_sequence_cmd = [sys.executable, path+'bed_to_sequence.py', args.output+'isoforms.bed',
-        #       args.genome, args.output+'isoforms.fa']
-        # if args.longshot_bam:
-        #       to_sequence_cmd += ['--vcf', args.longshot_vcf, '--isoform_haplotypes', args.output+'phase_sets.txt', '--vcf_out', args.output+'flair.vcf']
-        # subprocess.check_call(to_sequence_cmd)
-
-        # convert isoform bed to gtf
-        # if args.gtf:
     bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 
     if args.predictCDS:

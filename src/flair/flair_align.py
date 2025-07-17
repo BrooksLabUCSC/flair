@@ -5,8 +5,10 @@ import argparse
 import os
 import pipettor
 import pysam
+import logging
 from flair.pycbio.sys import cli
 from flair import remove_internal_priming
+from flair import FlairInputDataError
 
 FILTER_KEEPSUP = 'keysup'
 FILTER_REMOVESUP = 'removesup'
@@ -59,7 +61,7 @@ def parse_args():
     for rfiles in args.reads:
         for rfile in rfiles.split(','):
             if not os.path.exists(rfile):
-                raise ValueError(f'Error: read file does not exist: {rfile}')
+                raise FlairInputDataError(f'Error: read file does not exist: {rfile}')
             reads.append(rfile)
     args.reads = reads
     return args
@@ -217,10 +219,10 @@ def dofiltering(args, inbam, filterreadmap=None):
                                                                  read.reference_name, mapq, juncstrand)
                 outbed.write('\t'.join(bedline) + '\n')
 
-    sys.stderr.write(f'total alignments in bam file (includes unaligned reads): {totalalignments}\n')
-    sys.stderr.write(f'total non-secondary alignments: {mappednotsec}\n')
-    sys.stderr.write(f'total primary alignments with quality >= {args.quality}: {primary}\n')
-    sys.stderr.write(f'total supplementary alignments with quality >= {args.quality}: {supplementary}\n')
+    logging.info(f'total alignments in bam file (includes unaligned reads): {totalalignments}')
+    logging.info(f'total non-secondary alignments: {mappednotsec}')
+    logging.info(f'total primary alignments with quality >= {args.quality}: {primary}')
+    logging.info(f'total supplementary alignments with quality >= {args.quality}: {supplementary}')
 
     samfile.close()
     if filterreadmap:

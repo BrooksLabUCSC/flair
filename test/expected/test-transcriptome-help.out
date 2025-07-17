@@ -15,8 +15,18 @@ options:
                         minimap2 number of threads (4)
   -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
                         to annotated isoforms and adjusting TSS/TESs
-  -j SHORTREAD, --shortread SHORTREAD
-                        bed format splice junctions from short-read sequencing
+  --junction_tab JUNCTION_TAB
+                        short-read junctions in SJ.out.tab format. Use this
+                        option if you aligned your short-reads with STAR, STAR
+                        will automatically output this file
+  --junction_bed JUNCTION_BED
+                        short-read junctions in bed format (can be generated
+                        from short-read alignment with junctions_from_sam)
+  --junction_support JUNCTION_SUPPORT
+                        if providing short-read junctions, minimum junction
+                        support required to keep junction. If your junctions
+                        file is in bed format, the score field will be used
+                        for read support.
   --ss_window SS_WINDOW
                         window size for correcting splice sites (15)
   -s SUPPORT, --support SUPPORT

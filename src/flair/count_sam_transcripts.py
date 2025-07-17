@@ -10,6 +10,7 @@ from collections import Counter
 from collections import namedtuple
 from flair.remove_internal_priming import removeinternalpriming
 import pysam
+from flair import FlairInputDataError
 
 def parseargs():
     parser = argparse.ArgumentParser(description='''for counting transcript abundances after
@@ -61,8 +62,7 @@ def parseargs():
 def checkargs(args):
     if args.stringent or args.fusion_dist or args.check_splice or args.fusion_breakpoints:
         if not os.path.exists(args.isoforms):
-            sys.stderr.write('A valid isoforms bed file needs to be specified: {}\n'.format(args.isoforms))
-            sys.exit(1)
+            raise FlairInputDataError(f'A valid isoforms bed file needs to be specified: {args.isoforms}')
     if args.fusion_dist:
         args.trust_ends = True
     return args

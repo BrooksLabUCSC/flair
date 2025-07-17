@@ -8,12 +8,14 @@ import glob
 import uuid
 import shutil
 import pysam
+import logging
 from flair.flair_align import inferMM2JuncStrand, intronChainToestarts
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 from multiprocessing import Pool
 import time
 from collections import Counter
+from flair import FlairInputDataError
 
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
@@ -33,8 +35,15 @@ def get_args():
                         help='GTF annotation file, used for renaming FLAIR isoforms '
                              'to annotated isoforms and adjusting TSS/TESs')
 
-    parser.add_argument('-j', '--shortread', type=str, default='',
-                        help='bed format splice junctions from short-read sequencing')
+    mutexc = parser.add_mutually_exclusive_group(required=False)
+    mutexc.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
+                                               'Use this option if you aligned your short-reads with STAR, '
+                                               'STAR will automatically output this file')
+    mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
+                                               '(can be generated from short-read alignment with junctions_from_sam)')
+    parser.add_argument('--junction_support', type=int, default=1,
+                        help='if providing short-read junctions, minimum junction support required to keep junction. '
+                             'If your junctions file is in bed format, the score field will be used for read support.')
     parser.add_argument('--ss_window', type=int, default=15,
                         help='window size for correcting splice sites (15)')
 
@@ -85,11 +94,11 @@ def get_args():
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error('No arguments passed. Please provide bam file, genome, and gtf')
 
     args, unknown = parser.parse_known_args()
     if unknown:
-        sys.stderr.write('unrecognized arguments: {}\n'.format(' '.join(unknown)))
+        logging.info(f'unrecognized arguments: {" ".join(unknown)}')
 
     check_file_paths(args)
     args = add_preset_args(args)
@@ -101,17 +110,13 @@ def get_args():
 
 def check_file_paths(args):
     if not args.genomealignedbam:
-        sys.stderr.write(f'Please include the --genomealignedbam option\n')
-        sys.exit(1)
+        raise FlairInputDataError(f'Please include the --genomealignedbam option')
     if not args.genome:
-        sys.stderr.write(f'Please include the --genome option\n')
-        sys.exit(1)
+        raise FlairInputDataError(f'Please include the --genome option\n')
     if not os.path.exists(args.genomealignedbam):
-        sys.stderr.write(f'Aligned reads file path does not exist: {args.genomealignedbam}\n')
-        sys.exit(1)
+        raise FlairInputDataError(f'Aligned reads file path does not exist: {args.genomealignedbam}')
     if not os.path.exists(args.genome):
-        sys.stderr.write('Genome file path does not exist: {}\n'.format(args.genome))
-        sys.exit(1)
+        raise FlairInputDataError('Genome file path does not exist: {}\n'.format(args.genome))
 
 
 def add_preset_args(args):
@@ -130,8 +135,7 @@ def makecorrecttempdir():
         tempDir = os.path.join(current_directory, tempDirName)
         os.mkdir(tempDir)
     except OSError:
-        print("Creation of the directory %s failed" % tempDirName, file=sys.stderr)
-        sys.exit(1)
+        raise OSError(f"Creation of the directory {tempDirName} failed")
     return tempDir + '/'
 
 
@@ -159,24 +163,23 @@ def generateKnownSSDatabase(args, tempDir):
     # Convert gtf to bed and split by chromosome.
     juncs, chromosomes, knownSS = dict(), set(), dict()  # initialize juncs for adding to db
 
-    sys.stderr = open(os.path.join(tempDir, 'splicelog.txt'), 'w')
     if args.gtf:
         juncs, chromosomes, knownSS = gtfToSSBed(args.gtf, knownSS, False, False, False)
 
     # Do the same for the other juncs file.
-    if args.shortread:
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes,
+    if args.junction_tab or args.junction_bed:
+        if args.junction_tab:
+            shortread, type = args.junction_tab, 'tab'
+        else:
+            shortread, type = args.junction_bed, 'bed'
+        juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if addFlag == False:
-            sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))
-            sys.exit(1)
-
-    sys.stderr = sys.__stderr__
+            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}')
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
-        print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError("No junctions from GTF or junctionsBed to correct with")
 
     annotationFiles = dict()
     for chrom in chromosomes:
@@ -628,7 +631,6 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                             sjtoends[junckey] = []
                         sjtoends[junckey].append((correctedread.start, correctedread.end, correctedread.strand, correctedread.name))
     shortchromfasta.close()
-    # print('reads to align to firstpass: ', c, file=sys.stderr)
     return sjtoends
 
 
@@ -644,7 +646,7 @@ def groupfirstpasssingleexon(goodendswithsupreads):
             lastend = end
     if len(thisgroup) > 0:
         furthergroups.append(thisgroup)
-    print('single exon groups: ', len(furthergroups), file=sys.stderr)
+    logging.info(f'single exon groups: {len(furthergroups)}')
     return furthergroups
 
 
@@ -1031,29 +1033,23 @@ def runcollapsebychrom(listofargs):
     # load splice junctions for chrom
     intervalTree, junctionBoundaryDict = buildIntervalTree(splicesiteannot_chrom, args.ss_window, rchrom, False)
 
-    # print('processing reads into firstpass transcripts for', rchrom, rstart, rend, file=sys.stderr)
     samfile = pysam.AlignmentFile(args.genomealignedbam, 'rb')
     sjtoends = filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goodaligntoannot, intervalTree,
                                        junctionBoundaryDict)
     samfile.close()
-    # print('intron chains:', len(sjtoends.keys()), file=sys.stderr)
 
     firstpassunfiltered, firstpassjunctoname, firstpasssingleexons = processjuncstofirstpassisos(args, tempprefix,
                                                                                                  rchrom, sjtoends,
                                                                                                  firstpasssingleexons)
 
-    # print('firstpass unfiltered: ', len(firstpassunfiltered.keys()), file=sys.stderr)
     firstpass = filterfirstpassisos(args, firstpassunfiltered, firstpassjunctoname, firstpasssingleexons,
                                     junctogene, supannottranscripttojuncs, annottranscripttoexons)
-    # print('firstpass isos: ', len(firstpass.keys()), file=sys.stderr)
     temptoremove = [tempprefix + '.reads.fasta', tempprefix + 'reads.notannotmatch.fasta']
     if not args.noaligntoannot and len(allannottranscripts) > 0:
         temptoremove.extend([tempprefix + '.annotated_transcripts.bed', tempprefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
-        # print('writing firstpass', file=sys.stderr)
         getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
                                       allannotse, genetoannotjuncs, genome)
-        # print('aligning to firstpass', file=sys.stderr)
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -1073,12 +1069,12 @@ def runcollapsebychrom(listofargs):
 
 def collapsefrombam():
     args = get_args()
-    print('loading genome', file=sys.stderr)
+    logging.info('loading genome')
     genome = pysam.FastaFile(args.genome)
     allchrom = genome.references
-    print('making temp dir', file=sys.stderr)
+    logging.info('making temp dir')
     tempDir = makecorrecttempdir()
-    sys.stderr.write('Getting regions\n')
+    logging.info('Getting regions')
     t1 = time.time()
     allregions = []
     if os.path.getsize(args.genomealignedbam) < 1e+9 and not args.splittoregion:  # less than 1G
@@ -1093,15 +1089,15 @@ def collapsefrombam():
             line = line.rstrip().split('\t')
             chrom, start, end = line[0], int(line[1]), int(line[2])
             allregions.append((chrom, start, end))
-    sys.stderr.write('Number of regions ' + str(len(allregions)) + '\n')
-    sys.stderr.write('Generating splice site database\n')
+    logging.info(f'Number of regions {len(allregions)}')
+    logging.info('Generating splice site database')
     knownchromosomes, annotationFiles = generateKnownSSDatabase(args, tempDir)
 
     regionstoannotdata = {}
     if args.gtf:
-        sys.stderr.write('Extracting annotation from GTF\n')
+        logging.info('Extracting annotation from GTF')
         regionstoannotdata = getannotinfo(args.gtf, allregions)
-    sys.stderr.write('splitting by chunk\n')
+    logging.info('splitting by chunk')
     chunkcmds = []
     tempprefixes = []
     for rchrom, rstart, rend in allregions:
@@ -1118,21 +1114,18 @@ def collapsefrombam():
                               allannottranscripts])
             tempprefixes.append(tempprefix)
     t2 = time.time()
-    print('region overhead', t2 - t1, file=sys.stderr)
-    sys.stderr.write('running by chunk\n')
+    logging.info(f'region overhead: {t2 - t1}')
     p = Pool(args.threads)
     childErrs = set()
     c = 1
     for i in p.imap(runcollapsebychrom, chunkcmds):
-        sys.stderr.write(f'\rdone running chunk {c} of {len(chunkcmds)}')
+        logging.info(f'\rdone running chunk {c} of {len(chunkcmds)}')
         childErrs.add(i)
         c += 1
-    sys.stderr.write('\n')
     p.close()
     p.join()
     if len(childErrs) > 1:
-        print(childErrs, file=sys.stderr)
-        sys.exit(1)
+        raise Error(childErrs)
 
     if not args.noaligntoannot:
         combinetempfilesbysuffix(args, tempprefixes,

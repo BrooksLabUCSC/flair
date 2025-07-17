@@ -20,9 +20,9 @@ import errno
 import csv
 from collections import Counter
 from scipy.stats import ttest_ind
-from statsmodels.stats.multitest import multipletests
 from statistics import median, mean
 import pipettor
+import numpy as np
 
 from flair import FlairError, FlairInputDataError, set_unix_path
 
@@ -64,6 +64,49 @@ class Gene(object):
 ########################################################################
 # Functions
 ########################################################################
+
+
+def multipletests(pvals, alpha=0.05, method='hs'):
+    """adapted from statsmodels.stats.multitest
+    does holm-sidak correction"""
+    pvals = np.asarray(pvals)
+    alphaf = alpha  # Notation ?
+
+    sortind = np.argsort(pvals)
+    pvals = np.take(pvals, sortind)
+
+    ntests = len(pvals)
+    alphacSidak = 1 - np.power((1. - alphaf), 1. / ntests)
+    alphacBonf = alphaf / float(ntests)
+
+    alphacSidak_all = 1 - np.power((1. - alphaf),
+                                   1. / np.arange(ntests, 0, -1))
+    notreject = pvals > alphacSidak_all
+    del alphacSidak_all
+
+    nr_index = np.nonzero(notreject)[0]
+    if nr_index.size == 0:
+        # nonreject is empty, all rejected
+        notrejectmin = len(pvals)
+    else:
+        notrejectmin = np.min(nr_index)
+    notreject[notrejectmin:] = True
+    reject = ~notreject
+    del notreject
+
+    pvals_corrected_raw = 1 - np.power((1. - pvals),
+                                       np.arange(ntests, 0, -1))
+    pvals_corrected = np.maximum.accumulate(pvals_corrected_raw)
+    del pvals_corrected_raw
+
+    if not pvals_corrected is None:  # not necessary anymore
+        pvals_corrected[pvals_corrected > 1] = 1
+    pvals_corrected_ = np.empty_like(pvals_corrected)
+    pvals_corrected_[sortind] = pvals_corrected
+    del pvals_corrected
+    reject_ = np.empty_like(reject)
+    reject_[sortind] = reject
+    return reject_, pvals_corrected_, alphacSidak, alphacBonf
 
 
 def get_gene_to_counts(filename):
@@ -119,7 +162,7 @@ def get_sig_from_norm_by_gene(outname, filename):
 
 def quant_row_check(linenum, row):
     if len(row) < 7:
-        raise ValueError(f"line {linenum}: found {len(row)} columns in counts matrix, expected >6")
+        raise FlairInputDataError(f"line {linenum}: found {len(row)} columns in counts matrix, expected >6")
 
 def quant_table_reader(quant_table_tsv):
     """Generator for rows of (name, counts) from counts file"""
@@ -296,17 +339,13 @@ def calculate_sig(args):
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:
-        print("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect. Exiting.", file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
     elif min(list(groupCounts.values())) < 3:
-        print("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.", file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
     elif set(groups).intersection(set(batches)):
-        print("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.", file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
     elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
-        print("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.", file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(outDir, 'workdir')
@@ -322,8 +361,7 @@ def calculate_sig(args):
             if e.errno != errno.EEXIST:
                 raise
     else:
-        print("** Error. Name '%s' already exists. Choose another name for out_dir" % outDir, file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError(f"** Error. Name {outDir} already exists. Choose another name for out_dir")
 
     calc_gene_norm_sig(workdir, quant_table_tsv)
     get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
@@ -381,8 +419,7 @@ def diffExp(counts_matrix=''):
         args.o = args.o + '.diffExp'
 
     if not os.path.exists(args.q):
-        sys.stderr.write('Counts matrix file path does not exist\n')
-        return 1
+        raise FlairInputDataError('Counts matrix file path does not exist')
 
     calculate_sig(args)
 

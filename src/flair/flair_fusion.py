@@ -5,18 +5,20 @@ import argparse
 import os, glob
 import pipettor
 import pysam
+import logging
 from flair.gtf_to_bed import gtf_to_bed
 from flair.bed_to_sequence import bed_to_sequence
 from flair import transcriptomic_chimeras
 from flair import genomic_chimeras
 from collections import defaultdict
+from flair import FlairInputDataError
 
 
 def def_value():
     return set()
 
 def report_nofusions(outputprefix):
-    print('no fusions detected. Exiting', file=sys.stderr)
+    logging.info('no fusions detected. Exiting')
     for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa']:
         f = open(file, 'w')
         f.close()
@@ -38,13 +40,6 @@ def detectfusions():
                         help='Optional: bam file of chimeric reads from transcriptomic alignment. If not provided, this will be made for you')
     parser.add_argument('-o', '--output', default='flair.fusion',
                         help='output file name base for FLAIR isoforms (default: flair.collapse)')
-    # parser.add_argument('--annotated_fa', default=False,
-    #                     help='''specify transcript fasta that corresponds to transcripts in the gtf to run annotation-
-    #                     reliant flair collapse; to ask flair to make transcript sequences given the gtf and genome fa,
-    #                     type --annotated_fa generate''')
-    # parser.add_argument('--annotated_bed', default=False,
-    #                     help='''bedfile of annotated isoforms; if this isn't provided,
-    #           flair will generate the bedfile from the gtf. eventually this argument will be removed''')
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (4)')
     parser.add_argument('--minfragmentsize', type=int, default=40,
@@ -58,7 +53,7 @@ def detectfusions():
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error("No arguments passed. Please provide a bam file, reads, genome, and annotation file")
 
     args = parser.parse_args()
 
@@ -66,18 +61,15 @@ def detectfusions():
         args.reads = args.reads[0].split(',')
     for rfile in args.reads:
         if not os.path.exists(rfile):
-            sys.stderr.write(f'Read file path does not exist: {rfile}\n')
-            sys.exit(1)
+            raise FlairInputDataError(f'Read file path does not exist: {rfile}')
 
     if not os.path.exists(args.genome):
-        sys.stderr.write('Genome file path does not exist: {}\n'.format(args.genome))
-        sys.exit(1)
+        raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
     if not os.path.exists(args.gtf):
         if not args.gtf:
-            sys.stderr.write('Please specify annotated gtf with -f \n')
+            raise FlairInputDataError('Please specify annotated gtf with -f ')
         else:
-            sys.stderr.write('GTF file path does not exist\n')
-        sys.exit(1)
+            raise FlairInputDataError('GTF file path does not exist')
 
 
     # if args.annotated_fa == 'generate':

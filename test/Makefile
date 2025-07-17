@@ -152,7 +152,7 @@ test-align-help: mkdirs
 correct-tests: test-correct test-correct-seg1 test-correct-help
 
 test-correct: mkdirs ${GENOME_FA}
-	flair correct -q ${BASIC_ALIGN_BED} -j $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@
+	flair correct -q ${BASIC_ALIGN_BED} --junction_tab $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@
 	$(call cmp_expect,$@_all_inconsistent.bed)
 	$(call cmp_expect,$@_all_corrected.bed)
 
@@ -383,7 +383,7 @@ transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcri
 	test-transcriptome-seg1 test-transcriptome-help
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
 	$(collapse_diff)
 
 test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
