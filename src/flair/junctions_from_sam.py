@@ -586,9 +586,9 @@ def main():
             #                                                                 ",".join(["0",repr(jcn2JcnInfo[jcn_str].second_block_start)]))
             bed_line = '\t'.join([jcn2JcnInfo[jcn_str].chr,
                                                 intron_left,
-                                                intron_right,
+                                                str(int(intron_right)-1),
                                                 '.',
-                                                str(len(jcn2JcnInfo[jcn_str].block_list)),
+                                                str(min(1000, len(jcn2JcnInfo[jcn_str].block_list))),
                                                  jcn_strand]) + '\n'
             junction_bed_file.write(bed_line)
 
