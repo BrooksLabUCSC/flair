@@ -443,22 +443,21 @@ def collapse(genomic_range='', corrected_reads=''):
     else:
         os.rename(count_file, args.output + 'isoform.counts.txt')
 
-    # TODO: Test this section, longshot has not been tested at all
     if not args.range: # also write .fa and .gtf files
         if args.longshot_bam:
             get_phase_sets(isoforms=args.output+'isoforms.bed',
                     bam=args.longshot_bam,
-                    isoform_reads_map=args.output+'combined.isoform.read.map.txt',
+                    isoform_reads_map=args.output+'isoform.read.map.txt',
                     output=args.output+'phase_sets.txt',
-                    outiso=args.output+'isoforms.ls.bed')
-            os.rename(args.output+'isoforms.ls.bed', args.output+'isoforms.bed')
+                    outiso=args.output+'isoforms.ls.bed',
+                    outmap=args.output+'isoform.ls.read.map.txt')
 
-            bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
-                    outfilename=args.output+'isoforms.fa',
+            bed_to_sequence(query=args.output+'isoforms.ls.bed', genome=args.genome,
+                    outfilename=args.output+'isoforms.ls.fa',
                     vcfinput=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt',
                     vcf_out=args.output+'flair.vcf')
-        else:
-            bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
+            intermediate.append(args.output+'phase_sets.txt')
+        bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
                     outfilename=args.output+'isoforms.fa')
 
     bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')

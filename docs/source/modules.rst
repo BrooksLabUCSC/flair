@@ -390,12 +390,14 @@ Optional arguments
                         minimal fragmentation.
     --quality	        Minimum MAPQ of read assignment to an isoform (default: 0).
     
-**Variant options**
+**Longshot haplotyping options**
     
 .. code:: text
     
     --longshot_bam	BAM file from Longshot containing haplotype information for each read.
     --longshot_vcf	VCF file from Longshot.
+
+If you want to run collapse with longshot data, please see the FLAIR2 capabilities page for more information.
 
 For more information on the Longshot variant caller, see its `github page <https://github.com/pjedge/longshot>`__
     
