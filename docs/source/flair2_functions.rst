@@ -21,11 +21,24 @@ Variant integration
 
 FLAIR has two modalities for phasing variants to discover variant-aware transcript models. The first uses phasing information from longshot, which is comprised of a phase set determined for each read and a set of variants corresponding to each phase set. For the second modality, FLAIR can approach phasing variants that is agnostic to ploidy, which may be worthy of exploration if working with RNA edits and potential cancer-related aneuploidies: 1) given variant calls, FLAIR tabulates the most frequent combinations of variants present in each isoform from the supporting read sequences; 2) from the isoform-defining collapse step, FLAIR generates a set of reads assigned to each isoform; so 3) isoforms that have sufficient read support for a collection of mismatches are determined. This latter method of phasing focuses solely on frequency of groups of mismatches that co-occur within reads and does not use ploidy information to refine haplotypes, allowing for the generation of multiple haplotypes within a gene and transcript model. 
 
+[ALL OF THE BELOW IS NO LONGER RECOMMENDED, PLEASE USE FLAIR variants]
 
 Longshot
 ~~~~~~~~~~~~
 
-Longshot provides phased read outputs, which can be supplied to flair-collapse via ``--longshot_vcf`` and ``--longshot_bam``. The outputs of collapse are the following: 1) isoform models as a bed file, 2) the subset of variants from the longshot vcf that were used, and 3) isoform sequences with variants as a fasta file. The isoform models and variants can be viewed by aligning the isoform sequences and using IGV or other visualization tools.
+Longshot provides phased read outputs, which can be supplied to flair-collapse via ``--longshot_vcf`` and ``--longshot_bam``.
+The outputs of collapse are the following:
+1) isoform models as a bed file (isoforms.ls.bed),
+2) isoform + haplotype to read support mapping (isoform.ls.read.map.txt). This can be used for quantifying and comparing haplotypes.
+3) the subset of variants from the longshot vcf that were used, and
+4) isoform sequences with variants as a fasta file. The isoform models and variants can be viewed by aligning the
+isoform sequences and using IGV or other visualization tools.
+Due to the way that longshot returns haplotypes/phasing, this haplotypes in the bed file
+(reported as PS:[phase set #]:[1 OR 2]) and the haplotypes in the isoform fa file
+(reported as PS:[phase set #]:[0|1 OR 1|0]) do not directly align. If you have identified a haplotype-specific transcript,
+the only way to identify which variants belong to it is to look at them on IGV. You can also use FLAIR variants for a
+much more robust variant-isoform mapping.
+
 .. code:: sh
 
 

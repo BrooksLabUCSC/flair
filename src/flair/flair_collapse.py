@@ -112,10 +112,6 @@ def collapse(genomic_range='', corrected_reads=''):
     parser.add_argument('--annotated_bed', default=False,
             help='''annotation_reliant also requires a bedfile of annotated isoforms; if this isn't provided,
             flair collapse will generate the bedfile from the gtf. eventually this argument will be removed''')
-    parser.add_argument('--range', default='',
-            help='''interval for which to collapse isoforms, formatted chromosome:coord1-coord2 or
-            tab-delimited; if a range is specified, then the aligned reads bam must be specified with -r
-            and the query must be a sorted, bgzip-ed bed file''')
     parser.add_argument('--remove_internal_priming', default=False, action='store_true',
                                             help='specify if want to remove reads with internal priming')
     parser.add_argument('--intprimingthreshold', type=int, default=12,
@@ -157,12 +153,6 @@ def collapse(genomic_range='', corrected_reads=''):
     if args.temp_dir[-1] != '/':
         args.temp_dir += '/'
 
-    if genomic_range: # this module was called internally from collapse_range
-        args.range = genomic_range
-        args.output = args.temp_dir+run_id
-        query = args.temp_dir+run_id+'.sorted.bed.gz'
-        args.quiet = True
-
     args.quality = 0 if args.trust_ends else args.quality
     args.output += '.'
     min_reads = float(args.support) if float(args.support) >= 1 else 3
@@ -180,50 +170,15 @@ def collapse(genomic_range='', corrected_reads=''):
         raise FlairInputDataError('Query file is empty\n')
     if float(args.support) < 1 and not args.gtf:
         raise FlairInputDataError('Provide gtf for gene grouping if -s is percentage of total gene expression\n')
+    if query.endswith('psl'):
+        raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
-    if args.range:
-        # subset out the read sequences and corrected reads corresponding to the specified range
-        if '\t' in args.range:
-            args.range = args.range.split('\t')
-            args.range = args.range[0]+':'+args.range[1]+'-'+args.range[2]
-        args.output += args.range+'.'
-        if args.reads[0][-3:] != 'bam':
-            raise FlairInputDataError('Must provide genome alignment BAM with -r if range is specified\n')
-        bams = []
-        for i in range(len(args.reads)): # subset bam file for alignments within range
-            bams += [args.temp_dir+tempfile_name+args.range+str(i)+'.bam']
-            samtools_cmd = ('samtools', 'view', '-h', args.reads[i], args.range)
-            pipettor.Popen([samtools_cmd], 'w', stdout=bams[-1])
+    precollapse = query # query file unchanged
 
-        args.reads = []
-        for i in range(len(bams)): # read sequences of the alignments within range
-            args.reads += [bams[i][:-3]+'fasta']
-            pipettor.Popen([('samtools', 'fasta', bams[i])], 'w', stdout=args.reads[-1]) # TODO add stderr
-        for f in bams:
-            os.remove(f)
-
-        chrom = args.range[:args.range.find(':')]
-        coord1 = args.range[args.range.find(':')+1:args.range.find('-')]
-        coord2 = args.range[args.range.find('-')+1:]
-        precollapse = args.temp_dir+tempfile_name+args.range+'.bed' # name of subsetted query file
-        coordfile = open(args.temp_dir+tempfile_name+args.range+'.range.bed', 'wt') # write range to a bed file
-        coordfile.write('\t'.join([chrom, coord1, coord2]))
-        coordfile.close()
-
-        # input bedfile must be tabix compressed
-        try:
-            tabix_cmd = ('tabix', '-R', args.temp_dir+tempfile_name+args.range+'.range.bed', query)
-            pipettor.Popen([tabix_cmd], 'w', stdout=precollapse)
-        except Exception as ex:
-            raise Exception("** tabix FAILED for %s. File needs to be a sorted, bgzip-ed, tabix-indexed bed file if range is specified") from ex
-    else:
-        if query.endswith('psl'):
-            raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
-        precollapse = query # query file unchanged
-        args.reads = args.reads[0].split(',') if ',' in args.reads[0] else args.reads # read sequences
-        for r in args.reads:
-            if not os.path.exists(query):
-                raise FlairInputDataError(f'Check that read file {r} exists')
+    args.reads = args.reads[0].split(',') if ',' in args.reads[0] else args.reads # read sequences
+    for r in args.reads:
+        if not os.path.exists(query):
+            raise FlairInputDataError(f'Check that read file {r} exists')
 
     intermediate = []
     if args.promoters:
@@ -258,11 +213,6 @@ def collapse(genomic_range='', corrected_reads=''):
         precollapse = args.output+'tes_supported.bed' # filename of 3' end-supported, corrected reads
         select_from_bed(bedtools_output, query, precollapse)
         intermediate += [precollapse]
-
-    if args.range: # for collapse_range, make sure the minimum number of reads is present
-        count = len(open(precollapse).readlines())
-        if count < min_reads:
-            raise ValueError(f'ERROR: not enough reads in {precollapse}')
 
     if args.annotation_reliant or args.remove_internal_priming:
         if not args.generate_map:
@@ -443,23 +393,21 @@ def collapse(genomic_range='', corrected_reads=''):
     else:
         os.rename(count_file, args.output + 'isoform.counts.txt')
 
-    # TODO: Test this section, longshot has not been tested at all
-    if not args.range: # also write .fa and .gtf files
-        if args.longshot_bam:
-            get_phase_sets(isoforms=args.output+'isoforms.bed',
-                    bam=args.longshot_bam,
-                    isoform_reads_map=args.output+'combined.isoform.read.map.txt',
-                    output=args.output+'phase_sets.txt',
-                    outiso=args.output+'isoforms.ls.bed')
-            os.rename(args.output+'isoforms.ls.bed', args.output+'isoforms.bed')
+    if args.longshot_bam:
+        get_phase_sets(isoforms=args.output+'isoforms.bed',
+                bam=args.longshot_bam,
+                isoform_reads_map=args.output+'isoform.read.map.txt',
+                output=args.output+'phase_sets.txt',
+                outiso=args.output+'isoforms.ls.bed',
+                outmap=args.output+'isoform.ls.read.map.txt')
 
-            bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
-                    outfilename=args.output+'isoforms.fa',
-                    vcfinput=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt',
-                    vcf_out=args.output+'flair.vcf')
-        else:
-            bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
-                    outfilename=args.output+'isoforms.fa')
+        bed_to_sequence(query=args.output+'isoforms.ls.bed', genome=args.genome,
+                outfilename=args.output+'isoforms.ls.fa',
+                vcfinput=args.longshot_vcf, isoform_haplotypes=args.output+'phase_sets.txt',
+                vcf_out=args.output+'flair.vcf')
+        intermediate.append(args.output+'phase_sets.txt')
+    bed_to_sequence(query=args.output+'isoforms.bed', genome=args.genome,
+                outfilename=args.output+'isoforms.fa')
 
     bed_to_gtf(query=args.output+'isoforms.bed', outputfile=args.output+'isoforms.gtf')
 

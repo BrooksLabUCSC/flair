@@ -8,6 +8,7 @@ import pysam
 import logging
 from flair.gtf_to_bed import gtf_to_bed
 from flair.bed_to_sequence import bed_to_sequence
+from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos
 from flair import transcriptomic_chimeras
 from flair import genomic_chimeras
 from collections import defaultdict
@@ -301,10 +302,10 @@ def detectfusions():
         out.write('\t'.join(line))
     out.close()
 
-
-    convertcommand = ['python3', path + 'convert_synthetic_to_genome_bed.py', args.output + '.syntheticAligned.isoforms.bed',
+    maxpromiscuity = 4
+    convert_synthetic_isos(args.gtf, args.output + '.syntheticAligned.isoforms.bed',
                       args.output + '.syntheticAligned.isoform.read.map.txt', freadsname,
-                      args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed']
+                      args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed', os.path.realpath(__file__).split('convert_')[0] + 'dgd_Hsa_all_v71.tsv', maxpromiscuity)
     goodisos = pipettor.DataReader()
     pipettor.run([convertcommand], stdout=goodisos)
     # print(' '.join(convertcommand))
