@@ -81,11 +81,6 @@ options:
                         annotated isoforms; if this isn't provided, flair
                         collapse will generate the bedfile from the gtf.
                         eventually this argument will be removed
-  --range RANGE         interval for which to collapse isoforms, formatted
-                        chromosome:coord1-coord2 or tab-delimited; if a range
-                        is specified, then the aligned reads bam must be
-                        specified with -r and the query must be a sorted,
-                        bgzip-ed bed file
   --remove_internal_priming
                         specify if want to remove reads with internal priming
   --intprimingthreshold INTPRIMINGTHRESHOLD
