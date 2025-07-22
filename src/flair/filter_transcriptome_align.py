@@ -8,7 +8,7 @@ import logging
 import shutil
 from flair.count_sam_transcripts import *
 from flair.flair_transcriptome import makecorrecttempdir
-from multiprocessing import Pool
+import multiprocessing as mp
 from time import sleep
 from flair import FlairInputDataError
 
@@ -133,8 +133,8 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
     chunksize = 1000
 
     chunkresults = []
-
-    p = Pool(args.threads)
+    mp.set_start_method('fork')
+    p = mp.Pool(args.threads)
 
     args.sam = '' # required to pass args to multiprocessing
 

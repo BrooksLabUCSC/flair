@@ -12,7 +12,7 @@ import logging
 from flair.flair_align import inferMM2JuncStrand, intronChainToestarts
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
-from multiprocessing import Pool
+import multiprocessing as mp
 import time
 from collections import Counter
 from flair import FlairInputDataError
@@ -1115,7 +1115,8 @@ def collapsefrombam():
             tempprefixes.append(tempprefix)
     t2 = time.time()
     logging.info(f'region overhead: {t2 - t1}')
-    p = Pool(args.threads)
+    mp.set_start_method('fork')
+    p = mp.Pool(args.threads)
     childErrs = set()
     c = 1
     for i in p.imap(runcollapsebychrom, chunkcmds):

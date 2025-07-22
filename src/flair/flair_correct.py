@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-from multiprocessing import Pool
+import multiprocessing as mp
 import os
 import shutil
 import uuid
@@ -170,7 +170,8 @@ def correct(aligned_reads='', args=None):
 
     juncs = None
     annotations = None
-    p = Pool(args.threads)
+    mp.set_start_method('fork')
+    p = mp.Pool(args.threads)
     childErrs = set()
     for i in p.imap(ssPrep,cmds):
         childErrs.add(i)
