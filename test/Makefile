@@ -98,7 +98,8 @@ default:
 
 test:  align-tests correct-tests collapse-tests quantify-tests \
 	combine-tests predict-productivity-tests diff-iso-usage-tests \
-	plot-usage-tests transcriptome-tests fusion-tests variants-tests
+	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
+	partition-tests
 
 test-diffexpress: diffexp-tests diffsplice-tests
 
@@ -437,6 +438,29 @@ test-fusion: mkdirs ${GENOME_FA}
 
 test-fusion-help: mkdirs
 	flair fusion  --help > $O/$@.out
+	$(call cmp_expect,$@.out)
+
+
+##
+# flair_partition command
+##
+partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads
+
+test-partition-basic: mkdirs
+	flair_partition --threads=2 --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	$(call cmp_expect,$@.ranges.bed)
+	$(call cmp_expect,$@.out)
+
+# merge adjacent partitions
+test-partition-adjacent:
+	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	$(call cmp_expect,$@.ranges.bed)
+	$(call cmp_expect,$@.out)
+
+# minimum reads per partition
+test-partition-min-reads:
+	flair_partition --threads=2 --min_partition_items=3  --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
 

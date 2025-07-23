@@ -1,6 +1,6 @@
 [flake8]
 # E722: do not use bare except; maybe fix later
-ignore = E302,E741,F523,F524
+ignore = E302,E741,F523,F524,W503,W504
 max-complexity = 10
 max-line-length = 128
 
