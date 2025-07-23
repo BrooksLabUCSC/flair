@@ -59,7 +59,7 @@ identify_annotated_gene = "flair.identify_annotated_gene:main"
 identify_gene_isoform = "flair.identify_gene_isoform:main"
 diff_iso_usage = "flair.diff_iso_usage:main"
 diffsplice_fishers_exact = "flair.diffsplice_fishers_exact:main"
-
+flair_partition = "flair.flair_partition:main"
 
 # these are needed for pip install
 [tool.setuptools]
