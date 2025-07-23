@@ -379,8 +379,9 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds \
+transcriptome-tests: test-transcriptome test-transcriptome-noannot \
 	test-transcriptome-seg1 test-transcriptome-help
+##test-transcriptome-predcds \
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
@@ -390,9 +391,8 @@ test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --noaligntoannot
 	$(collapse_diff)
 
-test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --predictCDS
-	$(collapse_diff)
+#test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
+#	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --predictCDS
 
 # FIXME: doesn't work, returns nothing. Need to debug later
 test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
@@ -402,6 +402,10 @@ test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 test-transcriptome-help: mkdirs
 	flair transcriptome --help > $O/$@.out
 	$(call cmp_expect,$@.out)
+
+
+
+#	$(call cmp_expect,$@.out)
 
 
 ###

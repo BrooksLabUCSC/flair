@@ -1,6 +1,6 @@
 chr20	FLAIR	gene	32186486	32188140	.	-	.	gene_id "chr20:32186000";
-chr20	FLAIR	transcript	32186486	32188140	7	-	.	gene_id "chr20:32186000"; transcript_id "9da72b46-6af9-4daa-8e38-a1f148d5e8b8";
-chr20	FLAIR	exon	32186486	32188140	7	-	.	gene_id "chr20:32186000"; transcript_id "9da72b46-6af9-4daa-8e38-a1f148d5e8b8"; exon_number 1
+chr20	FLAIR	transcript	32186486	32188140	7	-	.	gene_id "chr20:32186000"; transcript_id "FL:1-1|FL:1-1";
+chr20	FLAIR	exon	32186486	32188140	7	-	.	gene_id "chr20:32186000"; transcript_id "FL:1-1|FL:1-1"; exon_number 1
 chr20	FLAIR	gene	32188014	32188752	.	-	.	gene_id "chr20:32188000";
-chr20	FLAIR	transcript	32188014	32188752	8	-	.	gene_id "chr20:32188000"; transcript_id "ad2a5463-0861-4fb2-8e1c-c64efc609129";
-chr20	FLAIR	exon	32188014	32188752	8	-	.	gene_id "chr20:32188000"; transcript_id "ad2a5463-0861-4fb2-8e1c-c64efc609129"; exon_number 1
+chr20	FLAIR	transcript	32188014	32188752	8	-	.	gene_id "chr20:32188000"; transcript_id "FL:2-1|FL:2-1";
+chr20	FLAIR	exon	32188014	32188752	8	-	.	gene_id "chr20:32188000"; transcript_id "FL:2-1|FL:2-1"; exon_number 1
