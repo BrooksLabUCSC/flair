@@ -79,12 +79,8 @@ def get_args():
             comprehensive--default set + all subset isoforms;
             ginormous--comprehensive set + single exon subset isoforms''')
 
-    parser.add_argument('--parallelmode', default='auto:1GB',
-                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where 
-                        if the file is less than 1GB, parallelization is done by chromosome, but if it's larger, 
-                        parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion, 
-                        auto:xGB - for setting the auto threshold, it must be in units of GB.''')
-
+    parser.add_argument('--splittoregion', default=False, action='store_true',
+                        help='''force running on each region of non-overlapping reads, no matter the file size''')
     parser.add_argument('--predictCDS', default=False, action='store_true',
                         help='specify if you want to predict the CDS of the final isoforms. '
                              'Will be output in the final bed file but not the gtf file. '
@@ -120,12 +116,7 @@ def check_file_paths(args):
     if not os.path.exists(args.genomealignedbam):
         raise FlairInputDataError(f'Aligned reads file path does not exist: {args.genomealignedbam}')
     if not os.path.exists(args.genome):
-        raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
-    if not (args.parallelmode in {'bychrom', 'byregion'}
-        or (args.parallelmode[:5] == 'auto:'
-            and ((args.parallelmode[-2:] == 'GB' and args.parallelmode[5:-2].replace(".", "").isnumeric())
-                 or args.parallelmode[5:].replace(".", "").isnumeric()))):
-        raise FlairInputDataError(f'parallelmode {args.parallelmode} is not in an allowed format. See docs for allowed formats')
+        raise FlairInputDataError('Genome file path does not exist: {}\n'.format(args.genome))
 
 
 def add_preset_args(args):
@@ -383,7 +374,7 @@ def get_tname_to_exons(gtf):
                     allchromtotranscripttoexons[chrom] = {}
                 this_transcript = line[8][line[8].find('transcript_id') + 15:]
                 this_transcript = this_transcript[:this_transcript.find('"')]
-                this_gene = line[8].split('gene_id "')[1].split('"')[0] #.replace('_', '-')
+                this_gene = line[8].split('gene_id "')[1].split('"')[0].replace('_', '-')
                 if (this_transcript, this_gene) not in allchromtotranscripttoexons[chrom]:
                     allchromtotranscripttoexons[chrom][(this_transcript, this_gene)] = [(None, None, strand), []]
 
@@ -569,7 +560,7 @@ def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
                 start, end = exons[0][0], exons[-1][1]
                 estarts = [x[0] - start for x in exons]
                 esizes = [x[1] - x[0] for x in exons]
-                bedline = [thischrom, start, end, transcript + '|' + gene, '.', strand, start, end, '0', len(exons),
+                bedline = [thischrom, start, end, transcript + '_' + gene, '.', strand, start, end, '0', len(exons),
                            ','.join([str(x) for x in esizes]), ','.join([str(x) for x in estarts])]
                 if strand == '-':
                     exons = exons[::-1]
@@ -580,7 +571,7 @@ def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
                         thisexonseq = revcomp(thisexonseq)
                     exonseq.append(thisexonseq)
                 annotbed.write('\t'.join([str(x) for x in bedline]) + '\n')
-                annotfa.write('>' + transcript + '|' + gene + '\n')
+                annotfa.write('>' + transcript + '_' + gene + '\n')
                 annotfa.write(''.join(exonseq) + '\n')
         transcriptomealignandcount(args, tempprefix + '.reads.fasta',
                                    tempprefix + '.annotated_transcripts.fa',
@@ -588,27 +579,25 @@ def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
                                    tempprefix + '.matchannot.counts.tsv',
                                    tempprefix + '.matchannot.read.map.txt', True)
         with open(tempprefix + '.matchannot.bed', 'w') as annotbed:
-            c = 1
             for line in open(tempprefix + '.matchannot.read.map.txt'):
                 striso, reads = line.rstrip().split('\t', 1)
                 reads = reads.split(',')
                 goodaligntoannot.extend(reads)
                 if len(reads) >= args.support:
-                    transcript, gene = striso.split('|')
+                    transcript = '_'.join(striso.split('_')[:-1])
+                    gene = striso.split('_')[-1]
                     if (transcript, gene) in annottranscripttoexons:
                         exons = annottranscripttoexons[(transcript, gene)]
                         start, end = exons[0][0], exons[-1][1]
                         estarts = [x[0] - start for x in exons]
                         esizes = [x[1] - x[0] for x in exons]
                         strand = transcripttostrand[(transcript, gene)]
-                        bedline = [thischrom, start, end, transcript + '|' + gene,
-                                   len(reads), strand, start, end, '0',
+                        bedline = [thischrom, start, end, transcript + '_' + gene, len(reads), strand, start, end, '0',
                                    len(exons), ','.join([str(x) for x in esizes]), ','.join([str(x) for x in estarts])]
                         annotbed.write('\t'.join([str(x) for x in bedline]) + '\n')
                         firstpasssingleexons.update(set(exons))
                         annotjuncs = tuple([(exons[i][1], exons[i + 1][0]) for i in range(len(exons) - 1)])
                         supannottranscripttojuncs[(transcript, gene)] = (len(reads), annotjuncs)
-                        c += 1
     else:
         with open(tempprefix + '.matchannot.counts.tsv', 'w') as countsout, open(
                 tempprefix + '.matchannot.read.map.txt', 'w') as mapout, open(tempprefix + '.matchannot.bed',
@@ -882,20 +871,18 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                                   genetoannotjuncs, genome):
     with open(tempprefix + '.firstpass.bed', 'w') as isoout, open(tempprefix + '.firstpass.fa', 'w') as seqout:
         # THIS IS WHERE WE CAN GET GENES AND ADJUST NAMES
-        # annotnametousedcounts = {}
-        c = 1
+        annotnametousedcounts = {}
         for isoname in firstpass:
             thisiso = firstpass[isoname]
             # Adjust name based on annotation
-            transcriptID, transcriptName = tempprefix.split('/')[-1] + 'tmpnovel' + str(c), ''
-            thisgene = thischrom + ':' + str(round(thisiso.start, -3)) #thischrom.replace('_', '-')
+            thistranscript, thisgene = thisiso.name, thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
             if thisiso.juncs != () and thisiso.juncs in juncstotranscript:
-                transcriptName, thisgene = juncstotranscript[thisiso.juncs]
-                # if thistranscript in annotnametousedcounts:
-                #     annotnametousedcounts[thistranscript] += 1
-                #     thistranscript = thistranscript + '-endvar' + str(annotnametousedcounts[thistranscript])
-                # else:
-                #     annotnametousedcounts[thistranscript] = 1
+                thistranscript, thisgene = juncstotranscript[thisiso.juncs]
+                if thistranscript in annotnametousedcounts:
+                    annotnametousedcounts[thistranscript] += 1
+                    thistranscript = thistranscript + '-endvar' + str(annotnametousedcounts[thistranscript])
+                else:
+                    annotnametousedcounts[thistranscript] = 1
             else:
                 if thisiso.juncs != ():
                     gene_hits = getsplicedisogenehits(thisiso, junctogene, genetoannotjuncs)
@@ -905,16 +892,15 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                 if gene_hits:
                     sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
                     thisgene = sortedgenes[0][0]
-            thisiso.name = transcriptID + '|' + transcriptName + '|' + thisgene
+            thisiso.name = thistranscript + '_' + thisgene
             isoout.write('\t'.join(thisiso.getbedline()) + '\n')
             seqout.write('>' + thisiso.name + '\n')
             seqout.write(thisiso.getsequence(genome) + '\n')
-            c += 1
 
 
 def getisogenefromname(isogene):
-    iso = '|'.join(isogene.split('|')[:-1])
-    gene = isogene.split('|')[-1]
+    iso = '_'.join(isogene.split('_')[:-1])
+    gene = isogene.split('_')[-1]
     return iso, gene
 
 
@@ -964,7 +950,7 @@ def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
     score = len(readnames)
     marker, iso = isoid
     estarts, esizes = getexonsfromjuncs(juncs, start, end)
-    bedline = [chrom, start, end, iso + '|' + gene, score, strand, start, end,
+    bedline = [chrom, start, end, iso + '_' + gene, score, strand, start, end,
                getrgb(iso, strand, juncs), len(estarts), ','.join([str(x) for x in esizes]),
                ','.join([str(x) for x in estarts])]
     gtflines = []
@@ -987,13 +973,10 @@ def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
 def combineannotnovelwriteout(args, genetojuncstoends, genome):
     with open(args.output + '.isoforms.bed', 'w') as isoout, open(args.output + '.isoform.read.map.txt', 'w') as mapout, open(
             args.output + '.isoforms.gtf', 'w') as gtfout, open(args.output + '.isoforms.fa', 'w') as seqout, open(args.output + '.isoform.counts.txt', 'w') as countsout:
-        sjcID = 1
         for gene in genetojuncstoends:
             gtflines, tstarts, tends = [], [], []
             for chrom, strand, juncs in genetojuncstoends[gene]:
                 endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
-                # print(gene, juncs, [x[2] for x in endslist])
-
                 endslist = collapseendgroups(args.end_window, endslist, False)
                 # FIXME could try accounting for all reads assigned to isoforms - assign them to closest ends
                 # not sure how much of an issue this is
@@ -1007,33 +990,25 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                     else:
                         endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
                         endslist = endslist[:args.max_ends]
-                # nametousedcounts = {}
-                endVarID = 1
+                nametousedcounts = {}
                 for isoinfo in endslist:
                     marker, iso = isoinfo[2]
-                    # iso = iso.split('-endvar')[0]
-                    # if iso in nametousedcounts:
-                    #     nametousedcounts[iso] += 1
-                    #     iso = iso + '-endvar' + str(nametousedcounts[iso])
-                    # else:
-                    #     nametousedcounts[iso] = 1
-                    # print(iso)
-                    isoname = iso.split('|')[-1]
-                    iso = f'FL:{sjcID}-{endVarID}'
-                    if isoname != '': iso = iso + '|' + isoname
-                    else: iso = iso + '|' + iso
+                    iso = iso.split('-endvar')[0]
+                    if iso in nametousedcounts:
+                        nametousedcounts[iso] += 1
+                        iso = iso + '-endvar' + str(nametousedcounts[iso])
+                    else:
+                        nametousedcounts[iso] = 1
                     isoinfo[2] = (marker, iso)
                     bedline, gtffortranscript, tseq = getbedgtfoutfrominfo(isoinfo, chrom, strand, juncs, gene, genome)
                     isoout.write(bedline)
                     tstarts.append(isoinfo[0])
                     tends.append(isoinfo[1])
                     gtflines.extend(gtffortranscript)
-                    mapout.write(iso + '|' + gene + '\t' + ','.join(isoinfo[3]) + '\n')
-                    countsout.write(iso + '|' + gene + '\t' + str(len(isoinfo[3])) + '\n')
-                    seqout.write('>' + iso + '|' + gene + '\n')
+                    mapout.write(iso + '_' + gene + '\t' + ','.join(isoinfo[3]) + '\n')
+                    countsout.write(iso + '_' + gene + '\t' + str(len(isoinfo[3])) + '\n')
+                    seqout.write('>' + iso + '_' + gene + '\n')
                     seqout.write(tseq + '\n')
-                    endVarID += 1
-                sjcID += 1
             gtflines.insert(0, [chrom, 'FLAIR', 'gene', min(tstarts) + 1, max(tends), '.', gtflines[0][6], '.',
                                 'gene_id "' + gene + '";'])
             for g in gtflines:
@@ -1091,17 +1066,6 @@ def runcollapsebychrom(listofargs):
         for f in temptoremove:
             os.remove(f)
 
-def decide_parallel_mode(parallel_option, genomealignedbam):
-    ###parallel_option format already validated in option validation method
-    if parallel_option in {'bychrom', 'byregion'}: return parallel_option
-    else:
-        if parallel_option[-2:] == 'GB': threshold = float(parallel_option[5:-2])
-        else: threshold = float(parallel_option[5:])
-        filesizeGB = os.path.getsize(genomealignedbam) / 1e+9
-        if filesizeGB > threshold: return 'byregion'
-        else: return 'bychrom'
-
-
 
 def collapsefrombam():
     args = get_args()
@@ -1113,10 +1077,7 @@ def collapsefrombam():
     logging.info('Getting regions')
     t1 = time.time()
     allregions = []
-
-
-
-    if decide_parallel_mode(args.parallelmode, args.genomealignedbam) == 'bychrom':  # less than 1G
+    if os.path.getsize(args.genomealignedbam) < 1e+9 and not args.splittoregion:  # less than 1G
         for chrom in allchrom:
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))

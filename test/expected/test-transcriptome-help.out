@@ -56,14 +56,8 @@ options:
                         comprehensive--default set + all subset isoforms;
                         ginormous--comprehensive set + single exon subset
                         isoforms
-  --parallelmode PARALLELMODE
-                        parallelization mode. Default: "auto:1GB" This
-                        indicates an automatic threshold where if the file is
-                        less than 1GB, parallelization is done by chromosome,
-                        but if it's larger, parallelization is done by region
-                        of non-overlapping reads. Other modes: bychrom,
-                        byregion, auto:xGB - for setting the auto threshold,
-                        it must be in units of GB.
+  --splittoregion       force running on each region of non-overlapping reads,
+                        no matter the file size
   --predictCDS          specify if you want to predict the CDS of the final
                         isoforms. Will be output in the final bed file but not
                         the gtf file. Productivity annotation is also added in
