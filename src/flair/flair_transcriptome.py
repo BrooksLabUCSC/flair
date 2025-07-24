@@ -79,8 +79,11 @@ def get_args():
             comprehensive--default set + all subset isoforms;
             ginormous--comprehensive set + single exon subset isoforms''')
 
-    parser.add_argument('--splittoregion', default=False, action='store_true',
-                        help='''force running on each region of non-overlapping reads, no matter the file size''')
+    parser.add_argument('--parallelmode', default='auto:1GB',
+                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where 
+                            if the file is less than 1GB, parallelization is done by chromosome, but if it's larger, 
+                            parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion, 
+                            auto:xGB - for setting the auto threshold, it must be in units of GB.''')
     parser.add_argument('--predictCDS', default=False, action='store_true',
                         help='specify if you want to predict the CDS of the final isoforms. '
                              'Will be output in the final bed file but not the gtf file. '
@@ -116,7 +119,13 @@ def check_file_paths(args):
     if not os.path.exists(args.genomealignedbam):
         raise FlairInputDataError(f'Aligned reads file path does not exist: {args.genomealignedbam}')
     if not os.path.exists(args.genome):
-        raise FlairInputDataError('Genome file path does not exist: {}\n'.format(args.genome))
+        raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
+    if not (args.parallelmode in {'bychrom', 'byregion'}
+            or (args.parallelmode[:5] == 'auto:'
+                and ((args.parallelmode[-2:] == 'GB' and args.parallelmode[5:-2].replace(".", "").isnumeric())
+                     or args.parallelmode[5:].replace(".", "").isnumeric()))):
+        raise FlairInputDataError(
+            f'parallelmode {args.parallelmode} is not in an allowed format. See docs for allowed formats')
 
 
 def add_preset_args(args):
@@ -1014,6 +1023,15 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
             for g in gtflines:
                 gtfout.write('\t'.join([str(x) for x in g]) + '\n')
 
+def decide_parallel_mode(parallel_option, genomealignedbam):
+    ###parallel_option format already validated in option validation method
+    if parallel_option in {'bychrom', 'byregion'}: return parallel_option
+    else:
+        if parallel_option[-2:] == 'GB': threshold = float(parallel_option[5:-2])
+        else: threshold = float(parallel_option[5:])
+        filesizeGB = os.path.getsize(genomealignedbam) / 1e+9
+        if filesizeGB > threshold: return 'byregion'
+        else: return 'bychrom'
 
 def runcollapsebychrom(listofargs):
     args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = listofargs
@@ -1077,7 +1095,7 @@ def collapsefrombam():
     logging.info('Getting regions')
     t1 = time.time()
     allregions = []
-    if os.path.getsize(args.genomealignedbam) < 1e+9 and not args.splittoregion:  # less than 1G
+    if decide_parallel_mode(args.parallelmode, args.genomealignedbam) == 'bychrom':
         for chrom in allchrom:
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))
