@@ -1101,7 +1101,7 @@ def collapsefrombam():
             allregions.append((chrom, 0, chromsize))
     else:
         pipettor.run([('bedtools', 'bamtobed', '-i', args.genomealignedbam),
-                      ('bedPartition', '-minPartitionItems=1000', '-parallel=' + str(args.threads), '/dev/stdin',
+                      ('flair_partition', '--min_partition_items', '1000', '--threads', str(args.threads), '/dev/stdin',
                        tempDir + 'regions.bed')])
         for line in open(tempDir + 'regions.bed'):
             line = line.rstrip().split('\t')
