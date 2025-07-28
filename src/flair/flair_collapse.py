@@ -318,6 +318,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
     # if we want a certain read fraction to support the isoform (instead of a number of reads)
     if float(args.support) < 1:
+        logging.info('Filtering by support fraction')
         filter_isoforms_by_proportion_of_gene_expr(isoforms=args.output+'firstpass.bed',
                 outfilename=args.output+'firstpass.filtered.bed', support=args.support)
         os.rename(args.output+'firstpass.filtered.bed', args.output+'firstpass.bed')
