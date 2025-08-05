@@ -82,7 +82,7 @@ def collapse(genomic_range='', corrected_reads=''):
             none--best TSSs/TESs chosen for each unique set of splice junctions;
             longest--single TSS/TES chosen to maximize length;
             best_only--single most supported TSS/TES used in conjunction chosen (none)''')
-    parser.add_argument('-i', '--isoformtss', default=False, action='store_true',
+    parser.add_argument('-i', '--isoformtss', default=True, action='store_true',
             help='''when specified, TSS/TES for each isoform will be determined from supporting reads
             for individual isoforms (default: not specified, determined at the gene level)''')
     parser.add_argument('--no_gtf_end_adjustment', default=False, action='store_true',

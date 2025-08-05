@@ -1,6 +1,6 @@
 # Major user-visible changes
 
-## [3.0.0]
+## [3.0.0] 2025-08-01
 * General
   * Removed dependencies on pandas and rpy2.
   * Added proper logging throughout
@@ -44,8 +44,8 @@
   * FLAIR variants
     * Allows detection of variant-aware transcripts through 
     identification of read clusters with shared variants
-    * Uses variants detected either from WGS or from lr-RNA-seq. 
-    We recommend Longshot.
+    * Integrates user-defined variants detected from WGS, exome sequencing, 
+    or from lr-RNA-seq. Tested on WGS and lr-RNA-seq.
     * Good for identifying splicing of specific variants
     * Can be used in conjunction with FLAIR diffexp or diff_iso_usage 
     to identify changes in variant-aware transcripts between samples/groups
