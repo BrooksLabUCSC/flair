@@ -58,7 +58,7 @@ def filter_isoforms_by_proportion_of_gene_expr(isoforms, outfilename, support):
             if gene_total == 0:
                 continue
             for iso in genes[gene]:
-                if float(iso[0][-1])/gene_total >= support:
+                if float(iso[-1])/gene_total >= support:
                     writer.writerow(iso)
 
 if __name__ == "__main__":

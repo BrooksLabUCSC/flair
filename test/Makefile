@@ -287,14 +287,16 @@ test-quantify: mkdirs
 	samtools view $O/$@.A1.A.flair.aligned.bam | cut -f 1,3 > $O/$@.A1.A.flair.aligned.readtotranscript.txt
 	$(call cmp_expect_sort,$@.A1.A.flair.aligned.readtotranscript.txt)
 	$(call cmp_expect,$@.tpm.tsv)
+	$(call cmp_expect,$@.counts.tsv)
 
 ${TEST_QUANTIFY_B1_BAM}: test-quantify
 
-# without map or bam output
+# without map or bam outputs
 test-quantify-nobam : mkdirs
 	rm -rf $O/$@.tmp
 	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
 	$(call cmp_expect,$@.tpm.tsv)
+	$(call cmp_expect,$@.counts.tsv)
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out
@@ -380,11 +382,15 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-noannot test-transcriptome-predcds \
+transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-predcds \
 	test-transcriptome-seg1 test-transcriptome-help
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent
+	$(collapse_diff)
+
+test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --stringent --parallelmode byregion
 	$(collapse_diff)
 
 test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}

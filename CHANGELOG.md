@@ -1,13 +1,63 @@
 # Major user-visible changes
 
-## [next release]
-* Removed dependencies on pandas and rpy2.
-* Removed -g genome option from flair correct.
+## [3.0.0]
+* General
+  * Removed dependencies on pandas and rpy2.
+  * Added proper logging throughout
+* FLAIR align
+  * Cleaned up output files - now outputs unfiltered bam and filtered bed
+* FLAIR correct
+  * Changed orthogonal junction inputs - now specify whether your file is 
+  a bed (--junction_bed) or whether it comes from STAR short-read RNA alignment (--junction_tab)
+  * Now support detecting junctions directly from long read data: 
+  run intronProspector to generate junction bed, input that via --junction_bed, 
+  specify desired junction read support with --junction_support
+  * Removed -g genome option, increases speed
+  * Now produces sorted output files
+* FLAIR collapse
+  * cleaned up output files, now only gives: isoforms.bed, isoforms.gtf, isoforms.fa, isoform.read.map.txt
+  * (experimental) added filter for removing reads with internal priming. 
+  Options: --remove_internal_priming, --intprimingthreshold, --intprimingfracAs
+  * allow CDS prediction in collapse with --predictCDS
+  * removed genomic range option (too fragile). For parallelization, run FLAIR transcriptome
+  * made gtf (annotation) parsing more robust, especially for unsorted files 
+  * improved fractional support filtering (with --support < 1)
+  * improved isoform haplotyping through longshot - this is being deprecated though, please use FLAIR variants
+* FLAIR quantify
+  * improved fraction of reads assigned to isoforms and recovered (better handling of ambiguous alignments)
+  * improved processing of multiple samples so running requires less available memory and is faster
+* FLAIR diffexp and diffsplice
+  * recoded directly in R to improve performance
+* New modules
+  * FLAIR transcriptome
+    * Combines the functions of correct and collapse
+    * Runs directly from and aligned bam file
+    * Performs more effective parallelization (specify in --parallelmode)
+  * FLAIR fusion
+    * Detects gene fusions and fusion isoforms
+    * Fusion detection accuracy is comparable to JAFFAL and CTAT-lr-fusion
+    * Fusion isoform detection is much more accurate
+  * FLAIR combine
+    * Allows combining transcriptomes generated from different samples
+    * Fusion isoforms can be combined with collapsed isoforms to form a full transcriptome
+    * Manipulate filtering of single exon isoforms with --include_se
+  * FLAIR variants
+    * Allows detection of variant-aware transcripts through 
+    identification of read clusters with shared variants
+    * Uses variants detected either from WGS or from lr-RNA-seq. 
+    We recommend Longshot.
+    * Good for identifying splicing of specific variants
+    * Can be used in conjunction with FLAIR diffexp or diff_iso_usage 
+    to identify changes in variant-aware transcripts between samples/groups
+    
+
+
+
 
 ## [2.2.1] 2025-04-06
 * Fixed case where --quality=0 default didn't work, as it tested for greater
   than the cutoff.
-* Converted all Python code to use 4-space indentation.  Previpoust some code
+* Converted all Python code to use 4-space indentation.  Previously some code
   used tabs, other used 4-spaces.
 * Added missing dependencies for plot_isoform_usage.
 

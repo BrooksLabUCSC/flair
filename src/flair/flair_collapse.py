@@ -107,8 +107,6 @@ def collapse(genomic_range='', corrected_reads=''):
     parser.add_argument('--mm2_args', type=str, default=[],
             help='''additional minimap2 arguments when aligning reads first-pass transcripts;
             separate args by commas, e.g. --mm2_args=-I8g,--MD ''')
-    parser.add_argument('--quiet', default=False, action='store_true',
-                    help='''Suppress progress statements from being printed''')
     parser.add_argument('--annotated_bed', default=False,
             help='''annotation_reliant also requires a bedfile of annotated isoforms; if this isn't provided,
             flair collapse will generate the bedfile from the gtf. eventually this argument will be removed''')
@@ -294,8 +292,6 @@ def collapse(genomic_range='', corrected_reads=''):
         collapse_cmd += ['-i']
     if args.support < 1:
         collapse_cmd += ['-s', str(args.support)]
-    if args.quiet:
-        collapse_cmd += ['--quiet']
     pipettor.run(collapse_cmd)
 
 
@@ -318,6 +314,7 @@ def collapse(genomic_range='', corrected_reads=''):
 
     # if we want a certain read fraction to support the isoform (instead of a number of reads)
     if float(args.support) < 1:
+        logging.info('Filtering by support fraction')
         filter_isoforms_by_proportion_of_gene_expr(isoforms=args.output+'firstpass.bed',
                 outfilename=args.output+'firstpass.filtered.bed', support=args.support)
         os.rename(args.output+'firstpass.filtered.bed', args.output+'firstpass.bed')
