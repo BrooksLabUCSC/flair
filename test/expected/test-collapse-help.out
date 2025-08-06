@@ -51,10 +51,9 @@ options:
                         set of splice junctions; longest--single TSS/TES
                         chosen to maximize length; best_only--single most
                         supported TSS/TES used in conjunction chosen (none)
-  -i, --isoformtss      when specified, TSS/TES for each isoform will be
-                        determined from supporting reads for individual
-                        isoforms (default: not specified, determined at the
-                        gene level)
+  -i, --genetss         when specified, TSS/TES for each isoform will be
+                        determined standardized at the gene level (default:
+                        not specified, determined for each individual isoform)
   --no_gtf_end_adjustment
                         when specified, TSS/TES from the gtf provided with -f
                         will not be used to adjust isoform TSSs/TESs each
@@ -75,7 +74,6 @@ options:
   --mm2_args MM2_ARGS   additional minimap2 arguments when aligning reads
                         first-pass transcripts; separate args by commas, e.g.
                         --mm2_args=-I8g,--MD
-  --quiet               Suppress progress statements from being printed
   --annotated_bed ANNOTATED_BED
                         annotation_reliant also requires a bedfile of
                         annotated isoforms; if this isn't provided, flair
