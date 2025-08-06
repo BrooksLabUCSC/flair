@@ -2,28 +2,36 @@
 
 import argparse
 import sys
-from multiprocessing import Pool
+import multiprocessing as mp
 import os
-import pybedtools
 import shutil
 import uuid
+import pipettor
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import ssPrep
+from flair import FlairInputDataError
+
+import logging
 
 def parseargs(aligned_reads=''):
     parser = argparse.ArgumentParser(description='flair-correct parse options',
-                                                                     usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]')
+                                                                     usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
     required = parser.add_argument_group('required named arguments')
     atleastone = parser.add_argument_group('at least one of the following arguments is required')
     if not aligned_reads:
         required.add_argument('-q', '--query', type=str, required=True,
                                                   help='uncorrected bed12 file')
-    required.add_argument('-g', '--genome', type=str, required=True,
-                                              help='FastA of reference genome')
-    atleastone.add_argument('-j', '--shortread', type=str, default='',
-                                                    help='bed format splice junctions from short-read sequencing')
     atleastone.add_argument('-f', '--gtf', default='',
-                                                    help='GTF annotation file')
+                            help='GTF annotation file')
+    mutexc = atleastone.add_mutually_exclusive_group(required=False)
+    mutexc.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
+                                               'Use this option if you aligned your short-reads with STAR, '
+                                               'STAR will automatically output this file')
+    mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
+                                               '(can be generated from short-read alignment with junctions_from_sam)')
+    parser.add_argument('--junction_support', type = int, default=1,
+                        help='if providing short-read junctions, minimum junction support required to keep junction. '
+                             'If your junctions file is in bed format, the score field will be used for read support. Default=1')
     parser.add_argument('-o', '--output', default='flair',
                                             help='output name base (default: flair)')
     parser.add_argument('-t', '--threads', type=int, default=4,
@@ -35,9 +43,12 @@ def parseargs(aligned_reads=''):
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error('No arguments passed')
 
     args = parser.parse_args()
+
+    if not (args.junction_tab or args.junction_bed):
+        logging.info('No short-read junctions provided. NO NOVEL SPLICE SITES WILL BE DETECTED.')
     return args
 
 def correct(aligned_reads='', args=None):
@@ -53,15 +64,6 @@ def correct(aligned_reads='', args=None):
     if not args.nvrna:
         resolveStrand = True
 
-    if os.path.isfile(args.genome+".fai"):
-        pass
-    else:
-        testString = """
-                chrX 1  100   feature1  0 +
-        """
-        # TODO: Does this create .fai?
-        pybedtools.BedTool(testString, from_string=True)
-
     # make temp dir for dumping
     tempDirName = str(uuid.uuid4())
     try:
@@ -69,8 +71,7 @@ def correct(aligned_reads='', args=None):
         tempDir = os.path.join(current_directory, tempDirName)
         os.mkdir(tempDir)
     except OSError:
-        print("Creation of the directory %s failed" % tempDirName)
-        sys.exit(1)
+        raise OSError("Creation of the directory %s failed" % tempDirName)
 
     # There are a few functions that evaluate what verbose is defined as.
     # Instead of passing it around, just global it.
@@ -90,18 +91,21 @@ def correct(aligned_reads='', args=None):
         juncs, chromosomes, knownSS = gtfToSSBed(args.gtf, knownSS, printErr, printErrFname, verbose)
 
     # Do the same for the other juncs file.
-    if args.shortread:
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, args.shortread, chromosomes, args.genome,
+    if args.junction_tab or args.junction_bed:
+        if args.junction_tab:
+            shortread, type = args.junction_tab, 'tab'
+        else:
+            shortread, type = args.junction_bed, 'bed'
+
+        juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if addFlag == False:
-            sys.stderr.write('\nERROR Added no extra junctions from {}\n\n'.format(args.shortread))
-            sys.exit(1)
+            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}\n')
     knownSS = dict()
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
-        print("No junctions from GTF or junctionsBed to correct with. Exiting...", file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError("No junctions from GTF or junctionsBed to correct with. Exiting...")
 
     annotations = dict()
     for chrom, data in juncs.items():
@@ -118,6 +122,7 @@ def correct(aligned_reads='', args=None):
     readDict = dict()
     notfound = False
     prevchrom = False
+    tempoutfile = None
     with open(query) as lines, open("%s_cannot_verify.bed" % args.output,'w') as nochrom:
         outDict = dict()
         for line in lines:
@@ -143,7 +148,9 @@ def correct(aligned_reads='', args=None):
                 #with open(outDict[chrom], 'a') as tempoutfile:
                 #print(line.rstrip(),file=outDict[chrom])
     nochrom.close()
-    tempoutfile.close()
+    if tempoutfile:
+        tempoutfile.close()
+
     if notfound is False:
         os.remove(f'{args.output}_cannot_verify.bed')
 
@@ -154,7 +161,7 @@ def correct(aligned_reads='', args=None):
 
 #               outDict[chrom].close()
 
-        cmds.append([reads, juncs, args.genome, args.ss_window, chrom, resolveStrand,
+        cmds.append([reads, juncs, args.ss_window, chrom, resolveStrand,
       tempDir, printErrFname])
 
     if printErr:
@@ -163,15 +170,15 @@ def correct(aligned_reads='', args=None):
 
     juncs = None
     annotations = None
-    p = Pool(args.threads)
+    mp.set_start_method('fork')
+    p = mp.Pool(args.threads)
     childErrs = set()
     for i in p.imap(ssPrep,cmds):
         childErrs.add(i)
     p.close()
     p.join()
     if len(childErrs) > 1:
-        print(childErrs,file=sys.stderr)
-        sys.exit(1)
+        raise Exception(childErrs)
 
     with open("%s_all_inconsistent.bed" % args.output,'wb') as inconsistent:
         for chrom in readDict:
@@ -183,6 +190,10 @@ def correct(aligned_reads='', args=None):
         for chrom in readDict:
             with open(os.path.join(tempDir, "%s_corrected.bed" % chrom),'rb') as fd:
                 shutil.copyfileobj(fd, corrected, 1024*1024*10)
+    pipettor.run([('bedtools', 'sort', '-i', correct_bed)], stdout=args.output + '_all_corrected.sorted.bed')
+    shutil.move(args.output + '_all_corrected.sorted.bed', correct_bed)
+    pipettor.run([('bedtools', 'sort', '-i', args.output + '_all_inconsistent.bed')], stdout=args.output + '_all_inconsistent.sorted.bed')
+    shutil.move(args.output + '_all_inconsistent.sorted.bed', args.output + '_all_inconsistent.bed')
     if printErr:
         shutil.move(printErrFname, f'{args.output}.err')
     shutil.rmtree(tempDir)

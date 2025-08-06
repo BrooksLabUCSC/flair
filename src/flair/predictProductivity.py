@@ -18,7 +18,9 @@
 
 
 import sys
-import pybedtools
+import pipettor
+import os
+from flair import FlairInputDataError
 ########################################################################
 # CommandLine
 ########################################################################
@@ -45,7 +47,7 @@ class CommandLine(object):
         '''
         import argparse
         self.parser = argparse.ArgumentParser(description=' predictProductivity - a tool.',
-                                             add_help=True, #default is True
+                                             add_help=True, # default is True
                                              prefix_chars='-',
                                              usage='%(prog)s -i isoforms.bed -f genome.fa -g annotations.gtf -o outputprefix')
         # Add args
@@ -91,6 +93,8 @@ class Isoform(object):
         self.orfs      = list()
         self.exonSizes = list()
         self.ptcpoint = ''
+        self.allEsizes = list()
+        self.allExons = list()
 
 
 ########################################################################
@@ -99,7 +103,11 @@ class Isoform(object):
 
 
 def getStarts(gtf):
-    starts = list()
+    # starts = list()
+    starts = 'tmp_predictProd_starts.bed'
+    scount = 0
+    out = open(starts, 'w')
+    tnamenmdexcep = set()
     with open(gtf) as lines:
         for l in lines:
             if l[0] == "#": continue
@@ -108,13 +116,17 @@ def getStarts(gtf):
             if cols[2] == "start_codon":
                 gene = cols[8][cols[8].find('gene_id')+len('gene_id')+2:]
                 gene = gene[:gene.find('"')]
-                # gene = re.search("(ENSG[^\.]+)", cols[-1]).group(1)
-
-                starts.append((chrom,c1,c2,gene,".",strand))
-    if (len(starts)) == 0:
-        sys.stderr.write('ERROR, no start codons were found in', gtf)
-        sys.exit(1)
-    return starts
+                scount += 1
+                out.write('\t'.join([str(x) for x in [chrom,c1,c2,gene,".",strand]]) + '\n')
+                # starts.append((chrom,c1,c2,gene,".",strand))
+            if cols[2] == 'transcript':
+                if 'NMD_exception' in cols[8]:
+                    transcript = cols[8].split('transcript_id "')[1].split('"')[0]
+                    tnamenmdexcep.add(transcript)
+    out.close()
+    if scount == 0:
+        raise FlairInputDataError(f'ERROR, no start codons were found in {gtf}')
+    return starts, tnamenmdexcep
 
 
 def split_iso_gene(iso_gene):
@@ -142,17 +154,22 @@ def split_iso_gene(iso_gene):
 def getSeqs(bed, genome):
 
     isoDict = dict()
-    bt = pybedtools.BedTool(bed)
-    bt.sequence(fi=genome, tab=True, s=True, split=True, name=True)
-    with open(bt.seqfn) as entries:
-        for entry in entries:
-            read,seq  = entry.split()
-            # accommodate different bedtools versions
-            read = read.split('::')[0]
-            read = read.split("(")[0]
+    dr = pipettor.DataReader()
+    bedtools_cmd = ('bedtools', 'getfasta', '-fi', genome, '-bed', bed, '-tab', '-split', '-s', '-name')
+    pipettor.run([bedtools_cmd], stdout=dr)
 
-            if read not in isoDict:
-                isoDict[read] = Isoform(read,seq)
+    for entry in dr.data.split('\n'):
+        if len(entry) > 0:
+            read, seq = entry.split()
+            # accommodate different bedtools versions - they use different separators
+
+            iso = read.split('::')[0]
+            iso = iso.split("(")[0]
+            if iso[:10] == 'fusiongene': iso = '_'.join(iso.split('_')[1:])
+            if iso not in isoDict:
+                isoDict[iso] = Isoform(iso,seq)
+            else:
+                isoDict[iso].sequence = isoDict[iso].sequence + seq
     return isoDict
 
 
@@ -168,12 +185,13 @@ def getStartRelPos(genomicStartPos,exon, exons, isoObj):
     if isoObj.strand == "+":
         relativeStart = genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])
     elif isoObj.strand == "-":
-        relativeStart = len(isoObj.sequence) - (genomicStartPos - exons[exonNum][0] + sum([x for x in isoObj.exonSizes[:exonNum]])) - 3
+        # print('calc', sum(isoObj.exonSizes), genomicStartPos - exons[exonNum][0], sum(isoObj.exonSizes[:exonNum]), sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])))
+        relativeStart = sum(isoObj.exonSizes) - (genomicStartPos - exons[exonNum][0] + sum(isoObj.exonSizes[:exonNum])) #- 3
 
     return relativeStart
 
 
-def checkPTC(orfEndPos, exons, isoObj):
+def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     '''
     takes a transcript sequence position, and list of exon sizes to detemine
     if that position occurs more than 55nucleotides away from a splice junction.
@@ -185,17 +203,14 @@ def checkPTC(orfEndPos, exons, isoObj):
     ptc  = None
     genomicPos = int()
     distance   = 0
+    maxdistfromexonedge = 55
 
-    if isoObj.strand  == "-":
-        isoObj.exonSizes = isoObj.exonSizes[::-1]
-        exons = exons[::-1]
-
-    for num,e in enumerate(isoObj.exonSizes,0):
+    for num,e in enumerate(exonSizes,0):
 
         distance += e
 
         # if the stop codon is in the last exon, then not ptc.
-        if num == len(isoObj.exonSizes)-1:
+        if num == len(exonSizes)-1:
             ptc = False
             if exonWithStop is None:
                 exonWithStop = num
@@ -211,51 +226,91 @@ def checkPTC(orfEndPos, exons, isoObj):
                 exonWithStop = num
                 stopDistFromExon = int(distToJunc)
 
-            if distToJunc > 55 or num < len(isoObj.exonSizes)-2:
+            # allow stop codon in second to last exon if fusion breakpoint between second to last and last exon
+            if allExons[-2][3] != allExons[-1][3]:
+                if num == len(exonSizes)-2:
+                    ptc = False
+                    break
+                elif distToJunc > maxdistfromexonedge or num < len(exonSizes)-3:
+                    ptc = True
+                    break
+
+            if distToJunc > maxdistfromexonedge or num < len(exonSizes)-2:
                 ptc = True
                 break
 
-    if len(isoObj.exonSizes) == 1: ptcpointont = 0
-    elif isoObj.exonSizes[-2] < 55: ptcpointont = sum(isoObj.exonSizes[:-2])
-    else: ptcpointont = sum(isoObj.exonSizes[:-1]) - 55
+    if len(exonSizes) == 1: ptcpointont = 0
+    elif allExons[-2][3] != allExons[-1][3]:
+        if len(exonSizes) == 2: ptcpointont = 0
+        elif exonSizes[-3] < maxdistfromexonedge: ptcpointont = sum(exonSizes[:-3])
+        else: ptcpointont = sum(exonSizes[:-2]) - maxdistfromexonedge
+    elif exonSizes[-2] < maxdistfromexonedge: ptcpointont = sum(exonSizes[:-2])
+    else: ptcpointont = sum(exonSizes[:-1]) - maxdistfromexonedge
 
-    exonsWithStop = exons[exonWithStop]
-    left,right    = exonsWithStop
+    isoname = isoname.split('_')[-2]
+    if isoname[-2] == '-': isoname = isoname[:-2]
+    if isoname in nmdexcep:
+        ptc, ptcpointont = False, 0
 
-    if isoObj.exonSizes[exonWithStop] != right - left:
-        print(isoObj.strand,exons,isoObj.exonSizes,exonWithStop,exonsWithStop,orfEndPos,ptc)
+    exonsWithStop = allExons[exonWithStop]
+    left,right,strand,fusionindex    = exonsWithStop
 
-    genomicPos = right - stopDistFromExon if isoObj.strand == "+" else left + stopDistFromExon
+    genomicPos = right - stopDistFromExon if strand == "+" else left + stopDistFromExon
 
     return genomicPos, ptc, ptcpointont
 
 
-def predict(bed, starts, isoDict):
+def get_exons(bedline):
+    gstart = int(bedline[1])
+    esizes, estarts = [int(x) for x in bedline[10].rstrip(',').split(',')], \
+                      [int(x) for x in bedline[11].rstrip(',').split(',')],
+    return [(gstart+estarts[i], gstart+estarts[i]+esizes[i]) for i in range(len(esizes))]
 
-    bt = pybedtools.BedTool(bed)
-    b6 = bt.bed6()
-    st = pybedtools.BedTool(starts)
 
-    bt_st = b6.intersect(st, s=True, split=True, wao=True)
-    for intersection in bt_st:
-        read   = intersection[3]
-        #iso,gene = read.split("_")
-        overlap  = intersection[-1]
-        goStart  = int(intersection[-6])
-        exonCoord = (int(intersection[1]),int(intersection[2]))
-        isoDict[read].strand = intersection[5]
-        isoDict[read].chrom = intersection[0]
-        isoDict[read].exons.add(exonCoord)
-        if overlap != "3":
-            continue
-        else:
-            isoDict[read].starts.add((exonCoord,goStart))
+def predict(bed, starts, isoDict, nmdexcep):
+    for line in open(bed):
+        line = line.rstrip().split('\t')
+        read   = line[3]
+        strand = line[5]
+        for exonCoord in get_exons(line):
+            elen = exonCoord[1]-exonCoord[0]
+            if read[:10] == 'fusiongene':
+                fusionindex = read.split('_')[0]
+                read = '_'.join(read.split('_')[1:])
+            else: fusionindex = "NA"
+            if strand == '+':
+                isoDict[read].allEsizes.append(elen)
+                isoDict[read].allExons.append((exonCoord[0], exonCoord[1], strand, fusionindex))
+            elif strand == '-':
+                isoDict[read].allEsizes.insert(0, elen)
+                isoDict[read].allExons.insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
+
+    dr = pipettor.DataReader()
+    bedtools_cmd = ('bedtools', 'intersect', '-a', bed, '-b', starts, '-split', '-s', '-wao')
+    pipettor.run([bedtools_cmd], stdout=dr)
+    os.remove(starts)
+
+    for intersection in dr.data.split('\n'):
+        if len(intersection) > 0:
+            intersection = intersection.split('\t')
+            read   = intersection[3]
+            if read[:10] == 'fusiongene' and read[10] != '1': continue # only getting starts for 5' genes
+            if read[:10] == 'fusiongene': read = '_'.join(read.split('_')[1:])
+            overlap  = intersection[-1]
+            goStart  = int(intersection[-6]) if intersection[5] == '+' else int(intersection[-5])
+            if intersection[5] != intersection[-2]: overlap = '0' ##if start is not on same strand, doesn't count
+            isoDict[read].strand = intersection[5]
+            isoDict[read].chrom = intersection[0]
+
+            for exonCoord in get_exons(intersection):
+                isoDict[read].exons.add(exonCoord)
+                if overlap == "3" and exonCoord[0] <= goStart <= exonCoord[1]:
+                    isoDict[read].starts.add((exonCoord,goStart))
 
     stops = set(['TAA','TGA','TAG'])
     for iso,o in isoDict.items():
         exons = list(o.exons)
         exons.sort()
-
         if len(o.starts) < 1:
             o.orfs.append(["NGO", exons[0][0], exons[0][0], 0, 0])
 
@@ -264,12 +319,9 @@ def predict(bed, starts, isoDict):
                 exon,startPos = start
                 relativeStart = getStartRelPos(startPos,exon,exons,o)
                 fiveUTR,rest  = o.sequence[:relativeStart], o.sequence[relativeStart:].upper()
-
                 # Next find first stop codon
                 stopReached = False
                 for i in range(0, len(rest), 3):
-                    #codon = rest[i:i+3] unused
-
                     if rest[i:i+3] in stops:
                         stopReached = True
                         break
@@ -281,16 +333,14 @@ def predict(bed, starts, isoDict):
                 if not stopReached:
                     orfEndPos = len(fiveUTR)+i
                     o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], orfEndPos-relativeStart, relativeStart])
-                    #o.orfs.append(["NST", startPos, exons[-1][-1] if o.strand == "+" else exons[0][0], relativeStart])
 
-                #else if a stop was reached...
+                # else if a stop was reached...
                 else:
                     orfEndPos = len(fiveUTR)+i+3
-                    genomicStopPos, ptc, ptcdecidingpoint = checkPTC(orfEndPos, exons, o)
+                    genomicStopPos, ptc, ptcdecidingpoint = checkPTC(orfEndPos, o.allEsizes, o.allExons, nmdexcep, iso)
                     ptc = "PTC" if ptc else "PRO"
                     o.orfs.append([ptc, startPos, genomicStopPos, orfEndPos - relativeStart, relativeStart])
                     o.ptcpoint = ptcdecidingpoint
-                    #o.orfs.append([ptc, startPos, genomicStopPos, relativeStart ])
 
     return isoDict
 
@@ -314,6 +364,7 @@ def translate(seq):
         'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': '_',
         'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
     }
+    seq = seq.upper()
     protein = ""
     if len(seq) % 3 == 0:
         for i in range(0, len(seq), 3):
@@ -340,12 +391,11 @@ def main():
     elif myCommandLine.args['longestORF']:
         defineORF = 'longest'
     else:
-        print('** ERR. Select method for ORF definition.', file=sys.stderr)
-        sys.exit(1)
+        raise FlairInputDataError('** ERR. Select method for ORF definition with --firstTIS or --longestORF')
 
-    starts      = getStarts(gtf)
+    starts, nmdexcep      = getStarts(gtf)
     isoformObjs = getSeqs(bed, genome)
-    isoformObjs = predict(bed, starts, isoformObjs)
+    isoformObjs = predict(bed, starts, isoformObjs, nmdexcep)
 
     beaut = {"PRO":"103,169,207", "PTC":"239,138,98", "NST":"0,0,0","NGO":"0,0,0"}
 
@@ -355,7 +405,9 @@ def main():
     with open(bed) as lines:
         for line in lines:
             bedCols = line.rstrip().split()
-            isoObj = isoformObjs[bedCols[3]]
+            if bedCols[3][:10] == 'fusiongene': isoname = '_'.join(bedCols[3].split('_')[1:])
+            else: isoname = bedCols[3]
+            isoObj = isoformObjs[isoname]
 
             if defineORF == 'longest':
                 isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
@@ -370,10 +422,21 @@ def main():
                 bedCols[3] = "%s_%s_%s" % (iso, pro, gene)
 
             bedCols[8] = beaut[pro]
-            if isoObj.strand == "+":
-                bedCols[6],bedCols[7] = str(start),str(end)
+            if 'fusiongene' in bedCols[3]:
+                if not int(bedCols[1]) < start < int(bedCols[2]) and not int(bedCols[1]) < end < int(bedCols[2]):
+                    bedCols[6],bedCols[7] = bedCols[1], bedCols[1]
+                else:
+                    if isoObj.strand == "+":
+                        if int(bedCols[1]) < start < int(bedCols[2]): bedCols[6] = str(start)
+                        if int(bedCols[1]) < end < int(bedCols[2]): bedCols[7] = str(end)
+                    else:
+                        if int(bedCols[1]) < start < int(bedCols[2]): bedCols[7] = str(start)
+                        if int(bedCols[1]) < end < int(bedCols[2]): bedCols[6] = str(end)
             else:
-                bedCols[7],bedCols[6] = str(start),str(end)
+                if isoObj.strand == "+":
+                    bedCols[6],bedCols[7] = str(start),str(end)
+                else:
+                    bedCols[7],bedCols[6] = str(start),str(end)
             bedout.write("\t".join(bedCols) + '\n')
             infoout.write('\t'.join([bedCols[3], str(tisPos), str(tisPos+orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos+orfLen])]) + '\n')
 

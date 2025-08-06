@@ -1,9 +1,14 @@
-usage: flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] -g genome.fa [options]
+usage: flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]
 
 flair-correct parse options
 
 options:
   -h, --help            show this help message and exit
+  --junction_support JUNCTION_SUPPORT
+                        if providing short-read junctions, minimum junction
+                        support required to keep junction. If your junctions
+                        file is in bed format, the score field will be used
+                        for read support. Default=1
   -o OUTPUT, --output OUTPUT
                         output name base (default: flair)
   -t THREADS, --threads THREADS
@@ -16,10 +21,13 @@ options:
 required named arguments:
   -q QUERY, --query QUERY
                         uncorrected bed12 file
-  -g GENOME, --genome GENOME
-                        FastA of reference genome
 
 at least one of the following arguments is required:
-  -j SHORTREAD, --shortread SHORTREAD
-                        bed format splice junctions from short-read sequencing
   -f GTF, --gtf GTF     GTF annotation file
+  --junction_tab JUNCTION_TAB
+                        short-read junctions in SJ.out.tab format. Use this
+                        option if you aligned your short-reads with STAR, STAR
+                        will automatically output this file
+  --junction_bed JUNCTION_BED
+                        short-read junctions in bed format (can be generated
+                        from short-read alignment with junctions_from_sam)

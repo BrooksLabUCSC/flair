@@ -139,7 +139,7 @@ Include conda dependencies for diff expression support and tests.
 This does not work on Apple ARM systems.
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
-pip install -e .[diffexp]
+pip install -e .
 make -k -O -j 64 test-diffexpress
 ```
 
@@ -323,8 +323,8 @@ Just give up and push and let the bot check it/
 
 Note: THESE STEP MIGHT NOT BE NECESSARY
 
-If you do not make any changes to flair's dependencies (scipy, pandas, etc) then
-the biocondabot may detect the new release and update the conda package automatically. 
+If you do not make any changes to flair's dependencies (scipy, etc) then
+the biocondabot might detect the new release and update the conda package automatically. 
 Simply wait a few days, then check the version at 
 
     https://bioconda.github.io/recipes/flair/README.html

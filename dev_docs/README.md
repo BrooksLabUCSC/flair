@@ -8,25 +8,15 @@ A conda environment is use to provide the non-python environment.
 **This is the recommend method FLAIR developers.**
 
 Create a new conda environment for developing FLAIR from the top of
-the tree and add the current packages with poetry.
+the tree and add the current packages with poetry.  This includes the
+diffexp and diffsplice dependencies
 
 ```
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
 pip install -e .[dev]
-```
 
-If you want to install only the dependencies without an FLAIR, use:
-```
-poetry install  --no-root
-```
-instead of `pip install`.
-
-To run `diffExp` and `diffSplice` tests:
-```
-conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
-pip install -e .[diffexp]
 ```
 
 If you get warning like:
@@ -46,8 +36,12 @@ conda config --set channel_priority flexible
 
 ## Running FLAIR program during development
 
-The preferred way to run FLAIR is using flair-dev conda environment as described above,
-which will have it in the PATH.  By using the `-e` option to `pip`, the 
+
+The preferred way to run FLAIR is using flair-dev conda environment as
+described above, which will have it in the PATH.  By using the `-e`
+(`--editable`) option to `pip`, edits to the source tree will be reflected in
+the conda environment without a need for another install.
+
 
 ## Managing dependencies
 
@@ -70,10 +64,10 @@ Protry
 Normally `pip` is used to install rather than `poetry install`.  Updating the
 lock file servers only serves as a reference due to Conda issues.
 
-The `poetry sync` to install exact version of dependencies due to Conda has
-incorrectly creating a `direct_url.json` in the `site-packages/* dist-info`
-directories. Removing these files still results in failures for unknown
-reasons, so  `poetry sync` is not used.
+The `poetry update` to install to update the dependencies list.  Conda has
+problems with incorrectly creating `direct_url.json` files for dependencies
+`flair-dev/lib/python3.12/site-packages/* dist-info/direct_url.json`.
+Remove these files and `poetry update` will work
 
 ## Testing:
 

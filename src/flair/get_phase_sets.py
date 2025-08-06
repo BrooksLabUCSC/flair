@@ -4,6 +4,7 @@ import csv
 import os
 import argparse
 import pysam
+from flair import FlairInputDataError
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -54,7 +55,7 @@ def split_iso_gene(iso_gene):
     gene = iso_gene[iso_gene.rfind(splitchar)+1:]
     return iso, gene
 
-def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensive=False):
+def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, outmap=None, comprehensive=False):
     isoform_model = {}
     for line in open(isoforms):
         line = line.rstrip().split('\t')
@@ -87,67 +88,46 @@ def get_phase_sets(isoforms, isoform_reads_map, bam, output, outiso, comprehensi
             hp_tag = ''
         isoform = read_isoform[read.query_name]
         if (ps_tag, hp_tag) not in phase_sets[isoform]:
-            phase_sets[isoform][(ps_tag, hp_tag)] = 0
-        phase_sets[isoform][(ps_tag,hp_tag)] += 1
+            phase_sets[isoform][(ps_tag, hp_tag)] = set()
+        phase_sets[isoform][(ps_tag,hp_tag)].add(read.query_name)
 
     if num_reads_in_bam == 0:
-        sys.stderr.write('No reads in bam {} (get_phase_sets.py)\n'.format(bam))
-        sys.exit(1)
+        raise FlairInputDataError(f'No reads in bam {bam} (get_phase_sets.py)')
     elif (num_reads_in_bam - num_unassigned)/len(read_isoform) < 0.9:
-        sys.stderr.write('{} out of {} reads not assigned to an isoform, {} reads in map\n'.format(num_unassigned, num_reads_in_bam, len(read_isoform)))
-        sys.exit(1)
+        raise FlairInputDataError(f'{num_unassigned} out of {num_reads_in_bam} reads not assigned to an isoform, '
+                         f'{len(read_isoform)} reads in map')
 
     bam.close()
 
     #reads_isoforms = None  unused
-
+    if outmap: outmap = open(outmap, 'wt')
     with open(output, 'wt') as outfile, open(outiso, 'wt') as outfile_iso:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
         writer_iso = csv.writer(outfile_iso, delimiter='\t', lineterminator=os.linesep)
         for i in phase_sets:
-            total_supporting_reads = float(sum([ps[1] for ps in phase_sets[i].items()]))
-
+            total_supporting_reads = float(sum([len(ps[1]) for ps in phase_sets[i].items()]))
             if ('', '') in phase_sets[i]:
                 phase_sets[i].pop(('', ''))
 
             # sort all phase sets for this iso by number of supporting reads
             pss = sorted(phase_sets[i].items(), key=lambda ps: ps[1], reverse=True)
+            iso, gene = split_iso_gene(i)
 
-            if not pss:  # no variants
-                writer.writerow([i, 'NA'])
-                writer_iso.writerow(isoform_model[i])
-                continue
+            tot_hap_reads = sum([len(x[1]) for x in pss])
 
-            ps_tag, hp_tag = pss[0][0]
-            num_reads = pss[0][1]
+            if pss and tot_hap_reads/total_supporting_reads >= 0.1:
+                for j in range(len(pss)):
+                    ps_tag, hp_tag = pss[j][0]
+                    hap_name = iso+'-PS:'+ps_tag+':'+hp_tag+'_'+gene
+                    num_reads = len(pss[j][1])
+                    writer.writerow([hap_name, ps_tag, hp_tag, num_reads, total_supporting_reads])
+                    writer_iso.writerow(isoform_model[i][:3] + [hap_name] + isoform_model[i][4:])
+                    if outmap: outmap.write(hap_name + '\t' + ','.join(pss[j][1]) + '\n')
+            if not pss or tot_hap_reads/total_supporting_reads < 0.1 or comprehensive: ##not high enough variant frequency or all isoforms requested
+                hap_name = iso+'-PS:NA'+'_'+gene
+                writer.writerow([hap_name, 'NA'])
+                writer_iso.writerow(isoform_model[i][:3] + [hap_name] + isoform_model[i][4:])
 
-            if num_reads / total_supporting_reads > 0.1:
-                iso, gene = split_iso_gene(i)
-                var1 = iso+'-PS:'+ps_tag+':'+hp_tag+'_'+gene
-
-                if num_reads / total_supporting_reads > 0.8 or comprehensive:  # create a new isoform name
-                    var2 = iso+'-PS:NA'+'_'+gene
-                    writer.writerow([var1, ps_tag, hp_tag, num_reads, total_supporting_reads])
-                    writer.writerow([var2, 'NA'])
-                    writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
-                    writer_iso.writerow(isoform_model[i][:3] + [var2] + isoform_model[i][4:])
-
-                else:  # only create an isoform with variant
-                    writer.writerow([i, ps_tag, hp_tag, num_reads, total_supporting_reads])
-                    writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
-            elif len(pss) > 1 and abs(num_reads / total_supporting_reads - 0.5) < 0.1 \
-                    and abs(pss[1][1] / total_supporting_reads - 0.5) < 0.1:  # two haplotypes
-                iso, gene = split_iso_gene(i)
-                var1 = iso+'-PS:'+pss[0][0]+'_'+gene
-                var2 = iso+'-PS:'+pss[1][0]+'_'+gene
-                writer.writerow([var1, pss[0][0]+','+pss[1][0]])
-                writer.writerow([var2, pss[0][0]+','+pss[1][0]])
-                writer_iso.writerow(isoform_model[i][:3] + [var1] + isoform_model[i][4:])
-                writer_iso.writerow(isoform_model[i][:3] + [var2] + isoform_model[i][4:])
-            else:  # variants not high enough in frequency
-                # print(isoform_model[i][:4], pss, '.', total_supporting_reads)
-                writer.writerow([i, 'NA'])
-                writer_iso.writerow(isoform_model[i])
 
 if __name__ == "__main__":
     main()

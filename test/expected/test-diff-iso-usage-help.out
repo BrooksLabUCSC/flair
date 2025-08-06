@@ -1,1 +1,25 @@
-usage: diff_iso_usage counts_matrix colname1 colname2 diff_isos.txt
+usage: diff_iso_usage [-h] [--log-stderr] [--log-level LOG_LEVEL]
+                      [--log-conf LOG_CONF] [--log-debug]
+                      counts_matrix_tsv colname1 colname2 outfile
+
+Calculates the usage of each isoform as a fraction of the total expression of
+the gene and compares this between samples.
+
+positional arguments:
+  counts_matrix_tsv     counts matrix TSV from flair-quantify
+  colname1              the name of the column of the first sample
+  colname2              the name of the column of the second sample
+  outfile               output filename containing the p-value associated with
+                        differential isoform usage for each isoform
+
+options:
+  -h, --help            show this help message and exit
+  --log-stderr          also log to stderr, even when logging to syslog
+  --log-level LOG_LEVEL
+                        Set level to case-insensitive symbolic value, one of
+                        CRITICAL, DEBUG, ERROR, FATAL, INFO, NOTSET, WARN,
+                        WARNING
+  --log-conf LOG_CONF   Python logging configuration file, see
+                        logging.config.fileConfig()
+  --log-debug           short-cut that that sets --log-stderr and --log-
+                        level=DEBUG

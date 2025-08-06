@@ -16,7 +16,7 @@ These are LRGASP WTC-11 cDNA short reads pretending to be long
 reads.  Leads to a fast test that the code paths just work.
 
 ## set seg1 - single exon genes
-ONT single-exon gene tests on GRCh38
+LRGASP WTC11 ONT single-exon gene tests on GRCh38
 
 Cases:
 * chr20:32188017-32190331 ENSG00000293164 single-exon protein-coding gene

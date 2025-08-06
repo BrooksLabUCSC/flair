@@ -9,7 +9,6 @@ FLAIR (Full-Length Alternative Isoform analysis of RNA) for the correction, isof
 This is a read-only, low volume list that will only have announcement of new
 FLAIR releases, publications and other FLAIR-related user information.
 
-
 ## Documentation
 
 The complete Flair manual is available via [readthedocs](https://flair.readthedocs.io/en/latest/)

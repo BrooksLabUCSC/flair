@@ -2,12 +2,17 @@
 
 import sys
 import argparse
-import subprocess
 import os
-from flair import set_unix_path, check_diffexp_dependencies
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import os.path as osp
+import pipettor
+import logging
+from flair import FlairError, set_unix_path, FlairInputDataError
 
-check_diffexp_dependencies()
+pkgdir = osp.dirname(osp.realpath(__file__))
+diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
+
+# FIXME: restructure, odd the say argument parsing is done bases on function
+# arguments
 
 def diffSplice(isoforms='', counts_matrix=''):
     set_unix_path()
@@ -55,11 +60,9 @@ def diffSplice(isoforms='', counts_matrix=''):
         args.q = counts_matrix
 
     if not os.path.exists(args.q):
-        sys.stderr.write('Counts matrix file path does not exist\n')
-        return 1
+        raise FlairInputDataError('Counts matrix file path does not exist')
     if not os.path.exists(args.i):
-        sys.stderr.write('Isoform bed file path does not exist\n')
-        return 1
+        raise FlairInputDataError('Isoform bed file path does not exist')
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(args.o, 'workdir')
@@ -73,29 +76,26 @@ def diffSplice(isoforms='', counts_matrix=''):
         except OSError as ex:
             raise OSError("** ERROR cannot create directory %s" % (workdir)) from ex
     else:
-        sys.stderr.write(f'** Error. Name {args.o} already exists. Choose another name for out_dir\n')
-        return 1
+        raise FlairInputDataError(f'** Error. Name {args.o} already exists. Choose another name for out_dir')
     if args.i.endswith('psl'):
-        sys.stderr.write('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.\n')
-        return 1
+        raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
     filebase = os.path.join(args.o, 'diffsplice')
-    subprocess.check_call(['call_diffsplice_events.py', args.i, filebase, args.q])
-    subprocess.check_call(['es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
-    subprocess.check_call(['es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
-            stdout=open(filebase+'.es.events.quant.tsv', 'w'))
-    subprocess.check_call(['rm', filebase+'.es.events.tsv'])
+    pipettor.run(['call_diffsplice_events.py', args.i, filebase, args.q])
+    pipettor.run(['es_as.py', args.i], stdout=open(filebase+'.es.events.tsv', 'w'))
+    pipettor.run(['es_as_inc_excl_to_counts.py', args.q, filebase+'.es.events.tsv'],
+                 stdout=open(filebase+'.es.events.quant.tsv', 'w'))
+    os.unlink(filebase+'.es.events.tsv')
 
     if args.test or args.conditionA:
-        sys.stderr.write('DRIMSeq testing for each AS event type\n')
-        drim1, drim2, drim3, drim4 = [str(x) for x in [args.drim1, args.drim2, args.drim3, args.drim4]]
-        ds_command = ['runDS.py', '--threads', str(args.t), '--outDir', args.o,
-                '--drim1', drim1, '--drim2', drim2, '--drim3', drim3, '--drim4', drim4]
+        logging.info('DRIMSeq testing for each AS event type')
+        ds_command = ['Rscript', diffSplice_drimSeq, '--threads', args.t, '--outDir', args.o,
+                      '--drim1', args.drim1, '--drim2', args.drim2, '--drim3', args.drim3, '--drim4', args.drim4]
         if args.batch:
             ds_command += ['--batch']
         if args.conditionA:
             if not args.conditionB:
-                sys.stderr.write('Both conditionA and conditionB must be specified, or both left unspecified\n')
+                logging.info('Both conditionA and conditionB must be specified, or both left unspecified')
                 return 1
             ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
@@ -103,13 +103,14 @@ def diffSplice(isoforms='', counts_matrix=''):
             for event in ['es', 'alt5', 'alt3', 'ir']:
                 matrixfile = f'{filebase}.{event}.events.quant.tsv'
                 if emptyMatrix(matrixfile):
-                    sys.stderr.write(f'{event} event matrix file empty, not running DRIMSeq\n')
+                    logging.info(f'{event} event matrix file empty, not running DRIMSeq\n')
                     continue
                 cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
-                if subprocess.call(cur_command, stderr=ds_stderr):
-                    print(f'\nDRIMSeq failed on {event} event')
-                    print(f'Check {workdir}/ds.stderr.txt for details.\nCommand was:')
-                    print(' '.join([x for x in cur_command]))
+                try:
+                    pipettor.run(cur_command, stderr=ds_stderr)
+                except pipettor.ProcessException as exc:
+                    raise FlairError(f"DRIMSeq failed on `{event}' event"
+                                     f'Check {workdir}/ds.stderr.txt for details') from exc
     else:
         # workdir only necessary for drimseq output
         os.rmdir(workdir)

@@ -3,6 +3,7 @@
 import sys
 import csv
 import os
+from flair import FlairInputDataError
 
 try:
     counts_matrix = open(sys.argv[1])
@@ -12,10 +13,9 @@ try:
     else:
         sizefile = ''
 except:
-    sys.stderr.write('usage: counts_to_tpm.py counts_matrix.tsv count_matrix.tpm.tsv [iso.sizes]\n')
-    sys.stderr.write('convenience script for obtaining a file of isoform sizes: bin/fasta_seq_lengths.py\n')
-    sys.stderr.write('if no isoform size file is provided, no length normalization will be done (just reads per million)\n')
-    sys.exit()
+    raise FlairInputDataError('usage: counts_to_tpm.py counts_matrix.tsv count_matrix.tpm.tsv [iso.sizes]\n'
+                     'convenience script for obtaining a file of isoform sizes: bin/fasta_seq_lengths.py\n'
+                     'if no isoform size file is provided, no length normalization will be done (just reads per million)\n')
 
 sizes = {}
 if sizefile:

@@ -1,9 +1,14 @@
 .emacs.bak/
 build/
 __pycache__/
+src/flair_brookslab.egg-info/
 test/tmp-input/
 test/output/
 .DS_Store
 ._*
 
+*.bam
+*.bai
+*.gz
+*.fa
 /dist/

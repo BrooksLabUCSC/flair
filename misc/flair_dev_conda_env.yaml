@@ -10,8 +10,18 @@ dependencies:
   - minimap2 =2.28
   - bedtools =2.31.1
   - samtools =1.21
+  - longshot >=1.0
   - poetry
   - sphinx
   - sphinx_rtd_theme
   - sphinx-argparse
   - pip
+  - r-argparse
+  - r-ggplot2
+  - r-qqman
+  - r-lazyeval
+  - r-data.table
+  - bioconductor-deseq2
+  - bioconductor-drimseq
+  - bioconductor-stager
+  - bioconductor-apeglm

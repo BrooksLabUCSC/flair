@@ -1,2 +1,4 @@
-chr20	FLAIR	transcript	32187396	32189877	.	-	.	gene_id "chr20:32187000"; transcript_id "37222c79-1e06-492d-86e5-61c0235f1991";
-chr20	FLAIR	exon	32187396	32189877	.	-	.	gene_id "chr20:32187000"; transcript_id "37222c79-1e06-492d-86e5-61c0235f1991"; exon_number "0";
+chr20	FLAIR	transcript	32186477	32188140	.	+	.	gene_id "chr20:32186000"; transcript_id "b75ff623-1225-4a0b-aa5b-4c944faa973c";
+chr20	FLAIR	exon	32186477	32188140	.	+	.	gene_id "chr20:32186000"; transcript_id "b75ff623-1225-4a0b-aa5b-4c944faa973c"; exon_number "0";
+chr20	FLAIR	transcript	32188014	32188303	.	-	.	gene_id "chr20:32188000"; transcript_id "ad5a99b5-9af0-4dec-8982-b2173db180e8";
+chr20	FLAIR	exon	32188014	32188303	.	-	.	gene_id "chr20:32188000"; transcript_id "ad5a99b5-9af0-4dec-8982-b2173db180e8"; exon_number "0";

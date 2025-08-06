@@ -1,6 +1,16 @@
-usage: flair_align -g genome.fa -r <reads.fq>|<reads.fa> [options]
+usage: align [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
+             [-o OUTPUT] [-t THREADS] [--junction_bed JUNCTION_BED] [--nvrna]
+             [--quality QUALITY] [--minfragmentsize MINFRAGMENTSIZE]
+             [--maxintronlen MAXINTRONLEN]
+             [--filtertype {keysup,removesup,separate}] [--quiet]
+             [--remove_internal_priming] [-f GTF]
+             [--intprimingthreshold INTPRIMINGTHRESHOLD]
+             [--intprimingfracAs INTPRIMINGFRACAS] [--remove_singleexon]
+             [--log-stderr] [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
+             [--log-debug]
 
-flair-align parse options
+FLAIR align outputs an unfiltered bam file and a filtered bed file for use in
+the downstream pipeline
 
 options:
   -h, --help            show this help message and exit
@@ -20,7 +30,7 @@ options:
   --maxintronlen MAXINTRONLEN
                         maximum intron length in genomic alignment. Longer can
                         help recover more novel isoforms with long introns
-  --filtertype FILTERTYPE
+  --filtertype {keysup,removesup,separate}
                         method of filtering chimeric alignments (potential
                         fusion reads). Options: removesup (default), separate
                         (required for downstream work with fusions), keepsup
@@ -37,15 +47,25 @@ options:
                         number of bases that are at leas 75% As required to
                         call read as internal priming
   --intprimingfracAs INTPRIMINGFRACAS
-                        number of bases that are at leas 75% As required to
+                        number of bases that are at least 75% As required to
                         call read as internal priming
   --remove_singleexon   specify if want to remove unspliced reads
+  --log-stderr          also log to stderr, even when logging to syslog
+  --log-level LOG_LEVEL
+                        Set level to case-insensitive symbolic value, one of
+                        CRITICAL, DEBUG, ERROR, FATAL, INFO, NOTSET, WARN,
+                        WARNING
+  --log-conf LOG_CONF   Python logging configuration file, see
+                        logging.config.fileConfig()
+  --log-debug           short-cut that that sets --log-stderr and --log-
+                        level=DEBUG
 
 required named arguments:
   -r READS [READS ...], --reads READS [READS ...]
-                        FastA/FastQ files of raw reads
+                        FASTA/FASTQ file(s) of raw reads, either space or
+                        comma separated
 
 Either one of the following arguments is required:
   -g GENOME, --genome GENOME
-                        FastA of reference genome, can be minimap2 indexed
+                        FASTA of reference genome, can be minimap2 indexed
   --mm_index MM_INDEX   minimap2 index .mmi file

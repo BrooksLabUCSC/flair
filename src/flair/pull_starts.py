@@ -3,6 +3,7 @@
 import sys
 import csv
 import os
+from flair import FlairInputDataError
 
 def pull_starts(bedfile, outfilename, nvrna=False, reverse=False):
     bedfh = open(bedfile)
@@ -35,7 +36,6 @@ if __name__ == "__main__":
             nvrna = 'nvrna' in sys.argv[3]  # specify if stranded protocol
             reverse = 'reverse' in sys.argv[3]
     except:
-        sys.stderr.write('pull_starts.py bed outfilename [nvrna]\n')
-        sys.exit(1)
+        raise FlairInputDataError('pull_starts.py bed outfilename [nvrna]')
 
     pull_starts(bedfile, outfilename, nvrna=nvrna, reverse=reverse)

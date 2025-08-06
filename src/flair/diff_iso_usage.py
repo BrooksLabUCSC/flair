@@ -4,64 +4,68 @@ import sys
 import csv
 import os
 import scipy.stats as sps
+from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 
-# FIXME: convert to argparse
 
-def main():
-    try:
-        counts_matrix = open(sys.argv[1])
-        colname1 = sys.argv[2]
-        colname2 = sys.argv[3]
-        outfilename = sys.argv[4]
-    except:
-        sys.stderr.write('usage: diff_iso_usage counts_matrix colname1 colname2 diff_isos.txt\n')
-        sys.exit()
+def parse_args():
+    desc = """Calculates the usage of each isoform as a fraction of the total expression
+    of the gene and compares this between samples."""
 
-    header = counts_matrix.readline().rstrip().split('\t')
+    parser = cli.ArgumentParserExtras(description=desc)
+    parser.add_argument('counts_matrix_tsv',
+                        help='counts matrix TSV from flair-quantify')
+    parser.add_argument('colname1',
+                        help='the name of the column of the first sample')
+    parser.add_argument('colname2',
+                        help='the name of the column of the second sample')
+    parser.add_argument('outfile',
+                        help='output filename containing the p-value associated with differential '
+                        'isoform usage for each isoform')
+    return parser.parse_args()
+
+def split_iso_gene(iso_gene):
+    if '_chr' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_chr')]
+        gene = iso_gene[iso_gene.rfind('_chr')+1:]
+    elif '_XM' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_XM')]
+        gene = iso_gene[iso_gene.rfind('_XM')+1:]
+    elif '_XR' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_XR')]
+        gene = iso_gene[iso_gene.rfind('_XR')+1:]
+    elif '_NM' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_NM')]
+        gene = iso_gene[iso_gene.rfind('_NM')+1:]
+    elif '_NR' in iso_gene:
+        iso = iso_gene[:iso_gene.rfind('_NR')]
+        gene = iso_gene[iso_gene.rfind('_NR')+1:]
+    else:
+        iso = iso_gene[:iso_gene.rfind('_')]
+        gene = iso_gene[iso_gene.rfind('_')+1:]
+    return iso, gene
+
+
+def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
+    counts_matrix_fh = open(counts_matrix_tsv)
+    header = counts_matrix_fh.readline().rstrip().split('\t')
 
     if colname1 in header:
         col1 = header.index(colname1)
     else:
-        sys.stderr.write('Could not find {} in {}\n'.format(colname1, ' '.join(header)))
-        sys.exit(1)
-
+        raise FlairInputDataError('Could not find {} in {}\n'.format(colname1, ' '.join(header)))
     if colname2 in header:
         col2 = header.index(colname2)
     else:
-        sys.stderr.write('Could not find {} in {}\n'.format(colname2, ' '.join(header)))
-        sys.exit(1)
-
-
-    def split_iso_gene(iso_gene):
-        if '_chr' in iso_gene:
-            iso = iso_gene[:iso_gene.rfind('_chr')]
-            gene = iso_gene[iso_gene.rfind('_chr')+1:]
-        elif '_XM' in iso_gene:
-            iso = iso_gene[:iso_gene.rfind('_XM')]
-            gene = iso_gene[iso_gene.rfind('_XM')+1:]
-        elif '_XR' in iso_gene:
-            iso = iso_gene[:iso_gene.rfind('_XR')]
-            gene = iso_gene[iso_gene.rfind('_XR')+1:]
-        elif '_NM' in iso_gene:
-            iso = iso_gene[:iso_gene.rfind('_NM')]
-            gene = iso_gene[iso_gene.rfind('_NM')+1:]
-        elif '_NR' in iso_gene:
-            iso = iso_gene[:iso_gene.rfind('_NR')]
-            gene = iso_gene[iso_gene.rfind('_NR')+1:]
-        else:
-            iso = iso_gene[:iso_gene.rfind('_')]
-            gene = iso_gene[iso_gene.rfind('_')+1:]
-        return iso, gene
-
+        raise FlairInputDataError('Could not find {} in {}\n'.format(colname2, ' '.join(header)))
 
     counts = {}
-    for line in counts_matrix:
+    for line in counts_matrix_fh:
         line = line.rstrip().split('\t')
         iso_gene, count1, count2 = line[0], float(line[col1]), float(line[col2])
         if '_' not in iso_gene:
-            sys.stderr.write('Please run identify_annotated_gene first so that isoforms\
-                    can be grouped by their parent genes\n')
-            sys.exit(1)
+            raise FlairInputDataError('Incorrect isoform names: Please run identify_annotated_gene first so that \n'
+                             'isoforms can be grouped by their parent genes\n')
         iso, gene = split_iso_gene(iso_gene)
         if gene not in counts:
             counts[gene] = {}
@@ -69,6 +73,7 @@ def main():
 
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+        writer.writerow(['geneID', 'isoID', 'fisher_pval', 'this_iso_sample1_count', 'this_iso_sample2_count', 'other_isos_sample1_count', 'other_isos_sample2_count'])
         geneordered = sorted(counts.keys())
         for gene in geneordered:
             generes = []
@@ -76,9 +81,7 @@ def main():
                 thesecounts = counts[gene][iso]
                 othercounts = [0, 0]
                 ctable = [thesecounts, othercounts]
-                # if thesecounts[0] == 0 or thesecounts[1] == 0:  # do not test this isoform
-                #       continue
-                for iso_ in counts[gene]:  # count up for all other isoforms of this gene
+                for iso_ in counts[gene]:
                     if iso_ == iso:
                         continue
                     othercounts[0] += counts[gene][iso_][0]
@@ -96,8 +99,11 @@ def main():
             for res in generes:
                 writer.writerow(res)
 
-            # generes = sorted(generes, key=lambda x: x[2])
-            # writer.writerow(generes[0])  # biggest differential for this gene
+
+def main():
+    args = parse_args()
+    with cli.ErrorHandler():
+        diff_iso_usage(args.counts_matrix_tsv, args.colname1, args.colname2, args.outfile)
 
 if __name__ == '__main__':
     main()

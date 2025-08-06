@@ -5,9 +5,66 @@ import argparse
 import os
 import pipettor
 import pysam
+import logging
+from flair.pycbio.sys import cli
 from flair import remove_internal_priming
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-# from bam2Bed12 import bam2Bed12
+from flair import FlairInputDataError
+
+FILTER_KEEPSUP = 'keysup'
+FILTER_REMOVESUP = 'removesup'
+FILTER_SEPARATE = 'separate'
+FILTERS = (FILTER_KEEPSUP, FILTER_REMOVESUP, FILTER_SEPARATE)
+
+def parse_args():
+    desc = "FLAIR align outputs an unfiltered bam file and a filtered bed file for use in the downstream pipeline"
+    parser = cli.ArgumentParserExtras(description=desc)
+
+    reads = parser.add_argument_group('required named arguments')
+    reads.add_argument('-r', '--reads', nargs='+', type=str, required=True,
+                          help='FASTA/FASTQ file(s) of raw reads, either space or comma separated')
+    genome = parser.add_argument_group('Either one of the following arguments is required')
+    genome.add_argument('-g', '--genome', type=str,
+                        help='FASTA of reference genome, can be minimap2 indexed')
+    genome.add_argument('--mm_index', type=str, default='',
+                        help='minimap2 index .mmi file')
+    parser.add_argument('-o', '--output', default='flair.aligned',
+                        help='output file name base (default: flair.aligned)')
+    parser.add_argument('-t', '--threads', type=int, default=4,
+                        help='minimap2 number of threads (4)')
+    parser.add_argument('--junction_bed', default='',
+                        help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
+    parser.add_argument('--nvrna', action='store_true', default=False,
+                        help='specify this flag to use native-RNA specific alignment parameters for minimap2')
+    parser.add_argument('--quality', type=int, default=0,
+                        help='minimum MAPQ of read alignment to the genome (0)')
+    parser.add_argument('--minfragmentsize', type=int, default=80,
+                        help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
+    parser.add_argument('--maxintronlen', default='200k',
+                        help='maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns')
+    parser.add_argument('--filtertype', type=str, choices=FILTERS, default=FILTER_REMOVESUP,
+                        help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
+    parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
+                        help='''Suppress minimap progress statements from being printed''')
+    parser.add_argument('--remove_internal_priming', default=False, action='store_true',
+                        help='specify if want to remove reads with internal priming')
+    parser.add_argument('-f', '--gtf', type=str,
+                        help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
+    parser.add_argument('--intprimingthreshold', type=int, default=12,
+                        help='number of bases that are at leas 75%% As required to call read as internal priming')
+    parser.add_argument('--intprimingfracAs', type=float, default=0.75,
+                        help='number of bases that are at least 75%% As required to call read as internal priming')
+    parser.add_argument('--remove_singleexon', default=False, action='store_true',
+                        help='specify if want to remove unspliced reads')
+    args = parser.parse_args()
+
+    reads = []
+    for rfiles in args.reads:
+        for rfile in rfiles.split(','):
+            if not os.path.exists(rfile):
+                raise FlairInputDataError(f'Error: read file does not exist: {rfile}')
+            reads.append(rfile)
+    args.reads = reads
+    return args
 
 def intronChainToestarts(ichain, start, end):
     esizes, estarts = [], [0,]
@@ -103,148 +160,88 @@ def doalignment(args):
         mm2_cmd += [args.genome]
     mm2_cmd += args.reads
 
-    samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '_unfiltered.bam', '-')
-    samtools_index_cmd = ('samtools', 'index', args.output + '_unfiltered.bam')
+    samtools_sort_cmd = ('samtools', 'sort', '-@', str(args.threads), '-o', args.output + '.bam', '-')
+    samtools_index_cmd = ('samtools', 'index', args.output + '.bam')
     pipettor.run([mm2_cmd, samtools_sort_cmd])
     pipettor.run([samtools_index_cmd])
 
 def dofiltering(args, inbam, filterreadmap=None):
-    samfile = pysam.AlignmentFile(inbam, 'rb')#args.output + '_unfiltered.bam', "rb")
+    samfile = pysam.AlignmentFile(inbam, 'rb')
     withsup = None
     if args.filtertype == 'separate':
         withsup = pysam.AlignmentFile(args.output + '_chimeric.bam', "wb", template=samfile)
-    trash = pysam.AlignmentFile(args.output + '_trash.bam', "wb", template=samfile)
-    fullyaligned = pysam.AlignmentFile(args.output + '.bam', "wb", template=samfile)
     outbed = open(args.output + '.bed', 'w')
-    readstokeep = set()
+    readstoremove = set()
     annottranscriptends, genome = None, None
     if args.remove_internal_priming:
         annottranscriptends = remove_internal_priming.getannotends(args.gtf)
         genome = pysam.FastaFile(args.genome)
     if filterreadmap:
+        filteredout = pysam.AlignmentFile(args.output + '_filteredout.bam', "wb", template=samfile)
         for line in open(filterreadmap):
             reads = line.rstrip().split('\t', 1)[1].split(',')
-            readstokeep.update(set(reads))
+            readstoremove.update(set(reads))
+    totalalignments, mappednotsec, supplementary, primary = 0, 0, 0, 0
     for read in samfile.fetch():
+        totalalignments += 1
         if read.is_mapped and not read.is_secondary:
-            if args.remove_singleexon:
-                if read.get_cigar_stats()[0][3] == 0:
-                    trash.write(read)
+            mappednotsec += 1
+            mapq = read.mapping_quality
+            if mapq < args.quality:
+                continue
+            if filterreadmap and read.query_name in readstoremove:
+                filteredout.write(read)
+                continue
+            if args.remove_singleexon and read.get_cigar_stats()[0][3] == 0:
                     continue
             if args.remove_internal_priming:
+                # print(read.query_name)
                 notinternalpriming = remove_internal_priming.removeinternalpriming(read.reference_name, read.reference_start, read.reference_end, read.is_reverse,
                                                           genome, annottranscriptends, None, args.intprimingthreshold, args.intprimingfracAs)
+                # print(read.query_name, notinternalpriming)
                 if not notinternalpriming:
-                    trash.write(read)
                     continue
-            if filterreadmap:
-                if read.query_name not in readstokeep: continue
+
+            if read.is_supplementary: supplementary += 1
+            else: primary += 1
+
             if read.has_tag('SA'):
                 if args.filtertype == 'separate':
                     withsup.write(read)
-                elif args.filtertype == 'removesup':
-                    trash.write(read)
-                elif read.is_supplementary:
-                    trash.write(read)
-                else:
-                    mapq = read.mapping_quality
-                    if mapq >= args.quality:
-                        fullyaligned.write(read)
-                        juncstrand = inferMM2JuncStrand(read)
-                        bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
-                                                                         read.query_name, read.reference_name, mapq, juncstrand)
-                        outbed.write('\t'.join(bedline) + '\n')
-                    else:
-                        trash.write(read)
-            else:
-                mapq = read.mapping_quality
-                if mapq >= args.quality:
-                    fullyaligned.write(read)
+                elif not read.is_supplementary or args.filtertype == 'keepsup':
                     juncstrand = inferMM2JuncStrand(read)
-                    bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples, read.query_name,
-                                                                     read.reference_name, mapq, juncstrand)
+                    bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
+                                                                     read.query_name, read.reference_name, mapq, juncstrand)
                     outbed.write('\t'.join(bedline) + '\n')
-                else:
-                    trash.write(read)
-        else:
-            trash.write(read)
+            else:
+                juncstrand = inferMM2JuncStrand(read)
+                bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples, read.query_name,
+                                                                 read.reference_name, mapq, juncstrand)
+                outbed.write('\t'.join(bedline) + '\n')
+
+    logging.info(f'total alignments in bam file (includes unaligned reads): {totalalignments}')
+    logging.info(f'total non-secondary alignments: {mappednotsec}')
+    logging.info(f'total primary alignments with quality >= {args.quality}: {primary}')
+    logging.info(f'total supplementary alignments with quality >= {args.quality}: {supplementary}')
+
     samfile.close()
+    if filterreadmap:
+        filteredout.close()
+        pysam.index(args.output + '_filteredout.bam')
     if args.filtertype == 'separate':
         withsup.close()
         pysam.index(args.output + '_chimeric.bam')
-    trash.close()
-    fullyaligned.close()
     outbed.close()
-    pysam.index(args.output + '_trash.bam')
-    pysam.index(args.output + '.bam')
 
 
-# note to self: select interpreter for conda
 def align():
-    parser = argparse.ArgumentParser(description='flair-align parse options',
-            usage='flair_align -g genome.fa -r <reads.fq>|<reads.fa> [options]')
-    required = parser.add_argument_group('required named arguments')
-    atleastone = parser.add_argument_group('Either one of the following arguments is required')
-    required.add_argument('-r', '--reads', nargs='+', type=str, required=True,
-            help='FastA/FastQ files of raw reads')
-    atleastone.add_argument('-g', '--genome', type=str,
-            help='FastA of reference genome, can be minimap2 indexed')
-    atleastone.add_argument('--mm_index', type=str, default='',
-            help='minimap2 index .mmi file')
-    parser.add_argument('-o', '--output', default='flair.aligned',
-            help='output file name base (default: flair.aligned)')
-    parser.add_argument('-t', '--threads', type=int, default=4,
-            help='minimap2 number of threads (4)')
-    parser.add_argument('--junction_bed', default='',
-            help='annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment')
-    parser.add_argument('--nvrna', action='store_true', default=False,
-            help='specify this flag to use native-RNA specific alignment parameters for minimap2')
-    parser.add_argument('--quality', type=int, default=0,
-            help='minimum MAPQ of read alignment to the genome (0)')
-    parser.add_argument('--minfragmentsize', type=int, default=80,
-                                            help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
-    parser.add_argument('--maxintronlen', default='200k',
-                                            help='maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns')
-    parser.add_argument('--filtertype', type=str, default='keepsup',
-    help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
-    parser.add_argument('--quiet', default=False, action='store_true', dest='quiet',
-            help='''Suppress minimap progress statements from being printed''')
-    parser.add_argument('--remove_internal_priming', default=False, action='store_true',
-                                       help='specify if want to remove reads with internal priming')
-    parser.add_argument('-f', '--gtf', type=str,
-            help='reference annotation, only used if --remove_internal_priming is specified, recommended if so')
-    parser.add_argument('--intprimingthreshold', type=int, default=12,
-                                            help='number of bases that are at leas 75%% As required to call read as internal priming')
-    parser.add_argument('--intprimingfracAs', type=float, default=0.6,
-                                            help='number of bases that are at leas 75%% As required to call read as internal priming')
-    parser.add_argument('--remove_singleexon', default=False, action='store_true',
-                                            help='specify if want to remove unspliced reads')
-
-    no_arguments_passed = len(sys.argv) == 1
-    if no_arguments_passed:
-        parser.print_help()
-        sys.exit(1)
-    if 'align' in sys.argv:
-        sys.argv.remove('align')
-    args = parser.parse_args()
-
-    # do we have multiple inputs?
-    if ',' in args.reads[0]:
-        args.reads = args.reads[0].split(',')
-    for rfile in args.reads:
-        if not os.path.exists(rfile):
-            sys.stderr.write(f'Error: read file does not exist: {rfile}\n')
-            sys.exit(1)
-
+    args = parse_args()
     doalignment(args)
+    dofiltering(args, args.output + '.bam')
+    return args.output + '.bed'
 
-    ##run filtering
-    dofiltering(args, args.output + '_unfiltered.bam')
-
-    pipettor.run([('rm', args.output + '_unfiltered.bam', args.output + '_unfiltered.bam.bai')])
-    bedout = args.output + '.bed'
-    # bam2Bed12(bamout, bedout, args.keep_supplementary)
-    return bedout
+def main():
+    align()
 
 if __name__ == "__main__":
-    align()
+    main()

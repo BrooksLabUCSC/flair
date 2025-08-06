@@ -3,6 +3,7 @@
 import os
 import sys
 from ncls import NCLS
+from flair import FlairInputDataError
 
 ########################################################################
 # CommandLine
@@ -48,7 +49,7 @@ class CommandLine(object):
 
         if len(sys.argv) == 1:
             self.parser.print_help()
-            sys.exit(1)
+            raise FlairInputDataError("No arguments provided, please provide bed and junction files")
         self.args = vars(self.parser.parse_args())
 
 
@@ -85,8 +86,7 @@ class BED12(object):
         self.fname = fname
 
         if not os.path.isfile(fname):
-            print("%s does not exist. Exiting.", file=sys.stderr)
-            sys.exit(1)
+            raise FlairInputDataError(f"{fname} does not exist")
 
     def getLine(self):
 
@@ -211,8 +211,6 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
                     sortedvals.append(('both' in annot.support or 'gtf' in annot.support, annot.strand == strand, hits[x][-1]))
             sortedvals.sort()
 
-            # with open(errFile, 'a+') as fo:
-            #     print(c, hits, sortedvals, file=fo)
             cCorr = sortedvals[-1][-1]
         else:
             cCorr = hits[distances.index(minVal)][-1]
@@ -258,9 +256,6 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
 
             ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
 
-            # with open(errFile, 'a+') as fo:
-            #     print(c1, c1Corr, ssTypes[0], c2, c2Corr, ssTypes[1], None in ssTypes, file=fo)
-
             ssStrands.add(junctionBoundaryDict[c1].ssCorr.strand)
             ssStrands.add(junctionBoundaryDict[c2].ssCorr.strand)
 
@@ -283,10 +278,6 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
         # 0 length exons, remove them.
         minSize = min(sizes)
         if minSize == 0: novelSS = True
-
-        # with open(errFile, 'a+') as fo:
-        #     # print(correctStrand, len(ssStrands) > 1, minSize == 0, file=fo)
-        #     print(minSize == 0, file=fo)
 
         if novelSS:
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
@@ -382,7 +373,6 @@ def main():
     myCommandLine = CommandLine()
     readsBed        = myCommandLine.args['input_bed']
     knownJuncsFile  = myCommandLine.args['juncs']
-    genomeFa            = myCommandLine.args['genome_fasta']
     wiggle        = myCommandLine.args['wiggleWindow']
     out           = myCommandLine.args['output_fname']
     resolveStrand = myCommandLine.args['correctStrand']
@@ -390,16 +380,16 @@ def main():
     errFile    = myCommandLine.args['check_file']
 
     # WARNING: out is a chromosome name and interpreted as such.
-    ssPrep([readsBed, knownJuncsFile, genomeFa, wiggle, out, resolveStrand, workingDir, errFile])
+    ssPrep([readsBed, knownJuncsFile, wiggle, out, resolveStrand, workingDir, errFile])
 
 
 def ssPrep(x):
     '''one argument so we can run p.map from the main program'''
-    readsBed, knownJuncsFile, genomeFa, wiggle, chrom, resolveStrand, workingDir, errFile = x
+    readsBed, knownJuncsFile, wiggle, chrom, resolveStrand, workingDir, errFile = x
 
     if errFile:
         with open(errFile,'a+') as fo:
-            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (readsBed, wiggle, knownJuncsFile, genomeFa), file=fo)
+            print("** Correcting %s with a wiggle of %s against %s. Checking splice sites with genome %s." % (readsBed, wiggle, knownJuncsFile), file=fo)
 
     # Build interval tree of known juncs
     intervalTree, junctionBoundaryDict = buildIntervalTree(knownJuncsFile, wiggle, chrom, errFile)

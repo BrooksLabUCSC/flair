@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys, csv, os, argparse, pysam, subprocess
-from collections import namedtuple
-
+import pysam
+import logging
+from flair import FlairInputDataError
 
 def main():
     parser = argparse.ArgumentParser(description='options',
@@ -19,32 +20,26 @@ def main():
             type=str, help='isoform haplotype assignments')
     parser.add_argument('--vcf_out', action='store', dest='vcf_out', default='',
             type=str, help='vcf output file name')
-    parser.add_argument('--models_out', action='store', dest='models_out', default='', type=str,
-            help='isoform bed out, will contain additional isoforms created from unphased variants')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
         parser.print_help()
-        sys.exit(1)
+        parser.error("No arguments passed, please provide genome and bed isoform files")
     args = parser.parse_args()
 
     if args.vcf and not (args.vcf and args.isoform_haplotypes):
-        sys.stderr.write('Must provide both vcf and haplotype information if vcf is provided\n')
-        sys.exit(1)
+        raise FlairInputDataError('Must provide both vcf and haplotype information if vcf is provided')
 
-    if (not args.vcf and args.models_out) or (not args.bed and args.models_out):
-        sys.stderr.write('Not going to write isoform models without vcf or in BED format\n')
-        args.models_out = ''
 
     bed_to_sequence(query=args.bed, genome=args.genome, outfilename=args.outfilename,
              isoform_haplotypes=args.isoform_haplotypes, vcfinput=args.vcf,
-             vcf_out=args.vcf_out, models_out=args.models_out)
+             vcf_out=args.vcf_out)
 
 
 # NOTE: using functions inside bed_to_sequence because all of them rely on 'global' variables
 # This really should be rewritten.
 def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinput=False,
-                    vcf_out=False, models_out=False):
+                    vcf_out=False):
     used_variants = dict()
     variant_string_to_record = dict()
     fastq = outfilename[-2:].lower() in ['fq', 'fastq']
@@ -151,12 +146,7 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
 
 
         # get variants for this haplotype
-        if not isoform_haplotypes:
-            if name not in iso_to_variants:  # BUG: This never gets defined so the statement is never True
-                return get_sequence(entry, seq)
-            v_to_add = iso_to_variants[name]
-            v_to_add.reverse()
-        else:
+        if isoform_haplotypes and name in haplotype:
             if chrom not in vcf.header.contigs:
                 variants = []
             else:
@@ -167,60 +157,52 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
                 sample_name = list(v.samples)[0]
                 variant_ps = v.samples[sample_name]['PS']
                 variant_gt = v.samples[sample_name]['GT']
-                variant_ac = v.info['AC']
                 if variant_gt == (1,1):
-                    v_to_add += [v]
-                    v_to_add_alt += [v]
+                    v_to_add.append(v)
+                    v_to_add_alt.append(v)
 
-                elif models_out and variant_gt == (0,1) and not variant_ps and \
-                variant_ac[0] > unphased_variant_support and variant_ac[1] > unphased_variant_support:
-                    print(entry[0], v.pos, variant_ps, variant_ac)
-                    v_to_add_alt += [v]
-
-                elif name not in haplotype or variant_ps not in haplotype[name]:
-
-                    continue
-                else:
-                    v_to_add += [v]
-                    v_to_add_alt += [v]
+                elif variant_ps in haplotype[name]:
+                    if variant_gt == (0,1):
+                        v_to_add.append(v)
+                    elif variant_gt == (1,0):
+                        v_to_add_alt.append(v)
             v_to_add.reverse()  # add variants starting from the end in case of indels
             v_to_add_alt.reverse()
 
-            if len(v_to_add_alt) != len(v_to_add):
-                iso, gene = split_iso_gene(name)
-                name_ref, name_alt = '>' + iso+':0_'+gene, '>' + iso+':1_'+gene
-            else:
-                name_ref = name
-        if not isoform_haplotypes:
-            pulled_seq = add_variants_to_seq(v_to_add, seq, blockstarts, blocksizes, strand, entry[0])#, name_ref)
+            iso, gene = split_iso_gene(name)
+            iso = ':'.join(iso.split(':')[:-1])
+            name_ref, name_alt = '>' + iso+':0|1_'+gene, '>' + iso+':1|0_'+gene
+            names = [name_ref, name_alt]
+            pulled_seq = [add_variants_to_seq(v_to_add, seq, blockstarts, blocksizes, strand, entry[0], iso_name=name_ref),
+                          add_variants_to_seq(v_to_add_alt, seq, blockstarts, blocksizes, strand, entry[0],
+                                              iso_name=name_alt)]
         else:
-            pulled_seq = add_variants_to_seq(v_to_add, seq, blockstarts, blocksizes, strand, entry[0], iso_name=name_ref)
-
+            pulled_seq = [seq]
+            names = [name]
 
         if strand == '-':
-            pulled_seq = revcomp(pulled_seq)
-        if isoform_haplotypes:
-            if not models_out or len(v_to_add_alt) == len(v_to_add):
-                return pulled_seq
+            pulled_seq = [revcomp(x) for x in pulled_seq]
 
-            alt_seq = add_variants_to_seq(v_to_add_alt, seq, blockstarts, blocksizes, iso_name=name_alt)
-            if strand == '-':
-                alt_seq = revcomp(alt_seq)
-            return name_ref, pulled_seq, name_alt, alt_seq
-        else:
-            return pulled_seq
+        return names, pulled_seq
 
 
     def write_sequences(beddata_chrom, seq):
 
+        seenisos = set()
         models = []
         for entry in beddata_chrom:
 
             name = entry[3]
             if vcfinput:
-                pulled_seq = get_sequence_with_variants(entry, seq)
-                writer.writerow(['>' + name])
-                writer.writerow([pulled_seq])
+                iso, gene = split_iso_gene(name)
+                iso = ':'.join(iso.split(':')[:-1])
+                if iso not in seenisos:
+                    names, pulled_seq = get_sequence_with_variants(entry, seq)
+                    for i in range(len(pulled_seq)):
+                        n,p = names[i], pulled_seq[i]
+                        writer.writerow(['>' + n])
+                        writer.writerow([p])
+                    seenisos.add(iso)
 
             else:
                 if fastq:
@@ -250,33 +232,14 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
         seq, chrom = '', ''
-        ignore = False
-        models_to_write = []
-
-        for line in open(genome):
-            line = line.rstrip()
-            if line.startswith('>'):
-                if not chrom:
-                    chrom = line.split()[0][1:]
-                    continue
-                if chrom in beddata:  # or bed
-                    write_sequences(beddata[chrom], seq)
-
-                chrom = line.split()[0][1:]
-                ignore = chrom not in beddata
-                seq = ''
-            elif not ignore:
-                seq += line.upper()
-
-        if chrom in beddata:  # last chromosome
-            write_sequences(beddata[chrom], seq)
 
 
-    if models_out:
-        with open(models_out, 'wt') as outfile:
-            writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-            for entry in models_to_write:
-                writer.writerow(entry)
+
+        genome = pysam.FastaFile(genome)
+        for chrom in beddata:
+            write_sequences(beddata[chrom], genome.fetch(chrom).upper())
+
+
 
     if vcf and isoform_haplotypes:
         header = vcf.header

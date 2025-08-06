@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to FLAIR's documentation!
+Welcome to FLAIR's Documentation!
 =================================
 
 Staying in touch and getting help
@@ -77,7 +77,6 @@ individually to isoforms of the combined assembly for downstream analyses.
    flair2_functions.rst
    other_ways.rst
    testrun.rst
-   example_files.rst
    faqs.rst
    cite.rst
 

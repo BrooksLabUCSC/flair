@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+from flair import FlairInputDataError
 
 def main():
     try:
@@ -9,12 +10,10 @@ def main():
         s = float(sys.argv[2])
         outfilename = sys.argv[3]
     except:
-        sys.stderr.write('usage: filter_isoforms_by_proportion_of_gene_expr.py isoforms support_percentage outfile\n')
-        sys.exit(1)
+        raise FlairInputDataError('usage: filter_isoforms_by_proportion_of_gene_expr.py isoforms support_percentage outfile')
 
     if s >= 1:
-        sys.stderr.write('Support percentage should be a decimal e.g. 0.1 for 10%\n')
-        sys.exit(1)
+        raise FlairInputDataError('Support percentage should be a decimal e.g. 0.1 for 10%')
 
     filter_isoforms_by_proportion_of_gene_expr(isoforms=isoforms, outfilename=outfilename,
                                         support=s,)
@@ -59,7 +58,7 @@ def filter_isoforms_by_proportion_of_gene_expr(isoforms, outfilename, support):
             if gene_total == 0:
                 continue
             for iso in genes[gene]:
-                if float(iso[0][-1])/gene_total >= support:
+                if float(iso[-1])/gene_total >= support:
                     writer.writerow(iso)
 
 if __name__ == "__main__":

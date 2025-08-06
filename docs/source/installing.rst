@@ -89,10 +89,6 @@ with these ``R`` packages. Some of these do not work on Apple Silicon.
 - `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
 - `stageR <http://bioconductor.org/packages/release/bioc/html/stageR.html>`__
 
-.. code:: sh
-
-   pip install flair-brookslab[diffexp]
-
 
 Running from GitHub clone
 ~~~~~~~~~~~~~~~~~~~~~~~~~
