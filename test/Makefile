@@ -489,5 +489,5 @@ mkdirs:
 clean:
 	rm -rf $O $D
 
-realclean : clean
+real-clean : clean
 	rm -rf ${TI}
