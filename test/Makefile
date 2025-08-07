@@ -150,7 +150,7 @@ test-align-help: mkdirs
 ###
 # FLAIR CORRECT
 ###
-correct-tests: test-correct test-correct-seg1 test-correct-help
+correct-tests: test-correct test-correct-seg1 test-correct-blocksize test-correct-help
 
 test-correct: mkdirs ${GENOME_FA}
 	flair correct -q ${BASIC_ALIGN_BED} --junction_tab $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@
