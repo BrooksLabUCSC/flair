@@ -154,13 +154,13 @@ correct-tests: test-correct test-correct-seg1 test-correct-help
 
 test-correct: mkdirs ${GENOME_FA}
 	flair correct -q ${BASIC_ALIGN_BED} --junction_tab $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@
-	$(call cmp_expect,$@_all_inconsistent.bed)
-	$(call cmp_expect,$@_all_corrected.bed)
+	$(call cmp_expect_sort,$@_all_inconsistent.bed)
+	$(call cmp_expect_sort,$@_all_corrected.bed)
 
 test-correct-seg1: mkdirs ${GENOME_FA}
 	flair correct -q ${SEG1_ALIGN_BED} -f ${SEG1_ANNOTATION} -o $O/$@
-	$(call cmp_expect,$@_all_inconsistent.bed)
-	$(call cmp_expect,$@_all_corrected.bed)
+	$(call cmp_expect_sort,$@_all_inconsistent.bed)
+	$(call cmp_expect_sort,$@_all_corrected.bed)
 
 test-correct-help: mkdirs
 	flair correct --help > $O/$@.out
