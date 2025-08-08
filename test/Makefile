@@ -332,6 +332,15 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
+test-diffsplice-cond: mkdirs
+	flair diffsplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of --conditionA A --conditionB B
+	$(call cmp_expect_sort,test-diffsplice/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_sort,test-diffsplice/diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect,test-diffsplice/diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_sort,test-diffsplice/diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect,test-diffsplice/drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect,test-diffsplice/drimseq_es_A_v_B.tsv)
+
 test-diffsplice-help: mkdirs
 	flair diffsplice --help > $O/$@.out
 	$(call cmp_expect,$@.out)
