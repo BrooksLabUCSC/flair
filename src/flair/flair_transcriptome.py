@@ -11,7 +11,7 @@ import pysam
 import logging
 from flair.flair_align import inferMM2JuncStrand, intronChainToestarts
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
-from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
+from flair.ssPrep import buildIntervalTree, ssCorrect
 import multiprocessing as mp
 import time
 from collections import Counter
@@ -92,6 +92,8 @@ def get_args():
                         help='''specify if intermediate and temporary files are to be kept for debugging.
                 Intermediate files include: promoter-supported reads file,
                 read assignments to firstpass isoforms''')
+    parser.add_argument('--keep_sup', default=False, action='store_true',
+                        help='''specify if you want to keep supplementary alignments to define isoforms''')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -237,7 +239,7 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
             return None
         newJuncs.append((c1Corr, c2Corr))
 
-    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.start, bedread.end, newJuncs)
+    starts, sizes = getexonsfromjuncs(newJuncs, bedread.start, bedread.end) #juncsToBed12(bedread.start, bedread.end, newJuncs)
 
     # 0 length exons, remove them.
     if min(sizes) == 0:
@@ -246,6 +248,7 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
     bedread.juncs = newJuncs
     bedread.esizes = sizes
     bedread.estarts = starts
+    bedread.setexons()
     return bedread
 
 
@@ -622,7 +625,7 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
     shortchromfasta = open(tempprefix + 'reads.notannotmatch.fasta', 'w')
     c = 0
     for read in samfile.fetch(rchrom, int(rstart), int(rend)):
-        if not read.is_secondary and not read.is_supplementary:
+        if not read.is_secondary and (not read.is_supplementary or args.keep_sup):
             if read.query_name not in goodaligntoannot:
                 c += 1
                 shortchromfasta.write('>' + read.query_name + '\n')
@@ -1093,7 +1096,6 @@ def collapsefrombam():
     logging.info('making temp dir')
     tempDir = makecorrecttempdir()
     logging.info('Getting regions')
-    t1 = time.time()
     allregions = []
     if decide_parallel_mode(args.parallelmode, args.genomealignedbam) == 'bychrom':
         for chrom in allchrom:
@@ -1130,8 +1132,6 @@ def collapsefrombam():
                               junctogene, allannotse, genetoannotjuncs, annottranscripttoexons,
                               allannottranscripts])
             tempprefixes.append(tempprefix)
-    t2 = time.time()
-    logging.info(f'region overhead: {t2 - t1}')
     mp.set_start_method('fork')
     p = mp.Pool(args.threads)
     childErrs = set()
@@ -1185,7 +1185,7 @@ def collapsefrombam():
                    '--genome_fasta', args.genome,
                    '--longestORF')
         pipettor.run([prodcmd])
-        os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
+        # os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
         os.remove(args.output + '.isoforms.CDS.info.tsv')
     genome.close()
 
