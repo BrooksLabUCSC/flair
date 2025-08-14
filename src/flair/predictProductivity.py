@@ -247,7 +247,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     elif exonSizes[-2] < maxdistfromexonedge: ptcpointont = sum(exonSizes[:-2])
     else: ptcpointont = sum(exonSizes[:-1]) - maxdistfromexonedge
 
-    isoname = isoname.split('_')[-2]
+    isoname = '_'.join(isoname.split('_')[:-1])
     if isoname[-2] == '-': isoname = isoname[:-2]
     if isoname in nmdexcep:
         ptc, ptcpointont = False, 0
