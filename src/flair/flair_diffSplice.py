@@ -16,7 +16,7 @@ diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
 
 def diffSplice(isoforms='', counts_matrix=''):
     set_unix_path()
-    parser = argparse.ArgumentParser(description='flair-diffSplice parse options')
+    parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required named arguments')
     if not isoforms:
         required.add_argument('-i', '--isoforms', action='store', dest='i', required=True,
