@@ -1,18 +1,20 @@
-usage: flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]
-
-flair-diffExp parse options
+usage: diffexp [-h] -q COUNTS_MATRIX -o OUT_DIR [-t THREADS] [-e EXP_THRESH]
+               [-of]
 
 options:
   -h, --help            show this help message and exit
-  -t T, --threads T     Number of threads for parallel DRIMSeq.
-  -e E, --exp_thresh E  Read count expression threshold. Isoforms in which
+  -t THREADS, --threads THREADS
+                        Number of threads for parallel DRIMSeq.
+  -e EXP_THRESH, --exp_thresh EXP_THRESH
+                        Read count expression threshold. Isoforms in which
                         both conditions contain fewer than E reads are
                         filtered out (Default E=10)
   -of, --out_dir_force  Specify this argument to force overwriting of files in
                         an existing output directory
 
 required named arguments:
-  -q Q, --counts_matrix Q
+  -q COUNTS_MATRIX, --counts_matrix COUNTS_MATRIX
                         Tab-delimited isoform count matrix from flair quantify
                         module.
-  -o O, --out_dir O     Output directory for tables and plots.
+  -o OUT_DIR, --out_dir OUT_DIR
+                        Output directory for tables and plots.
