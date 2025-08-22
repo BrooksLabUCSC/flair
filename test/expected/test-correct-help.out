@@ -3,8 +3,6 @@ usage: correct [-h] -q QUERY [-f GTF]
                [--junction_support JUNCTION_SUPPORT] [-o OUTPUT] [-t THREADS]
                [--nvrna] [-w SS_WINDOW]
 
-flair-correct parse options
-
 options:
   -h, --help            show this help message and exit
   --junction_support JUNCTION_SUPPORT

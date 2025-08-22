@@ -14,8 +14,6 @@ usage: collapse [-h] -q QUERY -g GENOME -r READS [READS ...] [-o OUTPUT]
                 [--fusion_breakpoints FUSION_BREAKPOINTS] [--allow_paralogs]
                 [--predictCDS]
 
-collapse isoforms
-
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
