@@ -8,8 +8,7 @@ import os
 import logging
 import multiprocessing as mp
 
-parser = argparse.ArgumentParser(description='collapse parse options',
-                        usage='python collapse_isoforms_precise.py -q <query.bed> [options]')
+parser = argparse.ArgumentParser(description='collapse parse options')
 required = parser.add_argument_group('required named arguments')
 required.add_argument('-q', '--query', type=str, required=True,
         help='BED12 file of aligned/corrected reads.')

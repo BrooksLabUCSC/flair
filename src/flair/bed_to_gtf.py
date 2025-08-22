@@ -4,8 +4,7 @@ import argparse
 from flair import FlairInputDataError
 
 def main():
-    parser = argparse.ArgumentParser(description='options',
-            usage='bed_to_gtf.py bed [options] > outfile.gtf')
+    parser = argparse.ArgumentParser(description='options')
     parser.add_argument('inputfile', type=str,
             action='store', help='isoforms in bed format')
     parser.add_argument('--force', action='store_true', dest='force',

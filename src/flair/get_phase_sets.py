@@ -7,8 +7,7 @@ import pysam
 from flair import FlairInputDataError
 
 def main():
-    parser = argparse.ArgumentParser(description='options',
-            usage='python get_phase_sets.py -i isoforms.bed -m isoform_read_map.txt -b reads.bam -o out [options]')
+    parser = argparse.ArgumentParser(description='options')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-i', '--isoforms',
             type=str, required=True, help='isoforms in bed format')

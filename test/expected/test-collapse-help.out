@@ -1,7 +1,20 @@
-usage: flair collapse -g genome.fa -q query.bed
-            -r <reads.fq>/<reads.fa> [options]
+usage: collapse [-h] -q QUERY -g GENOME -r READS [READS ...] [-o OUTPUT]
+                [-t THREADS] [-f GTF] [--generate_map]
+                [--annotation_reliant ANNOTATION_RELIANT] [-s SUPPORT]
+                [--stringent] [--check_splice] [--trust_ends]
+                [--quality QUALITY] [--longshot_bam LONGSHOT_BAM]
+                [--longshot_vcf LONGSHOT_VCF] [-w END_WINDOW] [-p PROMOTERS]
+                [--3prime_regions THREEPRIME] [-n NO_REDUNDANT] [-i]
+                [--no_gtf_end_adjustment] [--max_ends MAX_ENDS]
+                [--filter FILTER] [--temp_dir TEMP_DIR] [--keep_intermediate]
+                [--mm2_args MM2_ARGS] [--annotated_bed ANNOTATED_BED]
+                [--remove_internal_priming]
+                [--intprimingthreshold INTPRIMINGTHRESHOLD]
+                [--intprimingfracAs INTPRIMINGFRACAS]
+                [--fusion_breakpoints FUSION_BREAKPOINTS] [--allow_paralogs]
+                [--predictCDS]
 
-flair-collapse parse options
+collapse isoforms
 
 options:
   -h, --help            show this help message and exit

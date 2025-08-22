@@ -1,5 +1,7 @@
-usage: flair detectfusions -g genome.fa -q query.bed
-                -r <reads.fq>/<reads.fa> [options]
+usage: fusion [-h] -g GENOME -f GTF -r READS [READS ...] -b GENOMECHIMBAM
+              [--transcriptchimbam TRANSCRIPTCHIMBAM] [-o OUTPUT] [-t THREADS]
+              [--minfragmentsize MINFRAGMENTSIZE] [-s SUPPORT]
+              [--maxloci MAXLOCI]
 
 flair-detectfusions parse options
 

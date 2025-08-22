@@ -1,4 +1,7 @@
-usage: flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]
+usage: correct [-h] -q QUERY [-f GTF]
+               [--junction_tab JUNCTION_TAB | --junction_bed JUNCTION_BED]
+               [--junction_support JUNCTION_SUPPORT] [-o OUTPUT] [-t THREADS]
+               [--nvrna] [-w SS_WINDOW]
 
 flair-correct parse options
 

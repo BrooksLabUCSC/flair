@@ -8,7 +8,7 @@ options(error = function() traceback(2))
 
 # Function to parse command-line arguments
 parse_arguments <- function() {
-  parser <- ArgumentParser(description = '.')
+  parser <- ArgumentParser(description = 'run dirmSeq')
   parser$add_argument("--matrix", required=TRUE, help="Input DRIM-Seq formatted count files.")
   parser$add_argument("--outDir", default='', help="Write to specified output directory.")
   parser$add_argument("--prefix", required=TRUE, help="Specify file prefix.")

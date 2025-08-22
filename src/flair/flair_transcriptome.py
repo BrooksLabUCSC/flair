@@ -21,8 +21,7 @@ from flair import FlairInputDataError
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 
 def get_args():
-    parser = argparse.ArgumentParser(description='flair transcriptome parse options',
-                                     usage='''flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]''')
+    parser = argparse.ArgumentParser(description='flair transcriptome parse options')
     parser.add_argument('-b', '--genomealignedbam',
                         help='Sorted and indexed bam file aligned to the genome')
     parser.add_argument('-g', '--genome', type=str,
@@ -61,8 +60,8 @@ def get_args():
                         help='window size for comparing TSS/TES (100)')
 
     parser.add_argument('--noaligntoannot', default=False, action='store_true',
-                        help='''related to old annotation_reliant, now specify if you don't want 
-                        an initial alignment to the annotated sequences and only want transcript 
+                        help='''related to old annotation_reliant, now specify if you don't want
+                        an initial alignment to the annotated sequences and only want transcript
                         detection from the genomic alignment.
                          Will be slightly faster but less accurate if the annotation is good''')
     parser.add_argument('-n', '--no_redundant', default='none',
@@ -80,9 +79,9 @@ def get_args():
             ginormous--comprehensive set + single exon subset isoforms''')
 
     parser.add_argument('--parallelmode', default='auto:1GB',
-                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where 
-                            if the file is less than 1GB, parallelization is done by chromosome, but if it's larger, 
-                            parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion, 
+                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where
+                            if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
+                            parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion,
                             auto:xGB - for setting the auto threshold, it must be in units of GB.''')
     parser.add_argument('--predictCDS', default=False, action='store_true',
                         help='specify if you want to predict the CDS of the final isoforms. '

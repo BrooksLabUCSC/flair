@@ -1,4 +1,12 @@
-usage: flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]
+usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
+                     [-t THREADS] [-f GTF]
+                     [--junction_tab JUNCTION_TAB | --junction_bed JUNCTION_BED]
+                     [--junction_support JUNCTION_SUPPORT]
+                     [--ss_window SS_WINDOW] [-s SUPPORT] [--stringent]
+                     [--check_splice] [-w END_WINDOW] [--noaligntoannot]
+                     [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
+                     [--parallelmode PARALLELMODE] [--predictCDS]
+                     [--keep_intermediate]
 
 flair transcriptome parse options
 
