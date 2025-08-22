@@ -4,7 +4,7 @@ from datetime import date
 import itertools
 import pysam
 
-parser = argparse.ArgumentParser(description='make synthetic fusion reference', usage='python3 realignToFilteredGenome2.py  ')
+parser = argparse.ArgumentParser(description='make synthetic fusion reference')
 parser.add_argument('-c', '--chimbp', action='store', help='bed file of fusion breakpoints')
 parser.add_argument('-g', '--genome', action='store', dest='g', help='path to genome')
 parser.add_argument('-a', '--anno', action='store', dest='a', help='path to anno.gtf')

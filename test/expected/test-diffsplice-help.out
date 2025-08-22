@@ -1,4 +1,6 @@
-usage: flair diffSplice -i isoforms.bed -q counts_matrix.tsv [options]
+usage: diffsplice [-h] -i I -q Q -o O [-t T] [--test] [--drim1 DRIM1]
+                  [--drim2 DRIM2] [--drim3 DRIM3] [--drim4 DRIM4] [--batch]
+                  [--conditionA CONDITIONA] [--conditionB CONDITIONB] [-of]
 
 flair-diffSplice parse options
 

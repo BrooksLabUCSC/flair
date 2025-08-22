@@ -8,8 +8,7 @@ from flair.gtf_to_bed import get_iso_info
 
 def main():
     parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
-            each isoform and renames the isoform''',
-            usage='python identify_gene_isoform.py bed annotation.gtf renamed.bed [proportion]')
+            each isoform and renames the isoform''')
     parser.add_argument('bed', type=str,
             action='store', help='isoforms in bed format')
     parser.add_argument('gtf', type=str,

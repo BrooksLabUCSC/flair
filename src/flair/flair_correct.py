@@ -14,8 +14,7 @@ from flair import FlairInputDataError
 import logging
 
 def parseargs(aligned_reads=''):
-    parser = argparse.ArgumentParser(description='flair-correct parse options',
-                                                                     usage='flair correct -q query.bed12 [-f annotation.gtf]v[-j introns.tab] [options]')
+    parser = argparse.ArgumentParser(description='flair-correct parse options')
     required = parser.add_argument_group('required named arguments')
     atleastone = parser.add_argument_group('at least one of the following arguments is required')
     if not aligned_reads:

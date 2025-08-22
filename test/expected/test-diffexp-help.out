@@ -1,4 +1,4 @@
-usage: flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]
+usage: diffexp [-h] -q Q -o O [-t T] [-e E] [-of]
 
 flair-diffExp parse options
 

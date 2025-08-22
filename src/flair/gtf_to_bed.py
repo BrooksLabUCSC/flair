@@ -6,8 +6,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description='''converts a gtf to a bed, depending on the output filename extension;
-            gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''',
-            usage='gtf_to_bed in.gtf out.bed [options]')
+            gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('gtf', type=str, help='annotated gtf')
     required.add_argument('bed', type=str, help='bed file')
