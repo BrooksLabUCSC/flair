@@ -396,8 +396,7 @@ def calculate_sig(args):
 
 def diffExp(counts_matrix=''):
     set_unix_path()
-    parser = argparse.ArgumentParser(description='flair-diffExp parse options',
-                                     usage='flair diffExp -q counts_matrix.tsv --out_dir out_dir [options]')
+    parser = argparse.ArgumentParser()
 #       parser.add_argument('diffExp')
     required = parser.add_argument_group('required named arguments')
     if not counts_matrix:

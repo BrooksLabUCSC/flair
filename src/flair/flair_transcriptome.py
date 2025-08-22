@@ -21,8 +21,7 @@ from flair import FlairInputDataError
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 
 def get_args():
-    parser = argparse.ArgumentParser(description='flair transcriptome parse options',
-                                     usage='''flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]''')
+    parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--genomealignedbam',
                         help='Sorted and indexed bam file aligned to the genome')
     parser.add_argument('-g', '--genome', type=str,

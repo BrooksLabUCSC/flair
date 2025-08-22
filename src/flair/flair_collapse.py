@@ -27,9 +27,7 @@ run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.
 
 def collapse(genomic_range='', corrected_reads=''):
-    parser = argparse.ArgumentParser(description='flair-collapse parse options',
-            usage='''flair collapse -g genome.fa -q query.bed
-            -r <reads.fq>/<reads.fa> [options]''')
+    parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required named arguments')
     if not corrected_reads:
         required.add_argument('-q', '--query', type=str, default='', required=True,
