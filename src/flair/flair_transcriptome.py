@@ -358,9 +358,10 @@ class AnnotData(object):
         self.junctogene = {}
         self.allannotse = []
         self.genetoannotjuncs = {}
+        self.genetostrand = {}
 
     def returndata(self):
-        return self.juncstotranscript, self.junctogene, self.allannotse, self.genetoannotjuncs, self.transcripttoexons, self.alltranscripts
+        return self.juncstotranscript, self.junctogene, self.allannotse, self.genetoannotjuncs, self.genetostrand, self.transcripttoexons, self.alltranscripts
 
 def generate_region_dict(allregions):
     chromtoregions, regionstoannotdata = {}, {}
@@ -406,6 +407,8 @@ def save_transcript_annot_to_region(transcript, gene, thisregion, regionstoannot
     for i in range(len(sortedexons) - 1):
         juncs.append((sortedexons[i][1], sortedexons[i + 1][0]))
     regionstoannotdata[thisregion].alltranscripts.append((transcript, gene, strand))
+    if gene not in regionstoannotdata[thisregion].genetostrand:
+        regionstoannotdata[thisregion].genetostrand[gene] = strand
     if len(juncs) == 0:
         regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
     else:
@@ -876,14 +879,14 @@ def getsingleexongenehits(thisiso, allannotse):
 
 
 def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotranscript, junctogene, allannotse,
-                                  genetoannotjuncs, genome):
+                                  genetoannotjuncs, genetostrand, genome):
     with open(tempprefix + '.firstpass.bed', 'w') as isoout, open(tempprefix + '.firstpass.fa', 'w') as seqout:
         # THIS IS WHERE WE CAN GET GENES AND ADJUST NAMES
         annotnametousedcounts = {}
         for isoname in firstpass:
             thisiso = firstpass[isoname]
             # Adjust name based on annotation
-            thistranscript, thisgene = thisiso.name, thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
+            thistranscript, thisgene = thisiso.name, None#thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
             if thisiso.juncs != () and thisiso.juncs in juncstotranscript:
                 thistranscript, thisgene = juncstotranscript[thisiso.juncs]
                 if thistranscript in annotnametousedcounts:
@@ -900,6 +903,10 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                 if gene_hits:
                     sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
                     thisgene = sortedgenes[0][0]
+            if thisgene:
+                thisiso.strand = genetostrand[thisgene]
+            else:
+                thisgene = thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
             thisiso.name = thistranscript + '_' + thisgene
             isoout.write('\t'.join(thisiso.getbedline()) + '\n')
             seqout.write('>' + thisiso.name + '\n')
@@ -1033,7 +1040,7 @@ def decide_parallel_mode(parallel_option, genomealignedbam):
         else: return 'bychrom'
 
 def runcollapsebychrom(listofargs):
-    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = listofargs
+    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
     # first extract reads for chrom as fasta
     tempsplit = tempprefix.split('/')[-1].split('-')
     rchrom, rstart, rend = '-'.join(tempsplit[:-2]), tempsplit[-2], tempsplit[-1]
@@ -1066,7 +1073,7 @@ def runcollapsebychrom(listofargs):
         temptoremove.extend([tempprefix + '.annotated_transcripts.bed', tempprefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
         getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
-                                      allannotse, genetoannotjuncs, genome)
+                                      allannotse, genetoannotjuncs, genetostrand, genome)
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -1118,15 +1125,15 @@ def collapsefrombam():
     tempprefixes = []
     for rchrom, rstart, rend in allregions:
         if rchrom in knownchromosomes:
-            juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, []
+            juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, []
             if args.gtf:
-                juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = \
+                juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
                 regionstoannotdata[(rchrom, rstart, rend)].returndata()
 
             splicesiteannot_chrom = annotationFiles[rchrom]
             tempprefix = tempDir + '-'.join([rchrom, str(rstart), str(rend)])
             chunkcmds.append([args, tempprefix, splicesiteannot_chrom, juncstotranscript,
-                              junctogene, allannotse, genetoannotjuncs, annottranscripttoexons,
+                              junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons,
                               allannottranscripts])
             tempprefixes.append(tempprefix)
     mp.set_start_method('fork')
