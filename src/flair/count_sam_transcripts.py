@@ -30,8 +30,6 @@ def parseargs():
                                             help='specify if reads are generated from a long read method with minimal fragmentation')
     parser.add_argument('-t', '--threads', default=4, type=int,
                                             help='number of threads to use')
-    parser.add_argument('-w', '--window', type=int, default=10,
-                                            help='number of bases for determining which end is best match (10)')
     parser.add_argument('--quality', default=0, type=int,
                                             help='minimum quality threshold to consider if ends are to be trusted (0)')
     parser.add_argument('--generate_map',
@@ -55,6 +53,8 @@ def parseargs():
                                             help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
                                             help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
+    parser.add_argument('--trimmedreads', default=False, action='store_true',
+                        help='specify if your reads are properly trimmed and you want to remove alignments with too much softclipping at the ends (improves accuracy when possible)')
     args = parser.parse_args()
     return args
 
@@ -108,7 +108,7 @@ def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
     if trust_ends:
         return disttoend <= trust_ends_window
     else:
-        return disttoblock > min(25, blocksize-6)
+        return disttoblock >= min(10, blocksize-6)
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends):
     left_coverage = check_exonenddist(first_blocksize, read_start, trust_ends, first_blocksize-read_start)
@@ -236,7 +236,7 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
         indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(args, matchvals, thist.cigar, thist.startpos)
         if tname == testtname:
             print('indel', indel_detected)
-        if not indel_detected:
+        if not indel_detected and (not args.trimmedreads or all(x < 25 for x in queryclipping)):
             if check_stringentandsplice(args, transcripttoexons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcripttobpssindex):
                 passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname])
     # order passing transcripts by alignment score
