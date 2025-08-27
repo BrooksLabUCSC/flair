@@ -237,7 +237,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # count sam transcripts ; the dash at the end means STDIN
         count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
                 '-o', args.output+'annotated_transcripts.alignment.counts', '-t', str(args.threads),
-                '--quality', str(args.quality), '-w', str(args.end_window),
+                '--quality', str(args.quality),
                 '--generate_map', args.output+'annotated_transcripts.isoform.read.map.txt']
         if args.stringent:
             count_cmd += ['--stringent']
@@ -328,7 +328,7 @@ def collapse(genomic_range='', corrected_reads=''):
     # count the number of supporting reads for each first-pass isoform
     count_file = args.output+'firstpass.q.counts'
     count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
-            '-o', count_file, '-t', str(args.threads), '--quality', str(args.quality), '-w', str(args.end_window)]
+            '-o', count_file, '-t', str(args.threads), '--quality', str(args.quality)]
     if args.stringent:
         count_cmd += ['--stringent']
     if args.check_splice:
