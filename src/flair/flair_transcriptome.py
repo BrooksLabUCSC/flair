@@ -1099,9 +1099,8 @@ def collapsefrombam():
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))
     else:
-        pipettor.run([('bedtools', 'bamtobed', '-i', args.genomealignedbam),
-                      ('flair_partition', '--min_partition_items', '1000', '--threads', str(args.threads), '/dev/stdin',
-                       tempDir + 'regions.bed')])
+        pipettor.run(['flair_partition', '--min_partition_items', '1000', '--threads', str(args.threads), '--bam=' + args.genomealignedbam,
+                      tempDir + 'regions.bed'])
         for line in open(tempDir + 'regions.bed'):
             line = line.rstrip().split('\t')
             chrom, start, end = line[0], int(line[1]), int(line[2])
