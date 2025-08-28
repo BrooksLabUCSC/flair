@@ -128,17 +128,21 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
 
 def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
     currpos = 0
+    allerrors = []
     for i in range(len(exonpos)-1):
         elen = exonpos[i]
         currpos += elen
         if tstart < currpos < tend:
-            ssvals = coveredpos[currpos - 3:currpos + 3]
+            ssvals = coveredpos[currpos - 6:currpos + 4] ##total size = 10, need to check indexing, seems off. This worked in a couple cases but is not systematically tested.
             totinsert = sum([x-1 for x in ssvals if x > 1]) # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1]) # insert at pos still counts as match
+            # if sum(ssvals) != len(ssvals):
+            #     print(i, ssvals)
             if tname == testtname:
                 print(i, currpos, ssvals, totmatch, totinsert)
-            if totmatch - totinsert <= num_match_in_ss_window:
+            if totinsert + (len(ssvals)-totmatch) > num_mistakes_in_ss_window:
                 return False
+            allerrors.append(totinsert + (len(ssvals)-totmatch))
     return True
 
 def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcripttobpssindex):
@@ -148,12 +152,12 @@ def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcripttobpssind
         eindex = transcripttobpssindex[tname]
         currpos = sum(exonpos[:eindex+1])
         if tstart < currpos < tend:
-            ssvals = coveredpos[currpos - 3:currpos + 3]
+            ssvals = coveredpos[currpos - 6:currpos + 6]
             totinsert = sum([x-1 for x in ssvals if x > 1]) # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1]) # insert at pos still counts as match
             if tname == testtname:
                 print(i, currpos, ssvals, totmatch, totinsert)
-            if totmatch - totinsert > num_match_in_ss_window:
+            if totinsert + (len(ssvals)-totmatch) > num_mistakes_in_ss_window:
                 return True
         return False
 
@@ -236,6 +240,7 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
         indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(args, matchvals, thist.cigar, thist.startpos)
         if tname == testtname:
             print('indel', indel_detected)
+        # print(queryclipping)
         if not indel_detected and (not args.trimmedreads or all(x < 25 for x in queryclipping)):
             if check_stringentandsplice(args, transcripttoexons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcripttobpssindex):
                 passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname])
@@ -327,7 +332,7 @@ def write_output(args, transcripttoreads):
 
 
 min_insertion_len = 3
-num_match_in_ss_window = 4
+num_mistakes_in_ss_window = 2
 trust_ends_window = 50
 large_indel_tolerance = 25
 
