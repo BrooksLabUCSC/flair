@@ -6,13 +6,19 @@
 import argparse
 import os
 import logging
+import shutil
+import subprocess
 import pipettor
 from flair.pycbio.sys import fileOps, loggingOps
 from flair.pycbio.hgdata.bed import BedReader, Bed
 
+def check_input_files(bed_files, bam_files):
+    for f in bed_files + bam_files:
+        open(f).close()
+
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Define non-overlapping regions from a BED file"
+        description="Define non-overlapping regions from BED or SAM/BAM files"
     )
     parser.add_argument("--min_partition_items", type=int, default=0,
                         help="Minimum number of input items in a partition")
@@ -20,11 +26,17 @@ def parse_args():
                         help="Combine adjacent non-overlapping partitions separated by this distance")
     parser.add_argument("--threads", type=int, default=1,
                         help="Number of cores for parallel sorting")
-    parser.add_argument("bed_file", help="Input BED file, maybe compressed")
-    parser.add_argument("ranges_bed", help="Output ranges BED file, will be compressed if it ends in ..gz")
+    parser.add_argument("--bed", dest="bed_files", action="append", default=[],
+                        help="Input BED file, maybe compressed.  Maybe repeated")
+    parser.add_argument("--bam", dest="bam_files", action="append", default=[],
+                        help="Input SAM/BAM file.  Maybe repeated.")
+    parser.add_argument("ranges_bed", help="Output ranges BED file, will be compressed if it ends in .gz")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
     args = parser.parse_args()
     loggingOps.setupFromCmd(args)
+    if (len(args.bed_files) + len(args.bam_files)) == 0:
+        parser.error("No input files specified; must have at least one --bam= or --bed= option")
+    check_input_files(args.bed_files, args.bam_files)
     return args
 
 class PartitionCounts:
@@ -42,22 +54,41 @@ class PartitionCounts:
         self.max_part_items = max(self.max_part_items, item_count)
 
 
-def make_sort_cmd(nthreads, bed_file):
-    """create command to sort BED by chrom start and reversed end,
-    which makes it easy to find overlapping records"""
+def start_sort_process(nthreads):
+    """create process to sort BEDs by chrom start and reversed end,
+    which makes it easy to find overlapping records.  Returns
+    process object."""
 
     # force ASCII sorting
     os.environ["LC_COLLATE"] = "C"
+    cmd = ["sort", "-k1,1", "-k2,2n", "-k3,3nr", f"--parallel={nthreads}"]
+    proc = subprocess.Popen(cmd,
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True)
+    return proc
 
-    # decompresses cmd or cat
-    return [fileOps.decompressCmd(bed_file) + [bed_file],
-            ["sort", "-k1,1", "-k2,2n", "-k3,3nr", f"--parallel={nthreads}"]]
+def finish_sort_process(sort_proc):
+    rc = sort_proc.wait()
+    if rc != 0:
+        err = sort_proc.stderr.read()
+        subprocess.CalledProcessError(rc, sort_proc.args, output=None, stderr=err)
 
-def sorted_bed_reader(nthreads, bed_file):
-    """Generator to sort and read a BED file, returning BED3 records"""
-    with pipettor.Popen(make_sort_cmd(nthreads, bed_file)) as sort_fh:
-        for bed in BedReader(sort_fh, numStdCols=3):
-            yield bed
+def copy_bed_to_sort(bed_file, to_sort_fh):
+    with fileOps.opengz(bed_file) as bed_fh:
+        shutil.copyfileobj(bed_fh, to_sort_fh)
+
+def copy_bam_to_sort(bam_file, to_sort_fh):
+    cmd = ['bedtools', 'bamtobed', '-i', bam_file]
+    with pipettor.Popen(cmd) as bed_fh:
+        shutil.copyfileobj(bed_fh, to_sort_fh)
+
+def copy_input_to_sort(bed_files, bam_files, to_sort_fh):
+    for bed_file in bed_files:
+        copy_bed_to_sort(bed_file, to_sort_fh)
+    for bam_file in bam_files:
+        copy_bam_to_sort(bam_file, to_sort_fh)
 
 def same_chrom(bed, bed_part):
     return bed.chrom == bed_part.chrom
@@ -112,12 +143,26 @@ def partition_reader(bed_reader, min_partition_items, part_merge_dist):
         part_count += 1
         bed_part = make_part_bed(next_bed, part_count)
 
-def build_partitions(bed_reader, min_partition_items, part_merge_dist,
+def write_partitions(from_sort_fh, min_partition_items, part_merge_dist,
                      part_fh, part_counts):
+    bed_reader = BedReader(from_sort_fh, numStdCols=3)
+
     for bed_part, item_count in partition_reader(bed_reader,
                                                  min_partition_items, part_merge_dist):
         part_counts.count(item_count)
         bed_part.write(part_fh)
+
+def build_partitions(bed_files, bam_files, nthreads, min_partition_items, part_merge_dist,
+                     part_fh, part_counts):
+    # NOTE: this takes advantage of sort not writing anything to stdout until
+    # stdin is closed.  Don't do this at home.
+
+    sort_proc = start_sort_process(nthreads)
+    copy_input_to_sort(bed_files, bam_files, sort_proc.stdin)
+    sort_proc.stdin.close()
+    write_partitions(sort_proc.stdout, min_partition_items, part_merge_dist,
+                     part_fh, part_counts)
+    finish_sort_process(sort_proc)
 
 def report_stats(part_counts):
     logging.info(f"Number of items: {part_counts.item_count}")
@@ -127,19 +172,18 @@ def report_stats(part_counts):
     if part_counts.part_count > 0:
         logging.info(f"Mean items per partition: {part_counts.item_count / part_counts.part_count:.1f}")
 
-def flair_partition(bed_file, ranges_bed, nthreads, min_partition_items, part_merge_dist):
+def flair_partition(bed_files, bam_files, ranges_bed, nthreads, min_partition_items, part_merge_dist):
     part_counts = PartitionCounts()
 
-    bed_reader = sorted_bed_reader(nthreads, bed_file)
     with fileOps.opengz(ranges_bed, 'w') as part_fh:
-        build_partitions(bed_reader, min_partition_items, part_merge_dist,
+        build_partitions(bed_files, bam_files, nthreads, min_partition_items, part_merge_dist,
                          part_fh, part_counts)
     report_stats(part_counts)
 
 
 def main():
     args = parse_args()
-    flair_partition(args.bed_file, args.ranges_bed, args.threads,
+    flair_partition(args.bed_files, args.bam_files, args.ranges_bed, args.threads,
                     args.min_partition_items, args.part_merge_dist)
 
 
