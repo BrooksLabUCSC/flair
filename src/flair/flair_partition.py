@@ -18,7 +18,8 @@ def check_input_files(bed_files, bam_files):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Define non-overlapping regions from BED or SAM/BAM files"
+        description=("Define non-overlapping regions from BED, SAM/BAM, or GTF files."
+                     "  Partitions are made across all input files")
     )
     parser.add_argument("--min_partition_items", type=int, default=0,
                         help="Minimum number of input items in a partition")
@@ -30,6 +31,8 @@ def parse_args():
                         help="Input BED file, maybe compressed.  Maybe repeated")
     parser.add_argument("--bam", dest="bam_files", action="append", default=[],
                         help="Input SAM/BAM file.  Maybe repeated.")
+    parser.add_argument("--gtf", dest="gtf_files", action="append", default=[],
+                        help="Input GTF file.  Maybe repeated.")
     parser.add_argument("ranges_bed", help="Output ranges BED file, will be compressed if it ends in .gz")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
     args = parser.parse_args()
@@ -84,11 +87,18 @@ def copy_bam_to_sort(bam_file, to_sort_fh):
     with pipettor.Popen(cmd) as bed_fh:
         shutil.copyfileobj(bed_fh, to_sort_fh)
 
-def copy_input_to_sort(bed_files, bam_files, to_sort_fh):
+def copy_gtf_to_sort(gtf_file, to_sort_fh):
+    cmd = ['gtf_to_bed', '--include_gene', gtf_file, '/dev/stdout']
+    with pipettor.Popen(cmd) as bed_fh:
+        shutil.copyfileobj(bed_fh, to_sort_fh)
+
+def copy_input_to_sort(bed_files, bam_files, gtf_files, to_sort_fh):
     for bed_file in bed_files:
         copy_bed_to_sort(bed_file, to_sort_fh)
     for bam_file in bam_files:
         copy_bam_to_sort(bam_file, to_sort_fh)
+    for gtf_file in gtf_files:
+        copy_gtf_to_sort(gtf_file, to_sort_fh)
 
 def same_chrom(bed, bed_part):
     return bed.chrom == bed_part.chrom
@@ -152,13 +162,13 @@ def write_partitions(from_sort_fh, min_partition_items, part_merge_dist,
         part_counts.count(item_count)
         bed_part.write(part_fh)
 
-def build_partitions(bed_files, bam_files, nthreads, min_partition_items, part_merge_dist,
+def build_partitions(bed_files, bam_files, gtf_files, nthreads, min_partition_items, part_merge_dist,
                      part_fh, part_counts):
     # NOTE: this takes advantage of sort not writing anything to stdout until
     # stdin is closed.  Don't do this at home.
 
     sort_proc = start_sort_process(nthreads)
-    copy_input_to_sort(bed_files, bam_files, sort_proc.stdin)
+    copy_input_to_sort(bed_files, bam_files, gtf_files, sort_proc.stdin)
     sort_proc.stdin.close()
     write_partitions(sort_proc.stdout, min_partition_items, part_merge_dist,
                      part_fh, part_counts)
@@ -172,18 +182,18 @@ def report_stats(part_counts):
     if part_counts.part_count > 0:
         logging.info(f"Mean items per partition: {part_counts.item_count / part_counts.part_count:.1f}")
 
-def flair_partition(bed_files, bam_files, ranges_bed, nthreads, min_partition_items, part_merge_dist):
+def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_partition_items, part_merge_dist):
     part_counts = PartitionCounts()
 
     with fileOps.opengz(ranges_bed, 'w') as part_fh:
-        build_partitions(bed_files, bam_files, nthreads, min_partition_items, part_merge_dist,
-                         part_fh, part_counts)
+        build_partitions(bed_files, bam_files, gtf_files,
+                         nthreads, min_partition_items, part_merge_dist, part_fh, part_counts)
     report_stats(part_counts)
 
 
 def main():
     args = parse_args()
-    flair_partition(args.bed_files, args.bam_files, args.ranges_bed, args.threads,
+    flair_partition(args.bed_files, args.bam_files, args.gtf_files, args.ranges_bed, args.threads,
                     args.min_partition_items, args.part_merge_dist)
 
 
