@@ -450,22 +450,29 @@ test-fusion-help: mkdirs
 ##
 # flair_partition command
 ##
-partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads
+partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads \
+	test-partition-sam
 
 test-partition-basic: mkdirs
-	flair_partition --threads=2 --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
 # merge adjacent partitions
 test-partition-adjacent: mkdirs
-	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
 # minimum reads per partition
 test-partition-min-reads: mkdirs
-	flair_partition --threads=2 --min_partition_items=3  --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 --min_partition_items=3  --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	$(call cmp_expect,$@.ranges.bed)
+	$(call cmp_expect,$@.out)
+
+# both bed and sam
+test-partition-sam: mkdirs
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed --bam=input/tiny.sam output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
