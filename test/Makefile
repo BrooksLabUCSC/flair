@@ -470,9 +470,10 @@ test-partition-min-reads: mkdirs
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
-# both bed and sam
+# with bed, sam, and gtf
 test-partition-sam: mkdirs
-	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed --bam=input/tiny.sam output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed --bam=input/tiny.sam --gtf=input/seg1.gencodeV47.gtf \
+	    output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
