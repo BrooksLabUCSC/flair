@@ -371,11 +371,12 @@ class AnnotData(object):
         self.juncstotranscript = {}
         self.junctogene = {}
         self.allannotse = []
+        self.allsplicedexons = {'+':{}, '-':{}}
         self.genetoannotjuncs = {}
         self.genetostrand = {}
 
     def returndata(self):
-        return self.juncstotranscript, self.junctogene, self.allannotse, self.genetoannotjuncs, self.genetostrand, self.transcripttoexons, self.alltranscripts
+        return self.juncstotranscript, self.junctogene, self.allannotse, self.allsplicedexons, self.genetoannotjuncs, self.genetostrand, self.transcripttoexons, self.alltranscripts
 
 def generate_region_dict(allregions):
     chromtoregions, regionstoannotdata = {}, {}
@@ -426,6 +427,8 @@ def save_transcript_annot_to_region(transcript, gene, thisregion, regionstoannot
     if len(juncs) == 0:
         regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
     else:
+        if gene not in regionstoannotdata[thisregion].allsplicedexons[strand]: regionstoannotdata[thisregion].allsplicedexons[strand][gene] = set()
+        regionstoannotdata[thisregion].allsplicedexons[strand][gene].update(set(sortedexons))
         regionstoannotdata[thisregion].juncstotranscript[tuple(juncs)] = (transcript, gene)
         if gene not in regionstoannotdata[thisregion].genetoannotjuncs:
             regionstoannotdata[thisregion].genetoannotjuncs[gene] = set()
@@ -869,6 +872,7 @@ def filtersingleexongroup(args, currgroup, firstpassunfiltered, firstpass):
 
 
 def filterallsingleexon(args, firstpasssingleexons, firstpassunfiltered, firstpass):
+    groupstart = 0
     lastend = 0
     currgroup = []
     for isoinfo in firstpasssingleexons:
@@ -877,8 +881,9 @@ def filterallsingleexon(args, firstpasssingleexons, firstpassunfiltered, firstpa
             currgroup.append(isoinfo)
         else:
             if len(currgroup) > 0:
-                firstpass = filtersingleexongroup(args, currgroup, firstpassunfiltered, firstpass)
+                firstpass = filtersingleexongroup(args, currgroup, firstpassunfiltered, firstpass)#, str(groupstart) + '-' + str(lastend))
             currgroup = [isoinfo]
+            groupstart = start
         if end > lastend:
             lastend = end
     if len(currgroup) > 0:
@@ -948,12 +953,13 @@ def getsingleexongenehits(thisiso, allannotse):
 
 
 def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotranscript, junctogene, allannotse,
-                                  genetoannotjuncs, genetostrand, genome, normalizeends=False, addseqatends=0):
+                                  genetoannotjuncs, genetostrand, genome, allsplicedexons, normalizeends=False, addseqatends=0):
     with open(tempprefix + '.firstpass.bed', 'w') as isoout, open(tempprefix + '.firstpass.fa', 'w') as seqout:
         # THIS IS WHERE WE CAN GET GENES AND ADJUST NAMES
         annotnametousedcounts = {}
         genetoendjunctionstoends = {}
         isonametoannotinfo = {}
+        nongeneisostogroup = {'+':[], '-':[]}
         for isoname in firstpass:
             thisiso = firstpass[isoname]
             # Adjust name based on annotation
@@ -973,19 +979,59 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                 if gene_hits:
                     sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
                     thisgene = sortedgenes[0][0]
+                else:
+                    ###look for exon overlap
+                    gene_hits = []
+                    for annotgene in allsplicedexons[thisiso.strand]:
+                        annotexons = sorted(list(allsplicedexons[thisiso.strand][annotgene]))
+                        if min((annotexons[-1][1], thisiso.exons[-1][1])) > max((annotexons[0][0], thisiso.exons[0][0])): ##there is overlap in the genes
+                            coveredpos = set()
+                            for s, e in thisiso.exons:
+                                for ast, ae in annotexons:
+                                    for p in range(max((ast, s)), min((ae, e))):
+                                        coveredpos.add(p)
+                            if len(coveredpos) > sum([x[1]-x[0] for x in thisiso.exons]) * 0.5:
+                                gene_hits.append([len(coveredpos), annotgene])
+                    if len(gene_hits) > 0:
+                        gene_hits.sort(reverse=True)
+                        thisgene = gene_hits[0][1]
             if thisgene != None:
                 strand = genetostrand[thisgene]
             else:
                 strand = thisiso.strand
-                thisgene = thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
-            isonametoannotinfo[isoname] = (thisgene, thistranscript, strand)
+                nongeneisostogroup[strand].append((thisiso.start, thisiso.end, isoname))
+                # thisgene = thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
+            isonametoannotinfo[isoname] = [thisgene, thistranscript, strand, thisiso.exons]
 
-            ##generating standardized set of ends for gene
-            if normalizeends:
-                gene = thisgene
+        ##generating non-gene iso groups
+        for strand in nongeneisostogroup:
+            transcriptstogroup = sorted(nongeneisostogroup[strand])
+            lastend = 0
+            groupstart = 0
+            currgroup = []
+            for start, end, tname in transcriptstogroup:
+                if start < lastend:
+                    currgroup.append((start, end, tname))
+                else:
+                    if len(currgroup) > 0:
+                        groupname = f'{thischrom}:{groupstart}-{lastend}({strand})'
+                        for s, e, t in currgroup:
+                            isonametoannotinfo[t][0] = groupname
+                    currgroup = [(start, end, tname)]
+                    groupstart = start
+                if end > lastend:
+                    lastend = end
+            if len(currgroup) > 0:
+                groupname = f'{thischrom}:{groupstart}-{lastend}({strand})'
+                for s, e, t in currgroup:
+                    isonametoannotinfo[t][0] = groupname
+
+        ##generating standardized set of ends for gene
+        if normalizeends:
+            for isoname in isonametoannotinfo:
+                gene, thistranscript, strand, exons = isonametoannotinfo[isoname]
                 if (gene, strand) not in genetoendjunctionstoends: genetoendjunctionstoends[(gene, strand)] = {'left':{}, 'right':{}}
-                if thisiso.juncs != ():
-                    exons = thisiso.exons
+                if len(exons) > 1:
                     if exons[0][1] not in genetoendjunctionstoends[(gene, strand)]['left']:
                         genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] = exons[0][0]
                     else:
@@ -999,9 +1045,8 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
 
         for isoname in isonametoannotinfo:
             thisiso = firstpass[isoname]
-            gene, thistranscript, strand = isonametoannotinfo[isoname]
+            gene, thistranscript, strand, exons = isonametoannotinfo[isoname]
             if normalizeends and len(thisiso.juncs) > 0:
-                exons = thisiso.exons
                 exons[0] = (genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] - addseqatends, exons[0][1])
                 exons[-1] = (exons[-1][0], genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] + addseqatends)
                 thisiso.resetfromexons(exons)
@@ -1177,7 +1222,7 @@ def generate_genomic_clipping_reference(tempprefix, samfile, rchrom, rstart, ren
 
 
 def runcollapsebychrom(listofargs):
-    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
+    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
     # first extract reads for chrom as fasta
     tempsplit = tempprefix.split('/')[-1].split('-')
     rchrom, rstart, rend = '-'.join(tempsplit[:-2]), tempsplit[-2], tempsplit[-1]
@@ -1216,10 +1261,10 @@ def runcollapsebychrom(listofargs):
     if len(firstpass.keys()) > 0:
         if args.endnormdist:
             getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
-                                      allannotse, genetoannotjuncs, genetostrand, genome, normalizeends=True, addseqatends=int(args.endnormdist))
+                                      allannotse, genetoannotjuncs, genetostrand, genome, allsplicedexons, normalizeends=True, addseqatends=int(args.endnormdist))
         else:
             getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
-                                          allannotse, genetoannotjuncs, genetostrand, genome)
+                                          allannotse, allsplicedexons, genetoannotjuncs, genetostrand, genome)
         clippingfile = tempprefix + '.reads.genomicclipping.txt' #if args.trimmedreads else None
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
@@ -1275,15 +1320,15 @@ def collapsefrombam():
     tempprefixes = []
     for rchrom, rstart, rend in allregions:
         if rchrom in knownchromosomes:
-            juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, []
+            juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, {}, []
             if args.gtf:
-                juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
+                juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
                 regionstoannotdata[(rchrom, rstart, rend)].returndata()
 
             splicesiteannot_chrom = annotationFiles[rchrom]
             tempprefix = tempDir + '-'.join([rchrom, str(rstart), str(rend)])
             chunkcmds.append([args, tempprefix, splicesiteannot_chrom, juncstotranscript,
-                              junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons,
+                              junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons,
                               allannottranscripts])
             tempprefixes.append(tempprefix)
     mp.set_start_method('fork')

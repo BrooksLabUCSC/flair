@@ -133,7 +133,7 @@ def get_annot_tstart_tend(tinfo):
 
 
 
-def group_juncs_by_annot_gene(sjtoends, juncstotranscript, junctogene, genetoannotjuncs):
+def group_juncs_by_annot_gene(sjtoends, juncstotranscript, junctogene, genetoannotjuncs, allsplicedexons):
     genetojuncs, nogenejuncs, sereads = {}, {}, []
     for juncs in sjtoends: ##assuming unspliced reads already removed
         if len(juncs) > 0: ##remove unspliced reads
@@ -145,6 +145,28 @@ def group_juncs_by_annot_gene(sjtoends, juncstotranscript, junctogene, genetoann
                 if gene_hits:
                     sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
                     thisgene = sortedgenes[0][0]
+                else:
+                    ###look for exon overlap
+                    gene_hits = []
+                    mystart = max(x[0] for x in sjtoends[juncs])
+                    myend = min(x[1] for x in sjtoends[juncs])
+                    exons = [(mystart, juncs[0][0])] + [(juncs[i][1], juncs[i+1][0]) for i in range(len(juncs)-1)] + [(juncs[-1][1], myend)]
+                    strand = sjtoends[juncs][0][2] ##not a super robust strand picking, assumes well stranded reads
+                    for annotgene in allsplicedexons[strand]:
+                        annotexons = sorted(list(allsplicedexons[strand][annotgene]))
+                        if min((annotexons[-1][1], exons[-1][1])) > max(
+                                (annotexons[0][0], exons[0][0])):  ##there is overlap in the genes
+                            coveredpos = set()
+                            for s, e in exons:
+                                for ast, ae in annotexons:
+                                    for p in range(max((ast, s)), min((ae, e))):
+                                        coveredpos.add(p)
+                            if len(coveredpos) > sum([x[1] - x[0] for x in exons]) * 0.5:
+                                gene_hits.append([len(coveredpos), annotgene])
+                    if len(gene_hits) > 0:
+                        gene_hits.sort(reverse=True)
+                        thisgene = gene_hits[0][1]
+
             if thisgene:
                 if thisgene not in genetojuncs: genetojuncs[thisgene] = {}
                 genetojuncs[thisgene][juncs] = sjtoends[juncs]
@@ -342,7 +364,7 @@ def generate_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
 
 
 def runcollapsebychrom(listofargs):
-    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
+    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
     # first extract reads for chrom as fasta
     tempsplit = tempprefix.split('/')[-1].split('-')
     rchrom, rstart, rend = '-'.join(tempsplit[:-2]), tempsplit[-2], tempsplit[-1]
@@ -380,7 +402,7 @@ def runcollapsebychrom(listofargs):
         sjtoends = filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goodaligntoannot, intervalTree,
                                            junctionBoundaryDict, generatefasta=False, sjtoends=sjtoends, returnusedreads=False)
         samfile.close()
-        genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sjtoends, juncstotranscript, junctogene, genetoannotjuncs)
+        genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sjtoends, juncstotranscript, junctogene, genetoannotjuncs, allsplicedexons)
         allsamples.append(sample)
         allgenetojuncs.append(genetojuncs)
 
@@ -424,15 +446,15 @@ def collapsefrombam():
 
     for rchrom, rstart, rend in allregions:
         if rchrom in knownchromosomes:
-            juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, []
+            juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, []
             if args.gtf:
-                juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
+                juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
                                  regionstoannotdata[(rchrom, rstart, rend)].returndata()
 
             splicesiteannot_chrom = annotationFiles[rchrom]
             tempprefix = tempDir + '-'.join([rchrom, str(rstart), str(rend)])
             chunkcmds.append([args, tempprefix, splicesiteannot_chrom, juncstotranscript,
-                              junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons,
+                              junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons,
                               allannottranscripts])
             tempprefixes.append(tempprefix)
     mp.set_start_method('fork')
