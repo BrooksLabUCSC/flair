@@ -576,36 +576,6 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 # END METHODS TO EDIT
 
 
-# def generate_transcriptome_reference(tempprefix, alltranscripts, annottranscripttoexons, thischrom, genome, addseqatends=0):
-#     transcripttostrand = {}
-#     with open(tempprefix + '.annotated_transcripts.bed', 'w') as annotbed, open(
-#             tempprefix + '.annotated_transcripts.fa', 'w') as annotfa:
-#         for transcript, gene, strand in alltranscripts:
-#             transcripttostrand[(transcript, gene)] = strand
-#             exons = list(annottranscripttoexons[(transcript, gene)])
-#             exons[0] = (exons[0][0] - addseqatends, exons[0][1])
-#             exons[-1] = (exons[-1][0], exons[-1][1] + addseqatends)
-#             exons = tuple(exons)
-#             start, end = exons[0][0], exons[-1][1]
-#
-#             estarts = [x[0] - start for x in exons]
-#             esizes = [x[1] - x[0] for x in exons]
-#             bedline = [thischrom, start, end, transcript + '_' + gene, '.', strand, start, end, '0', len(exons),
-#                        ','.join([str(x) for x in esizes]), ','.join([str(x) for x in estarts])]
-#             if strand == '-':
-#                 exons = exons[::-1]
-#             exonseq = []
-#             for i in range(len(exons)):
-#                 thisexonseq = genome.fetch(thischrom, exons[i][0], exons[i][1])
-#                 if strand == '-':
-#                     thisexonseq = revcomp(thisexonseq)
-#                 exonseq.append(thisexonseq)
-#             annotbed.write('\t'.join([str(x) for x in bedline]) + '\n')
-#             annotfa.write('>' + transcript + '_' + gene + '\n')
-#             annotfa.write(''.join(exonseq) + '\n')
-#     return transcripttostrand
-
-
 def generate_transcriptome_reference(tempprefix, alltranscripts, annottranscripttoexons, thischrom, genome, normalizeends=False, addseqatends=0):
     transcripttostrand = {}
     transcripttonewexons = {}
@@ -722,11 +692,13 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                         shortchromfasta.write(read.get_forward_sequence() + '\n')
                     if read.mapping_quality >= args.quality:
                         usedreads.add(read.query_name)
-                        juncstrand = inferMM2JuncStrand(read)
                         bedread = BedRead()
+                        readstrand = '-' if read.is_reverse else '+'
                         bedread.generate_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
                                                     read.query_name,
-                                                    read.reference_name, read.mapping_quality, juncstrand)
+                                                    read.reference_name, read.mapping_quality, readstrand)
+                        if len(bedread.juncs) > 0:
+                            bedread.strand = inferMM2JuncStrand(read)
                         correctedread = correctsingleread(bedread, intervalTree, junctionBoundaryDict)
                         if correctedread:
                             junckey = tuple(sorted(correctedread.juncs))
@@ -1359,6 +1331,10 @@ def collapsefrombam():
             files_to_remove += ['.matchannot.bed',
                            '.matchannot.counts.tsv',
                            '.matchannot.read.map.txt']
+            if args.endnormdist:
+                files_to_remove.append('.matchannot.ends.tsv')
+        if args.endnormdist:
+            files_to_remove.append('.novelisos.ends.tsv')
         for f in files_to_remove:
             os.remove(args.output + f)
 

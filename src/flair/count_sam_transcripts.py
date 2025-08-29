@@ -103,10 +103,11 @@ def getannotinfo(args):
     return transcripttoexons, transcripttobpssindex, transcripttogenomicends
 
 def check_singleexon(read_start, read_end, tlen):
-    if read_start < 25 and read_end > tlen - 25:
-        return True
-    else:
-        return False
+    return True
+    # if read_start < 25 and read_end > tlen - 25:
+    #     return True
+    # else:
+    #     return False
 
 def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
     if trust_ends:
