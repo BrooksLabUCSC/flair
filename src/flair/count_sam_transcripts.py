@@ -53,8 +53,10 @@ def parseargs():
                                             help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
                                             help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
-    parser.add_argument('--trimmedreads', default=False, action='store_true',
-                        help='specify if your reads are properly trimmed and you want to remove alignments with too much softclipping at the ends (improves accuracy when possible)')
+    parser.add_argument('--trimmedreads',
+                        help='specify if your reads are properly trimmed and you want to remove alignments with too much softclipping at the ends (improves accuracy when possible). Provide a file of read to level of clipping when aligned to the genome.')
+    parser.add_argument('--output_endpos',
+                        help='whether to output the genomic position of all read ends after transcriptomic alignment')
     args = parser.parse_args()
     return args
 
@@ -78,6 +80,7 @@ def getannotinfo(args):
 
     transcripttobpssindex = {}
     transcripttoexons = {}
+    transcripttogenomicends = {}
     if args.stringent or args.check_splice or args.fusion_dist or args.fusion_breakpoints:
         for line in open(args.isoforms):
             line = line.rstrip().split('\t')
@@ -86,6 +89,7 @@ def getannotinfo(args):
             blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
             if strand == '+': transcripttoexons[name] = blocksizes
             else: transcripttoexons[name] = blocksizes[::-1]
+            transcripttogenomicends[name] = (left, right, strand)
             if args.fusion_breakpoints:
                 blockstarts = [int(n) for n in line[11].rstrip(',').split(',')]
                 bpindex = -1
@@ -96,7 +100,7 @@ def getannotinfo(args):
                 transcripttobpssindex[name] = bpindex
 
 
-    return transcripttoexons, transcripttobpssindex
+    return transcripttoexons, transcripttobpssindex, transcripttogenomicends
 
 def check_singleexon(read_start, read_end, tlen):
     if read_start < 25 and read_end > tlen - 25:
@@ -108,7 +112,7 @@ def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
     if trust_ends:
         return disttoend <= trust_ends_window
     else:
-        return disttoblock >= min(10, blocksize-6)
+        return disttoblock >= min(6, blocksize-6)
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends):
     left_coverage = check_exonenddist(first_blocksize, read_start, trust_ends, first_blocksize-read_start)
@@ -224,7 +228,7 @@ def check_stringentandsplice(args, transcripttoexons, tname, coveredpos, tlen, b
 testtname = 'none'
 
 
-def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
+def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex, genomicclipping, transcripttogenomicends):
     # parse CIGAR + MD tag to ID transcript pos covered by alignment
     # get start + end of transcript on read, alignment block positions
     # also save soft/hard clipping at ends of read
@@ -241,9 +245,17 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
         if tname == testtname:
             print('indel', indel_detected)
         # print(queryclipping)
-        if not indel_detected and (not args.trimmedreads or all(x < 25 for x in queryclipping)):
+        if not indel_detected and (not args.trimmedreads or genomicclipping == None or sum(queryclipping) <= genomicclipping + 25):
             if check_stringentandsplice(args, transcripttoexons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcripttobpssindex):
-                passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname])
+                ##THIS ONLY WORKS IF STRINGENT IS ALSO ACTIVATED
+                gtstart, gtend, gtstrand = transcripttogenomicends[tname]
+                if gtstrand == '+':
+                    outstart = gtstart + thist.startpos
+                    outend = gtend - (sum(transcripttoexons[tname])-tendpos)
+                else:
+                    outend = gtend-thist.startpos
+                    outstart = gtstart + (sum(transcripttoexons[tname])-tendpos)
+                passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, outstart, outend])
     # order passing transcripts by alignment score
     # then order by amount of query covered
     # then order by amount of transcript covered
@@ -255,9 +267,9 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex):
             bestmetrics = passingtranscripts[0][:3]
             besttranscripts = []
             for t in passingtranscripts:
-                if t[:3] == bestmetrics: besttranscripts.append(t[-1])
+                if t[:3] == bestmetrics: besttranscripts.append(t[-3:])
             return besttranscripts
-        else: return [passingtranscripts[0][-1],]
+        else: return [passingtranscripts[0][-3:],]
     else: return None
 
 class IsoAln(object):
@@ -269,7 +281,7 @@ class IsoAln(object):
         self.alignscore = als
         self.md = md
 
-def parsesam(args, transcripttoexons, transcripttobpssindex):
+def parsesam(args, transcripttoexons, transcripttobpssindex, transcripttogenomicends, readstoclipping):
     lastread = None
     curr_transcripts = {}
     transcripttoreads = {}
@@ -304,9 +316,10 @@ def parsesam(args, transcripttoexons, transcripttobpssindex):
                     tlen = samfile.get_reference_length(transcript)
                     if lastread and readname != lastread:
                         if testtname in curr_transcripts: print('\n', lastread, curr_transcripts.keys())
-                        assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
+                        thisclipping = readstoclipping[lastread] if lastread in readstoclipping else None
+                        assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex, thisclipping, transcripttogenomicends)
                         if assignedts:
-                            for assignedt in assignedts:
+                            for assignedt, gtstart, gtend in assignedts:
                                 if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
                                 transcripttoreads[assignedt].append(lastread)
 
@@ -314,9 +327,10 @@ def parsesam(args, transcripttoexons, transcripttobpssindex):
                     curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
                     lastread = readname
     if lastread:
-        assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex)
+        thisclipping = readstoclipping[lastread] if lastread in readstoclipping else None
+        assignedts = getbesttranscript(curr_transcripts, args, transcripttoexons, transcripttobpssindex, thisclipping, transcripttogenomicends)
         if assignedts:
-            for assignedt in assignedts:
+            for assignedt, gtstart, gtend in assignedts:
                 if assignedt not in transcripttoreads: transcripttoreads[assignedt] = []
                 transcripttoreads[assignedt].append(lastread)
 
@@ -339,6 +353,11 @@ large_indel_tolerance = 25
 if __name__ == '__main__':
     args = parseargs()
     args = checkargs(args)
-    transcripttoexons, transcripttobpssindex = getannotinfo(args)
-    transcripttoreads = parsesam(args, transcripttoexons, transcripttobpssindex)
+    transcripttoexons, transcripttobpssindex, transcripttogenomicends = getannotinfo(args)
+    readstoclipping = {}
+    if args.trimmedreads:
+        for line in open(args.trimmedreads):
+            rname, clipping = line.rstrip().split('\t')
+            readstoclipping[rname] = int(clipping)
+    transcripttoreads = parsesam(args, transcripttoexons, transcripttobpssindex, transcripttogenomicends, readstoclipping)
     write_output(args, transcripttoreads)
