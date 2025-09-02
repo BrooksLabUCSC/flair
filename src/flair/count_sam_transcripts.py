@@ -248,14 +248,17 @@ def getbesttranscript(tinfo, args, transcripttoexons, transcripttobpssindex, gen
         # print(queryclipping)
         if not indel_detected and (not args.trimmedreads or genomicclipping == None or sum(queryclipping) <= genomicclipping + 25):
             if check_stringentandsplice(args, transcripttoexons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcripttobpssindex):
-                ##THIS ONLY WORKS IF STRINGENT IS ALSO ACTIVATED
-                gtstart, gtend, gtstrand = transcripttogenomicends[tname]
-                if gtstrand == '+':
-                    outstart = gtstart + thist.startpos
-                    outend = gtend - (sum(transcripttoexons[tname])-tendpos)
+                if args.stringent:
+                    ##THIS ONLY WORKS IF STRINGENT IS ALSO ACTIVATED
+                    gtstart, gtend, gtstrand = transcripttogenomicends[tname]
+                    if gtstrand == '+':
+                        outstart = gtstart + thist.startpos
+                        outend = gtend - (sum(transcripttoexons[tname])-tendpos)
+                    else:
+                        outend = gtend-thist.startpos
+                        outstart = gtstart + (sum(transcripttoexons[tname])-tendpos)
                 else:
-                    outend = gtend-thist.startpos
-                    outstart = gtstart + (sum(transcripttoexons[tname])-tendpos)
+                    outstart, outend = 0, 0
                 passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, outstart, outend])
     # order passing transcripts by alignment score
     # then order by amount of query covered
