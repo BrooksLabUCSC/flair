@@ -98,6 +98,8 @@ def get_args():
     #                     help='specify if your reads are properly trimmed and you want to remove alignments with too much softclipping at the ends (improves accuracy when possible)')
     parser.add_argument('--endnormdist',
                         help='specify the number of basepairs to extend transcript ends if you want to normalize them across transcripts in a gene and extend them')
+    parser.add_argument('--output_endpos', default=False, action='store_true',
+                        help='specify if you want to ouptut a setparate file with corrected read end positions. For development purposes')
     parser.add_argument('--output_bam', default=False, action='store_true',
                         help='output intermediate bams aligned to the transcriptome. Only works with --keep_intermediate, for debugging')
 
@@ -1264,7 +1266,7 @@ def runcollapsebychrom(listofargs):
                                       allannotse, genetoannotjuncs, genetostrand, genome, allsplicedexons, normalizeends=True, addseqatends=int(args.endnormdist))
         else:
             getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
-                                          allannotse, allsplicedexons, genetoannotjuncs, genetostrand, genome)
+                                          allannotse, genetoannotjuncs, genetostrand, genome, allsplicedexons)
         clippingfile = tempprefix + '.reads.genomicclipping.txt' #if args.trimmedreads else None
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',

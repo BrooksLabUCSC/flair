@@ -7,7 +7,8 @@ usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
                      [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
                      [--parallelmode PARALLELMODE] [--predictCDS]
                      [--keep_intermediate] [--keep_sup]
-                     [--endnormdist ENDNORMDIST] [--output_bam]
+                     [--endnormdist ENDNORMDIST] [--output_endpos]
+                     [--output_bam]
 
 options:
   -h, --help            show this help message and exit
@@ -86,5 +87,7 @@ options:
                         specify the number of basepairs to extend transcript
                         ends if you want to normalize them across transcripts
                         in a gene and extend them
+  --output_endpos       specify if you want to ouptut a setparate file with
+                        corrected read end positions. For development purposes
   --output_bam          output intermediate bams aligned to the transcriptome.
                         Only works with --keep_intermediate, for debugging
