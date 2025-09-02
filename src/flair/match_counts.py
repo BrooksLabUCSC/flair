@@ -6,8 +6,7 @@ import argparse
 
 # TODO: update readthedocs with flags
 def main():
-    parser = argparse.ArgumentParser(description='script for collapse-range',
-            usage='match_counts.py --counts_file countsfile --bed bed --min_reads min_read_threshold --out_bed outfilename [options]')
+    parser = argparse.ArgumentParser(description='script for collapse-range')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--counts_file', type=str, required=True,
             help='counts file from count_sam_transcripts')

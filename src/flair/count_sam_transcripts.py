@@ -15,7 +15,7 @@ from flair import FlairInputDataError
 def parseargs():
     parser = argparse.ArgumentParser(description='''for counting transcript abundances after
             aligning reads to transcripts; for multiple mappers, only the best alignment
-            for each read is used, usage=python -s samfile -o outputfile''')
+            for each read is used''')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-s', '--sam', type=argparse.FileType('r'), help='sam file or - for STDIN')
     required.add_argument('-o', '--output', default='counts.txt', help='output file name')

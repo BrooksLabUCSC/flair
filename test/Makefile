@@ -32,6 +32,7 @@ BASIC_PROMOTER_REGIONS = $I/basic.promoter_regions.bed
 BASIC_READS_MANIFEST = $I/basic.reads_manifest.txt
 BASIC_COUNTS_MATRIX = $I/basic.counts_matrix_diffexp.tsv
 BASIC_DIFFSPLICE_MATRIX = $I/basic.counts_matrix_diffsplice.tsv
+BASIC_DIFFSPLICE_BED = $I/test-collapse-annot.isoforms.bed
 
 BASIC_ALIGN_BED = $E/test-align.bed
 BASIC_CORRECT_READS_BED = $E/test-correct_all_corrected.bed
@@ -154,13 +155,13 @@ correct-tests: test-correct test-correct-seg1 test-correct-help
 
 test-correct: mkdirs ${GENOME_FA}
 	flair correct -q ${BASIC_ALIGN_BED} --junction_tab $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@
-	$(call cmp_expect,$@_all_inconsistent.bed)
-	$(call cmp_expect,$@_all_corrected.bed)
+	$(call cmp_expect_sort,$@_all_inconsistent.bed)
+	$(call cmp_expect_sort,$@_all_corrected.bed)
 
 test-correct-seg1: mkdirs ${GENOME_FA}
 	flair correct -q ${SEG1_ALIGN_BED} -f ${SEG1_ANNOTATION} -o $O/$@
-	$(call cmp_expect,$@_all_inconsistent.bed)
-	$(call cmp_expect,$@_all_corrected.bed)
+	$(call cmp_expect_sort,$@_all_inconsistent.bed)
+	$(call cmp_expect_sort,$@_all_corrected.bed)
 
 test-correct-help: mkdirs
 	flair correct --help > $O/$@.out
@@ -169,8 +170,8 @@ test-correct-help: mkdirs
 ###
 # FLAIR COLLAPSE
 ###
-collapse-tests: test-collapse test-collapse-incgtf test-collapse-incgtfannot test-collapse-annot \
-	test-collapse-support test-collapse-seg1 \
+collapse-tests: test-collapse test-collapse-promoter test-collapse-incgtf test-collapse-incgtfannot test-collapse-annot \
+	test-collapse-support test-collapse-seg1 test-collapse-predcds \
 	test-collapse-help
 
 # macros to do comparions with expected results
@@ -193,7 +194,13 @@ endef
 # basic collapse
 test-collapse: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --genetss
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@
+	$(collapse_diff)
+	$(collapse_diff_read_map)
+
+test-collapse-promoter: mkdirs ${GENOME_FA}
+	rm -rf $O/$@.tmp
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS)
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 	$(collapse_promoter_diff)
@@ -206,7 +213,7 @@ test-collapse-incgtf: mkdirs ${GENOME_FA}
 
 test-collapse-incgtfannot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $I/basic.annotation.incomplete.scrambled.gtf -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent --genetss
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $I/basic.annotation.incomplete.scrambled.gtf -o $O/$@  --annotation_reliant generate --stringent
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
@@ -214,13 +221,13 @@ test-collapse-predcds: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --predictCDS --genetss
 	$(collapse_diff)
-	$(collapse_diff_read_map)
+	$(call cmp_expect,$@.isoforms.CDS.bed)
 
 # collapse annotation-reliant
 ##these reads are low quality, many isoforms fail with the check_splice parameter
 test-collapse-annot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --annotation_reliant generate --stringent --genetss
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --annotation_reliant generate --stringent
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
@@ -233,7 +240,7 @@ test-collapse-seg1: mkdirs ${GENOME_FA}
 # collapse with support
 test-collapse-support: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ -p $(BASIC_PROMOTER_REGIONS) --genetss
+	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
@@ -324,7 +331,7 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
-	flair diffsplice -i $(BASIC_ISOFORMS_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
+	flair diffsplice -i $(BASIC_DIFFSPLICE_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
 	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
 	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
@@ -460,22 +467,30 @@ test-fusion-help: mkdirs
 ##
 # flair_partition command
 ##
-partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads
+partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads \
+	test-partition-sam
 
 test-partition-basic: mkdirs
-	flair_partition --threads=2 --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
 # merge adjacent partitions
-test-partition-adjacent:
-	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+test-partition-adjacent: mkdirs
+	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
 # minimum reads per partition
-test-partition-min-reads:
-	flair_partition --threads=2 --min_partition_items=3  --log-level=info input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+test-partition-min-reads: mkdirs
+	flair_partition --threads=2 --min_partition_items=3  --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	$(call cmp_expect,$@.ranges.bed)
+	$(call cmp_expect,$@.out)
+
+# with bed, sam, and gtf
+test-partition-sam: mkdirs
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed --bam=input/tiny.sam --gtf=input/seg1.gencodeV47.gtf \
+	    output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 
@@ -499,5 +514,5 @@ mkdirs:
 clean:
 	rm -rf $O $D
 
-realclean : clean
+real-clean : clean
 	rm -rf ${TI}

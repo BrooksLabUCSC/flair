@@ -7,6 +7,7 @@ usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
                      [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
                      [--parallelmode PARALLELMODE] [--predictCDS]
                      [--keep_intermediate] [--keep_sup]
+                     [--endnormdist ENDNORMDIST] [--output_bam]
 
 options:
   -h, --help            show this help message and exit
@@ -81,3 +82,9 @@ options:
                         firstpass isoforms
   --keep_sup            specify if you want to keep supplementary alignments
                         to define isoforms
+  --endnormdist ENDNORMDIST
+                        specify the number of basepairs to extend transcript
+                        ends if you want to normalize them across transcripts
+                        in a gene and extend them
+  --output_bam          output intermediate bams aligned to the transcriptome.
+                        Only works with --keep_intermediate, for debugging

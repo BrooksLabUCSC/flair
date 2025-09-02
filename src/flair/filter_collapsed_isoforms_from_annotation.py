@@ -6,8 +6,7 @@ import os
 import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description='options',
-                    usage='python filter_collapsed_isoforms_from_annotation.py -i in.bed -a annotated.bed -o out [options]')
+    parser = argparse.ArgumentParser(description='Collapse isoforms from')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-i', dest='bed', type=str, required=True,
                     help='input bed of collapsed isoforms to be filtered')

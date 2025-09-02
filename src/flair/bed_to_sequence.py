@@ -5,8 +5,7 @@ import logging
 from flair import FlairInputDataError
 
 def main():
-    parser = argparse.ArgumentParser(description='options',
-            usage='python script.py bed genome.fa outfilename [options]')
+    parser = argparse.ArgumentParser(description='options')
     parser.add_argument('bed', type=str,
             action='store', help='isoforms in bed format')
     parser.add_argument('genome', type=str,

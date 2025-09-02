@@ -1,4 +1,6 @@
-usage: predictProductivity -i isoforms.bed -f genome.fa -g annotations.gtf -o outputprefix
+usage: predictProductivity [-h] -i INPUT_ISOFORMS -g GTF -f GENOME_FASTA -o
+                           OUTPUT [--quiet] [--append_column]
+                           (--firstTIS | --longestORF)
 
 predictProductivity - a tool.
 

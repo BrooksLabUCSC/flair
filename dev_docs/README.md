@@ -15,7 +15,7 @@ diffexp and diffsplice dependencies
 conda env create --name flair-dev -f misc/flair_dev_conda_env.yaml --yes
 conda activate flair-dev
 make clean
-pip install -e .[dev,diffexp]
+pip install -e .[dev]
 
 ```
 
@@ -64,10 +64,10 @@ Protry
 Normally `pip` is used to install rather than `poetry install`.  Updating the
 lock file servers only serves as a reference due to Conda issues.
 
-The `poetry sync` to install exact version of dependencies due to Conda has
-incorrectly creating a `direct_url.json` in the `site-packages/* dist-info`
-directories. Removing these files still results in failures for unknown
-reasons, so  `poetry sync` is not used.
+The `poetry update` to install to update the dependencies list.  Conda has
+problems with incorrectly creating `direct_url.json` files for dependencies
+`flair-dev/lib/python3.12/site-packages/* dist-info/direct_url.json`.
+Remove these files and `poetry update` will work
 
 ## Testing:
 

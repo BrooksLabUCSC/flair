@@ -139,7 +139,7 @@ Include conda dependencies for diff expression support and tests.
 This does not work on Apple ARM systems.
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
-pip install -e .[diffexp]
+pip install -e .
 make -k -O -j 64 test-diffexpress
 ```
 

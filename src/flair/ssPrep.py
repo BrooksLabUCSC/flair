@@ -30,10 +30,7 @@ class CommandLine(object):
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description=' ssPrep.py - a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',
-                                             add_help=True, #default is True
-                                             prefix_chars='-',
-                                             usage='%(prog)s -i reads.bed -j known_junctions.bed -o out_file.bed --working_dir dir')
+        self.parser = argparse.ArgumentParser(description=' a tool to leverage annotation and short read data to correct misaligned splice junctions in short read data.',)
         # Add args
         self.parser.add_argument('-i', "--input_bed", required=True, help='Input reads in bed12 format.')
         self.parser.add_argument('-j', "--juncs", required=True, help='KnownJunction.bed.')

@@ -60,8 +60,8 @@ def get_args():
                         help='window size for comparing TSS/TES (100)')
 
     parser.add_argument('--noaligntoannot', default=False, action='store_true',
-                        help='''related to old annotation_reliant, now specify if you don't want 
-                        an initial alignment to the annotated sequences and only want transcript 
+                        help='''related to old annotation_reliant, now specify if you don't want
+                        an initial alignment to the annotated sequences and only want transcript
                         detection from the genomic alignment.
                          Will be slightly faster but less accurate if the annotation is good''')
     parser.add_argument('-n', '--no_redundant', default='none',
@@ -79,9 +79,9 @@ def get_args():
             ginormous--comprehensive set + single exon subset isoforms''')
 
     parser.add_argument('--parallelmode', default='auto:1GB',
-                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where 
-                            if the file is less than 1GB, parallelization is done by chromosome, but if it's larger, 
-                            parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion, 
+                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where
+                            if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
+                            parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion,
                             auto:xGB - for setting the auto threshold, it must be in units of GB.''')
     parser.add_argument('--predictCDS', default=False, action='store_true',
                         help='specify if you want to predict the CDS of the final isoforms. '
@@ -1300,9 +1300,8 @@ def collapsefrombam():
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))
     else:
-        pipettor.run([('bedtools', 'bamtobed', '-i', args.genomealignedbam),
-                      ('/'.join(os.path.realpath(__file__).split('/')[:-1]) + '/../../bin/flair_partition', '--min_partition_items', '1000', '--threads', str(args.threads), '/dev/stdin',
-                       tempDir + 'regions.bed')])
+        pipettor.run(['flair_partition', '--min_partition_items', '1000', '--threads', str(args.threads), '--bam=' + args.genomealignedbam,
+                      tempDir + 'regions.bed'])
         for line in open(tempDir + 'regions.bed'):
             line = line.rstrip().split('\t')
             chrom, start, end = line[0], int(line[1]), int(line[2])

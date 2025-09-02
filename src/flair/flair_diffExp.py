@@ -397,7 +397,6 @@ def calculate_sig(args):
 def diffExp(counts_matrix=''):
     set_unix_path()
     parser = argparse.ArgumentParser()
-#       parser.add_argument('diffExp')
     required = parser.add_argument_group('required named arguments')
     if not counts_matrix:
         required.add_argument('-q', '--counts_matrix', action='store',
