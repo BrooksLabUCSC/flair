@@ -1184,7 +1184,7 @@ def collapsefrombam():
                    '--genome_fasta', args.genome,
                    '--longestORF')
         pipettor.run([prodcmd])
-        os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
+        # os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
         os.remove(args.output + '.isoforms.CDS.info.tsv')
     genome.close()
 
