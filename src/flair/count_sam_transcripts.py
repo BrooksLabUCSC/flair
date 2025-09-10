@@ -55,6 +55,8 @@ def parseargs():
                                             help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
     parser.add_argument('--trimmedreads',
                         help='specify if your reads are properly trimmed and you want to remove alignments with too much softclipping at the ends (improves accuracy when possible). Provide a file of read to level of clipping when aligned to the genome.')
+    parser.add_argument('--endnormdist', type=int, default=0,
+                        help='specify the number of basepairs to extend transcript ends if you want to normalize them across transcripts in a gene and extend them')
     parser.add_argument('--output_endpos',
                         help='whether to output the genomic position of all read ends after transcriptomic alignment')
     args = parser.parse_args()
@@ -102,12 +104,13 @@ def getannotinfo(args):
 
     return transcripttoexons, transcripttobpssindex, transcripttogenomicends
 
-def check_singleexon(read_start, read_end, tlen):
-    return True
+def check_singleexon(read_start, read_end, tlen, endnormdist):
+    # return True
     # if read_start < 25 and read_end > tlen - 25:
-    #     return True
-    # else:
-    #     return False
+    if read_end-read_start > (tlen/2)-endnormdist: ##must cover at least 50% of single exon transcript
+        return True
+    else:
+        return False
 
 def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
     if trust_ends:
@@ -120,14 +123,14 @@ def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, t
     right_coverage = check_exonenddist(last_blocksize, tlen-read_end, trust_ends, read_end - (tlen - last_blocksize))
     return right_coverage and left_coverage
 
-def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends, tname):
+def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends, tname, endnormdist):
     matchpos = len([x for x in coveredpos if x == 1])
     # FIXME - could add back the 80% of the transcript rule - maybe as an option? needs further testing
     read_start, read_end = blockstarts[0], blockstarts[-1] + blocksizes[-1]
     first_blocksize, last_blocksize = exonpos[0], exonpos[-1]
     # covers enough bases into the first and last exons
     if len(exonpos) == 1:  # single exon transcript
-        return check_singleexon(read_start, read_end, tlen)
+        return check_singleexon(read_start, read_end, tlen, endnormdist)
     else:
         return check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends)
 
@@ -219,7 +222,7 @@ def check_stringentandsplice(args, transcripttoexons, tname, coveredpos, tlen, b
     if args.stringent or args.check_splice or args.fusion_breakpoints:
         exoninfo = checktranscriptinannot(transcripttoexons, tname)
         passesstringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
-                                                                          args.trust_ends, tname) if args.stringent else True
+                                                                          args.trust_ends, tname, args.endnormdist) if args.stringent else True
         passessplice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if args.check_splice else True
         passesfusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcripttobpssindex) if args.fusion_breakpoints else True
         if tname == testtname:
