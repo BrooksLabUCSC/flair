@@ -475,7 +475,7 @@ def getcountsamcommand(args, refbed, outputname, mapfile, isannot, clippingfile)
     if mapfile:
         count_cmd += ['--generate_map', mapfile]
     if args.endnormdist:
-        count_cmd += ['--output_endpos', outputname.split('.counts.tsv')[0] + '.ends.tsv']
+        count_cmd += ['--output_endpos', outputname.split('.counts.tsv')[0] + '.ends.tsv', '--endnormdist', args.endnormdist]
     if args.stringent or isannot:
         count_cmd += ['--stringent']
     if args.output_bam:
@@ -1065,7 +1065,7 @@ def getisogenefromname(isogene):
     return iso, gene
 
 
-def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends):
+def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends, endsfile):
     ogisotoreads = {}
     for line in open(mapfile):
         isogene, reads = line.rstrip().split('\t', 1)
@@ -1075,6 +1075,18 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends):
             iso, gene = getisogenefromname(isogene)
             isoid = (marker, iso)
             ogisotoreads[isoid] = reads
+
+    isotoends = {}
+    if args.endnormdist and endsfile:
+        for line in open(endsfile):
+            rname, transcript, start, end = line.rstrip().split('\t')
+            start, end = int(start), int(end)
+            if transcript not in isotoends: isotoends[transcript] = []
+            isotoends[transcript].append((start, end, None, None))
+        for iso in isotoends:
+            #(weightedscore, start1, end1, strand1, name1)
+            newends = getbestends(isotoends[iso], args.end_window)[1:3]
+            isotoends[iso] = newends
 
     for line in open(bedfile):
         line = line.rstrip().split('\t')
@@ -1090,15 +1102,22 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends):
                 juncs.append((start + estarts[i] + esizes[i], start + estarts[i + 1]))
             junckey = (chrom, strand, tuple(juncs))
 
-            if args.endnormdist and len(juncs) > 0:
-                start += int(args.endnormdist)
-                end -= int(args.endnormdist)
+            if args.endnormdist:
+                if endsfile:
+                    if name in isotoends:
+                        start, end = isotoends[name]
+                elif len(juncs) > 0:
+                    start += int(args.endnormdist)
+                    end -= int(args.endnormdist)
 
             if gene not in genetojuncstoends:
                 genetojuncstoends[gene] = {}
             if junckey not in genetojuncstoends[gene]:
                 genetojuncstoends[gene][junckey] = []
             genetojuncstoends[gene][junckey].append([start, end, isoid, ogisotoreads[isoid]])
+
+
+
 
     return genetojuncstoends
 
@@ -1140,8 +1159,8 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
     readtofinaltranscript = {}
     with open(args.output + '.isoforms.bed', 'w') as isoout, open(args.output + '.isoform.read.map.txt', 'w') as mapout, open(
             args.output + '.isoforms.gtf', 'w') as gtfout, open(args.output + '.isoforms.fa', 'w') as seqout, open(args.output + '.isoform.counts.txt', 'w') as countsout:
+
         for gene in genetojuncstoends:
-            gtflines, tstarts, tends = [], [], []
             for chrom, strand, juncs in genetojuncstoends[gene]:
                 endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
                 endslist = collapseendgroups(args.end_window, endslist, False)
@@ -1157,6 +1176,79 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                     else:
                         endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
                         endslist = endslist[:args.max_ends]
+                genetojuncstoends[gene][(chrom, strand, juncs)] = endslist
+
+
+        ###TESTED THIS - doesn't seem to actually have an impact, subsets are handled appropriately earlier
+        # newgenetojuncstoends = {}
+        # for gene in genetojuncstoends:
+        #     newgenetojuncstoends[gene] = {}
+        #     for chrom, strand, juncs in genetojuncstoends[gene]:
+        #         endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
+        #         if args.filter == 'ginormous':
+        #             newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
+        #         else:
+        #             if juncs != ():
+        #                 if args.filter == 'comprehensive':
+        #                     newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
+        #                 else:
+        #                     for ends in endslist:
+        #                         thisstart, thisend, thisname, thesereads = ends
+        #                         firstexon = (thisstart, juncs[0][0])
+        #                         lastexon = (juncs[-1][1], thisend)
+        #                         issubset = [0, 0]
+        #                         superset_support = []
+        #                         for c, s, j2 in genetojuncstoends[gene]:
+        #                             if str(juncs)[1:-1].rstrip(',') in str(j2)[1:-1]: ##junctions are subset
+        #                                 ###check if ends are contained
+        #                                 otherstart = min([x[0] for x in genetojuncstoends[gene][(c, s, j2)]])
+        #                                 otherend = max([x[1] for x in genetojuncstoends[gene][(c, s, j2)]])
+        #                                 otherexons = [(otherstart, j2[0])] + [(j2[x][1], j2[x+1][0]) for x in range(len(j2)-1)] + [(j2[-1][1], otherend)]
+        #                                 otherisoscore = len(genetojuncstoends[gene][(c, s, j2)][-1])
+        #                                 for i in range(len(otherexons)):
+        #                                     otherexon = otherexons[i]
+        #                                     if i == 0 or i == len(otherexons) - 1:  # is first or last exon of other transcript
+        #                                         if firstexon[1] == otherexon[1]:
+        #                                             issubset[0] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                                         elif lastexon[0] == otherexon[0]:
+        #                                             issubset[1] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                                     else:
+        #                                         if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
+        #                                             issubset[0] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                                         if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
+        #                                             issubset[1] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                         if sum(issubset) < 2 or (args.filter != 'nosubset' and len(thesereads) > max(superset_support) * 1.2):
+        #                             if (chrom, strand, juncs) not in newgenetojuncstoends[gene]:
+        #                                 newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
+        #                             newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
+        #
+        #             else: ##single exon genes
+        #                 for ends in endslist:
+        #                     iscontained = False
+        #                     thisscore = len(ends[-1]) ##number of reads
+        #                     for compends in endslist:
+        #                         if compends != ends:
+        #                             if compends[0] - 10 <= ends[0] and ends[1] <= compends[1] + 10:
+        #                                 if args.filter == 'nosubset':
+        #                                     iscontained = True
+        #                                     break
+        #                                 else:
+        #                                     otherscore = len(compends[-1])
+        #                                     if otherscore * 1.2 >= thisscore:
+        #                                         iscontained = True
+        #                                         break
+        #                     if not iscontained:
+        #                         if (chrom, strand, juncs) not in newgenetojuncstoends[gene]: newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
+        #                         newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
+
+        for gene in genetojuncstoends:
+            gtflines, tstarts, tends = [], [], []
+            for chrom, strand, juncs in genetojuncstoends[gene]:
+                endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
                 nametousedcounts = {}
                 for isoinfo in endslist:
                     marker, iso = isoinfo[2]
@@ -1360,11 +1452,11 @@ def collapsefrombam():
 
     if not args.noaligntoannot:
         genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
-                                            args.output + '.matchannot.bed', 'a', {})
+                                            args.output + '.matchannot.bed', 'a', {}, args.output + '.matchannot.ends.tsv')
     else: genetojuncstoends = {}
     genetojuncstoends = processdetectedisos(args, args.output + '.novelisos.read.map.txt',
                                             args.output + '.firstpass.bed', 'n',
-                                            genetojuncstoends)
+                                            genetojuncstoends, args.output + '.novelisos.ends.tsv')
 
     combineannotnovelwriteout(args, genetojuncstoends, genome)
     if not args.keep_intermediate:
