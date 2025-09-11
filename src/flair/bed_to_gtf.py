@@ -11,10 +11,11 @@ def main():
             help='specify to not split isoform name by underscore into isoform and gene ids')
     parser.add_argument('--add_reference_transcript_id', action='store_true', dest='reference_transcript_id',
             help='specify to add reference_transcript_id attribute')
-    parser.add_argument('--dontuseCDS', action='store_true')
+    parser.add_argument('--noCDS', action='store_true',
+                        help='do not carry forward CDS from bed file (thickstart and thickend) to gtf file')
     args = parser.parse_args()
     bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
-               reference_transcript_id=args.reference_transcript_id, useCDS= not args.dontuseCDS)
+               reference_transcript_id=args.reference_transcript_id, useCDS= not args.noCDS)
 
 
 def split_iso_gene(iso_gene):

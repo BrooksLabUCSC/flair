@@ -4,7 +4,7 @@ usage: collapse [-h] -q QUERY -g GENOME -r READS [READS ...] [-o OUTPUT]
                 [--stringent] [--check_splice] [--trust_ends]
                 [--quality QUALITY] [--longshot_bam LONGSHOT_BAM]
                 [--longshot_vcf LONGSHOT_VCF] [-w END_WINDOW] [-p PROMOTERS]
-                [--3prime_regions THREEPRIME] [-n NO_REDUNDANT] [-i]
+                [--3prime_regions THREEPRIME] [-n NO_REDUNDANT] [--gene_tss]
                 [--no_gtf_end_adjustment] [--max_ends MAX_ENDS]
                 [--filter FILTER] [--temp_dir TEMP_DIR] [--keep_intermediate]
                 [--mm2_args MM2_ARGS] [--annotated_bed ANNOTATED_BED]
@@ -13,6 +13,9 @@ usage: collapse [-h] -q QUERY -g GENOME -r READS [READS ...] [-o OUTPUT]
                 [--intprimingfracAs INTPRIMINGFRACAS]
                 [--fusion_breakpoints FUSION_BREAKPOINTS] [--allow_paralogs]
                 [--predictCDS]
+
+generates confident isoform models from a bed file of read alignments with
+corrected splice junctions
 
 options:
   -h, --help            show this help message and exit
@@ -62,7 +65,7 @@ options:
                         set of splice junctions; longest--single TSS/TES
                         chosen to maximize length; best_only--single most
                         supported TSS/TES used in conjunction chosen (none)
-  -i, --genetss         when specified, TSS/TES for each isoform will be
+  --gene_tss            when specified, TSS/TES for each isoform will be
                         determined standardized at the gene level (default:
                         not specified, determined for each individual isoform)
   --no_gtf_end_adjustment

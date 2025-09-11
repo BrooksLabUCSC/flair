@@ -10,6 +10,9 @@ usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
                      [--endnormdist ENDNORMDIST] [--output_endpos]
                      [--output_bam]
 
+generates confident transcript models directly from a bam file of aligned long
+rna-seq reads
+
 options:
   -h, --help            show this help message and exit
   -b GENOMEALIGNEDBAM, --genomealignedbam GENOMEALIGNEDBAM

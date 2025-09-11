@@ -49,15 +49,6 @@
     * Good for identifying splicing of specific variants
     * Can be used in conjunction with FLAIR diffexp or diff_iso_usage 
     to identify changes in variant-aware transcripts between samples/groups
-    
-
-
-=======
-## [3.0.0]
-* Removed dependencies on pandas and rpy2.
-* Removed -g genome option from flair correct.
-* Added FLAIR transcriptome module which combines the 
->>>>>>> Stashed changes
 
 
 ## [2.2.1] 2025-04-06

@@ -3,6 +3,9 @@ usage: correct [-h] -q QUERY [-f GTF]
                [--junction_support JUNCTION_SUPPORT] [-o OUTPUT] [-t THREADS]
                [--nvrna] [-w SS_WINDOW]
 
+takes a bed file of spliced alignments and corrects splice junctions based on
+annotation and orthogonal data or confident splice junctions.
+
 options:
   -h, --help            show this help message and exit
   --junction_support JUNCTION_SUPPORT

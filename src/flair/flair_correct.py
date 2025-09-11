@@ -14,7 +14,8 @@ from flair import FlairInputDataError
 import logging
 
 def parseargs(aligned_reads=''):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='takes a bed file of spliced alignments and corrects splice junctions '
+                                                 'based on annotation and orthogonal data or confident splice junctions.')
     required = parser.add_argument_group('required named arguments')
     atleastone = parser.add_argument_group('at least one of the following arguments is required')
     if not aligned_reads:

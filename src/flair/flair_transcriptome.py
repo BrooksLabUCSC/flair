@@ -21,7 +21,8 @@ from flair import FlairInputDataError
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 
 def get_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='generates confident transcript models directly from a bam file '
+                                                 'of aligned long rna-seq reads')
     parser.add_argument('-b', '--genomealignedbam',
                         help='Sorted and indexed bam file aligned to the genome')
     parser.add_argument('-g', '--genome', type=str,
@@ -1177,73 +1178,6 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                         endslist.sort(key=lambda x: [len(x[-1]), x[1] - x[0]], reverse=True)
                         endslist = endslist[:args.max_ends]
                 genetojuncstoends[gene][(chrom, strand, juncs)] = endslist
-
-
-        ###TESTED THIS - doesn't seem to actually have an impact, subsets are handled appropriately earlier
-        # newgenetojuncstoends = {}
-        # for gene in genetojuncstoends:
-        #     newgenetojuncstoends[gene] = {}
-        #     for chrom, strand, juncs in genetojuncstoends[gene]:
-        #         endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
-        #         if args.filter == 'ginormous':
-        #             newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
-        #         else:
-        #             if juncs != ():
-        #                 if args.filter == 'comprehensive':
-        #                     newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
-        #                 else:
-        #                     for ends in endslist:
-        #                         thisstart, thisend, thisname, thesereads = ends
-        #                         firstexon = (thisstart, juncs[0][0])
-        #                         lastexon = (juncs[-1][1], thisend)
-        #                         issubset = [0, 0]
-        #                         superset_support = []
-        #                         for c, s, j2 in genetojuncstoends[gene]:
-        #                             if str(juncs)[1:-1].rstrip(',') in str(j2)[1:-1]: ##junctions are subset
-        #                                 ###check if ends are contained
-        #                                 otherstart = min([x[0] for x in genetojuncstoends[gene][(c, s, j2)]])
-        #                                 otherend = max([x[1] for x in genetojuncstoends[gene][(c, s, j2)]])
-        #                                 otherexons = [(otherstart, j2[0])] + [(j2[x][1], j2[x+1][0]) for x in range(len(j2)-1)] + [(j2[-1][1], otherend)]
-        #                                 otherisoscore = len(genetojuncstoends[gene][(c, s, j2)][-1])
-        #                                 for i in range(len(otherexons)):
-        #                                     otherexon = otherexons[i]
-        #                                     if i == 0 or i == len(otherexons) - 1:  # is first or last exon of other transcript
-        #                                         if firstexon[1] == otherexon[1]:
-        #                                             issubset[0] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                                         elif lastexon[0] == otherexon[0]:
-        #                                             issubset[1] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                                     else:
-        #                                         if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
-        #                                             issubset[0] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                                         if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
-        #                                             issubset[1] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                         if sum(issubset) < 2 or (args.filter != 'nosubset' and len(thesereads) > max(superset_support) * 1.2):
-        #                             if (chrom, strand, juncs) not in newgenetojuncstoends[gene]:
-        #                                 newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
-        #                             newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
-        #
-        #             else: ##single exon genes
-        #                 for ends in endslist:
-        #                     iscontained = False
-        #                     thisscore = len(ends[-1]) ##number of reads
-        #                     for compends in endslist:
-        #                         if compends != ends:
-        #                             if compends[0] - 10 <= ends[0] and ends[1] <= compends[1] + 10:
-        #                                 if args.filter == 'nosubset':
-        #                                     iscontained = True
-        #                                     break
-        #                                 else:
-        #                                     otherscore = len(compends[-1])
-        #                                     if otherscore * 1.2 >= thisscore:
-        #                                         iscontained = True
-        #                                         break
-        #                     if not iscontained:
-        #                         if (chrom, strand, juncs) not in newgenetojuncstoends[gene]: newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
-        #                         newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
 
         for gene in genetojuncstoends:
             gtflines, tstarts, tends = [], [], []
