@@ -63,7 +63,7 @@ def flair_module_run(opts, module, module_argv):  # noqa: C901
         from flair import flair_combine
         flair_combine.combine()
     elif module == 'variants':
-        from flair.flair_variants import getvariants
+        from flair.flair_variantmodels import getvariants
         getvariants()
     elif module == 'fusion':
         from flair.flair_fusion import detectfusions

@@ -3,8 +3,6 @@ usage: quantify [-h] -r R -i I [-o O] [-t T] [--temp_dir TEMP_DIR]
                 [--generate_map] [--isoform_bed ISOFORMS] [--stringent]
                 [--check_splice] [--output_bam]
 
-flair-quantify parse options
-
 options:
   -h, --help            show this help message and exit
   -o O, --output O      output file name base for FLAIR quantify (default:

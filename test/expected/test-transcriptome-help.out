@@ -6,9 +6,12 @@ usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
                      [--check_splice] [-w END_WINDOW] [--noaligntoannot]
                      [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
                      [--parallelmode PARALLELMODE] [--predictCDS]
-                     [--keep_intermediate]
+                     [--keep_intermediate] [--keep_sup]
+                     [--endnormdist ENDNORMDIST] [--output_endpos]
+                     [--output_bam]
 
-flair transcriptome parse options
+generates confident transcript models directly from a bam file of aligned long
+rna-seq reads
 
 options:
   -h, --help            show this help message and exit
@@ -81,3 +84,13 @@ options:
                         kept for debugging. Intermediate files include:
                         promoter-supported reads file, read assignments to
                         firstpass isoforms
+  --keep_sup            specify if you want to keep supplementary alignments
+                        to define isoforms
+  --endnormdist ENDNORMDIST
+                        specify the number of basepairs to extend transcript
+                        ends if you want to normalize them across transcripts
+                        in a gene and extend them
+  --output_endpos       specify if you want to ouptut a setparate file with
+                        corrected read end positions. For development purposes
+  --output_bam          output intermediate bams aligned to the transcriptome.
+                        Only works with --keep_intermediate, for debugging

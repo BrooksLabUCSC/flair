@@ -1,12 +1,16 @@
 usage: variants [-h] -m MANIFEST [-o OUTPUT_PREFIX] [-i ISOFORMS]
-                [-b BEDISOFORMS] -g GENOME -f GTF
+                [-b BEDISOFORMS] -g GENOME -f GTF [--keep_intermediate]
 
 options:
   -h, --help            show this help message and exit
   -m MANIFEST, --manifest MANIFEST
-                        path to manifest files that points to sample names +
-                        bam files aligned to transcriptome. Each line of file
-                        should be tab separated.
+                        path to manifest files that points to sample names,
+                        bam files aligned to transcriptome, and vcf vars for
+                        that sample called on the genome. Each line of file
+                        should be tab separated. If you are using just one
+                        reference vcf file, just include it in the third
+                        column for the first sample and leave that column
+                        blank for the rest.
   -o OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
                         path to collapsed_output.bed file. default: 'flair'
   -i ISOFORMS, --isoforms ISOFORMS
@@ -16,3 +20,5 @@ options:
   -g GENOME, --genome GENOME
                         FastA of reference genome
   -f GTF, --gtf GTF     GTF annotation file
+  --keep_intermediate   specify if intermediate and temporary files are to be
+                        kept for debugging.
