@@ -6,6 +6,7 @@ FLAKE8_SRC = \
 	flair_partition.py \
     flair_spliceevents.py \
     flair_variantmodels.py \
-    flair_variantquant.py
+    flair_variantquant.py \
+    flair_transcriptome.py
 
 FLAKE8_CHECK = ${FLAKE8_SRC:%=src/flair/%}

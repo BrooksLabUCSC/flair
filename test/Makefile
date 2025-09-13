@@ -207,7 +207,7 @@ test-collapse-promoter: mkdirs ${GENOME_FA}
 
 test-collapse-incgtf: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $I/basic.annotation.incomplete.scrambled.gtf -o $O/$@ --genetss
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $I/basic.annotation.incomplete.scrambled.gtf -o $O/$@ --gene_tss
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
@@ -219,7 +219,7 @@ test-collapse-incgtfannot: mkdirs ${GENOME_FA}
 
 test-collapse-predcds: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --predictCDS --genetss
+	flair collapse -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ --predictCDS --gene_tss
 	$(collapse_diff)
 	$(call cmp_expect,$@.isoforms.CDS.bed)
 
@@ -233,7 +233,7 @@ test-collapse-annot: mkdirs ${GENOME_FA}
 
 test-collapse-seg1: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
-	flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ --stringent --genetss
+	flair collapse -r ${SEG1_READS_FQ} -q ${SEG1_CORRECT_READS_BED} -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(SEG1_ANNOTATION) -o $O/$@ --stringent --gene_tss
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
