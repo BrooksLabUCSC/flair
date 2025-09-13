@@ -60,9 +60,7 @@ def get_args():
                             detection from the genomic alignment.
                              Will be slightly faster but less accurate if the annotation is good''')
 
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        logging.info(f'unrecognized arguments: {" ".join(unknown)}')
+    args = parser.parse_args()
 
     check_file_paths(args)
     args = ft.add_preset_args(args)
