@@ -3,6 +3,7 @@
 import argparse
 import os
 import shutil
+import math
 import flair.flair_variantmodels as fv
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
@@ -32,11 +33,21 @@ def parse_var_args():
     return args
 
 # this is called by extract_vcf_vars
-def _add_vcf_var(vcfvars, iso2, ref, alts, tpos2, chrom, gpos):
-    if iso2 not in vcfvars:
-        vcfvars[iso2] = {}
-    vcfvars[iso2][tpos2] = (ref, alts, chrom + ':' + str(gpos))
+def _add_vcf_var(vcfvars, iso2, ref, alts, tpos2, name):
+    roundedpos = math.floor(tpos2 / (10 ** 6)) * 10 ** 6
+    poskey = (iso2, roundedpos)
+    if poskey not in vcfvars:
+        vcfvars[poskey] = {}
+    vcfvars[poskey][tpos2] = (ref, alts, name)
     return vcfvars
+
+def _get_correct_vcf_vars(vcfvars, refname, startpos, endpos):
+    myvcfvars = {}
+    for roundedpos in range(math.floor(startpos / (10 ** 6)) * 10 ** 6, math.floor(endpos / (10 ** 6)) * 10 ** 6, 10**6):
+        if (refname, roundedpos) in vcfvars:
+            myvcfvars.update(vcfvars[(refname, roundedpos)])
+    return myvcfvars
+
 
 def _parse_cigar(cigar, alignstart, transcriptvars):
     ref, quer = 0, 0
@@ -55,29 +66,26 @@ def _parse_cigar(cigar, alignstart, transcriptvars):
     return coveredvars
 
 
-def _parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename):
+def _parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename): ##add mode
     """for each read, figure out what variants it overlaps with. Then figure out whether it's modified or not at that variant"""
-    coveredvars = {}
-    if s.reference_name in vcfvars:
-        transcriptvars = list(vcfvars[s.reference_name].keys())  # only pos
-        # check for which vars are covered
-        coveredvars = _parse_cigar(s.cigartuples, s.reference_start, transcriptvars)
+    # check for which vars are covered
+    coveredvars = _parse_cigar(s.cigartuples, s.reference_start, vcfvars)
 
-        # check for which covered vars are actually mod
-        readseq = s.query_sequence
-        alignedbases = s.get_aligned_pairs(with_seq=True, matches_only=True)
-        for i in alignedbases:
-            if i[2] and i[2].islower():
-                if i[1] + 1 in coveredvars:
-                    ref, alts = vcfvars[s.reference_name][i[1] + 1][:2]
-                    for alt in alts:  # could be multiple alt alleles
-                        # restrict to same mutation from vcf, but not strand specific
-                        if (i[2].upper() == ref and readseq[i[0]] == alt) \
-                                or (compbase[i[2].upper()] == ref and compbase[readseq[i[0]]] == alt):
-                            coveredvars[i[1] + 1] = 1
+    # check for which covered vars are actually mod
+    readseq = s.query_sequence
+    alignedbases = s.get_aligned_pairs(with_seq=True, matches_only=True)
+    for i in alignedbases:
+        if i[2] and i[2].islower():
+            if i[1] + 1 in coveredvars:
+                ref, alts = vcfvars[i[1] + 1][:2]
+                for alt in alts:  # could be multiple alt alleles
+                    # restrict to same mutation from vcf, but not strand specific
+                    if (i[2].upper() == ref and readseq[i[0]] == alt) \
+                            or (compbase[i[2].upper()] == ref and compbase[readseq[i[0]]] == alt):
+                        coveredvars[i[1] + 1] = 1
 
     if coveredvars:  # for now, only outputting reads that cover var pos
-        coveredvarstrings = [','.join([str(v), vcfvars[s.reference_name][v][2], str(coveredvars[v])]) for v in coveredvars]
+        coveredvarstrings = [','.join([str(v), vcfvars[v][2], str(coveredvars[v])]) for v in coveredvars]
         with open(tempdir + tempfilename + '.txt', 'a') as tempvarout:
             tempvarout.write(
                 '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
@@ -118,6 +126,7 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, mode, samp
 
 fv.add_vcf_var = _add_vcf_var
 fv.parse_single_bam_read = _parse_single_bam_read
+fv.get_correct_vcf_vars = _get_correct_vcf_vars
 
 def quantvarpos():
     args = parse_var_args()
@@ -138,11 +147,7 @@ def quantvarpos():
             overlapgenes = set()
             for gene, _, _ in fv.retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
                 overlapgenes.add(gene)
-
-            if chrom not in vcfvars:
-                vcfvars[chrom] = {}
-            # FIXME need to add gene annotation to vars here
-            vcfvars[chrom][gpos] = (ref, alts, ','.join(overlapgenes))
+            vcfvars = _add_vcf_var(vcfvars, chrom, ref, alts, gpos, ','.join(overlapgenes))
 
     print('done combining vcf variants')
     tempdir = fv.make_temp_dir(args.output_prefix)

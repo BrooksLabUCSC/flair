@@ -201,7 +201,7 @@ def combine_vcf_files(vcffilelist):
     return vartoalt
 
 
-def add_vcf_var(vcfvars, iso2, ref, alt, tpos2, chrom, gpos):  # chrom and gpos required for other script
+def add_vcf_var(vcfvars, iso2, ref, alt, tpos2, name=None):  # chrom and gpos required for other script
     if iso2 not in vcfvars:
         vcfvars[iso2] = set()
     for a in alt:
@@ -262,7 +262,7 @@ def convert_vars_to_tpos(vartoalt, isotoblocks, genetoiso, chrregiontogenes, gen
         # Then go through transcripts in that gene and save the transcript pos of the variant
         # Don't forget to correct for strand for alt!!
         for gene, iso2, tpos2 in retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
-            vcfvars = add_vcf_var(vcfvars, iso2, ref, alt, tpos2, chrom, gpos)
+            vcfvars = add_vcf_var(vcfvars, iso2, ref, alt, tpos2, chrom + ':' + str(gpos))
 
     return vcfvars
 
@@ -311,9 +311,7 @@ def parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename):
             thesemutations.append((i[1] + 1, 'S', readseq[i[0]]))
     filteredmuts = []
     for m in thesemutations:
-        if (s.reference_name in vcfvars and m[:2] in vcfvars[s.reference_name]) \
-                or (m[1] == 'D' and m[2] >= 10) \
-                or (m[1] == 'I' and len(m[2]) >= 10):
+        if m[:2] in vcfvars or (m[1] == 'D' and m[2] >= 10) or (m[1] == 'I' and len(m[2]) >= 10):
             filteredmuts.append(m)
     filteredmuts = ['.'.join([str(z) for z in x]) for x in filteredmuts]
     with open(tempdir + tempfilename + '.txt', 'a') as tempvarout:
@@ -324,6 +322,13 @@ def gettempfilename(refname, mode):
         return refname
     else:
         return refname.split('_')[-1].split('.')[0][:-2]  # partial gene name
+
+def get_correct_vcf_vars(vcfvars, refname, startpos, endpos):
+    if refname in vcfvars:
+        return vcfvars[refname]
+    else:
+        return None
+
 
 def parse_all_bam_files(sampledata, tempdir, vcfvars, mode=None):  # mode is only necessary for varquant mode
     for sindex in range(len(sampledata)):
@@ -337,7 +342,9 @@ def parse_all_bam_files(sampledata, tempdir, vcfvars, mode=None):  # mode is onl
                 if c % 100000 == 0:
                     print(c, 'reads checked')
                 tempfilename = gettempfilename(s.reference_name, mode)
-                parse_single_bam_read(s, tempdir, vcfvars, sindex, tempfilename)
+                myvcfvars = get_correct_vcf_vars(vcfvars, s.reference_name, s.reference_start, s.reference_end)
+                if myvcfvars:
+                    parse_single_bam_read(s, tempdir, myvcfvars, sindex, tempfilename)
         samfile.close()
         print('done parsing reads for', sample)
 
