@@ -47,7 +47,7 @@ def parseargs(aligned_reads=''):
     args = parser.parse_args()
 
     if not (args.junction_tab or args.junction_bed):
-        logging.info('No short-read junctions provided. NO NOVEL SPLICE SITES WILL BE DETECTED.')
+        logging.warn('No short-read junctions provided. NO NOVEL SPLICE SITES WILL BE DETECTED.')
     return args
 
 def correct(aligned_reads='', args=None):
@@ -78,7 +78,6 @@ def correct(aligned_reads='', args=None):
     global printErrFname
     global printErr
     verbose  = False # TODO
-    # printErr = args.print_check
     printErr = False
     printErrFname = False
     if printErr:

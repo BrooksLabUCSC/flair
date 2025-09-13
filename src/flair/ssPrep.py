@@ -155,11 +155,15 @@ def juncsToBed12(start, end, coords):
     coords = list formatted like so [(j1_left,j1_right),(j2_left,j2_right)]
     returns num_exons, sizes, starts
     '''
+    # FIXME: why would this ever have a zero-length coords?
+    assert start < end
     sizes, starts = [],[]
     # initial start is 0
     if len(coords) > 0:
         for num,junc in enumerate(coords,0):
             ss1, ss2 = junc
+            assert start <= ss1 < end
+            assert start < ss2 <= end
 
             if num == 0:
                 st = 0
@@ -167,6 +171,8 @@ def juncsToBed12(start, end, coords):
             else:
                 st = coords[num-1][1] - start
                 size = ss1 - (st + start)
+            assert st >= 0
+            assert size > 0
             starts.append(st)
             sizes.append(size)
         st = coords[-1][1] - start
@@ -217,7 +223,6 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
         return junctionBoundaryDict
 
 
-        #correctReads(readsBed, intervalTree, junctionBoundaryDict, chrom, resolveStrand, workingDir, chrom, errFile)
 def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStrand, wDir, currentChr, errFile):
     ''' Builds read and splice site objects '''
 
@@ -246,8 +251,6 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
             if c2 not in junctionBoundaryDict:
                 junctionBoundaryDict = ssCorrect(c2,strand,c2Type,intTree,junctionBoundaryDict, errFile)
 
-            #c1Obj, c2Obj = junctionBoundaryDict[c1], junctionBoundaryDict[c2] unused
-
             c1Corr = junctionBoundaryDict[c1].ssCorr.coord
             c2Corr = junctionBoundaryDict[c2].ssCorr.coord
 
@@ -259,8 +262,9 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
             if None in ssTypes: #or ssTypes[0] == ssTypes[1]:
                 # Either two donors or two acceptors or both none.
                 novelSS = True
-
-            newJuncs.append((c1Corr,c2Corr))
+            # the above can generate junctions out bounds of the read
+            if (c1Corr >= bedObj.start) and (c2Corr <= bedObj.end) and (c1Corr < c2Corr):
+                newJuncs.append((c1Corr,c2Corr))
 
         blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
 
