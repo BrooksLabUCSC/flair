@@ -162,6 +162,11 @@ test-correct-seg1: mkdirs ${GENOME_FA}
 	$(call cmp_expect_sort,$@_all_inconsistent.bed)
 	$(call cmp_expect_sort,$@_all_corrected.bed)
 
+# case that resulted in negative block size in coorrect
+test-correct-blocksize: mkdirs ${GENOME_FA}
+	flair correct -q input/tardigrade-regress-aligns.bed --junction_bed=input/tardigrade-regress-introns.bed -o $O/$@
+	$(call cmp_expect_sort,$@_all_corrected.bed)
+
 test-correct-help: mkdirs
 	flair correct --help > $O/$@.out
 	$(call cmp_expect,$@.out)
