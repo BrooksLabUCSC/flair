@@ -182,9 +182,6 @@ def juncsToBed12(start, end, coords):
     starts.append(st)
     sizes.append(size)
 
-    for st, sz in zip(starts, sizes):
-        print(f"      {st} {sz} = {start+st}-{start+st+sz}")
-
     return len(starts), sizes, starts
 
 

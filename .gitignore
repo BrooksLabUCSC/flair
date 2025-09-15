@@ -10,5 +10,4 @@ test/output/
 *.bam
 *.bai
 *.gz
-*.fa
 /dist/
