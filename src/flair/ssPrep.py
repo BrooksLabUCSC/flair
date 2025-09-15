@@ -108,6 +108,7 @@ class BED12(object):
                 break
             ss1 = self.start + st + self.sizes[num]
             ss2 = self.start + self.starts[num+1]
+            assert ss1 < ss2
             junctions.append((ss1,ss2))
 
         return junctions
@@ -120,6 +121,7 @@ class BED12(object):
         for num, st in enumerate(self.starts,0):
             c1 = self.start + st
             c2 = c1 + self.sizes[num]
+            assert c1 < c1
             exons.append((c1,c2))
         return exons
 
@@ -139,6 +141,8 @@ class junctObj(object):
 
         # Descriptive attributes.
         self.support = set()
+        # FIXME: somethings this points to self, sometime to other junctObj
+        # the logic is not clear as to why
         self.ssCorr  = None
 
 
@@ -155,33 +159,30 @@ def juncsToBed12(start, end, coords):
     coords = list formatted like so [(j1_left,j1_right),(j2_left,j2_right)]
     returns num_exons, sizes, starts
     '''
-    # FIXME: why would this ever have a zero-length coords?
-    assert start < end
     sizes, starts = [],[]
     # initial start is 0
-    if len(coords) > 0:
-        for num,junc in enumerate(coords,0):
-            ss1, ss2 = junc
-            assert start <= ss1 < end
-            assert start < ss2 <= end
+    if len(coords) == 0:
+        return 1, [end - start], [0]  # single-exon
 
-            if num == 0:
-                st = 0
-                size = abs(start-ss1)
-            else:
-                st = coords[num-1][1] - start
-                size = ss1 - (st + start)
-            assert st >= 0
-            assert size > 0
-            starts.append(st)
-            sizes.append(size)
-        st = coords[-1][1] - start
-        size = end - (st + start)
+    next_start = start
+    for ss1, ss2 in coords:
+        assert ss1 < ss2
+        assert start <= ss1 < end
+        assert start < ss2 <= end
+
+        st = next_start - start
+        size = ss1 - next_start
         starts.append(st)
         sizes.append(size)
-        return len(starts), sizes, starts
-    else:
-        return 1, [end-start], [0]
+        next_start = ss2
+
+    # last exon
+    st = next_start - start
+    size = end - next_start
+    starts.append(st)
+    sizes.append(size)
+
+    return len(starts), sizes, starts
 
 
 def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
@@ -205,8 +206,7 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
         minVal    = min(distances)
         count     = distances.count(minVal)
 
-        if count > 1: ###multiple splice sites with equal distance to read ss, how to pick?
-
+        if count > 1: ### multiple splice sites with equal distance to read ss, how to pick?
             sortedvals = []
             for x in range(len(hits)):
                 if distances[x] == minVal:
@@ -243,7 +243,6 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
         ssTypes   = list()
         ssStrands = set()
         novelSS   = False
-
         for x in juncs:
             c1, c2 = x[0], x[1]
             if c1 not in junctionBoundaryDict:
@@ -253,6 +252,10 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
 
             c1Corr = junctionBoundaryDict[c1].ssCorr.coord
             c2Corr = junctionBoundaryDict[c2].ssCorr.coord
+            if not (bedObj.start <= c1Corr < bedObj.end):
+                c1Corr = c1
+            if not (bedObj.start < c2Corr <= bedObj.end):
+                c2Corr = c2
 
             ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
 
@@ -262,11 +265,13 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
             if None in ssTypes: #or ssTypes[0] == ssTypes[1]:
                 # Either two donors or two acceptors or both none.
                 novelSS = True
-            # the above can generate junctions out bounds of the read
-            if (c1Corr >= bedObj.start) and (c2Corr <= bedObj.end) and (c1Corr < c2Corr):
-                newJuncs.append((c1Corr,c2Corr))
+            newJuncs.append((c1Corr,c2Corr))
 
-        blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
+        blocks, sizes, starts = juncsToBed12(bedObj.start, bedObj.end, newJuncs)
+        assert len(sizes) == blocks
+        assert len(starts) == blocks
+        assert starts[0] == 0
+        assert (bedObj.start + starts[-1] + sizes[-1]) == bedObj.end
 
         if correctStrand:
             # if len(ssStrands) > 1:
