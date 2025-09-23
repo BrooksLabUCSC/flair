@@ -179,9 +179,12 @@ def juncsToBed12(start, end, coords):
     # last exon
     st = next_start - start
     size = end - next_start
-    starts.append(st)
-    sizes.append(size)
+    if size > 0:
+        starts.append(st)
+        sizes.append(size)
 
+    assert starts[0] == 0
+    assert starts[-1] + sizes[-1] + start == end
     return len(starts), sizes, starts
 
 
@@ -225,6 +228,8 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
 
 def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStrand, wDir, currentChr, errFile):
     ''' Builds read and splice site objects '''
+    # FIXME: this was copied into flair_transcriptome.py::correctsingleread() and modified.  Make
+    # common function
 
     if errFile:
         with open(errFile,'a+') as fo:
@@ -287,13 +292,13 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
 
         if novelSS:
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
-                    bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
+                  max(bedObj.score, 1000), strand, bedObj.c1, bedObj.c2, bedObj.color,
                     blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=inconsistent)
         else:
 
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
-                    bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
-                    blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
+                  max(bedObj.score, 1000), strand, bedObj.c1, bedObj.c2, bedObj.color,
+                  blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
     corrected.close()
     inconsistent.close()
 
