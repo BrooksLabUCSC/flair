@@ -297,6 +297,8 @@ def filter_collapsed_isoforms_from_annotation(annotation, map_a, map_i, support,
                 writer.writerow([iso, annotated_iso_read_map[iso]])
             for iso in keep_isoforms:
                 if iso not in annotated_iso_read_map:  # flair collapse iso that is in keep_isoforms
+                    if iso not in flair_iso_read_map:
+                        raise Exception(f"isoform `{iso}' not found in: {map_i}")
                     writer.writerow([iso, flair_iso_read_map[iso]])
 
 if __name__ == "__main__":
