@@ -152,7 +152,8 @@ def process_alignments(args, transcripttoexons, transcripttobpssindex):
     transcripttoreads = {}
     for i in range(len(chunkresults)):
         for read, transcript in chunkresults[i]:
-            if transcript not in transcripttoreads: transcripttoreads[transcript] = []
+            if transcript not in transcripttoreads:
+                transcripttoreads[transcript] = []
             transcripttoreads[transcript].append(read)
     write_output(args, transcripttoreads)
 
@@ -174,5 +175,3 @@ if __name__ == '__main__':
     args = checkargs(args)
     transcripttoexons, transcripttobpssindex = getannotinfo(args)
     process_alignments(args, transcripttoexons, transcripttobpssindex)
-
-

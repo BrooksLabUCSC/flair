@@ -108,6 +108,7 @@ class BED12(object):
                 break
             ss1 = self.start + st + self.sizes[num]
             ss2 = self.start + self.starts[num+1]
+            assert ss1 < ss2
             junctions.append((ss1,ss2))
 
         return junctions
@@ -120,6 +121,7 @@ class BED12(object):
         for num, st in enumerate(self.starts,0):
             c1 = self.start + st
             c2 = c1 + self.sizes[num]
+            assert c1 < c1
             exons.append((c1,c2))
         return exons
 
@@ -139,6 +141,8 @@ class junctObj(object):
 
         # Descriptive attributes.
         self.support = set()
+        # FIXME: somethings this points to self, sometime to other junctObj
+        # the logic is not clear as to why
         self.ssCorr  = None
 
 
@@ -147,7 +151,7 @@ class junctObj(object):
 ########################################################################
 
 
-def juncsToBed12(start, end, coords):
+def juncsToBed12(name, start, end, coords):
     '''
     Take alignment start, end, and junction coords and convert to block/size bed12 format.
     start = integer
@@ -157,25 +161,37 @@ def juncsToBed12(start, end, coords):
     '''
     sizes, starts = [],[]
     # initial start is 0
-    if len(coords) > 0:
-        for num,junc in enumerate(coords,0):
-            ss1, ss2 = junc
+    if len(coords) == 0:
+        return 1, [end - start], [0]  # single-exon
+    debug = (name == "8a597aab-8b74-4154-93a5-f9af7b81effb")
+    if debug:
+        print("@", start, end, file=sys.stderr)
+        print("@@", coords, file=sys.stderr)
+    next_start = start
+    for ss1, ss2 in coords:
+        assert ss1 < ss2
+        assert start <= ss1 < end
+        assert start < ss2 <= end
 
-            if num == 0:
-                st = 0
-                size = abs(start-ss1)
-            else:
-                st = coords[num-1][1] - start
-                size = ss1 - (st + start)
-            starts.append(st)
-            sizes.append(size)
-        st = coords[-1][1] - start
-        size = end - (st + start)
+        st = next_start - start
+        size = ss1 - next_start
         starts.append(st)
         sizes.append(size)
-        return len(starts), sizes, starts
-    else:
-        return 1, [end-start], [0]
+        next_start = ss2
+
+    # last exon
+    st = next_start - start
+    size = end - next_start
+    if size > 0:
+        starts.append(st)
+        sizes.append(size)
+
+    assert starts[0] == 0
+    if not (starts[-1] + sizes[-1] + start == end):
+        print("@@@@", starts, sizes, file=sys.stderr)
+
+    assert starts[-1] + sizes[-1] + start == end
+    return len(starts), sizes, starts
 
 
 def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
@@ -199,8 +215,7 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
         minVal    = min(distances)
         count     = distances.count(minVal)
 
-        if count > 1: ###multiple splice sites with equal distance to read ss, how to pick?
-
+        if count > 1: ### multiple splice sites with equal distance to read ss, how to pick?
             sortedvals = []
             for x in range(len(hits)):
                 if distances[x] == minVal:
@@ -216,10 +231,10 @@ def ssCorrect(c,strand,ssType,intTree,junctionBoundaryDict, errFile):
         junctionBoundaryDict[c] = ss
         return junctionBoundaryDict
 
-
-        #correctReads(readsBed, intervalTree, junctionBoundaryDict, chrom, resolveStrand, workingDir, chrom, errFile)
 def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStrand, wDir, currentChr, errFile):
     ''' Builds read and splice site objects '''
+    # FIXME: this was copied into flair_transcriptome.py::correctsingleread() and modified.  Make
+    # common function
 
     if errFile:
         with open(errFile,'a+') as fo:
@@ -238,7 +253,6 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
         ssTypes   = list()
         ssStrands = set()
         novelSS   = False
-
         for x in juncs:
             c1, c2 = x[0], x[1]
             if c1 not in junctionBoundaryDict:
@@ -246,10 +260,16 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
             if c2 not in junctionBoundaryDict:
                 junctionBoundaryDict = ssCorrect(c2,strand,c2Type,intTree,junctionBoundaryDict, errFile)
 
-            #c1Obj, c2Obj = junctionBoundaryDict[c1], junctionBoundaryDict[c2] unused
-
             c1Corr = junctionBoundaryDict[c1].ssCorr.coord
             c2Corr = junctionBoundaryDict[c2].ssCorr.coord
+            # don't allow junctions outside or near the ends of the reads
+            ends_slop = 8
+            if not ((bedObj.start + ends_slop) <= c1Corr < (bedObj.end - ends_slop)):
+                novelSS = True
+                c1Corr = c1
+            if not ((bedObj.start + ends_slop) <= c2Corr < (bedObj.end - ends_slop)):
+                novelSS = True
+                c2Corr = c2
 
             ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
 
@@ -257,12 +277,10 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
             ssStrands.add(junctionBoundaryDict[c2].ssCorr.strand)
 
             if None in ssTypes: #or ssTypes[0] == ssTypes[1]:
-                # Either two donors or two acceptors or both none.
                 novelSS = True
-
             newJuncs.append((c1Corr,c2Corr))
 
-        blocks, sizes, starts = juncsToBed12(bedObj.start,bedObj.end,newJuncs)
+        blocks, sizes, starts = juncsToBed12(bedObj.name, bedObj.start, bedObj.end, newJuncs)
 
         if correctStrand:
             # if len(ssStrands) > 1:
@@ -278,13 +296,12 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
 
         if novelSS:
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
-                    bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
-                    blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=inconsistent)
+                  min(bedObj.score, 1000), strand, bedObj.c1, bedObj.c2, bedObj.color,
+                  blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=inconsistent)
         else:
-
             print(bedObj.chrom, bedObj.start, bedObj.end, bedObj.name,
-                    bedObj.score, strand, bedObj.c1, bedObj.c2, bedObj.color,
-                    blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
+                  min(bedObj.score, 1000), strand, bedObj.c1, bedObj.c2, bedObj.color,
+                  blocks, ",".join(map(str,sizes))+",", ",".join(map(str,starts))+",", sep="\t", file=corrected)
     corrected.close()
     inconsistent.close()
 

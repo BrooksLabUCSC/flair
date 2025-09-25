@@ -265,7 +265,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # match counts
         counts_file = args.output+'annotated_transcripts.alignment.counts'
         supported_bed = args.output+'annotated_transcripts.supported.bed'
-        match_counts(counts_file=counts_file, output_file=supported_bed, bed=args.annotated_bed, min_reads=args.support)
+        match_counts(counts_file=counts_file, output_file=supported_bed, bed=args.annotated_bed, min_reads=min_reads)
 
         # get the unassigned reads separately
         subset_reads = args.output+'unassigned.fasta'

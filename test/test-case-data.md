@@ -26,6 +26,11 @@ Files:
 * seg1.gencodeV47.gtf - from GENCODE V47, as some test cases added from LRGASP
 * seg1.promoter-regions.bed - from encodeCcreCombined
 
-## others
+## tardigrade-regress
+A test case derived from tardigrade ONT RNA data that caused flair correct to
+generate invalid BAMs.  This was done on a pre-release genome so only the
+alignment SAM and BED, and the introns for the region are check in.  When the
+genome is release, this can be turned into a full test case.
 
+## Others
 * tiny.sam - A few records from test-align.bam output

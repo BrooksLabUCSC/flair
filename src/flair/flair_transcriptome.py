@@ -204,13 +204,13 @@ def generateKnownSSDatabase(args, tempDir):
 
 
 def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
+    # FIXME: this was copied from ssPrep.py::correctReads() and modified
     juncs = bedread.juncs
     strand = bedread.strand
     c1Type, c2Type = ("donor", "acceptor") if strand == "+" else ("acceptor", "donor")
 
     newJuncs = list()
     ssStrands = set()
-    novelSS = False
 
     for x in juncs:
         c1, c2 = x[0], x[1]
@@ -219,10 +219,14 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
         if c2 not in junctionBoundaryDict:
             junctionBoundaryDict = ssCorrect(c2, strand, c2Type, intervalTree, junctionBoundaryDict, False)
 
-        # c1Obj, c2Obj = junctionBoundaryDict[c1], junctionBoundaryDict[c2] unused
-
         c1Corr = junctionBoundaryDict[c1].ssCorr.coord
         c2Corr = junctionBoundaryDict[c2].ssCorr.coord
+        # don't allow junctions outside or near the ends of the reads
+        ends_slop = 8
+        if not ((bedread.start + ends_slop) <= c1Corr < (bedread.end - ends_slop)):
+            return None
+        if not ((bedread.start + ends_slop) <= c2Corr < (bedread.end - ends_slop)):
+            return None
 
         ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
 
@@ -230,22 +234,19 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
         ssStrands.add(junctionBoundaryDict[c2].ssCorr.strand)
 
         if None in ssTypes:  # or ssTypes[0] == ssTypes[1]: # Either two donors or two acceptors or both none.
-            novelSS = True
+            return None
         newJuncs.append((c1Corr, c2Corr))
 
-    blocks, sizes, starts = juncsToBed12(bedread.start, bedread.end, newJuncs)
+    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.start, bedread.end, newJuncs)
 
     # 0 length exons, remove them.
     if min(sizes) == 0:
-        novelSS = True
-
-    if novelSS:
         return None
-    else:
-        bedread.juncs = newJuncs
-        bedread.esizes = sizes
-        bedread.estarts = starts
-        return bedread
+
+    bedread.juncs = newJuncs
+    bedread.esizes = sizes
+    bedread.estarts = starts
+    return bedread
 
 
 def getrgb(name, strand, junclen):
@@ -305,7 +306,7 @@ class BedRead(object):
         self.start = alignstart
         self.end = refpos
         self.name = readname
-        self.score = qualscore
+        self.score = min(qualscore, 1000)
         self.strand = juncDirection
         self.blockcount = len(intronblocks) + 1
         self.esizes = esizes
@@ -955,7 +956,7 @@ def revcomp(seq):
 
 def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
     start, end, isoid, readnames = endinfo
-    score = len(readnames)
+    score = min(len(readnames), 1000)
     marker, iso = isoid
     estarts, esizes = getexonsfromjuncs(juncs, start, end)
     bedline = [chrom, start, end, iso + '_' + gene, score, strand, start, end,
