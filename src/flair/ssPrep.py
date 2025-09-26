@@ -163,10 +163,6 @@ def juncsToBed12(name, start, end, coords):
     # initial start is 0
     if len(coords) == 0:
         return 1, [end - start], [0]  # single-exon
-    debug = (name == "8a597aab-8b74-4154-93a5-f9af7b81effb")
-    if debug:
-        print("@", start, end, file=sys.stderr)
-        print("@@", coords, file=sys.stderr)
     next_start = start
     for ss1, ss2 in coords:
         assert ss1 < ss2
@@ -187,9 +183,6 @@ def juncsToBed12(name, start, end, coords):
         sizes.append(size)
 
     assert starts[0] == 0
-    if not (starts[-1] + sizes[-1] + start == end):
-        print("@@@@", starts, sizes, file=sys.stderr)
-
     assert starts[-1] + sizes[-1] + start == end
     return len(starts), sizes, starts
 
