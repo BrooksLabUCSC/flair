@@ -49,9 +49,11 @@ run_deseq_analysis <- function(args) {
   }
   
   dds <- DESeqDataSetFromMatrix(countData = countData, colData = colData, design = design)
+  dds$condition <- relevel(dds$condition, ref=group1)
   dds <- DESeq(dds)
-  name <- grep("condition", resultsNames(dds), value=TRUE)
-  
+
+  name <- paste('condition_', group2, '_vs_', group1, sep='')
+
   res <- results(dds, name = name)
   resLFC <- lfcShrink(dds, coef = name)
   write.table(as.data.frame(res), file = resOut, quote = FALSE, sep = "\t")
