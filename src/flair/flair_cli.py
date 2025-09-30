@@ -65,6 +65,9 @@ def flair_module_run(opts, module, module_argv):  # noqa: C901
     elif module == 'variants':
         from flair.flair_variantmodels import getvariants
         getvariants()
+    elif module == 'variantquant':
+        from flair.flair_variantquant import quantvarpos
+        quantvarpos()
     elif module == 'fusion':
         from flair.flair_fusion import detectfusions
         detectfusions()
