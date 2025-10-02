@@ -87,8 +87,8 @@ def collapse(genomic_range='', corrected_reads=''):
             dest='no_end_adjustment',
             help='''when specified, TSS/TES from the gtf provided with -f will not be used to adjust
             isoform TSSs/TESs each isoform will be determined from supporting reads''')
-    parser.add_argument('--max_ends', type=int, default=2,
-            help='maximum number of TSS/TES picked per isoform (2)')
+    parser.add_argument('--max_ends', type=int, default=1,
+            help='maximum number of TSS/TES picked per isoform (1)')
     parser.add_argument('--filter', default='default',
             help='''Report options include:
             nosubset--any isoforms that are a proper set of another isoform are removed;
