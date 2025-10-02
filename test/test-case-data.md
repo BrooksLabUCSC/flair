@@ -13,7 +13,17 @@ output from preceding modules.
 
 ## basic - basic test cases
 These are LRGASP WTC-11 cDNA short reads pretending to be long 
-reads.  Leads to a fast test that the code paths just work.
+reads.  
+WTC11 PacBio cDNA from LRGASP 
+Sample: ENCFF245IPA
+For the three genes: KRAS, ERGIC3, DDX5
+Took a random subset of one third of the reads aligned to each locus, this is the core set for collapse
+
+For quantify, from the third subset of IPA used for collapse:
+took 3 random subsets at 1/10th of that file: reps 1-3
+took 3 random subsets at 1/20th of that file: reps 4-6
+
+Leads to a fast test that the code paths just work.
 
 ## set seg1 - single exon genes
 LRGASP WTC11 ONT single-exon gene tests on GRCh38
