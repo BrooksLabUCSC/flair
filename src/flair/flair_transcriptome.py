@@ -4,7 +4,6 @@ import sys
 import argparse
 import os
 import pipettor
-import glob
 import uuid
 import shutil
 import pysam
@@ -13,52 +12,53 @@ from flair.flair_align import inferMM2JuncStrand, intronChainToestarts
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
 from flair.ssPrep import buildIntervalTree, ssCorrect
 import multiprocessing as mp
-import time
 from collections import Counter
 from flair import FlairInputDataError
 
 
-# export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
-
 def get_args():
     parser = argparse.ArgumentParser(description='generates confident transcript models directly from a bam file '
                                                  'of aligned long rna-seq reads')
-    parser.add_argument('-b', '--genomealignedbam',
+    parser.add_argument('-b', '--genomealignedbam', required=True,
                         help='Sorted and indexed bam file aligned to the genome')
-    parser.add_argument('-g', '--genome', type=str,
+    parser.add_argument('-g', '--genome', type=str, required=True,
                         help='FastA of reference genome, can be minimap2 indexed')
     parser.add_argument('-o', '--output', default='flair',
                         help='output file name base for FLAIR isoforms (default: flair)')
-    parser.add_argument('-t', '--threads', type=int, default=4,
-                        help='minimap2 number of threads (4)')
+    parser.add_argument('-t', '--threads', type=int, default=12,
+                        help='number of threads to run with - related to parallelmode')
     parser.add_argument('-f', '--gtf', default='',
-                        help='GTF annotation file, used for renaming FLAIR isoforms '
-                             'to annotated isoforms and adjusting TSS/TESs')
+                        help='GTF annotation file, used for identifying annotated isoforms')
 
     mutexc = parser.add_mutually_exclusive_group(required=False)
     mutexc.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
                                                'Use this option if you aligned your short-reads with STAR, '
                                                'STAR will automatically output this file')
     mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
-                                               '(can be generated from short-read alignment with junctions_from_sam)')
+                                               '(can be generated from long-read alignment with intronProspector)')
     parser.add_argument('--junction_support', type=int, default=1,
                         help='if providing short-read junctions, minimum junction support required to keep junction. '
                              'If your junctions file is in bed format, the score field will be used for read support.')
     parser.add_argument('--ss_window', type=int, default=15,
                         help='window size for correcting splice sites (15)')
-
-    parser.add_argument('-s', '--support', type=float, default=3.0,
-                        help='''minimum number of supporting reads for an isoform (3)''')
-    parser.add_argument('--stringent', default=False, action='store_true',
-                        help='''specify if all supporting reads need to be full-length
-                (spanning 25 bp of the first and last exons)''')
-    parser.add_argument('--check_splice', default=False, action='store_true',
-                        help='''enforce coverage of 4 out of 6 bp around each splice site and no
-                insertions greater than 3 bp at the splice site''')
-    # parser.add_argument('--quality', type=int, default=0,
-    #                     help='minimum MAPQ of read assignment to an isoform (1)')
     parser.add_argument('-w', '--end_window', type=int, default=100,
                         help='window size for comparing TSS/TES (100)')
+
+    parser.add_argument('--sjc_support', type=int, default=1,
+                        help='''minimum number of supporting reads for a spliced isoform (1)''')
+    parser.add_argument('--se_support', type=int, default=3,
+                        help='''minimum number of supporting reads for a single exon isoform (3)''')
+    parser.add_argument('--frac_support', type=float, default=0.05,
+                        help='''minimum fraction of gene locus support for isoform to be called
+                         default: 0.05, only isoforms that make up more than 5% of the gene locus are reported. Set to 0 for max recall''')
+    
+
+    parser.add_argument('--no_stringent', default=False, action='store_true',
+                        help='''specify if all supporting reads don't need to be full-length
+                (aligned to first and last exons of transcript). Use this for fragmented libraries, but understand that it will impact precision.''')
+    parser.add_argument('--no_check_splice', default=False, action='store_true',
+                        help='''don't enforce accurate alignment around splice site. Specify this for libraries with high error rates, but it will reduce precision''')
+    
 
     parser.add_argument('--noaligntoannot', default=False, action='store_true',
                         help='''related to old annotation_reliant, now specify if you don't want
@@ -67,18 +67,19 @@ def get_args():
                          Will be slightly faster but less accurate if the annotation is good''')
     parser.add_argument('-n', '--no_redundant', default='none',
                         help='''For each unique splice junction chain, report options include:
-            none--best TSSs/TESs chosen for each unique set of splice junctions;
+            none-- multiple supported TSSs/TESs chosen for each set of splice junctions (modulated by max_ends);
             longest--single TSS/TES chosen to maximize length;
             best_only--single most supported TSS/TES used in conjunction chosen (none)''')
-    parser.add_argument('--max_ends', type=int, default=2,
-                        help='maximum number of TSS/TES picked per isoform (2)')
-    parser.add_argument('--filter', default='default',
+    parser.add_argument('--max_ends', type=int, default=1,
+                        help='maximum number of TSS/TES picked per isoform (1) make higher for more precise end detection')
+    parser.add_argument('--filter', default='nosubset',
                         help='''Report options include:
             nosubset--any isoforms that are a proper set of another isoform are removed;
-            default--subset isoforms are removed based on support;
+            bysupport--subset isoforms are removed based on support;
             comprehensive--default set + all subset isoforms;
             ginormous--comprehensive set + single exon subset isoforms''')
-
+    parser.add_argument('--quality', default=1, type=int,
+                        help='minimum mapping quality threshold to consider genomic alignments for defining transcripts')
     parser.add_argument('--parallelmode', default='auto:1GB',
                         help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where
                             if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
@@ -95,27 +96,21 @@ def get_args():
                 read assignments to firstpass isoforms''')
     parser.add_argument('--keep_sup', default=False, action='store_true',
                         help='''specify if you want to keep supplementary alignments to define isoforms''')
-    # parser.add_argument('--trimmedreads', default=False, action='store_true',
-    #                     help='specify if your reads are properly trimmed and you want to remove alignments with too much softclipping at the ends (improves accuracy when possible)')
     parser.add_argument('--endnormdist',
-                        help='specify the number of basepairs to extend transcript ends if you want to normalize them across transcripts in a gene and extend them')
+                        help='specify the number of basepairs to extend transcript ends if you want to '
+                             'normalize them across transcripts in a gene and extend them')
     parser.add_argument('--output_endpos', default=False, action='store_true',
-                        help='specify if you want to ouptut a setparate file with corrected read end positions. For development purposes')
+                        help='specify if you want to ouptut a setparate file with corrected read end positions. '
+                             'For development purposes')
     parser.add_argument('--output_bam', default=False, action='store_true',
-                        help='output intermediate bams aligned to the transcriptome. Only works with --keep_intermediate, for debugging')
+                        help='output intermediate bams aligned to the transcriptome. '
+                             'Only works with --keep_intermediate, for debugging')
 
-    no_arguments_passed = len(sys.argv) == 1
-    if no_arguments_passed:
-        parser.print_help()
-        parser.error('No arguments passed. Please provide bam file, genome, and gtf')
 
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        logging.info(f'unrecognized arguments: {" ".join(unknown)}')
+    args = parser.parse_args()
 
     check_file_paths(args)
     args = add_preset_args(args)
-    # args.quality = '0' if args.trust_ends else args.quality
     # if args.mm2_args:
     #     args.mm2_args = args.mm2_args.split(',')
     return args
@@ -123,9 +118,9 @@ def get_args():
 
 def check_file_paths(args):
     if not args.genomealignedbam:
-        raise FlairInputDataError(f'Please include the --genomealignedbam option')
+        raise FlairInputDataError('Please include the --genomealignedbam option')
     if not args.genome:
-        raise FlairInputDataError(f'Please include the --genome option\n')
+        raise FlairInputDataError('Please include the --genome option\n')
     if not os.path.exists(args.genomealignedbam):
         raise FlairInputDataError(f'Aligned reads file path does not exist: {args.genomealignedbam}')
     if not os.path.exists(args.genome):
@@ -140,7 +135,6 @@ def check_file_paths(args):
 
 def add_preset_args(args):
     args.mm2_args = []
-    args.quality = 0
     args.trust_ends = False
     args.remove_internal_priming = False
     args.isoformtss = True
@@ -193,7 +187,7 @@ def generateKnownSSDatabase(args, tempDir):
             shortread, type = args.junction_bed, 'bed'
         juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
-        if addFlag == False:
+        if not addFlag:
             raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}')
 
     # added to allow annotations not to be used.
@@ -242,7 +236,7 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
             novelSS = True
         newJuncs.append((c1Corr, c2Corr))
 
-    starts, sizes = getexonsfromjuncs(newJuncs, bedread.start, bedread.end) #juncsToBed12(bedread.start, bedread.end, newJuncs)
+    starts, sizes = getexonsfromjuncs(newJuncs, bedread.start, bedread.end)
     # 0 length exons or exons corrected outside of their transcript ends, remove them.
     if min(sizes) <= 0:
         novelSS = True
@@ -285,10 +279,6 @@ class BedRead(object):
 
     def generate_from_cigar(self, alignstart, is_reverse, cigartuples, readname, referencename, qualscore,
                             juncDirection):
-        # alignstart, is_reverse, cigartuples, readname, referencename, qualscore, juncDirection
-        positiveTxn = "27,158,119"  # green
-        negativeTxn = "217,95,2"  # orange
-        unknownTxn = "99,99,99"
         refpos = alignstart
         intronblocks = []
         hasmatch = False
@@ -301,7 +291,8 @@ class BedRead(object):
                 if block[0] in {0, 7, 8}:
                     hasmatch = True  # match
         # dirtowrite = '-' if is_reverse else '+'
-        # chr1  476363  497259  ENST00000455464.7_ENSG00000237094.12    1000    -       476363  497259  0       3       582,169,151,    0,8676,20745,
+        # chr1  476363  497259  ENST00000455464.7_ENSG00000237094.12    1000    -
+        # 476363  497259  0       3       582,169,151,    0,8676,20745,
         esizes, estarts = intronChainToestarts(intronblocks, alignstart, refpos)
         if juncDirection not in {'+', '-'}:
             juncDirection = "-" if is_reverse else "+"
@@ -330,9 +321,9 @@ class BedRead(object):
         self.exons = exons
         self.start = exons[0][0]
         self.end = exons[-1][1]
-        self.juncs = tuple([(exons[x][1], exons[x+1][0]) for x in range(len(exons)-1)])
-        self.esizes = [x[1]-x[0] for x in exons]
-        self.estarts = [x[0]-self.start for x in exons]
+        self.juncs = tuple([(exons[x][1], exons[x + 1][0]) for x in range(len(exons) - 1)])
+        self.esizes = [x[1] - x[0] for x in exons]
+        self.estarts = [x[0] - self.start for x in exons]
 
     def getsequence(self, genome):
         exons = self.exons
@@ -374,12 +365,13 @@ class AnnotData(object):
         self.juncstotranscript = {}
         self.junctogene = {}
         self.allannotse = []
-        self.allsplicedexons = {'+':{}, '-':{}}
+        self.allsplicedexons = {'+': {}, '-': {}}
         self.genetoannotjuncs = {}
         self.genetostrand = {}
 
     def returndata(self):
-        return self.juncstotranscript, self.junctogene, self.allannotse, self.allsplicedexons, self.genetoannotjuncs, self.genetostrand, self.transcripttoexons, self.alltranscripts
+        return self.juncstotranscript, self.junctogene, self.allannotse, self.allsplicedexons, self.genetoannotjuncs, \
+            self.genetostrand, self.transcripttoexons, self.alltranscripts
 
 def generate_region_dict(allregions):
     chromtoregions, regionstoannotdata = {}, {}
@@ -413,7 +405,7 @@ def get_tname_to_exons(gtf):
 
 def get_annot_tstart_tend(tinfo):
     tstart, tend, strand = tinfo[0]
-    if tstart == None:
+    if tstart is None:
         tstart = min([x[0] for x in tinfo[1]])
         tend = max([x[1] for x in tinfo[1]])
     return tstart, tend, strand
@@ -430,7 +422,8 @@ def save_transcript_annot_to_region(transcript, gene, thisregion, regionstoannot
     if len(juncs) == 0:
         regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
     else:
-        if gene not in regionstoannotdata[thisregion].allsplicedexons[strand]: regionstoannotdata[thisregion].allsplicedexons[strand][gene] = set()
+        if gene not in regionstoannotdata[thisregion].allsplicedexons[strand]:
+            regionstoannotdata[thisregion].allsplicedexons[strand][gene] = set()
         regionstoannotdata[thisregion].allsplicedexons[strand][gene].update(set(sortedexons))
         regionstoannotdata[thisregion].juncstotranscript[tuple(juncs)] = (transcript, gene)
         if gene not in regionstoannotdata[thisregion].genetoannotjuncs:
@@ -450,9 +443,8 @@ def get_annot_for_chrom(chromregions, rchrom, regionstoannotdata, chrom_transcri
         for rstart, rend in chromregions:
             if rstart < tstart < rend or rstart < tend < rend:
                 thisregion = (rchrom, rstart, rend)
-                regionstoannotdata = save_transcript_annot_to_region(transcript, gene, thisregion, regionstoannotdata, tstart, tend, strand, tinfo[1])
-
-
+                regionstoannotdata = save_transcript_annot_to_region(transcript, gene, thisregion, regionstoannotdata,
+                                                                     tstart, tend, strand, tinfo[1])
     return regionstoannotdata
 
 
@@ -461,44 +453,49 @@ def getannotinfo(gtf, allregions):
     allchromtotranscripttoexons = get_tname_to_exons(gtf)
 
     for rchrom in allchromtotranscripttoexons:
-        if rchrom in chromtoregions: # only get annot for regions that exist in reads
-            regionstoannotdata = get_annot_for_chrom(chromtoregions[rchrom], rchrom, regionstoannotdata, allchromtotranscripttoexons[rchrom])
+        if rchrom in chromtoregions:  # only get annot for regions that exist in reads
+            regionstoannotdata = get_annot_for_chrom(chromtoregions[rchrom], rchrom, regionstoannotdata,
+                                                     allchromtotranscripttoexons[rchrom])
     return regionstoannotdata
 
 
 def getcountsamcommand(args, refbed, outputname, mapfile, isannot, clippingfile):
     # count sam transcripts ; the dash at the end means STDIN
     count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
-                 '-o', outputname, '-t', 1, ###feeding 1 thread in because this is already multithreaded here
-                 '--quality', str(args.quality)]
+                 '-o', outputname, '-t', 1,  # feeding 1 thread in because this is already multithreaded here
+                 ]
+
     if clippingfile:
-        count_cmd += ['--trimmedreads', clippingfile]
+        count_cmd.extend(['--trimmedreads', clippingfile])
     if mapfile:
-        count_cmd += ['--generate_map', mapfile]
+        count_cmd.extend(['--generate_map', mapfile])
     if args.endnormdist:
-        count_cmd += ['--output_endpos', outputname.split('.counts.tsv')[0] + '.ends.tsv', '--endnormdist', args.endnormdist]
-    if args.stringent or isannot:
-        count_cmd += ['--stringent']
+        count_cmd.extend(['--output_endpos', outputname.split('.counts.tsv')[0] + '.ends.tsv',
+                          '--endnormdist', args.endnormdist])
+    if not args.no_stringent or isannot:
+        count_cmd.append('--stringent')
     if args.output_bam:
-        count_cmd += ['--output_bam', outputname.split('.counts.tsv')[0] + '.bam']
-    if args.check_splice:
-        count_cmd += ['--check_splice']
-    if args.check_splice or args.stringent or isannot:
-        count_cmd += ['-i', refbed]  # annotated isoform bed file
+        count_cmd.extend(['--output_bam', outputname.split('.counts.tsv')[0] + '.bam'])
+    if not args.no_check_splice:
+        count_cmd.append('--check_splice')
+    if not args.no_check_splice or not args.no_stringent or isannot:
+        count_cmd.extend(['-i', refbed])  # annotated isoform bed file
     if args.trust_ends:
-        count_cmd += ['--trust_ends']
+        count_cmd.append('--trust_ends')
     if args.remove_internal_priming:
-        count_cmd += ['--remove_internal_priming', '--intprimingthreshold', str(args.intprimingthreshold),
-                      '--intprimingfracAs', str(args.intprimingfracAs), '--transcriptomefasta', args.transcriptfasta]
+        count_cmd.extend(['--remove_internal_priming',
+                          '--intprimingthreshold', str(args.intprimingthreshold),
+                          '--intprimingfracAs', str(args.intprimingfracAs),
+                          '--transcriptomefasta', args.transcriptfasta])
     if args.remove_internal_priming and isannot:
-        count_cmd += ['--permissive_last_exons']
+        count_cmd.append('--permissive_last_exons')
     return tuple(count_cmd)
 
 
 def transcriptomealignandcount(args, inputreads, alignfasta, refbed, outputname, mapfile, isannot, clippingfile):
     # minimap (results are piped into count_sam_transcripts.py)
     # '--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
-    if type(inputreads) == str:
+    if isinstance(inputreads, str):
         inputreads = [inputreads]
     mm2_cmd = tuple(
         ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [alignfasta] + inputreads)
@@ -545,15 +542,16 @@ def combinefinalends(currgroup):
 
 
 def groupreadsbyends(readinfos, sortindex, end_window):
-    sortedends = sorted(readinfos, key=lambda x:x[sortindex])
+    sortedends = sorted(readinfos, key=lambda x: x[sortindex])
     newgroups, group = [], []
     lastedge = 0
     for isoinfo in sortedends:
         edge = isoinfo[sortindex]
-        if edge-lastedge <= end_window:
+        if edge - lastedge <= end_window:
             group.append(isoinfo)
         else:
-            if len(group) > 0: newgroups.append(group)
+            if len(group) > 0:
+                newgroups.append(group)
             group = [isoinfo]
         lastedge = edge
     if len(group) > 0:
@@ -563,8 +561,11 @@ def groupreadsbyends(readinfos, sortindex, end_window):
 # MAIN METHOD - CALLS OTHERS IN GROUP
 # readends is a list containing elements with: (read.start, read.end, read.strand, read.name)
 # If the reads are spliced, the group will contain only the info for reads with a shared splice junction
-# if the reads are unspliced, the group will contain info for all unspliced reads in a given chromosome/region, depending on how you're parallelizing
-# The output is a list containing elements with: [weighted.end.score, group.start, group.end, group.strand, representative.read.name, [list of all read names in group]]
+# if the reads are unspliced, the group will contain info for all unspliced reads in a given chromosome/region,
+# depending on how you're parallelizing
+# The output is a list containing elements with:
+# [weighted.end.score, group.start, group.end, group.strand, representative.read.name,
+# [list of all read names in group]]
 # weighted.end.score (represents how many reads have ends similar to this exact position)
 # You can rewrite this to redo the grouping method, but please maintain the inputs and outputs.
 def collapseendgroups(end_window, readends, dogetbestends=True):
@@ -581,8 +582,91 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 
 # END METHODS TO EDIT
 
+# def check_junction_subset(thesejuncs, junctogene, annottranscripttoexons):
+#     if thesejuncs != ():
+#         isoswithsimilarjuncs = set()
+#         for j in thesejuncs:
+#             if j in junctogene:
+#                 isoswithsimilarjuncs.update(junctogene[j])
+#         for otherisoname in isoswithsimilarjuncs:
+#             if otherisoname in annottranscripttoexons:
+#                 otherisoexons = annottranscripttoexons[otherisoname]
+#                 otherisojuncs = [(otherisoexons[i][1], otherisoexons[i+1][0]) for i in range(len(otherisoexons)-1)]
+#                 if len(thesejuncs) < len(otherisojuncs):
+#                     thisisostrjuncs, otherisostrjuncs = str(thesejuncs)[1:-1].rstrip(','), str(otherisojuncs)[1:-1]
+#                     if thisisostrjuncs in otherisostrjuncs:  # if junctions are subset
+#                         return True
+#     return False
 
-def generate_transcriptome_reference(tempprefix, alltranscripts, annottranscripttoexons, thischrom, genome, normalizeends=False, addseqatends=0):
+
+def filtersplicediso(filtertype, support, thisjuncs, thisexons, thisname, thisscore, junctogene, annottranscripttoexons, firstpassjunctoname, firstpassunfiltered,  supannottranscripttojuncs, checkTermExons):
+    isoswithsimilarjuncs = set()
+    for j in thisjuncs:
+        if firstpassjunctoname:
+            isoswithsimilarjuncs.update(firstpassjunctoname[j])
+        if j in junctogene:
+            isoswithsimilarjuncs.update(junctogene[j])  # annot isos
+    issubset = [0, 0]  # first exon is a subset, last exon is a subset
+    firstexon, lastexon = thisexons[0], thisexons[-1]
+    superset_support = []
+    for otherisoname in isoswithsimilarjuncs:
+        if otherisoname != thisname:
+            if isinstance(otherisoname, tuple):  # annotated isoform
+                if supannottranscripttojuncs:  # using only supported annotated
+                    if otherisoname in supannottranscripttojuncs:
+                        otherisoscore, otherisojuncs = supannottranscripttojuncs[otherisoname]
+                        otherisoexons = annottranscripttoexons[otherisoname]
+                    else:
+                        continue
+                elif otherisoname in annottranscripttoexons:  # using all annotated
+                    otherisoexons = annottranscripttoexons[otherisoname]
+                    otherisojuncs = [(otherisoexons[i][1], otherisoexons[i+1][0]) for i in range(len(otherisoexons)-1)]  # using all novel
+                    otherisoscore = 0
+                else:
+                    continue
+            else:  # firstpass isoform
+                otheriso = firstpassunfiltered[otherisoname]
+                otherisoscore, otherisojuncs, otherisoexons = otheriso.score, otheriso.juncs, otheriso.exons
+
+            if len(thisjuncs) < len(otherisojuncs):
+                thisisostrjuncs, otherisostrjuncs = str(thisjuncs)[1:-1].rstrip(','), str(otherisojuncs)[1:-1]
+                if thisisostrjuncs in otherisostrjuncs:  # if junctions are subset
+                    if not checkTermExons:
+                        return False
+                    else:
+                        # check whether first + last exon overlap
+                        for i in range(len(otherisoexons)):
+
+                            otherexon = otherisoexons[i]
+                            if i == 0 or i == len(otherisoexons) - 1:  # is first or last exon of other transcript
+                                if firstexon[1] == otherexon[1] or lastexon[0] == otherexon[0]:
+                                    if firstexon[1] == otherexon[1]:
+                                        issubset[0] = 1
+                                    elif lastexon[0] == otherexon[0]:
+                                        issubset[1] = 1
+                                    superset_support.append(otherisoscore)
+                            else:
+                                if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 20:
+                                    issubset[0] = 1
+                                    superset_support.append(otherisoscore)
+                                if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 20:
+                                    issubset[1] = 1
+                                    superset_support.append(otherisoscore)
+    if not checkTermExons:
+        return True
+    else:
+        if sum(issubset) < 2:  # both first and last exon have to overlap
+            return True
+        elif filtertype != 'nosubset':
+            if thisscore >= support and thisscore > max(superset_support) * 1.2:
+                return True
+        return False
+
+
+
+
+def generate_transcriptome_reference(tempprefix, alltranscripts, annottranscripttoexons, thischrom, genome, junctogene,
+                                     normalizeends=False, addseqatends=0):
     transcripttostrand = {}
     transcripttonewexons = {}
     with open(tempprefix + '.annotated_transcripts.bed', 'w') as annotbed, open(
@@ -592,55 +676,72 @@ def generate_transcriptome_reference(tempprefix, alltranscripts, annottranscript
             for transcript, gene, strand in alltranscripts:
                 exons = annottranscripttoexons[(transcript, gene)]
                 if (gene, strand) not in genetoendjunctionstoends:
-                    genetoendjunctionstoends[(gene, strand)] = {'left':{}, 'right':{}}
-                if len(exons) > 1: ##don't normalize ends for single exon transcripts
+                    genetoendjunctionstoends[(gene, strand)] = {'left': {}, 'right': {}}
+                if len(exons) > 1:  # don't normalize ends for single exon transcripts
                     if exons[0][1] not in genetoendjunctionstoends[(gene, strand)]['left']:
                         genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] = exons[0][0]
                     else:
-                        genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] = min((genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]], exons[0][0]))
+                        genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] = \
+                            min((genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]], exons[0][0]))
                     if exons[-1][0] not in genetoendjunctionstoends[(gene, strand)]['right']:
                         genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] = exons[-1][1]
                     else:
-                        genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] = max((genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]], exons[-1][1]))
+                        genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] = \
+                            max((genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]], exons[-1][1]))
 
         for transcript, gene, strand in alltranscripts:
             transcripttostrand[(transcript, gene)] = strand
             exons = list(annottranscripttoexons[(transcript, gene)])
-            if normalizeends and len(exons) > 1: ##don't normalize ends for single exon transcripts
-                exons[0] = (genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] - addseqatends, exons[0][1])
-                exons[-1] = (exons[-1][0], genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] + addseqatends)
-                transcripttonewexons[(transcript, gene)] = tuple(exons)
-            exons = tuple(exons)
-            start, end = exons[0][0], exons[-1][1]
+            thesejuncs = [(exons[i][1], exons[i+1][0]) for i in range(len(exons)-1)]
+            # if not check_junction_subset(thesejuncs, junctogene, annottranscripttoexons):  #NEW removing subset isos from annot
+            # if filtersplicediso('nosubset', 0, thesejuncs, exons, (transcript, gene), 0, junctogene, annottranscripttoexons, None, None, None, False):
+            if filtersplicediso('nosubset', 0, thesejuncs, exons, (transcript, gene), 0, junctogene,
+                                annottranscripttoexons, None, None, None, True):
+                if normalizeends and len(exons) > 1:  # don't normalize ends for single exon transcripts
+                    exons[0] = (genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] - addseqatends,
+                                exons[0][1])
+                    exons[-1] = (exons[-1][0],
+                                 genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] + addseqatends)
+                    transcripttonewexons[(transcript, gene)] = tuple(exons)
+                exons = tuple(exons)
+                start, end = exons[0][0], exons[-1][1]
 
-            estarts = [x[0] - start for x in exons]
-            esizes = [x[1] - x[0] for x in exons]
-            bedline = [thischrom, start, end, transcript + '_' + gene, '.', strand, start, end, '0', len(exons),
-                       ','.join([str(x) for x in esizes]), ','.join([str(x) for x in estarts])]
-            if strand == '-':
-                exons = exons[::-1]
-            exonseq = []
-            for i in range(len(exons)):
-                thisexonseq = genome.fetch(thischrom, exons[i][0], exons[i][1])
+                estarts = [x[0] - start for x in exons]
+                esizes = [x[1] - x[0] for x in exons]
+                bedline = [thischrom, start, end, transcript + '_' + gene, '.', strand, start, end, '0', len(exons),
+                           ','.join([str(x) for x in esizes]), ','.join([str(x) for x in estarts])]
                 if strand == '-':
-                    thisexonseq = revcomp(thisexonseq)
-                exonseq.append(thisexonseq)
-            annotbed.write('\t'.join([str(x) for x in bedline]) + '\n')
-            annotfa.write('>' + transcript + '_' + gene + '\n')
-            annotfa.write(''.join(exonseq) + '\n')
+                    exons = exons[::-1]
+                exonseq = []
+                for i in range(len(exons)):
+                    thisexonseq = genome.fetch(thischrom, exons[i][0], exons[i][1])
+                    if strand == '-':
+                        thisexonseq = revcomp(thisexonseq)
+                    exonseq.append(thisexonseq)
+                annotbed.write('\t'.join([str(x) for x in bedline]) + '\n')
+                annotfa.write('>' + transcript + '_' + gene + '\n')
+                annotfa.write(''.join(exonseq) + '\n')
     return transcripttostrand, transcripttonewexons
 
 
-def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome):
+def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoexons, alltranscripts, genome, junctogene):
     goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = [], set(), {}
     if not args.noaligntoannot and len(alltranscripts) > 0:
         if args.endnormdist:
-            transcripttostrand, transcripttonewexons = generate_transcriptome_reference(tempprefix, alltranscripts, annottranscripttoexons, thischrom, genome, normalizeends=True, addseqatends=int(args.endnormdist))
+            transcripttostrand, transcripttonewexons = \
+                generate_transcriptome_reference(tempprefix,
+                                                 alltranscripts,
+                                                 annottranscripttoexons,
+                                                 thischrom,
+                                                 genome,
+                                                 junctogene,
+                                                 normalizeends=True,
+                                                 addseqatends=int(args.endnormdist))
         else:
             transcripttostrand, transcripttonewexons = generate_transcriptome_reference(tempprefix, alltranscripts,
                                                                                         annottranscripttoexons,
-                                                                                        thischrom, genome,)
-        clippingfile = tempprefix + '.reads.genomicclipping.txt' #if args.trimmedreads else None
+                                                                                        thischrom, genome, junctogene)
+        clippingfile = tempprefix + '.reads.genomicclipping.txt'  # if args.trimmedreads else None
         transcriptomealignandcount(args, tempprefix + '.reads.fasta',
                                    tempprefix + '.annotated_transcripts.fa',
                                    tempprefix + '.annotated_transcripts.bed',
@@ -650,7 +751,7 @@ def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
             for line in open(tempprefix + '.matchannot.read.map.txt'):
                 striso, reads = line.rstrip().split('\t', 1)
                 reads = reads.split(',')
-                if len(reads) >= args.support:
+                if len(reads) >= args.sjc_support:
                     goodaligntoannot.extend(reads)
                     transcript = '_'.join(striso.split('_')[:-1])
                     gene = striso.split('_')[-1]
@@ -670,33 +771,37 @@ def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
                         annotjuncs = tuple([(exons[i][1], exons[i + 1][0]) for i in range(len(exons) - 1)])
                         supannottranscripttojuncs[(transcript, gene)] = (len(reads), annotjuncs)
     else:
-        with open(tempprefix + '.matchannot.counts.tsv', 'w') as countsout, open(
-                tempprefix + '.matchannot.read.map.txt', 'w') as mapout, open(tempprefix + '.matchannot.bed',
-                                                                              'w') as annotbed:
+        with open(tempprefix + '.matchannot.counts.tsv', 'w') as _, \
+                open(tempprefix + '.matchannot.read.map.txt', 'w') as _, \
+                open(tempprefix + '.matchannot.bed', 'w') as _:
             pass
         if args.output_endpos:
-            with open(tempprefix + '.ends.tsv', 'w') as countsout:
+            with open(tempprefix + '.ends.tsv', 'w') as _:
                 pass
     goodaligntoannot = set(goodaligntoannot)
     return goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs
 
 
 def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goodaligntoannot, intervalTree,
-                            junctionBoundaryDict, generatefasta=True, sjtoends=None, returnusedreads=False, allowsecondary=False):
-    if not sjtoends: sjtoends = {}
+                            junctionBoundaryDict, generatefasta=True, sjtoends=None,
+                            returnusedreads=False, allowsecondary=False):
+    if not sjtoends:
+        sjtoends = {}
     if generatefasta:
         shortchromfasta = open(tempprefix + 'reads.notannotmatch.fasta', 'w')
     c = 0
     usedreads = set()
     for read in samfile.fetch(rchrom, int(rstart), int(rend)):
         if (not read.is_secondary or allowsecondary) and (not read.is_supplementary or args.keep_sup):
-            if read.reference_name == rchrom and int(rstart) <= read.reference_start and read.reference_end <= int(rend):
+            if read.reference_name == rchrom \
+                    and int(rstart) <= read.reference_start \
+                    and read.reference_end <= int(rend):
                 if read.query_name not in goodaligntoannot:
                     c += 1
                     if generatefasta:
                         shortchromfasta.write('>' + read.query_name + '\n')
                         shortchromfasta.write(read.get_forward_sequence() + '\n')
-                    if read.mapping_quality >= args.quality:
+                    if read.mapping_quality >= args.quality:  # TODO: test this more rigorously
                         usedreads.add(read.query_name)
                         bedread = BedRead()
                         readstrand = '-' if read.is_reverse else '+'
@@ -710,7 +815,8 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                             junckey = tuple(sorted(correctedread.juncs))
                             if junckey not in sjtoends:
                                 sjtoends[junckey] = []
-                            sjtoends[junckey].append((correctedread.start, correctedread.end, correctedread.strand, correctedread.name))
+                            sjtoends[junckey].append((correctedread.start, correctedread.end,
+                                                      correctedread.strand, correctedread.name))
     if generatefasta:
         shortchromfasta.close()
     if returnusedreads:
@@ -742,13 +848,13 @@ def filterendsbyredundantandsupport(args, goodendswithsupreads):
     goodendswithsupreads.sort(key=lambda x: [x[0], x[2] - x[1]],
                               reverse=True)  # first by weighted score, then by length
     juncsupport = sum([x[-1] for x in goodendswithsupreads])
-    if juncsupport >= args.support:
+    if juncsupport >= args.sjc_support:
         if args.no_redundant == 'none':
-            if goodendswithsupreads[0][-1] < args.support:
+            if goodendswithsupreads[0][-1] < args.sjc_support:
                 goodendswithsupreads = [goodendswithsupreads[0]]
                 goodendswithsupreads[0][-1] = juncsupport
             else:
-                goodendswithsupreads = [x for x in goodendswithsupreads if x[-1] >= args.support]
+                goodendswithsupreads = [x for x in goodendswithsupreads if x[-1] >= args.sjc_support]
                 goodendswithsupreads = goodendswithsupreads[:args.max_ends]  # select only top most supported ends
             for theseends in goodendswithsupreads:
                 bestends.append(theseends)
@@ -764,7 +870,8 @@ def filterendsbyredundantandsupport(args, goodendswithsupreads):
 
 def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpasssingleexons):
     firstpassunfiltered, firstpassjunctoname = {}, {}
-    with open(tempprefix + '.firstpass.unfiltered.bed', 'w') as isoout, open(tempprefix + '.firstpass.reallyunfiltered.bed', 'w') as isoout2:
+    with open(tempprefix + '.firstpass.unfiltered.bed', 'w') as isoout, \
+            open(tempprefix + '.firstpass.reallyunfiltered.bed', 'w') as isoout2:
         for juncs in sjtoends:
             goodendswithsupreads = collapseendgroups(args.end_window, sjtoends[juncs])
             for bestscore, beststart, bestend, beststrand, bestname, thesereads in goodendswithsupreads:
@@ -773,8 +880,9 @@ def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpass
                 thisiso.generatefromvals(thischrom, beststart, bestend, bestname, thisscore, beststrand, juncs)
                 isoout2.write('\t'.join(thisiso.getbedline()) + '\n')
             if juncs == ():
-                bestends = [x[:-1] + [len(x[-1])] for x in goodendswithsupreads if len(x[-1]) >= args.support]
-            else: bestends = filterendsbyredundantandsupport(args, goodendswithsupreads)
+                bestends = [x[:-1] + [len(x[-1])] for x in goodendswithsupreads if len(x[-1]) >= args.sjc_support]
+            else:
+                bestends = filterendsbyredundantandsupport(args, goodendswithsupreads)
             for bestscore, beststart, bestend, beststrand, bestname, thisscore in bestends:
                 thisiso = BedRead()
                 thisiso.generatefromvals(thischrom, beststart, bestend, bestname, thisscore, beststrand, juncs)
@@ -793,54 +901,54 @@ def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpass
     return firstpassunfiltered, firstpassjunctoname, firstpasssingleexons
 
 
-def filtersplicediso(args, thisiso, firstpassjunctoname, firstpassunfiltered, junctogene, supannottranscripttojuncs,
-                     annottranscripttoexons):
-    isoswithsimilarjuncs = set()
-    for j in thisiso.juncs:
-        isoswithsimilarjuncs.update(firstpassjunctoname[j])
-        if j in junctogene:
-            isoswithsimilarjuncs.update(junctogene[j])  # annot isos
-    issubset = [0, 0]  # first exon is a subset, last exon is a subset
-    firstexon, lastexon = thisiso.exons[0], thisiso.exons[-1]
-    superset_support = []
-    for otherisoname in isoswithsimilarjuncs:
-        if otherisoname != thisiso.name:
-            if type(otherisoname) == tuple:
-                if otherisoname in supannottranscripttojuncs:
-                    otherisoscore, otherisojuncs = supannottranscripttojuncs[otherisoname]
-                    otherisoexons = annottranscripttoexons[otherisoname]
-                else:
-                    continue
-            else:
-                otheriso = firstpassunfiltered[otherisoname]
-                otherisoscore, otherisojuncs, otherisoexons = otheriso.score, otheriso.juncs, otheriso.exons
-            if len(thisiso.juncs) < len(otherisojuncs):
-                thisisostrjuncs, otherisostrjuncs = str(thisiso.juncs)[1:-1].rstrip(','), str(otherisojuncs)[1:-1]
-                if thisisostrjuncs in otherisostrjuncs:  # if junctions are subset
-                    # check whether first + last exon overlap
-                    for i in range(len(otherisoexons)):
-
-                        otherexon = otherisoexons[i]
-                        if i == 0 or i == len(otherisoexons) - 1:  # is first or last exon of other transcript
-                            if firstexon[1] == otherexon[1] or lastexon[0] == otherexon[0]:
-                                if firstexon[1] == otherexon[1]:
-                                    issubset[0] = 1
-                                elif lastexon[0] == otherexon[0]:
-                                    issubset[1] = 1
-                                superset_support.append(otherisoscore)
-                        else:
-                            if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
-                                issubset[0] = 1
-                                superset_support.append(otherisoscore)
-                            if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
-                                issubset[1] = 1
-                                superset_support.append(otherisoscore)
-    if sum(issubset) < 2:  # both first and last exon have to overlap
-        return True
-    elif args.filter != 'nosubset':
-        if thisiso.score >= args.support and thisiso.score > max(superset_support) * 1.2:
-            return True
-    return False
+# def filtersplicediso(args, thisiso, firstpassjunctoname, firstpassunfiltered, junctogene, supannottranscripttojuncs,
+#                      annottranscripttoexons):
+#     isoswithsimilarjuncs = set()
+#     for j in thisiso.juncs:
+#         isoswithsimilarjuncs.update(firstpassjunctoname[j])
+#         if j in junctogene:
+#             isoswithsimilarjuncs.update(junctogene[j])  # annot isos
+#     issubset = [0, 0]  # first exon is a subset, last exon is a subset
+#     firstexon, lastexon = thisiso.exons[0], thisiso.exons[-1]
+#     superset_support = []
+#     for otherisoname in isoswithsimilarjuncs:
+#         if otherisoname != thisiso.name:
+#             if isinstance(otherisoname, tuple):
+#                 if otherisoname in supannottranscripttojuncs:
+#                     otherisoscore, otherisojuncs = supannottranscripttojuncs[otherisoname]
+#                     otherisoexons = annottranscripttoexons[otherisoname]
+#                 else:
+#                     continue
+#             else:
+#                 otheriso = firstpassunfiltered[otherisoname]
+#                 otherisoscore, otherisojuncs, otherisoexons = otheriso.score, otheriso.juncs, otheriso.exons
+#             if len(thisiso.juncs) < len(otherisojuncs):
+#                 thisisostrjuncs, otherisostrjuncs = str(thisiso.juncs)[1:-1].rstrip(','), str(otherisojuncs)[1:-1]
+#                 if thisisostrjuncs in otherisostrjuncs:  # if junctions are subset
+#                     # check whether first + last exon overlap
+#                     for i in range(len(otherisoexons)):
+#
+#                         otherexon = otherisoexons[i]
+#                         if i == 0 or i == len(otherisoexons) - 1:  # is first or last exon of other transcript
+#                             if firstexon[1] == otherexon[1] or lastexon[0] == otherexon[0]:
+#                                 if firstexon[1] == otherexon[1]:
+#                                     issubset[0] = 1
+#                                 elif lastexon[0] == otherexon[0]:
+#                                     issubset[1] = 1
+#                                 superset_support.append(otherisoscore)
+#                         else:
+#                             if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
+#                                 issubset[0] = 1
+#                                 superset_support.append(otherisoscore)
+#                             if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
+#                                 issubset[1] = 1
+#                                 superset_support.append(otherisoscore)
+#     if sum(issubset) < 2:  # both first and last exon have to overlap
+#         return True
+#     elif args.filter != 'nosubset':
+#         if thisiso.score >= args.sjc_support and thisiso.score > max(superset_support) * 1.2:
+#             return True
+#     return False
 
 
 def filtersingleexoniso(args, groupediso, currgroup, firstpassunfiltered):
@@ -856,7 +964,7 @@ def filtersingleexoniso(args, groupediso, currgroup, firstpassunfiltered):
                 else:  # is other single exon - check relative expression
                     otherscore = firstpassunfiltered[compiso[2]].score
                     thisscore = thisiso.score
-                    if thisscore >= args.support and otherscore * 1.2 < thisscore:
+                    if thisscore >= args.sjc_support and otherscore * 1.2 < thisscore:
                         exprcomp.append(True)
                     else:
                         exprcomp.append(False)
@@ -875,7 +983,7 @@ def filtersingleexongroup(args, currgroup, firstpassunfiltered, firstpass):
 
 
 def filterallsingleexon(args, firstpasssingleexons, firstpassunfiltered, firstpass):
-    groupstart = 0
+    # groupstart = 0
     lastend = 0
     currgroup = []
     for isoinfo in firstpasssingleexons:
@@ -884,9 +992,9 @@ def filterallsingleexon(args, firstpasssingleexons, firstpassunfiltered, firstpa
             currgroup.append(isoinfo)
         else:
             if len(currgroup) > 0:
-                firstpass = filtersingleexongroup(args, currgroup, firstpassunfiltered, firstpass)#, str(groupstart) + '-' + str(lastend))
+                firstpass = filtersingleexongroup(args, currgroup, firstpassunfiltered, firstpass)
             currgroup = [isoinfo]
-            groupstart = start
+            # groupstart = start
         if end > lastend:
             lastend = end
     if len(currgroup) > 0:
@@ -907,9 +1015,10 @@ def filterfirstpassisos(args, firstpassunfiltered, firstpassjunctoname, firstpas
                 if args.filter == 'comprehensive':
                     firstpass[isoname] = thisiso
                 else:
-                    passesfiltering = filtersplicediso(args, thisiso, firstpassjunctoname, firstpassunfiltered,
-                                                       junctogene, supannottranscripttojuncs, annottranscripttoexons)
-                    if passesfiltering:
+                    # passesfiltering = filtersplicediso(args, thisiso, firstpassjunctoname, firstpassunfiltered,
+                    #                                    junctogene, supannottranscripttojuncs, annottranscripttoexons)
+                    # if passesfiltering:
+                    if filtersplicediso(args.filter, args.sjc_support, thisiso.juncs, thisiso.exons, thisiso.name, thisiso.score, junctogene, annottranscripttoexons, firstpassjunctoname, firstpassunfiltered,  supannottranscripttojuncs, True):
                         firstpass[isoname] = thisiso
         # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of list
         firstpass = filterallsingleexon(args, firstpasssingleexons, firstpassunfiltered, firstpass)
@@ -954,19 +1063,19 @@ def getsingleexongenehits(thisiso, allannotse):
     return gene_hits
 
 
-
 def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotranscript, junctogene, allannotse,
-                                  genetoannotjuncs, genetostrand, genome, allsplicedexons, normalizeends=False, addseqatends=0):
+                                  genetoannotjuncs, genetostrand, genome, allsplicedexons,
+                                  normalizeends=False, addseqatends=0):
     with open(tempprefix + '.firstpass.bed', 'w') as isoout, open(tempprefix + '.firstpass.fa', 'w') as seqout:
         # THIS IS WHERE WE CAN GET GENES AND ADJUST NAMES
         annotnametousedcounts = {}
         genetoendjunctionstoends = {}
         isonametoannotinfo = {}
-        nongeneisostogroup = {'+':[], '-':[]}
+        nongeneisostogroup = {'+': [], '-': []}
         for isoname in firstpass:
             thisiso = firstpass[isoname]
             # Adjust name based on annotation
-            thistranscript, thisgene = thisiso.name, None#thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
+            thistranscript, thisgene = thisiso.name, None
             if thisiso.juncs != () and thisiso.juncs in juncstotranscript:
                 thistranscript, thisgene = juncstotranscript[thisiso.juncs]
                 if thistranscript in annotnametousedcounts:
@@ -983,22 +1092,24 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                     sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
                     thisgene = sortedgenes[0][0]
                 else:
-                    ###look for exon overlap
+                    # look for exon overlap
                     gene_hits = []
                     for annotgene in allsplicedexons[thisiso.strand]:
                         annotexons = sorted(list(allsplicedexons[thisiso.strand][annotgene]))
-                        if min((annotexons[-1][1], thisiso.exons[-1][1])) > max((annotexons[0][0], thisiso.exons[0][0])): ##there is overlap in the genes
+                        # check if there is overlap in the genes
+                        if min((annotexons[-1][1], thisiso.exons[-1][1])) \
+                                > max((annotexons[0][0], thisiso.exons[0][0])):
                             coveredpos = set()
                             for s, e in thisiso.exons:
                                 for ast, ae in annotexons:
                                     for p in range(max((ast, s)), min((ae, e))):
                                         coveredpos.add(p)
-                            if len(coveredpos) > sum([x[1]-x[0] for x in thisiso.exons]) * 0.5:
+                            if len(coveredpos) > sum([x[1] - x[0] for x in thisiso.exons]) * 0.5:
                                 gene_hits.append([len(coveredpos), annotgene])
                     if len(gene_hits) > 0:
                         gene_hits.sort(reverse=True)
                         thisgene = gene_hits[0][1]
-            if thisgene != None:
+            if thisgene is not None:
                 strand = genetostrand[thisgene]
             else:
                 strand = thisiso.strand
@@ -1006,7 +1117,7 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                 # thisgene = thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
             isonametoannotinfo[isoname] = [thisgene, thistranscript, strand, thisiso.exons]
 
-        ##generating non-gene iso groups
+        # generating non-gene iso groups
         for strand in nongeneisostogroup:
             transcriptstogroup = sorted(nongeneisostogroup[strand])
             lastend = 0
@@ -1017,7 +1128,7 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                     currgroup.append((start, end, tname))
                 else:
                     if len(currgroup) > 0:
-                        groupname = f'{thischrom}:{groupstart}-{lastend}({strand})'
+                        groupname = f'{thischrom}:{groupstart}-{lastend}:{strand}'
                         for s, e, t in currgroup:
                             isonametoannotinfo[t][0] = groupname
                     currgroup = [(start, end, tname)]
@@ -1025,15 +1136,16 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                 if end > lastend:
                     lastend = end
             if len(currgroup) > 0:
-                groupname = f'{thischrom}:{groupstart}-{lastend}({strand})'
+                groupname = f'{thischrom}:{groupstart}-{lastend}:{strand}'
                 for s, e, t in currgroup:
                     isonametoannotinfo[t][0] = groupname
 
-        ##generating standardized set of ends for gene
+        # generating standardized set of ends for gene
         if normalizeends:
             for isoname in isonametoannotinfo:
                 gene, thistranscript, strand, exons = isonametoannotinfo[isoname]
-                if (gene, strand) not in genetoendjunctionstoends: genetoendjunctionstoends[(gene, strand)] = {'left':{}, 'right':{}}
+                if (gene, strand) not in genetoendjunctionstoends:
+                    genetoendjunctionstoends[(gene, strand)] = {'left': {}, 'right': {}}
                 if len(exons) > 1:
                     if exons[0][1] not in genetoendjunctionstoends[(gene, strand)]['left']:
                         genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] = exons[0][0]
@@ -1050,8 +1162,10 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
             thisiso = firstpass[isoname]
             gene, thistranscript, strand, exons = isonametoannotinfo[isoname]
             if normalizeends and len(thisiso.juncs) > 0:
-                exons[0] = (genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] - addseqatends, exons[0][1])
-                exons[-1] = (exons[-1][0], genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] + addseqatends)
+                exons[0] = (genetoendjunctionstoends[(gene, strand)]['left'][exons[0][1]] - addseqatends,
+                            exons[0][1])
+                exons[-1] = (exons[-1][0],
+                             genetoendjunctionstoends[(gene, strand)]['right'][exons[-1][0]] + addseqatends)
                 thisiso.resetfromexons(exons)
             thisiso.strand = strand
             thisiso.name = thistranscript + '_' + gene
@@ -1072,20 +1186,20 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends, endsf
         isogene, reads = line.rstrip().split('\t', 1)
         reads = reads.split(',')
         support = len(reads)
-        if support >= args.support:
-            iso, gene = getisogenefromname(isogene)
-            isoid = (marker, iso)
-            ogisotoreads[isoid] = reads
+        iso, gene = getisogenefromname(isogene)
+        isoid = (marker, iso)
+        ogisotoreads[isoid] = reads
 
     isotoends = {}
     if args.endnormdist and endsfile:
         for line in open(endsfile):
             rname, transcript, start, end = line.rstrip().split('\t')
             start, end = int(start), int(end)
-            if transcript not in isotoends: isotoends[transcript] = []
+            if transcript not in isotoends:
+                isotoends[transcript] = []
             isotoends[transcript].append((start, end, None, None))
         for iso in isotoends:
-            #(weightedscore, start1, end1, strand1, name1)
+            # (weightedscore, start1, end1, strand1, name1)
             newends = getbestends(isotoends[iso], args.end_window)[1:3]
             isotoends[iso] = newends
 
@@ -1094,10 +1208,10 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends, endsf
         chrom, start, end, name, score, strand = line[:6]
         iso, gene = getisogenefromname(name)
         isoid = (marker, iso)
-        if isoid in ogisotoreads:
-            start, end = int(start), int(end)
-            estarts = [int(x) for x in line[11].rstrip(',').split(',')]
-            esizes = [int(x) for x in line[10].rstrip(',').split(',')]
+        start, end = int(start), int(end)
+        estarts = [int(x) for x in line[11].rstrip(',').split(',')]
+        esizes = [int(x) for x in line[10].rstrip(',').split(',')]
+        if isoid in ogisotoreads and ((len(ogisotoreads[isoid]) >= args.se_support and len(esizes) == 1) or (len(ogisotoreads[isoid]) >= args.sjc_support and len(esizes) > 1)):
             juncs = []
             for i in range(len(estarts) - 1):
                 juncs.append((start + estarts[i] + esizes[i], start + estarts[i + 1]))
@@ -1116,10 +1230,6 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends, endsf
             if junckey not in genetojuncstoends[gene]:
                 genetojuncstoends[gene][junckey] = []
             genetojuncstoends[gene][junckey].append([start, end, isoid, ogisotoreads[isoid]])
-
-
-
-
     return genetojuncstoends
 
 
@@ -1127,7 +1237,8 @@ def revcomp(seq):
     compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N'}
     seq = seq.upper()
     newseq = []
-    for base in seq: newseq.append(compbase[base])
+    for base in seq:
+        newseq.append(compbase[base])
     return ''.join(newseq[::-1])
 
 
@@ -1158,8 +1269,11 @@ def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
 
 def combineannotnovelwriteout(args, genetojuncstoends, genome):
     readtofinaltranscript = {}
-    with open(args.output + '.isoforms.bed', 'w') as isoout, open(args.output + '.isoform.read.map.txt', 'w') as mapout, open(
-            args.output + '.isoforms.gtf', 'w') as gtfout, open(args.output + '.isoforms.fa', 'w') as seqout, open(args.output + '.isoform.counts.txt', 'w') as countsout:
+    with open(args.output + '.isoforms.bed', 'w') as isoout, \
+            open(args.output + '.isoform.read.map.txt', 'w') as mapout, \
+            open(args.output + '.isoforms.gtf', 'w') as gtfout, \
+            open(args.output + '.isoforms.fa', 'w') as seqout, \
+            open(args.output + '.isoform.counts.txt', 'w') as countsout:
 
         for gene in genetojuncstoends:
             for chrom, strand, juncs in genetojuncstoends[gene]:
@@ -1179,31 +1293,105 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                         endslist = endslist[:args.max_ends]
                 genetojuncstoends[gene][(chrom, strand, juncs)] = endslist
 
+        ###TESTED THIS - only matters if doing endnormdist - can be implemented better using the actual method
+        # newgenetojuncstoends = {}
+        # for gene in genetojuncstoends:
+        #     newgenetojuncstoends[gene] = {}
+        #     for chrom, strand, juncs in genetojuncstoends[gene]:
+        #         endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
+        #         if args.filter == 'ginormous':
+        #             newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
+        #         else:
+        #             if juncs != ():
+        #                 if args.filter == 'comprehensive':
+        #                     newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
+        #                 else:
+        #                     for ends in endslist:
+        #                         thisstart, thisend, thisname, thesereads = ends
+        #                         firstexon = (thisstart, juncs[0][0])
+        #                         lastexon = (juncs[-1][1], thisend)
+        #                         issubset = [0, 0]
+        #                         superset_support = []
+        #                         for c, s, j2 in genetojuncstoends[gene]:
+        #                             if str(juncs)[1:-1].rstrip(',') in str(j2)[1:-1]: ##junctions are subset
+        #                                 ###check if ends are contained
+        #                                 otherstart = min([x[0] for x in genetojuncstoends[gene][(c, s, j2)]])
+        #                                 otherend = max([x[1] for x in genetojuncstoends[gene][(c, s, j2)]])
+        #                                 otherexons = [(otherstart, j2[0])] + [(j2[x][1], j2[x+1][0]) for x in range(len(j2)-1)] + [(j2[-1][1], otherend)]
+        #                                 otherisoscore = len(genetojuncstoends[gene][(c, s, j2)][-1])
+        #                                 for i in range(len(otherexons)):
+        #                                     otherexon = otherexons[i]
+        #                                     if i == 0 or i == len(otherexons) - 1:  # is first or last exon of other transcript
+        #                                         if firstexon[1] == otherexon[1]:
+        #                                             issubset[0] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                                         elif lastexon[0] == otherexon[0]:
+        #                                             issubset[1] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                                     else:
+        #                                         if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
+        #                                             issubset[0] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                                         if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
+        #                                             issubset[1] = 1
+        #                                             superset_support.append(otherisoscore)
+        #                         if sum(issubset) < 2 or (args.filter != 'nosubset' and len(thesereads) > max(superset_support) * 1.2):
+        #                             if (chrom, strand, juncs) not in newgenetojuncstoends[gene]:
+        #                                 newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
+        #                             newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
+        #
+        #             else: ##single exon genes
+        #                 for ends in endslist:
+        #                     iscontained = False
+        #                     thisscore = len(ends[-1]) ##number of reads
+        #                     for compends in endslist:
+        #                         if compends != ends:
+        #                             if compends[0] - 10 <= ends[0] and ends[1] <= compends[1] + 10:
+        #                                 if args.filter == 'nosubset':
+        #                                     iscontained = True
+        #                                     break
+        #                                 else:
+        #                                     otherscore = len(compends[-1])
+        #                                     if otherscore * 1.2 >= thisscore:
+        #                                         iscontained = True
+        #                                         break
+        #                     if not iscontained:
+        #                         if (chrom, strand, juncs) not in newgenetojuncstoends[gene]: newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
+        #                         newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
+        # genetojuncstoends = newgenetojuncstoends
+
         for gene in genetojuncstoends:
+            genetot = 0
+            for chrom, strand, juncs in genetojuncstoends[gene]:
+                for isoinfo in genetojuncstoends[gene][(chrom, strand, juncs)]:
+                    genetot += len(isoinfo[-1])
+
             gtflines, tstarts, tends = [], [], []
             for chrom, strand, juncs in genetojuncstoends[gene]:
                 endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
+
                 nametousedcounts = {}
                 for isoinfo in endslist:
-                    marker, iso = isoinfo[2]
-                    iso = iso.split('-endvar')[0]
-                    if iso in nametousedcounts:
-                        nametousedcounts[iso] += 1
-                        iso = iso + '-endvar' + str(nametousedcounts[iso])
-                    else:
-                        nametousedcounts[iso] = 1
-                    isoinfo[2] = (marker, iso)
-                    bedline, gtffortranscript, tseq = getbedgtfoutfrominfo(isoinfo, chrom, strand, juncs, gene, genome)
-                    isoout.write(bedline)
-                    tstarts.append(isoinfo[0])
-                    tends.append(isoinfo[1])
-                    gtflines.extend(gtffortranscript)
-                    mapout.write(iso + '_' + gene + '\t' + ','.join(isoinfo[3]) + '\n')
-                    for r in isoinfo[3]:
-                        readtofinaltranscript[r] = (iso + '_' + gene, chrom, strand)
-                    countsout.write(iso + '_' + gene + '\t' + str(len(isoinfo[3])) + '\n')
-                    seqout.write('>' + iso + '_' + gene + '\n')
-                    seqout.write(tseq + '\n')
+                    if len(isoinfo[-1])/genetot >= args.frac_support:
+                        marker, iso = isoinfo[2]
+                        iso = iso.split('-endvar')[0]
+                        if iso in nametousedcounts:
+                            nametousedcounts[iso] += 1
+                            iso = iso + '-endvar' + str(nametousedcounts[iso])
+                        else:
+                            nametousedcounts[iso] = 1
+                        isoinfo[2] = (marker, iso)
+                        bedline, gtffortranscript, tseq = getbedgtfoutfrominfo(isoinfo, chrom, strand, juncs, gene, genome)
+                        isoout.write(bedline)
+                        tstarts.append(isoinfo[0])
+                        tends.append(isoinfo[1])
+                        gtflines.extend(gtffortranscript)
+                        mapout.write(iso + '_' + gene + '\t' + ','.join(isoinfo[3]) + '\n')
+                        for r in isoinfo[3]:
+                            readtofinaltranscript[r] = (iso + '_' + gene, chrom, strand)
+                        countsout.write(iso + '_' + gene + '\t' + str(len(isoinfo[3])) + '\n')
+                        seqout.write('>' + iso + '_' + gene + '\n')
+                        seqout.write(tseq + '\n')
             gtflines.insert(0, [chrom, 'FLAIR', 'gene', min(tstarts) + 1, max(tends), '.', gtflines[0][6], '.',
                                 'gene_id "' + gene + '";'])
             for g in gtflines:
@@ -1214,26 +1402,31 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                 transcripttoreads = {}
                 for line in open(args.output + suffix):
                     rname, transcript, start, end = line.rstrip().split('\t')
-                    if transcript not in transcripttoreads: transcripttoreads[transcript] = []
+                    if transcript not in transcripttoreads:
+                        transcripttoreads[transcript] = []
                     transcripttoreads[transcript].append((rname, start, end))
                 for t in transcripttoreads:
-                    if len(transcripttoreads[t]) >= args.support:
+                    if len(transcripttoreads[t]) >= args.sjc_support:  # FIXME this needs to be adjusted to consider single exons vs junction chains, also frac_support
                         for r, start, end in transcripttoreads[t]:
                             if r in readtofinaltranscript:
                                 tname, chrom, strand = readtofinaltranscript[r]
                                 endsout.write('\t'.join([chrom, start, end, tname + '|' + r, '.', strand]) + '\n')
 
 
-
 def decide_parallel_mode(parallel_option, genomealignedbam):
-    ###parallel_option format already validated in option validation method
-    if parallel_option in {'bychrom', 'byregion'}: return parallel_option
+    # parallel_option format already validated in option validation method
+    if parallel_option in {'bychrom', 'byregion'}:
+        return parallel_option
     else:
-        if parallel_option[-2:] == 'GB': threshold = float(parallel_option[5:-2])
-        else: threshold = float(parallel_option[5:])
+        if parallel_option[-2:] == 'GB':
+            threshold = float(parallel_option[5:-2])
+        else:
+            threshold = float(parallel_option[5:])
         filesizeGB = os.path.getsize(genomealignedbam) / 1e+9
-        if filesizeGB > threshold: return 'byregion'
-        else: return 'bychrom'
+        if filesizeGB > threshold:
+            return 'byregion'
+        else:
+            return 'bychrom'
 
 def generate_genomic_clipping_reference(tempprefix, samfile, rchrom, rstart, rend):
     with open(tempprefix + '.reads.genomicclipping.txt', 'w') as out:
@@ -1242,15 +1435,16 @@ def generate_genomic_clipping_reference(tempprefix, samfile, rchrom, rstart, ren
                 name = read.query_name
                 cigar = read.cigartuples
                 totclipped = 0
-                if cigar[0][0] in {4,5}:
+                if cigar[0][0] in {4, 5}:
                     totclipped += cigar[0][1]
-                if cigar[-1][0] in {4,5}:
+                if cigar[-1][0] in {4, 5}:
                     totclipped += cigar[-1][1]
                 out.write(name + '\t' + str(totclipped) + '\n')
 
 
 def runcollapsebychrom(listofargs):
-    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
+    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, allsplicedexons, \
+        genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
     # first extract reads for chrom as fasta
     tempsplit = tempprefix.split('/')[-1].split('-')
     rchrom, rstart, rend = '-'.join(tempsplit[:-2]), tempsplit[-2], tempsplit[-1]
@@ -1261,15 +1455,11 @@ def runcollapsebychrom(listofargs):
     genome = pysam.FastaFile(args.genome)
     samfile = pysam.AlignmentFile(args.genomealignedbam, 'rb')
 
-
     # if args.trimmedreads:
     generate_genomic_clipping_reference(tempprefix, samfile, rchrom, rstart, rend)
 
-    goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = identify_good_match_to_annot(args, tempprefix,
-                                                                                                 rchrom,
-                                                                                                 annottranscripttoexons,
-                                                                                                 allannottranscripts,
-                                                                                                 genome)
+    goodaligntoannot, firstpasssingleexons, supannottranscripttojuncs = \
+        identify_good_match_to_annot(args, tempprefix, rchrom, annottranscripttoexons, allannottranscripts, genome, junctogene)
     # load splice junctions for chrom
     intervalTree, junctionBoundaryDict = buildIntervalTree(splicesiteannot_chrom, args.ss_window, rchrom, False)
 
@@ -1289,11 +1479,12 @@ def runcollapsebychrom(listofargs):
     if len(firstpass.keys()) > 0:
         if args.endnormdist:
             getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
-                                      allannotse, genetoannotjuncs, genetostrand, genome, allsplicedexons, normalizeends=True, addseqatends=int(args.endnormdist))
+                                          allannotse, genetoannotjuncs, genetostrand, genome, allsplicedexons,
+                                          normalizeends=True, addseqatends=int(args.endnormdist))
         else:
             getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
                                           allannotse, genetoannotjuncs, genetostrand, genome, allsplicedexons)
-        clippingfile = tempprefix + '.reads.genomicclipping.txt' #if args.trimmedreads else None
+        clippingfile = tempprefix + '.reads.genomicclipping.txt'  # if args.trimmedreads else None
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -1301,12 +1492,13 @@ def runcollapsebychrom(listofargs):
                                    tempprefix + '.novelisos.read.map.txt', False, clippingfile)
         temptoremove.extend([tempprefix + '.firstpass.fa'])
     else:
-        with open(tempprefix + '.firstpass.fa', 'w') as faout, open(tempprefix + '.firstpass.bed', 'w') as bedout, \
-                open(tempprefix + '.novelisos.counts.tsv', 'w') as countsout, open(
-            tempprefix + '.novelisos.read.map.txt', 'w') as mapout:
+        with open(tempprefix + '.firstpass.fa', 'w') as _, \
+                open(tempprefix + '.firstpass.bed', 'w') as _, \
+                open(tempprefix + '.novelisos.counts.tsv', 'w') as _, \
+                open(tempprefix + '.novelisos.read.map.txt', 'w') as _:
             pass
         if args.output_endpos:
-            with open(tempprefix + '.ends.tsv', 'w') as countsout:
+            with open(tempprefix + '.ends.tsv', 'w') as _:
                 pass
     genome.close()
     if not args.keep_intermediate:
@@ -1328,7 +1520,10 @@ def collapsefrombam():
             chromsize = genome.get_reference_length(chrom)
             allregions.append((chrom, 0, chromsize))
     else:
-        pipettor.run(['flair_partition', '--min_partition_items', '1000', '--threads', str(args.threads), '--bam=' + args.genomealignedbam,
+        pipettor.run(['flair_partition',
+                      '--min_partition_items', '1000',
+                      '--threads', str(args.threads),
+                      '--bam=' + args.genomealignedbam,
                       tempDir + 'regions.bed'])
         for line in open(tempDir + 'regions.bed'):
             line = line.rstrip().split('\t')
@@ -1347,16 +1542,18 @@ def collapsefrombam():
     tempprefixes = []
     for rchrom, rstart, rend in allregions:
         if rchrom in knownchromosomes:
-            juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, {}, []
+            juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, \
+                annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, {}, []
             if args.gtf:
-                juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
-                regionstoannotdata[(rchrom, rstart, rend)].returndata()
+                juncstotranscript, junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, \
+                    annottranscripttoexons, allannottranscripts \
+                    = regionstoannotdata[(rchrom, rstart, rend)].returndata()
 
             splicesiteannot_chrom = annotationFiles[rchrom]
             tempprefix = tempDir + '-'.join([rchrom, str(rstart), str(rend)])
             chunkcmds.append([args, tempprefix, splicesiteannot_chrom, juncstotranscript,
-                              junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand, annottranscripttoexons,
-                              allannottranscripts])
+                              junctogene, allannotse, allsplicedexons, genetoannotjuncs, genetostrand,
+                              annottranscripttoexons, allannottranscripts])
             tempprefixes.append(tempprefix)
     mp.set_start_method('fork')
     p = mp.Pool(args.threads)
@@ -1369,10 +1566,10 @@ def collapsefrombam():
     p.close()
     p.join()
     if len(childErrs) > 1:
-        raise Error(childErrs)
+        raise ValueError(childErrs)
 
-    filestocombine = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed', '.novelisos.counts.tsv',
-                              '.novelisos.read.map.txt']
+    filestocombine = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed',
+                      '.novelisos.counts.tsv', '.novelisos.read.map.txt']
     if not args.noaligntoannot:
         filestocombine.extend(['.matchannot.counts.tsv', '.matchannot.read.map.txt', '.matchannot.bed'])
         if args.endnormdist:
@@ -1385,12 +1582,20 @@ def collapsefrombam():
         shutil.rmtree(tempDir)
 
     if not args.noaligntoannot:
-        genetojuncstoends = processdetectedisos(args, args.output + '.matchannot.read.map.txt',
-                                            args.output + '.matchannot.bed', 'a', {}, args.output + '.matchannot.ends.tsv')
-    else: genetojuncstoends = {}
-    genetojuncstoends = processdetectedisos(args, args.output + '.novelisos.read.map.txt',
-                                            args.output + '.firstpass.bed', 'n',
-                                            genetojuncstoends, args.output + '.novelisos.ends.tsv')
+        genetojuncstoends = processdetectedisos(args,
+                                                args.output + '.matchannot.read.map.txt',
+                                                args.output + '.matchannot.bed',
+                                                'a',
+                                                {},
+                                                args.output + '.matchannot.ends.tsv')
+    else:
+        genetojuncstoends = {}
+    genetojuncstoends = processdetectedisos(args,
+                                            args.output + '.novelisos.read.map.txt',
+                                            args.output + '.firstpass.bed',
+                                            'n',
+                                            genetojuncstoends,
+                                            args.output + '.novelisos.ends.tsv')
 
     combineannotnovelwriteout(args, genetojuncstoends, genome)
     if not args.keep_intermediate:
@@ -1401,8 +1606,8 @@ def collapsefrombam():
                            '.novelisos.read.map.txt']
         if not args.noaligntoannot:
             files_to_remove += ['.matchannot.bed',
-                           '.matchannot.counts.tsv',
-                           '.matchannot.read.map.txt']
+                                '.matchannot.counts.tsv',
+                                '.matchannot.read.map.txt']
             if args.endnormdist:
                 files_to_remove.append('.matchannot.ends.tsv')
         if args.endnormdist:
@@ -1412,7 +1617,7 @@ def collapsefrombam():
 
     if args.predictCDS:
         prodcmd = ('predictProductivity',
-                   '-i', args.output+'.isoforms.bed',
+                   '-i', args.output + '.isoforms.bed',
                    '-o', args.output + '.isoforms.CDS',
                    '--gtf', args.gtf,
                    '--genome_fasta', args.genome,
