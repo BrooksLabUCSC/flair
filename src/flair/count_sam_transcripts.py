@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-import sys
+#import sys
 import argparse
 import re
-import csv
-import math
+#import csv
+#import math
 import os
-from collections import Counter
-from collections import namedtuple
+#from collections import Counter
+#from collections import namedtuple
 from flair.remove_internal_priming import removeinternalpriming
 import pysam
 from flair import FlairInputDataError
@@ -114,7 +114,7 @@ def check_exonenddist(blocksize, disttoend, trust_ends, disttoblock):
     if trust_ends:
         return disttoend <= TRUST_ENDS_WINDOW
     else:
-        return disttoblock >= min(REQ_BP_ALIGNED_IN_EDGE_EXONS, blocksize-NUM_MISTAKES_IN_SS_WINDOW)
+        return disttoblock >= min(REQ_BP_ALIGNED_IN_EDGE_EXONS, blocksize-5)
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends):
     left_coverage = check_exonenddist(first_blocksize, read_start, trust_ends, first_blocksize-read_start)
@@ -223,7 +223,7 @@ def check_stringentandsplice(args, transcript_to_exons, tname, coveredpos, tlen,
         passesfusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcript_to_bp_ss_index) if args.fusion_breakpoints else True
         if tname == testtname:
             print(tname, passesstringent, passessplice)
-    return passesstringent and passessplice and passesfusion
+    return passesstringent, passessplice, passesfusion
 
 testtname = 'none'
 
@@ -244,8 +244,17 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
         indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(args, matchvals, thist.cigar, thist.startpos)
         if tname == testtname:
             print('indel', indel_detected)
-        if not indel_detected and (not args.trimmedreads or genomicclipping == None or sum(queryclipping) <= genomicclipping + 25):
-            if check_stringentandsplice(args, transcript_to_exons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index):
+        # print(tname, indel_detected)
+        # if queryclipping is not None: print(sum(queryclipping) <= genomicclipping + 50, sum(queryclipping), genomicclipping)
+        if not indel_detected and (not args.trimmedreads or genomicclipping == None or sum(queryclipping) <= genomicclipping+SOFT_CLIPPING_BUFFER):
+        #     if check_stringentandsplice(args, transcript_to_exons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index):
+
+        # if not indel_detected:
+        #     hasworseclipping = args.trimmedreads and genomicclipping != None and sum(queryclipping) > genomicclipping + 25
+            passesstringent, passessplice, passesfusion = check_stringentandsplice(args, transcript_to_exons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index)
+            # print(passesstringent, passessplice, passesfusion)
+            # if passessplice and passesfusion:
+            if passessplice and passesfusion and passesstringent:
                 if args.stringent:
                     ##THIS ONLY WORKS IF STRINGENT IS ALSO ACTIVATED
                     gtstart, gtend, gtstrand = transcript_to_genomic_ends[tname]
@@ -258,20 +267,41 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
                 else:
                     outstart, outend = 0, 0
                 passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, outstart, outend])
+                # passingtranscripts.append([not passesstringent, hasworseclipping, -1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, outstart, outend])
+                # passingtranscripts.append([not passesstringent, -1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping),
+                #                             thist.tlen, tname, outstart, outend])
+                # passingtranscripts.append(
+                #     [not passesstringent, sum(queryclipping) - genomicclipping, -1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping),
+                #      thist.tlen, tname, outstart, outend])
+                # passingtranscripts.append([not passesstringent, tname, outstart, outend])
+                # passingtranscripts.append([sum(queryclipping) - genomicclipping, -1 * thist.alignscore,
+                #      -1 * sum(matchvals), sum(queryclipping),
+                #      thist.tlen, tname, outstart, outend])
     # order passing transcripts by alignment score
     # then order by amount of query covered
     # then order by amount of transcript covered
     if len(passingtranscripts) > 0:
         passingtranscripts.sort()
-        if testtname in tinfo:
-            print(passingtranscripts)
-        if args.allow_paralogs:
-            bestmetrics = passingtranscripts[0][:3]
-            besttranscripts = []
-            for t in passingtranscripts:
-                if t[:3] == bestmetrics: besttranscripts.append(t[-3:])
-            return besttranscripts
-        else: return [passingtranscripts[0][-3:],]
+        if len(passingtranscripts) == 1 or passingtranscripts[0][:3] != passingtranscripts[1][:3]:
+        # print(passingtranscripts)
+        # if len(passingtranscripts) == 1 and passingtranscripts[0][:2] == [False, False]:
+        # if len(passingtranscripts) == 1 and passingtranscripts[0][0] == False:
+        # if len(passingtranscripts) == 1:
+            return [passingtranscripts[0][-3:], ]
+        else:
+            return None
+
+
+        # passingtranscripts.sort()
+        # if testtname in tinfo:
+        #     print(passingtranscripts)
+        # if args.allow_paralogs:
+        #     bestmetrics = passingtranscripts[0][:3]
+        #     besttranscripts = []
+        #     for t in passingtranscripts:
+        #         if t[:3] == bestmetrics: besttranscripts.append(t[-3:])
+        #     return besttranscripts
+        # else: return [passingtranscripts[0][-3:],]
     else: return None
 
 class IsoAln(object):
@@ -352,7 +382,8 @@ HALF_SS_WINDOW_SIZE = 6
 NUM_MISTAKES_IN_SS_WINDOW = 2
 TRUST_ENDS_WINDOW = 50
 LARGE_INDEL_TOLDERANCE = 25
-REQ_BP_ALIGNED_IN_EDGE_EXONS = 6
+REQ_BP_ALIGNED_IN_EDGE_EXONS = 10
+SOFT_CLIPPING_BUFFER = 50
 
 if __name__ == '__main__':
     args = parse_args()
