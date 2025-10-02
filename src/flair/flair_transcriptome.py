@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-import sys
 import argparse
 import os
 import pipettor
@@ -582,22 +581,6 @@ def collapseendgroups(end_window, readends, dogetbestends=True):
 
 # END METHODS TO EDIT
 
-# def check_junction_subset(thesejuncs, junctogene, annottranscripttoexons):
-#     if thesejuncs != ():
-#         isoswithsimilarjuncs = set()
-#         for j in thesejuncs:
-#             if j in junctogene:
-#                 isoswithsimilarjuncs.update(junctogene[j])
-#         for otherisoname in isoswithsimilarjuncs:
-#             if otherisoname in annottranscripttoexons:
-#                 otherisoexons = annottranscripttoexons[otherisoname]
-#                 otherisojuncs = [(otherisoexons[i][1], otherisoexons[i+1][0]) for i in range(len(otherisoexons)-1)]
-#                 if len(thesejuncs) < len(otherisojuncs):
-#                     thisisostrjuncs, otherisostrjuncs = str(thesejuncs)[1:-1].rstrip(','), str(otherisojuncs)[1:-1]
-#                     if thisisostrjuncs in otherisostrjuncs:  # if junctions are subset
-#                         return True
-#     return False
-
 
 def filtersplicediso(filtertype, support, thisjuncs, thisexons, thisname, thisscore, junctogene, annottranscripttoexons, firstpassjunctoname, firstpassunfiltered,  supannottranscripttojuncs, checkTermExons):
     isoswithsimilarjuncs = set()
@@ -900,55 +883,6 @@ def processjuncstofirstpassisos(args, tempprefix, thischrom, sjtoends, firstpass
     firstpasssingleexons = sorted(list(firstpasssingleexons))
     return firstpassunfiltered, firstpassjunctoname, firstpasssingleexons
 
-
-# def filtersplicediso(args, thisiso, firstpassjunctoname, firstpassunfiltered, junctogene, supannottranscripttojuncs,
-#                      annottranscripttoexons):
-#     isoswithsimilarjuncs = set()
-#     for j in thisiso.juncs:
-#         isoswithsimilarjuncs.update(firstpassjunctoname[j])
-#         if j in junctogene:
-#             isoswithsimilarjuncs.update(junctogene[j])  # annot isos
-#     issubset = [0, 0]  # first exon is a subset, last exon is a subset
-#     firstexon, lastexon = thisiso.exons[0], thisiso.exons[-1]
-#     superset_support = []
-#     for otherisoname in isoswithsimilarjuncs:
-#         if otherisoname != thisiso.name:
-#             if isinstance(otherisoname, tuple):
-#                 if otherisoname in supannottranscripttojuncs:
-#                     otherisoscore, otherisojuncs = supannottranscripttojuncs[otherisoname]
-#                     otherisoexons = annottranscripttoexons[otherisoname]
-#                 else:
-#                     continue
-#             else:
-#                 otheriso = firstpassunfiltered[otherisoname]
-#                 otherisoscore, otherisojuncs, otherisoexons = otheriso.score, otheriso.juncs, otheriso.exons
-#             if len(thisiso.juncs) < len(otherisojuncs):
-#                 thisisostrjuncs, otherisostrjuncs = str(thisiso.juncs)[1:-1].rstrip(','), str(otherisojuncs)[1:-1]
-#                 if thisisostrjuncs in otherisostrjuncs:  # if junctions are subset
-#                     # check whether first + last exon overlap
-#                     for i in range(len(otherisoexons)):
-#
-#                         otherexon = otherisoexons[i]
-#                         if i == 0 or i == len(otherisoexons) - 1:  # is first or last exon of other transcript
-#                             if firstexon[1] == otherexon[1] or lastexon[0] == otherexon[0]:
-#                                 if firstexon[1] == otherexon[1]:
-#                                     issubset[0] = 1
-#                                 elif lastexon[0] == otherexon[0]:
-#                                     issubset[1] = 1
-#                                 superset_support.append(otherisoscore)
-#                         else:
-#                             if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
-#                                 issubset[0] = 1
-#                                 superset_support.append(otherisoscore)
-#                             if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
-#                                 issubset[1] = 1
-#                                 superset_support.append(otherisoscore)
-#     if sum(issubset) < 2:  # both first and last exon have to overlap
-#         return True
-#     elif args.filter != 'nosubset':
-#         if thisiso.score >= args.sjc_support and thisiso.score > max(superset_support) * 1.2:
-#             return True
-#     return False
 
 
 def filtersingleexoniso(args, groupediso, currgroup, firstpassunfiltered):
@@ -1293,72 +1227,6 @@ def combineannotnovelwriteout(args, genetojuncstoends, genome):
                         endslist = endslist[:args.max_ends]
                 genetojuncstoends[gene][(chrom, strand, juncs)] = endslist
 
-        ###TESTED THIS - only matters if doing endnormdist - can be implemented better using the actual method
-        # newgenetojuncstoends = {}
-        # for gene in genetojuncstoends:
-        #     newgenetojuncstoends[gene] = {}
-        #     for chrom, strand, juncs in genetojuncstoends[gene]:
-        #         endslist = genetojuncstoends[gene][(chrom, strand, juncs)]
-        #         if args.filter == 'ginormous':
-        #             newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
-        #         else:
-        #             if juncs != ():
-        #                 if args.filter == 'comprehensive':
-        #                     newgenetojuncstoends[gene][(chrom, strand, juncs)] = endslist
-        #                 else:
-        #                     for ends in endslist:
-        #                         thisstart, thisend, thisname, thesereads = ends
-        #                         firstexon = (thisstart, juncs[0][0])
-        #                         lastexon = (juncs[-1][1], thisend)
-        #                         issubset = [0, 0]
-        #                         superset_support = []
-        #                         for c, s, j2 in genetojuncstoends[gene]:
-        #                             if str(juncs)[1:-1].rstrip(',') in str(j2)[1:-1]: ##junctions are subset
-        #                                 ###check if ends are contained
-        #                                 otherstart = min([x[0] for x in genetojuncstoends[gene][(c, s, j2)]])
-        #                                 otherend = max([x[1] for x in genetojuncstoends[gene][(c, s, j2)]])
-        #                                 otherexons = [(otherstart, j2[0])] + [(j2[x][1], j2[x+1][0]) for x in range(len(j2)-1)] + [(j2[-1][1], otherend)]
-        #                                 otherisoscore = len(genetojuncstoends[gene][(c, s, j2)][-1])
-        #                                 for i in range(len(otherexons)):
-        #                                     otherexon = otherexons[i]
-        #                                     if i == 0 or i == len(otherexons) - 1:  # is first or last exon of other transcript
-        #                                         if firstexon[1] == otherexon[1]:
-        #                                             issubset[0] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                                         elif lastexon[0] == otherexon[0]:
-        #                                             issubset[1] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                                     else:
-        #                                         if firstexon[1] == otherexon[1] and firstexon[0] >= otherexon[0] - 10:
-        #                                             issubset[0] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                                         if lastexon[0] == otherexon[0] and lastexon[1] <= otherexon[1] + 10:
-        #                                             issubset[1] = 1
-        #                                             superset_support.append(otherisoscore)
-        #                         if sum(issubset) < 2 or (args.filter != 'nosubset' and len(thesereads) > max(superset_support) * 1.2):
-        #                             if (chrom, strand, juncs) not in newgenetojuncstoends[gene]:
-        #                                 newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
-        #                             newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
-        #
-        #             else: ##single exon genes
-        #                 for ends in endslist:
-        #                     iscontained = False
-        #                     thisscore = len(ends[-1]) ##number of reads
-        #                     for compends in endslist:
-        #                         if compends != ends:
-        #                             if compends[0] - 10 <= ends[0] and ends[1] <= compends[1] + 10:
-        #                                 if args.filter == 'nosubset':
-        #                                     iscontained = True
-        #                                     break
-        #                                 else:
-        #                                     otherscore = len(compends[-1])
-        #                                     if otherscore * 1.2 >= thisscore:
-        #                                         iscontained = True
-        #                                         break
-        #                     if not iscontained:
-        #                         if (chrom, strand, juncs) not in newgenetojuncstoends[gene]: newgenetojuncstoends[gene][(chrom, strand, juncs)] = []
-        #                         newgenetojuncstoends[gene][(chrom, strand, juncs)].append(ends)
-        # genetojuncstoends = newgenetojuncstoends
 
         for gene in genetojuncstoends:
             genetot = 0
