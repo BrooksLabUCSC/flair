@@ -249,7 +249,7 @@ test-collapse-support: mkdirs ${GENOME_FA}
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
-# collapse with support, --isoformtss
+# collapse with support --annotation_reliant --isoformtss
 test-collapse-support-tss: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ \
