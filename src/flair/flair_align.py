@@ -66,7 +66,7 @@ def parse_args():
     args.reads = reads
     return args
 
-def intronChainToestarts(ichain, start, end):
+def intron_chain_to_exon_starts(ichain, start, end):
     esizes, estarts = [], [0,]
     for i in ichain:
         esizes.append(i[0] - (start + estarts[-1]))
@@ -136,7 +136,7 @@ def bed_from_cigar(alignstart, is_reverse, cigartuples, readname, referencename,
             if block[0] in {0, 7, 8}: hasmatch = True#match
     # dirtowrite = '-' if is_reverse else '+'
     #chr1   476363  497259  ENST00000455464.7_ENSG00000237094.12    1000    -       476363  497259  0       3       582,169,151,    0,8676,20745,
-    esizes, estarts = intronChainToestarts(intronblocks,alignstart, refpos)
+    esizes, estarts = intron_chain_to_exon_starts(intronblocks,alignstart, refpos)
     rgbcolor = unknownTxn
     if juncDirection == "+": rgbcolor = positiveTxn
     elif juncDirection == "-": rgbcolor = negativeTxn
@@ -148,7 +148,7 @@ def bed_from_cigar(alignstart, is_reverse, cigartuples, readname, referencename,
 def doalignment(args):
     # minimap
     mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize),
-               '-G', args.maxintronlen, '-t', str(args.threads)]
+               '-G', args.maxintronlen, '--MD', '-t', str(args.threads)]
     if args.nvrna:
         mm2_cmd += ['-uf', '-k14']
     if args.junction_bed:

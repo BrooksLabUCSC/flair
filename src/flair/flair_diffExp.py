@@ -318,11 +318,11 @@ def run_dirmseq(prefix, workdir, threads, groups, batches, matrixFile, outDir, f
 
 
 def calculate_sig(args):
-    outDir = args.o
-    quant_table_tsv = args.q
-    sFilter = args.e
-    threads = args.t
-    force_dir = args.of
+    outDir = args.out_dir
+    quant_table_tsv = args.counts_matrix
+    sFilter = args.exp_thresh
+    threads = args.threads
+    force_dir = args.out_dir_force
 
     # FIXME convert to just loading table upfront
     # Get sample data info
@@ -396,28 +396,27 @@ def calculate_sig(args):
 
 def diffExp(counts_matrix=''):
     set_unix_path()
-    parser = argparse.ArgumentParser(description='flair-diffExp parse options')
-#       parser.add_argument('diffExp')
+    parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required named arguments')
     if not counts_matrix:
-        required.add_argument('-q', '--counts_matrix', action='store', dest='q',
+        required.add_argument('-q', '--counts_matrix', action='store',
                               type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
-    required.add_argument('-o', '--out_dir', action='store', dest='o',
+    required.add_argument('-o', '--out_dir', action='store',
                           type=str, required=True, help='Output directory for tables and plots.')
-    parser.add_argument('-t', '--threads', action='store', dest='t',
+    parser.add_argument('-t', '--threads', action='store',
                         type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq.')
-    parser.add_argument('-e', '--exp_thresh', action='store', dest='e', type=int, required=False,
+    parser.add_argument('-e', '--exp_thresh', action='store', type=int, required=False,
                         default=10, help='''Read count expression threshold. Isoforms in which
                         both conditions contain fewer than E reads are filtered out (Default E=10)''')
-    parser.add_argument('-of', '--out_dir_force', action='store_true', dest='of',
+    parser.add_argument('-of', '--out_dir_force', action='store_true',
                         required=False, help='''Specify this argument to force overwriting of files in
                         an existing output directory''')
     args = parser.parse_args()
     if counts_matrix:
-        args.q = counts_matrix
-        args.o = args.o + '.diffExp'
+        args.counts_matrix = counts_matrix
+        args.out_dir = args.out_dir + '.diffExp'
 
-    if not os.path.exists(args.q):
+    if not os.path.exists(args.counts_matrix):
         raise FlairInputDataError('Counts matrix file path does not exist')
 
     calculate_sig(args)

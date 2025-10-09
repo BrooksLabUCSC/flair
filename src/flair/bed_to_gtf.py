@@ -11,10 +11,11 @@ def main():
             help='specify to not split isoform name by underscore into isoform and gene ids')
     parser.add_argument('--add_reference_transcript_id', action='store_true', dest='reference_transcript_id',
             help='specify to add reference_transcript_id attribute')
+    parser.add_argument('--noCDS', action='store_true',
+                        help='do not carry forward CDS from bed file (thickstart and thickend) to gtf file')
     args = parser.parse_args()
-
     bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
-               reference_transcript_id=args.reference_transcript_id)
+               reference_transcript_id=args.reference_transcript_id, useCDS= not args.noCDS)
 
 
 def split_iso_gene(iso_gene):
@@ -41,14 +42,14 @@ def split_iso_gene(iso_gene):
         gene = iso_gene[iso_gene.rfind('_')+1:]
     return iso, gene
 
-def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False):
+def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, useCDS=True):
     outfile = open(outputfile, 'w')
     for line in open(query):
         line = line.rstrip().split('\t')
         start = int(line[1])
         chrom, strand, score, name, start = line[0], line[5], line[4], line[3], int(line[1])
-        tstarts = [int(n) + start for n in line[11].split(',')[:-1]]
-        bsizes = [int(n) for n in line[10].split(',')[:-1]]
+        tstarts = [int(n) + start for n in line[11].rstrip(',').split(',')]
+        bsizes = [int(n) for n in line[10].rstrip(',').split(',')]
         end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
 
         if '_' not in name and not force:
@@ -73,7 +74,7 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False):
                     .format(gene_id, trimmed_transcript_id, trimmed_transcript_id)
         print('\t'.join([chrom, 'FLAIR', 'transcript', str(start+1), str(tstarts[-1]+bsizes[-1]), '.', strand, '.',
                 attributes]), file=outfile)
-        if thick_start != thick_end and (thick_start != start or thick_end != end):
+        if thick_start != thick_end and (thick_start != start or thick_end != end) and useCDS:
             print('\t'.join([chrom, 'FLAIR', 'CDS', str(thick_start+1), str(thick_end), '.', strand, '.',
             attributes]), file=outfile)
             if strand == '+':
