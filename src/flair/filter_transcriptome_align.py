@@ -7,7 +7,7 @@ import pysam
 import logging
 import shutil
 from flair.count_sam_transcripts import *
-from flair.flair_transcriptome import makecorrecttempdir
+from flair.flair_transcriptome import make_correct_temp_dir
 import multiprocessing as mp
 from time import sleep
 from flair import FlairInputDataError
@@ -131,7 +131,7 @@ def bam_to_read_aligns(samfile, chunksize, tempDir, transcript_to_exons, transcr
 def process_alignments(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends):
     logging.info('processing alignments')
     samfile = pysam.AlignmentFile(args.sam, 'r')
-    tempDir = makecorrecttempdir()
+    tempDir = make_correct_temp_dir()
     headeroutfilename = tempDir + 'headerfile.bam'
     hfile = pysam.AlignmentFile(headeroutfilename, 'wb', template=samfile)
     hfile.close()

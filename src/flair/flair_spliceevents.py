@@ -108,7 +108,7 @@ def get_juncs_to_gene(juncs, isoinfo, juncstotranscript, junctogene, genetoannot
         thistranscript, thisgene = juncstotranscript[juncs]
     else:
         thisgene = None
-        gene_hits = ft.getsplicedisogenehits(juncs, junctogene, genetoannotjuncs)
+        gene_hits = ft.get_genes_with_shared_juncs(juncs, junctogene, genetoannotjuncs)
         if gene_hits:
             sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
             thisgene = sortedgenes[0][0]
@@ -397,13 +397,13 @@ def runcollapsebychrom(listofargs):
                                                        allannottranscripts, genome, bamfile)
 
         samfile = pysam.AlignmentFile(goodannotaligns, 'rb')
-        sjtoends, goodaligntoannot = ft.filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile,
+        sjtoends, goodaligntoannot = ft.filter_correct_group_reads(args, tempprefix, rchrom, rstart, rend, samfile,
                                                                 set(), intervalTree, junctionBoundaryDict,
                                                                 generatefasta=False, sjtoends={},
                                                                 returnusedreads=True, allowsecondary=True)
         samfile.close()
         samfile = pysam.AlignmentFile(bamfile, 'rb')
-        sjtoends = ft.filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goodaligntoannot,
+        sjtoends = ft.filter_correct_group_reads(args, tempprefix, rchrom, rstart, rend, samfile, goodaligntoannot,
                                               intervalTree, junctionBoundaryDict,
                                               generatefasta=False, sjtoends=sjtoends, returnusedreads=False)
         samfile.close()
@@ -422,7 +422,7 @@ def collapsefrombam():
     genome = pysam.FastaFile(args.genome)
     allchrom = genome.references
     logging.info('making temp dir')
-    tempDir = ft.makecorrecttempdir()
+    tempDir = ft.make_correct_temp_dir()
 
     allregions = []
     for chrom in allchrom:
@@ -430,12 +430,12 @@ def collapsefrombam():
         allregions.append((chrom, 0, chromsize))
     logging.info(f'Running by chroms: {len(allregions)}')
     logging.info('Generating splice site database')
-    knownchromosomes, annotationFiles = ft.generateKnownSSDatabase(args, tempDir)
+    knownchromosomes, annotationFiles = ft.generate_known_SS_database(args, tempDir)
 
     regionstoannotdata = {}
     if args.gtf:
         logging.info('Extracting annotation from GTF')
-        regionstoannotdata = ft.getannotinfo(args.gtf, allregions)
+        regionstoannotdata = ft.get_annot_info(args.gtf, allregions)
     logging.info('splitting by chunk')
 
     chunkcmds = []
@@ -476,7 +476,7 @@ def collapsefrombam():
     if len(childErrs) > 1:
         raise ValueError(childErrs)
 
-    ft.combinetempfilesbysuffix(args, tempprefixes,
+    ft.combine_temp_files_by_suffix(args, tempprefixes,
                                 ['.diffsplice.bed', '.diffsplice.counts.tsv', '.diffsplice.readends.bed'])
 
     if not args.keep_intermediate:

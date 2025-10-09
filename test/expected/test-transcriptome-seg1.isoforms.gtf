@@ -1,3 +1,3 @@
 chr20	FLAIR	gene	32186477	32190360	.	-	.	gene_id "ENSG00000293164.1";
-chr20	FLAIR	transcript	32186477	32190360	25	-	.	gene_id "ENSG00000293164.1"; transcript_id "ENST00000565928.2";
-chr20	FLAIR	exon	32186477	32190360	25	-	.	gene_id "ENSG00000293164.1"; transcript_id "ENST00000565928.2"; exon_number 1
+chr20	FLAIR	transcript	32186477	32190360	4	-	.	gene_id "ENSG00000293164.1"; transcript_id "ENST00000565928.2";
+chr20	FLAIR	exon	32186477	32190360	4	-	.	gene_id "ENSG00000293164.1"; transcript_id "ENST00000565928.2"; exon_number 1

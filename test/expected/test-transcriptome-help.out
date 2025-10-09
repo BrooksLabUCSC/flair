@@ -1,13 +1,15 @@
-usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
+usage: transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME [-o OUTPUT]
                      [-t THREADS] [-f GTF]
                      [--junction_tab JUNCTION_TAB | --junction_bed JUNCTION_BED]
                      [--junction_support JUNCTION_SUPPORT]
-                     [--ss_window SS_WINDOW] [-s SUPPORT] [--stringent]
-                     [--check_splice] [-w END_WINDOW] [--noaligntoannot]
+                     [--ss_window SS_WINDOW] [-w END_WINDOW]
+                     [--sjc_support SJC_SUPPORT] [--se_support SE_SUPPORT]
+                     [--frac_support FRAC_SUPPORT] [--no_stringent]
+                     [--no_check_splice] [--no_align_to_annot]
                      [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
-                     [--parallelmode PARALLELMODE] [--predictCDS]
-                     [--keep_intermediate] [--keep_sup]
-                     [--endnormdist ENDNORMDIST] [--output_endpos]
+                     [--quality QUALITY] [--parallel_mode PARALLEL_MODE]
+                     [--predict_cds] [--keep_intermediate] [--keep_sup]
+                     [--end_norm_dist END_NORM_DIST] [--output_endpos]
                      [--output_bam]
 
 generates confident transcript models directly from a bam file of aligned long
@@ -15,7 +17,7 @@ rna-seq reads
 
 options:
   -h, --help            show this help message and exit
-  -b GENOMEALIGNEDBAM, --genomealignedbam GENOMEALIGNEDBAM
+  -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
                         Sorted and indexed bam file aligned to the genome
   -g GENOME, --genome GENOME
                         FastA of reference genome, can be minimap2 indexed
@@ -23,16 +25,17 @@ options:
                         output file name base for FLAIR isoforms (default:
                         flair)
   -t THREADS, --threads THREADS
-                        minimap2 number of threads (4)
-  -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
-                        to annotated isoforms and adjusting TSS/TESs
+                        number of threads to run with - related to
+                        parallel_mode
+  -f GTF, --gtf GTF     GTF annotation file, used for identifying annotated
+                        isoforms
   --junction_tab JUNCTION_TAB
                         short-read junctions in SJ.out.tab format. Use this
                         option if you aligned your short-reads with STAR, STAR
                         will automatically output this file
   --junction_bed JUNCTION_BED
                         short-read junctions in bed format (can be generated
-                        from short-read alignment with junctions_from_sam)
+                        from long-read alignment with intronProspector)
   --junction_support JUNCTION_SUPPORT
                         if providing short-read junctions, minimum junction
                         support required to keep junction. If your junctions
@@ -40,34 +43,49 @@ options:
                         for read support.
   --ss_window SS_WINDOW
                         window size for correcting splice sites (15)
-  -s SUPPORT, --support SUPPORT
-                        minimum number of supporting reads for an isoform (3)
-  --stringent           specify if all supporting reads need to be full-length
-                        (spanning 25 bp of the first and last exons)
-  --check_splice        enforce coverage of 4 out of 6 bp around each splice
-                        site and no insertions greater than 3 bp at the splice
-                        site
   -w END_WINDOW, --end_window END_WINDOW
                         window size for comparing TSS/TES (100)
-  --noaligntoannot      related to old annotation_reliant, now specify if you
+  --sjc_support SJC_SUPPORT
+                        minimum number of supporting reads for a spliced
+                        isoform (1)
+  --se_support SE_SUPPORT
+                        minimum number of supporting reads for a single exon
+                        isoform (3)
+  --frac_support FRAC_SUPPORT
+                        minimum fraction of gene locus support for isoform to
+                        be called default: 0.05, only isoforms that make up
+                        more than 5 percent of the gene locus are reported.
+                        Set to 0 for max recall
+  --no_stringent        specify if all supporting reads don't need to be full-
+                        length (aligned to first and last exons of
+                        transcript). Use this for fragmented libraries, but
+                        understand that it will impact precision.
+  --no_check_splice     don't enforce accurate alignment around splice site.
+                        Specify this for libraries with high error rates, but
+                        it will reduce precision
+  --no_align_to_annot   related to old annotation_reliant, now specify if you
                         don't want an initial alignment to the annotated
                         sequences and only want transcript detection from the
                         genomic alignment. Will be slightly faster but less
                         accurate if the annotation is good
   -n NO_REDUNDANT, --no_redundant NO_REDUNDANT
                         For each unique splice junction chain, report options
-                        include: none--best TSSs/TESs chosen for each unique
-                        set of splice junctions; longest--single TSS/TES
-                        chosen to maximize length; best_only--single most
-                        supported TSS/TES used in conjunction chosen (none)
-  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (2)
+                        include: none-- multiple supported TSSs/TESs chosen
+                        for each set of splice junctions (modulated by
+                        max_ends); longest--single TSS/TES chosen to maximize
+                        length; best_only--single most supported TSS/TES used
+                        in conjunction chosen (none)
+  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (1) make
+                        higher for more precise end detection
   --filter FILTER       Report options include: nosubset--any isoforms that
                         are a proper set of another isoform are removed;
-                        default--subset isoforms are removed based on support;
-                        comprehensive--default set + all subset isoforms;
-                        ginormous--comprehensive set + single exon subset
-                        isoforms
-  --parallelmode PARALLELMODE
+                        bysupport--subset isoforms are removed based on
+                        support; comprehensive--default set + all subset
+                        isoforms; ginormous--comprehensive set + single exon
+                        subset isoforms
+  --quality QUALITY     minimum mapping quality threshold to consider genomic
+                        alignments for defining transcripts
+  --parallel_mode PARALLEL_MODE
                         parallelization mode. Default: "auto:1GB" This
                         indicates an automatic threshold where if the file is
                         less than 1GB, parallelization is done by chromosome,
@@ -75,7 +93,7 @@ options:
                         of non-overlapping reads. Other modes: bychrom,
                         byregion, auto:xGB - for setting the auto threshold,
                         it must be in units of GB.
-  --predictCDS          specify if you want to predict the CDS of the final
+  --predict_cds         specify if you want to predict the CDS of the final
                         isoforms. Will be output in the final bed file but not
                         the gtf file. Productivity annotation is also added in
                         the name field, which is detailed further in the
@@ -86,7 +104,7 @@ options:
                         firstpass isoforms
   --keep_sup            specify if you want to keep supplementary alignments
                         to define isoforms
-  --endnormdist ENDNORMDIST
+  --end_norm_dist END_NORM_DIST
                         specify the number of basepairs to extend transcript
                         ends if you want to normalize them across transcripts
                         in a gene and extend them

@@ -1,13 +1,3 @@
-chr17	FLAIR	transcript	64499622	64503848	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs";
-chr17	FLAIR	exon	64499622	64500326	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "0";
-chr17	FLAIR	exon	64500549	64500773	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "1";
-chr17	FLAIR	exon	64502010	64502069	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "2";
-chr17	FLAIR	exon	64502162	64502223	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "3";
-chr17	FLAIR	exon	64502439	64502549	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "4";
-chr17	FLAIR	exon	64502926	64503098	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "5";
-chr17	FLAIR	exon	64503188	64503348	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "6";
-chr17	FLAIR	exon	64503430	64503571	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "7";
-chr17	FLAIR	exon	64503803	64503848	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201123_202240/41683420/ccs"; exon_number "8";
 chr17	FLAIR	transcript	64499622	64503848	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201028_155127/174064230/ccs";
 chr17	FLAIR	exon	64499622	64500326	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201028_155127/174064230/ccs"; exon_number "0";
 chr17	FLAIR	exon	64500549	64500773	.	-	.	gene_id "ENSG00000108654.15"; transcript_id "m54284U_201028_155127/174064230/ccs"; exon_number "1";

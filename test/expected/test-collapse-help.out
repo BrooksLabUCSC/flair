@@ -72,7 +72,7 @@ options:
                         when specified, TSS/TES from the gtf provided with -f
                         will not be used to adjust isoform TSSs/TESs each
                         isoform will be determined from supporting reads
-  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (2)
+  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (1)
   --filter FILTER       Report options include: nosubset--any isoforms that
                         are a proper set of another isoform are removed;
                         default--subset isoforms are removed based on support;
