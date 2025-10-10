@@ -346,7 +346,6 @@ test-quantify-nobam : mkdirs
 	flair quantify -r $(BASIC_READS_MANIFEST) -i $(BASIC_ISOFORMS_FA) --isoform_bed $(BASIC_ISOFORMS_BED) --temp_dir $O/$@.tmp --tpm --sample_id_only -o $O/$@
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
-	
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out
@@ -359,8 +358,8 @@ diffexp-tests: test-diffexp test-diffexp-help
 
 test-diffexp : mkdirs
 	flair diffexp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
-	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort,$@/genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort,$@/isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
