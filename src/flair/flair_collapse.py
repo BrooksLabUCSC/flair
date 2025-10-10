@@ -27,7 +27,8 @@ run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.
 
 def collapse(genomic_range='', corrected_reads=''):
-    parser = argparse.ArgumentParser(description='collapse isoforms')
+    parser = argparse.ArgumentParser(description='generates confident isoform models from a bed file of read '
+                                                 'alignments with corrected splice junctions')
     required = parser.add_argument_group('required named arguments')
     if not corrected_reads:
         required.add_argument('-q', '--query', type=str, default='', required=True,
@@ -80,15 +81,14 @@ def collapse(genomic_range='', corrected_reads=''):
             none--best TSSs/TESs chosen for each unique set of splice junctions;
             longest--single TSS/TES chosen to maximize length;
             best_only--single most supported TSS/TES used in conjunction chosen (none)''')
-    parser.add_argument('-i', '--isoformtss', default=False, action='store_true',
-            help='''when specified, TSS/TES for each isoform will be determined from supporting reads
-            for individual isoforms (default: not specified, determined at the gene level)''')
+    parser.add_argument('--gene_tss', default=False, action='store_true',
+            help='''when specified, TSS/TES for each isoform will be determined standardized at the gene level (default: not specified, determined for each individual isoform)''')
     parser.add_argument('--no_gtf_end_adjustment', default=False, action='store_true',
             dest='no_end_adjustment',
             help='''when specified, TSS/TES from the gtf provided with -f will not be used to adjust
             isoform TSSs/TESs each isoform will be determined from supporting reads''')
-    parser.add_argument('--max_ends', type=int, default=2,
-            help='maximum number of TSS/TES picked per isoform (2)')
+    parser.add_argument('--max_ends', type=int, default=1,
+            help='maximum number of TSS/TES picked per isoform (1)')
     parser.add_argument('--filter', default='default',
             help='''Report options include:
             nosubset--any isoforms that are a proper set of another isoform are removed;
@@ -238,7 +238,7 @@ def collapse(genomic_range='', corrected_reads=''):
         # count sam transcripts ; the dash at the end means STDIN
         count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
                 '-o', args.output+'annotated_transcripts.alignment.counts', '-t', str(args.threads),
-                '--quality', str(args.quality), '-w', str(args.end_window),
+                '--quality', str(args.quality),
                 '--generate_map', args.output+'annotated_transcripts.isoform.read.map.txt']
         if args.stringent:
             count_cmd += ['--stringent']
@@ -286,7 +286,7 @@ def collapse(genomic_range='', corrected_reads=''):
             '-o', args.output+'firstpass.unfiltered.bed']
     if args.gtf and not args.no_end_adjustment:
         collapse_cmd += ['-f', args.gtf]
-    if args.isoformtss:
+    if not args.gene_tss:
         collapse_cmd += ['-i']
     if args.support < 1:
         collapse_cmd += ['-s', str(args.support)]
@@ -329,7 +329,7 @@ def collapse(genomic_range='', corrected_reads=''):
     # count the number of supporting reads for each first-pass isoform
     count_file = args.output+'firstpass.q.counts'
     count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
-            '-o', count_file, '-t', str(args.threads), '--quality', str(args.quality), '-w', str(args.end_window)]
+            '-o', count_file, '-t', str(args.threads), '--quality', str(args.quality)]
     if args.stringent:
         count_cmd += ['--stringent']
     if args.check_splice:
@@ -414,7 +414,7 @@ def collapse(genomic_range='', corrected_reads=''):
                    '--genome_fasta', args.genome,
                    '--longestORF')
         pipettor.run([prodcmd])
-        os.rename(args.output + 'isoforms.CDS.bed', args.output + 'isoforms.bed')
+        # os.rename(args.output + 'isoforms.CDS.bed', args.output + 'isoforms.bed')
         os.remove(args.output + 'isoforms.CDS.info.tsv')
 
     if not args.keep_intermediate:

@@ -51,8 +51,8 @@ def flair_module_run(opts, module, module_argv):  # noqa: C901
         from flair.flair_correct import correct
         correct()
     elif module == 'transcriptome':
-        from flair.flair_transcriptome import collapsefrombam
-        collapsefrombam()
+        from flair.flair_transcriptome import run_collapse_from_bam
+        run_collapse_from_bam()
     elif module == 'collapse':
         from flair.flair_collapse import collapse
         collapse()
@@ -63,8 +63,11 @@ def flair_module_run(opts, module, module_argv):  # noqa: C901
         from flair import flair_combine
         flair_combine.combine()
     elif module == 'variants':
-        from flair.flair_variants import getvariants
+        from flair.flair_variantmodels import getvariants
         getvariants()
+    elif module == 'variantquant':
+        from flair.flair_variantquant import quantvarpos
+        quantvarpos()
     elif module == 'fusion':
         from flair.flair_fusion import detectfusions
         detectfusions()

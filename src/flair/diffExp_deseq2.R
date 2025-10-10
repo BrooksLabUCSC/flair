@@ -52,7 +52,7 @@ run_deseq_analysis <- function(args) {
   dds$condition <- relevel(dds$condition, ref=group1)
   dds <- DESeq(dds)
   name <- paste('condition_', group2, '_vs_', group1, sep='')
-  
+
   res <- results(dds, name = name)
   resLFC <- lfcShrink(dds, coef = name)
   write.table(as.data.frame(res), file = resOut, quote = FALSE, sep = "\t")
