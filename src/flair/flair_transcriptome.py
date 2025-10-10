@@ -227,9 +227,9 @@ def correct_single_read(bed_read, intervalTree, junctionBoundaryDict):
         c2Corr = junctionBoundaryDict[c2].ssCorr.coord
         # don't allow junctions outside or near the ends of the reads
         ends_slop = 8
-        if not ((bedread.start + ends_slop) <= c1Corr < (bedread.end - ends_slop)):
+        if not ((bed_read.start + ends_slop) <= c1Corr < (bed_read.end - ends_slop)):
             return None
-        if not ((bedread.start + ends_slop) <= c2Corr < (bedread.end - ends_slop)):
+        if not ((bed_read.start + ends_slop) <= c2Corr < (bed_read.end - ends_slop)):
             return None
 
         ssTypes = [junctionBoundaryDict[c1].ssCorr.ssType, junctionBoundaryDict[c2].ssCorr.ssType]
@@ -244,10 +244,8 @@ def correct_single_read(bed_read, intervalTree, junctionBoundaryDict):
     starts, sizes = get_exons_from_juncs(newJuncs, bed_read.start, bed_read.end)
     # 0 length exons or exons corrected outside of their transcript ends, remove them.
     if min(sizes) <= 0:
-        novelSS = True
-
-    if novelSS:
         return None
+    
     else:
         bed_read.juncs = newJuncs
         bed_read.exon_sizes = sizes

@@ -176,12 +176,11 @@ test-correct-help: mkdirs
 # FLAIR COLLAPSE
 ###
 collapse-tests: test-collapse test-collapse-promoter test-collapse-incgtf test-collapse-incgtfannot \
-	test-collapse-annot test-collapse-support test-collapse-support-tss test-collapse-seg1 test-collapse-predcds \
-
+	test-collapse-annot test-collapse-support test-collapse-support-annot test-collapse-seg1 test-collapse-predcds \
 	test-collapse-help
 
 update-collapse-tests:
-	for tname in "test-collapse" "test-collapse-sup1" "test-collapse-promoter" "test-collapse-incgtf" "test-collapse-incgtfannot" "test-collapse-annot" "test-collapse-support" "test-collapse-support-tss" "test-collapse-seg1" "test-collapse-predcds"; \
+	for tname in "test-collapse" "test-collapse-sup1" "test-collapse-promoter" "test-collapse-incgtf" "test-collapse-incgtfannot" "test-collapse-annot" "test-collapse-support" "test-collapse-support-annot" "test-collapse-seg1" "test-collapse-predcds"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
@@ -268,11 +267,10 @@ test-collapse-support: mkdirs ${GENOME_FA}
 	$(collapse_diff_read_map)
 
 # collapse with support --annotation_reliant --isoformtss
-test-collapse-support-tss: mkdirs ${GENOME_FA}
+test-collapse-support-annot: mkdirs ${GENOME_FA}
 	rm -rf $O/$@.tmp
 	flair collapse -s 0.25 -r $(BASIC_READS_FA) -q $(BASIC_CORRECT_READS_BED) -g ${GENOME_FA} -t 4 --generate_map --temp_dir $O/$@.tmp --keep_intermediate -f $(BASIC_ANNOTATION) -o $O/$@ \
-	     --gtf=${BASIC_ANNOTATION} \
-	     --isoformtss --quality 0 --generate_map --annotation_reliant generate
+	     --gtf=${BASIC_ANNOTATION} --quality 0 --generate_map --annotation_reliant generate
 	$(collapse_diff)
 	$(collapse_diff_read_map)
 
