@@ -175,7 +175,7 @@ test-correct-help: mkdirs
 # FLAIR COLLAPSE
 ###
 collapse-tests: test-collapse test-collapse-incgtf test-collapse-incgtfannot \
-	test-collapse-annot test-collapse-support test-collapse-support-tss test-collapse-seg1 \
+	test-collapse-annot test-collapse-support test-collapse-support-annot test-collapse-seg1 \
 	test-collapse-help
 
 # macros to do comparions with expected results
