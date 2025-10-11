@@ -12,5 +12,5 @@ dependencies:
   - samtools =1.21
   - pip
   - pip:
-      - flair-brookslab==v2.2.0
+      - flair-brookslab==v2.2.0+master
       - matplotlib>=3.10.0,<4.0.0
