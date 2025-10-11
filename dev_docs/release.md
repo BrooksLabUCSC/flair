@@ -34,7 +34,7 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 17. Set the release as latest in the PyPi
 - [] 18. Set the release latest in GitHub
 - [] 19. Announce release
-
+- [] 20. Set version in tree to have +master suffix
 
 ## Onetime account setup
 
@@ -376,5 +376,14 @@ The reason that the build takes long is that pysam doesn't have a fast installat
 
 Mail an announcement, including `CHANGELOG.md` summary to
 `flair-announce-group@ucsc.edu`.
+
+## 20. Set version in tree to have +master suffix
+
+Add `+master` to the current version to distinguish tree checkouts 
+```
+bump-my-version replace --current-version=2.2.0 --new-version=2.2.0+master
+git commit -am 'set tree local version'
+```
+
 
 🍷🍷
