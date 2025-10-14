@@ -165,6 +165,8 @@ def main():
 
             geneID = parse_gene_id(iso)
             exons = bed12toExons(start,starts,sizes)
+            if exons is None:
+                continue  # FIXME: tmp until BED conversion bugs are fixed
 
             if chrom not in genes:
                 genes[chrom] = Gene(geneID, chrom, strand)
