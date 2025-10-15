@@ -79,7 +79,12 @@ with Conda, yes system package manager or by downloading and compiling,
 
    pip install flair-brookslab
 
+or to install the current code from github:
 
+.. code:: sh
+
+   pip install git+https://github.com/BrooksLabUCSC/flair.git
+             
 The``flair diffexp`` and ``flair diffsplice`` modules require ``R`` , along
 with these ``R`` packages. Some of these do not work on Apple Silicon.
 
