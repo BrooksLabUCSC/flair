@@ -238,6 +238,8 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
         newJuncs.append((c1Corr, c2Corr))
 
     blocks, sizes, starts = juncsToBed12(bedread.name, bedread.start, bedread.end, newJuncs)
+    if blocks is None:
+        return None  # tmp until BED construction bugs are fixed
 
     # 0 length exons, remove them.
     if min(sizes) == 0:
