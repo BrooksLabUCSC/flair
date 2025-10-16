@@ -46,7 +46,7 @@ class CommandLine(object):
         Implements a parser to interpret the command line argv string using argparse.
         '''
         import argparse
-        self.parser = argparse.ArgumentParser(description=' predictProductivity - a tool.')
+        self.parser = argparse.ArgumentParser(description='used to predict coding sequence and amino acid sequence of novel isoforms based on annotated start codons')
         # Add args
         self.parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in bed12 format.')
         self.parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
@@ -201,7 +201,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     genomicPos = int()
     distance   = 0
     maxdistfromexonedge = 55
-
+    print(orfEndPos, exonSizes, allExons, isoname)
     for num,e in enumerate(exonSizes,0):
 
         distance += e
@@ -215,7 +215,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
 
         # if the distance is greater than the stop position, then check if
         # the difference in distance is more than 55nt
-        # if yet then ptc = True
+        # if yes then ptc = True
         # also, track which exon the stop codon is in to get genomic position
         elif orfEndPos < distance:
             distToJunc = distance - orfEndPos
@@ -253,7 +253,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     left,right,strand,fusionindex    = exonsWithStop
 
     genomicPos = right - stopDistFromExon if strand == "+" else left + stopDistFromExon
-
+    print(genomicPos, ptc, ptcpointont)
     return genomicPos, ptc, ptcpointont
 
 
@@ -265,22 +265,43 @@ def get_exons(bedline):
 
 
 def predict(bed, starts, isoDict, nmdexcep):
+    fusiondict = {}
     for line in open(bed):
         line = line.rstrip().split('\t')
         read   = line[3]
         strand = line[5]
+        fusionindex = 'NA'
         for exonCoord in get_exons(line):
             elen = exonCoord[1]-exonCoord[0]
-            if read[:10] == 'fusiongene':
-                fusionindex = read.split('_')[0]
-                read = '_'.join(read.split('_')[1:])
-            else: fusionindex = "NA"
-            if strand == '+':
-                isoDict[read].allEsizes.append(elen)
-                isoDict[read].allExons.append((exonCoord[0], exonCoord[1], strand, fusionindex))
-            elif strand == '-':
-                isoDict[read].allEsizes.insert(0, elen)
-                isoDict[read].allExons.insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
+            if read[:10] == 'fusiongene' or fusionindex != 'NA':
+                ##HAVE TO FIRST AGGREGATE BASED ON THE STRAND OF THE LOCUS, THEN CAN COMBINE LOCI
+                if read[:10] == 'fusiongene':
+                    fusionindex = read.split('_')[0]
+                    read = '_'.join(read.split('_')[1:])
+                
+                if read not in fusiondict:
+                    fusiondict[read] = {}
+                if fusionindex not in fusiondict[read]:
+                    fusiondict[read][fusionindex] = {'exons':[], 'esizes':[]}
+                if strand == '+':
+                    fusiondict[read][fusionindex]['esizes'].append(elen)
+                    fusiondict[read][fusionindex]['exons'].append((exonCoord[0], exonCoord[1], strand, fusionindex))
+                elif strand == '-':
+                    fusiondict[read][fusionindex]['esizes'].insert(0, elen)
+                    fusiondict[read][fusionindex]['exons'].insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
+
+            else: 
+                # fusionindex = "NA"
+                if strand == '+':
+                    isoDict[read].allEsizes.append(elen)
+                    isoDict[read].allExons.append((exonCoord[0], exonCoord[1], strand, fusionindex))
+                elif strand == '-':
+                    isoDict[read].allEsizes.insert(0, elen)
+                    isoDict[read].allExons.insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
+    for read in fusiondict:
+        for fusionindex in sorted(fusiondict[read].keys()):
+            isoDict[read].allEsizes.extend(fusiondict[read][fusionindex]['esizes'])
+            isoDict[read].allExons.extend(fusiondict[read][fusionindex]['exons'])
 
     dr = pipettor.DataReader()
     bedtools_cmd = ('bedtools', 'intersect', '-a', bed, '-b', starts, '-split', '-s', '-wao')
