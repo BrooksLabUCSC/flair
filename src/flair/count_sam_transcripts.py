@@ -172,31 +172,46 @@ def get_matchvals(args, md):
                     matchvals.append(0)
     return matchvals
 
-def process_cigar(args, matchvals, cigarblocks, startpos):
+def process_cigar(matchvals, cigarblocks, startpos, exoninfo):
     matchpos = 0
     coveredpos = [0] * (startpos - 1)
     queryclipping = []
     tendpos = startpos
     blockstarts, blocksizes = [], []
+    if exoninfo:
+        lb, rb = exoninfo[0], sum(exoninfo)-exoninfo[-1]
+    else:
+        lb, rb = None, None
+    indel_detected = False
     for btype, blen in cigarblocks:
         if btype in {4,5}:# soft or hard clipping:
             queryclipping.append(blen)
-        elif btype == 0 and (args.stringent or args.check_splice or args.fusion_breakpoints): # match
+        elif btype == 0: # match
             coveredpos.extend(matchvals[matchpos:matchpos + blen])
             blockstarts.append(tendpos)
             blocksizes.append(blen)
             matchpos += blen
             tendpos += blen
         elif btype in {2,3}:# deletion or intron
-            if args.stringent or args.check_splice or args.fusion_breakpoints:
-                coveredpos.extend([0] * blen)
-                tendpos += blen
-            if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
+            coveredpos.extend([0] * blen)
+            if blen > LARGE_INDEL_TOLDERANCE:
+                if exoninfo:
+                    if lb+1 < tendpos and tendpos+blen < rb-1: ##not in first or last exon
+                        indel_detected = True
+                else:
+                    indel_detected = True
+            tendpos += blen
+            # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
         elif btype == 1: # insertion
-            if args.stringent or args.check_splice or args.fusion_breakpoints:
-                coveredpos[-1] += blen
-            if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
-    return False, coveredpos, queryclipping, blockstarts, blocksizes, tendpos
+            coveredpos[-1] += blen
+            if blen > LARGE_INDEL_TOLDERANCE:
+                if exoninfo:
+                    if lb+1 < tendpos < rb-1: ##not in first or last exon
+                        indel_detected = True
+                else:
+                    indel_detected = True
+            # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
+    return indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos
 
 def check_transcript_in_annot(exondict, tname):
     try:
@@ -208,10 +223,9 @@ def check_transcript_in_annot(exondict, tname):
         raise Exception("** check_splice FAILED for %s" % (tname)) from ex
     return exoninfo
 
-def check_stringentandsplice(args, transcript_to_exons, tname, coveredpos, tlen, blockstarts, blocksizes, tstart, tend, transcript_to_bp_ss_index):
+def check_stringentandsplice(args, exoninfo, tname, coveredpos, tlen, blockstarts, blocksizes, tstart, tend, transcript_to_bp_ss_index):
     passesstringent, passessplice, passesfusion = True, True, True
     if args.stringent or args.check_splice or args.fusion_breakpoints:
-        exoninfo = check_transcript_in_annot(transcript_to_exons, tname)
         passesstringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
                                                                           args.trust_ends, tname, args.endnormdist) if args.stringent else True
         passessplice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if args.check_splice else True
@@ -235,24 +249,29 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
         thist = tinfo[tname]
         # process MD tag here to query positions with mismatches
         # for MD tag, keep track of position of mismatch in all match positions
+        if args.stringent or args.check_splice or args.fusion_breakpoints:
+            exoninfo = check_transcript_in_annot(transcript_to_exons, tname)
+        else:
+            exoninfo = None
         matchvals = get_matchvals(args, thist.md)
-        indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(args, matchvals, thist.cigar, thist.startpos)
+        indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(matchvals, thist.cigar, thist.startpos, exoninfo)
         if tname == testtname:
             print('indel', indel_detected)
+        # print(tname, 'indel', indel_detected, sum(queryclipping), genomicclipping, sum(queryclipping) <= genomicclipping+SOFT_CLIPPING_BUFFER)
         if not indel_detected and (not args.trimmedreads or genomicclipping == None or sum(queryclipping) <= genomicclipping+SOFT_CLIPPING_BUFFER):
 
-            passesstringent, passessplice, passesfusion = check_stringentandsplice(args, transcript_to_exons, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index)
-
+            passesstringent, passessplice, passesfusion = check_stringentandsplice(args, exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index)
+            # print('\t', passessplice, passesfusion, passesstringent)
             if passessplice and passesfusion and passesstringent:
                 if args.stringent:
                     ##THIS ONLY WORKS IF STRINGENT IS ALSO ACTIVATED
                     gtstart, gtend, gtstrand = transcript_to_genomic_ends[tname]
                     if gtstrand == '+':
                         outstart = gtstart + thist.startpos
-                        outend = gtend - (sum(transcript_to_exons[tname])-tendpos)
+                        outend = gtend - (sum(exoninfo)-tendpos)
                     else:
                         outend = gtend-thist.startpos
-                        outstart = gtstart + (sum(transcript_to_exons[tname])-tendpos)
+                        outstart = gtstart + (sum(exoninfo)-tendpos)
                 else:
                     outstart, outend = 0, 0
                 passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, outstart, outend])
@@ -262,8 +281,8 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
     # then order by amount of transcript covered
     if len(passingtranscripts) > 0:
         passingtranscripts.sort()
+        
         if len(passingtranscripts) == 1 or passingtranscripts[0][:3] != passingtranscripts[1][:3]:
-
             return [passingtranscripts[0][-3:], ]
         else:
             return None
