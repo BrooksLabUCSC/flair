@@ -131,6 +131,21 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, mode, samp
                 out.write('\t'.join(outline) + '\n')
 
 
+def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks):
+    vcfvars = {}
+    for refinfo in vartoalt:
+        chrom, gpos, ref, alts = fv.extract_varinfo(refinfo, vartoalt[refinfo])
+
+        potgenes = fv.get_potential_genes(chrom, gpos, chrregiontogenes)
+
+        overlapgenes = set()
+        ##THIS MAY BE THE BOTTLENECK
+        for gene, _, _ in fv.retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
+            overlapgenes.add(gene)
+        vcfvars = _add_vcf_var(vcfvars, chrom, ref, alts, gpos, ','.join(overlapgenes))
+    return vcfvars
+
+
 fv.add_vcf_var = _add_vcf_var
 fv.parse_single_bam_read = _parse_single_bam_read
 fv.get_correct_vcf_vars = _get_correct_vcf_vars
@@ -157,16 +172,7 @@ def quantvarpos():
         if args.mode == 'transcriptomic':
             vcfvars = fv.convert_vars_to_tpos(vartoalt, isotoblocks, genetoiso, chrregiontogenes, genestoboundaries)
         else:
-            for refinfo in vartoalt:
-                chrom, gpos, ref, alts = fv.extract_varinfo(refinfo, vartoalt[refinfo])
-
-                potgenes = fv.get_potential_genes(chrom, gpos, chrregiontogenes)
-
-                overlapgenes = set()
-                ##THIS MAY BE THE BOTTLENECK
-                for gene, _, _ in fv.retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
-                    overlapgenes.add(gene)
-                vcfvars = _add_vcf_var(vcfvars, chrom, ref, alts, gpos, ','.join(overlapgenes))
+            vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
     else:
         for line in open(args.pos_ref):
             line = line.rstrip('\n').split('\t')
