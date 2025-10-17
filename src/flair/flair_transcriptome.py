@@ -173,6 +173,7 @@ def binary_search(query, data):
 
 def generate_known_SS_database(args, temp_dir):
     # Convert gtf to bed and split by chromosome.
+    # logging.info(f'Building ss database: {temp_dir}')
     juncs, chromosomes, knownSS = dict(), set(), dict()  # initialize juncs for adding to db
 
     if args.gtf:
@@ -184,10 +185,12 @@ def generate_known_SS_database(args, temp_dir):
             shortread, type = args.junction_tab, 'tab'
         else:
             shortread, type = args.junction_bed, 'bed'
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
+        juncs, chromosomes, addFlag, hasNovelJuncs = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if not addFlag:
-            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}')
+            raise FlairInputDataError(f'ERROR No junctions found in {shortread} that passed filters')
+        if not hasNovelJuncs:
+            logging.info(f'WARNING: {shortread} did not have any additional junctions that passed filters and were not in {args.gtf}')
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
