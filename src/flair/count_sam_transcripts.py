@@ -203,7 +203,10 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo):
             tendpos += blen
             # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
         elif btype == 1: # insertion
-            coveredpos[-1] += blen
+            if len(coveredpos) == 0:
+                coveredpos.append(blen)
+            else:
+                coveredpos[-1] += blen
             if blen > LARGE_INDEL_TOLDERANCE:
                 if exoninfo:
                     if lb+1 < tendpos < rb-1: ##not in first or last exon
