@@ -384,6 +384,13 @@ Mail an announcement, including `CHANGELOG.md` summary to
 Add `+master` to the current version to distinguish tree checkouts 
 ```
 bump-my-version replace --current-version=2.2.0 --new-version=2.2.0+master
+```
+
+IMPORTANT: then manually edit `.bumpversion.toml` to have this version,
+as `replace` doesn't change this.
+
+
+```
 git commit -am 'set tree local version'
 ```
 
