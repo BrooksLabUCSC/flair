@@ -130,17 +130,17 @@ pip install -e .[dev]
    
 ## 5. Run pre-release tests
 
+Without diff expression support:
 ```
-make -k -O -j 64 test
+make -k -O -j 64 test-installed-base
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
-Include conda dependencies for diff expression support and tests.
-This does not work on Apple ARM systems.
+With diff expression support:
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .
-make -k -O -j 64 test-diffexpress
+make -k -O -j 64 test-installed
 ```
 
 ## 6. Check documentation
@@ -346,6 +346,7 @@ number should have been updated by `bump-my-version`.
 From the ./misc directory, build the image:
 ```
 docker build --network=host -t brookslab/flair:<version> misc >& build.log
+
 docker tag brookslab/flair:<version> brookslab/flair:latest
 ```
 
@@ -354,7 +355,7 @@ Test the Docker image
 ```
 docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
-% make -k -O -j 64 test-installed test-diffexpress-installed
+% make -k -O -j 64 test-installed
 % make clean
 % exit
 ```
