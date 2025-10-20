@@ -231,6 +231,7 @@ docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version
 % make clean
 % exit
 ```
+
 ## 11. Test PyPi with testpypi
 
 To upload to testpypi and test
@@ -354,6 +355,7 @@ Test the Docker image
 docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
 % make -k -O -j 64 test-installed test-diffexpress-installed
+% make clean
 % exit
 ```
 
