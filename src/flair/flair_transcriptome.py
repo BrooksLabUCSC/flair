@@ -521,6 +521,14 @@ def get_best_ends(curr_group, end_window):
             weighted_score = all_starts[start1] + all_ends[end1]
             best_ends.append((weighted_score, start1, end1, strand1, name1))
     else:
+        # take most common non-ambiguous strand for group
+        groupStrands = Counter([x[2] for x in curr_group]).most_common()
+        myStrand = 'ambig'
+        for i in range(len(groupStrands)):
+            if groupStrands[i][0] != 'ambig':
+                myStrand = groupStrands[i][0]
+                break
+        
         for start1, end1, strand1, name1 in curr_group:
             score, weighted_score = 0, 0
             for start2, end2, strand2, name2 in curr_group:
@@ -528,7 +536,7 @@ def get_best_ends(curr_group, end_window):
                     score += 2
                     weighted_score += ((end_window - abs(start1 - start2)) / end_window) + \
                                      ((end_window - abs(end1 - end2)) / end_window)
-            best_ends.append((weighted_score, start1, end1, strand1, name1))
+            best_ends.append((weighted_score, start1, end1, myStrand, name1))
     best_ends.sort(reverse=True)
     # DO I WANT TO ADD CORRECTION TO NEARBY ANNOTATED TSS/TTS????
     return best_ends[0]
@@ -1009,6 +1017,22 @@ def get_single_exon_gene_overlaps(this_iso, all_annot_SE):
     return gene_hits
 
 
+def get_spliced_exon_overlaps(mystrand, myexons, all_spliced_exons, gene_hits):
+    for annot_gene in all_spliced_exons[mystrand]:
+        annot_exons = sorted(list(all_spliced_exons[mystrand][annot_gene]))
+        # check if there is overlap in the genes
+        if min((annot_exons[-1][1], myexons[-1][1])) \
+                > max((annot_exons[0][0], myexons[0][0])):
+            covered_pos = set()
+            for s, e in myexons:
+                for ast, ae in annot_exons:
+                    for p in range(max((ast, s)), min((ae, e))):
+                        covered_pos.add(p)
+            if len(covered_pos) > sum([x[1] - x[0] for x in myexons]) * 0.5:
+                gene_hits.append([len(covered_pos), annot_gene, mystrand])
+    return gene_hits
+
+
 def get_gene_names_and_write_firstpass(temp_prefix, chrom, firstpass, juncchain_to_transcript, junc_to_gene, all_annot_SE,
                                   gene_to_annot_juncs, gene_to_strand, genome, all_spliced_exons,
                                   normalize_ends=False, add_length_at_ends=0):
@@ -1040,21 +1064,16 @@ def get_gene_names_and_write_firstpass(temp_prefix, chrom, firstpass, juncchain_
                 else:
                     # look for exon overlap
                     gene_hits = []
-                    for annot_gene in all_spliced_exons[this_iso.strand]:
-                        annot_exons = sorted(list(all_spliced_exons[this_iso.strand][annot_gene]))
-                        # check if there is overlap in the genes
-                        if min((annot_exons[-1][1], this_iso.exons[-1][1])) \
-                                > max((annot_exons[0][0], this_iso.exons[0][0])):
-                            covered_pos = set()
-                            for s, e in this_iso.exons:
-                                for ast, ae in annot_exons:
-                                    for p in range(max((ast, s)), min((ae, e))):
-                                        covered_pos.add(p)
-                            if len(covered_pos) > sum([x[1] - x[0] for x in this_iso.exons]) * 0.5:
-                                gene_hits.append([len(covered_pos), annot_gene])
+                    if this_iso.strand != 'ambig':
+                        gene_hits = get_spliced_exon_overlaps(this_iso.strand, this_iso.exons, all_spliced_exons, gene_hits)
+                    else:
+                        gene_hits = get_spliced_exon_overlaps('+', this_iso.exons, all_spliced_exons, gene_hits)
+                        gene_hits = get_spliced_exon_overlaps('-', this_iso.exons, all_spliced_exons, gene_hits)
                     if len(gene_hits) > 0:
                         gene_hits.sort(reverse=True)
                         this_gene = gene_hits[0][1]
+                        if this_iso.strand == 'ambig':
+                            this_iso.strand = gene_hits[0][2]
             if this_gene is not None:
                 strand = gene_to_strand[this_gene]
             else:
