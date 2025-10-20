@@ -1,7 +1,7 @@
 import os
 from flair.pycbio import NoStackError
 
-VERSION = "2.2.0+master"
+VERSION = "3.0.0a1"
 
 class FlairError(Exception):
     """General error condition in FLAIR"""
