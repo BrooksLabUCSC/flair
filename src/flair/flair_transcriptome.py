@@ -809,7 +809,9 @@ def filter_correct_group_reads(args, temp_prefix, region_chrom, region_start, re
                                                     read.query_name,
                                                     read.reference_name, read.mapping_quality, read_strand)
                         if len(bed_read.juncs) > 0:
-                            bed_read.strand = inferMM2JuncStrand(read)
+                            new_strand = inferMM2JuncStrand(read)
+                            if new_strand != 'ambig':
+                                bed_read.strand = new_strand
                         corrected_read = correct_single_read(bed_read, intervalTree, junctionBoundaryDict)
                         if corrected_read:
                             junc_key = tuple(sorted(corrected_read.juncs))
