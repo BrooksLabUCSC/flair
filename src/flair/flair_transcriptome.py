@@ -50,14 +50,14 @@ def get_args():
     parser.add_argument('--frac_support', type=float, default=0.05,
                         help='''minimum fraction of gene locus support for isoform to be called
                          default: 0.05, only isoforms that make up more than 5 percent of the gene locus are reported. Set to 0 for max recall''')
-    
+
 
     parser.add_argument('--no_stringent', default=False, action='store_true',
                         help='''specify if all supporting reads don't need to be full-length
                 (aligned to first and last exons of transcript). Use this for fragmented libraries, but understand that it will impact precision.''')
     parser.add_argument('--no_check_splice', default=False, action='store_true',
                         help='''don't enforce accurate alignment around splice site. Specify this for libraries with high error rates, but it will reduce precision''')
-    
+
 
     parser.add_argument('--no_align_to_annot', default=False, action='store_true',
                         help='''related to old annotation_reliant, now specify if you don't want
@@ -241,11 +241,17 @@ def correct_single_read(bed_read, intervalTree, junctionBoundaryDict):
             return None
         newJuncs.append((c1Corr, c2Corr))
 
-    starts, sizes = get_exons_from_juncs(newJuncs, bed_read.start, bed_read.end)
+    starts, sizes = get_exons_from_juncs(newJuncs, bed_read.refchrom, bed_read.start, bed_read.end)
     # 0 length exons or exons corrected outside of their transcript ends, remove them.
     if min(sizes) <= 0:
+    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.refchrom, bedread.start, bedread.end, newJuncs)
+    if blocks is None:
+        return None  # tmp until BED construction bugs are fixed
+
+    # 0 length exons, remove them.
+    if min(sizes) == 0:
         return None
-    
+
     else:
         bed_read.juncs = newJuncs
         bed_read.exon_sizes = sizes
@@ -587,7 +593,7 @@ def collapse_end_groups(end_window, read_ends, do_get_best_ends=True):
 
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, junc_to_gene,
-                       annot_transcript_to_exons, firstpass_junc_to_name, firstpass_unfiltered,  
+                       annot_transcript_to_exons, firstpass_junc_to_name, firstpass_unfiltered,
                        sup_annot_transcript_to_juncs, check_term_exons):
     isos_with_similar_juncs = set()
     for j in juncs:
@@ -958,9 +964,9 @@ def filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, fi
                     # passesfiltering = filter_spliced_iso(args, this_iso, firstpass_junc_to_name, firstpass_unfiltered,
                     #                                    junc_to_gene, sup_annot_transcript_to_juncs, annot_transcript_to_exons)
                     # if passesfiltering:
-                    if filter_spliced_iso(args.filter, args.sjc_support, this_iso.juncs, this_iso.exons, 
-                                          this_iso.name, this_iso.score, junc_to_gene, annot_transcript_to_exons, 
-                                          firstpass_junc_to_name, firstpass_unfiltered,  
+                    if filter_spliced_iso(args.filter, args.sjc_support, this_iso.juncs, this_iso.exons,
+                                          this_iso.name, this_iso.score, junc_to_gene, annot_transcript_to_exons,
+                                          firstpass_junc_to_name, firstpass_unfiltered,
                                           sup_annot_transcript_to_juncs, True):
                         firstpass[iso_name] = this_iso
         # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of list

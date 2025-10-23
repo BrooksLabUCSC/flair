@@ -151,7 +151,7 @@ class junctObj(object):
 ########################################################################
 
 
-def juncsToBed12(name, start, end, coords):
+def juncsToBed12(name, chrom, start, end, coords):
     '''
     Take alignment start, end, and junction coords and convert to block/size bed12 format.
     start = integer
@@ -165,9 +165,9 @@ def juncsToBed12(name, start, end, coords):
         return 1, [end - start], [0]  # single-exon
     next_start = start
     for ss1, ss2 in coords:
-        assert ss1 < ss2
-        assert start <= ss1 < end
-        assert start < ss2 <= end
+        if not ((ss1 < ss2) and (start <= ss1 < end) and (start < ss2 <= end)):
+            _bed_bug(name, chrom, start, end, "juncsToBed12 ss1/ss2")
+            return None, None, None
 
         st = next_start - start
         size = ss1 - next_start
@@ -182,8 +182,10 @@ def juncsToBed12(name, start, end, coords):
         starts.append(st)
         sizes.append(size)
 
-    assert starts[0] == 0
-    assert starts[-1] + sizes[-1] + start == end
+    if not ((starts[0] == 0) and (starts[-1] + sizes[-1] + start == end)):
+        _bed_bug(name, chrom, start, end, "juncsToBed12 start/end")
+        return None
+
     return len(starts), sizes, starts
 
 
@@ -273,7 +275,7 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
                 novelSS = True
             newJuncs.append((c1Corr,c2Corr))
 
-        blocks, sizes, starts = juncsToBed12(bedObj.name, bedObj.start, bedObj.end, newJuncs)
+        blocks, sizes, starts = juncsToBed12(bedObj.name, bedObj.chrom, bedObj.start, bedObj.end, newJuncs)
 
         if correctStrand:
             # if len(ssStrands) > 1:
