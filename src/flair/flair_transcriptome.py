@@ -241,13 +241,7 @@ def correct_single_read(bed_read, intervalTree, junctionBoundaryDict):
             return None
         newJuncs.append((c1Corr, c2Corr))
 
-    starts, sizes = get_exons_from_juncs(newJuncs, bed_read.refchrom, bed_read.start, bed_read.end)
-    # 0 length exons or exons corrected outside of their transcript ends, remove them.
-    if min(sizes) <= 0:
-    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.refchrom, bedread.start, bedread.end, newJuncs)
-    if blocks is None:
-        return None  # tmp until BED construction bugs are fixed
-
+    starts, sizes = get_exons_from_juncs(newJuncs, bed_read.start, bed_read.end)
     # 0 length exons, remove them.
     if min(sizes) == 0:
         return None
