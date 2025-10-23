@@ -237,7 +237,7 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
             return None
         newJuncs.append((c1Corr, c2Corr))
 
-    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.start, bedread.end, newJuncs)
+    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.refchrom, bedread.start, bedread.end, newJuncs)
     if blocks is None:
         return None  # tmp until BED construction bugs are fixed
 
