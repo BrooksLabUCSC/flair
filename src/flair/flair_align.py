@@ -10,7 +10,7 @@ from flair.pycbio.sys import cli
 from flair import remove_internal_priming
 from flair import FlairInputDataError
 
-FILTER_KEEPSUP = 'keysup'
+FILTER_KEEPSUP = 'keepsup'
 FILTER_REMOVESUP = 'removesup'
 FILTER_SEPARATE = 'separate'
 FILTERS = (FILTER_KEEPSUP, FILTER_REMOVESUP, FILTER_SEPARATE)
