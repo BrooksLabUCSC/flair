@@ -2,6 +2,7 @@
 
 import os
 import sys
+import logging
 from ncls import NCLS
 from flair import FlairInputDataError
 
@@ -54,6 +55,12 @@ class CommandLine(object):
 # BED File
 ########################################################################
 
+def _bed_bug(self, name, chrom, start, end, desc):
+    # FIXME: temporary to replace asserts
+    logging.warning(f"Read skipped: Conversion of {name} {chrom}:{start}-{end} to junctions failed")
+    logging.warning(f"Error: {desc}. Please report problem at https://github.com/BrooksLabUCSC/flair/issues")
+
+
 class BED12(object):
     '''
     Handles BED format file input and output.
@@ -97,6 +104,9 @@ class BED12(object):
                 self.starts = [int(x) for x in cols[11].split(",")[:-1]] if cols[11][-1] == "," else [int(x) for x in (cols[11]+",").split(",")[:-1]]
                 yield cols
 
+    def _bed_error(self, desc):
+        _bed_bug(self.name, self.chrom, self.start, self.end, desc)
+
     def bed12toJuncs(self):
         '''
         Take bed12 entry and convert block/sizes to junction coordinates.
@@ -108,7 +118,10 @@ class BED12(object):
                 break
             ss1 = self.start + st + self.sizes[num]
             ss2 = self.start + self.starts[num+1]
-            assert ss1 < ss2
+            # was: assert ss1 < ss2
+            if ss1 >= ss2:
+                self._bed_error("bed12toJuncs ss1 > = ss2")
+                return None
             junctions.append((ss1,ss2))
 
         return junctions
@@ -121,7 +134,11 @@ class BED12(object):
         for num, st in enumerate(self.starts,0):
             c1 = self.start + st
             c2 = c1 + self.sizes[num]
-            assert c1 < c1
+            # was assert c1 < c2
+            if c1 >= c2:
+                self._bed_error("bed12toExons c1 >= c2")
+                return None
+
             exons.append((c1,c2))
         return exons
 
@@ -151,7 +168,7 @@ class junctObj(object):
 ########################################################################
 
 
-def juncsToBed12(name, start, end, coords):
+def juncsToBed12(name, chrom, start, end, coords):
     '''
     Take alignment start, end, and junction coords and convert to block/size bed12 format.
     start = integer
@@ -165,9 +182,9 @@ def juncsToBed12(name, start, end, coords):
         return 1, [end - start], [0]  # single-exon
     next_start = start
     for ss1, ss2 in coords:
-        assert ss1 < ss2
-        assert start <= ss1 < end
-        assert start < ss2 <= end
+        if not ((ss1 < ss2) and (start <= ss1 < end) and (start < ss2 <= end)):
+            _bed_bug(name, chrom, start, end, "juncsToBed12 ss1/ss2")
+            return None, None, None
 
         st = next_start - start
         size = ss1 - next_start
@@ -182,8 +199,10 @@ def juncsToBed12(name, start, end, coords):
         starts.append(st)
         sizes.append(size)
 
-    assert starts[0] == 0
-    assert starts[-1] + sizes[-1] + start == end
+    if not ((starts[0] == 0) and (starts[-1] + sizes[-1] + start == end)):
+        _bed_bug(name, chrom, start, end, "juncsToBed12 start/end")
+        return None
+
     return len(starts), sizes, starts
 
 
@@ -239,6 +258,8 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
     bedObj = BED12(readsBed)
     for line in bedObj.getLine():
         juncs  = bedObj.bed12toJuncs()
+        if juncs is None:
+            continue  # FIXME: tmp until bugs fixes
         strand = bedObj.strand
         c1Type,c2Type = ("donor","acceptor") if strand == "+" else ("acceptor","donor")
 
@@ -273,7 +294,7 @@ def correctReads(readsBed, intTree, junctionBoundaryDict, filePrefix, correctStr
                 novelSS = True
             newJuncs.append((c1Corr,c2Corr))
 
-        blocks, sizes, starts = juncsToBed12(bedObj.name, bedObj.start, bedObj.end, newJuncs)
+        blocks, sizes, starts = juncsToBed12(bedObj.name, bedObj.chrom, bedObj.start, bedObj.end, newJuncs)
 
         if correctStrand:
             # if len(ssStrands) > 1:

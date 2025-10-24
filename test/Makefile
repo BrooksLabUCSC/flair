@@ -1,13 +1,60 @@
 root = ..
 include ${root}/defs.mk
 
-# If you want to use the install flair rather than the one in this
-# tree use:
-#   make test use_installed_flair=yes
+##
+# the test-installed targets set
+#   use_installed_flair=yes
+# to not add local targets
+##
 ifneq (${use_installed_flair},yes)
     export PATH := ${root}/bin:${PATH}
     export PYTHONPATH := ${root}/src:${PYTHONPATH}
 endif
+
+
+##
+# all targets
+##
+default:
+	@echo To run tests, use: >&2
+	@echo "   " make test >&2
+	@echo To run tests without R depedencies, use: >&2
+	@echo "   " make test-base >&2
+	@echo To run tests using installed FLAIR rather than source tree, use: >&2
+	@echo "   " make test-installed >&2
+	@echo To run tests without R depedencies using installed FLAIR, use: >&2
+	@echo "   " make test-base-installed >&2
+	@echo otherwise run individual tests by specifying test target, such as: >&2
+	@echo "   " make align-tests >&2
+	@echo to installed FLAIR for individual tests use the use_installed_flair option, such as: >&2
+	@echo "   " make align-tests use_installed_flair=yes >&2
+	@echo remove output files: >&2
+	@echo "   " make clean >&2
+	@echo remove output and downloaded genomes files: >&2
+	@echo "   " make real-clean >&2
+	@exit 1
+
+test: test-base test-with-R
+test-base: align-tests correct-tests collapse-tests quantify-tests \
+	combine-tests predict-productivity-tests diff-iso-usage-tests \
+	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
+	partition-tests
+
+test-with-R: diffexp-tests diffsplice-tests
+
+
+test-installed:
+	${MAKE} test use_installed_flair=yes
+
+test-base-installed:
+	${MAKE} test-base use_installed_flair=yes
+
+test-help: test-main-help test-align-help test-correct-help test-collapse-help \
+           test-quantify-help test-diffexp-help test-diffsplice-help \
+           test-predict-productivity-help test-diff-iso-usage-help \
+	   test-plot-usage-help test-transcriptome-help test-variants-help
+
+
 
 ##
 # Note: expected and output are sorted in cases where the order is not stable
@@ -79,37 +126,6 @@ define cmp_expect_sort
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff <(sort $E/${1}) <(sort $O/${1})
 endef
-
-
-default:
-	@echo To run all tests, use: >&2
-	@echo "   " make test >&2
-	@echo To run expression diff tests that depend on R >&2
-	@echo "   " make test-diffexpress >&2
-	@echo To run all tests >&2
-	@echo "   " make test-all >&2
-	@echo otherwise run individual tests by specifying test target, such as: >&2
-	@echo "   " make align-tests >&2
-	@echo remove output files: >&2
-	@echo "   " make clean >&2
-	@echo remove output and downloaded genomes files: >&2
-	@echo "   " make real-clean >&2
-	@exit 1
-
-test:  align-tests correct-tests collapse-tests quantify-tests \
-	combine-tests predict-productivity-tests diff-iso-usage-tests \
-	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-	partition-tests
-
-test-diffexpress: diffexp-tests diffsplice-tests
-
-test-all: test test-diffexpress
-
-test-help: test-main-help test-align-help test-correct-help test-collapse-help \
-           test-quantify-help test-diffexp-help test-diffsplice-help \
-           test-predict-productivity-help test-diff-iso-usage-help \
-	   test-plot-usage-help test-transcriptome-help test-variants-help
-
 ###
 # MAIN COMMAND
 ###
@@ -440,6 +456,10 @@ test-transcriptome-help: mkdirs
 ###
 variants-tests:  test-variants test-variants-help
 
+# longshot is not currently include in the docker container
+have_longshot := $(shell which longshot >/dev/null 2>&1 && echo yes || echo no)
+
+ifeq (${have_longshot},yes)
 test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 	minimap2 -ax map-ont --secondary=no ${GENOME_FA} input/basic.reads.4.fa | samtools view -hb - | samtools sort - > $O/$@.genomealigned.bam
 	samtools index $O/$@.genomealigned.bam
@@ -449,6 +469,12 @@ test-variants: mkdirs ${GENOME_FA} ${TEST_QUANTIFY_B1_BAM}
 	flair variants -m $O/$@.varmanifest.tsv -i $(BASIC_ISOFORMS_FA) -b $(BASIC_ISOFORMS_BED) -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call cmp_expect,$@.isoswithvars.counts.tsv)
 	$(call cmp_expect,$@.aaseq.counts.tsv)
+else
+test-variants:
+	@echo 'WARNING: ***' >&2
+	@echo 'WARNING: *** longshot command not found, test-variants skipped' >&2
+	@echo 'WARNING: ***' >&2
+endif
 
 test-variants-help: mkdirs
 	flair variants --help > $O/$@.out

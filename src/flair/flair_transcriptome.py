@@ -11,7 +11,7 @@ import pysam
 import logging
 from flair.flair_align import inferMM2JuncStrand, intronChainToestarts
 from flair.ssUtils import addOtherJuncs, gtfToSSBed
-from flair.ssPrep import buildIntervalTree, ssCorrect
+from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 import multiprocessing as mp
 import time
 from collections import Counter
@@ -239,7 +239,9 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
             return None
         newJuncs.append((c1Corr, c2Corr))
 
-    starts, sizes = getexonsfromjuncs(newJuncs, bedread.start, bedread.end) #juncsToBed12(bedread.start, bedread.end, newJuncs)
+    blocks, sizes, starts = juncsToBed12(bedread.name, bedread.refchrom, bedread.start, bedread.end, newJuncs)
+    if blocks is None:
+        return None  # tmp until BED construction bugs are fixed
 
     # 0 length exons, remove them.
     if min(sizes) == 0:

@@ -7,6 +7,7 @@ include ${root}/defs.mk
 #
 # or use
 #   make test-installed
+#
 
 default:
 
@@ -20,13 +21,13 @@ doc:
 .PHONY: test
 test:
 	${MAKE} -C test test use_installed_flair=${use_installed_flair}
+test-base:
+	${MAKE} -C test test-base use_installed_flair=${use_installed_flair}
 test-installed:
-	${MAKE} -C test test use_installed_flair=yes
+	${MAKE} -C test test-installed
+test-base-installed:
+	${MAKE} -C test test-base-installed
 
-test-diffexpress:
-	${MAKE} -C test test-diffexpress use_installed_flair=${use_installed_flair}
-test-diffexpress-installed:
-	${MAKE} -C test test-diffexpress use_installed_flair=yes
 
 ##
 # lint check with flake8
