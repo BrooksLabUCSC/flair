@@ -14,7 +14,8 @@ from flair import FlairInputDataError
 import logging
 
 def parseargs(aligned_reads=''):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='take bed file of long RNA-seq reads and filter out those with anomalous splice junctions' \
+                                     ' correct remaining to nearest orthogonally supported splice site')
     required = parser.add_argument_group('required named arguments')
     atleastone = parser.add_argument_group('at least one of the following arguments is required')
     if not aligned_reads:

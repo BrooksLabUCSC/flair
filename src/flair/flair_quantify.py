@@ -16,7 +16,7 @@ import pipettor, pysam
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 def quantify(isoform_sequences=''):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='takes in many long-read RNA-seq reads files and quantifies them against a single transcriptome. A stringent, full-read-match-based approach')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-r', '--reads_manifest', action='store', dest='r', type=str,
                     required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')

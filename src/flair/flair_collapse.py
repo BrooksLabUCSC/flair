@@ -27,7 +27,7 @@ run_id = 'removeme'
 # TODO: do not redefine args variables, it breaks your head.
 
 def collapse(genomic_range='', corrected_reads=''):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='take bed file of corrected reads and generate confident collapsed isoform models')
     required = parser.add_argument_group('required named arguments')
     if not corrected_reads:
         required.add_argument('-q', '--query', type=str, default='', required=True,

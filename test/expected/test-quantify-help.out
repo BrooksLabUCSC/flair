@@ -3,6 +3,9 @@ usage: quantify [-h] -r R -i I [-o O] [-t T] [--temp_dir TEMP_DIR]
                 [--generate_map] [--isoform_bed ISOFORMS] [--stringent]
                 [--check_splice] [--output_bam]
 
+takes in many long-read RNA-seq reads files and quantifies them against a
+single transcriptome. A stringent, full-read-match-based approach
+
 options:
   -h, --help            show this help message and exit
   -o O, --output O      output file name base for FLAIR quantify (default:

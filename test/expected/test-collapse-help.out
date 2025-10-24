@@ -14,6 +14,9 @@ usage: collapse [-h] -q QUERY -g GENOME -r READS [READS ...] [-o OUTPUT]
                 [--fusion_breakpoints FUSION_BREAKPOINTS] [--allow_paralogs]
                 [--predictCDS]
 
+take bed file of corrected reads and generate confident collapsed isoform
+models
+
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
@@ -62,7 +65,7 @@ options:
                         set of splice junctions; longest--single TSS/TES
                         chosen to maximize length; best_only--single most
                         supported TSS/TES used in conjunction chosen (none)
-  -i, --genetss         when specified, TSS/TES for each isoform will be
+  -i, --gene_tss        when specified, TSS/TES for each isoform will be
                         determined standardized at the gene level (default:
                         not specified, determined for each individual isoform)
   --no_gtf_end_adjustment
