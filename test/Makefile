@@ -442,10 +442,10 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-predcds \
-	test-transcriptome-seg1 test-transcriptome-help
+	test-transcriptome-seg1 test-transcriptome-ends test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1"; \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcriptome-ends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
