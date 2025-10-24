@@ -43,7 +43,7 @@ def generate_alignment_obj_for_read(args, genome, transcript_to_exons, transcrip
 
 
 def process_read_chunk(chunkinfo):
-    chunkindex, readstoaligns, tempDir, transcript_to_exons, transcript_to_bp_ss_index, args, headeroutfilename, clippingdata, transcript_to_genomic_ends = chunkinfo
+    chunkindex, readstoaligns, tempDir, transcript_to_exons, transcript_to_bp_ss_index, args, headeroutfilename, clippingdata, transcript_to_genomic_ends, transcript_to_unique_bounds = chunkinfo
     genome = None
     if args.remove_internal_priming:
         genome = pysam.FastaFile(args.transcriptomefasta)
@@ -60,7 +60,7 @@ def process_read_chunk(chunkinfo):
         thisclipping = clippingdata[readname] if readname in clippingdata else None
         if len(filteredtranscriptaligns) > 0:
             # print(readname)
-            assignedts = get_best_transcript(filteredtranscriptaligns, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends)
+            assignedts = get_best_transcript(filteredtranscriptaligns, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)
             if assignedts:
                 for assignedt, gtstart, gtend in assignedts:
                     finaltnames.append(assignedt)
@@ -96,7 +96,7 @@ def report_thread_error(error):
 
 
 def bam_to_read_aligns(samfile, chunksize, tempDir, transcript_to_exons, transcript_to_bp_ss_index,
-                                            args, headeroutfilename, readstoclipping, transcript_to_genomic_ends):
+                                            args, headeroutfilename, readstoclipping, transcript_to_genomic_ends, transcript_to_unique_bounds):
     lastname = None
     lastaligns = []
     readchunk = {}
@@ -107,7 +107,7 @@ def bam_to_read_aligns(samfile, chunksize, tempDir, transcript_to_exons, transcr
         if readname != lastname:
             if len(readchunk) == chunksize:
                 logging.info(f'\rstarting chunk {chunkindex}')
-                yield (chunkindex, readchunk, tempDir, transcript_to_exons, transcript_to_bp_ss_index, args, headeroutfilename, clippingdata, transcript_to_genomic_ends)
+                yield (chunkindex, readchunk, tempDir, transcript_to_exons, transcript_to_bp_ss_index, args, headeroutfilename, clippingdata, transcript_to_genomic_ends, transcript_to_unique_bounds)
                 readchunk = {}
                 clippingdata = {}
                 chunkindex += 1
@@ -126,9 +126,9 @@ def bam_to_read_aligns(samfile, chunksize, tempDir, transcript_to_exons, transcr
             clippingdata[lastname] = readstoclipping[lastname]
     if len(readchunk) > 0:
         logging.info(f'\rstarting chunk {chunkindex}')
-        yield (chunkindex, readchunk, tempDir, transcript_to_exons, transcript_to_bp_ss_index, args, headeroutfilename, clippingdata, transcript_to_genomic_ends)
+        yield (chunkindex, readchunk, tempDir, transcript_to_exons, transcript_to_bp_ss_index, args, headeroutfilename, clippingdata, transcript_to_genomic_ends, transcript_to_unique_bounds)
 
-def process_alignments(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends):
+def process_alignments(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, transcript_to_unique_bounds):
     logging.info('processing alignments')
     samfile = pysam.AlignmentFile(args.sam, 'r')
     tempDir = make_correct_temp_dir()
@@ -155,7 +155,7 @@ def process_alignments(args, transcript_to_exons, transcript_to_bp_ss_index, tra
     # for chunk in chunkyielder
 
     for r in p.imap_unordered(process_read_chunk, bam_to_read_aligns(samfile, chunksize, tempDir, transcript_to_exons,
-                                                                transcript_to_bp_ss_index, args, headeroutfilename, readstoclipping, transcript_to_genomic_ends)):
+                                                                transcript_to_bp_ss_index, args, headeroutfilename, readstoclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)):
         chunkresults.append(r)
 
     p.close()
@@ -194,5 +194,5 @@ if __name__ == '__main__':
 
     args = parse_args()
     args = check_args(args)
-    transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends = get_annot_info(args)
-    process_alignments(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends)
+    transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, transcript_to_unique_bounds = get_annot_info(args)
+    process_alignments(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, transcript_to_unique_bounds)

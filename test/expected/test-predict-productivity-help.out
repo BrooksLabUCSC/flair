@@ -2,7 +2,8 @@ usage: predictProductivity [-h] -i INPUT_ISOFORMS -g GTF -f GENOME_FASTA -o
                            OUTPUT [--quiet] [--append_column]
                            (--firstTIS | --longestORF)
 
-predictProductivity - a tool.
+used to predict coding sequence and amino acid sequence of novel isoforms
+based on annotated start codons
 
 options:
   -h, --help            show this help message and exit

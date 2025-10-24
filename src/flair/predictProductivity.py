@@ -201,7 +201,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     genomicPos = int()
     distance   = 0
     maxdistfromexonedge = 55
-    print(orfEndPos, exonSizes, allExons, isoname)
+    # print(orfEndPos, exonSizes, allExons, isoname)
     for num,e in enumerate(exonSizes,0):
 
         distance += e
@@ -253,7 +253,7 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     left,right,strand,fusionindex    = exonsWithStop
 
     genomicPos = right - stopDistFromExon if strand == "+" else left + stopDistFromExon
-    print(genomicPos, ptc, ptcpointont)
+    # print(genomicPos, ptc, ptcpointont)
     return genomicPos, ptc, ptcpointont
 
 
