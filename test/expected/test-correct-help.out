@@ -3,7 +3,8 @@ usage: correct [-h] -q QUERY [-f GTF]
                [--junction_support JUNCTION_SUPPORT] [-o OUTPUT] [-t THREADS]
                [--nvrna] [-w SS_WINDOW]
 
-flair-correct parse options
+take bed file of long RNA-seq reads and filter out those with anomalous splice
+junctions correct remaining to nearest orthogonally supported splice site
 
 options:
   -h, --help            show this help message and exit

@@ -16,7 +16,7 @@ import pipettor, pysam
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 def quantify(isoform_sequences=''):
-    parser = argparse.ArgumentParser(description='flair-quantify parse options')
+    parser = argparse.ArgumentParser(description='takes in many long-read RNA-seq reads files and quantifies them against a single transcriptome. A stringent, full-read-match-based approach')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-r', '--reads_manifest', action='store', dest='r', type=str,
                     required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
@@ -91,23 +91,10 @@ def quantify(isoform_sequences=''):
 
     for num, data in enumerate(samData, 0):
         sample, group, batch, readFile, samOut = data
-        logging.info(f'Aligning sample {sample}_{batch}, {num+1}/{len(samData)}')
+        logging.info(f'Aligning and quantifying isoforms for sample {sample}_{batch}, {num+1}/{len(samData)}')
         mm2_command = ('minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, readFile)
 
-        # TODO: Replace this with proper try/except Exception as ex
-        try:
-            if pipettor.run([mm2_command], stdout=open(samOut, 'w'),
-                               stderr=open(samOut+'.mm2_stderr.txt', 'w')):
-                raise Exception(f'Check {samOut}.mm2_stderr.txt file')
-        except:
-            raise Exception('''Possible minimap2 error, please check that all file, directory and executable paths exist''')
-        pipettor.run([('rm', samOut+'.mm2_stderr.txt')])
-
-
-
-        logging.info(f'Quantifying isoforms for sample {sample}_{batch}, {num+1}/{len(samData)}')
-
-        count_cmd = ['filter_transcriptome_align.py', '-s', samOut,
+        count_cmd = ['filter_transcriptome_align.py', '-s', '-',
                      '-o', samOut+'.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
         if args.trust_ends:
             count_cmd += ['--trust_ends']
@@ -123,7 +110,7 @@ def quantify(isoform_sequences=''):
             count_cmd += ['--output_bam', args.o+'.'+sample+'.'+group+'.flair.aligned.bam']
 
 
-        pipettor.run([tuple(count_cmd)])
+        pipettor.run([mm2_command, tuple(count_cmd)])
 
     logging.info(f'Writing counts to {args.o}.counts.tsv')
     countData = dict()
