@@ -25,7 +25,7 @@ def report_nofusions(outputprefix):
         f.close()
 
 def detectfusions():
-    parser = argparse.ArgumentParser(description='flair-detectfusions parse options')
+    parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-g', '--genome',
                           type=str, required=True, help='FastA of reference genome')

@@ -103,8 +103,8 @@ for line in bedfh:
     if iso_counts and name not in iso_counts:
         continue
 
-    blockstarts = [int(n) + start for n in line[11].split(',')[:-1]]
-    blocksizes = [int(n) for n in line[10].split(',')[:-1]]
+    blockstarts = [int(n) + start for n in line[11].rstrip(',').split(',')]
+    blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
 
     chrom = strand + chrom  # stranded comparisons
     if chrom not in isoforms:

@@ -21,7 +21,7 @@ from flair import FlairInputDataError
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
 
 def get_args():
-    parser = argparse.ArgumentParser(description='flair transcriptome parse options')
+    parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--genomealignedbam',
                         help='Sorted and indexed bam file aligned to the genome')
     parser.add_argument('-g', '--genome', type=str,
@@ -92,6 +92,8 @@ def get_args():
                         help='''specify if intermediate and temporary files are to be kept for debugging.
                 Intermediate files include: promoter-supported reads file,
                 read assignments to firstpass isoforms''')
+    parser.add_argument('--keep_sup', default=False, action='store_true',
+                        help='''specify if you want to keep supplementary alignments to define isoforms''')
 
     no_arguments_passed = len(sys.argv) == 1
     if no_arguments_passed:
@@ -248,6 +250,7 @@ def correctsingleread(bedread, intervalTree, junctionBoundaryDict):
     bedread.juncs = newJuncs
     bedread.esizes = sizes
     bedread.estarts = starts
+    bedread.setexons()
     return bedread
 
 
@@ -361,9 +364,10 @@ class AnnotData(object):
         self.junctogene = {}
         self.allannotse = []
         self.genetoannotjuncs = {}
+        self.genetostrand = {}
 
     def returndata(self):
-        return self.juncstotranscript, self.junctogene, self.allannotse, self.genetoannotjuncs, self.transcripttoexons, self.alltranscripts
+        return self.juncstotranscript, self.junctogene, self.allannotse, self.genetoannotjuncs, self.genetostrand, self.transcripttoexons, self.alltranscripts
 
 def generate_region_dict(allregions):
     chromtoregions, regionstoannotdata = {}, {}
@@ -409,6 +413,8 @@ def save_transcript_annot_to_region(transcript, gene, thisregion, regionstoannot
     for i in range(len(sortedexons) - 1):
         juncs.append((sortedexons[i][1], sortedexons[i + 1][0]))
     regionstoannotdata[thisregion].alltranscripts.append((transcript, gene, strand))
+    if gene not in regionstoannotdata[thisregion].genetostrand:
+        regionstoannotdata[thisregion].genetostrand[gene] = strand
     if len(juncs) == 0:
         regionstoannotdata[thisregion].allannotse.append((tstart, tend, strand, gene))
     else:
@@ -624,7 +630,7 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
     shortchromfasta = open(tempprefix + 'reads.notannotmatch.fasta', 'w')
     c = 0
     for read in samfile.fetch(rchrom, int(rstart), int(rend)):
-        if not read.is_secondary and not read.is_supplementary:
+        if not read.is_secondary and (not read.is_supplementary or args.keep_sup):
             if read.query_name not in goodaligntoannot:
                 c += 1
                 shortchromfasta.write('>' + read.query_name + '\n')
@@ -879,14 +885,14 @@ def getsingleexongenehits(thisiso, allannotse):
 
 
 def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotranscript, junctogene, allannotse,
-                                  genetoannotjuncs, genome):
+                                  genetoannotjuncs, genetostrand, genome):
     with open(tempprefix + '.firstpass.bed', 'w') as isoout, open(tempprefix + '.firstpass.fa', 'w') as seqout:
         # THIS IS WHERE WE CAN GET GENES AND ADJUST NAMES
         annotnametousedcounts = {}
         for isoname in firstpass:
             thisiso = firstpass[isoname]
             # Adjust name based on annotation
-            thistranscript, thisgene = thisiso.name, thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
+            thistranscript, thisgene = thisiso.name, None#thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
             if thisiso.juncs != () and thisiso.juncs in juncstotranscript:
                 thistranscript, thisgene = juncstotranscript[thisiso.juncs]
                 if thistranscript in annotnametousedcounts:
@@ -903,6 +909,10 @@ def getgenenamesandwritefirstpass(tempprefix, thischrom, firstpass, juncstotrans
                 if gene_hits:
                     sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
                     thisgene = sortedgenes[0][0]
+            if thisgene:
+                thisiso.strand = genetostrand[thisgene]
+            else:
+                thisgene = thischrom.replace('_', '-') + ':' + str(round(thisiso.start, -3))
             thisiso.name = thistranscript + '_' + thisgene
             isoout.write('\t'.join(thisiso.getbedline()) + '\n')
             seqout.write('>' + thisiso.name + '\n')
@@ -1036,7 +1046,7 @@ def decide_parallel_mode(parallel_option, genomealignedbam):
         else: return 'bychrom'
 
 def runcollapsebychrom(listofargs):
-    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = listofargs
+    args, tempprefix, splicesiteannot_chrom, juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = listofargs
     # first extract reads for chrom as fasta
     tempsplit = tempprefix.split('/')[-1].split('-')
     rchrom, rstart, rend = '-'.join(tempsplit[:-2]), tempsplit[-2], tempsplit[-1]
@@ -1069,7 +1079,7 @@ def runcollapsebychrom(listofargs):
         temptoremove.extend([tempprefix + '.annotated_transcripts.bed', tempprefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
         getgenenamesandwritefirstpass(tempprefix, rchrom, firstpass, juncstotranscript, junctogene,
-                                      allannotse, genetoannotjuncs, genome)
+                                      allannotse, genetoannotjuncs, genetostrand, genome)
         transcriptomealignandcount(args, tempprefix + 'reads.notannotmatch.fasta',
                                    tempprefix + '.firstpass.fa',
                                    tempprefix + '.firstpass.bed',
@@ -1095,7 +1105,6 @@ def collapsefrombam():
     logging.info('making temp dir')
     tempDir = makecorrecttempdir()
     logging.info('Getting regions')
-    t1 = time.time()
     allregions = []
     if decide_parallel_mode(args.parallelmode, args.genomealignedbam) == 'bychrom':
         for chrom in allchrom:
@@ -1121,19 +1130,17 @@ def collapsefrombam():
     tempprefixes = []
     for rchrom, rstart, rend in allregions:
         if rchrom in knownchromosomes:
-            juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, []
+            juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = {}, {}, [], {}, {}, {}, []
             if args.gtf:
-                juncstotranscript, junctogene, allannotse, genetoannotjuncs, annottranscripttoexons, allannottranscripts = \
+                juncstotranscript, junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons, allannottranscripts = \
                 regionstoannotdata[(rchrom, rstart, rend)].returndata()
 
             splicesiteannot_chrom = annotationFiles[rchrom]
             tempprefix = tempDir + '-'.join([rchrom, str(rstart), str(rend)])
             chunkcmds.append([args, tempprefix, splicesiteannot_chrom, juncstotranscript,
-                              junctogene, allannotse, genetoannotjuncs, annottranscripttoexons,
+                              junctogene, allannotse, genetoannotjuncs, genetostrand, annottranscripttoexons,
                               allannottranscripts])
             tempprefixes.append(tempprefix)
-    t2 = time.time()
-    logging.info(f'region overhead: {t2 - t1}')
     mp.set_start_method('fork')
     p = mp.Pool(args.threads)
     childErrs = set()
@@ -1145,7 +1152,7 @@ def collapsefrombam():
     p.close()
     p.join()
     if len(childErrs) > 1:
-        raise Error(childErrs)
+        raise ValueError(childErrs)
 
     if not args.noaligntoannot:
         combinetempfilesbysuffix(args, tempprefixes,
@@ -1187,7 +1194,7 @@ def collapsefrombam():
                    '--genome_fasta', args.genome,
                    '--longestORF')
         pipettor.run([prodcmd])
-        os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
+        # os.rename(args.output + '.isoforms.CDS.bed', args.output + '.isoforms.bed')
         os.remove(args.output + '.isoforms.CDS.info.tsv')
     genome.close()
 

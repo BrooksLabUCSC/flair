@@ -6,9 +6,7 @@ usage: transcriptome [-h] [-b GENOMEALIGNEDBAM] [-g GENOME] [-o OUTPUT]
                      [--check_splice] [-w END_WINDOW] [--noaligntoannot]
                      [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
                      [--parallelmode PARALLELMODE] [--predictCDS]
-                     [--keep_intermediate]
-
-flair transcriptome parse options
+                     [--keep_intermediate] [--keep_sup]
 
 options:
   -h, --help            show this help message and exit
@@ -81,3 +79,5 @@ options:
                         kept for debugging. Intermediate files include:
                         promoter-supported reads file, read assignments to
                         firstpass isoforms
+  --keep_sup            specify if you want to keep supplementary alignments
+                        to define isoforms

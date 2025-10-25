@@ -3,8 +3,6 @@ usage: fusion [-h] -g GENOME -f GTF -r READS [READS ...] -b GENOMECHIMBAM
               [--minfragmentsize MINFRAGMENTSIZE] [-s SUPPORT]
               [--maxloci MAXLOCI]
 
-flair-detectfusions parse options
-
 options:
   -h, --help            show this help message and exit
   -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
