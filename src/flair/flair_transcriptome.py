@@ -1152,7 +1152,7 @@ def collapsefrombam():
     p.close()
     p.join()
     if len(childErrs) > 1:
-        raise Error(childErrs)
+        raise ValueError(childErrs)
 
     if not args.noaligntoannot:
         combinetempfilesbysuffix(args, tempprefixes,
