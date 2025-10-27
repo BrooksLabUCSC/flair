@@ -1,13 +1,13 @@
 usage: flair [-h] [--version] [--log-stderr] [--log-level LOG_LEVEL]
              [--log-conf LOG_CONF] [--log-debug]
-             {align,correct,transcriptome,collapse,quantify,combine,variants,fusion,diffexp,diffsplice}
+             {align,correct,transcriptome,collapse,quantify,combine,variants,variantquant,fusion,diffexp,diffsplice}
              ...
 
 Run a FLAIR module. This program is the main entry point for running FLAIR
 analysis.
 
 positional arguments:
-  {align,correct,transcriptome,collapse,quantify,combine,variants,fusion,diffexp,diffsplice}
+  {align,correct,transcriptome,collapse,quantify,combine,variants,variantquant,fusion,diffexp,diffsplice}
                         name of module to run
   module_args           arguments to module
 

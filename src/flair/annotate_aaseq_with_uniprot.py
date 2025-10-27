@@ -1,10 +1,11 @@
 import argparse
+from flair.pycbio.sys import fileOps
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='''for annotating FLAIR aaseq predictions with UniProt names''')
     parser.add_argument('-i', '--input_aaseq', required=True, help='protein sequence fasta file - sequence names should be aaseqID_geneID')
-    parser.add_argument('-r', '--reference_seq', required=True, help='reference protein sequence fasta file - sequence names should be db|refID|geneName_organism, ex: >sp|Q8NH21|OR4F5_HUMAN. This script will extract the refID')
+    parser.add_argument('-r', '--reference_seq', required=True, help='reference protein sequence fasta file - sequence names should be db|refID|geneName_organism, ex: >sp|Q8NH21|OR4F5_HUMAN. This script will extract the refID. this can be fasta or fasta.gz')
     parser.add_argument('-o', '--output', required=True, help='output name - should be a fasta file')
     args = parser.parse_args()
     return args
@@ -12,7 +13,7 @@ def parse_args():
 
 def parse_fasta(filename):
     last, seq = None, []
-    for line in open(filename):
+    for line in fileOps.opengz(filename):
         if line[0] == '>':
             if last:
                 yield last, ''.join(seq)
@@ -43,9 +44,10 @@ def annotate_input(input_aaseq, ref_seq_to_name, output_name):
         out.write('>' + info + '\n' + seq + '\n')
     out.close()
 
-
-
-if __name__ == '__main__':
+def main():
     args = parse_args()
     ref_seq_to_name = process_reference(args.reference_seq)
     annotate_input(args.input_aaseq, ref_seq_to_name, args.output)
+
+if __name__ == '__main__':
+    main()

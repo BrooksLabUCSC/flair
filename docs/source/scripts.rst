@@ -62,7 +62,7 @@ annotate_aaseq_with_uniprot
 ========================
 .. code:: sh
 
-    usage: annotate_aaseq_with_uniprot.py [-h] -i INPUT_AASEQ -r REFERENCE_SEQ -o OUTPUT
+    usage: annotate_aaseq_with_uniprot [-h] -i INPUT_AASEQ -r REFERENCE_SEQ -o OUTPUT
     
     for annotating FLAIR aaseq predictions with UniProt names
     
@@ -85,8 +85,8 @@ To obtain a UniProt reference file:
      - Human files are in: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/Eukaryota/UP000005640/
  - Download the fasta and additional.fasta files
      - Human: download UP000005640_9606.fasta.gz (primary isoforms) and UP000005640_9606_additional.fasta.gz (alternative isoforms)
- - Unzip files and cat together
-     - Ex: cat UP000005640_9606.fasta UP000005640_9606_additional.fasta > UniProt_human_withadditional_100925.fasta
+ - Cat together zipped files
+     - Ex: cat UP000005640_9606.fasta.gz UP000005640_9606_additional.fasta.gz > UniProt_human_withadditional_100925.fasta.gz
 
 **Output**
 

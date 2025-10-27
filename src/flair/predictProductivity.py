@@ -201,7 +201,6 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     genomicPos = int()
     distance   = 0
     maxdistfromexonedge = 55
-    # print(orfEndPos, exonSizes, allExons, isoname)
     for num,e in enumerate(exonSizes,0):
 
         distance += e
@@ -213,9 +212,8 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
                 exonWithStop = num
                 stopDistFromExon = distance - orfEndPos
 
-        # if the distance is greater than the stop position, then check if
-        # the difference in distance is more than 55nt
-        # if yes then ptc = True
+        # if the distance is greater than the stop position, then check if the difference in distance is more than 55nt
+        # if it is then there is a premature termination codon, so ptc=true
         # also, track which exon the stop codon is in to get genomic position
         elif orfEndPos < distance:
             distToJunc = distance - orfEndPos
@@ -253,7 +251,6 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):
     left,right,strand,fusionindex    = exonsWithStop
 
     genomicPos = right - stopDistFromExon if strand == "+" else left + stopDistFromExon
-    # print(genomicPos, ptc, ptcpointont)
     return genomicPos, ptc, ptcpointont
 
 
@@ -268,40 +265,40 @@ def predict(bed, starts, isoDict, nmdexcep):
     fusiondict = {}
     for line in open(bed):
         line = line.rstrip().split('\t')
-        read   = line[3]
+        transcript_id   = line[3]
         strand = line[5]
         fusionindex = 'NA'
         for exonCoord in get_exons(line):
             elen = exonCoord[1]-exonCoord[0]
-            if read[:10] == 'fusiongene' or fusionindex != 'NA':
+            if transcript_id[:10] == 'fusiongene' or fusionindex != 'NA':
                 ##HAVE TO FIRST AGGREGATE BASED ON THE STRAND OF THE LOCUS, THEN CAN COMBINE LOCI
-                if read[:10] == 'fusiongene':
-                    fusionindex = read.split('_')[0]
-                    read = '_'.join(read.split('_')[1:])
+                if transcript_id[:10] == 'fusiongene':
+                    fusionindex = transcript_id.split('_')[0]
+                    transcript_id = '_'.join(transcript_id.split('_')[1:])
                 
-                if read not in fusiondict:
-                    fusiondict[read] = {}
-                if fusionindex not in fusiondict[read]:
-                    fusiondict[read][fusionindex] = {'exons':[], 'esizes':[]}
+                if transcript_id not in fusiondict:
+                    fusiondict[transcript_id] = {}
+                if fusionindex not in fusiondict[transcript_id]:
+                    fusiondict[transcript_id][fusionindex] = {'exons':[], 'esizes':[]}
                 if strand == '+':
-                    fusiondict[read][fusionindex]['esizes'].append(elen)
-                    fusiondict[read][fusionindex]['exons'].append((exonCoord[0], exonCoord[1], strand, fusionindex))
+                    fusiondict[transcript_id][fusionindex]['esizes'].append(elen)
+                    fusiondict[transcript_id][fusionindex]['exons'].append((exonCoord[0], exonCoord[1], strand, fusionindex))
                 elif strand == '-':
-                    fusiondict[read][fusionindex]['esizes'].insert(0, elen)
-                    fusiondict[read][fusionindex]['exons'].insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
+                    fusiondict[transcript_id][fusionindex]['esizes'].insert(0, elen)
+                    fusiondict[transcript_id][fusionindex]['exons'].insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
 
             else: 
                 # fusionindex = "NA"
                 if strand == '+':
-                    isoDict[read].allEsizes.append(elen)
-                    isoDict[read].allExons.append((exonCoord[0], exonCoord[1], strand, fusionindex))
+                    isoDict[transcript_id].allEsizes.append(elen)
+                    isoDict[transcript_id].allExons.append((exonCoord[0], exonCoord[1], strand, fusionindex))
                 elif strand == '-':
-                    isoDict[read].allEsizes.insert(0, elen)
-                    isoDict[read].allExons.insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
-    for read in fusiondict:
-        for fusionindex in sorted(fusiondict[read].keys()):
-            isoDict[read].allEsizes.extend(fusiondict[read][fusionindex]['esizes'])
-            isoDict[read].allExons.extend(fusiondict[read][fusionindex]['exons'])
+                    isoDict[transcript_id].allEsizes.insert(0, elen)
+                    isoDict[transcript_id].allExons.insert(0, (exonCoord[0], exonCoord[1], strand, fusionindex))
+    for transcript_id in fusiondict:
+        for fusionindex in sorted(fusiondict[transcript_id].keys()):
+            isoDict[transcript_id].allEsizes.extend(fusiondict[transcript_id][fusionindex]['esizes'])
+            isoDict[transcript_id].allExons.extend(fusiondict[transcript_id][fusionindex]['exons'])
 
     dr = pipettor.DataReader()
     bedtools_cmd = ('bedtools', 'intersect', '-a', bed, '-b', starts, '-split', '-s', '-wao')

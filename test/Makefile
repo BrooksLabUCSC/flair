@@ -97,7 +97,7 @@ default:
 	@echo "   " make real-clean >&2
 	@exit 1
 
-test:  align-tests correct-tests collapse-tests quantify-tests \
+test:  test-help align-tests correct-tests collapse-tests quantify-tests \
 	combine-tests predict-productivity-tests diff-iso-usage-tests \
 	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
 	partition-tests
