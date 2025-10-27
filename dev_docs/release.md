@@ -34,7 +34,7 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 17. Set the release as latest in the PyPi
 - [] 18. Set the release latest in GitHub
 - [] 19. Announce release
-
+- [] 20. Set version in tree to have +master suffix
 
 ## Onetime account setup
 
@@ -130,17 +130,17 @@ pip install -e .[dev]
    
 ## 5. Run pre-release tests
 
+Without diff expression support:
 ```
-make -k -O -j 64 test
+make -k -O -j 64 test-installed-base
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
-Include conda dependencies for diff expression support and tests.
-This does not work on Apple ARM systems.
+With diff expression support:
 ```
 conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
 pip install -e .
-make -k -O -j 64 test-diffexpress
+make -k -O -j 64 test-installed
 ```
 
 ## 6. Check documentation
@@ -231,6 +231,7 @@ docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version
 % make clean
 % exit
 ```
+
 ## 11. Test PyPi with testpypi
 
 To upload to testpypi and test
@@ -345,6 +346,7 @@ number should have been updated by `bump-my-version`.
 From the ./misc directory, build the image:
 ```
 docker build --network=host -t brookslab/flair:<version> misc >& build.log
+
 docker tag brookslab/flair:<version> brookslab/flair:latest
 ```
 
@@ -353,7 +355,8 @@ Test the Docker image
 ```
 docker run --rm -it -v $(pwd):/mnt/flair --network=host brookslab/flair:<version> bash
 % cd /mnt/flair
-% make -k -O -j 64 test-installed test-diffexpress-installed
+% make -k -O -j 64 test-installed
+% make clean
 % exit
 ```
 
@@ -376,5 +379,21 @@ The reason that the build takes long is that pysam doesn't have a fast installat
 
 Mail an announcement, including `CHANGELOG.md` summary to
 `flair-announce-group@ucsc.edu`.
+
+## 20. Set version in tree to have +master suffix
+
+Add `+master` to the current version to distinguish tree checkouts 
+```
+bump-my-version replace --current-version=2.2.0 --new-version=2.2.0+master
+```
+
+IMPORTANT: then manually edit `.bumpversion.toml` to have this version,
+as `replace` doesn't change this.
+
+
+```
+git commit -am 'set tree local version'
+```
+
 
 🍷🍷

@@ -197,4 +197,5 @@ def main():
                     args.min_partition_items, args.part_merge_dist)
 
 
-main()
+if __name__ == "__main__":
+    main()

@@ -50,14 +50,14 @@ def get_args():
     parser.add_argument('--frac_support', type=float, default=0.05,
                         help='''minimum fraction of gene locus support for isoform to be called
                          default: 0.05, only isoforms that make up more than 5 percent of the gene locus are reported. Set to 0 for max recall''')
-    
+
 
     parser.add_argument('--no_stringent', default=False, action='store_true',
                         help='''specify if all supporting reads don't need to be full-length
                 (aligned to first and last exons of transcript). Use this for fragmented libraries, but understand that it will impact precision.''')
     parser.add_argument('--no_check_splice', default=False, action='store_true',
                         help='''don't enforce accurate alignment around splice site. Specify this for libraries with high error rates, but it will reduce precision''')
-    
+
 
     parser.add_argument('--no_align_to_annot', default=False, action='store_true',
                         help='''related to old annotation_reliant, now specify if you don't want
@@ -245,10 +245,10 @@ def correct_single_read(bed_read, intervalTree, junctionBoundaryDict):
         newJuncs.append((c1Corr, c2Corr))
 
     starts, sizes = get_exons_from_juncs(newJuncs, bed_read.start, bed_read.end)
-    # 0 length exons or exons corrected outside of their transcript ends, remove them.
-    if min(sizes) <= 0:
+    # 0 length exons, remove them.
+    if min(sizes) == 0:
         return None
-    
+
     else:
         bed_read.juncs = newJuncs
         bed_read.exon_sizes = sizes
