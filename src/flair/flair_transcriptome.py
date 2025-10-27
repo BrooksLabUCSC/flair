@@ -173,6 +173,7 @@ def binary_search(query, data):
 
 def generate_known_SS_database(args, temp_dir):
     # Convert gtf to bed and split by chromosome.
+    # logging.info(f'Building ss database: {temp_dir}')
     juncs, chromosomes, knownSS = dict(), set(), dict()  # initialize juncs for adding to db
 
     if args.gtf:
@@ -184,10 +185,12 @@ def generate_known_SS_database(args, temp_dir):
             shortread, type = args.junction_tab, 'tab'
         else:
             shortread, type = args.junction_bed, 'bed'
-        juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
+        juncs, chromosomes, addFlag, hasNovelJuncs = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if not addFlag:
-            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}')
+            raise FlairInputDataError(f'ERROR No junctions found in {shortread} that passed filters')
+        if not hasNovelJuncs:
+            logging.info(f'WARNING: {shortread} did not have any additional junctions that passed filters and were not in {args.gtf}')
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
@@ -462,7 +465,7 @@ def get_annot_info(gtf, all_regions):
     return regions_to_annot_data
 
 
-def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file):
+def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):
     # count sam transcripts ; the dash at the end means STDIN
     count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
                  '-o', output_name, '-t', 1,  # feeding 1 thread in because this is already multithreaded here
@@ -476,7 +479,7 @@ def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, cl
         count_cmd.extend(['--output_endpos', output_name.split('.counts.tsv')[0] + '.ends.tsv',
                           '--end_norm_dist', args.end_norm_dist])
     if not args.no_stringent or is_annot:
-        count_cmd.append('--stringent')
+        count_cmd.extend(['--stringent', '--allow_UTR_indels'])
     if args.output_bam:
         count_cmd.extend(['--output_bam', output_name.split('.counts.tsv')[0] + '.bam'])
     if not args.no_check_splice:
@@ -485,6 +488,8 @@ def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, cl
         count_cmd.extend(['-i', ref_bed])  # annotated isoform bed file
     if args.trust_ends:
         count_cmd.append('--trust_ends')
+    if unique_bound and (not args.no_stringent or is_annot):
+        count_cmd.extend(['--unique_bound', unique_bound])
     if args.remove_internal_priming:
         count_cmd.extend(['--remove_internal_priming',
                           '--intprimingthreshold', str(args.intprimingthreshold),
@@ -495,7 +500,7 @@ def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, cl
     return tuple(count_cmd)
 
 
-def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file):
+def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):
     # minimap (results are piped into count_sam_transcripts.py)
     # '--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
     if isinstance(input_reads, str):
@@ -504,7 +509,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [align_ref_fasta] + input_reads)
     # FIXME add in step to filter out chimeric reads here
     # FIXME really need to go in and check on how count_sam_transcripts is working
-    count_cmd = get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file)
+    count_cmd = get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound)
     pipettor.run([mm2_cmd, count_cmd])
 
 # START METHODS TO EDIT - HARRISON
@@ -518,6 +523,14 @@ def get_best_ends(curr_group, end_window):
             weighted_score = all_starts[start1] + all_ends[end1]
             best_ends.append((weighted_score, start1, end1, strand1, name1))
     else:
+        # take most common non-ambiguous strand for group
+        groupStrands = Counter([x[2] for x in curr_group]).most_common()
+        myStrand = 'ambig'
+        for i in range(len(groupStrands)):
+            if groupStrands[i][0] != 'ambig':
+                myStrand = groupStrands[i][0]
+                break
+        
         for start1, end1, strand1, name1 in curr_group:
             score, weighted_score = 0, 0
             for start2, end2, strand2, name2 in curr_group:
@@ -525,7 +538,7 @@ def get_best_ends(curr_group, end_window):
                     score += 2
                     weighted_score += ((end_window - abs(start1 - start2)) / end_window) + \
                                      ((end_window - abs(end1 - end2)) / end_window)
-            best_ends.append((weighted_score, start1, end1, strand1, name1))
+            best_ends.append((weighted_score, start1, end1, myStrand, name1))
     best_ends.sort(reverse=True)
     # DO I WANT TO ADD CORRECTION TO NEARBY ANNOTATED TSS/TTS????
     return best_ends[0]
@@ -587,8 +600,8 @@ def collapse_end_groups(end_window, read_ends, do_get_best_ends=True):
 
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, junc_to_gene,
-                       annot_transcript_to_exons, firstpass_junc_to_name, firstpass_unfiltered,
-                       sup_annot_transcript_to_juncs, check_term_exons):
+                       annot_transcript_to_exons, firstpass_junc_to_name, firstpass_unfiltered,  
+                       sup_annot_transcript_to_juncs, strand):#, check_term_exons):
     isos_with_similar_juncs = set()
     for j in juncs:
         if firstpass_junc_to_name:
@@ -597,7 +610,9 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, junc_to_
             isos_with_similar_juncs.update(junc_to_gene[j])  # annot isos
     terminal_exon_is_subset = [0, 0]  # first exon is a subset, last exon is a subset
     first_exon, last_exon = exons[0], exons[-1]
+    exon_lengths = [x[1]-x[0] for x in exons]
     superset_support = []
+    unique_seq_bound = []
     for otheriso_name in isos_with_similar_juncs:
         if otheriso_name != name:
             if isinstance(otheriso_name, tuple):  # annotated isoform
@@ -620,36 +635,49 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, junc_to_
             if len(juncs) < len(otheriso_juncs):
                 iso_juncs_str, otheriso_juncs_str = str(juncs)[1:-1].rstrip(','), str(otheriso_juncs)[1:-1]
                 if iso_juncs_str in otheriso_juncs_str:  # if junctions are subset
-                    if not check_term_exons:
-                        return False
-                    else:
-                        # check whether first + last exon overlap
-                        for i in range(len(otheriso_exons)):
-
-                            other_exon = otheriso_exons[i]
-                            if i == 0 or i == len(otheriso_exons) - 1:  # is first or last exon of other transcript
-                                if first_exon[1] == other_exon[1] or last_exon[0] == other_exon[0]:
-                                    if first_exon[1] == other_exon[1]:
-                                        terminal_exon_is_subset[0] = 1
-                                    elif last_exon[0] == other_exon[0]:
-                                        terminal_exon_is_subset[1] = 1
-                                    superset_support.append(otheriso_score)
-                            else:
-                                if first_exon[1] == other_exon[1] and first_exon[0] >= other_exon[0] - 20:
+                    # if not check_term_exons:
+                    #     return False
+                    # else:
+                    # check whether first + last exon overlap
+                    for i in range(len(otheriso_exons)):
+                        other_exon = otheriso_exons[i]
+                        if i == 0 or i == len(otheriso_exons) - 1:  # is first or last exon of other transcript - just care that it shares the same terminal ss
+                            if first_exon[1] == other_exon[1] or last_exon[0] == other_exon[0]:
+                                if first_exon[1] == other_exon[1]:
+                                    terminal_exon_is_subset[0] = 1
+                                elif last_exon[0] == other_exon[0]:
+                                    terminal_exon_is_subset[1] = 1
+                                superset_support.append(otheriso_score)
+                        else: ## is internal exon of other transcript - see if it contains additional sequence
+                            if first_exon[1] == other_exon[1]:
+                                unique_seq_bound.append((0, first_exon[1]-other_exon[0]))#other_exon[0]-first_exon[0]))
+                                if first_exon[0] >= other_exon[0] - 20:
                                     terminal_exon_is_subset[0] = 1
                                     superset_support.append(otheriso_score)
-                                if last_exon[0] == other_exon[0] and last_exon[1] <= other_exon[1] + 20:
+                            if last_exon[0] == other_exon[0]:
+                                unique_seq_bound.append((1, other_exon[1]-last_exon[0]))#sum(exon_lengths) - last_exon[1]-other_exon[1]))
+                                if last_exon[1] <= other_exon[1] + 20:
                                     terminal_exon_is_subset[1] = 1
                                     superset_support.append(otheriso_score)
-    if not check_term_exons:
-        return True
+    ##unique_seq is pegged at distance from first/last splice junction
+    unique_seq_bound = list(set(unique_seq_bound))
+    if strand == '-':
+        for i in range(len(unique_seq_bound)):
+            # unique_seq_bound[i] = (abs(unique_seq_bound[i][0]-1), sum(exon_lengths) - unique_seq_bound[i][1])
+            unique_seq_bound[i] = f'{abs(unique_seq_bound[i][0]-1)}_{unique_seq_bound[i][1]}' ##just invert the indexes
     else:
-        if sum(terminal_exon_is_subset) < 2:  # both first and last exon have to overlap
-            return True
-        elif filter_type != 'nosubset':
-            if score >= support and score > max(superset_support) * 1.2:
-                return True
-        return False
+        for i in range(len(unique_seq_bound)):
+            unique_seq_bound[i] = f'{unique_seq_bound[i][0]}_{unique_seq_bound[i][1]}'
+
+    # if not check_term_exons:
+    #     return True
+    # else:
+    if sum(terminal_exon_is_subset) < 2:  # both first and last exon have to overlap
+        return True, unique_seq_bound
+    elif filter_type != 'nosubset':
+        if score >= support and score > max(superset_support) * 1.2:
+            return True, unique_seq_bound
+    return False, None
 
 
 
@@ -658,8 +686,9 @@ def generate_transcriptome_reference(temp_prefix, all_transcripts, annot_transcr
                                      normalize_ends=False, add_length_at_ends=0):
     transcript_to_strand = {}
     transcript_to_new_exons = {}
-    with open(temp_prefix + '.annotated_transcripts.bed', 'w') as annot_bed, open(
-            temp_prefix + '.annotated_transcripts.fa', 'w') as annot_fa:
+    with open(temp_prefix + '.annotated_transcripts.bed', 'w') as annot_bed, \
+         open(temp_prefix + '.annotated_transcripts.fa', 'w') as annot_fa, \
+         open(temp_prefix + '.annotated_transcripts_uniquebound.txt', 'w') as annot_uniqueseq:
         gene_to_terminal_junction_specific_ends = {}
         if normalize_ends:
             for transcript, gene, strand in all_transcripts:
@@ -684,8 +713,11 @@ def generate_transcriptome_reference(temp_prefix, all_transcripts, annot_transcr
             juncs = [(exons[i][1], exons[i+1][0]) for i in range(len(exons)-1)]
             # if not check_junction_subset(juncs, junc_to_gene, annot_transcript_to_exons):  #NEW removing subset isos from annot
             # if filter_spliced_iso('nosubset', 0, juncs, exons, (transcript, gene), 0, junc_to_gene, annot_transcript_to_exons, None, None, None, False):
-            if filter_spliced_iso('nosubset', 0, juncs, exons, (transcript, gene), 0, junc_to_gene,
-                                annot_transcript_to_exons, None, None, None, True):
+            # if filter_spliced_iso('nosubset', 0, juncs, exons, (transcript, gene), 0, junc_to_gene,
+            #                     annot_transcript_to_exons, None, None, None, True):
+            is_not_subset, unique_seq = filter_spliced_iso('nosubset', 0, juncs, exons, (transcript, gene), 0, junc_to_gene,
+                                annot_transcript_to_exons, None, None, None, strand)
+            if is_not_subset:
                 if normalize_ends and len(exons) > 1:  # don't normalize ends for single exon transcripts
                     exons[0] = (gene_to_terminal_junction_specific_ends[(gene, strand)]['left'][exons[0][1]] - add_length_at_ends,
                                 exons[0][1])
@@ -710,12 +742,15 @@ def generate_transcriptome_reference(temp_prefix, all_transcripts, annot_transcr
                 annot_bed.write('\t'.join([str(x) for x in bed_line]) + '\n')
                 annot_fa.write('>' + transcript + '_' + gene + '\n')
                 annot_fa.write(''.join(exon_seq) + '\n')
+                if len(unique_seq) > 0:
+                    annot_uniqueseq.write(transcript + '_' + gene + '\t' + ','.join(unique_seq) + '\n')
     return transcript_to_strand, transcript_to_new_exons
 
 
 def identify_good_match_to_annot(args, temp_prefix, chrom, annot_transcript_to_exons, all_transcripts, genome, junc_to_gene):
     good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs = [], set(), {}
     if not args.no_align_to_annot and len(all_transcripts) > 0:
+        logging.info('generating transcriptome reference')
         if args.end_norm_dist:
             transcript_to_strand, transcript_to_new_exons = \
                 generate_transcriptome_reference(temp_prefix,
@@ -731,11 +766,13 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annot_transcript_to_e
                                                                                         annot_transcript_to_exons,
                                                                                         chrom, genome, junc_to_gene)
         clipping_file = temp_prefix + '.reads.genomicclipping.txt'  # if args.trimmedreads else None
+        logging.info('aligning to transcriptome reference')
         transcriptome_align_and_count(args, temp_prefix + '.reads.fasta',
                                    temp_prefix + '.annotated_transcripts.fa',
                                    temp_prefix + '.annotated_transcripts.bed',
                                    temp_prefix + '.matchannot.counts.tsv',
-                                   temp_prefix + '.matchannot.read.map.txt', True, clipping_file)
+                                   temp_prefix + '.matchannot.read.map.txt', True, clipping_file, temp_prefix + '.annotated_transcripts_uniquebound.txt')
+        logging.info('processing good matches')
         with open(temp_prefix + '.matchannot.bed', 'w') as annot_bed:
             for line in open(temp_prefix + '.matchannot.read.map.txt'):
                 striso, reads = line.rstrip().split('\t', 1)
@@ -798,7 +835,9 @@ def filter_correct_group_reads(args, temp_prefix, region_chrom, region_start, re
                                                     read.query_name,
                                                     read.reference_name, read.mapping_quality, read_strand)
                         if len(bed_read.juncs) > 0:
-                            bed_read.strand = inferMM2JuncStrand(read)
+                            new_strand = inferMM2JuncStrand(read)
+                            if new_strand != 'ambig':
+                                bed_read.strand = new_strand
                         corrected_read = correct_single_read(bed_read, intervalTree, junctionBoundaryDict)
                         if corrected_read:
                             junc_key = tuple(sorted(corrected_read.juncs))
@@ -945,6 +984,7 @@ def filter_all_single_exon(args, firstpass_SE, firstpass_unfiltered, firstpass):
 
 def filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, firstpass_SE, junc_to_gene,
                         sup_annot_transcript_to_juncs, annot_transcript_to_exons):
+    iso_to_unique_bound = {}
     if args.filter == 'ginormous':
         firstpass = firstpass_unfiltered
     else:
@@ -958,15 +998,18 @@ def filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, fi
                     # passesfiltering = filter_spliced_iso(args, this_iso, firstpass_junc_to_name, firstpass_unfiltered,
                     #                                    junc_to_gene, sup_annot_transcript_to_juncs, annot_transcript_to_exons)
                     # if passesfiltering:
-                    if filter_spliced_iso(args.filter, args.sjc_support, this_iso.juncs, this_iso.exons,
-                                          this_iso.name, this_iso.score, junc_to_gene, annot_transcript_to_exons,
-                                          firstpass_junc_to_name, firstpass_unfiltered,
-                                          sup_annot_transcript_to_juncs, True):
+                    is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, this_iso.juncs, this_iso.exons, 
+                                          this_iso.name, this_iso.score, junc_to_gene, annot_transcript_to_exons, 
+                                          firstpass_junc_to_name, firstpass_unfiltered,  
+                                          sup_annot_transcript_to_juncs, this_iso.strand)#, True):
+                    if is_not_subset:
                         firstpass[iso_name] = this_iso
+                        if len(unique_seq) > 0:
+                            iso_to_unique_bound[iso_name] = ','.join(unique_seq)
         # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of list
         firstpass = filter_all_single_exon(args, firstpass_SE, firstpass_unfiltered, firstpass)
 
-    return firstpass
+    return firstpass, iso_to_unique_bound
 
 
 def combine_temp_files_by_suffix(args, temp_prefixes, suffixes):
@@ -1006,10 +1049,27 @@ def get_single_exon_gene_overlaps(this_iso, all_annot_SE):
     return gene_hits
 
 
+def get_spliced_exon_overlaps(mystrand, myexons, all_spliced_exons, gene_hits):
+    for annot_gene in all_spliced_exons[mystrand]:
+        annot_exons = sorted(list(all_spliced_exons[mystrand][annot_gene]))
+        # check if there is overlap in the genes
+        if min((annot_exons[-1][1], myexons[-1][1])) \
+                > max((annot_exons[0][0], myexons[0][0])):
+            covered_pos = set()
+            for s, e in myexons:
+                for ast, ae in annot_exons:
+                    for p in range(max((ast, s)), min((ae, e))):
+                        covered_pos.add(p)
+            if len(covered_pos) > sum([x[1] - x[0] for x in myexons]) * 0.5:
+                gene_hits.append([len(covered_pos), annot_gene, mystrand])
+    return gene_hits
+
+
 def get_gene_names_and_write_firstpass(temp_prefix, chrom, firstpass, juncchain_to_transcript, junc_to_gene, all_annot_SE,
                                   gene_to_annot_juncs, gene_to_strand, genome, all_spliced_exons,
-                                  normalize_ends=False, add_length_at_ends=0):
-    with open(temp_prefix + '.firstpass.bed', 'w') as iso_out, open(temp_prefix + '.firstpass.fa', 'w') as seq_out:
+                                  normalize_ends=False, add_length_at_ends=0, unique_bound=None):
+    with open(temp_prefix + '.firstpass.bed', 'w') as iso_out, open(temp_prefix + '.firstpass.fa', 'w') as seq_out, \
+         open(temp_prefix + '.firstpass.uniquebound.txt', 'w') as unique_out:
         # THIS IS WHERE WE CAN GET GENES AND ADJUST NAMES
         annot_name_to_used_counts = {}
         gene_to_terminal_junction_specific_ends = {}
@@ -1037,21 +1097,16 @@ def get_gene_names_and_write_firstpass(temp_prefix, chrom, firstpass, juncchain_
                 else:
                     # look for exon overlap
                     gene_hits = []
-                    for annot_gene in all_spliced_exons[this_iso.strand]:
-                        annot_exons = sorted(list(all_spliced_exons[this_iso.strand][annot_gene]))
-                        # check if there is overlap in the genes
-                        if min((annot_exons[-1][1], this_iso.exons[-1][1])) \
-                                > max((annot_exons[0][0], this_iso.exons[0][0])):
-                            covered_pos = set()
-                            for s, e in this_iso.exons:
-                                for ast, ae in annot_exons:
-                                    for p in range(max((ast, s)), min((ae, e))):
-                                        covered_pos.add(p)
-                            if len(covered_pos) > sum([x[1] - x[0] for x in this_iso.exons]) * 0.5:
-                                gene_hits.append([len(covered_pos), annot_gene])
+                    if this_iso.strand != 'ambig':
+                        gene_hits = get_spliced_exon_overlaps(this_iso.strand, this_iso.exons, all_spliced_exons, gene_hits)
+                    else:
+                        gene_hits = get_spliced_exon_overlaps('+', this_iso.exons, all_spliced_exons, gene_hits)
+                        gene_hits = get_spliced_exon_overlaps('-', this_iso.exons, all_spliced_exons, gene_hits)
                     if len(gene_hits) > 0:
                         gene_hits.sort(reverse=True)
                         this_gene = gene_hits[0][1]
+                        if this_iso.strand == 'ambig':
+                            this_iso.strand = gene_hits[0][2]
             if this_gene is not None:
                 strand = gene_to_strand[this_gene]
             else:
@@ -1112,6 +1167,10 @@ def get_gene_names_and_write_firstpass(temp_prefix, chrom, firstpass, juncchain_
                 this_iso.reset_from_exons(exons)
             this_iso.strand = strand
             this_iso.name = this_transcript + '_' + gene
+            
+            if unique_bound and iso_name in unique_bound:
+                unique_out.write(this_iso.name + '\t' + unique_bound[iso_name] + '\n')
+            
             iso_out.write('\t'.join(this_iso.get_bed_line()) + '\n')
             seq_out.write('>' + this_iso.name + '\n')
             seq_out.write(this_iso.get_sequence(genome) + '\n')
@@ -1334,40 +1393,50 @@ def run_collapse_by_chrom(listofargs):
     bam_file = pysam.AlignmentFile(args.genome_aligned_bam, 'rb')
 
     # if args.trimmedreads:
+    logging.info('generating genomic clipping reference')
     generate_genomic_clipping_reference(temp_prefix, bam_file, region_chrom, region_start, region_end)
+    logging.info('identifying good match to annot')
 
     good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs = \
         identify_good_match_to_annot(args, temp_prefix, region_chrom, annot_transcript_to_exons, all_annot_transcripts, genome, junc_to_gene)
     # load splice junctions for chrom
+    logging.info('correcting splice junctions')
+    
     intervalTree, junctionBoundaryDict = buildIntervalTree(splice_site_annot_chrom, args.ss_window, region_chrom, False)
 
     sj_to_ends = filter_correct_group_reads(args, temp_prefix, region_chrom, region_start, region_end, bam_file, good_align_to_annot, intervalTree,
                                        junctionBoundaryDict)
     bam_file.close()
+    logging.info('generating isoforms')
 
     firstpass_unfiltered, firstpass_junc_to_name, firstpass_SE = process_juncs_to_firstpass_isos(args, temp_prefix,
                                                                                                  region_chrom, sj_to_ends,
                                                                                                  firstpass_SE)
+    logging.info('filtering isoforms')
 
-    firstpass = filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, firstpass_SE,
+    firstpass, iso_to_unique_bound = filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, firstpass_SE,
                                     junc_to_gene, sup_annot_transcript_to_juncs, annot_transcript_to_exons)
     temp_to_remove = [temp_prefix + '.reads.fasta', temp_prefix + 'reads.notannotmatch.fasta']
     if not args.no_align_to_annot and len(all_annot_transcripts) > 0:
         temp_to_remove.extend([temp_prefix + '.annotated_transcripts.bed', temp_prefix + '.annotated_transcripts.fa'])
     if len(firstpass.keys()) > 0:
+        logging.info('getting gene names and writing firstpass')
+        
         if args.end_norm_dist:
             get_gene_names_and_write_firstpass(temp_prefix, region_chrom, firstpass, juncchain_to_transcript, junc_to_gene,
                                           all_annot_SE, gene_to_annot_juncs, gene_to_strand, genome, all_spliced_exons,
-                                          normalize_ends=True, add_length_at_ends=int(args.end_norm_dist))
+                                          normalize_ends=True, add_length_at_ends=int(args.end_norm_dist), unique_bound=iso_to_unique_bound)
         else:
             get_gene_names_and_write_firstpass(temp_prefix, region_chrom, firstpass, juncchain_to_transcript, junc_to_gene,
-                                          all_annot_SE, gene_to_annot_juncs, gene_to_strand, genome, all_spliced_exons)
+                                          all_annot_SE, gene_to_annot_juncs, gene_to_strand, genome, all_spliced_exons, unique_bound=iso_to_unique_bound)
         clipping_file = temp_prefix + '.reads.genomicclipping.txt'  # if args.trimmedreads else None
+        logging.info('identifying good match to firstpass')
+        
         transcriptome_align_and_count(args, temp_prefix + 'reads.notannotmatch.fasta',
                                    temp_prefix + '.firstpass.fa',
                                    temp_prefix + '.firstpass.bed',
                                    temp_prefix + '.novelisos.counts.tsv',
-                                   temp_prefix + '.novelisos.read.map.txt', False, clipping_file)
+                                   temp_prefix + '.novelisos.read.map.txt', False, clipping_file, temp_prefix + '.firstpass.uniquebound.txt')
         temp_to_remove.extend([temp_prefix + '.firstpass.fa'])
     else:
         with open(temp_prefix + '.firstpass.fa', 'w') as _, \
@@ -1433,6 +1502,7 @@ def run_collapse_from_bam():
                               junc_to_gene, all_annot_SE, all_spliced_exons, gene_to_annot_juncs, gene_to_strand,
                               annot_transcript_to_exons, all_annot_transcripts])
             temp_prefixes.append(temp_prefix)
+    logging.info('running by chunk')
     mp.set_start_method('fork')
     p = mp.Pool(args.threads)
     child_errs = set()

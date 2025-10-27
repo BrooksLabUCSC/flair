@@ -97,7 +97,7 @@ default:
 	@echo "   " make real-clean >&2
 	@exit 1
 
-test:  align-tests correct-tests collapse-tests quantify-tests \
+test:  test-help align-tests correct-tests collapse-tests quantify-tests \
 	combine-tests predict-productivity-tests diff-iso-usage-tests \
 	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
 	partition-tests
@@ -441,10 +441,10 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-predcds \
-	test-transcriptome-seg1 test-transcriptome-help
+	test-transcriptome-seg1 test-transcriptome-ends test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1"; \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcriptome-ends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
@@ -453,7 +453,7 @@ update-transcriptome-tests:
 
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
 	$(collapse_diff)
 
 test-transcriptome-ends: mkdirs ${TEST_ALIGN_BAM}

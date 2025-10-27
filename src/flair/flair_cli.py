@@ -8,7 +8,7 @@ from flair import VERSION, set_unix_path
 from flair.pycbio.sys import cli
 
 VALID_MODULES = ('align', 'correct', 'transcriptome', 'collapse', 'quantify',
-                 'combine', 'variants', 'fusion', 'diffexp', 'diffsplice')
+                 'combine', 'variants', 'variantquant', 'fusion', 'diffexp', 'diffsplice')
 
 def parse_args():
     """Argument parsing a module name for this and then returns the remaining arguments

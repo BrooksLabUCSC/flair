@@ -209,7 +209,7 @@ def dofiltering(args, inbam, filterreadmap=None):
                 if args.filtertype == 'separate':
                     withsup.write(read)
                 elif not read.is_supplementary or args.filtertype == 'keepsup':
-                    juncstrand = inferMM2JuncStrand(read)
+                    juncstrand = inferMM2JuncStrand(read) #ambiguity is handled right before output - read is colored as ambig but strand is set to alignment strand
                     bedline = bed_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
                                                                      read.query_name, read.reference_name, mapq, juncstrand)
                     outbed.write('\t'.join(bedline) + '\n')

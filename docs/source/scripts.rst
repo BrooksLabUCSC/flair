@@ -58,6 +58,40 @@ Fisher’s exact tests of each event.
 The output file contains the original columns with an additional column
 containing the p-values appended.
 
+annotate_aaseq_with_uniprot
+========================
+.. code:: sh
+
+    usage: annotate_aaseq_with_uniprot [-h] -i INPUT_AASEQ -r REFERENCE_SEQ -o OUTPUT
+    
+    for annotating FLAIR aaseq predictions with UniProt names
+    
+    options:
+      -h, --help            show this help message and exit
+      -i INPUT_AASEQ, --input_aaseq INPUT_AASEQ
+                            protein sequence fasta file - sequence names should be aaseqID_geneID
+      -r REFERENCE_SEQ, --reference_seq REFERENCE_SEQ
+                            reference protein sequence fasta file - sequence names should be db|refID|geneName_organism, ex:
+                            >sp|Q8NH21|OR4F5_HUMAN. This script will extract the refID
+      -o OUTPUT, --output OUTPUT
+                            output name - should be a fasta file
+
+This is for aaseq predictions from FLAIR predictProductivity.
+
+To obtain a UniProt reference file:
+ - First go to: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/
+     - README file has mapping of your organism name to the proteome directory
+ - Navigate to your organism’s directory
+     - Human files are in: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/Eukaryota/UP000005640/
+ - Download the fasta and additional.fasta files
+     - Human: download UP000005640_9606.fasta.gz (primary isoforms) and UP000005640_9606_additional.fasta.gz (alternative isoforms)
+ - Cat together zipped files
+     - Ex: cat UP000005640_9606.fasta.gz UP000005640_9606_additional.fasta.gz > UniProt_human_withadditional_100925.fasta.gz
+
+**Output**
+
+A fasta file similar to the input but with aaidXX changed to UniProt ID when possible
+
 
 fasta_seq_lengths
 =================

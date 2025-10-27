@@ -29,6 +29,7 @@ def addOtherJuncs(juncs, filetype, bedJuncs, minsup, chromosomes, printErrFname,
 
     tempJuncs = list()
     addedFlag = False
+    novelJuncs = False
     with open(bedJuncs,'r') as bedLines:
         for line in bedLines:
             cols = line.rstrip().split()
@@ -53,11 +54,12 @@ def addOtherJuncs(juncs, filetype, bedJuncs, minsup, chromosomes, printErrFname,
                 key = (c1, c2, strand)
                 if key in juncs[chrom]:
                     juncs[chrom][key] = "both"
-                    continue
-                tempJuncs.append((chrom,c1,c2,strand))
+                else:
+                    novelJuncs = True
+                    tempJuncs.append((chrom,c1,c2,strand))
                 addedFlag = True
     if addedFlag == False:
-        return juncs, chromosomes, addedFlag
+        return juncs, chromosomes, addedFlag, novelJuncs
 
     for chrom,c1,c2,strand in tempJuncs:
         key = (c1, c2, strand)
@@ -76,7 +78,7 @@ def addOtherJuncs(juncs, filetype, bedJuncs, minsup, chromosomes, printErrFname,
         with open(printErrFname,'a+') as fo:
             print("** GTF Juncs + other juncs now total %s juncs from %s chromosomes." % (sum([len(x)for x in juncs.values()]), len(list(juncs.keys()))), file=fo)
 
-    return juncs, chromosomes, addedFlag
+    return juncs, chromosomes, addedFlag, novelJuncs
 
 
 def gtfToSSBed(gtffile, knownSS, printErr, printErrFname, verbose):
