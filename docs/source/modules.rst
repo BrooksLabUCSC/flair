@@ -17,7 +17,7 @@ flair transcriptome
 
 .. code:: text
 
-    usage: usage: flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]
+    usage: usage: flair transcriptome -b reads.genomealigned.bam [options]
 
 
 This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
