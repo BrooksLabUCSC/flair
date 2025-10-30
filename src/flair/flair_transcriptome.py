@@ -636,11 +636,13 @@ def filtercorrectgroupreads(args, tempprefix, rchrom, rstart, rend, samfile, goo
                 shortchromfasta.write('>' + read.query_name + '\n')
                 shortchromfasta.write(read.get_forward_sequence() + '\n')
                 if read.mapping_quality >= args.quality:
-                    juncstrand = inferMM2JuncStrand(read)
+                    junc_strand = inferMM2JuncStrand(read)
+                    if junc_strand == 'ambig':
+                       junc_strand = "-" if read.is_reverse else "+"
                     bedread = BedRead()
                     bedread.generate_from_cigar(read.reference_start, read.is_reverse, read.cigartuples,
                                                 read.query_name,
-                                                read.reference_name, read.mapping_quality, juncstrand)
+                                                read.reference_name, read.mapping_quality, junc_strand)
                     correctedread = correctsingleread(bedread, intervalTree, junctionBoundaryDict)
                     if correctedread:
                         junckey = tuple(sorted(correctedread.juncs))

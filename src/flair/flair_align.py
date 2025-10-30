@@ -147,7 +147,7 @@ def bed_from_cigar(alignstart, is_reverse, cigartuples, readname, referencename,
 
 def doalignment(args):
     # minimap
-    mm2_cmd = ['minimap2', '-ax', 'splice', '-s', str(args.minfragmentsize),
+    mm2_cmd = ['minimap2', '-ax', 'splice', '--secondary=no', '-s', str(args.minfragmentsize),
                '-G', args.maxintronlen, '-t', str(args.threads)]
     if args.nvrna:
         mm2_cmd += ['-uf', '-k14']

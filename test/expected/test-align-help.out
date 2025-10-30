@@ -2,7 +2,7 @@ usage: align [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
              [-o OUTPUT] [-t THREADS] [--junction_bed JUNCTION_BED] [--nvrna]
              [--quality QUALITY] [--minfragmentsize MINFRAGMENTSIZE]
              [--maxintronlen MAXINTRONLEN]
-             [--filtertype {keysup,removesup,separate}] [--quiet]
+             [--filtertype {keepsup,removesup,separate}] [--quiet]
              [--remove_internal_priming] [-f GTF]
              [--intprimingthreshold INTPRIMINGTHRESHOLD]
              [--intprimingfracAs INTPRIMINGFRACAS] [--remove_singleexon]
@@ -30,7 +30,7 @@ options:
   --maxintronlen MAXINTRONLEN
                         maximum intron length in genomic alignment. Longer can
                         help recover more novel isoforms with long introns
-  --filtertype {keysup,removesup,separate}
+  --filtertype {keepsup,removesup,separate}
                         method of filtering chimeric alignments (potential
                         fusion reads). Options: removesup (default), separate
                         (required for downstream work with fusions), keepsup
