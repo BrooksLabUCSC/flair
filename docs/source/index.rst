@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to FLAIR's Documentation!
+Welcome to FLAIR's Documentation
 =================================
 
 Staying in touch and getting help
@@ -39,13 +39,15 @@ Using FLAIR
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
 alignment steps and splice site filters to increase confidence in the
-set of isoforms defined from noisy data. FLAIR was designed to be able
+set of isoforms defined from noisy data.FLAIR was designed to be able
 to sense subtle splicing changes in nanopore data from `Tang et
 al. (2020) <https://www.nature.com/articles/s41467-020-15171-6>`__.
 Please read for more description of the methods.
 
 .. figure:: img/flair_workflow_compartmentalized.png
 
+
+See  :ref:`flair-protocols-label` for an outline of the approaches to running FLAIR.
 
 If you have multiple samples and want to compare them on a single
 transcriptome, you have two options:
@@ -72,6 +74,7 @@ individually to isoforms of the combined assembly for downstream analyses.
    :caption: Contents:
 
    installing.rst
+   flair-protocols.rst
    modules.rst
    scripts.rst
    flair2_functions.rst
