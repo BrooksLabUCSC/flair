@@ -899,7 +899,7 @@ intron retention, and 4 exon skipping events in the following set of
 isoforms that ``flair diffSplice`` would call and the isoforms that are
 considered to include or exclude the each event:
 
-.. figure:: img/toy_isoforms_coord.png
+.. figure:: img/toy_isoforms_coord.svg
 
 .. code::
 

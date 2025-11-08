@@ -1,0 +1,874 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 1200 700"
+   width="1200"
+   height="700"
+   version="1.1"
+   id="svg85"
+   sodipodi:docname="toy_diu_usage.svg"
+   inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs85" />
+  <sodipodi:namedview
+     id="namedview85"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="0.48166667"
+     inkscape:cx="600"
+     inkscape:cy="349.82699"
+     inkscape:window-width="1472"
+     inkscape:window-height="890"
+     inkscape:window-x="158"
+     inkscape:window-y="38"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg85" />
+  <style
+     id="style1">
+    .axis-line { stroke: #333; stroke-width: 1.5; fill: none; }
+    .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+    .axis-label { font-family: Arial, sans-serif; font-size: 18px; fill: #000; font-weight: bold; }
+    .tick-label { font-family: Arial, sans-serif; font-size: 14px; fill: #000; }
+    .bar-label-pct { font-family: Arial, sans-serif; font-size: 16px; fill: #fff; font-weight: bold; text-anchor: middle; }
+    .bar-label-reads { font-family: Arial, sans-serif; font-size: 13px; fill: #fff; text-anchor: middle; }
+    .sample-label { font-family: Arial, sans-serif; font-size: 12px; fill: #000; text-anchor: end; }
+    
+    .isoform1 { fill: #4a90d9; }
+    .isoform2 { fill: #78b878; }
+    .isoform3 { fill: #a87ca8; }
+    .isoform4 { fill: #d97ca8; }
+    .isoform5 { fill: #f5a623; }
+  </style>
+  <!-- Background -->
+  <rect
+     width="1200"
+     height="700"
+     fill="#ffffff"
+     id="rect1" />
+  <!-- Grid lines -->
+  <line
+     x1="100"
+     y1="550"
+     x2="1150"
+     y2="550"
+     class="grid-line"
+     id="line1" />
+  <line
+     x1="100"
+     y1="450"
+     x2="1150"
+     y2="450"
+     class="grid-line"
+     id="line2" />
+  <line
+     x1="100"
+     y1="350"
+     x2="1150"
+     y2="350"
+     class="grid-line"
+     id="line3" />
+  <line
+     x1="100"
+     y1="250"
+     x2="1150"
+     y2="250"
+     class="grid-line"
+     id="line4" />
+  <line
+     x1="100"
+     y1="150"
+     x2="1150"
+     y2="150"
+     class="grid-line"
+     id="line5" />
+  <line
+     x1="100"
+     y1="50"
+     x2="1150"
+     y2="50"
+     class="grid-line"
+     id="line6" />
+  <!-- Y-axis -->
+  <line
+     x1="100"
+     y1="50"
+     x2="100"
+     y2="550"
+     class="axis-line"
+     id="line7" />
+  <text
+     x="100"
+     y="565"
+     class="tick-label"
+     text-anchor="middle"
+     id="text7"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">0</text>
+  <text
+     x="100"
+     y="465"
+     class="tick-label"
+     text-anchor="end"
+     dx="-5"
+     id="text8"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">20</text>
+  <text
+     x="100"
+     y="365"
+     class="tick-label"
+     text-anchor="end"
+     dx="-5"
+     id="text9"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">40</text>
+  <text
+     x="100"
+     y="265"
+     class="tick-label"
+     text-anchor="end"
+     dx="-5"
+     id="text10"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">60</text>
+  <text
+     x="100"
+     y="165"
+     class="tick-label"
+     text-anchor="end"
+     dx="-5"
+     id="text11"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">80</text>
+  <text
+     x="100"
+     y="65"
+     class="tick-label"
+     text-anchor="end"
+     dx="-5"
+     id="text12"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">100</text>
+  <!-- Y-axis label -->
+  <text
+     x="30"
+     y="300"
+     class="axis-label"
+     text-anchor="middle"
+     transform="rotate(-90 30 300)"
+     id="text13"
+     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Percent Usage</text>
+  <!-- Bar 1: day0_ctrl_batch1 -->
+  <g
+     id="g22">
+    <rect
+       x="130"
+       y="385"
+       width="80"
+       height="165"
+       class="isoform1"
+       id="rect13" />
+    <text
+       x="170"
+       y="465"
+       class="bar-label-pct"
+       id="text14">33.0%</text>
+    <text
+       x="170"
+       y="485"
+       class="bar-label-reads"
+       id="text15">150 reads</text>
+    <rect
+       x="130"
+       y="222"
+       width="80"
+       height="163"
+       class="isoform2"
+       id="rect15" />
+    <text
+       x="170"
+       y="295"
+       class="bar-label-pct"
+       id="text16">32.6%</text>
+    <text
+       x="170"
+       y="315"
+       class="bar-label-reads"
+       id="text17">148 reads</text>
+    <rect
+       x="130"
+       y="136"
+       width="80"
+       height="86"
+       class="isoform3"
+       id="rect17" />
+    <text
+       x="170"
+       y="180"
+       class="bar-label-pct"
+       id="text18">17.2%</text>
+    <text
+       x="170"
+       y="195"
+       class="bar-label-reads"
+       id="text19">78 reads</text>
+    <rect
+       x="130"
+       y="75"
+       width="80"
+       height="61"
+       class="isoform4"
+       id="rect19" />
+    <text
+       x="170"
+       y="110"
+       class="bar-label-pct"
+       id="text20">12.3%</text>
+    <text
+       x="170"
+       y="125"
+       class="bar-label-reads"
+       id="text21">56 reads</text>
+    <rect
+       x="130"
+       y="50"
+       width="80"
+       height="25"
+       class="isoform5"
+       id="rect21" />
+    <text
+       x="170"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 170 595)"
+       id="text22">day0_ctrl_batch1</text>
+  </g>
+  <!-- Bar 2: day0_ctrl_batch2 -->
+  <g
+     id="g31">
+    <rect
+       x="230"
+       y="425"
+       width="80"
+       height="125"
+       class="isoform1"
+       id="rect22" />
+    <text
+       x="270"
+       y="485"
+       class="bar-label-pct"
+       id="text23">24.9%</text>
+    <text
+       x="270"
+       y="505"
+       class="bar-label-reads"
+       id="text24">58 reads</text>
+    <rect
+       x="230"
+       y="221"
+       width="80"
+       height="204"
+       class="isoform2"
+       id="rect24" />
+    <text
+       x="270"
+       y="315"
+       class="bar-label-pct"
+       id="text25">40.8%</text>
+    <text
+       x="270"
+       y="335"
+       class="bar-label-reads"
+       id="text26">95 reads</text>
+    <rect
+       x="230"
+       y="135"
+       width="80"
+       height="86"
+       class="isoform3"
+       id="rect26" />
+    <text
+       x="270"
+       y="180"
+       class="bar-label-pct"
+       id="text27">17.2%</text>
+    <text
+       x="270"
+       y="195"
+       class="bar-label-reads"
+       id="text28">40 reads</text>
+    <rect
+       x="230"
+       y="88"
+       width="80"
+       height="47"
+       class="isoform4"
+       id="rect28" />
+    <text
+       x="270"
+       y="115"
+       class="bar-label-pct"
+       id="text29">9.4%</text>
+    <rect
+       x="230"
+       y="50"
+       width="80"
+       height="38"
+       class="isoform5"
+       id="rect29" />
+    <text
+       x="270"
+       y="75"
+       class="bar-label-pct"
+       id="text30">7.7%</text>
+    <text
+       x="270"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 270 595)"
+       id="text31">day0_ctrl_batch2</text>
+  </g>
+  <!-- Bar 3: day0_exp_batch1 -->
+  <g
+     id="g40">
+    <rect
+       x="330"
+       y="463"
+       width="80"
+       height="87"
+       class="isoform1"
+       id="rect31" />
+    <text
+       x="370"
+       y="510"
+       class="bar-label-pct"
+       id="text32">17.4%</text>
+    <text
+       x="370"
+       y="530"
+       class="bar-label-reads"
+       id="text33">437 reads</text>
+    <rect
+       x="330"
+       y="239"
+       width="80"
+       height="224"
+       class="isoform2"
+       id="rect33" />
+    <text
+       x="370"
+       y="340"
+       class="bar-label-pct"
+       id="text34">44.7%</text>
+    <text
+       x="370"
+       y="365"
+       class="bar-label-reads"
+       id="text35">1122 reads</text>
+    <rect
+       x="330"
+       y="180"
+       width="80"
+       height="59"
+       class="isoform3"
+       id="rect35" />
+    <text
+       x="370"
+       y="213"
+       class="bar-label-pct"
+       id="text36">11.8%</text>
+    <rect
+       x="330"
+       y="93"
+       width="80"
+       height="87"
+       class="isoform4"
+       id="rect36" />
+    <text
+       x="370"
+       y="135"
+       class="bar-label-pct"
+       id="text37">17.5%</text>
+    <text
+       x="370"
+       y="155"
+       class="bar-label-reads"
+       id="text38">440 reads</text>
+    <rect
+       x="330"
+       y="50"
+       width="80"
+       height="43"
+       class="isoform5"
+       id="rect38" />
+    <text
+       x="370"
+       y="75"
+       class="bar-label-pct"
+       id="text39">8.5%</text>
+    <text
+       x="370"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 370 595)"
+       id="text40">day0_exp_batch1</text>
+  </g>
+  <!-- Bar 4: day0_exp_batch2 -->
+  <g
+     id="g48">
+    <rect
+       x="430"
+       y="427"
+       width="80"
+       height="123"
+       class="isoform1"
+       id="rect40" />
+    <text
+       x="470"
+       y="490"
+       class="bar-label-pct"
+       id="text41">24.6%</text>
+    <text
+       x="470"
+       y="510"
+       class="bar-label-reads"
+       id="text42">62 reads</text>
+    <rect
+       x="430"
+       y="201"
+       width="80"
+       height="226"
+       class="isoform2"
+       id="rect42" />
+    <text
+       x="470"
+       y="305"
+       class="bar-label-pct"
+       id="text43">45.2%</text>
+    <text
+       x="470"
+       y="330"
+       class="bar-label-reads"
+       id="text44">114 reads</text>
+    <rect
+       x="430"
+       y="113"
+       width="80"
+       height="88"
+       class="isoform3"
+       id="rect44" />
+    <text
+       x="470"
+       y="155"
+       class="bar-label-pct"
+       id="text45">17.5%</text>
+    <text
+       x="470"
+       y="175"
+       class="bar-label-reads"
+       id="text46">44 reads</text>
+    <rect
+       x="430"
+       y="76"
+       width="80"
+       height="37"
+       class="isoform4"
+       id="rect46" />
+    <text
+       x="470"
+       y="100"
+       class="bar-label-pct"
+       id="text47">7.5%</text>
+    <rect
+       x="430"
+       y="50"
+       width="80"
+       height="26"
+       class="isoform5"
+       id="rect47" />
+    <text
+       x="470"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 470 595)"
+       id="text48">day0_exp_batch2</text>
+  </g>
+  <!-- Bar 5: day8_ctrl_batch1 -->
+  <g
+     id="g58">
+    <rect
+       x="530"
+       y="414"
+       width="80"
+       height="136"
+       class="isoform1"
+       id="rect48" />
+    <text
+       x="570"
+       y="480"
+       class="bar-label-pct"
+       id="text49">27.2%</text>
+    <text
+       x="570"
+       y="500"
+       class="bar-label-reads"
+       id="text50">722 reads</text>
+    <rect
+       x="530"
+       y="241"
+       width="80"
+       height="173"
+       class="isoform2"
+       id="rect50" />
+    <text
+       x="570"
+       y="320"
+       class="bar-label-pct"
+       id="text51">34.5%</text>
+    <text
+       x="570"
+       y="345"
+       class="bar-label-reads"
+       id="text52">917 reads</text>
+    <rect
+       x="530"
+       y="161"
+       width="80"
+       height="80"
+       class="isoform3"
+       id="rect52" />
+    <text
+       x="570"
+       y="203"
+       class="bar-label-pct"
+       id="text53">16.0%</text>
+    <text
+       x="570"
+       y="223"
+       class="bar-label-reads"
+       id="text54">425 reads</text>
+    <rect
+       x="530"
+       y="89"
+       width="80"
+       height="72"
+       class="isoform4"
+       id="rect54" />
+    <text
+       x="570"
+       y="125"
+       class="bar-label-pct"
+       id="text55">14.3%</text>
+    <text
+       x="570"
+       y="145"
+       class="bar-label-reads"
+       id="text56">380 reads</text>
+    <rect
+       x="530"
+       y="50"
+       width="80"
+       height="39"
+       class="isoform5"
+       id="rect56" />
+    <text
+       x="570"
+       y="75"
+       class="bar-label-pct"
+       id="text57">8.1%</text>
+    <text
+       x="570"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 570 595)"
+       id="text58">day8_ctrl_batch1</text>
+  </g>
+  <!-- Bar 6: day8_exp_batch1 -->
+  <g
+     id="g63">
+    <rect
+       x="630"
+       y="156"
+       width="80"
+       height="394"
+       class="isoform1"
+       id="rect58" />
+    <text
+       x="670"
+       y="340"
+       class="bar-label-pct"
+       id="text59">78.7%</text>
+    <text
+       x="670"
+       y="365"
+       class="bar-label-reads"
+       id="text60">596 reads</text>
+    <rect
+       x="630"
+       y="116"
+       width="80"
+       height="40"
+       class="isoform2"
+       id="rect60" />
+    <text
+       x="670"
+       y="140"
+       class="bar-label-pct"
+       id="text61">8.0%</text>
+    <rect
+       x="630"
+       y="73"
+       width="80"
+       height="43"
+       class="isoform3"
+       id="rect61" />
+    <text
+       x="670"
+       y="98"
+       class="bar-label-pct"
+       id="text62">8.6%</text>
+    <rect
+       x="630"
+       y="50"
+       width="80"
+       height="23"
+       class="isoform5"
+       id="rect62" />
+    <text
+       x="670"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 670 595)"
+       id="text63">day8_exp_batch1</text>
+  </g>
+  <!-- Bar 7: day8_exp_batch2 -->
+  <g
+     id="g70">
+    <rect
+       x="730"
+       y="223"
+       width="80"
+       height="327"
+       class="isoform1"
+       id="rect63" />
+    <text
+       x="770"
+       y="375"
+       class="bar-label-pct"
+       id="text64">65.3%</text>
+    <text
+       x="770"
+       y="400"
+       class="bar-label-reads"
+       id="text65">8368 reads</text>
+    <rect
+       x="730"
+       y="183"
+       width="80"
+       height="40"
+       class="isoform2"
+       id="rect65" />
+    <text
+       x="770"
+       y="207"
+       class="bar-label-pct"
+       id="text66">8.0%</text>
+    <rect
+       x="730"
+       y="98"
+       width="80"
+       height="85"
+       class="isoform3"
+       id="rect66" />
+    <text
+       x="770"
+       y="138"
+       class="bar-label-pct"
+       id="text67">16.9%</text>
+    <text
+       x="770"
+       y="158"
+       class="bar-label-reads"
+       id="text68">2173 reads</text>
+    <rect
+       x="730"
+       y="50"
+       width="80"
+       height="48"
+       class="isoform5"
+       id="rect68" />
+    <text
+       x="770"
+       y="78"
+       class="bar-label-pct"
+       id="text69">8.3%</text>
+    <text
+       x="770"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 770 595)"
+       id="text70">day8_exp_batch2</text>
+  </g>
+  <!-- Bar 8: day12_ctrl_batch1 -->
+  <g
+     id="g77">
+    <rect
+       x="830"
+       y="419"
+       width="80"
+       height="131"
+       class="isoform1"
+       id="rect70" />
+    <text
+       x="870"
+       y="485"
+       class="bar-label-pct"
+       id="text71">26.2%</text>
+    <text
+       x="870"
+       y="505"
+       class="bar-label-reads"
+       id="text72">106 reads</text>
+    <rect
+       x="830"
+       y="185"
+       width="80"
+       height="234"
+       class="isoform2"
+       id="rect72" />
+    <text
+       x="870"
+       y="293"
+       class="bar-label-pct"
+       id="text73">46.8%</text>
+    <text
+       x="870"
+       y="318"
+       class="bar-label-reads"
+       id="text74">189 reads</text>
+    <rect
+       x="830"
+       y="128"
+       width="80"
+       height="57"
+       class="isoform3"
+       id="rect74" />
+    <text
+       x="870"
+       y="160"
+       class="bar-label-pct"
+       id="text75">11.4%</text>
+    <rect
+       x="830"
+       y="79"
+       width="80"
+       height="49"
+       class="isoform4"
+       id="rect75" />
+    <text
+       x="870"
+       y="107"
+       class="bar-label-pct"
+       id="text76">9.7%</text>
+    <rect
+       x="830"
+       y="50"
+       width="80"
+       height="29"
+       class="isoform5"
+       id="rect76" />
+    <text
+       x="870"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 870 595)"
+       id="text77">day12_ctrl_batch1</text>
+  </g>
+  <!-- Bar 9: day12_exp_batch1 -->
+  <g
+     id="g85">
+    <rect
+       x="930"
+       y="234"
+       width="80"
+       height="316"
+       class="isoform1"
+       id="rect77" />
+    <text
+       x="970"
+       y="380"
+       class="bar-label-pct"
+       id="text78">63.3%</text>
+    <text
+       x="970"
+       y="405"
+       class="bar-label-reads"
+       id="text79">322 reads</text>
+    <rect
+       x="930"
+       y="156"
+       width="80"
+       height="78"
+       class="isoform2"
+       id="rect79" />
+    <text
+       x="970"
+       y="197"
+       class="bar-label-pct"
+       id="text80">15.7%</text>
+    <text
+       x="970"
+       y="217"
+       class="bar-label-reads"
+       id="text81">80 reads</text>
+    <rect
+       x="930"
+       y="108"
+       width="80"
+       height="48"
+       class="isoform3"
+       id="rect81" />
+    <rect
+       x="930"
+       y="68"
+       width="80"
+       height="40"
+       class="isoform4"
+       id="rect82" />
+    <rect
+       x="930"
+       y="50"
+       width="80"
+       height="18"
+       class="isoform5"
+       id="rect83" />
+    <text
+       x="970"
+       y="68"
+       class="bar-label-pct"
+       id="text83">16.3%</text>
+    <text
+       x="970"
+       y="85"
+       class="bar-label-reads"
+       id="text84">83 reads</text>
+    <text
+       x="970"
+       y="595"
+       class="sample-label"
+       text-anchor="middle"
+       transform="rotate(-45 970 595)"
+       id="text85">day12_exp_batch1</text>
+  </g>
+</svg>
