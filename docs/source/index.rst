@@ -44,7 +44,7 @@ to sense subtle splicing changes in nanopore data from `Tang et
 al. (2020) <https://www.nature.com/articles/s41467-020-15171-6>`__.
 Please read for more description of the methods.
 
-.. figure:: img/flair_workflow_compartmentalized.png
+.. figure:: img/flair_workflow_compartmentalized.svg
 
 
 See  :ref:`flair-protocols-label` for an outline of the approaches to running FLAIR.
