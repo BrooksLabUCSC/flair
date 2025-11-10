@@ -1,7 +1,7 @@
-.. _flair-protocols-label:
+.. _flair-protocol-label:
 
-FLAIR protocols
----------------
+FLAIR protocol
+==============
 
 - Align reads to the genome
 - Obtain novel splice junction reference

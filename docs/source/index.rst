@@ -47,7 +47,7 @@ Please read for more description of the methods.
 .. figure:: img/flair_workflow_compartmentalized.svg
 
 
-See  :ref:`flair-protocols-label` for an outline of the approaches to running FLAIR.
+See  :ref:`flair-protocol-label` for an outline of the approaches to running FLAIR.
 
 If you have multiple samples and want to compare them on a single
 transcriptome, you have two options:
@@ -74,7 +74,7 @@ individually to isoforms of the combined assembly for downstream analyses.
    :caption: Contents:
 
    installing.rst
-   flair-protocols.rst
+   flair-protocol.rst
    modules.rst
    scripts.rst
    flair2_functions.rst
