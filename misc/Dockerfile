@@ -16,6 +16,11 @@ ARG FLAIR_INSTALL=yes
 ARG FLAIR_PIP_SPEC=flair-brookslab==v3.0.0a1
 
 ##
+# safer bash
+## 
+SHELL ["/bin/bash", "-beEu", "-o", "pipefail", "-c"]
+
+##
 # deal with tzdata timezone question
 # see https://dev.to/setevoy/docker-configure-tzdata-and-timezone-during-build-20bk
 ##
@@ -32,17 +37,25 @@ RUN apt-get update && apt-get install -y \
         libc-bin libc6-dev \
         file net-tools iproute2 iputils-ping dnsutils \
 	bedtools=2.31.1+dfsg-2 \
-        minimap2=2.26+dfsg-1build1 \
         python3=3.12.3-0ubuntu2 \
 	python3-pip=24.0+dfsg-1ubuntu1 \
         libtirpc-dev \
         libcurl4-openssl-dev \
         r-base
 
+# minimap2 2.30
+RUN \
+    MM2_VER=2.30 && MM2_LINUX=minimap2-${MM2_VER}_x64-linux && \
+    MM2_URL=https://github.com/lh3/minimap2/releases/download/v${MM2_VER}/${MM2_LINUX}.tar.bz2 && \
+    curl -sL ${MM2_URL} | tar -xj -C /tmp && \
+    cp  /tmp/${MM2_LINUX}/{minimap2,k8,paftools.js} /usr/local/bin/ && \
+    rm -rf /tmp/${MM2_LINUX}
+
 #  24.04.2 Noble has an old samtool package, download newer from a subsequent release
 RUN \
-   wget -nv -O /tmp/samtools.deb http://mirrors.kernel.org/ubuntu/pool/universe/s/samtools/samtools_1.21-1_amd64.deb && \
-   wget -nv -O /tmp/libhts3t64.deb http://mirrors.kernel.org/ubuntu/pool/universe/h/htslib/libhts3t64_1.21+ds-1_amd64.deb && \
+   DEB_URL=http://mirrors.kernel.org/ubuntu/pool/universe && \
+   wget -nv -O /tmp/samtools.deb ${DEB_URL}/s/samtools/samtools_1.22.1-1_amd64.deb && \
+   wget -nv -O /tmp/libhts3t64.deb ${DEB_URL}/h/htslib/libhts3t64_1.22.1%2Bds2-1_amd64.deb && \
    apt-get install -y /tmp/libhts3t64.deb /tmp/samtools.deb
 
 FROM base AS unix_base
