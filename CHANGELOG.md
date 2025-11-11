@@ -49,7 +49,7 @@
     * Good for identifying splicing of specific variants
     * Can be used in conjunction with FLAIR diffexp or diff_iso_usage 
     to identify changes in variant-aware transcripts between samples/groups
-    
+* Added FLAIR protocol to improve guidance on running flair
 
 
 
