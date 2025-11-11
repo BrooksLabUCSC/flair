@@ -52,7 +52,8 @@ test-base-installed:
 test-help: test-main-help test-align-help test-correct-help test-collapse-help \
            test-quantify-help test-diffexp-help test-diffsplice-help \
            test-predict-productivity-help test-diff-iso-usage-help \
-	   test-plot-usage-help test-transcriptome-help test-variants-help
+	   test-plot-usage-help test-transcriptome-help test-variants-help \
+	   test-fusion-help
 
 
 
