@@ -127,6 +127,8 @@ define cmp_expect_sort
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff <(sort $E/${1}) <(sort $O/${1})
 endef
+
+
 ###
 # MAIN COMMAND
 ###
