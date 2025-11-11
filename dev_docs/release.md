@@ -132,7 +132,7 @@ pip install -e .[dev]
 
 Without diff expression support:
 ```
-make -k -O -j 64 test-installed-base
+make -k -O -j 64 test-base-installed
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 

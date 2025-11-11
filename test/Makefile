@@ -10,6 +10,50 @@ ifneq (${use_installed_flair},yes)
 endif
 
 ##
+# all targets
+##
+default:
+	@echo To run tests, use: >&2
+	@echo "   " make test >&2
+	@echo To run tests without R depedencies, use: >&2
+	@echo "   " make test-base >&2
+	@echo To run tests using installed FLAIR rather than source tree, use: >&2
+	@echo "   " make test-installed >&2
+	@echo To run tests without R depedencies using installed FLAIR, use: >&2
+	@echo "   " make test-base-installed >&2
+	@echo otherwise run individual tests by specifying test target, such as: >&2
+	@echo "   " make align-tests >&2
+	@echo to installed FLAIR for individual tests use the use_installed_flair option, such as: >&2
+	@echo "   " make align-tests use_installed_flair=yes >&2
+	@echo remove output files: >&2
+	@echo "   " make clean >&2
+	@echo remove output and downloaded genomes files: >&2
+	@echo "   " make real-clean >&2
+	@exit 1
+
+test: test-base test-with-R
+test-base: align-tests correct-tests collapse-tests quantify-tests \
+	combine-tests predict-productivity-tests diff-iso-usage-tests \
+	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
+	partition-tests
+
+test-with-R: diffexp-tests diffsplice-tests
+
+
+test-installed:
+	${MAKE} test use_installed_flair=yes
+
+test-base-installed:
+	${MAKE} test-base use_installed_flair=yes
+
+test-help: test-main-help test-align-help test-correct-help test-collapse-help \
+           test-quantify-help test-diffexp-help test-diffsplice-help \
+           test-predict-productivity-help test-diff-iso-usage-help \
+	   test-plot-usage-help test-transcriptome-help test-variants-help \
+	   test-fusion-help
+
+
+##
 # Note: expected and output are sorted in cases where the order is not stable
 ##
 
@@ -81,35 +125,6 @@ define cmp_expect_sort
 	diff <(sort $E/${1}) <(sort $O/${1})
 endef
 
-
-default:
-	@echo To run all tests, use: >&2
-	@echo "   " make test >&2
-	@echo To run expression diff tests that depend on R >&2
-	@echo "   " make test-diffexpress >&2
-	@echo To run all tests >&2
-	@echo "   " make test-all >&2
-	@echo otherwise run individual tests by specifying test target, such as: >&2
-	@echo "   " make align-tests >&2
-	@echo remove output files: >&2
-	@echo "   " make clean >&2
-	@echo remove output and downloaded genomes files: >&2
-	@echo "   " make real-clean >&2
-	@exit 1
-
-test:  test-help align-tests correct-tests collapse-tests quantify-tests \
-	combine-tests predict-productivity-tests diff-iso-usage-tests \
-	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-	partition-tests
-
-test-diffexpress: diffexp-tests diffsplice-tests
-
-test-all: test test-diffexpress
-
-test-help: test-main-help test-align-help test-correct-help test-collapse-help \
-           test-quantify-help test-diffexp-help test-diffsplice-help \
-           test-predict-productivity-help test-diff-iso-usage-help \
-	   test-plot-usage-help test-transcriptome-help test-variants-help test-fusion-help
 
 ###
 # MAIN COMMAND
