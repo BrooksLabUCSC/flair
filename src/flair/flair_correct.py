@@ -99,7 +99,7 @@ def correct(aligned_reads='', args=None):
         juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if addFlag == False:
-            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}\n')
+            logging.info(f'ERROR Added no extra junctions from {shortread}\n')
     knownSS = dict()
 
     # added to allow annotations not to be used.

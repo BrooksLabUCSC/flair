@@ -185,7 +185,7 @@ def generateKnownSSDatabase(args, tempDir):
         juncs, chromosomes, addFlag = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if addFlag == False:
-            raise FlairInputDataError(f'ERROR Added no extra junctions from {shortread}')
+            logging.info(f'ERROR Added no extra junctions from {shortread}')
 
     # added to allow annotations not to be used.
     if len(list(juncs.keys())) < 1:
