@@ -15,7 +15,9 @@ def revcomp(seq):
 def addOtherJuncs(juncs, filetype, bedJuncs, minsup, chromosomes, printErrFname, known, verbose, printErr):
     # guess what kind of bedFile
     if os.path.getsize(bedJuncs) == 0:
-        raise Exception("Empty junctions BED file, not supported")
+        # raise Exception("Empty junctions BED file, not supported")
+        logging.warn('WARNING: orthogonal junctions bed file is EMPTY')
+        return juncs, chromosomes, False, False
 
     if filetype == 'bed':
         # normal bed

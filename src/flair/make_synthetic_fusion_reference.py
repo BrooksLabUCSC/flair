@@ -16,7 +16,7 @@ prefix = args.output#'.'.join(args.chimbp.split('.')[:-2])
 def revComp(seq):
     newseq = ''
     comp = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N':'N'}
-    for char in seq[::-1]:
+    for char in seq[::-1].upper():
         newseq += comp[char]
     return newseq
 

@@ -187,7 +187,7 @@ def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss
             totmatch = sum([1 for x in ssvals if x >= 1]) # insert at pos still counts as match
             if tname == testtname:
                 print(i, currpos, ssvals, totmatch, totinsert)
-            if totinsert + (len(ssvals)-totmatch) > NUM_MISTAKES_IN_SS_WINDOW:
+            if totinsert + (len(ssvals)-totmatch) <= NUM_MISTAKES_IN_SS_WINDOW:
                 return True
         return False
 

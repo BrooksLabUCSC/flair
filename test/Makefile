@@ -525,8 +525,8 @@ test-variants-help: mkdirs
 fusion-tests: test-fusion test-fusion-help
 
 test-fusion: mkdirs ${GENOME_FA}
-	flair align -r $(BASIC_READS_FA) --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
-	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $(BASIC_READS_FA) -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
+	flair align -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 
 test-fusion-help: mkdirs

@@ -188,7 +188,7 @@ def generate_known_SS_database(args, temp_dir):
         juncs, chromosomes, addFlag, hasNovelJuncs = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                                                     False, knownSS, False, False)
         if not addFlag:
-            raise FlairInputDataError(f'ERROR No junctions found in {shortread} that passed filters')
+            logging.info(f'WARNING: No junctions found in {shortread} that passed filters')
         if not hasNovelJuncs:
             logging.info(f'WARNING: {shortread} did not have any additional junctions that passed filters and were not in {args.gtf}')
 

@@ -73,10 +73,10 @@ def detectfusions():
 
     # if args.annotated_fa == 'generate':
     # get transcript sequences
-    args.annotated_bed = args.output + 'annotated_transcripts.bed'
+    args.annotated_bed = args.output + '.annotated_transcripts.bed'
     gtf_to_bed(args.annotated_bed, args.gtf, include_gene=True)
-    args.annotated_fa = args.output + 'annotated_transcripts.fa'
-    bed_to_sequence(query=args.output + 'annotated_transcripts.bed', genome=args.genome,
+    args.annotated_fa = args.output + '.annotated_transcripts.fa'
+    bed_to_sequence(query=args.output + '.annotated_transcripts.bed', genome=args.genome,
                     outfilename=args.annotated_fa)
 
     ####NEED TO REMEMBER THAT FUSION DETECTION RELIES ON HAVING PROPERLY STRANDED READS - need to add stranding step and/or better documentation on this
@@ -258,11 +258,11 @@ def detectfusions():
                         args.output + '-syntheticReferenceAnno.gtf', args.output + '.syntheticAligned.SJ.bed', args.output + '-syntheticBreakpointLoc.bed', '8', '2', args.output + '-syntheticFusionGenome.fa']#'15', '2']
     ##NOT ADDING GTF ANNOT TO correct or collapse - I think this will save time down the line
     correctcommand = ['python3', path + 'flair_correct.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.bed',
-                      '-g', args.output + '-syntheticFusionGenome.fa', '-f', args.output + '-syntheticReferenceAnno.gtf',
-                      '--output', args.output + '.syntheticAligned.flair', '--shortread', args.output + '.syntheticAligned.SJ.bed', '--ss_window', '8']
+                      '-f', args.output + '-syntheticReferenceAnno.gtf',
+                      '--output', args.output + '.syntheticAligned.flair', '--junction_bed', args.output + '.syntheticAligned.SJ.bed', '--ss_window', '8']
     collapsecommand = ['python3', path + 'flair_collapse.py', '-t', args.threads, '-q', args.output + '.syntheticAligned.flair_all_corrected.bed',
                       '-g', args.output + '-syntheticFusionGenome.fa', #'-f', args.output + '-syntheticReferenceAnno.gtf',
-                      '--output', args.output + '.syntheticAligned.flair', '-r', freadsname, '--end_window', '300', '--isoformtss', #'--stringent', '--check_splice', #'--annotation_reliant', 'generate',
+                      '--output', args.output + '.syntheticAligned.flair', '-r', freadsname, '--end_window', '300', #'--stringent', '--check_splice', #'--annotation_reliant', 'generate',
                       '--generate_map', '--quality', '0', '--support', '2', '--fusion_breakpoints', args.output + '-syntheticBreakpointLoc.bed', '--allow_paralogs']
 
 
@@ -303,12 +303,10 @@ def detectfusions():
     maxpromiscuity = 4
     convert_synthetic_isos(args.gtf, args.output + '.syntheticAligned.isoforms.bed',
                       args.output + '.syntheticAligned.isoform.read.map.txt', freadsname,
-                      args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed', os.path.realpath(__file__).split('convert_')[0] + 'dgd_Hsa_all_v71.tsv', maxpromiscuity)
-    goodisos = pipettor.DataReader()
-    pipettor.run([convertcommand], stdout=goodisos)
-    # print(' '.join(convertcommand))
-
-    goodisos = set(goodisos.data.split('\n'))
+                      args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed', os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv', maxpromiscuity)
+    goodisos = set()
+    for line in open(args.output + '.fusions.isoforms.bed'):
+        goodisos.add(line)
 
     out = open(args.output + '.fusions.isoforms.fa', 'w')
     good = False
