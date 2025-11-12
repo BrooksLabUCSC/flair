@@ -1,6 +1,6 @@
 Additional programs
 ^^^^^^^^^^^^^^^^^^^
-When you ``conda install`` flair, the following helper programs will be in your $PATH:
+When you ``conda install`` or ``pip install`` flair, the following helper programs will be in your $PATH:
 
 gtf_to_bed
 ==========
@@ -159,9 +159,9 @@ color_palette to plot more isoforms. Run with --help for options
 
 For example:
 
-.. figure:: img/toy_diu_isoforms.png
+.. figure:: img/toy_diu_isoforms.svg
 
-.. figure:: img/toy_diu_usage.png
+.. figure:: img/toy_diu_usage.svg
 
 
 .. code:: sh

@@ -17,7 +17,7 @@ flair transcriptome
 
 .. code:: text
 
-    usage: usage: flair transcriptome -g genome.fa -b reads.genomealigned.bam [options]
+    usage: usage: flair transcriptome -b reads.genomealigned.bam [options]
 
 
 This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
@@ -188,7 +188,7 @@ flair correct
 
 .. code:: text
 
-   usage: flair correct -q query.bed12 [-f annotation.gtf]|[-j introns.tab] -g genome.fa [options]
+   usage: flair correct -q query.bed12 [-f annotation.gtf]|[-j introns.tab] [options]
 
 
 This module corrects misaligned splice sites using genome annotations and/or short-read splice junctions.
@@ -899,7 +899,7 @@ intron retention, and 4 exon skipping events in the following set of
 isoforms that ``flair diffSplice`` would call and the isoforms that are
 considered to include or exclude the each event:
 
-.. figure:: img/toy_isoforms_coord.png
+.. figure:: img/toy_isoforms_coord.svg
 
 .. code::
 

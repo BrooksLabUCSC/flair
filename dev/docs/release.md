@@ -6,7 +6,8 @@ For each Flair release we provide the following:
 - a bioconda package (uses pip; full install)
 - docker image (uses pip; full install)
 
-If this is your first time doing, be user and do the *Onetime account setup*.
+If this is your first time doing, be user and do the
+[*Onetime account setup*](release-setup.md).
 
 If you need to make edits to this document after the release is tag and pushed,
 don't worry, make a temporary copy to update and then commit after the release.
@@ -35,50 +36,6 @@ markdown checklist to the GitHub release ticket and use it to track progress.
 - [] 18. Set the release latest in GitHub
 - [] 19. Announce release
 - [] 20. Set version in tree to have +master suffix
-
-## Onetime account setup
-
-### PyPi user/computer setup 
-You will need a PyPi accounts for, both https://pypi.org/ and https://testpypi.pypi.org
-and be added to the `flair-brookslab` project by a current owner.
-
--  Create an API token, see https://pypi.org/help/#apitoken
--  Store the token in your local `~/.pypirc`:
-```
-[distutils]
-index-servers = 
-    pypi
-    testpypi
-    
-[pypi]
-repository = https://upload.pypi.org/legacy/
-username = __token__
-password = <your-api-token>
-
-[testpypi]
-repository = https://test.pypi.org/legacy/
-username = __token__
-password = <your-test-api-token>
-```
-
-Poetry also needs this information:
-```
-poetry config pypi-token.pypi <your-api-token>>
-poetry config repositories.testpypi https://test.pypi.org/legacy/
-poetry config pypi-token.testpypi <your-test-api-token>>
-```
-
-### ReadTheDocs user setup
-
-Create a ReadTheDocs account if you don't already have one and have an
-existing FLAIR a
-registered as an admin on the FLAIR
-project check here: https://app.readthedocs.org/dashboard/
-
-### DockerHub user setup
-
-Create a DockerHub account if you don't have one and ask a current
-lab admin to add you to the brookslab organization.
 
 ## 1. Update CHANGELOG.md and copyrights
 
@@ -132,7 +89,7 @@ pip install -e .[dev]
 
 Without diff expression support:
 ```
-make -k -O -j 64 test-installed-base
+make -k -O -j 64 test-base-installed
 ```
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
