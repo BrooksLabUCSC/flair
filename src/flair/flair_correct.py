@@ -99,7 +99,7 @@ def correct(aligned_reads='', args=None):
         juncs, chromosomes, addFlag, hasNovelJuncs = addOtherJuncs(juncs, type, shortread, args.junction_support, chromosomes,
                 printErrFname, knownSS, verbose, printErr)
         if not addFlag:
-            raise FlairInputDataError(f'ERROR No junctions found in {shortread} that passed filters\n')
+            logging.info(f'WARNING: No junctions found in {shortread} that passed filters\n')
         if not hasNovelJuncs:
             logging.info(f'WARNING: {shortread} did not have any additional junctions that passed filters and were not in {args.gtf}')
     knownSS = dict()
