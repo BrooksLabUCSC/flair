@@ -162,7 +162,7 @@ def check_too_close(numloci, genomicbounds):
 def write_final_fusion_reads(readsfile, freadsfinal):
     last = False
     temp = readsfile.split('.')
-    temp[-2] = 'fusionreads-TEST'
+    temp[-2] = 'fusionreads'
     freads = open('.'.join(temp), 'w')
 
     if readsfile.split('.')[-1] == 'fasta' or readsfile.split('.')[-1] == 'fa':

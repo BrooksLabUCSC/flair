@@ -46,16 +46,26 @@ reconsideredss = []
 c = 0
 for line in open(alignedbedfile):
     line = line.rstrip().split('\t')
-    thischr, iso, dir, start, esizes, estarts = line[0], line[3], line[5], int(line[1]), \
+    thischr, iso, strand, start, esizes, estarts = line[0], line[3], line[5], int(line[1]), \
                             [int(x) for x in line[10].rstrip(',').split(',')], [ int(x) for x in line[11].rstrip(',').split(',')]
     for i in range(len(esizes) - 1):
         thisintron = [thischr, start + estarts[i] + esizes[i] , start + estarts[i + 1] + 1]
         ###only process around bp
         # print(iso, thisintron[1], genome.fetch(thischr, thisintron[1], thisintron[1]+2))
         # print(iso, thisintron[2], genome.fetch(thischr, thisintron[2]-2, thisintron[2]))
-        if thisintron[1] <= fusiontobp[thischr] <= thisintron[2] or \
-                genome.fetch(thischr, thisintron[1], thisintron[1]+2) == 'GT' and \
+        foundSJ = False
+        if genome.fetch(thischr, thisintron[1], thisintron[1]+2) == 'GT' and \
                 genome.fetch(thischr, thisintron[2]-3, thisintron[2]-1) == 'AG':
+            foundSJ = True
+            strand = '+'
+        elif genome.fetch(thischr, thisintron[1], thisintron[1]+2) == 'CT' and \
+                genome.fetch(thischr, thisintron[2]-3, thisintron[2]-1) == 'AC':
+            foundSJ = True
+            strand = '-'
+        thisintron.append(strand)
+
+        
+        if thisintron[1] <= fusiontobp[thischr] <= thisintron[2] or foundSJ:
             doreconsider = False
             if thischr in fusiontoannotsj:
                 for i in range(1,3):#, 3):
@@ -150,6 +160,6 @@ out = open(outfilename, 'w')
 for j in splicejunctosupport:
     if splicejunctosupport[j] >= 2:
         # goodsj[j] = splicejunctosupport[j]
-        out.write('\t'.join([str(x) for x in j]) + '\t+\n')
+        out.write('\t'.join([str(x) for x in j[:3]] + ['.', str(splicejunctosupport[j]), j[3]]) + '\t+\n')
 
 out.close()
