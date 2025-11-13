@@ -44,7 +44,7 @@ incompatibilities, and high-visibility bug fixes.  It doesn't need to contain
 minor changes.  Review the commit logs with:
 
 ```
-git log 2.0.0..HEAD --pretty=format:"%h %an: %s"
+git log v2.0.0..HEAD --pretty=format:"%h %an: %s"
 ```
 
 Copyrights are needed in:
