@@ -28,7 +28,7 @@ On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use:
 Note that mamba currently fails to install FLAIR on Mac ARM64.
 
 If you are going to use the ``diffexp`` or ``diffsplice`` modules,
-you need to add addition packages to the Conda environment with: 
+you need to add addition packages to the Conda environment with:
 
 .. code:: sh
 
@@ -44,7 +44,7 @@ a Conda environment from a release in GitHub, use:
 
    conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.2.0+master/flair_conda_env.yaml
    conda activate flair
-   
+
 To add the `diffexp` or `diffsplice` dependencies:
 
 .. code:: sh
@@ -84,7 +84,16 @@ or to install the current code from github:
 .. code:: sh
 
    pip install git+https://github.com/BrooksLabUCSC/flair.git
-             
+
+If you already have FLAIR install, you will need to uninstall it first
+to update the code, since the version number will not have changed in the tree.
+
+.. code:: sh
+
+   pip install flair-brookslab
+   pip install git+https://github.com/BrooksLabUCSC/flair.git
+
+
 The``flair diffexp`` and ``flair diffsplice`` modules require ``R`` , along
 with these ``R`` packages. Some of these do not work on Apple Silicon.
 
