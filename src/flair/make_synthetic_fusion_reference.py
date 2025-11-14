@@ -62,6 +62,7 @@ for line in open(args.a):#'/private/groups/brookslab/reference_annotations/genco
         line = line.split('\t')
         if line[2] == 'gene' or line[2] == 'exon' or line[2] == 'start_codon':
             genename = line[8].split('gene_id "')[1].split('"')[0]
+            genename = genename.replace('_','-')
             # genename += '*' + line[8].split('gene_id "')[1].split('"')[0]
             if genename in fgenes:
                 if line[2] == 'gene':

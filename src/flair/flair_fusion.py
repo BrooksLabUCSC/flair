@@ -120,26 +120,24 @@ def detectfusions():
             continue
         line = line.rstrip().split('\t', 8)
         chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
-        if ty == 'gene':
-            genename = line[8].split('gene_id "')[1].split('"')[0]
-            genetoinfo[genename] = [chrom, start, end, strand, []]
-            # if chrom not in geneannot: geneannot[chrom] = defaultdict(def_value)
-            # for i in range(round(start, -2), round(end, -2), 100):
-            #     geneannot[chrom][i].add((genename, strand))
-        elif ty == 'exon':
-            transcript_id = line[8].split('transcript_id "')[1].split('"')[0]
+        if ty in {'gene', 'exon', 'transcript'}:
             gene_id = line[8].split('gene_id "')[1].split('"')[0]
-            if gene_id not in genetoexons: genetoexons[gene_id] = {}
-            if transcript_id not in genetoexons[gene_id]: genetoexons[gene_id][transcript_id] = []
-            genetoexons[gene_id][transcript_id].append((start, end))
-            if chrom not in annot: annot[chrom] = defaultdict(def_value)
-            # for i in range(round(start, -1), round(end, -1), 10):
-            for i in range(round(start, -2), round(end, -2) + 1, 100):
-                annot[chrom][i].add((gene_id, strand))
-        elif ty == 'transcript':
-            genename = line[8].split('gene_id "')[1].split('"')[0]
-            end5 = start if strand == '+' else end
-            genetoinfo[genename][-1].append(end5)
+            gene_id = gene_id.replace('_', '-')
+            if ty == 'gene':
+                genetoinfo[gene_id] = [chrom, start, end, strand, []]
+
+            elif ty == 'exon':
+                transcript_id = line[8].split('transcript_id "')[1].split('"')[0]
+                if gene_id not in genetoexons: genetoexons[gene_id] = {}
+                if transcript_id not in genetoexons[gene_id]: genetoexons[gene_id][transcript_id] = []
+                genetoexons[gene_id][transcript_id].append((start, end))
+                if chrom not in annot: annot[chrom] = defaultdict(def_value)
+                # for i in range(round(start, -1), round(end, -1), 10):
+                for i in range(round(start, -2), round(end, -2) + 1, 100):
+                    annot[chrom][i].add((gene_id, strand))
+            elif ty == 'transcript':
+                end5 = start if strand == '+' else end
+                genetoinfo[gene_id][-1].append(end5)
     print('read gtf')
     intronLocs, intronToGenome = {}, {}
     for g in genetoexons:
