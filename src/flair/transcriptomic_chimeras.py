@@ -58,15 +58,16 @@ def parsegtftranscriptomic(gtffilename):
             continue
         line = line.rstrip().split('\t')
         chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
-        if ty == 'gene':
-            genename = line[8].split('gene_id "')[1].split('"')[0]
-            geneannot[genename] = (chrom, start, end, strand)
-        if ty != 'exon': continue
-        transcript_id = line[8].split('transcript_id "')[1].split('"')[0]
-        gene_id = line[8].split('gene_id "')[1].split('"')[0]
-        if gene_id not in genetoinfo: genetoinfo[gene_id] = {}
-        if transcript_id not in genetoinfo[gene_id]: genetoinfo[gene_id][transcript_id] = []
-        genetoinfo[gene_id][transcript_id].append((start, end))
+        if ty in {'gene', 'exon'}:
+            gene_id = line[8].split('gene_id "')[1].split('"')[0]
+            gene_id = gene_id.replace('_', '-')
+            if ty == 'gene':
+                geneannot[gene_id] = (chrom, start, end, strand)
+            else:
+                transcript_id = line[8].split('transcript_id "')[1].split('"')[0]
+                if gene_id not in genetoinfo: genetoinfo[gene_id] = {}
+                if transcript_id not in genetoinfo[gene_id]: genetoinfo[gene_id][transcript_id] = []
+                genetoinfo[gene_id][transcript_id].append((start, end))
 
     intronLocs, intronToGenome = {}, {}
     for g in genetoinfo:
