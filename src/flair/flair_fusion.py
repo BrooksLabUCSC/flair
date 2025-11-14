@@ -306,7 +306,8 @@ def detectfusions():
                       args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed', os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv', maxpromiscuity)
     goodisos = set()
     for line in open(args.output + '.fusions.isoforms.bed'):
-        goodisos.add(line)
+        line = line.rstrip().split('\t')
+        goodisos.add('_'.join(line[3].split('_')[1:]))
 
     out = open(args.output + '.fusions.isoforms.fa', 'w')
     good = False
@@ -321,7 +322,7 @@ def detectfusions():
 
     os.rename(args.output + '.syntheticAligned.isoform.read.map.txt', args.output + '.fusion.isoform.read.map.txt')
 
-    # #removing extra FLAIR files
+    #removing extra FLAIR files
     for filename in glob.glob(args.output + '.syntheticAligned.flair*'):
         os.remove(filename)
 
