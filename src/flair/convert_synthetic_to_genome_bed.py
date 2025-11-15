@@ -41,7 +41,10 @@ def get_gene_name_conv(annotgtf):
             line = line.split('\t', 3)
             if line[2] == 'gene':
                 geneid = line[-1].split('gene_id "')[1].split('"')[0]
-                genename = line[-1].split('gene_name "')[1].split('"')[0]
+                if 'gene_name' in line[-1]:
+                    genename = line[-1].split('gene_name "')[1].split('"')[0]
+                else:
+                    genename = geneid
                 genetoname[geneid.split('.')[0]] = genename
     return genetoname
 
