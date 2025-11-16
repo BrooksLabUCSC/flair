@@ -1,6 +1,6 @@
 # Major user-visible changes
 
-## [3.0.0] 2025-08-01
+## [3.0.0]
 * General
   * Removed dependencies on pandas and rpy2.
   * Added proper logging throughout
