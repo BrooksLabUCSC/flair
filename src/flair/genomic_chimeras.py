@@ -104,22 +104,23 @@ def idGenomicChimeras(bam, annot, geneannot, genetoinfo, minsup, maxloci=10, req
     c = 0
     readToAligns = {}
     for read in withsup:
-        rname = read.query_name
-        if rname not in readToAligns:
-            readToAligns[rname] = []
-        # print(rname, read.get_blocks())
-        refchr, refstart, refend, dir = read.reference_name, read.reference_start, read.reference_end, isrevtosign[read.is_reverse]
-        genename = getCorrectGene(annot, geneannot, refchr, read.get_blocks())#, isrevtosign[read.is_reverse])  # + '|' + isrevtosign[read.is_reverse]
-        qstart, qend = read.query_alignment_start, read.query_alignment_end
-        readlen = read.infer_read_length()
-        cigar = read.cigartuples
-        if cigar[0][0] == 5:  ##just hard clipping
-            qstart += cigar[0][1]
-            qend += cigar[0][1]
-        if dir == '+':
-            readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, dir, refchr])
-        else:
-            readToAligns[rname].append([(readlen - qend, refend), (readlen - qstart, refstart), genename, dir, refchr])
+        if read.is_mapped and not read.is_secondary and read.has_tag('SA'):
+            rname = read.query_name
+            if rname not in readToAligns:
+                readToAligns[rname] = []
+            # print(rname, read.get_blocks())
+            refchr, refstart, refend, dir = read.reference_name, read.reference_start, read.reference_end, isrevtosign[read.is_reverse]
+            genename = getCorrectGene(annot, geneannot, refchr, read.get_blocks())#, isrevtosign[read.is_reverse])  # + '|' + isrevtosign[read.is_reverse]
+            qstart, qend = read.query_alignment_start, read.query_alignment_end
+            readlen = read.infer_read_length()
+            cigar = read.cigartuples
+            if cigar[0][0] == 5:  ##just hard clipping
+                qstart += cigar[0][1]
+                qend += cigar[0][1]
+            if dir == '+':
+                readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, dir, refchr])
+            else:
+                readToAligns[rname].append([(readlen - qend, refend), (readlen - qstart, refstart), genename, dir, refchr])
 
     interestingloci = {}
     for read in readToAligns:
