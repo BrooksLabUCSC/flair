@@ -90,7 +90,7 @@ to update the code, since the version number will not have changed in the tree.
 
 .. code:: sh
 
-   pip install flair-brookslab
+   pip uninstall flair-brookslab
    pip install git+https://github.com/BrooksLabUCSC/flair.git
 
 
