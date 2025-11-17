@@ -961,7 +961,8 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends):
 
 
 def revcomp(seq):
-    compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N'}
+    compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 
+                'R':'Y', 'Y':'R','K':'M','M':'K','S':'S','W':'W', 'B':'V','V':'B','D':'H','H':'D'}
     seq = seq.upper()
     newseq = []
     for base in seq: newseq.append(compbase[base])

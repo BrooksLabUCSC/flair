@@ -7,6 +7,7 @@ import pipettor
 import pysam
 import math
 from flair.bed_to_gtf import bed_to_gtf
+from flair.flair_transcriptome import revcomp
 from statistics import mode
 
 def bedReadToIntronChain(line): # line is a list of strings from a tab separated line
@@ -52,15 +53,6 @@ def combineIsos(isolist, endwindow):
     return isoendgroups
 
 
-revcomp_dict = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 'R': 'Y',
-        'Y':'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
-
-
-def revcomp(seq):
-    rev_seq = []
-    for i in reversed(range(len(seq))):
-        rev_seq.append(revcomp_dict[seq[i]])
-    return ''.join(rev_seq)
 
 def cleanisoname(isoname):
     # removes PAR_Y from end of isoform IDs

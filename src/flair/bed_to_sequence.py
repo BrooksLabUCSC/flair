@@ -2,6 +2,7 @@
 import sys, csv, os, argparse, pysam, subprocess
 import pysam
 import logging
+from flair.flair_transcriptome import revcomp
 from flair import FlairInputDataError
 
 def main():
@@ -215,17 +216,6 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
                     writer.writerow(['+'])
                     writer.writerow(['@'*len(pulled_seq)])
         return models
-
-
-    revcomp_dict = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 'R': 'Y',
-    'Y':'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
-
-
-    def revcomp(seq):
-        rev_seq = ''
-        for i in reversed(range(len(seq))):
-            rev_seq += revcomp_dict[seq[i]]
-        return rev_seq
 
 
     with open(outfilename, 'wt') as outfile:
