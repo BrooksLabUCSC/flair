@@ -3,22 +3,29 @@ current_version = "2.2.0+master"
 tag_name = "v{new_version}"
 commit = false
 allow_dirty = true
-tag = true
-# support "1.2.3+master" or "1.2.3+dev" to indicate it a tree checkout
-# support 1.2.3a1, 1.2.3b1 for alpha/beta
-parse = """
+tag = false
+message = "Bump version: {current_version} → {new_version}"
+
+parse = """(?x)
   (?P<major>\\d+)\\.
   (?P<minor>\\d+)\\.
   (?P<patch>\\d+)
-  (?P<prerelease>[ab]\\d+)?
+  (?:(?P<release>[ab])(?P<build>\\d+))?
   (?:\\+(?P<branch>[A-Za-z0-9_.-]+))?
 """
 serialize = [
-   "{major}.{minor}.{patch}{prerelease}+{branch}",
-   "{major}.{minor}.{patch}{prerelease}",
+   "{major}.{minor}.{patch}{release}{build}+{branch}",
+   "{major}.{minor}.{patch}{release}{build}",
    "{major}.{minor}.{patch}+{branch}",
    "{major}.{minor}.{patch}"
 ]
+
+[tool.bumpversion.parts.release]
+optional_value = ""
+values = ["a", "b", ""]
+
+[tool.bumpversion.parts.build]
+first_value = "1"
 
 [tool.bumpversion.parts.branch]
 optional_value = ""
