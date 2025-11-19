@@ -152,6 +152,21 @@ Check that version were updated:
 git diff
 ```
 
+General use of `bump-my-version`:
+* show possible bumps
+```bump-my-version show-bump```
+* 0.1.0 → 0.1.0a1
+```bump-my-version bump release --new-version 0.2.0a1```
+* 0.2.0a1 → 0.2.0a2
+bump-my-version bump build
+* 0.2.0a3 → 0.2.0b1
+```bump-my-version bump release'''
+* 0.2.0b1 → 0.2.0b2
+```bump-my-version bump build'''
+* 0.2.0b3 → 0.2.0
+```bump-my-version bump release'''
+
+
 **DO NOT COMMIT VERSION CHANGE YET**
 
 ## 9. Build distribution and test pip install
