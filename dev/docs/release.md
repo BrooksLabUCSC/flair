@@ -153,19 +153,30 @@ git diff
 ```
 
 General use of `bump-my-version`:
-* show possible bumps
-```bump-my-version show-bump```
-* 0.1.0 → 0.1.0a1
-```bump-my-version bump release --new-version 0.2.0a1```
-* 0.2.0a1 → 0.2.0a2
-bump-my-version bump build
-* 0.2.0a3 → 0.2.0b1
-```bump-my-version bump release'''
-* 0.2.0b1 → 0.2.0b2
-```bump-my-version bump build'''
-* 0.2.0b3 → 0.2.0
-```bump-my-version bump release'''
 
+```
+# show possible bumps
+bump-my-version show-bump
+
+# Increment alpha build number
+bump-my-version bump build      # → 3.0.0a3
+bump-my-version bump build      # → 3.0.0a4
+
+# Jump to beta on demand
+bump-my-version bump release    # → 3.0.0b1 ✓ (anytime you want!)
+
+# Increment beta build number
+bump-my-version bump build      # → 3.0.0b2
+bump-my-version bump build      # → 3.0.0b3
+
+# Release final version
+bump-my-version bump release    # → 3.0.0
+
+# Start next version
+bump-my-version bump patch      # → 3.0.1a1
+bump-my-version bump minor      # → 3.1.0a1
+bump-my-version bump major      # → 4.0.0a1
+```
 
 **DO NOT COMMIT VERSION CHANGE YET**
 

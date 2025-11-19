@@ -5,21 +5,17 @@ commit = false
 allow_dirty = true
 tag = true
 message = "Bump version: {current_version} → {new_version}"
-# support "1.2.3+master" or "1.2.3+dev" to indicate it a tree checkout
-# support 1.2.3a1, 1.2.3b1 for alpha/beta
-parse = """
+
+parse = """(?x)
   (?P<major>\\d+)\\.
   (?P<minor>\\d+)\\.
   (?P<patch>\\d+)
-  (?:
-     (?P<release>[ab])
-     (?P<build>\\d+)
-  )?
+  (?:(?P<release>[ab])(?P<build>\\d+))?
   (?:\\+(?P<branch>[A-Za-z0-9_.-]+))?
 """
 serialize = [
-   "{major}.{minor}.{patch}{release}+{branch}",
-   "{major}.{minor}.{patch}{release}",
+   "{major}.{minor}.{patch}{release}{build}+{branch}",
+   "{major}.{minor}.{patch}{release}{build}",
    "{major}.{minor}.{patch}+{branch}",
    "{major}.{minor}.{patch}"
 ]
