@@ -86,19 +86,10 @@ pip install -e .[dev]
 ```
    
 ## 5. Run pre-release tests
-
-Without diff expression support:
 ```
-make -k -O -j 64 test-base-installed
-```
-Repeat this on Apple ARM (M1, M2, ...) processor systems.
-
-With diff expression support:
-```
-conda env update --name flair-dev --file misc/flair_diffexp_conda_env.yaml
-pip install -e .
 make -k -O -j 64 test-installed
 ```
+Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
 ## 6. Check documentation
 
@@ -163,7 +154,7 @@ git diff
 
 **DO NOT COMMIT VERSION CHANGE YET**
 
-## 9. Build distribution and test pipe install
+## 9. Build distribution and test pip install
 ```
 make clean build
 make -k -O -j 32 test-pip
