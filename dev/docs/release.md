@@ -152,18 +152,24 @@ Check that version were updated:
 git diff
 ```
 
+If the bump rules doesn't work right, just use 1--new-version` to force the
+version.
+
 General use of `bump-my-version`:
 
 ```
 # show possible bumps
 bump-my-version show-bump
 
+# Force to any version, ignoring all rules
+bump-my-version bump --new-version 3.0.0b1
+
 # Increment alpha build number
 bump-my-version bump build      # → 3.0.0a3
 bump-my-version bump build      # → 3.0.0a4
 
 # Jump to beta on demand
-bump-my-version bump release    # → 3.0.0b1 ✓ (anytime you want!)
+bump-my-version bump release    # → 3.0.0b1
 
 # Increment beta build number
 bump-my-version bump build      # → 3.0.0b2
