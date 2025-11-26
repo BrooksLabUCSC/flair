@@ -200,11 +200,11 @@ def separate_tables(quant_table_tsv, thresh, samples, groups, outDir):
     for name, counts in quant_table_reader(quant_table_tsv):
         # FIXME: gene name parsing needs to be moved to a common module
         iso, gene = name, name.split("_")[-1]
-        if "-" in gene:
-            gene = gene.split("-")[0]
-        m = iso.count("_")
-        if m > 1:
-            iso = iso.replace("_", "", 1)
+        # if "-" in gene:
+        #     gene = gene.split("-")[0]
+        # m = iso.count("_")
+        # if m > 1:
+        #     iso = iso.replace("_", "", 1)
 
         if gene not in genes:
             genes[gene] = Gene(gene, np.zeros(len(counts)))
@@ -253,6 +253,7 @@ def separate_tables(quant_table_tsv, thresh, samples, groups, outDir):
     vals = np.asarray([isoforms[x[-1]].exp for x in isoformIDs])
     indices = np.arange(isoformIDs.shape[0]).reshape(-1, 1)
     allIso = np.hstack((indices, isoformIDs, vals))
+
     write_tsv(['irow', 'gene_id', 'feature_id'] + samples, allIso,
               outDir + "/filtered_iso_counts_drim.tsv")
     return genes, isoforms

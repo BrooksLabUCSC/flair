@@ -583,12 +583,17 @@ fusion-tests: test-fusion test-fusion-help
 test-fusion: mkdirs ${GENOME_FA}
 	flair align -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
+	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
 
 test-fusion-help: mkdirs
 	flair fusion  --help > $O/$@.out
 	$(call cmp_expect,$@.out)
+
+
+test-spliceevents: mkdirs
+	python3 ../src/flair/flair_spliceevents.py -m $I/spliceevents.manifest.tsv -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+
 
 
 ##

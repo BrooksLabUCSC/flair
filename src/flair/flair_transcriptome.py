@@ -506,7 +506,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     if isinstance(input_reads, str):
         input_reads = [input_reads]
     mm2_cmd = tuple(
-        ['minimap2', '-a', '-t', str(args.threads), '-N', '4', '--MD'] + args.mm2_args + [align_ref_fasta] + input_reads)
+        ['minimap2', '-a', '-N', '4', '--MD'] + args.mm2_args + [align_ref_fasta] + input_reads)
     # FIXME add in step to filter out chimeric reads here
     # FIXME really need to go in and check on how count_sam_transcripts is working
     count_cmd = get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound)
