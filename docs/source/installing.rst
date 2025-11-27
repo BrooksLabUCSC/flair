@@ -32,7 +32,7 @@ you need to add addition packages to the Conda environment with:
 
 .. code:: sh
 
-   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.2.0+master/flair_diffexp_conda_env.yaml
+   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0b1/flair_diffexp_conda_env.yaml
 
 Conda Install from GitHub Release
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -42,14 +42,14 @@ a Conda environment from a release in GitHub, use:
 
 .. code:: sh
 
-   conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.2.0+master/flair_conda_env.yaml
+   conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0b1/flair_conda_env.yaml
    conda activate flair
 
 To add the `diffexp` or `diffsplice` dependencies:
 
 .. code:: sh
 
-   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v2.2.0+master/flair_diffexp_conda_env.yaml
+   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0b1/flair_diffexp_conda_env.yaml
 
 Running FLAIR with Docker
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -60,8 +60,8 @@ FLAIR Docker with:
 
 .. code:: sh
 
-    docker pull brookslab/flair:2.2.0+master
-    docker run -v [your_path_to_data]:/data brookslab/flair:2.2.0+master flair [align/correct/...]
+    docker pull brookslab/flair:3.0.0b1
+    docker run -v [your_path_to_data]:/data brookslab/flair:3.0.0b1 flair [align/correct/...]
 
 .. _pip-install-label:
 

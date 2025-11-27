@@ -52,7 +52,11 @@
 * Added FLAIR protocol to improve guidance on running flair
 
 
+<<<<<<< HEAD
 ## [v2.2.1] 2025-04-06
+=======
+## [2.2.1] 2025-04-06
+>>>>>>> 691045a (v3.0.0b1 release)
 * Fixed case where --quality=0 default didn't work, as it tested for greater
   than the cutoff.
 * Converted all Python code to use 4-space indentation.  Previously some code
