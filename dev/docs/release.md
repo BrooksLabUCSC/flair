@@ -296,11 +296,12 @@ NOTE: If there are NameResolutionErrors in the file, this is due to needing to
 Just give up and push and let the bot check it.
 
   
-5. git commit -am 'FLAIR v<version> release' && git push
-6. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
+5. git commit -am 'FLAIR v<version> release'
+6. git push
+7. submit a pull request via https://github.com/bioconda/bioconda-recipes/pulls
    Title of pull request should be "Update FLAIR <version> release"
    This starts a testing process. Once all checks have passed and a green mark appears, 
-   Once tit has passed, add this comment to the pull request:
+   Once the tests have passed, add this comment to the pull request:
 	    @BiocondaBot please add label
    This should take care of the red 'Review Required' and 'Merging is Blocked' notifications
 
@@ -351,7 +352,9 @@ docker push brookslab/flair:latest
 
 The reason that the build takes long is that pysam doesn't have a fast installation method.
 
-## 17. Set the release as the latest in PyPi
+## 17. Check the release is the latest in PyPi
+This happens automatically bases on version numbers.
+An alpha or beta release will not be made the latest.
 
 ## 18. Set the release latest in GitHub
 - Change from pre-release to latest release
