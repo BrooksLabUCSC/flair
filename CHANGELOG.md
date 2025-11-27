@@ -1,6 +1,6 @@
 # Major user-visible changes
 
-## [3.0.0b1] 2025-11-18 (beta 1)
+## [3.0.0b1] 2025-11-27 (beta 1)
 * General
   * Removed dependencies on pandas and rpy2.
   * Added proper logging throughout
@@ -50,8 +50,6 @@
     * Can be used in conjunction with FLAIR diffexp or diff_iso_usage 
     to identify changes in variant-aware transcripts between samples/groups
 * Added FLAIR protocol to improve guidance on running flair
-
-
 
 
 ## [2.2.1] 2025-04-06
