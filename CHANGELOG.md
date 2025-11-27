@@ -1,11 +1,11 @@
 # Major user-visible changes
 
-## [3.0.0b1] 2025-11-27 (beta 1)
+## [v3.0.0b1] 2025-11-27 (beta 1)
 * General
   * Removed dependencies on pandas and rpy2.
   * Added proper logging throughout
 * FLAIR align
-  * Cleaned up output files - now outputs unfiltered bam and filtered bed
+  * Cleaned up output files - now outputs unfiltered BAM and filtered BED
 * FLAIR correct
   * Changed orthogonal junction inputs - now specify whether your file is 
   a bed (--junction_bed) or whether it comes from STAR short-read RNA alignment (--junction_tab)
@@ -31,7 +31,7 @@
 * New modules
   * FLAIR transcriptome
     * Combines the functions of correct and collapse
-    * Runs directly from and aligned bam file
+    * Runs directly from an aligned BAM file
     * Performs more effective parallelization (specify in --parallelmode)
   * FLAIR fusion
     * Detects gene fusions and fusion isoforms
@@ -52,7 +52,7 @@
 * Added FLAIR protocol to improve guidance on running flair
 
 
-## [2.2.1] 2025-04-06
+## [v2.2.1] 2025-04-06
 * Fixed case where --quality=0 default didn't work, as it tested for greater
   than the cutoff.
 * Converted all Python code to use 4-space indentation.  Previously some code
@@ -60,7 +60,7 @@
 * Added missing dependencies for plot_isoform_usage.
 
 
-## [2.2.0] 2025-05-06
+## [v2.2.0] 2025-05-06
 * Returned diffexp and diffsplice as standard modules.  The BioConda
   environment does not include the dependencies for these modules
   and required software does not run on Apple Silicon (ARM64) systems.
@@ -77,14 +77,16 @@
 * Fixed flair_quantify --output_bam crash
 * Other bug fixes
 
-## [2.1.2] 2025-04-17
+## [v2.1.2] 2025-04-17
 * Address issue getting BioConda to work
 * Bug fixes for collapse command line parsing
 
-## [2.1.1] 2025-04-10
+
+## [v2.1.1] 2025-04-10
 * converted all programs to use console scripts to allow BioConda to work
 
-## [2.1.0] 2025-03-27
+
+## [v2.1.0] 2025-03-27
 * Numerous bug fixes.
 * Removed support for PSL format.
 * Remove `flair 123` to run multiple modules at once.
