@@ -44,19 +44,15 @@
   * FLAIR variants
     * Allows detection of variant-aware transcripts through 
     identification of read clusters with shared variants
-    * Integrates user-defined variants detected from WGS, exome sequencing, 
-    or from lr-RNA-seq. Tested on WGS and lr-RNA-seq.
+    * Uses variants detected either from WGS or from lr-RNA-seq. 
+    We recommend Longshot.
     * Good for identifying splicing of specific variants
     * Can be used in conjunction with FLAIR diffexp or diff_iso_usage 
     to identify changes in variant-aware transcripts between samples/groups
 * Added FLAIR protocol to improve guidance on running flair
 
 
-<<<<<<< HEAD
 ## [v2.2.1] 2025-04-06
-=======
-## [2.2.1] 2025-04-06
->>>>>>> 691045a (v3.0.0b1 release)
 * Fixed case where --quality=0 default didn't work, as it tested for greater
   than the cutoff.
 * Converted all Python code to use 4-space indentation.  Previously some code
