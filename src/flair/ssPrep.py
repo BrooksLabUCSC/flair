@@ -55,7 +55,7 @@ class CommandLine(object):
 # BED File
 ########################################################################
 
-def _bed_bug(self, name, chrom, start, end, desc):
+def _bed_bug(name, chrom, start, end, desc):
     # FIXME: temporary to replace asserts
     logging.warning(f"Read skipped: Conversion of {name} {chrom}:{start}-{end} to junctions failed")
     logging.warning(f"Error: {desc}. Please report problem at https://github.com/BrooksLabUCSC/flair/issues")
