@@ -218,7 +218,7 @@ def collapse(genomic_range='', corrected_reads=''):
                 if not args.gtf:
                     raise FlairInputDataError('Please specify annotated gtf with -f for --annotation_reliant generate')
                 else:
-                    raise FlairInputDataErrorr('GTF file path does not exist')
+                    raise FlairInputDataError('GTF file path does not exist')
 
             logging.info('Making transcript fasta using annotated gtf and genome sequence')
             args.annotated_bed = args.output+'annotated_transcripts.bed'
