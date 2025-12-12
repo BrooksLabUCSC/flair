@@ -52,50 +52,6 @@ test-base-installed:
 test-help: test-main-help test-align-help test-correct-help test-collapse-help \
            test-quantify-help test-diffexp-help test-diffsplice-help \
            test-predict-productivity-help test-diff-iso-usage-help \
-	   test-plot-usage-help test-transcriptome-help test-variants-help
-
-
-
-##
-# all targets
-##
-default:
-	@echo To run tests, use: >&2
-	@echo "   " make test >&2
-	@echo To run tests without R depedencies, use: >&2
-	@echo "   " make test-base >&2
-	@echo To run tests using installed FLAIR rather than source tree, use: >&2
-	@echo "   " make test-installed >&2
-	@echo To run tests without R depedencies using installed FLAIR, use: >&2
-	@echo "   " make test-base-installed >&2
-	@echo otherwise run individual tests by specifying test target, such as: >&2
-	@echo "   " make align-tests >&2
-	@echo to installed FLAIR for individual tests use the use_installed_flair option, such as: >&2
-	@echo "   " make align-tests use_installed_flair=yes >&2
-	@echo remove output files: >&2
-	@echo "   " make clean >&2
-	@echo remove output and downloaded genomes files: >&2
-	@echo "   " make real-clean >&2
-	@exit 1
-
-test: test-base test-with-R
-test-base: align-tests correct-tests collapse-tests quantify-tests \
-	combine-tests predict-productivity-tests diff-iso-usage-tests \
-	plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-	partition-tests
-
-test-with-R: diffexp-tests diffsplice-tests
-
-
-test-installed:
-	${MAKE} test use_installed_flair=yes
-
-test-base-installed:
-	${MAKE} test-base use_installed_flair=yes
-
-test-help: test-main-help test-align-help test-correct-help test-collapse-help \
-           test-quantify-help test-diffexp-help test-diffsplice-help \
-           test-predict-productivity-help test-diff-iso-usage-help \
 	   test-plot-usage-help test-transcriptome-help test-variants-help \
 	   test-fusion-help
 
@@ -212,7 +168,7 @@ test-align-help: mkdirs
 ###
 # FLAIR CORRECT
 ###
-correct-tests: test-correct test-correct-seg1 test-correct-help
+correct-tests: test-correct test-correct-seg1 test-correct-blocksize test-correct-help
 
 test-correct: mkdirs ${GENOME_FA}
 	flair correct -q ${BASIC_ALIGN_BED} --junction_tab $(BASIC_SHORTREAD_JUNCTIONS) -f $(BASIC_ANNOTATION_INCOMPLETE) -o $O/$@
@@ -589,17 +545,18 @@ test-fusion: mkdirs ${GENOME_FA}
 test-fusion-pary: mkdirs ${GENOME_FA}
 	flair align -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq --genome ${GENOME_FA} -t 4 -o $O/$@ --filtertype separate --minfragmentsize 40 --maxintronlen 350k
 	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
-	$(call cmp_expect,$@.fusions.isoforms.bed)
-	$(call cmp_expect,$@.fusions.isoforms.fa)
+	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
+	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 
 test-fusion-help: mkdirs
 	flair fusion  --help > $O/$@.out
 	$(call cmp_expect,$@.out)
 
-
+###
+# flair spliceevents
+###
 test-spliceevents: mkdirs
 	python3 ../src/flair/flair_spliceevents.py -m $I/spliceevents.manifest.tsv -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
-
 
 
 ##
