@@ -6,6 +6,7 @@ import os, glob
 import pipettor
 import pysam
 import logging
+import gzip
 from flair.gtf_to_bed import gtf_to_bed
 from flair.bed_to_sequence import bed_to_sequence
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos
