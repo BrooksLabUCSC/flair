@@ -74,7 +74,7 @@ You can find the versions of packages matching the Ubuntu release at
 https://packages.ubuntu.com/. 
 
 
-## 4. Create a clean conda flair-dev environment
+## 4. Create a clean conda flair-master environment
 
 ```
 conda deactivate  # if you are in a flair environment
@@ -141,10 +141,18 @@ misc/flair_conda_env.yaml
 src/flair/__init__.py
 ```
 
-Use `bump-my-version` to increment the version numbers:
+Use `bump-my-version` to increment the version numbers. See what the possible
+bumps are:
 ```
-bump-my-version bump <major|minor|patch>
+bump-my-version show-bump
 ```
+
+Bump with the appropriate version increase.
+
+```
+bump-my-version bump <major|minor|patch|release>
+```
+
 Before you do this, make sure the current version is correctly listed in `.bumpversion.cfg`.
 
 Check that version were updated:
@@ -152,7 +160,7 @@ Check that version were updated:
 git diff
 ```
 
-If the bump rules doesn't work right, just use 1--new-version` to force the
+If the bump rules doesn't work right, just use --new-version` to force the
 version.
 
 General use of `bump-my-version`:
