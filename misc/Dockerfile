@@ -13,7 +13,7 @@ ARG FLAIR_INSTALL=yes
 
 # pip specification from where to install FLAIR, which can be a URL
 #    ARG FLAIR_PIP_SPEC=git+https://github.com/BrooksLabUCSC/flair.git
-ARG FLAIR_PIP_SPEC=flair-brookslab==v3.0.0b1
+ARG FLAIR_PIP_SPEC=flair-brookslab==v3.0.0+dev
 
 ##
 # safer bash
