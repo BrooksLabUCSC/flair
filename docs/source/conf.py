@@ -18,7 +18,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'Flair'
-copyright = '2019-2025 The Regents of the University of California'
+copyright = '2019-2026 The Regents of the University of California'
 author = 'Alison Tang, Cameron Soulette, Jeltje van Baren, Kevyn Hart, Eva Hrabeta-Robinson, Catherine Wu, Mark Diekhans, Colette Felton, Angela Brooks'
 
 
