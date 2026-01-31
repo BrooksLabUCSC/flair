@@ -1,5 +1,9 @@
 # Major user-visible changes
 
+## [v3.0.0] 2025-11-31
+* General
+  * Bug fixes since v3.0.0b1
+
 ## [v3.0.0b1] 2025-11-27 (beta 1)
 * General
   * Removed dependencies on pandas and rpy2.
