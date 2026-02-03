@@ -9,9 +9,6 @@ FLAIR protocol
 - Combine transcriptomes between samples
 - Quantify splicing relative to the combined transcriptome
 
-.. figure:: img/flair_pipeline.svg
-
-
 Aligning reads to the genome
 ----------------------------
 
