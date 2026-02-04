@@ -9,9 +9,6 @@ FLAIR protocol
 - Combine transcriptomes between samples
 - Quantify splicing relative to the combined transcriptome
 
-Note: this is for FLAIR obtained through pulling master from GitHub.
-Some of these updates are not available in the current conda version
-
 Aligning reads to the genome
 ----------------------------
 

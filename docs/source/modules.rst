@@ -10,6 +10,9 @@ If you want to compare multiple samples, there are two primary ways of doing thi
  - Run FLAIR align, correct, and collapse (or FLAIR transcriptome) on each sample separately (better for large sets of samples)
  - Use FLAIR combine to merge results
 
+.. figure:: img/flair_workflow_compartmentalized.svg
+
+
 .. _transcriptome-label:
 
 flair transcriptome
