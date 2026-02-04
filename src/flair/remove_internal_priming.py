@@ -86,8 +86,11 @@ def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscr
             # single exon transcript
             elif len(theseexons) == 1 and read3endpos >= theseexons[0]-200:
                 return True
-    # if read doesn't have stretch of As beyond threshold, doesn't have internal priming
-    if not checkInternalPriming(read3endpos, refname, genome, fracAs, threshold):
+    # if read doesn't have stretch of As beyond threshold, doesn't have internal priming,
+    # The refname check is from #629 when this is called on a transcriptome alignment
+    # FIXME: this function should not be called on a transcriptome alignment
+    if ((refname not in genome.references) or
+        (not checkInternalPriming(read3endpos, refname, genome, fracAs, threshold))):
         return True
     # if annot provided + read has strech of As, check if end near annot end
     elif annottranscriptends and refname in annottranscriptends:
