@@ -26,7 +26,6 @@ import numpy as np
 
 from flair import FlairError, FlairInputDataError, set_unix_path
 
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 
 
