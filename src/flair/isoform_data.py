@@ -262,9 +262,9 @@ class ReadRec:
                     intron_blocks[-1][1] += block[1]
                 has_match = False
                 ref_pos += block[1]
-            elif block[0] in {pysam.CIGAR_OPS.CMATCH, pysam.CIGAR_OPS.CEQUAL, pysam.CIGAR_OPS.CDIFF, pysam.CIGAR_OPS.CDEL}:  # consumes reference
+            elif block[0] in (pysam.CIGAR_OPS.CMATCH, pysam.CIGAR_OPS.CEQUAL, pysam.CIGAR_OPS.CDIFF, pysam.CIGAR_OPS.CDEL):  # consumes reference
                 ref_pos += block[1]
-                if block[0] in {pysam.CIGAR_OPS.CMATCH, pysam.CIGAR_OPS.CEQUAL, pysam.CIGAR_OPS.CDIFF}:
+                if block[0] in (pysam.CIGAR_OPS.CMATCH, pysam.CIGAR_OPS.CEQUAL, pysam.CIGAR_OPS.CDIFF):
                     has_match = True
         if junc_direction not in {'+', '-'}:
             junc_direction = "-" if read.is_reverse else "+"
