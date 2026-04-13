@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+import logging
 import re
 import os
 from flair.remove_internal_priming import removeinternalpriming
 import pysam
 from flair import FlairInputDataError
+from flair.pycbio.hgdata.bed import BedReader
 
 
 def parse_args():
@@ -78,29 +80,26 @@ def check_args(args):
 def get_annot_info(args):  # noqa: C901 - FIXME: reduce complexity
     chrtobp = {}
     if args.fusion_breakpoints:
-        for line in open(args.fusion_breakpoints):
-            line = line.split('\t')
-            chr, pos = line[0], int(line[1])
-            chrtobp[chr] = pos
+        for bed in BedReader(args.fusion_breakpoints, numStdCols=3):
+            chrtobp[bed.chrom] = bed.chromStart
 
     transcript_to_bp_ss_index = {}
     transcript_to_exons = {}
     transcript_to_genomic_ends = {}
     transcript_to_unique_bounds = {}
     if args.stringent or args.check_splice or args.fusion_dist or args.fusion_breakpoints or args.output_endpos:
-        for line in open(args.isoforms):
-            line = line.rstrip().split('\t')
-            name, left, right, chrom, strand = line[3], int(line[1]), int(line[2]), line[0], line[5]
+        for bed in BedReader(args.isoforms, fixScores=True):
+            name, left, right, chrom, strand = bed.name, bed.chromStart, bed.chromEnd, bed.chrom, bed.strand
             if name[:10] == 'fusiongene':
                 name = '_'.join(name.split('_')[1:])
-            blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
+            blocksizes = [len(blk) for blk in bed.blocks]
             if strand == '+':
                 transcript_to_exons[name] = blocksizes
             else:
                 transcript_to_exons[name] = blocksizes[::-1]
             transcript_to_genomic_ends[name] = (left, right, strand)
             if args.fusion_breakpoints:
-                blockstarts = [int(n) for n in line[11].rstrip(',').split(',')]
+                blockstarts = [blk.start - left for blk in bed.blocks]
                 bpindex = -1
                 for i in range(len(blocksizes) - 1):
                     if left + blockstarts[i] + blocksizes[i] <= chrtobp[chrom] <= left + blockstarts[i + 1]:
@@ -349,10 +348,16 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
         indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(matchvals, thist.cigar, thist.startpos, terminal_exon_info, terminal_exon_bounds)
         if tname == testtname:
             print('indel', indel_detected)
-        if not indel_detected and (not args.trimmedreads or genomicclipping is None or sum(queryclipping) <= genomicclipping + args.soft_clipping_buffer):
+        if indel_detected:
+            logging.debug(f"transcript alignment dropped: indel detected: {tname}")
+        elif args.trimmedreads and genomicclipping is not None and sum(queryclipping) > genomicclipping + args.soft_clipping_buffer:
+            logging.debug(f"transcript alignment dropped: excess soft clipping ({sum(queryclipping)} > {genomicclipping} + {args.soft_clipping_buffer}): {tname}")
+        else:
             if check_stringentandsplice(args, exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index, transcript_to_unique_bounds):
                 left_intron_index, left_dist, right_intron_index, right_dist = identify_corrected_ends(exoninfo, thist.startpos, tendpos, transcript_to_genomic_ends, tname, args.output_endpos, thist.tlen)
                 passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, (left_intron_index, left_dist), (right_intron_index, right_dist)])
+            else:
+                logging.debug(f"transcript alignment dropped: failed stringent/splice check: {tname}")
 
     # order passing transcripts by alignment score
     # then order by amount of query covered
@@ -363,6 +368,7 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
         if len(passingtranscripts) == 1 or passingtranscripts[0][:3] != passingtranscripts[1][:3]:
             return [passingtranscripts[0][-3:], ]
         else:
+            logging.debug(f"read dropped: ambiguous multi-mapping, top 2 transcripts tied: {passingtranscripts[0][4]}, {passingtranscripts[1][4]}")
             return None
 
     else:
@@ -389,11 +395,15 @@ def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_t
         genome = pysam.FastaFile(args.transcriptomefasta)
 
     for read in samfile:
-        if read.is_mapped:
+        if not read.is_mapped:
+            logging.debug(f"read dropped: unmapped: {read.query_name}")
+        else:
             readname = read.query_name
             transcript = read.reference_name
             quality = read.mapping_quality
-            if quality >= args.quality:
+            if quality < args.quality:
+                logging.debug(f"read dropped: low quality ({quality} < {args.quality}): {readname}")
+            elif quality >= args.quality:
                 # for transcriptome alignment, always take rightmost side on transcript
                 if args.remove_internal_priming:
                     intprimannot = transcript_to_exons if args.permissive_last_exons else None
@@ -405,7 +415,9 @@ def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_t
                                                                args.intprimingfracAs)
                 else:
                     notinternalpriming = True
-                if notinternalpriming:
+                if not notinternalpriming:
+                    logging.debug(f"read dropped: internal priming on {transcript}: {readname}")
+                else:
                     pos = read.reference_start
                     try:
                         alignscore = read.get_tag('AS')
@@ -419,7 +431,9 @@ def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_t
                             print('\n', lastread, curr_transcripts.keys())
                         thisclipping = readstoclipping[lastread] if lastread in readstoclipping else None
                         assignedts = get_best_transcript(curr_transcripts, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)
-                        if assignedts:
+                        if not assignedts:
+                            logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
+                        else:
                             for assignedt, gtstart, gtend in assignedts:
                                 if assignedt not in transcripttoreads:
                                     transcripttoreads[assignedt] = []
@@ -431,7 +445,9 @@ def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_t
     if lastread:
         thisclipping = readstoclipping[lastread] if lastread in readstoclipping else None
         assignedts = get_best_transcript(curr_transcripts, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)
-        if assignedts:
+        if not assignedts:
+            logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
+        else:
             for assignedt, gtstart, gtend in assignedts:
                 if assignedt not in transcripttoreads:
                     transcripttoreads[assignedt] = []

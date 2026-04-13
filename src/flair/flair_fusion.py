@@ -11,7 +11,9 @@ from flair.gtf_to_bed import gtf_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref
 from flair.identify_prelim_fusions import id_chimeras
 from flair import FlairInputDataError
+from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.read_processing import get_sequence_from_bed
+from flair.pycbio.hgdata.bed import BedReader
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -109,11 +111,10 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
         mm2_cmd = ('minimap2', '-a', '-s', str(args.minfragmentsize), '-t', str(args.threads), '--secondary=no',
                    args.annotated_fa, '-')
 
-        # FIXME: replace with: samtools view -F 0x104 -e '[SA] != ""'
-        filter_cmd = ('python3', path + 'filter_transcriptome_chim.py', '-', transcriptchimbam)
+        filter_cmd = ('samtools', 'view', '-hF', '0x104', '-e', '[SA] != ""')
         _sort_cmd = ('samtools', 'sort', '-o', args.output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)  # noqa: F841
         _samtools_index_cmd = ('samtools', 'index', args.output + '_unfilteredtranscriptome.bam')  # noqa: F841
-        pipettor.run([fa_cmd, mm2_cmd, filter_cmd])
+        pipettor.run([fa_cmd, mm2_cmd, filter_cmd], stdout=args.output + '.transcriptomealigned.chim.bam')
         pipettor.run([('samtools', 'sort', '-o', args.output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
         pipettor.run([('mv', args.output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
         pysam.index(transcriptchimbam)
@@ -122,35 +123,26 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
     genetoinfo, genetoexons, genetoname = {}, {}, {}
     chrom_to_gene_pos = {}
     gene_to_all_exons, juncs_to_gene = {}, {}
-    for line in open(args.gtf):
-        if line.startswith('#'):
-            continue
-        line = line.rstrip().split('\t', 8)
-        chrom, ty, start, end, strand = line[0], line[2], int(line[3]) - 1, int(line[4]), line[6]
-        if ty in {'gene', 'exon', 'transcript'}:
-            gene_id = line[8].split('gene_id "')[1].split('"')[0]
-            gene_id = gene_id.replace('_', '-')
-            gene_id = gene_id.split('.')[0]
-            if ty == 'gene':
-                genetoinfo[gene_id] = [chrom, start, end, strand, []]
-                genename = line[-1].split('gene_name "')[1].split('"')[0]
-                genetoname[gene_id] = genename
-                if chrom not in chrom_to_gene_pos:
-                    chrom_to_gene_pos[chrom] = []
-                    chrom_to_gene_pos[chrom].append((start, end, strand, gene_id))
-                    juncs_to_gene[chrom] = {}
+    for rec in gtf_record_parser(args.gtf, include_features={'gene', 'exon', 'transcript'}, attrs=GtfAttrsSet.ALL):
+        gene_id = rec.gene_id.replace('_', '-').split('.')[0]
+        if rec.feature == 'gene':
+            genetoinfo[gene_id] = [rec.chrom, rec.start, rec.end, rec.strand, []]
+            genetoname[gene_id] = rec.gene_name if rec.gene_name else gene_id
+            if rec.chrom not in chrom_to_gene_pos:
+                chrom_to_gene_pos[rec.chrom] = []
+                chrom_to_gene_pos[rec.chrom].append((rec.start, rec.end, rec.strand, gene_id))
+                juncs_to_gene[rec.chrom] = {}
 
-            elif ty == 'exon':
-                transcript_id = line[8].split('transcript_id "')[1].split('"')[0]
-                if gene_id not in genetoexons:
-                    genetoexons[gene_id] = {}
-                if transcript_id not in genetoexons[gene_id]:
-                    genetoexons[gene_id][transcript_id] = []
-                genetoexons[gene_id][transcript_id].append((start, end))
+        elif rec.feature == 'exon':
+            if gene_id not in genetoexons:
+                genetoexons[gene_id] = {}
+            if rec.transcript_id not in genetoexons[gene_id]:
+                genetoexons[gene_id][rec.transcript_id] = []
+            genetoexons[gene_id][rec.transcript_id].append((rec.start, rec.end))
 
-            elif ty == 'transcript':
-                end5 = start if strand == '+' else end
-                genetoinfo[gene_id][-1].append(end5)
+        elif rec.feature == 'transcript':
+            end5 = rec.start if rec.strand == '+' else rec.end
+            genetoinfo[gene_id][-1].append(end5)
 
     print('continuing to parse annot')
     # FOR JUNCS TO GENE, DO BY CHROM AS WELL
@@ -323,35 +315,31 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
     pipettor.run([ipcmd])
 
     fusiontobp = {}
-    for line in open(f'{args.output}-syntheticBreakpointLoc.bed'):
-        line = line.rstrip().split('\t')
-        fusiontobp[line[0]] = int(line[1])
+    for bed in BedReader(f'{args.output}-syntheticBreakpointLoc.bed', numStdCols=3):
+        fusiontobp[bed.chrom] = bed.chromStart
 
     fusion_to_bp_sj = {f: False for f in fusiontobp}
     good_sj = []
 
-    for line in open(f'{args.output}.syntheticAligned.IPSJ.bed'):
-        line = line.rstrip().split('\t')
-        fusion = line[0]
-        start, end = int(line[1]), int(line[2])
-        readsup = int(line[4])
-        sjmotif = line[3].split('_')[-1]
-        strand = line[5]
+    for bed in BedReader(f'{args.output}.syntheticAligned.IPSJ.bed', numStdCols=6):
+        fusion = bed.chrom
+        start, end = bed.chromStart, bed.chromEnd
+        readsup = bed.score
+        sjmotif = bed.name.split('_')[-1]
+        strand = bed.strand
         if readsup >= 2:
             if sjmotif in {"GT/AG", "GC/AG", "AT/AC"} and strand == '+':  # for synthetic alignment, all junctions should be '+'
-                good_sj.append(line)
+                good_sj.append(bed.toRow())
                 if start < fusiontobp[fusion] < end:
                     fusion_to_bp_sj[fusion] = True
 
-    for line in open(f'{args.output}.syntheticAligned.IPSJ.bed'):
-        line = line.rstrip().split('\t')
-        fusion = line[0]
-        start, end = int(line[1]), int(line[2])
-        readsup = int(line[4])
-        sjmotif = line[3].split('_')[-1]
-        strand = line[5]
+    for bed in BedReader(f'{args.output}.syntheticAligned.IPSJ.bed', numStdCols=6):
+        fusion = bed.chrom
+        start, end = bed.chromStart, bed.chromEnd
+        readsup = bed.score
+        strand = bed.strand
         if readsup >= 2 and fusion_to_bp_sj[fusion] is False and start < fusiontobp[fusion] < end:  # no good breakpoint junctions yet
-            good_sj.append(line)
+            good_sj.append(bed.toRow())
 
     out = open(f'{args.output}.syntheticAligned.SJ.bed', 'w')
     for line in good_sj:
@@ -386,13 +374,12 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
     oldnametonewname = {}
     out = open(args.output + '.syntheticAligned.isoforms.bed', 'w')
     c = 0
-    for line in open(args.output + '.syntheticAligned.flair.isoforms.bed'):
+    for bed in BedReader(args.output + '.syntheticAligned.flair.isoforms.bed', fixScores=True):
         c += 1
-        line = line.rstrip().split('\t')
-        newname = 'fusioniso' + str(c) + '_' + line[0]
-        oldnametonewname[line[3]] = newname
-        line[3] = newname
-        out.write('\t'.join(line) + '\n')
+        newname = 'fusioniso' + str(c) + '_' + bed.chrom
+        oldnametonewname[bed.name] = newname
+        bed.name = newname
+        bed.write(out)
     out.close()
     out = open(args.output + '.syntheticAligned.isoform.read.map.txt', 'w')
     for line in open(args.output + '.syntheticAligned.flair.isoform.read.map.txt'):
@@ -414,9 +401,8 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
                            args.output + '.syntheticAligned.isoform.read.map.txt', freadsname,
                            args.output + '-syntheticBreakpointLoc.bed', args.output + '.fusions.isoforms.bed', args.min_dist_between_bp)
     goodisos = set()
-    for line in open(args.output + '.fusions.isoforms.bed'):
-        line = line.rstrip().split('\t')
-        goodisos.add('_'.join(line[3].split('_')[1:]))
+    for bed in BedReader(args.output + '.fusions.isoforms.bed', fixScores=True):
+        goodisos.add('_'.join(bed.name.split('_')[1:]))
 
     out = open(args.output + '.fusions.isoforms.fa', 'w')
     good = False

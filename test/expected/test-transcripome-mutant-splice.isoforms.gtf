@@ -1,4 +1,11 @@
 chr12	FLAIR	gene	25209131	25250919	.	-	.	gene_id "ENSG00000133703.12";
+chr12	FLAIR	transcript	25209497	25250910	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258";
+chr12	FLAIR	exon	25209497	25209911	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258"; exon_number "0";
+chr12	FLAIR	exon	25215437	25215560	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258"; exon_number "1";
+chr12	FLAIR	exon	25225614	25225744	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258"; exon_number "2";
+chr12	FLAIR	exon	25227234	25227412	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258"; exon_number "3";
+chr12	FLAIR	exon	25245274	25245395	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258"; exon_number "4";
+chr12	FLAIR	exon	25250751	25250910	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO5698755523113902258"; exon_number "5";
 chr12	FLAIR	transcript	25209456	25250912	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000256078.9";
 chr12	FLAIR	exon	25209456	25209911	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000256078.9"; exon_number "0";
 chr12	FLAIR	exon	25215437	25215560	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000256078.9"; exon_number "1";
@@ -6,6 +13,12 @@ chr12	FLAIR	exon	25225614	25225773	.	-	.	gene_id "ENSG00000133703.12"; transcrip
 chr12	FLAIR	exon	25227234	25227412	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000256078.9"; exon_number "3";
 chr12	FLAIR	exon	25245274	25245395	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000256078.9"; exon_number "4";
 chr12	FLAIR	exon	25250751	25250912	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000256078.9"; exon_number "5";
+chr12	FLAIR	transcript	25209509	25250919	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO8039436566628851937";
+chr12	FLAIR	exon	25209509	25209911	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO8039436566628851937"; exon_number "0";
+chr12	FLAIR	exon	25225614	25225744	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO8039436566628851937"; exon_number "1";
+chr12	FLAIR	exon	25227234	25227412	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO8039436566628851937"; exon_number "2";
+chr12	FLAIR	exon	25245274	25245395	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO8039436566628851937"; exon_number "3";
+chr12	FLAIR	exon	25250751	25250919	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "FLISO8039436566628851937"; exon_number "4";
 chr12	FLAIR	transcript	25209131	25250919	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000311936.8";
 chr12	FLAIR	exon	25209131	25209911	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000311936.8"; exon_number "0";
 chr12	FLAIR	exon	25225614	25225773	.	-	.	gene_id "ENSG00000133703.12"; transcript_id "ENST00000311936.8"; exon_number "1";

@@ -2,6 +2,8 @@
 import csv
 import os
 import argparse
+from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+
 
 def main():
     parser = argparse.ArgumentParser(description='''converts a gtf to a bed, depending on the output filename extension;
@@ -39,34 +41,22 @@ def write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocks
                      cds_end, 0, blockcount, blocksizes, relblockstarts])
 
 
-def get_iso_info(gtf, adjustpos=True):
+def get_iso_info(gtf):
     iso_to_cds = {}
     iso_to_exons = {}
     iso_to_info = {}
-    # prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand = [None, None, None, None, None, None]
-    for line in open(gtf):  # extract all exons from the gtf, keep exons grouped by transcript
-        if line.startswith('#') or (len(line.rstrip()) == 0):
-            continue
-        line = line.rstrip().split('\t')
-        chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
-        if adjustpos:
-            start -= 1
-        if ty == 'CDS' or ty == 'exon':
-            this_transcript = line[8][line[8].find('transcript_id') + 15:]
-            this_transcript = this_transcript[:this_transcript.find('"')]
-            if ty == 'CDS':
-                if this_transcript not in iso_to_cds:
-                    iso_to_cds[this_transcript] = [start, end]
-                elif end > iso_to_cds[this_transcript][1]:
-                    iso_to_cds[this_transcript][1] = end
-            if ty == 'exon':
-                if this_transcript not in iso_to_exons:
-                    iso_to_exons[this_transcript] = []
-                    prev_gene = line[8][line[8].find('gene_id') + 9:]
-                    prev_gene = prev_gene[:prev_gene.find('"')]
-                    prev_gene = prev_gene.replace('_', '-')
-                    iso_to_info[this_transcript] = (chrom, strand, prev_gene)
-                iso_to_exons[this_transcript].append((start, end))
+    for rec in gtf_record_parser(gtf, include_features={'exon', 'CDS'}, attrs=GtfAttrsSet.ALL):
+        if rec.feature == 'CDS':
+            if rec.transcript_id not in iso_to_cds:
+                iso_to_cds[rec.transcript_id] = [rec.start, rec.end]
+            elif rec.end > iso_to_cds[rec.transcript_id][1]:
+                iso_to_cds[rec.transcript_id][1] = rec.end
+        elif rec.feature == 'exon':
+            if rec.transcript_id not in iso_to_exons:
+                iso_to_exons[rec.transcript_id] = []
+                gene_id = rec.gene_id.replace('_', '-')
+                iso_to_info[rec.transcript_id] = (rec.chrom, rec.strand, gene_id)
+            iso_to_exons[rec.transcript_id].append((rec.start, rec.end))
     return iso_to_info, iso_to_exons, iso_to_cds
 
 def gtf_to_bed(outputfile, gtf, include_gene=False):

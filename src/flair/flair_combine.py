@@ -3,13 +3,13 @@
 import argparse
 import logging
 from flair.bed_to_gtf import bed_to_gtf
+from flair.pycbio.hgdata.bed import BedReader
 from statistics import mode
 
-def bedReadToIntronChain(line):  # line is a list of strings from a tab separated line
-    start, esizes, estarts = int(line[1]), [int(x) for x in line[10].rstrip(',').split(',')], [int(x) for x in line[11].rstrip(',').split(',')]
+def bedReadToIntronChain(bed):
     introns = []
-    for i in range(len(esizes) - 1):
-        introns.append((start + estarts[i] + esizes[i], start + estarts[i + 1]))
+    for i in range(len(bed.blocks) - 1):
+        introns.append((bed.blocks[i].end, bed.blocks[i + 1].start))
     # strand is not accounted for here, all intron chains will be left to right
     return tuple(introns)
 
@@ -124,12 +124,11 @@ def combine():  # noqa: C901 - FIXME: reduce complexity
                 isotoreads[iso] = numreads
         if isfusion:
             fnametoinfo = {}
-            for line in open(bedfiles[i]):
-                line = line.rstrip().split('\t')
-                chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
+            for bed in BedReader(bedfiles[i], fixScores=True):
+                chr, start, end, strand, isoname = bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, bed.name
                 isoname = '_'.join(isoname.split('_')[1:])
-                if int(line[9]) > 1:
-                    ichain = bedReadToIntronChain(line)
+                if bed.blockCount > 1:
+                    ichain = bedReadToIntronChain(bed)
                 else:
                     ichain = chr + '-' + str(int(round(start, -4)))
                 if isoname not in fnametoinfo:
@@ -162,13 +161,12 @@ def combine():  # noqa: C901 - FIXME: reduce complexity
                 isoname = cleanisoname(isoname)
                 intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
         else:  # not loading fusion reads
-            for line in open(bedfiles[i]):
-                line = line.rstrip().split('\t')
-                chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
+            for bed in BedReader(bedfiles[i], fixScores=True):
+                chr, start, end, strand, isoname = bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, bed.name
                 gene = isoname.split('_')[-1]
                 ichain = None
-                if int(line[9]) > 1:  # removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
-                    ichain = bedReadToIntronChain(line)
+                if bed.blockCount > 1:  # removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
+                    ichain = bedReadToIntronChain(bed)
                 elif args.include_se:
                     ichain = chr + '-' + str(int(round(start, -4)))
                 if ichain:

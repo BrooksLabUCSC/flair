@@ -144,7 +144,8 @@ class IntronSupport:
 
     @staticmethod
     def _bed_strand_error(bed):
-        raise FlairInputDataError(f"Invalid strand `{bed.strand}' in BED must be `+', `-', or '.'")
+        raise FlairInputDataError(f"Invalid strand `{bed.strand}' in BED must be one of: " +
+                                  ", ".join([f"'{s}'" for s in _VALID_STRANDS]))
 
     def _load_intron_bed(self, bed, chrom_filter):
         if (chrom_filter is not None) and (bed.chrom != chrom_filter):

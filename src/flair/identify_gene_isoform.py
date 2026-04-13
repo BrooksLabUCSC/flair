@@ -4,6 +4,7 @@ import os
 import argparse
 
 from flair.gtf_to_bed import get_iso_info
+from flair.pycbio.hgdata.bed import BedReader
 
 def main():
     parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
@@ -42,15 +43,12 @@ def get_junctions(line):
     return junctions
 
 
-def get_junctions_bed12(line):
+def get_junctions_bed12(bed):
     junctions = set()
-    chrstart = int(line[1])
-    starts = [int(n) + chrstart + 1 for n in line[11].rstrip(',').split(',')]
-    sizes = [int(n) - 1 for n in line[10].rstrip(',').split(',')]
-    if len(starts) == 1:
+    if len(bed.blocks) == 1:
         return
-    for b in range(len(starts) - 1):  # block
-        junctions.add((starts[b] + sizes[b], starts[b + 1]))
+    for b in range(len(bed.blocks) - 1):  # block
+        junctions.add((bed.blocks[b].end, bed.blocks[b + 1].start + 1))
     return junctions
 
 
@@ -141,10 +139,9 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
     name_counts = {}  # to avoid redundant names
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-        for line in open(query):
-            line = line.rstrip().split('\t')
-            junctions = get_junctions_bed12(line)
-            chrom, name, start, end = line[0], line[3], int(line[1]), int(line[2])
+        for bed in BedReader(query, fixScores=True):
+            junctions = get_junctions_bed12(bed)
+            chrom, name, start, end = bed.chrom, bed.name, bed.chromStart, bed.chromEnd
             if ';' in name:
                 name = name[:name.find(';')]
 
@@ -156,8 +153,8 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
                     name = name + '-' + str(name_counts[name])
                 noref = chrom + ':' + str(start)[:-3] + '000'
                 newname = name + '_' + noref
-                line[3] = newname
-                writer.writerow(line)
+                bed.name = newname
+                writer.writerow(bed.toRow())
                 continue
 
             gene_hits = {}
@@ -235,11 +232,11 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
                 name_counts[name] += 1
                 newname = name + '-' + str(name_counts[name]) + '_' + gene
 
-            line[3] = newname
-            line[8] = "20,47,181" if transcript else "232,142,23"  # blue if annotated, orange if novel
-            if line[9] == '1':
-                line[8] = "242,208,17"  # yellow if monoexon
-            writer.writerow(line)
+            bed.name = newname
+            bed.itemRgb = "20,47,181" if transcript else "232,142,23"  # blue if annotated, orange if novel
+            if bed.blockCount == 1:
+                bed.itemRgb = "242,208,17"  # yellow if monoexon
+            writer.writerow(bed.toRow())
 
 
 if __name__ == "__main__":

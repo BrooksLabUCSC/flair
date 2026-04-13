@@ -27,7 +27,9 @@ def generate_alignment_obj_for_read(args, genome, transcript_to_exons, transcrip
                                                        args.intprimingfracAs)
         else:
             notinternalpriming = True
-        if notinternalpriming:
+        if not notinternalpriming:
+            logging.debug(f"read dropped: internal priming on {transcript}: {alignment.query_name}")
+        else:
             pos = alignment.reference_start
             try:
                 alignscore = alignment.get_tag('AS')
@@ -56,12 +58,15 @@ def process_read_chunk(chunkinfo):  # noqa: C901 - FIXME: reduce complexity
         finaltnames = []
         thisclipping = clippingdata[readname] if readname in clippingdata else None
         if len(filteredtranscriptaligns) > 0:
-            # print(readname)
             assignedts = get_best_transcript(filteredtranscriptaligns, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)
-            if assignedts:
+            if not assignedts:
+                logging.debug(f"read dropped: no passing transcript assignment: {readname}")
+            else:
                 for assignedt, gtstart, gtend in assignedts:
                     finaltnames.append(assignedt)
                     results.append((readname, assignedt, gtstart, gtend))
+        else:
+            logging.debug(f"read dropped: all transcript alignments filtered (internal priming or other): {readname}")
         if args.output_bam and len(finaltnames) > 0:
             readseq, readerr = None, None
             for alignment in transcriptaligns:
@@ -88,7 +93,7 @@ def process_read_chunk(chunkinfo):  # noqa: C901 - FIXME: reduce complexity
     return results
 
 
-def bam_to_read_aligns(samfile, chunksize, temp_dir, transcript_to_exons, transcript_to_bp_ss_index,
+def bam_to_read_aligns(samfile, chunksize, temp_dir, transcript_to_exons, transcript_to_bp_ss_index,  # noqa: C901 - FIXME: reduce complexity
                        args, headeroutfilename, readstoclipping, transcript_to_genomic_ends, transcript_to_unique_bounds):
     lastname = None
     lastaligns = []
@@ -113,6 +118,13 @@ def bam_to_read_aligns(samfile, chunksize, temp_dir, transcript_to_exons, transc
         # removing supplementary alignments has the biggest effect on the output. I think we should do it though
         if read.is_mapped and not read.is_supplementary and read.mapping_quality >= args.quality:
             lastaligns.append(read.to_string())
+        else:
+            if not read.is_mapped:
+                logging.debug(f"read dropped: unmapped: {read.query_name}")
+            elif read.is_supplementary:
+                logging.debug(f"read dropped: supplementary alignment: {read.query_name}")
+            else:
+                logging.debug(f"read dropped: low quality ({read.mapping_quality} < {args.quality}): {read.query_name}")
     if len(lastaligns) > 0:
         readchunk[lastname] = lastaligns
         if lastname in readstoclipping:

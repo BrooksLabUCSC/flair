@@ -1,22 +1,16 @@
 import sys
-
-# FIXME please make this a real program or drop it.
+from flair.pycbio.hgdata.bed import BedReader
 
 expected, output = sys.argv[1], sys.argv[2]
 
 
 def parse_bed(file):
-    # FIXME use the bed parser
     sjc_to_ends = {}
-    for line in open(file):
-        line = line.rstrip().split('\t')
-        start, end = int(line[1]), int(line[2])
-        esizes = [int(x) for x in line[-2].rstrip(',').split(',')]
-        estarts = [int(x) for x in line[-1].rstrip(',').split(',')]
-        junctions = tuple([(start + estarts[i] + esizes[i], start + estarts[i + 1]) for i in range(len(esizes) - 1)])
+    for bed in BedReader(file, fixScores=True):
+        junctions = tuple((bed.blocks[i].end, bed.blocks[i + 1].start) for i in range(len(bed.blocks) - 1))
         if junctions not in sjc_to_ends:
             sjc_to_ends[junctions] = {}
-        sjc_to_ends[junctions][(start, end)] = int(line[4])
+        sjc_to_ends[junctions][(bed.chromStart, bed.chromEnd)] = bed.score
     return sjc_to_ends
 
 

@@ -81,29 +81,39 @@ def dofiltering(args, inbam):
     if args.filtertype == FILTER_SEPARATE:
         withsup = pysam.AlignmentFile(args.output + '_chimeric.bam', "wb", template=samfile)
     totalalignments, mappednotsec, supplementary, primary = 0, 0, 0, 0
+    dropped_unmapped_secondary, dropped_quality, dropped_supplementary = 0, 0, 0
     for read in samfile.fetch():
         totalalignments += 1
         if read.is_mapped and not read.is_secondary:
             mappednotsec += 1
             if read.mapping_quality < args.quality:
-                continue
-            if read.is_supplementary:
+                dropped_quality += 1
+                logging.debug(f"read dropped: low quality ({read.mapping_quality} < {args.quality}): {read.query_name}")
+            elif read.is_supplementary:
                 supplementary += 1
                 if args.filtertype == FILTER_SEPARATE:
                     withsup.write(read)
                 elif args.filtertype == FILTER_KEEPSUP:
                     outbam.write(read)
-                # removesup: drop supplementary
+                else:
+                    dropped_supplementary += 1
+                    logging.debug(f"read dropped: supplementary removed: {read.query_name}")
             else:
                 primary += 1
                 if read.has_tag('SA') and args.filtertype == FILTER_SEPARATE:
                     withsup.write(read)
                 else:
                     outbam.write(read)
+        else:
+            dropped_unmapped_secondary += 1
+            logging.debug(f"read dropped: unmapped or secondary: {read.query_name}")
     logging.info(f'total alignments in bam file (includes unaligned reads): {totalalignments}')
     logging.info(f'total non-secondary alignments: {mappednotsec}')
     logging.info(f'total primary alignments with quality >= {args.quality}: {primary}')
     logging.info(f'total supplementary alignments with quality >= {args.quality}: {supplementary}')
+    logging.info(f'reads dropped: unmapped or secondary: {dropped_unmapped_secondary}')
+    logging.info(f'reads dropped: quality < {args.quality}: {dropped_quality}')
+    logging.info(f'reads dropped: supplementary removed: {dropped_supplementary}')
     samfile.close()
     outbam.close()
     pysam.index(args.output + '.filtered.bam')

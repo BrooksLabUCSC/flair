@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import argparse
 from flair import FlairInputDataError
+from flair.gtf_io import gtf_write_row
+from flair.pycbio.hgdata.bed import BedReader
+
 
 def main():
     parser = argparse.ArgumentParser(description='options')
@@ -41,18 +44,23 @@ def split_iso_gene(iso_gene):
         gene = iso_gene[iso_gene.rfind('_') + 1:]
     return iso, gene
 
+
+def _make_attrs(gene_id, transcript_id, reference_transcript_id, exon_number=None):
+    """Build attrs dict for GTF output."""
+    attrs = {'gene_id': gene_id, 'transcript_id': transcript_id}
+    if exon_number is not None:
+        attrs['exon_number'] = str(exon_number)
+    if reference_transcript_id is not None:
+        attrs['reference_transcript_id'] = reference_transcript_id
+    return attrs
+
+
 def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, useCDS=True):  # noqa: C901 - FIXME: reduce complexity
     outfile = open(outputfile, 'w')
-    gene_to_transcript_lines = {}
+    gene_to_records = {}
     gene_to_chrom_strand = {}
-    for line in open(query):
-        line = line.rstrip().split('\t')
-        start = int(line[1])
-        chrom, strand, name, start = line[0], line[5], line[3], int(line[1])
-        tstarts = [int(n) + start for n in line[11].rstrip(',').split(',')]
-        bsizes = [int(n) for n in line[10].rstrip(',').split(',')]
-        end, thick_start, thick_end = int(line[2]), int(line[6]), int(line[7])
-
+    for bed in BedReader(query):
+        name = bed.name
         if '_' not in name and not force:
             raise FlairInputDataError('Entry name should contain underscore-delimited transcriptid and geneid like so: \n'
                                       'ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n'
@@ -67,46 +75,42 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, us
         else:
             transcript_id, gene_id = split_iso_gene(name)
 
-        if gene_id not in gene_to_transcript_lines:
-            gene_to_transcript_lines[gene_id] = []
-            gene_to_chrom_strand[gene_id] = (chrom, strand)
-
-        attributes = f'gene_id "{gene_id}"; transcript_id "{transcript_id}";'
+        ref_tid = None
         if reference_transcript_id and '-referencetranscript' in transcript_id:
-            trimmed_transcript_id = transcript_id[:transcript_id.find('-referencetranscript')]
-            attributes = f'gene_id "{gene_id}"; transcript_id "{trimmed_transcript_id}"; reference_transcript_id "{trimmed_transcript_id}";'
-        gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', 'transcript', start + 1, tstarts[-1] + bsizes[-1], '.', strand, '.', attributes])
-        if thick_start != thick_end and (thick_start != start or thick_end != end) and useCDS:
-            gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', 'CDS', thick_start + 1, thick_end, '.', strand, '.', attributes])
-            if strand == '+':
-                gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', 'start_codon', thick_start + 1, thick_start + 3, '.', strand, '.', attributes])
-                gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', '5UTR', start + 1, thick_start + 1, '.', strand, '.', attributes])
-                gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', '3UTR', thick_end, tstarts[-1] + bsizes[-1], '.', strand, '.', attributes])
-            elif strand == '-':
-                gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', 'start_codon', thick_end - 2, thick_end, '.', strand, '.', attributes])
-                gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', '3UTR', start + 1, thick_start + 1, '.', strand, '.', attributes])
-                gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', '5UTR', thick_end, tstarts[-1] + bsizes[-1], '.', strand, '.', attributes])
-        # if strand == '-':  # to list exons in 5'->3'
-        #       for b in range(len(tstarts)):  # exon number
-        #               bi = len(tstarts) - 1 - b  # block index
-        #               attributes = 'gene_id \"{}\"; transcript_id \"{}\"; exon_number \"{}\";'\
-        #                                               .format(gene_id, transcript_id, b)
-        #               print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[bi]+1), \
-        #                       str(tstarts[bi]+bsizes[bi]), '.', strand, '.', attributes]))
-        # else:
-        for b in range(len(tstarts)):
-            attributes = f'gene_id "{gene_id}"; transcript_id "{transcript_id}"; exon_number "{b}";'
-            if reference_transcript_id and '-referencetranscript' in transcript_id:
-                attributes = f'gene_id "{gene_id}"; transcript_id "{trimmed_transcript_id}"; exon_number "{b}"; reference_transcript_id "{trimmed_transcript_id}";'
-            gene_to_transcript_lines[gene_id].append([chrom, 'FLAIR', 'exon', tstarts[b] + 1, tstarts[b] + bsizes[b], '.', strand, '.', attributes])
-    for gene_id in gene_to_transcript_lines:
-        attributes = f'gene_id "{gene_id}";'
+            ref_tid = transcript_id[:transcript_id.find('-referencetranscript')]
+            transcript_id = ref_tid
+
+        if gene_id not in gene_to_records:
+            gene_to_records[gene_id] = []
+            gene_to_chrom_strand[gene_id] = (bed.chrom, bed.strand)
+
+        attrs = _make_attrs(gene_id, transcript_id, ref_tid)
+        gene_to_records[gene_id].append(('transcript', bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, attrs))
+
+        if bed.thickStart != bed.thickEnd and (bed.thickStart != bed.chromStart or bed.thickEnd != bed.chromEnd) and useCDS:
+            gene_to_records[gene_id].append(('CDS', bed.chrom, bed.thickStart, bed.thickEnd, bed.strand, attrs))
+            if bed.strand == '+':
+                gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickStart, bed.thickStart + 3, bed.strand, attrs))
+                gene_to_records[gene_id].append(('5UTR', bed.chrom, bed.chromStart, bed.thickStart, bed.strand, attrs))
+                gene_to_records[gene_id].append(('3UTR', bed.chrom, bed.thickEnd, bed.chromEnd, bed.strand, attrs))
+            elif bed.strand == '-':
+                gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickEnd - 3, bed.thickEnd, bed.strand, attrs))
+                gene_to_records[gene_id].append(('3UTR', bed.chrom, bed.chromStart, bed.thickStart, bed.strand, attrs))
+                gene_to_records[gene_id].append(('5UTR', bed.chrom, bed.thickEnd, bed.chromEnd, bed.strand, attrs))
+
+        for b, blk in enumerate(bed.blocks):
+            exon_attrs = _make_attrs(gene_id, transcript_id, ref_tid, exon_number=b)
+            gene_to_records[gene_id].append(('exon', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+
+    for gene_id, records in gene_to_records.items():
         chrom, strand = gene_to_chrom_strand[gene_id]
-        tlines = gene_to_transcript_lines[gene_id]
-        gene_line = [chrom, 'FLAIR', 'gene', min([x[3] for x in tlines]), max([x[4] for x in tlines]), '.', strand, '.', attributes]
-        outfile.write('\t'.join([str(x) for x in gene_line]) + '\n')
-        for line in tlines:
-            outfile.write('\t'.join([str(x) for x in line]) + '\n')
+        gene_start = min(r[2] for r in records)
+        gene_end = max(r[3] for r in records)
+        gtf_write_row(outfile, chrom, 'FLAIR', 'gene', gene_start, gene_end, None, strand, None,
+                      gene_id=gene_id)
+        for feature, chrom, start, end, strand, attrs in records:
+            gtf_write_row(outfile, chrom, 'FLAIR', feature, start, end, None, strand, None,
+                          attrs=attrs)
     outfile.close()
 
 

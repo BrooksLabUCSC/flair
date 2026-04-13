@@ -9,10 +9,10 @@ def get_iso_to_reads(readmapfile):
     return isoreadsup
 
 def get_synth_info(breakpointfile):
+    from flair.pycbio.hgdata.bed import BedReader
     synthchrtoinfo = {}
-    for line in open(breakpointfile):
-        line = line.rstrip().split('\t')
-        synthchrtoinfo[line[0]] = '--'.join(line[-1].split('--')[1:])
+    for bed in BedReader(breakpointfile, numStdCols=4):
+        synthchrtoinfo[bed.chrom] = '--'.join(bed.name.split('--')[1:])
     return synthchrtoinfo
 
 def get_paralog_ref(paralogfile):
@@ -34,23 +34,19 @@ def get_paralog_ref(paralogfile):
     return genetoparalogs
 
 def get_gene_name_conv(annotgtf):
+    from flair.gtf_io import gtf_record_parser, GtfAttrsSet
     genetoname = {}
-    for line in open(annotgtf):
-        if line[0] != '#':
-            line = line.split('\t', 3)
-            if line[2] == 'gene':
-                geneid = line[-1].split('gene_id "')[1].split('"')[0]
-                if 'gene_name' in line[-1]:
-                    genename = line[-1].split('gene_name "')[1].split('"')[0]
-                else:
-                    genename = geneid
-                genetoname[geneid.split('.')[0]] = genename
+    for rec in gtf_record_parser(annotgtf, include_features={'gene'}, attrs=GtfAttrsSet.ALL):
+        geneid = rec.gene_id
+        genename = rec.gene_name if rec.gene_name else geneid
+        genetoname[geneid.split('.')[0]] = genename
     return genetoname
 
 def identify_promiscuous_genes(isoformsbed, genetoparalogs):
+    from flair.pycbio.hgdata.bed import BedReader
     locustopartners = {}
-    for line in open(isoformsbed):
-        fnames = set(line.split('\t', 1)[0].split('--'))
+    for bed in BedReader(isoformsbed, fixScores=True):
+        fnames = set(bed.chrom.split('--'))
         fnames = {x.split('.')[0] if x[:3] != 'chr' else x.split('-')[0] + '-' + str(round(int(x.split('-')[1]), -6))
                   for x in fnames}
         for i in fnames:
@@ -200,20 +196,22 @@ def write_final_fusion_reads(readsfile, freadsfinal):
 
 
 def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, outname, min_dist):
+    from flair.pycbio.hgdata.bed import BedReader
     isoreadsup = get_iso_to_reads(readmapfile)
     synthchrtoinfo = get_synth_info(breakpointfile)
 
     freadsfinal = set()
     out = open(outname, 'w')
-    for line in open(isoformsbed):
-        line = line.rstrip().split('\t')
-        iso, start, esizes, estarts = line[3], int(line[1]), [int(x) for x in line[10].rstrip(',').split(',')], [int(x) for x in line[11].rstrip(',').split(',')]
-        fusionchr = line[0]
+    for bed in BedReader(isoformsbed, fixScores=True):
+        iso, start = bed.name, bed.chromStart
+        esizes = [len(blk) for blk in bed.blocks]
+        estarts = [blk.start - start for blk in bed.blocks]
+        fusionchr = bed.chrom
         synthinfo = [x.split('..') for x in synthchrtoinfo[fusionchr].split('--')]
         synthinfo = [[y[0], y[1], int(y[2]), int(y[3])] for y in synthinfo]
 
         locusbounds = get_locus_bounds(synthinfo)
-        if start < locusbounds[0][1] and locusbounds[-1][0] < int(line[2]):
+        if start < locusbounds[0][1] and locusbounds[-1][0] < bed.chromEnd:
 
             numloci = len(synthinfo)
             starts, exonindexes = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start)

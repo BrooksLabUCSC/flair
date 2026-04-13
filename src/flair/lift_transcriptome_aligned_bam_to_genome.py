@@ -1,19 +1,15 @@
 import pysam
 import sys
 from flair.isoform_data import get_reverse_complement
-
-def bed_line_to_info(line):
-    line = line.rstrip().split('\t')
-    chrom, start, end, iso, strand = line[0], int(line[1]), int(line[2]), line[3], line[5]
-    esizes, estarts = [int(x) for x in line[-2].rstrip(',').split(',')], \
-                      [int(x) for x in line[-1].rstrip(',').split(',')]
-    return chrom, start, end, iso, strand, esizes, estarts
+from flair.pycbio.hgdata.bed import BedReader
 
 
 def get_iso_info_from_bed(file):
     isotoinfo = {}
-    for line in open(file):
-        chrom, start, end, iso, strand, esizes, estarts = bed_line_to_info(line)
+    for bed in BedReader(file, fixScores=True):
+        chrom, start, end, iso, strand = bed.chrom, bed.chromStart, bed.chromEnd, bed.name, bed.strand
+        esizes = [len(blk) for blk in bed.blocks]
+        estarts = [blk.start - start for blk in bed.blocks]
         isizes = [estarts[i + 1] - (esizes[i] + estarts[i]) for i in range(len(esizes) - 1)]
         isotoinfo[iso] = {'chrom': chrom, 'strand': strand, 'start': start, 'end': end, 'esizes': esizes, 'introns': isizes}
     return isotoinfo

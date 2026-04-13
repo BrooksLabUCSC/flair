@@ -18,8 +18,23 @@ INTPRIM_SEARCH_WINDOW = 50
 # basic types
 ####
 class Junc(PosRange):
-    """Stores start, end, just adds a type name to SeqRange for clearer code and error messages"""
+    """Splice junction interval (start, end), a type alias for PosRange."""
     pass
+
+
+class JuncChain(namedtuple("JuncChain", ("chrom", "strand", "juncs"))):
+    """A chain of splice junctions on a single chromosome and strand."""
+
+    def __new__(cls, chrom, strand, juncs):
+        return super().__new__(cls, chrom, strand, tuple(juncs))
+
+    @classmethod
+    def from_exons(cls, chrom, strand, exons):
+        """Create a JuncChain from a list of exons."""
+        juncs = tuple(Junc(exons[i].end, exons[i + 1].start)
+                      for i in range(len(exons) - 1))
+        return cls(chrom, strand, juncs)
+
 
 class Exon(namedtuple("Exon", ("start", "end", "name"))):
     def __new__(cls, start, end, name=None):
@@ -35,15 +50,6 @@ class Exon(namedtuple("Exon", ("start", "end", "name"))):
 ISO_SRC_ANNOT = 'annot'
 ISO_SRC_NOVEL = 'novel'
 
-
-# class IsoIdSrc(namedtuple("IsoIdSrc",
-#                           ("id", "src"))):
-#     """isoform identifier along with the source of the isoform"""
-#     # FIXME: it is unclear if this is the best way to store the information,
-#     # this was create as a transition from iso (id) or (iso_id) (marker, id)
-#     pass
-
-
 def exons_to_juncs(exons):
     """Convert exon ranges to junctions"""
     return [Junc(exons[i].end, exons[i + 1].start)
@@ -51,7 +57,6 @@ def exons_to_juncs(exons):
 
 
 def bed_to_junctions(bed):
-    # FIXME: a junctions object might be good
     return [Junc(bed.blocks[i - 1].end, bed.blocks[i].start)
             for i in range(1, bed.blockCount)]
 
@@ -147,19 +152,6 @@ def get_exons(readrec):
     return exons
 
 
-# class JuncChain:
-#     # keep on one copy of junction chain
-#     _juncs_cache = {}
-
-#     @classmethod
-#     def _intern_juncs(cls, juncs):
-#         return cls._juncs_cache.setdefault(juncs, juncs)
-
-#     def __init__(self, chrom, strand, juncs):
-#         self.chrom = chrom
-#         self.strand = strand
-#         self.juncs = self._intern_juncs(juncs)
-
 def check_intprim(end_seq):
     i = 10
     while i < len(end_seq) and end_seq[:i].count('A') / i >= INTPRIM_MIN_FRAC:
@@ -170,19 +162,25 @@ def check_intprim(end_seq):
     else:
         return j
 
-def check_polyA(end_seq):
+def _check_poly_base(end_seq, base):
+    """Check for a poly-base run using a rolling window."""
     if len(end_seq) < POLYA_SEARCH_WINDOW:
         return 0
-    else:
-        i = POLYA_SEARCH_WINDOW
-        while i < len(end_seq) and end_seq[i - POLYA_SEARCH_WINDOW:i].count('A') / POLYA_SEARCH_WINDOW >= POLYA_MIN_FRAC:  # check rolling average of 5bp
-            i += 1
-        # return i
-        j = end_seq[:i].rfind('A') + 1
-        if j < POLYA_MIN_LEN:
-            return 0
-        else:
-            return j
+    i = POLYA_SEARCH_WINDOW
+    while i < len(end_seq) and end_seq[i - POLYA_SEARCH_WINDOW:i].count(base) / POLYA_SEARCH_WINDOW >= POLYA_MIN_FRAC:
+        i += 1
+    j = end_seq[:i].rfind(base) + 1
+    if j < POLYA_MIN_LEN:
+        return 0
+    return j
+
+
+def check_polyA(end_seq):
+    return _check_poly_base(end_seq, 'A')
+
+
+def check_polyT(end_seq):
+    return _check_poly_base(end_seq, 'T')
 
 
 class ReadRec:
@@ -224,6 +222,13 @@ class ReadRec:
         self.end = exons[-1].end
         self.juncs = tuple(exons_to_juncs(sorted(exons)))
 
+    def correct_from_annotation(self, start, end, strand, juncs):
+        """Update ReadRec with corrected coordinates from annotation match."""
+        self.start = start
+        self.end = end
+        self.strand = strand
+        self.juncs = tuple(juncs)
+
     def _get_both_intprim(read, genome):
         left_intprim, right_intprim = 0, 0
         if read.reference_start > INTPRIM_SEARCH_WINDOW:
@@ -234,15 +239,28 @@ class ReadRec:
             right_intprim = check_intprim(end_seq)
         return left_intprim, right_intprim
 
-    def _get_both_polyA(read):
+    def _detect_poly_tails(read):
+        """Detect polyA/polyT tails in soft-clipped ends.
+
+        Returns (left_polyA, right_polyA) where:
+        - left_polyA > 0: poly-tail at left end (- strand indicator)
+        - right_polyA > 0: poly-tail at right end (+ strand indicator)
+
+        Both polyA and polyT are checked on each end to handle cDNA reads
+        where the antisense strand has polyT instead of polyA.  Both indicate
+        the location of the mRNA 3' end.
+
+        The check functions expect the tail at the start of the sequence.
+        Right clips already have this orientation; left clips are reversed.
+        """
         left_polyA, right_polyA = 0, 0
         read_seq = read.query_sequence
-        if read.cigartuples[0][0] == pysam.CIGAR_OPS.CSOFT_CLIP:  # check left polyA
-            end_seq = get_reverse_complement(read_seq[:read.cigartuples[0][1]])
-            left_polyA = check_polyA(end_seq)
-        if read.cigartuples[-1][0] == pysam.CIGAR_OPS.CSOFT_CLIP:  # check right polyA
-            end_seq = read_seq[-1 * read.cigartuples[-1][1]:]
-            right_polyA = check_polyA(end_seq)
+        if read.cigartuples[0][0] == pysam.CIGAR_OPS.CSOFT_CLIP:
+            left_rev = read_seq[:read.cigartuples[0][1]][::-1]
+            left_polyA = max(check_polyA(left_rev), check_polyT(left_rev))
+        if read.cigartuples[-1][0] == pysam.CIGAR_OPS.CSOFT_CLIP:
+            right_seq = read_seq[-1 * read.cigartuples[-1][1]:]
+            right_polyA = max(check_polyA(right_seq), check_polyT(right_seq))
         return left_polyA, right_polyA
 
     @classmethod
@@ -269,20 +287,31 @@ class ReadRec:
         if junc_direction not in {'+', '-'}:
             junc_direction = "-" if read.is_reverse else "+"
         juncs = tuple(Junc(blk[0], blk[1]) for blk in intron_blocks)
-        left_polyA, right_polyA = cls._get_both_polyA(read)
+        left_polyA, right_polyA = cls._detect_poly_tails(read)
         left_intprim, right_intprim = 0, 0
         if genome is not None:
             left_intprim, right_intprim = cls._get_both_intprim(read, genome)
 
         return cls(read.reference_name, junc_direction, juncs, align_start, ref_pos, read.query_name, polyA=(left_polyA, right_polyA), intprim=(left_intprim, right_intprim))
 
-    @classmethod
-    def from_junctions(cls, chrom, start, end, name, score, strand, juncs, *, polyA=None, intprim=None):
-        """Create a ReadRec from junction coordinates."""
-        return cls(chrom, strand, tuple(juncs), start, end, name, score=score, polyA=polyA, intprim=intprim)
+
+class Gene:
+    """A gene containing discovered isoforms."""
+
+    def __init__(self, gene_id, chrom, strand):
+        self.gene_id = gene_id
+        self.chrom = chrom
+        self.strand = strand
+        self.isoforms = []
+
+    def add_isoform(self, isoform):
+        """Add an isoform to this gene and set the back-reference."""
+        self.isoforms.append(isoform)
+        isoform.gene = self
+        isoform.gene_id = self.gene_id
 
 
-class IsoWithReads:
+class Isoform:
     # keep on one copy of junction chain
     _juncs_cache = {}
 
@@ -299,6 +328,7 @@ class IsoWithReads:
         self._name = None
         self._score = None
         self.reads = reads if reads is not None else []
+        self.gene = None
         self.gene_id = gene_id
         self.transcript_id = transcript_id
         self.end5confidence = None
@@ -306,6 +336,7 @@ class IsoWithReads:
 
     @property
     def name(self):
+        # FIXME: start none might not be the best trigger.
         if self._name is None:
             if self.start is None:
                 return 'FLISO' + str(abs(hash(tuple(self.juncs))))
@@ -355,7 +386,7 @@ class IsoWithReads:
         return self.end - self.start
 
     def reset_from_exons(self, exons):
-        """Update ReadRec from a list of Exon objects."""
+        """Update Isoform from a list of Exon objects."""
         self.start = exons[0].start
         self.end = exons[-1].end
         self.juncs = tuple(exons_to_juncs(sorted(exons)))
@@ -370,7 +401,8 @@ class IsoWithReads:
         return cls(readrec.chrom, readrec.strand, readrec.juncs)
 
     @classmethod
-    def from_other(cls, iso, newstart=None, newend=None, newreads=[], newstrand=None):
+    def regroup(cls, iso, newstart=None, newend=None, newreads=[], newstrand=None):
+        """Create a new Isoform by regrouping reads from an existing one."""
         if newstrand is None:
             newstrand = iso.strand
         return cls(iso.chrom, newstrand, iso.juncs, newstart, newend, newreads, iso.gene_id, iso.transcript_id)

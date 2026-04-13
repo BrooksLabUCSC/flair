@@ -3,6 +3,7 @@ import sys
 import csv
 import os
 from flair import FlairInputDataError
+from flair.pycbio.hgdata.bed import BedReader
 
 try:
     bedfh = open(sys.argv[1])
@@ -95,16 +96,14 @@ isoforms = {}  # ir detection
 ir_junctions = {}  # ir detection
 a3_junctions = {}  # alt 3' ss detection
 a5_junctions = {}  # alt 5' ss detection
-for line in bedfh:
-    line = line.rstrip().split('\t')
-
-    chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
+for bed in BedReader(bedfh, fixScores=True):
+    chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
 
     if iso_counts and name not in iso_counts:
         continue
 
-    blockstarts = [int(n) + start for n in line[11].rstrip(',').split(',')]
-    blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
+    blockstarts = [blk.start for blk in bed.blocks]
+    blocksizes = [len(blk) for blk in bed.blocks]
 
     chrom = strand + chrom  # stranded comparisons
     if chrom not in isoforms:

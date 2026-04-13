@@ -6,19 +6,20 @@ import shutil
 import pysam
 import logging
 from statistics import median
-from collections import Counter, namedtuple
+from collections import Counter
+from flair import FlairError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.intron_support import IntronSupport
 from flair.junction_correct import JunctionCorrector
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory
 from flair.bed_to_gtf import bed_to_gtf
-from flair.isoform_data import (Junc, Exon, ReadRec, IsoWithReads, exons_to_juncs,
+from flair.isoform_data import (Junc, Exon, ReadRec, Gene, Isoform, exons_to_juncs,
                                 get_bed_exons_from_exons, get_sequence_for_exons, binary_search,
                                 convert_to_bed)
 from flair.read_processing import (should_process_read, add_corrected_read_to_groups,
-                                   read_correct_to_readrec,
                                    generate_genomic_alignment_read_to_clipping_file)
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW
+from flair.annotation_data import annot_data_from_gtf
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -178,6 +179,7 @@ def make_temp_dir(out_prefix):
 ####
 # splice junction correction
 ####
+# (binary_search imported from flair.isoform_data)
 
 def build_intron_support(gtf_file, junction_tab, junction_bed):
     """Build IntronSupport from all available sources."""
@@ -189,89 +191,6 @@ def build_intron_support(gtf_file, junction_tab, junction_bed):
     if gtf_file is not None:
         is_db.load_gtf(gtf_data_parser(gtf_file, attrs=GtfAttrsSet.FLAIR))
     return is_db
-
-def setup_junction_corrector(intron_support, ss_window, junction_support):
-    """Create a JunctionCorrector from a pre-built IntronSupport."""
-    return JunctionCorrector(intron_support, ss_window, junction_support)
-
-class AnnotData(object):
-    def __init__(self):
-        # FIXME: what the keys of these dicts()?
-        # FIXME: update names
-
-        # map of (transcript_id, gene_id) -> (start, end)
-        self.transcript_to_exons = {}
-
-        # list of (transcript_id, gene_id, strand)
-        self.transcripts = []
-
-        # map of ((start0, end0), ...) -> (transcript_id, gene_id)
-        self.juncchain_to_transcript = {}
-
-        # map of (start, ent) -> set of (transcript_id, gene_id)
-        self.junc_to_gene = {}
-
-        # list of (start, end, strand, gene_id):
-        # FIXME: rename once it is figured out how this works in get_single_exon_gene_overlaps
-        # FIXME: make set
-        self.all_annot_SE = {'+': [], '-': []}
-
-        # map of strand to map of gene_id  to set of (start, end)
-        # FIXME: why is strand needed here
-        self.spliced_exons = {'+': {}, '-': {}}
-
-        # map of gene_id to set of (start, end)
-        self.gene_to_annot_juncs = {}
-
-        # map of gene_id to strand
-        self.gene_to_strand = {}
-
-
-def annot_data_from_gtf(gtf_data, region):
-    """Build AnnotData for a region from a pre-partitioned GtfData."""
-    annots = AnnotData()
-    if gtf_data is None:
-        return annots
-    region_map = {region: annots}
-    for trans in gtf_data.transcripts:
-        trans.gene_id = trans.gene_id.replace('_', '-')
-        exons = [Exon(exon.start, exon.end) for exon in trans.exons]
-        if not exons:
-            continue
-        sorted_exons = sorted(exons)
-        t_start = sorted_exons[0].start
-        t_end = sorted_exons[-1].end
-        save_transcript_annot_to_region(trans.transcript_id, trans.gene_id, region,
-                                        region_map, t_start, t_end, trans.strand, sorted_exons)
-    return annots
-
-def save_transcript_annot_to_region(transcript_id, gene_id, region, regions_to_annot_data, t_start, t_end, strand, t_exons):
-    # regions is tuple of ('chr20', 0, 64444167)
-    # FIXME: t_exons are list of (32186476, 32190360)
-    assert isinstance(t_exons[0], Exon)  # FIXME tmp debugging
-    annots = regions_to_annot_data[region]
-    annots.transcript_to_exons[(transcript_id, gene_id)] = tuple(t_exons)
-    juncs = exons_to_juncs(t_exons)
-    annots.transcripts.append((transcript_id, gene_id, strand))
-    if gene_id not in annots.gene_to_strand:
-        annots.gene_to_strand[gene_id] = strand
-    if len(juncs) == 0:
-        annots.all_annot_SE[strand].append(Exon(t_start, t_end, gene_id))
-    else:
-        if gene_id not in annots.spliced_exons[strand]:
-            annots.spliced_exons[strand][gene_id] = set()
-        annots.spliced_exons[strand][gene_id].update(set(t_exons))
-        annots.juncchain_to_transcript[tuple(juncs)] = (transcript_id, gene_id)
-        if gene_id not in annots.gene_to_annot_juncs:
-            annots.gene_to_annot_juncs[gene_id] = set()
-        for j in juncs:
-            if j not in annots.junc_to_gene:
-                annots.junc_to_gene[j] = set()
-            annots.junc_to_gene[j].add((transcript_id, gene_id))
-            annots.gene_to_annot_juncs[gene_id].add(j)
-    for strand in ['+', '-']:
-        annots.all_annot_SE[strand] = sorted(annots.all_annot_SE[strand])  # FIXME: make set? Colette note: needs to be sorted for binary search later
-
 
 def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):  # noqa: C901 - FIXME: reduce complexity
     # FIXME: convert filter_transcriptome_align.py to a library, however
@@ -339,8 +258,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
 # Transcript end assignment
 ##
 
-JunctionChain = namedtuple('JunctionChain', ('chrom', 'strand', 'juncs'))
-
 def get_best_ends(curr_group, end_window):
     best_ends = []
     if len(curr_group) > int(end_window):
@@ -383,7 +300,7 @@ def group_reads_by_ends(read_info_list, sort_index, end_window):
 # read_ends is a list containing elements with: (read.start, read.end, read.strand, read.name)
 # If the reads are spliced, the group will contain only the info for reads with a shared splice junction
 # if the reads are unspliced, the group will contain info for all unspliced reads in a given chromosome/region,
-# The output is a list of IsoWithReads objects containing:
+# The output is a list of Isoform objects containing:
 #    - weighted_score (represents how many reads have ends similar to this exact position)
 #    - start, end, strand, read_id (representative read id)
 #    - supporting_reads (list of all read names in group)
@@ -395,19 +312,17 @@ def collapse_end_groups(end_window, isoform):
         all_end_groups.extend(group_reads_by_ends(start_group, 1, end_window))
     for end_group in all_end_groups:
         weighted_score, start, end = get_best_ends(end_group, end_window)
-        read_end_info = IsoWithReads.from_other(isoform, start, end, end_group)
+        read_end_info = Isoform.regroup(isoform, start, end, end_group)
         iso_end_groups.append(read_end_info)
     return iso_end_groups
 
 
-def get_isos_with_similar_juncs(juncs, firstpass_junc_to_name, junc_to_gene):
-    """Find isoforms sharing junctions with the given junction set.
-    Returns separate sets for novel (string UUIDs) and annotated ((transcript_id, gene_id) tuples)."""
+def get_isos_with_similar_juncs(juncs, junc_to_names, junc_to_gene):
+    """Find isoforms sharing junctions with the given junction set."""
     novel_isos = set()
-    # annot_isos = set()
     for j in juncs:
-        if firstpass_junc_to_name and j in firstpass_junc_to_name:
-            novel_isos.update(firstpass_junc_to_name[j])
+        if junc_to_names and j in junc_to_names:
+            novel_isos.update(junc_to_names[j])
         # if j in junc_to_gene:
         #     annot_isos.update(junc_to_gene[j])
     return novel_isos
@@ -464,31 +379,29 @@ def _check_junction_subset(juncs, first_exon, last_exon, otheriso_score, otheris
                                          terminal_exon_is_subset, superset_support, unique_seq_bound)
 
 
-def identify_spliced_iso_subset_novel(novel_iso_id, firstpass_unfiltered,
-                                      juncs, first_exon, last_exon, terminal_exon_is_subset,
-                                      superset_support, unique_seq_bound):
-    """Check if query isoform is subset of a novel (firstpass) isoform.
-    novel_iso_id is a string UUID."""
-    otheriso = firstpass_unfiltered[novel_iso_id]
+def _check_novel_iso_subset(novel_iso_id, all_isoforms,
+                            juncs, first_exon, last_exon, terminal_exon_is_subset,
+                            superset_support, unique_seq_bound):
+    """Check if query isoform is subset of a novel (candidate) isoform."""
+    otheriso = all_isoforms[novel_iso_id]
     _check_junction_subset(juncs, first_exon, last_exon, otheriso.score, otheriso.juncs, otheriso.exons,
                            terminal_exon_is_subset, superset_support, unique_seq_bound)
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
-                       firstpass_junc_to_name, firstpass_unfiltered,
+                       junc_to_names, all_isoforms,
                        sup_annot_transcript_to_juncs, strand, annot_id):
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
-    # novel_isos, annot_isos = get_isos_with_similar_juncs(juncs, firstpass_junc_to_name, annots.junc_to_gene)
-    novel_isos = get_isos_with_similar_juncs(juncs, firstpass_junc_to_name, annots.junc_to_gene)
+    novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
     terminal_exon_is_subset = [0, 0]  # first exon is a subset, last exon is a subset
     first_exon, last_exon = exons[0], exons[-1]
     superset_support = []
     unique_seq_bound = []
     for novel_iso_id in novel_isos:
         if novel_iso_id != name:
-            identify_spliced_iso_subset_novel(novel_iso_id, firstpass_unfiltered,
-                                              juncs, first_exon, last_exon, terminal_exon_is_subset,
-                                              superset_support, unique_seq_bound)
+            _check_novel_iso_subset(novel_iso_id, all_isoforms,
+                                    juncs, first_exon, last_exon, terminal_exon_is_subset,
+                                    superset_support, unique_seq_bound)
     unique_seq_bound = list(set(unique_seq_bound))
     if strand == '-':
         # just invert the indexes
@@ -555,11 +468,15 @@ class MaxTerminalExonsEnds:
             gene_entry = GeneMaxTerminalExonsEnds(gene_id)
             self._by_gene_id[gene_key] = gene_entry
 
-        # FIXME: tmp generate strand warning
+        # FIXME: tmp generate strand warning or error. it should be impossible to get here
+        # with gene broken like this.
         existing_strand = self._gene_id_to_strand.get(gene_id)
         if existing_strand is None:
             self._gene_id_to_strand[gene_id] = strand
+        elif strand != existing_strand:
+            raise FlairError(f"BUG: gene id '{gene_id}' has transcripts on both strands")
         elif (strand != existing_strand) and (gene_id not in self._genes_warned):
+            # FIXME: this is disabled for not to get hard failure
             self._genes_warned.add(gene_id)
             logging.warning("BUG: gene id '%s' has transcripts on both strands", gene_id)
 
@@ -656,6 +573,7 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
     # good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs = [], set(), {}
     read_to_transcript = {}
     if not args.no_align_to_annot and len(annots.transcripts) > 0:
+        # logging.info('generating transcriptome reference')
         # this part generates the fasta file for the annotation
         if args.end_norm_dist is not None:
             transcript_to_strand, transcript_to_new_exons = \
@@ -696,33 +614,40 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
 
 
 def _correct_and_group_read(read, read_to_annot_transcript, annots, junction_corrector, sj_to_ends, genome):
-    """Correct a single read's splice junctions and add it to sj_to_ends groups."""
+    """Correct a single read's splice junctions and add it to sj_to_ends groups.
 
+    Spliced and single-exon reads are fundamentally different:
+    - Spliced: junctions corrected from annotation or intron support, strand from correction
+    - Single-exon: no correction, strand resolved later in group_se_by_overlap
+    """
     readrec = ReadRec.from_read(read, genome=genome)
+
+    # annotated spliced: correct junctions and strand from annotation
     if read.query_name in read_to_annot_transcript:
         # FIXME more id assumptions
         tid, startindex, startdist, endindex, enddist = read_to_annot_transcript[read.query_name]
         transcript = '_'.join(tid.split('_')[:-1])
         gene = tid.split('_')[-1]
         exons = annots.transcript_to_exons[(transcript, gene)]
-        juncs = [(exons[x].end, exons[x + 1].start) for x in range(len(exons) - 1)]
-        # ignore unspliced transcripts
-        if len(juncs) > 0:
-            newstart = juncs[startindex][0] - startdist
-            newend = juncs[endindex][1] + enddist
-            juncs = tuple([Junc(x[0], x[1]) for x in juncs[startindex:endindex + 1]])
-            strand = annots.gene_to_strand[gene]
-            corrected_read = ReadRec.from_junctions(read.reference_name, newstart, newend,
-                                                    read.query_name, read.mapping_quality,
-                                                    strand, juncs, polyA=readrec.polyA, intprim=readrec.intprim)
+        annot_juncs = [(exons[x].end, exons[x + 1].start) for x in range(len(exons) - 1)]
+        if len(annot_juncs) > 0:
+            newstart = annot_juncs[startindex][0] - startdist
+            newend = annot_juncs[endindex][1] + enddist
+            juncs = tuple([Junc(x[0], x[1]) for x in annot_juncs[startindex:endindex + 1]])
+            readrec.correct_from_annotation(newstart, newend, annots.gene_to_strand[gene], juncs)
+            add_corrected_read_to_groups(readrec, sj_to_ends)
+            return
+
+    # unannotated spliced: correct junctions and strand from intron support
+    if readrec.juncs:
+        if junction_corrector.correct_readrec(readrec):
+            add_corrected_read_to_groups(readrec, sj_to_ends)
         else:
-            # no need to add strand correction for single exon here, will deal with it later
-            corrected_read = read_correct_to_readrec(junction_corrector, readrec)
-    else:
-        # FIXME add strand correction to junction correction here
-        corrected_read = read_correct_to_readrec(junction_corrector, readrec)
-    if corrected_read:
-        add_corrected_read_to_groups(corrected_read, sj_to_ends)
+            logging.debug(f"read dropped: junction correction failed: {readrec.name}")
+        return
+
+    # single-exon: no correction, strand resolved later in group_se_by_overlap
+    add_corrected_read_to_groups(readrec, sj_to_ends)
 
 def filter_correct_group_reads(args, temp_prefix, region, bam_file, read_to_annot_transcript, annots,
                                junction_corrector, genome, *, sj_to_ends=None,
@@ -738,7 +663,7 @@ def filter_correct_group_reads(args, temp_prefix, region, bam_file, read_to_anno
 
 def filter_ends_allow_multiple(isoforms, sjc_support, max_ends):
     """Allow multiple ends per junction chain.
-    Returns list of IsoWithReads objects that meet support threshold."""
+    Returns list of Isoform objects that meet support threshold."""
     if isoforms[0].num_reads < sjc_support:
         # If top candidate doesn't meet threshold, merge all reads into it
         best = isoforms[0]
@@ -753,7 +678,7 @@ def filter_ends_allow_multiple(isoforms, sjc_support, max_ends):
 
 def filter_ends_single_best(isoforms, no_redundant_mode):
     """Pick single best end from junction chain.
-    Returns list with single IsoWithReads object."""
+    Returns list with single Isoform object."""
     # best_only uses the default sorting, doesn't require additional action
     if no_redundant_mode == 'longest':
         isoforms.sort(reverse=True, key=lambda x: x.length)
@@ -776,6 +701,7 @@ def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, no_r
 
     junc_support = sum([x.num_reads for x in isoforms])
     if junc_support < support:
+        logging.debug(f"isoform group dropped: insufficient support ({junc_support} < {support}): {isoforms[0].chrom}:{isoforms[0].start}-{isoforms[0].end}")
         return []
 
     if no_redundant == 'none':
@@ -790,34 +716,49 @@ def _write_unfiltered_ends(isoforms, fh):
     for iso_readrec in isoforms:
         convert_to_bed(iso_readrec).write(fh)
 
-def _add_end_to_firstpass(isoform, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, iso_fh):
-    convert_to_bed(isoform).write(iso_fh)
-    if isoform.juncs == ():
-        firstpass_exons.add(Exon(isoform.start, isoform.end, isoform.name))
-    else:
-        for j in isoform.juncs:
-            if j not in firstpass_junc_to_name:
-                firstpass_junc_to_name[j] = set()
-            firstpass_junc_to_name[j].add(isoform.name)
-        firstpass_exons.update(set(isoform.exons))
+class CandidateIsoforms:
+    """Candidate isoforms before filtering, with junction and exon indices.
 
-def _process_junc_ends(args, isoforms, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, iso_fh):
+    isoforms: dict of isoform_name -> Isoform
+    junc_to_names: dict of Junc -> set of isoform_names sharing that junction
+    exons: set of Exon (named exons for SE, all exons for spliced)
+    """
+    def __init__(self):
+        self.isoforms = {}
+        self.junc_to_names = {}
+        self.exons = set()
+
+    def add(self, isoform):
+        self.isoforms[isoform.name] = isoform
+        if isoform.juncs == ():
+            self.exons.add(Exon(isoform.start, isoform.end, isoform.name))
+        else:
+            for j in isoform.juncs:
+                if j not in self.junc_to_names:
+                    self.junc_to_names[j] = set()
+                self.junc_to_names[j].add(isoform.name)
+            self.exons.update(set(isoform.exons))
+
+
+def _process_junc_ends(args, isoforms, candidates, iso_fh):
     # this assumes single exons are pre-grouped by overlap
     # previously treated single exons separately due to them being in larger groups
     filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.se_support, args.no_redundant, args.max_ends)
     for isoform in filtered_isoforms:
-        firstpass_unfiltered[isoform.name] = isoform
-        _add_end_to_firstpass(isoform, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, iso_fh)
+        candidates.add(isoform)
+        convert_to_bed(isoform).write(iso_fh)
 
-def _process_junc(args, isoform, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, iso_fh, iso_unfilt_fh):
+def _process_junc(args, isoform, candidates, iso_fh, iso_unfilt_fh):
     # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
     these_firstpass = collapse_end_groups(args.end_window, isoform)
     _write_unfiltered_ends(these_firstpass, iso_unfilt_fh)
-    _process_junc_ends(args, these_firstpass, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, iso_fh)
+    _process_junc_ends(args, these_firstpass, candidates, iso_fh)
 
 
 def correct_se_strand_polyA(read_group, se_support):
     # strand correction for single exon genes based on location of polyA tail sequence
+
+    # FIXME: shouldnt this check for poly(T)
     left_polyA = [read.polyA[0] for read in read_group]
     right_polyA = [read.polyA[1] for read in read_group]
     num_reads = len(read_group)
@@ -836,74 +777,106 @@ def correct_se_strand_polyA(read_group, se_support):
                 return '-'
     return None
 
-def group_reads_by_overlap(reads):
-    reads.sort(key=lambda x: [x.start, x.end])
-    last_end, read_group = -1, []
+def _group_se_reads_by_overlap(reads):
+    """Group single-exon reads into clusters by coordinate overlap."""
     read_groups = []
-    for r in reads:
+    last_end = -1
+    read_group = None
+    for r in sorted(reads, key=lambda x: (x.start, x.end)):
         if r.start >= last_end:
-            read_groups.append(read_group)
+            if read_group is not None:
+                read_groups.append(read_group)
             last_end = r.end
             read_group = []
         if r.end > last_end:
             last_end = r.end
         read_group.append(r)
-    read_groups.append(read_group)
+    if read_group is not None:
+        read_groups.append(read_group)
     return read_groups
 
-def group_se_by_overlap(isoform, se_support, trust_strand):
-    for read_group in group_reads_by_overlap(isoform.reads):
-        if read_group != []:
-            if trust_strand:
-                # get most common read strand for group
-                read_strands = [x.strand for x in read_group]
-                new_strand = max(set(read_strands), key=read_strands.count)
-            else:
-                # correct based on polyA
-                new_strand = correct_se_strand_polyA(read_group, se_support)
-            # filter out single exon groups that fail stranding
-            if new_strand is not None:
-                new_key = (median([x.start for x in read_group]), median([x.end for x in read_group]), ())
-                yield new_key, new_strand, read_group
+def group_se_by_overlap(chrom, isoform, se_support, trust_strand):
+    for read_group in _group_se_reads_by_overlap(isoform.reads):
+        if trust_strand:
+            # get most common read strand for group
+            read_strands = [x.strand for x in read_group]
+            new_strand = max(set(read_strands), key=read_strands.count)
+        else:
+            # correct based on polyA
+            new_strand = correct_se_strand_polyA(read_group, se_support)
+        # filter out single exon groups that fail stranding
+        if new_strand is None:
+            logging.debug(f"single-exon group dropped: strand could not be determined ({len(read_group)} reads): {chrom}:{read_group[0].start}-{read_group[-1].end}")
+        else:
+            new_key = (chrom, median([x.start for x in read_group]), median([x.end for x in read_group]), ())
+            yield new_key, new_strand, read_group
+
+class IsoformOverlapGroups:
+    """Isoforms grouped by junction chain with overlap-clustered ends.
+
+    Key: (chrom, median_start, median_end, juncs) where juncs is () for single-exon.
+    Value: Isoform.
+
+    Strand is not part of the key. For spliced isoforms, strand is determined
+    during junction correction and stored on the Isoform. For single-exon
+    reads, strand cannot be determined from junctions, so overlapping reads are
+    grouped by coordinate overlap first, then strand is resolved per group by
+    majority vote (trust_strand) or polyA consensus.  This means opposite-strand
+    single-exon reads at the same locus merge into one group; the minority
+    strand is discarded.
+    """
+    def __init__(self):
+        self._groups = {}
+
+    def add_spliced(self, chrom, juncs, isoform):
+        """Add a spliced isoform, keyed by chrom, median ends, and junction chain."""
+        self._groups[(chrom, median(isoform.starts), median(isoform.ends), juncs)] = isoform
+
+    def add_se_overlap_groups(self, chrom, isoform, se_support, trust_strand):
+        """Split single-exon reads into overlap groups and resolve strand."""
+        for new_key, new_strand, read_group in group_se_by_overlap(chrom, isoform, se_support, trust_strand):
+            self._groups[new_key] = Isoform.regroup(isoform, newreads=read_group, newstrand=new_strand)
+
+    def __iter__(self):
+        return iter(self._groups)
+
+    def __getitem__(self, key):
+        return self._groups[key]
+
+    def items(self):
+        return self._groups.items()
+
 
 def group_by_overlap(sj_to_ends, se_support, trust_strand):
-    sjc_with_overlap_groups = {}
-    for juncs, isoform in sj_to_ends.items():
+    groups = IsoformOverlapGroups()
+    for (chrom, juncs), isoform in sj_to_ends.items():
         if len(juncs) > 0:
-            # NOTE: if strand correction has already been done from junctions, shouldn't need any additional strand correction here
-            sjc_with_overlap_groups[(median(isoform.starts), median(isoform.ends), juncs)] = isoform
+            groups.add_spliced(chrom, juncs, isoform)
         else:
-            for new_key, new_strand, read_group in group_se_by_overlap(isoform, se_support, trust_strand):
-                sjc_with_overlap_groups[new_key] = IsoWithReads.from_other(isoform, newreads=read_group, newstrand=new_strand)
-
-    return sjc_with_overlap_groups
+            groups.add_se_overlap_groups(chrom, isoform, se_support, trust_strand)
+    return groups
 
 
 def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, region_chrom):
     sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.se_support, args.trust_strand)
     # FIXME everything below here requires confidence in transcript strand
-    novel_gene_isos_to_group = get_gene_names_firstpass(sjc_with_overlap_groups, annots)
-    # generating non-gene iso groups
+    genes, novel_gene_isos_to_group = build_genes(sjc_with_overlap_groups, annots)
     for strand in novel_gene_isos_to_group:
-        generate_non_gene_iso_groups_strand(novel_gene_isos_to_group, strand, region_chrom, sjc_with_overlap_groups)
+        generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, region_chrom, sjc_with_overlap_groups)
 
-    firstpass_exons = set()
-    firstpass_unfiltered, firstpass_junc_to_name = {}, {}
+    candidates = CandidateIsoforms()
     with open(temp_prefix + '.firstpass.unfiltered.bed', 'w') as iso_fh, \
             open(temp_prefix + '.firstpass.reallyunfiltered.bed', 'w') as iso_unfilt_fh:
         for juncs, isoform in sjc_with_overlap_groups.items():
-            _process_junc(args, isoform, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, iso_fh, iso_unfilt_fh)
-    firstpass_exons = sorted(list(firstpass_exons))
-    return firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons
+            _process_junc(args, isoform, candidates, iso_fh, iso_unfilt_fh)
+    return candidates
 
 ####
 # single-exon transcript processing
 ####
-def filter_single_exon_iso(args, single_exon, curr_group, firstpass_unfiltered):
-    # FIXME: make object: grouped_iso (32186479, 32188247, '99bfe5c4-0f3a-4f4d-b5c9-bac459c45e5c')
-    # FIXME: curr_group is a list of these
-    iso_readrec = firstpass_unfiltered[single_exon.name]
-    # FIXME: what does 'comp_' mean?
+def filter_single_exon_iso(args, single_exon, curr_group, all_isoforms):
+    """Check if a single-exon isoform passes filtering against its overlap group."""
+    isoform = all_isoforms[single_exon.name]
     expression_comp_with_superset = []
     is_contained = False
     for exon in curr_group:
@@ -914,56 +887,55 @@ def filter_single_exon_iso(args, single_exon, curr_group, firstpass_unfiltered):
                     is_contained = True
                     break  # filter out
                 else:  # is other single exon - check relative expression
-                    other_score = firstpass_unfiltered[exon.name].score
-                    score = iso_readrec.score
-                    if score >= args.sjc_support and other_score * SINGLE_EXON_EXPRESSION_RATIO < score:
+                    other_score = all_isoforms[exon.name].score
+                    if isoform.score >= args.sjc_support and other_score * SINGLE_EXON_EXPRESSION_RATIO < isoform.score:
                         expression_comp_with_superset.append(True)
                     else:
                         expression_comp_with_superset.append(False)
     return not is_contained and all(expression_comp_with_superset)
 
 
-def filter_single_exon_group(args, curr_group, firstpass_unfiltered, firstpass):
-    # grouping single exon isoforms with exons from spliced isoform, using spliced isoform exons to filter single exon isoform
+def filter_single_exon_group(args, curr_group, all_isoforms, firstpass):
+    """Filter single-exon isoforms in an overlap group against spliced exons."""
     for exon in curr_group:
         if exon.name != '':  # is single exon with name
-            if filter_single_exon_iso(args, exon, curr_group, firstpass_unfiltered):
-                firstpass[exon.name] = firstpass_unfiltered[exon.name]
+            if filter_single_exon_iso(args, exon, curr_group, all_isoforms):
+                firstpass[exon.name] = all_isoforms[exon.name]
+            else:
+                logging.debug(f"single-exon isoform dropped: contained or low expression: {exon.name} ({all_isoforms[exon.name].num_reads} reads)")
     return firstpass
 
 
-def filter_all_single_exon(args, firstpass_exons, firstpass_unfiltered, firstpass):
-    # group_start = 0
+def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass):
+    """Group exons by overlap and filter single-exon isoforms."""
     last_end = 0
     curr_group = []
 
-    for exon in firstpass_exons:
+    for exon in sorted_exons:
         if exon.start < last_end:
             curr_group.append(exon)
         else:
             if len(curr_group) > 0:
-                firstpass = filter_single_exon_group(args, curr_group, firstpass_unfiltered, firstpass)
+                firstpass = filter_single_exon_group(args, curr_group, all_isoforms, firstpass)
             curr_group = [exon]
-            # group_start = start
         if exon.end > last_end:
             last_end = exon.end
     if len(curr_group) > 0:
-        firstpass = filter_single_exon_group(args, curr_group, firstpass_unfiltered, firstpass)
+        firstpass = filter_single_exon_group(args, curr_group, all_isoforms, firstpass)
 
     return firstpass
 
 
-def filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons, annots,
-                          sup_annot_transcript_to_juncs):
-    # FIXME: firstpass_unfiltered is a dict of uuid to ReadRec
+def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_juncs):
+    """Filter candidate isoforms by subset/support criteria.
+    Returns (firstpass dict, iso_to_unique_bound dict)."""
     iso_to_unique_bound = {}
 
     if args.filter == 'ginormous':
-        firstpass = firstpass_unfiltered
+        firstpass = dict(candidates.isoforms)
     else:
         firstpass = {}
-        for iso_name in firstpass_unfiltered:
-            isoform = firstpass_unfiltered[iso_name]
+        for iso_name, isoform in candidates.isoforms.items():
             if isoform.juncs != ():
                 if args.filter == 'comprehensive':
                     firstpass[iso_name] = isoform
@@ -971,14 +943,16 @@ def filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, fi
                     assert isinstance(isoform.exons[0], Exon)  # FIXME tmp debugging
                     is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, isoform.exons,
                                                                    iso_name, isoform.num_reads, annots,
-                                                                   firstpass_junc_to_name, firstpass_unfiltered,
+                                                                   candidates.junc_to_names, candidates.isoforms,
                                                                    sup_annot_transcript_to_juncs, isoform.strand, isoform.transcript_id)
-                    if is_not_subset:
+                    if not is_not_subset:
+                        logging.debug(f"isoform dropped: subset of another isoform: {iso_name} ({isoform.num_reads} reads)")
+                    else:
                         firstpass[iso_name] = isoform
                         if len(unique_seq) > 0:
                             iso_to_unique_bound[iso_name] = ','.join(unique_seq)
         # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of list
-        firstpass = filter_all_single_exon(args, firstpass_exons, firstpass_unfiltered, firstpass)
+        firstpass = filter_all_single_exon(args, sorted(candidates.exons), candidates.isoforms, firstpass)
 
     return firstpass, iso_to_unique_bound
 
@@ -1083,24 +1057,42 @@ def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
     return gene_id, transcript_id
 
 
-def get_gene_names_firstpass(firstpass, annots):
+def build_genes(firstpass, annots):
+    """Assign gene names to firstpass isoforms, building Gene objects.
+
+    Returns (genes, novel_gene_isos_to_group) where:
+    - genes: dict of gene_id -> Gene for isoforms matched to known genes
+    - novel_gene_isos_to_group: isoforms needing novel gene assignment
+    """
     annot_name_to_used_counts = {}
+    genes = {}
     novel_gene_isos_to_group = {'+': [], '-': []}
     for iso_key in firstpass:
         isoform = firstpass[iso_key]
         gene_id, isoform_id = get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts)
-        firstpass[iso_key].transcript_id = isoform_id
+        isoform.transcript_id = isoform_id
         if gene_id is not None:
             # removing this strand correction breaks the unusual junction (due to underlying variant?) test
-            firstpass[iso_key].strand = annots.gene_to_strand[gene_id]
-            firstpass[iso_key].gene_id = gene_id
+            isoform.strand = annots.gene_to_strand[gene_id]
+            if gene_id not in genes:
+                genes[gene_id] = Gene(gene_id, isoform.chrom, annots.gene_to_strand[gene_id])
+            genes[gene_id].add_isoform(isoform)
         else:
             novel_gene_isos_to_group[isoform.strand].append((isoform.start, isoform.end, iso_key))
 
-    return novel_gene_isos_to_group
+    return genes, novel_gene_isos_to_group
 
 
-def generate_non_gene_iso_groups_strand(novel_gene_isos_to_group, strand, chrom, firstpass):
+def _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass):
+    """Create a Gene for a group of novel overlapping isoforms."""
+    gene_id = f'{chrom}:{group_start}-{last_end}:{strand}'
+    gene = Gene(gene_id, chrom, strand)
+    genes[gene_id] = gene
+    for s, e, n in curr_group:
+        gene.add_isoform(firstpass[n])
+
+def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
+    """Group novel isoforms by coordinate overlap and create Gene objects."""
     transcripts_to_group = sorted(novel_gene_isos_to_group[strand])
     last_end = 0
     group_start = 0
@@ -1110,17 +1102,13 @@ def generate_non_gene_iso_groups_strand(novel_gene_isos_to_group, strand, chrom,
             curr_group.append((start, end, iso_name))
         else:
             if len(curr_group) > 0:
-                group_name = f'{chrom}:{group_start}-{last_end}:{strand}'
-                for s, e, n in curr_group:
-                    firstpass[n].gene_id = group_name
+                _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass)
             curr_group = [(start, end, iso_name)]
             group_start = start
         if end > last_end:
             last_end = end
     if len(curr_group) > 0:
-        group_name = f'{chrom}:{group_start}-{last_end}:{strand}'
-        for s, e, n in curr_group:
-            firstpass[n].gene_id = group_name
+        _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass)
 
 def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_exons_ends, add_length_at_ends, unique_bound, unique_fh, iso_fh, seq_fh, genome):
     # FIXME: do normalization outside of write function
@@ -1247,13 +1235,13 @@ def _run_region(*, partition, gtf_data, intron_support, args):  # noqa: C901 - F
     # logging.info('identifying good match to annot')
     if not args.no_align_to_annot:
         logging.info('aligning to transcriptome reference')
-    read_to_annot_transcript = identify_good_match_to_annot(args, partition.file_prefix, region.name, annots, genome)
+    read_to_annot_transcript = \
+        identify_good_match_to_annot(args, partition.file_prefix, region.name, annots, genome)
 
     # load splice junctions for chrom
     # logging.info('correcting splice junctions')
     logging.info('correcting and grouping reads, filtering isoforms')
-    junction_corrector = setup_junction_corrector(intron_support, args.ss_window, args.junction_support)
-
+    junction_corrector = JunctionCorrector(intron_support, args.ss_window, args.junction_support)
     # takes in bam file, for each read attempts to correct splice junctions (removes unsupported ones), then groups reads by junction chains
     # this also handles read strandedness if necessary
     sj_to_ends = filter_correct_group_reads(args, partition.file_prefix, region, bam_file, read_to_annot_transcript, annots,
@@ -1265,15 +1253,10 @@ def _run_region(*, partition, gtf_data, intron_support, args):  # noqa: C901 - F
     # redundant ends also separates single exon isoforms from spliced isoforms
     # (because they're handled differently in future step for identifying
     # annotated gene/isoform names)
-    firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons = process_juncs_to_firstpass_isos(args, partition.file_prefix, sj_to_ends, annots, region.name)
+    candidates = process_juncs_to_firstpass_isos(args, partition.file_prefix, sj_to_ends, annots, region.name)
 
-    # - filter isoforms - remove any that represent a subset of another
-    # - identified isoform - based on what args.filter is set to also generate
-    # - iso_to_unique_bound - a mapping of each isoform to the unique sequence
-    #   at its ends (this is to better handle isoforms that represent junction
-    #   subsets with additional sequence at the ends)
-    firstpass, iso_to_unique_bound = filter_firstpass_isos(args, firstpass_unfiltered, firstpass_junc_to_name, firstpass_exons,
-                                                           annots, {})
+    # filter isoforms: remove subsets, generate unique boundary sequences
+    firstpass, iso_to_unique_bound = filter_firstpass_isos(args, candidates, annots, {})
 
     if len(firstpass.keys()) > 0:
         # logging.info('getting gene names and writing firstpass')

@@ -3,6 +3,7 @@ import sys
 import csv
 import os
 from flair import FlairInputDataError
+from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 
 try:
     psl = open(sys.argv[1])
@@ -79,35 +80,18 @@ if genepred:  # reading in annotated splice junctions  # noqa: C901 - FIXME: red
             all_juncs[chrom][(end, start)] = gene
         # annotated_juncs[chrom] += [(junctions, gene)]
 else:
-    for line in ref:  # extract all exons from the gtf, keep exons grouped by transcript
-        if line.startswith('#'):
-            continue
-        line = line.rstrip().split('\t')
-        chrom, ty, start, end, strand = line[0], line[2], int(line[3]), int(line[4]), line[6]
-        if ty != 'exon':
-            continue
+    for rec in gtf_record_parser(sys.argv[2], include_features={'exon'}, attrs=GtfAttrsSet.ALL):
+        chrom, start, end, strand = rec.chrom, rec.start, rec.end, rec.strand
+        prev_gene = rec.gene_id
+        this_transcript = rec.transcript_id
         if chrom not in all_juncs:
-            # annotated_juncs[chrom] = []
             all_juncs[chrom] = {}
             all_se[chrom] = []
-
-        if 'gene_id' in line[8]:
-            prev_gene = line[8][line[8].find('gene_id') + 9:]
-            prev_gene = prev_gene[:prev_gene.find('"')]
-            this_transcript = line[8][line[8].find('transcript_id') + 15:]
-            this_transcript = this_transcript[:this_transcript.find('"')]
-        elif 'geneid' in line[8].lower():
-            prev_gene = line[8][line[8].find('geneid'):]
-            prev_gene = prev_gene[:prev_gene.find(',')]
-            this_transcript = line[8][line[8].find('transcript_id') + 14:]
-        else:
-            raise ValueError('GTF format info column gene and transcript ids not recognized')
 
         if this_transcript != prev_transcript:
             if prev_transcript:
                 if not junctions:  # single exon gene
                     all_se[chrom] += [prev_exon]
-            #       annotated_juncs[chrom] += [(junctions, prev_gene)]
             junctions = set()
             prev_transcript = this_transcript
         elif strand == '-':
@@ -119,7 +103,6 @@ else:
         prev_start = start
         prev_end = end
         prev_exon = (start, end, prev_gene)
-    # annotated_juncs[chrom] += [(junctions, prev_transcript)]
 
 for chrom in all_se:
     all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])

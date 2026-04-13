@@ -19,6 +19,7 @@
 import pipettor
 import os
 from flair import FlairInputDataError
+from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 ########################################################################
 # CommandLine
 ########################################################################
@@ -98,27 +99,17 @@ class Isoform(object):
 
 
 def getStarts(gtf):
-    # starts = list()
     starts = 'predictProd_starts_intermediate.bed'
     scount = 0
     out = open(starts, 'w')
     tnamenmdexcep = set()
-    with open(gtf) as lines:
-        for l in lines:
-            if l[0] == "#":
-                continue
-            cols = l.rstrip().split("\t")
-            chrom, c1, c2, strand = cols[0], int(cols[3]) - 1, int(cols[4]), cols[6]
-            if cols[2] == "start_codon":
-                gene = cols[8][cols[8].find('gene_id') + len('gene_id') + 2:]
-                gene = gene[:gene.find('"')]
-                scount += 1
-                out.write('\t'.join([str(x) for x in [chrom, c1, c2, gene, ".", strand]]) + '\n')
-                # starts.append((chrom,c1,c2,gene,".",strand))
-            if cols[2] == 'transcript':
-                if 'NMD_exception' in cols[8]:
-                    transcript = cols[8].split('transcript_id "')[1].split('"')[0]
-                    tnamenmdexcep.add(transcript)
+    for rec in gtf_record_parser(gtf, include_features={'start_codon', 'transcript'}, attrs=GtfAttrsSet.ALL):
+        if rec.feature == 'start_codon':
+            scount += 1
+            out.write('\t'.join([str(x) for x in [rec.chrom, rec.start, rec.end, rec.gene_id, ".", rec.strand]]) + '\n')
+        elif rec.feature == 'transcript':
+            if 'NMD_exception' in str(rec.attrs):
+                tnamenmdexcep.add(rec.transcript_id)
     out.close()
     if scount == 0:
         raise FlairInputDataError(f'ERROR, no start codons were found in {gtf}')

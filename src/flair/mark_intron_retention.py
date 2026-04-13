@@ -3,6 +3,7 @@ import sys
 import csv
 import os
 from flair import FlairInputDataError
+from flair.pycbio.hgdata.bed import BedReader
 
 try:
     bedfh = open(sys.argv[1])
@@ -18,15 +19,14 @@ def overlap(coords0, coords1):
 
 
 isoforms = {}
-for line in bedfh:
-    line = line.rstrip().split('\t')
-    chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
-    blockstarts = [int(n) + start for n in line[11].rstrip(',').split(',')]
-    blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
+for bed in BedReader(bedfh, fixScores=True):
+    chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
+    blockstarts = [blk.start for blk in bed.blocks]
+    blocksizes = [len(blk) for blk in bed.blocks]
     if chrom not in isoforms:
         isoforms[chrom] = {}
     isoforms[chrom][name] = {}
-    isoforms[chrom][name]['entry'] = line
+    isoforms[chrom][name]['entry'] = bed.toRow()
     isoforms[chrom][name]['sizes'] = blocksizes
     isoforms[chrom][name]['strand'] = strand
     isoforms[chrom][name]['starts'] = blockstarts

@@ -1,6 +1,8 @@
 import sys
 from collections import Counter
 import pysam
+from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+from flair.pycbio.hgdata.bed import BedReader
 
 alignedbedfile = sys.argv[1]
 referencegtffile = sys.argv[2]
@@ -25,17 +27,14 @@ def grouper(iterable):
 
 
 fusiontoannotsj = {}
-for line in open(referencegtffile):
-    line = line.rstrip().split('\t', 5)
-    if line[2] == 'exon':
-        if line[0] not in fusiontoannotsj:
-            fusiontoannotsj[line[0]] = set()
-        fusiontoannotsj[line[0]].add((int(line[3]), int(line[4])))
+for rec in gtf_record_parser(referencegtffile, include_features={'exon'}, attrs=GtfAttrsSet.FLAIR):
+    if rec.chrom not in fusiontoannotsj:
+        fusiontoannotsj[rec.chrom] = set()
+    fusiontoannotsj[rec.chrom].add((rec.start + 1, rec.end))  # keep 1-based to match original
 
 fusiontobp = {}
-for line in open(refbpfile):
-    line = line.rstrip().split('\t')
-    fusiontobp[line[0]] = int(line[1])
+for bed in BedReader(refbpfile, numStdCols=3):
+    fusiontobp[bed.chrom] = bed.chromStart
 
 
 genome = pysam.FastaFile(refgenomefile)
@@ -46,13 +45,10 @@ chrtonovelss = {}
 reconsideredss = {}
 c = 0
 introns_to_reads = {}
-for line in open(alignedbedfile):
-    line = line.rstrip().split('\t')
-    thischr, iso, strand, start, esizes, estarts = (line[0], line[3], line[5], int(line[1]),
-                                                    [int(x) for x in line[10].rstrip(',').split(',')],
-                                                    [int(x) for x in line[11].rstrip(',').split(',')])
-    for i in range(len(esizes) - 1):
-        thisintron = tuple([thischr, start + estarts[i] + esizes[i], start + estarts[i + 1] + 1])
+for bed in BedReader(alignedbedfile, fixScores=True):
+    thischr, iso, strand, start = bed.chrom, bed.name, bed.strand, bed.chromStart
+    for i in range(len(bed.blocks) - 1):
+        thisintron = tuple([thischr, bed.blocks[i].end, bed.blocks[i + 1].start + 1])
         if thisintron not in introns_to_reads:
             introns_to_reads[thisintron] = 0
         introns_to_reads[thisintron] += 1

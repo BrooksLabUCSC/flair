@@ -1,6 +1,8 @@
 import argparse
 import pysam
 from flair.isoform_data import get_reverse_complement
+from flair.gtf_io import gtf_record_parser, gtf_write_row, GtfAttrsSet
+from flair.pycbio.hgdata.bed import BedReader
 
 parser = argparse.ArgumentParser(description='make synthetic fusion reference')
 parser.add_argument('-c', '--chimbp', action='store', help='bed file of fusion breakpoints')
@@ -24,9 +26,9 @@ allBP = {}
 fgenes = {}
 transcripts = {}
 # ['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'breakpointCoord', 'outerEdgeCoord', 'readSupport']
-for line in open(args.chimbp):  # '31-01-2023DRR059313-transcriptomeChimericBreakpoints-correctDir.tsv'):
-    chrom, start, end, name, score, strand = line.rstrip().split('\t')[:6]
-    start, end = max(0, int(start)), max(0, int(end))
+for bed in BedReader(args.chimbp, numStdCols=6, fixScores=True):
+    chrom, name, score, strand = bed.chrom, bed.name, bed.score, bed.strand
+    start, end = max(0, bed.chromStart), max(0, bed.chromEnd)
     gene, fusion = name.split('__')
     fusion = tuple(fusion.split('--'))
     if fusion not in allBP:
@@ -54,25 +56,20 @@ genome = pysam.FastaFile(args.g)
 #         Make sure to flip - strand values accordingly
 # When making synthetic references, simulatneously make gtf annotation file - make sure to convert 3' side values based on
 
-for line in open(args.a):  # '/private/groups/brookslab/reference_annotations/gencode.v38.annotation.gtf'):
-    if line[0] != '#':
-        line = line.split('\t')
-        if line[2] == 'gene' or line[2] == 'exon' or line[2] == 'start_codon':
-            genename = line[8].split('gene_id "')[1].split('"')[0]
-            genename = genename.replace('_', '-').split('.')[0]
-            # genename += '*' + line[8].split('gene_id "')[1].split('"')[0]
-            if genename in fgenes:
-                if line[2] == 'gene':
-                    # learned that can't assume that transcript appears in anno only once - two diff ENSG can have same hugo name
-                    fgenes[genename] = (line[0], min([int(line[3]) - 501, fgenes[genename][1]]), max([int(line[4]) + 500, fgenes[genename][2]]), line[6])
-                elif line[2] == 'exon' or line[2] == 'start_codon':
-                    tname = line[8].split('transcript_id "')[1].split('"')[0]
-                    if tname not in transcripts[genename]:
-                        transcripts[genename][tname] = []
-                    if line[6] == '+':
-                        transcripts[genename][tname].append((int(line[3]) - 1, int(line[4]), line[2]))
-                    else:
-                        transcripts[genename][tname].insert(0, (int(line[3]) - 1, int(line[4]), line[2]))
+for rec in gtf_record_parser(args.a, include_features={'gene', 'exon', 'start_codon'}, attrs=GtfAttrsSet.ALL):
+    genename = rec.gene_id.replace('_', '-').split('.')[0]
+    if genename in fgenes:
+        if rec.feature == 'gene':
+            # learned that can't assume that transcript appears in anno only once - two diff ENSG can have same hugo name
+            fgenes[genename] = (rec.chrom, min([rec.start - 500, fgenes[genename][1]]), max([rec.end + 500, fgenes[genename][2]]), rec.strand)
+        elif rec.feature in ('exon', 'start_codon'):
+            tname = rec.transcript_id
+            if tname not in transcripts[genename]:
+                transcripts[genename][tname] = []
+            if rec.strand == '+':
+                transcripts[genename][tname].append((rec.start, rec.end, rec.feature))
+            else:
+                transcripts[genename][tname].insert(0, (rec.start, rec.end, rec.feature))
 # print(transcripts)
 # print('loaded transcripts')
 
@@ -153,30 +150,20 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
     out.write(''.join(sequence) + '\n')
     for s in range(1, len(fusion)):
         bpOut.write('\t'.join([fusionchrname, str(allstartloc[s]), str(allstartloc[s]), 'breakpoint-' + str(s) + '--' + fusionname]) + '\n')
-    annoOut.write('\t'.join([fusionchrname, 'SYNTHFUSION', 'gene', '1', str(len(''.join(sequence))), '.', '+', '.', 'gene_id "' + geneid + '"']) + '\n')
-
-    # finalisocomb = list(itertools.product(*finalisochunks))
-    # for isocomb in finalisocomb:
-    #     isonames = [x[0] for x in isocomb]
-    #     isoexons = [x[1] for x in isocomb]
-    #     transcriptid = '_'.join(isonames)
-    #     annoOut.write('\t'.join(
-    #         [fusionchrname, 'SYNTHFUSION', 'transcript', str(isoexons[0][0][0] + 1), str(isoexons[-1][-1][1]), '.', '+', '.', '; '.join(['gene_id "' + geneid + '"','transcript_id "' + transcriptid + '"'])]) + '\n')
-    #     for exonset in isoexons:
-    #         for exon in exonset:
-    #             annoOut.write('\t'.join([fusionchrname, 'SYNTHFUSION', exon[2], str(exon[0] + 1), str(exon[1]), '.', '+', '.', '; '.join(['gene_id "' + geneid + '"','transcript_id "' + transcriptid + '"'])]) + '\n')
+    gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', 'gene', 0, len(''.join(sequence)), None, '+', None,
+                  gene_id=geneid)
 
     seen = set()
     for isocomb in finalisochunks:
         isoexons = isocomb[1]
         transcriptid = str(isocount) + '-' + isocomb[0]
         isocount += 1
-        # if transcriptid in seen:
-        #     print(transcriptid)
         seen.add(transcriptid)
-        annoOut.write('\t'.join([fusionchrname, 'SYNTHFUSION', 'transcript', str(isoexons[0][0] + 1), str(isoexons[-1][1]), '.', '+', '.', '; '.join(['gene_id "' + geneid + '"', 'transcript_id "' + transcriptid + '"'])]) + '\n')
+        gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', 'transcript', isoexons[0][0], isoexons[-1][1], None, '+', None,
+                      gene_id=geneid, transcript_id=transcriptid)
         for exon in isoexons:
-            annoOut.write('\t'.join([fusionchrname, 'SYNTHFUSION', exon[2], str(exon[0] + 1), str(exon[1]), '.', '+', '.', '; '.join(['gene_id "' + geneid + '"', 'transcript_id "' + transcriptid + '"'])]) + '\n')
+            gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', exon[2], exon[0], exon[1], None, '+', None,
+                          gene_id=geneid, transcript_id=transcriptid)
 
 
 out.close()
