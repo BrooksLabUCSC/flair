@@ -10,12 +10,12 @@ import scipy.stats as sps
 from flair.partition_runner import PartitionRunner
 from flair import SeqRange
 from statistics import median
-from flair.intron_support import IntronSupport
-from flair.junction_correct import JunctionCorrector
-from flair.isoform_data import (Junc, ReadRec)
+from flair.junction_correct import junction_corrector_factory
+from flair.isoform_data import Junc, ReadRec
 from flair.read_processing import (add_corrected_read_to_groups, get_sequence_from_bed)
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
+from flair.pycbio.hgdata.bed import Bed
 
 # FIXME: this is temp, need to move into a
 import flair.flair_transcriptome as ft
@@ -30,7 +30,7 @@ def get_args():
     parser.add_argument('-o', '--output', default='flair',
                         help='output file name base for FLAIR isoforms (default: flair)')
     parser.add_argument('-t', '--threads', type=int, default=4,
-                        help='minimap2 number of threads (4)')
+                        help='the number of threads to use (4)')
     # FIXME: this is different than all other modules that use --gtf.
     parser.add_argument('-f', '--annot', required=True, default='',
                         help='GTF annotation file, used for renaming FLAIR isoforms '
@@ -39,13 +39,11 @@ def get_args():
     parser.add_argument('--annot_basic', default='',
                         help='GTF annotation file, used for renaming FLAIR isoforms '
                              'to annotated isoforms and adjusting TSS/TESs')
-
-    # FIXME:
-    # parser.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
-    #                                            'Use this option if you aligned your short-reads with STAR, '
-    #                                            'STAR will automatically output this file')
+    parser.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
+                                               'Use this option if you aligned your short-reads with STAR, '
+                                               'STAR will automatically output this file')
     parser.add_argument('--junction_bed', help='short-read junctions in bed format '
-                                               '(can be generated from short-read alignment with junctions_from_sam)')
+                                               '(can be generated from long-read alignment with intron-prospector)')
     parser.add_argument('--region_bed',
                         help='bed file with regions to parallelize by; if not specified, all chromosomes are used')
     parser.add_argument('--junction_support', type=int, default=1,
@@ -53,7 +51,6 @@ def get_args():
                              'If your junctions file is in bed format, the score field will be used for read support.')
     parser.add_argument('--ss_window', type=int, default=15,
                         help='window size for correcting splice sites (15)')
-
     parser.add_argument('--junc_support', type=int, default=2,
                         help='''minimum number of supporting reads for a specific junction''')
     parser.add_argument('--event_support', type=int, default=20,
@@ -62,17 +59,10 @@ def get_args():
                         help='''minimum (total reads in splicing event)/(total coverage over locus) to call event''')
     parser.add_argument('--junc_frac_of_event', type=float, default=0.02,
                         help='''minimum (reads with junction/total reads in splicing event) Set to 0 for max recall''')
-
-    # parser.add_argument('--parallel_mode', default='auto:1GB',
-    #                     help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where
-    #                          if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
-    #                          parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion,
-    #                          auto:xGB - for setting the auto threshold, it must be in units of GB.''')
-
     parser.add_argument('--keep_intermediate', default=False, action='store_true',
                         help='''specify if intermediate and temporary files are to be kept for debugging.
-                Intermediate files include: promoter-supported reads file,
-                read assignments to firstpass isoforms''')
+                        Intermediate files include: promoter-supported reads file,
+                        read assignments to firstpass isoforms''')
     parser.add_argument('--check_outliers', default=False, action='store_true',
                         help='''whether to run a statistical analysis to identify and filter outliers from the input samples''')
     parser.add_argument('--keep_sup', default=False, action='store_true',
@@ -81,9 +71,9 @@ def get_args():
                         help='''specify if you want to output corrected read ends bed file''')
     parser.add_argument('--noaligntoannot', default=False, action='store_true',
                         help='''specify if you don't want
-                            an initial alignment to the annotated sequences and only want transcript
-                            detection from the genomic alignment.
-                             Will be slightly faster but less accurate if the annotation is good''')
+                        an initial alignment to the annotated sequences and only want transcript
+                        detection from the genomic alignment.
+                        Will be slightly faster but less accurate if the annotation is good''')
 
     args = parser.parse_args()
 
@@ -211,8 +201,8 @@ def extract_end_coverage_info(juncs, readinfo, allsamples, sample, thischrom, ge
         allblocks[firstexon][sample] += 1
         allblocks[lastexon][sample] += 1
         if outends:
-            outends.write('\t'.join([thischrom, str(r.start), str(r.end),
-                                     gene + '|' + r.name, '.', strand]) + '\n')
+            Bed(thischrom, r.start, r.end, name=gene + '|' + r.name,
+                score=0, strand=strand).write(outends)
     return allblocks
 
 def determine_juncs_are_subset(juncs, alljuncs):
@@ -326,7 +316,7 @@ def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples,
     return outer_junc_to_exons
 
 
-def extract_splicing_info(allsamples, allgenetojuncs, gene, strand, thischrom, outends):
+def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischrom, outends):
     ss5to3, ss3to5, alljuncs, exonjpairs, allblocks = {}, {}, {}, {}, {}
     afe, ale = {}, {}
     t_starts_ends, t_first_last_sj = [[], []], [{}, {}]
@@ -341,7 +331,7 @@ def extract_splicing_info(allsamples, allgenetojuncs, gene, strand, thischrom, o
     for s in range(len(allsamples)):
         sample = allsamples[s]
         # TODO: change to genetojuncs being all juncs from all samples!!
-        genetojuncs = allgenetojuncs[s]
+        genetojuncs = all_genes_to_juncs[s]
         if gene in genetojuncs:
             for juncs in genetojuncs[gene]:
                 readinfo = genetojuncs[gene][juncs]
@@ -973,7 +963,7 @@ def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_o
                 outolfilt.write('\t'.join([str(x) for x in line]) + '\n')
 
 
-def process_gene_to_events(temp_prefix, thischrom, allsamples, allgenetojuncs, genetostrand, junc_support, output_read_ends, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss, check_outliers):
+def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_juncs, genetostrand, junc_support, output_read_ends, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss, check_outliers):
     etypetocolor = {'skipped_exons': '66,105,245', 'retained_introns': '144,66,245',
                     'alt3': '245,215,66', 'alt5': '43,184,39', 'tss': '255,0,0', 'tts': '0,0,255'}
     # outends is just for writing out read ends for Harrison - he can group them more intelligently
@@ -981,7 +971,7 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, allgenetojuncs, g
     if output_read_ends:
         outends = open(temp_prefix + '.diffsplice.readends.bed', 'w')
 
-    allgenes = set.union(*[set(allgenetojuncs[s].keys()) for s in range(len(allgenetojuncs))])
+    allgenes = set.union(*[set(all_genes_to_juncs[s].keys()) for s in range(len(all_genes_to_juncs))])
     outoutlier, outolfilt = None, None
     if check_outliers:
         outoutlier = open(temp_prefix + '.diffsplice.outliers.tsv', 'w')
@@ -993,7 +983,7 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, allgenetojuncs, g
 
             # get gene strand - this is not optimal, def need to revamp how getting annot info
             strand = genetostrand[gene]
-            ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons = extract_splicing_info(allsamples, allgenetojuncs,
+            ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons = extract_splicing_info(allsamples, all_genes_to_juncs,
                                                                                                                                                                       gene, strand, thischrom, outends)
 
             # exon skipping
@@ -1059,35 +1049,25 @@ def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region
         return None
 
 
-def get_juncs_single_sample(listofargs):  # noqa: C901 - FIXME: reduce complexity
-    args, region, temp_prefix, sample, bamfile_name, region_annot, region_annot_fa, region_juncs, annots = listofargs
-
-    # FIXME: convert to using PartitionRunner
-    intron_support = IntronSupport()
-    if region_juncs is not None:
-        intron_support.load_introns_bed(region_juncs)
-    intron_support.load_annot_bed(region_annot)
-    junction_corrector = JunctionCorrector(intron_support, args.ss_window, args.junction_support)
+def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, region_annot, region_annot_fa, junction_corrector, annots):  # noqa: C901 - FIXME: reduce complexity
 
     genome = pysam.FastaFile(args.genome)
 
     temp_prefix = temp_prefix + '_' + sample
 
-    # print(region.name, region.start, region.end, sample, 'getting annot match')
     bam_file = pysam.AlignmentFile(bamfile_name, 'rb')
     num_reads, clipping_file = ft.generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region)
     bam_file.close()
 
-    goodannotaligns = generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region_annot, region_annot_fa, clipping_file)
+    # FIXME: what format is this? reading into memory, why write file?
+    good_annot_aligns = generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region_annot, region_annot_fa, clipping_file)
 
     read_to_transcript = {}
-    for line in open(goodannotaligns):
+    for line in open(good_annot_aligns):
         line = line.rstrip().split('\t')
         read, transcript = line[:2]
         startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
         read_to_transcript[read] = (transcript, startindex, startdist, endindex, enddist)
-
-    # print(region.name, region.start, region.end, sample, 'correcting reads')
 
     sj_to_ends = {}
     bamfile = pysam.AlignmentFile(bamfile_name, 'rb')
@@ -1111,6 +1091,7 @@ def get_juncs_single_sample(listofargs):  # noqa: C901 - FIXME: reduce complexit
                 else:
                     annot_match += 1
             elif read.mapping_quality >= args.quality:
+                # FIXME: is this being done in-place
                 corrected = junction_corrector.correct_readrec(readrec)
                 if corrected:
                     corrected_cnt += 1
@@ -1142,7 +1123,6 @@ def get_juncs_single_sample(listofargs):  # noqa: C901 - FIXME: reduce complexit
                     c += 1
                     outline = [gene, juncstring, str(read_info.start), str(read_info.end), genetojuncs[gene][juncs].strand, read_info.name]
                     out.write('\t'.join(outline) + '\n')
-    # print(sample, c, 'final multi-junction reads')
     pipettor.run([('rm', f'{temp_prefix}.matchannot.counts.tsv', f'{temp_prefix}.readtoends.txt', f'{temp_prefix}.reads.fasta', f'{temp_prefix}.reads.genomicclipping.txt')])
     genome.close()
 
@@ -1159,7 +1139,8 @@ def process_bed_line(line):
     return gene, transcript, exons, junctions, strand
 
 
-def _run_region(*, partition, gtf_data, intron_support, args, allsamples):  # noqa: C901 - FIXME: reduce complexity
+def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  # noqa: C901 - FIXME: reduce complexity
+    # FIXMEL what are these files being created, just do in memory
     region_bed = partition.output_path('region.bed')
     out = open(region_bed, 'w')
     out.write('\t'.join([partition.region.name, str(partition.region.start), str(partition.region.end)]) + '\n')
@@ -1206,21 +1187,9 @@ def _run_region(*, partition, gtf_data, intron_support, args, allsamples):  # no
 
         for sample, bamfile in allsamples:
             if not os.path.exists(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
-                get_juncs_single_sample([args, partition.region, partition.file_prefix, sample, bamfile, region_annot, region_annot_fa, region_juncs, annots])
+                get_juncs_single_sample(args, partition.region, partition.file_prefix, sample, bamfile, region_annot, region_annot_fa, junction_corrector, annots)
 
-        # p = multiprocessing.Pool(4)
-        # childErrs = set()
-        # c = 1
-        # for i in p.imap(get_juncs_single_sample, chunkcmds):
-        #     # logging.info(f'\r{region.name} {region.start} {region.end} done running sample chunk {c} of {len(chunkcmds)}')
-        #     childErrs.add(i)
-        #     c += 1
-        # p.close()
-        # p.join()
-        # if len(childErrs) > 1:
-        #     raise ValueError(childErrs)
-
-        allgenetojuncs = []
+        all_genes_to_juncs = []
         for sample, bamfile in allsamples:
             gene_to_juncs = {}
             for line in open(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
@@ -1233,11 +1202,11 @@ def _run_region(*, partition, gtf_data, intron_support, args, allsamples):  # no
                 if juncs not in gene_to_juncs[gene]:
                     gene_to_juncs[gene][juncs] = []
                 gene_to_juncs[gene][juncs].append(ReadRec(None, strand, (), int(start), int(end), readname))
-            allgenetojuncs.append(gene_to_juncs)
+            all_genes_to_juncs.append(gene_to_juncs)
 
         process_gene_to_events(
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
-            allgenetojuncs, annots.gene_to_strand, args.junc_support, args.output_read_ends,
+            all_genes_to_juncs, annots.gene_to_strand, args.junc_support, args.output_read_ends,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss, annot_ale_ss, args.check_outliers)
 
@@ -1245,77 +1214,6 @@ def _run_region(*, partition, gtf_data, intron_support, args, allsamples):  # no
             for sample, bamfile in allsamples:
                 pipettor.run([('rm', partition.file_prefix + '_' + sample + '_gene_to_juncs.txt')])
 
-
-# def preprocess_single_sample(listofargs):
-#     args, region, temp_prefix, sample, bamfile_name = listofargs
-
-#     temp_prefix = temp_prefix + '_' + sample
-
-#     bamfile = pysam.AlignmentFile(bamfile_name, 'rb')
-#     starts, ends = set(), set()
-#     for read in bamfile.fetch(region.name, region.start, region.end):
-#         if not read.is_secondary and (not read.is_supplementary or args.keep_sup) and read.mapping_quality >= args.quality:
-#             starts.add(read.reference_start)
-#             ends.add(read.reference_end)
-#     bamfile.close()
-
-#     with open(temp_prefix + '_ends.txt', 'w') as out:
-#         if len(starts) > 0:
-#             out.write(f'{min(starts)}\t{max(ends)}')
-#         else:
-#             out.write(f'\t')
-
-
-# def preprocess_by_region(listofargs):
-#     args, region, temp_prefix, allsamples = listofargs
-#     chunkcmds = []
-#     for sample, bamfile in allsamples:
-#         chunkcmds.append([args, region, temp_prefix, sample, bamfile])
-
-#     p = multiprocessing.Pool(4)
-#     childErrs = set()
-#     for i in p.imap(preprocess_single_sample, chunkcmds):
-#         childErrs.add(i)
-#     p.close()
-#     p.join()
-#     if len(childErrs) > 1:
-#         raise ValueError(childErrs)
-
-
-#     starts, ends = set(), set()
-#     for sample, bamfile in allsamples:
-#         for line in open(temp_prefix + '_' + sample + '_ends.txt'):
-#             s, e = line.split('\t')
-#             if s != '':
-#                 starts.add(int(s))
-#                 ends.add(int(e))
-#         pipettor.run([('rm', temp_prefix + '_' + sample + '_ends.txt')])
-
-#     with open(temp_prefix + '_ends.txt', 'w') as out:
-#         if len(starts) > 0:
-#             out.write(f'{min(starts)}\t{max(ends)}')
-#         else:
-#             out.write(f'\t')
-
-
-# class NoDaemonProcess(multiprocessing.Process):
-#     # make 'daemon' attribute always return False
-#     @property
-#     def daemon(self):
-#         return False
-
-#     @daemon.setter
-#     def daemon(self, val):
-#         pass
-
-# # We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
-# # because the latter is only a wrapper function, not a proper class.
-# class NoDaemonProcessPool(multiprocessing.pool.Pool):
-#     def Process(self, *args, **kwds):
-#         proc = super(NoDaemonProcessPool, self).Process(*args, **kwds)
-#         proc.__class__ = NoDaemonProcess
-
-#         return proc
 
 def combine_regions(regions, buffersize=0):
     regions.sort()
@@ -1339,10 +1237,10 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     args = get_args()
     logging.info('loading genome')
     genome = pysam.FastaFile(args.genome)
-    logging.info('making temp dir')
 
+    # FIXME: make this a common function somewhere
     tempDir = ft.make_temp_dir(args.output)
-    print('temp directory:', tempDir)
+    logging.info('temp directory: %s', tempDir)
 
     if args.region_bed:
         all_regions = []
@@ -1367,10 +1265,16 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     out.write('\t'.join(['featureID'] + [x[0] for x in allsamples]) + '\n')
     out.close()
 
-    logging.info('pre-processing annotation')
-    logging.info('loading annotation GTF')
-    annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    if args.annot:
+        logging.info('loading annotation GTF')
+        annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    logging.info('building intron support database')
+    junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
+                                                    annot_gtf_data=annot_gtf_data,
+                                                    intron_beds=args.junction_bed,
+                                                    star_sj_tabs=args.junction_tab)
 
+    # FIXME: we appear to do this just to do bed intersect; just do in memory.
     annot_bed = tempDir + '/annotation.bed'
     if not os.path.exists(annot_bed):
         pipettor.run([('gtf_to_bed', args.annot, annot_bed, '--include_gene')])
@@ -1383,7 +1287,8 @@ def main():  # noqa: C901 - FIXME: reduce complexity
 
     logging.info(f'running regions with {args.threads} threads')
 
-    runner = PartitionRunner(all_regions, tempDir, gtf_data=annot_gtf_data, threads=args.threads)
+    runner = PartitionRunner(all_regions, tempDir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
+                             threads=args.threads)
     runner.run(_run_region, args=args, allsamples=allsamples)
 
     ft.combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner],

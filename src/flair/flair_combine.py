@@ -3,7 +3,7 @@
 import argparse
 import logging
 from flair.bed_to_gtf import bed_to_gtf
-from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.hgdata.bed import Bed, BedBlock, BedReader
 from statistics import mode
 
 def bedReadToIntronChain(bed):
@@ -271,21 +271,21 @@ def combine():  # noqa: C901 - FIXME: reduce complexity
                                 esizes, estarts = [fend - fstart], [0]
                             else:
                                 esizes, estarts = intronChainToestarts(ichain, fstart, fend)
-                            outbed.write('\t'.join([chr, str(fstart), str(fend),
-                                                    'fusiongene' + str(gindex + 1) + '_' + outname, '1000', strand,
-                                                    str(fstart), str(fend), '0', str(len(esizes)),
-                                                    ','.join([str(x) for x in esizes]) + ',',
-                                                    ','.join([str(x) for x in estarts]) + ',']) + '\n')
+                            blocks = [BedBlock(fstart + estarts[i], fstart + estarts[i] + esizes[i]) for i in range(len(esizes))]
+                            Bed(chr, fstart, fend,
+                                name='fusiongene' + str(gindex + 1) + '_' + outname,
+                                score=1000, strand=strand, thickStart=fstart, thickEnd=fend,
+                                itemRgb='0', blocks=blocks).write(outbed)
                     else:
                         chr, strand, ichain = ichainid
                         if isse:
                             esizes, estarts = [end - start], [0]
                         else:
                             esizes, estarts = intronChainToestarts(ichain, start, end)
-                        outbed.write(
-                            '\t'.join([chr, str(start), str(end), outname, '1000', strand, str(start), str(end), '0',
-                                       str(len(esizes)), ','.join([str(x) for x in esizes]) + ',',
-                                       ','.join([str(x) for x in estarts]) + ',']) + '\n')
+                        blocks = [BedBlock(start + estarts[i], start + estarts[i] + esizes[i]) for i in range(len(esizes))]
+                        Bed(chr, start, end, name=outname, score=1000, strand=strand,
+                            thickStart=start, thickEnd=end, itemRgb='0',
+                            blocks=blocks).write(outbed)
 
                     # output sequence
                     if generatefa:

@@ -14,7 +14,7 @@ from flair import SeqRange
 from flair.pycbio.hgdata.bed import BedReader
 
 _GTF_DATA_PKL = 'gtf_data.pkl'
-_INTRON_SUPPORT_PKL = 'intron_support.pkl'
+_JUNCTION_CORRECTOR_PKL = 'junction_corrector.pkl'
 
 
 def parallel_mode_parse(parser, parallel_mode):
@@ -45,12 +45,12 @@ class Partition:
     GtfData and IntronSupport are pickled to temp_dir at construction and
     loaded on demand by the partition runner wrapper.
     """
-    def __init__(self, region, temp_dir, *, gtf_data=None, intron_support=None):
+    def __init__(self, region, temp_dir, *, gtf_data=None, junction_corrector=None):
         self.region = region
         self.temp_dir = temp_dir
         os.makedirs(temp_dir, exist_ok=True)
         self._pickle(gtf_data, _GTF_DATA_PKL)
-        self._pickle(intron_support, _INTRON_SUPPORT_PKL)
+        self._pickle(junction_corrector, _JUNCTION_CORRECTOR_PKL)
 
     def _pickle(self, obj, name):
         if obj is not None:
@@ -68,9 +68,9 @@ class Partition:
         """Load and return the pickled GtfData, or None if not present."""
         return self._unpickle(_GTF_DATA_PKL)
 
-    def load_intron_support(self):
+    def load_junction_corrector(self):
         """Load and return the pickled IntronSupport, or None if not present."""
-        return self._unpickle(_INTRON_SUPPORT_PKL)
+        return self._unpickle(_JUNCTION_CORRECTOR_PKL)
 
     def temp_path(self, suffix):
         """Return a path inside this partition's temp_dir with the given suffix."""
@@ -98,7 +98,7 @@ def _call_partition_func(packed):
     partition, func, func_kwargs = packed
     func(partition=partition,
          gtf_data=partition.load_gtf_data(),
-         intron_support=partition.load_intron_support(),
+         junction_corrector=partition.load_junction_corrector(),
          **func_kwargs)
 
 
@@ -133,26 +133,27 @@ class PartitionRunner:
     per-partition temp directories under work_dir.  Call run() to apply a function
     to each partition.
     """
-    def __init__(self, regions, work_dir, *, gtf_data=None, intron_support=None, threads=1):
+    def __init__(self, regions, work_dir, *, gtf_data=None, junction_corrector=None, threads=1):
         """
         Args:
-            regions:         iterable of SeqRange objects
-            work_dir:        root directory; per-partition subdirectories are created here
-            gtf_data:        GtfData to subset and pickle per region, or None
-            intron_support:  IntronSupport to subset and pickle per region, or None
-            threads:         number of parallel workers used by run()
+            regions: iterable of SeqRange objects
+            work_dir: root directory; per-partition subdirectories are created here
+            gtf_data: GtfData to subset and pickle per region, or None
+            junction_corrector:  JunctionCorrector to subset and pickle per region, or None
+            threads: number of parallel workers used by run()
         """
         os.makedirs(work_dir, exist_ok=True)
         self.work_dir = work_dir
         self.threads = threads
         self.partitions = []
+        region_gtf = region_jc = None
         for region in regions:
-            region_gtf = (gtf_data.subset_for_region(region.name, region.start, region.end)
-                          if gtf_data is not None else None)
-            region_is = (intron_support.subset_for_region(region.name, region.start, region.end)
-                         if intron_support is not None else None)
+            if gtf_data is not None:
+                region_gtf = gtf_data.subset_for_region(region.name, region.start, region.end)
+            if junction_corrector is not None:
+                region_jc = junction_corrector.subset_for_region(region.name, region.start, region.end)
             self.partitions.append(Partition(region, _region_temp_dir(work_dir, region),
-                                             gtf_data=region_gtf, intron_support=region_is))
+                                             gtf_data=region_gtf, junction_corrector=region_jc))
 
     def __iter__(self):
         return iter(self.partitions)
@@ -167,7 +168,7 @@ class PartitionRunner:
             partition      -- Partition for this region; provides region,
                               temp_dir, output_path(), and file_prefix
             gtf_data       -- GtfData subset for the region, or None
-            intron_support -- IntronSupport subset for the region, or None
+            junction_corrector -- JunctionCorrector subset for the region, or None
             **kwargs       -- any additional keyword arguments passed to run()
 
         Side effects (e.g. writing files to partition.temp_dir) are the
@@ -189,7 +190,7 @@ def _region_temp_dir(work_dir, region):
 
 
 def partition_runner_factory(parallel_mode, genome, genome_aligned_bam, work_dir, annot_gtf, threads, *,
-                             gtf_data=None, intron_support=None):
+                             gtf_data=None, junction_corrector=None):
     """Create a PartitionRunner, choosing bychrom or byregion based on parallel_mode.
 
     parallel_mode is a tuple as returned by parallel_mode_parse:
@@ -200,4 +201,4 @@ def partition_runner_factory(parallel_mode, genome, genome_aligned_bam, work_dir
                    for chrom in genome.references]
     else:
         regions = _run_flair_partition(genome_aligned_bam, annot_gtf, threads)
-    return PartitionRunner(regions, work_dir, gtf_data=gtf_data, intron_support=intron_support, threads=threads)
+    return PartitionRunner(regions, work_dir, gtf_data=gtf_data, junction_corrector=junction_corrector, threads=threads)

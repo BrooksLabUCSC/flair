@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import csv
-import os
 import argparse
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+from flair.pycbio.hgdata.bed import Bed, BedBlock
 
 
 def main():
@@ -17,7 +16,7 @@ def main():
 
     gtf_to_bed(args.bed, args.gtf, args.include_gene)
 
-def write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, writer):
+def write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, fh):
     blockcount = len(blockstarts)
     if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
         blocksizes = blocksizes[::-1]
@@ -29,16 +28,13 @@ def write_bed_row(include_gene, iso_to_cds, prev_transcript, blockstarts, blocks
     else:
         qname = prev_transcript
 
-    blocksizes = ','.join([str(b) for b in blocksizes]) + ','
-
-    relblockstarts = [block - tstart for block in blockstarts]
-    relblockstarts = ','.join([str(b) for b in relblockstarts]) + ','
     if qname in iso_to_cds:
         cds_start, cds_end = iso_to_cds[qname]
     else:
         cds_start, cds_end = tstart, tend
-    writer.writerow([prev_chrom, tstart, tend, qname, 1000, prev_strand, cds_start,
-                     cds_end, 0, blockcount, blocksizes, relblockstarts])
+    blocks = [BedBlock(blockstarts[i], blockstarts[i] + blocksizes[i]) for i in range(blockcount)]
+    Bed(prev_chrom, tstart, tend, name=qname, score=1000, strand=prev_strand,
+        thickStart=cds_start, thickEnd=cds_end, itemRgb='0', blocks=blocks).write(fh)
 
 
 def get_iso_info(gtf):
@@ -62,7 +58,6 @@ def get_iso_info(gtf):
 def gtf_to_bed(outputfile, gtf, include_gene=False):
 
     with open(outputfile, 'wt') as outfile:
-        writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
         iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf)
 
         for this_transcript in iso_to_exons:
@@ -71,7 +66,7 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
             blockstarts = [x[0] for x in exons]
             blocksizes = [x[1] - x[0] for x in exons]
 
-            write_bed_row(include_gene, iso_to_cds, this_transcript, blockstarts, blocksizes, gene, chrom, strand, writer)
+            write_bed_row(include_gene, iso_to_cds, this_transcript, blockstarts, blocksizes, gene, chrom, strand, outfile)
 
 
 if __name__ == "__main__":

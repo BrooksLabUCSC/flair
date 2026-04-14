@@ -13,7 +13,7 @@ from flair.identify_prelim_fusions import id_chimeras
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.read_processing import get_sequence_from_bed
-from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.hgdata.bed import Bed, BedReader
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -231,10 +231,10 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
             startdiststr = ','.join([str(x) for x in combchim[f]['disttostart']])
             bedname = g + '__' + '--'.join(genes)
             strand = '+' if combchim[f][g][1] < combchim[f][g][2] else '-'
-            bedpos = [str(x) for x in sorted(combchim[f][g][1:])]
-
-            bedline = [combchim[f][g][0]] + bedpos + [bedname, str(len(combchim[f]['reads'])), strand, startdiststr]  # qdiststr, + [str(x) for x in combchim[f][g][1:]] + ['255,0,0']
-            bedout.write('\t'.join(bedline) + '\n')
+            positions = sorted(combchim[f][g][1:])
+            Bed(combchim[f][g][0], positions[0], positions[1],
+                name=bedname, score=len(combchim[f]['reads']), strand=strand,
+                extraCols=[startdiststr]).write(bedout)
 
     bedout.close()
 

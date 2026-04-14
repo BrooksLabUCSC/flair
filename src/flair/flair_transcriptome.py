@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 import argparse
 import os
 import pipettor
@@ -9,8 +9,7 @@ from statistics import median
 from collections import Counter
 from flair import FlairError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
-from flair.intron_support import IntronSupport
-from flair.junction_correct import JunctionCorrector
+from flair.junction_correct import junction_corrector_factory
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Junc, Exon, ReadRec, Gene, Isoform, exons_to_juncs,
@@ -20,6 +19,7 @@ from flair.read_processing import (should_process_read, add_corrected_read_to_gr
                                    generate_genomic_alignment_read_to_clipping_file)
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW
 from flair.annotation_data import annot_data_from_gtf
+from flair.pycbio.hgdata.bed import Bed
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -52,7 +52,7 @@ def get_args():
                                                'Use this option if you aligned your short-reads with STAR, '
                                                'STAR will automatically output this file')
     mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
-                                               '(can be generated from long-read alignment with intronProspector)')
+                                               '(can be generated from long-read alignment with intron-prospector)')
     parser.add_argument('--junction_support', type=int, default=1,
                         help='if providing short-read junctions, minimum junction support required to keep junction. '
                              'If your junctions file is in bed format, the score field will be used for read support.')
@@ -177,21 +177,8 @@ def make_temp_dir(out_prefix):
 
 
 ####
-# splice junction correction
+# transcriptome alignment
 ####
-# (binary_search imported from flair.isoform_data)
-
-def build_intron_support(gtf_file, junction_tab, junction_bed):
-    """Build IntronSupport from all available sources."""
-    is_db = IntronSupport()
-    if junction_bed is not None:
-        is_db.load_introns_bed(junction_bed)
-    if junction_tab is not None:
-        is_db.load_star(junction_tab)
-    if gtf_file is not None:
-        is_db.load_gtf(gtf_data_parser(gtf_file, attrs=GtfAttrsSet.FLAIR))
-    return is_db
-
 def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):  # noqa: C901 - FIXME: reduce complexity
     # FIXME: convert filter_transcriptome_align.py to a library, however
     # minimap output needs to be piped through filter_transcriptome_align
@@ -1167,7 +1154,8 @@ def write_transcript_ends_bed(args, temp_prefix, suffix, read_to_final_transcrip
             for r, start, end in transcript_to_reads[t]:
                 if r in read_to_final_transcript:
                     t_name, chrom, strand = read_to_final_transcript[r]
-                    ends_fh.write('\t'.join([chrom, start, end, t_name + '|' + r, '.', strand]) + '\n')
+                    Bed(chrom, int(start), int(end), name=t_name + '|' + r,
+                        score=0, strand=strand).write(ends_fh)
 
 def write_transcript_ends_beds(args, temp_prefix, read_to_final_transcript, ends_fh):
     # FIXME: these are not real TSVs
@@ -1194,8 +1182,10 @@ def _iso_passes_support_filter(args, iso, num_exons, iso_to_counts, gene_to_tot)
             return (count >= args.se_support) and (count / gene_to_tot[iso.split('_')[-1]][1]) >= args.frac_support
 
 
-def _run_region(*, partition, gtf_data, intron_support, args):  # noqa: C901 - FIXME: reduce complexity
+def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901 - FIXME: reduce complexity
     region = partition.region
+    # FIXME confusing name if taking gtf_data,
+    # FIXME: should only have region, so why take region arg
     annots = annot_data_from_gtf(gtf_data, region)
 
     # first extract reads for region as fasta
@@ -1238,10 +1228,8 @@ def _run_region(*, partition, gtf_data, intron_support, args):  # noqa: C901 - F
     read_to_annot_transcript = \
         identify_good_match_to_annot(args, partition.file_prefix, region.name, annots, genome)
 
-    # load splice junctions for chrom
-    # logging.info('correcting splice junctions')
     logging.info('correcting and grouping reads, filtering isoforms')
-    junction_corrector = JunctionCorrector(intron_support, args.ss_window, args.junction_support)
+
     # takes in bam file, for each read attempts to correct splice junctions (removes unsupported ones), then groups reads by junction chains
     # this also handles read strandedness if necessary
     sj_to_ends = filter_correct_group_reads(args, partition.file_prefix, region, bam_file, read_to_annot_transcript, annots,
@@ -1375,18 +1363,21 @@ def flair_transcriptome():
 
     temp_dir = make_temp_dir(args.output)
 
-    logging.info('building intron support database')
-    is_db = build_intron_support(args.annot_gtf, args.junction_tab, args.junction_bed)
-
     annot_gtf_data = None
     if args.annot_gtf:
         logging.info('loading annotation GTF')
         annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
 
+    logging.info('building intron support database')
+    junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
+                                                    annot_gtf_data=annot_gtf_data,
+                                                    intron_beds=args.junction_bed,
+                                                    star_sj_tabs=args.junction_tab)
+
     logging.info('partitioning genome')
     runner = partition_runner_factory(args.parallel_mode, genome, args.genome_aligned_bam,
                                       temp_dir, args.annot_gtf, args.threads,
-                                      gtf_data=annot_gtf_data, intron_support=is_db)
+                                      gtf_data=annot_gtf_data, junction_corrector=junction_corrector)
     logging.info(f'number of partitions: {len(runner)}')
 
     logging.info('running partitions')

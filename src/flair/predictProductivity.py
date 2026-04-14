@@ -20,6 +20,7 @@ import pipettor
 import os
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+from flair.pycbio.hgdata.bed import Bed, BedReader
 ########################################################################
 # CommandLine
 ########################################################################
@@ -106,7 +107,8 @@ def getStarts(gtf):
     for rec in gtf_record_parser(gtf, include_features={'start_codon', 'transcript'}, attrs=GtfAttrsSet.ALL):
         if rec.feature == 'start_codon':
             scount += 1
-            out.write('\t'.join([str(x) for x in [rec.chrom, rec.start, rec.end, rec.gene_id, ".", rec.strand]]) + '\n')
+            Bed(rec.chrom, rec.start, rec.end, name=rec.gene_id,
+                score=0, strand=rec.strand).write(out)
         elif rec.feature == 'transcript':
             if 'NMD_exception' in str(rec.attrs):
                 tnamenmdexcep.add(rec.transcript_id)
@@ -252,21 +254,17 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):  # noqa: C901 -
     return genomicPos, ptc, ptcpointont
 
 
-def get_exons(bedline):
-    gstart = int(bedline[1])
-    esizes, estarts = [int(x) for x in bedline[10].rstrip(',').split(',')], \
-                      [int(x) for x in bedline[11].rstrip(',').split(',')],
-    return [(gstart + estarts[i], gstart + estarts[i] + esizes[i]) for i in range(len(esizes))]
+def get_exons_from_bed(bed_rec):
+    return [(blk.start, blk.end) for blk in bed_rec.blocks]
 
 
 def predict(bed, starts, isoDict, nmdexcep):  # noqa: C901 - FIXME: reduce complexity
     fusiondict = {}
-    for line in open(bed):
-        line = line.rstrip().split('\t')
-        transcript_id = line[3]
-        strand = line[5]
+    for bed_rec in BedReader(bed, fixScores=True):
+        transcript_id = bed_rec.name
+        strand = bed_rec.strand
         fusionindex = 'NA'
-        for exonCoord in get_exons(line):
+        for exonCoord in get_exons_from_bed(bed_rec):
             elen = exonCoord[1] - exonCoord[0]
             if transcript_id[:10] == 'fusiongene' or fusionindex != 'NA':
                 # HAVE TO FIRST AGGREGATE BASED ON THE STRAND OF THE LOCUS, THEN CAN COMBINE LOCI
@@ -303,22 +301,28 @@ def predict(bed, starts, isoDict, nmdexcep):  # noqa: C901 - FIXME: reduce compl
     pipettor.run([bedtools_cmd], stdout=dr)
     os.remove(starts)
 
-    for intersection in dr.data.split('\n'):
-        if len(intersection) > 0:
-            intersection = intersection.split('\t')
-            read = intersection[3]
+    for intersection_line in dr.data.split('\n'):
+        if len(intersection_line) > 0:
+            intersection = intersection_line.split('\t')
+            bed_a = Bed.parse(intersection[:12])
+            # B record is BED6 at indices 12-17, overlap at index 18
+            b_start = int(intersection[13])
+            b_end = int(intersection[14])
+            b_strand = intersection[17]
+            overlap = intersection[18]
+
+            read = bed_a.name
             if read[:10] == 'fusiongene' and read[10] != '1':
                 continue  # only getting starts for 5' genes
             if read[:10] == 'fusiongene':
                 read = '_'.join(read.split('_')[1:])
-            overlap = intersection[-1]
-            goStart = int(intersection[-6]) if intersection[5] == '+' else int(intersection[-5])
-            if intersection[5] != intersection[-2]:
+            goStart = b_start if bed_a.strand == '+' else b_end
+            if bed_a.strand != b_strand:
                 overlap = '0'  # if start is not on same strand, doesn't count
-            isoDict[read].strand = intersection[5]
-            isoDict[read].chrom = intersection[0]
+            isoDict[read].strand = bed_a.strand
+            isoDict[read].chrom = bed_a.chrom
 
-            for exonCoord in get_exons(intersection):
+            for exonCoord in get_exons_from_bed(bed_a):
                 isoDict[read].exons.add(exonCoord)
                 if overlap == "3" and exonCoord[0] <= goStart <= exonCoord[1]:
                     isoDict[read].starts.add((exonCoord, goStart))
@@ -418,49 +422,47 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     bedout = open(output + '.bed', 'w')
     infoout = open(output + '.info.tsv', 'w')
     infoout.write('\t'.join(['#isoname', 'tstartont', 'tendont', 'ptcpointont', 'AAseq']) + '\n')
-    with open(bed) as lines:
-        for line in lines:
-            bedCols = line.rstrip().split()
-            if bedCols[3][:10] == 'fusiongene':
-                isoname = '_'.join(bedCols[3].split('_')[1:])
+    for bed_rec in BedReader(bed, fixScores=True):
+        if bed_rec.name[:10] == 'fusiongene':
+            isoname = '_'.join(bed_rec.name.split('_')[1:])
+        else:
+            isoname = bed_rec.name
+        isoObj = isoformObjs[isoname]
+
+        if defineORF == 'longest':
+            isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
+        elif defineORF == 'first':
+            isoObj.orfs.sort(key=lambda x: x[4])
+        pro, start, end, orfLen, tisPos = isoObj.orfs[0]
+
+        if extra_col:
+            bed_rec.extraCols = [pro] if bed_rec.extraCols is None else list(bed_rec.extraCols) + [pro]
+        else:
+            iso, gene = split_iso_gene(bed_rec.name)
+            bed_rec.name = "%s_%s_%s" % (iso, pro, gene)
+
+        bed_rec.itemRgb = beaut[pro]
+        if 'fusiongene' in bed_rec.name:
+            if not bed_rec.chromStart < start < bed_rec.chromEnd and not bed_rec.chromStart < end < bed_rec.chromEnd:
+                bed_rec.thickStart, bed_rec.thickEnd = bed_rec.chromStart, bed_rec.chromStart
             else:
-                isoname = bedCols[3]
-            isoObj = isoformObjs[isoname]
-
-            if defineORF == 'longest':
-                isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
-            elif defineORF == 'first':
-                isoObj.orfs.sort(key=lambda x: x[4])
-            pro, start, end, orfLen, tisPos = isoObj.orfs[0]
-
-            if extra_col:
-                bedCols += [pro]
-            else:
-                iso, gene = split_iso_gene(bedCols[3])
-                bedCols[3] = "%s_%s_%s" % (iso, pro, gene)
-
-            bedCols[8] = beaut[pro]
-            if 'fusiongene' in bedCols[3]:
-                if not int(bedCols[1]) < start < int(bedCols[2]) and not int(bedCols[1]) < end < int(bedCols[2]):
-                    bedCols[6], bedCols[7] = bedCols[1], bedCols[1]
+                if bed_rec.strand == '+':
+                    if bed_rec.chromStart < start < bed_rec.chromEnd:
+                        bed_rec.thickStart = start
+                    if bed_rec.chromStart < end < bed_rec.chromEnd:
+                        bed_rec.thickEnd = end
                 else:
-                    if bedCols[5] == '+':
-                        if int(bedCols[1]) < start < int(bedCols[2]):
-                            bedCols[6] = str(start)
-                        if int(bedCols[1]) < end < int(bedCols[2]):
-                            bedCols[7] = str(end)
-                    else:
-                        if int(bedCols[1]) < start < int(bedCols[2]):
-                            bedCols[7] = str(start)
-                        if int(bedCols[1]) < end < int(bedCols[2]):
-                            bedCols[6] = str(end)
+                    if bed_rec.chromStart < start < bed_rec.chromEnd:
+                        bed_rec.thickEnd = start
+                    if bed_rec.chromStart < end < bed_rec.chromEnd:
+                        bed_rec.thickStart = end
+        else:
+            if isoObj.strand == "+":
+                bed_rec.thickStart, bed_rec.thickEnd = start, end
             else:
-                if isoObj.strand == "+":
-                    bedCols[6], bedCols[7] = str(start), str(end)
-                else:
-                    bedCols[7], bedCols[6] = str(start), str(end)
-            bedout.write("\t".join(bedCols) + '\n')
-            infoout.write('\t'.join([bedCols[3], str(tisPos), str(tisPos + orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos + orfLen])]) + '\n')
+                bed_rec.thickEnd, bed_rec.thickStart = start, end
+        bed_rec.write(bedout)
+        infoout.write('\t'.join([bed_rec.name, str(tisPos), str(tisPos + orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos + orfLen])]) + '\n')
 
 
 if __name__ == "__main__":

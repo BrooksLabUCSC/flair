@@ -1,4 +1,4 @@
-
+from flair.pycbio.hgdata.bed import Bed, BedBlock, BedReader
 
 def get_iso_to_reads(readmapfile):
     isoreadsup = {}
@@ -9,7 +9,6 @@ def get_iso_to_reads(readmapfile):
     return isoreadsup
 
 def get_synth_info(breakpointfile):
-    from flair.pycbio.hgdata.bed import BedReader
     synthchrtoinfo = {}
     for bed in BedReader(breakpointfile, numStdCols=4):
         synthchrtoinfo[bed.chrom] = '--'.join(bed.name.split('--')[1:])
@@ -118,7 +117,7 @@ def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start):
 
 def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso):
     genomicbounds = []
-    outlines = []
+    beds = []
     for order in range(numloci):
         genename, genomicchr, leftbound, rightbound = synthinfo[order]
         locusesizes = [esizes[i] for i in exonindexes[order]]
@@ -126,34 +125,29 @@ def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusboun
         locusestarts = [x - starts[order] for x in locusestarts]
         totlen = locusestarts[-1] + locusesizes[-1]
         locusdir = '+' if leftbound < rightbound else '-'
+        name = 'gene' + str(order + 1) + '_' + iso
         if leftbound > rightbound:  # reverse direction
             temp = []
             for i in range(len(locusestarts) - 1, -1, -1):
                 temp.append(totlen - (locusestarts[i] + locusesizes[i]))
             locusestarts = temp
             locusesizes = locusesizes[::-1]
-            outline = [genomicchr, str(leftbound - (((start + starts[order]) - locusbounds[order][0]) + totlen)),
-                       str(leftbound - ((start + starts[order]) - locusbounds[order][0])),
-                       'gene' + str(order + 1) + '_' + iso,
-                       '1000', locusdir, str(leftbound - (start + totlen)), str(leftbound - start), '0',
-                       str(len(locusesizes)),
-                       ','.join([str(x) for x in locusesizes]),
-                       ','.join([str(x) for x in locusestarts])]
-            genomicbounds.append((genomicchr, leftbound - ((start + starts[order]) - locusbounds[order][0]),
-                                  leftbound - (((start + starts[order]) - locusbounds[order][0]) + totlen), locusdir))
+            chromStart = leftbound - (((start + starts[order]) - locusbounds[order][0]) + totlen)
+            chromEnd = leftbound - ((start + starts[order]) - locusbounds[order][0])
+            thickStart = leftbound - (start + totlen)
+            thickEnd = leftbound - start
+            genomicbounds.append((genomicchr, chromEnd, chromStart, locusdir))
         else:
-            outline = [genomicchr, str(leftbound + ((start + starts[order]) - locusbounds[order][0])),
-                       str(leftbound + ((start + starts[order]) - locusbounds[order][0]) + totlen),
-                       'gene' + str(order + 1) + '_' + iso,
-                       '1000', locusdir, str(leftbound + ((start + starts[order]) - locusbounds[order][0])),
-                       str(leftbound + ((start + starts[order]) - locusbounds[order][0]) + totlen), '0',
-                       str(len(locusesizes)),
-                       ','.join([str(x) for x in locusesizes]),
-                       ','.join([str(x) for x in locusestarts])]
-            genomicbounds.append((genomicchr, leftbound + ((start + starts[order]) - locusbounds[order][0]),
-                                  leftbound + ((start + starts[order]) - locusbounds[order][0]) + totlen, locusdir))
-        outlines.append('\t'.join(outline) + '\n')
-    return genomicbounds, outlines
+            chromStart = leftbound + ((start + starts[order]) - locusbounds[order][0])
+            chromEnd = chromStart + totlen
+            thickStart = chromStart
+            thickEnd = chromEnd
+            genomicbounds.append((genomicchr, chromStart, chromEnd, locusdir))
+        blocks = [BedBlock(chromStart + locusestarts[i], chromStart + locusestarts[i] + locusesizes[i])
+                  for i in range(len(locusesizes))]
+        beds.append(Bed(genomicchr, chromStart, chromEnd, name=name, score=1000, strand=locusdir,
+                        thickStart=thickStart, thickEnd=thickEnd, itemRgb='0', blocks=blocks))
+    return genomicbounds, beds
 
 def check_too_close(numloci, genomicbounds, min_dist):
     for i in range(numloci - 1):
@@ -217,10 +211,10 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
             starts, exonindexes = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start)
 
             if None not in starts:
-                genomicbounds, outlines = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso)
+                genomicbounds, beds = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso)
                 if not check_too_close(numloci, genomicbounds, min_dist):
-                    for l in outlines:
-                        out.write(l)
+                    for bed in beds:
+                        bed.write(out)
                     freadsfinal.update(isoreadsup[iso])
     out.close()
     write_final_fusion_reads(readsfile, freadsfinal)

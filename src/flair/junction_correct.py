@@ -4,6 +4,7 @@ Correction of read splice junctions from external evidence.
 import logging
 from math import inf
 from flair import PosRange
+from flair.intron_support import IntronSupport
 from flair.isoform_data import Junc
 
 ##
@@ -49,10 +50,15 @@ class JunctionCorrector:
         new_junctions, strand = _correct_junctions(self, readrec)
         if new_junctions is None:
             return False
-        readrec.juncs = tuple(Junc(j.start, j.end) for j in new_junctions)
-        readrec.strand = strand
-        return True
+        else:
+            readrec.juncs = tuple(Junc(j.start, j.end) for j in new_junctions)
+            readrec.strand = strand
+            return True
 
+    def subset_for_region(self, chrom, start, end):
+        """Return a JunctionCorrector object with entries overlapping [start, end) on chrom."""
+        return JunctionCorrector(self.intron_support.subset_for_region(chrom, start, end),
+                                 self.flank_window, self.min_read_support)
 
 ###
 # intron support search
@@ -150,3 +156,26 @@ def _correct_junctions(corrector, readrec):
     if strand is None:
         return None, None
     return new_junctions, strand
+
+def _intron_file_spec_normalize(file_spec):
+    "make single file, multiple files, or None into a list/tuple"
+    if file_spec is None:
+        return ()
+    elif isinstance(file_spec, str):
+        return (file_spec,)
+    else:
+        return file_spec
+
+def junction_corrector_factory(ss_window, min_read_support, *,
+                               annot_gtf_data=None, intron_beds=None, star_sj_tabs=None):
+    """Create a JunctionCorrector and load splice junction evidence.
+    The intron_beds and star_sj_tabs can be either a single file or
+    a list of files"""
+    is_db = IntronSupport()
+    for intron_bed in _intron_file_spec_normalize(intron_beds):
+        is_db.load_introns_bed(intron_bed)
+    for star_sj_tab in _intron_file_spec_normalize(star_sj_tabs):
+        is_db.load_star(star_sj_tab)
+    if annot_gtf_data is not None:
+        is_db.load_gtf(annot_gtf_data)
+    return JunctionCorrector(is_db, ss_window, min_read_support)

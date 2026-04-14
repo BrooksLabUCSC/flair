@@ -5,7 +5,7 @@ import os
 import pytest
 from flair import SeqRange
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet
-from flair.intron_support import IntronSupport
+from flair.junction_correct import JunctionCorrector, junction_corrector_factory
 from flair.partition_runner import Partition, PartitionRunner
 
 GTF_FILE = "input/basic.annotation.gtf"       # relative to test/ directory (run via make lib-tests)
@@ -27,16 +27,15 @@ def gtf_data():
 
 
 @pytest.fixture(scope="session")
-def intron_support():
-    is_db = IntronSupport()
-    is_db.load_introns_bed(INTRONS_BED)
-    return is_db
+def junction_corrector():
+    junction_corrector = junction_corrector_factory(15, 1, intron_beds=INTRONS_BED)
+    return junction_corrector
 
 
 @pytest.fixture()
-def runner(tmp_path, gtf_data, intron_support):
+def runner(tmp_path, gtf_data, junction_corrector):
     regions = [CHR12_REGION, CHR17_REGION, CHR20_REGION]
-    return PartitionRunner(regions, str(tmp_path), gtf_data=gtf_data, intron_support=intron_support)
+    return PartitionRunner(regions, str(tmp_path), gtf_data=gtf_data, junction_corrector=junction_corrector)
 
 
 def test_partition_dirs_created(runner):
@@ -47,7 +46,7 @@ def test_partition_dirs_created(runner):
 def test_partition_pickle_files_exist(runner):
     for part in runner:
         assert os.path.exists(part.temp_path("gtf_data.pkl"))
-        assert os.path.exists(part.temp_path("intron_support.pkl"))
+        assert os.path.exists(part.temp_path("junction_corrector.pkl"))
 
 
 def test_partition_load_gtf_data(runner):
@@ -58,11 +57,11 @@ def test_partition_load_gtf_data(runner):
         assert all(c == part.region.name for c in chroms)
 
 
-def test_partition_load_intron_support(runner):
+def test_partition_load_junction_corrector(runner):
     chr12_part = next(p for p in runner if p.region.name == "chr12")
-    loaded = chr12_part.load_intron_support()
+    loaded = chr12_part.load_junction_corrector()
     assert loaded is not None
-    introns = list(loaded.introns("chr12"))
+    introns = list(loaded.intron_support.introns("chr12"))
     assert len(introns) > 0
 
 
@@ -80,11 +79,11 @@ def test_partition_gtf_no_cross_contamination(runner):
     assert "chr20" not in loaded.get_chroms()
 
 
-def test_partition_intron_support_empty_for_chr17(runner):
+def test_partition_junction_corrector_empty_for_chr17(runner):
     chr17_part = next(p for p in runner if p.region.name == "chr17")
-    loaded = chr17_part.load_intron_support()
+    loaded = chr17_part.load_junction_corrector()
     assert loaded is not None
-    assert list(loaded.introns("chr17")) == []
+    assert list(loaded.intron_support.introns("chr17")) == []
 
 
 def test_runner_len(runner):
@@ -105,7 +104,7 @@ def test_runner_regions(runner):
 def test_run_calls_func_for_each_partition(runner):
     seen_regions = []
 
-    def record_region(*, partition, gtf_data, intron_support):
+    def record_region(*, partition, gtf_data, junction_corrector):
         seen_regions.append(partition.region)
 
     runner.run(record_region)
@@ -115,8 +114,8 @@ def test_run_calls_func_for_each_partition(runner):
 def test_run_passes_correct_kwargs(runner):
     received = {}
 
-    def capture(*, partition, gtf_data, intron_support, extra):
-        received[partition.region.name] = (gtf_data, intron_support, extra)
+    def capture(*, partition, gtf_data, junction_corrector, extra):
+        received[partition.region.name] = (gtf_data, junction_corrector, extra)
 
     runner.run(capture, extra="value")
     assert set(received.keys()) == {"chr12", "chr17", "chr20"}
@@ -127,21 +126,21 @@ def test_run_gtf_data_is_gtf_data_type(runner):
     from flair.gtf_io import GtfData
     received_types = []
 
-    def check_type(*, partition, gtf_data, intron_support):
+    def check_type(*, partition, gtf_data, junction_corrector):
         received_types.append(type(gtf_data))
 
     runner.run(check_type)
     assert all(t is GtfData for t in received_types)
 
 
-def test_run_intron_support_is_intron_support_type(runner):
+def test_run_junction_corrector_is_junction_corrector_type(runner):
     received_types = []
 
-    def check_type(*, partition, gtf_data, intron_support):
-        received_types.append(type(intron_support))
+    def check_type(*, partition, gtf_data, junction_corrector):
+        received_types.append(type(junction_corrector))
 
     runner.run(check_type)
-    assert all(t is IntronSupport for t in received_types)
+    assert all(t is JunctionCorrector for t in received_types)
 
 
 def test_partition_no_gtf(tmp_path):
@@ -152,9 +151,9 @@ def test_partition_no_gtf(tmp_path):
     assert part.load_gtf_data() is None
 
 
-def test_partition_no_intron_support(tmp_path):
+def test_partition_no_junction_corrector(tmp_path):
     regions = [CHR12_REGION]
     runner = PartitionRunner(regions, str(tmp_path))
     part = list(runner)[0]
-    assert not os.path.exists(part.temp_path("intron_support.pkl"))
-    assert part.load_intron_support() is None
+    assert not os.path.exists(part.temp_path("junction_corrector.pkl"))
+    assert part.load_junction_corrector() is None

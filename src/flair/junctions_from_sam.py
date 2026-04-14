@@ -29,6 +29,7 @@ import re
 import pysam
 import logging
 from flair import FlairInputDataError
+from flair.pycbio.hgdata.bed import Bed
 
 ##############
 # CONSTANTS #
@@ -564,11 +565,9 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             else:
                 jcn_strand = '.'
             num_blocks = min(1000, len(jcn2JcnInfo[jcn_str].block_list))
-            bed_fields = [jcn2JcnInfo[jcn_str].chr, intron_left,
-                          str(int(intron_right) - 1), '.',
-                          str(num_blocks), jcn_strand]
-            bed_line = '\t'.join(bed_fields) + '\n'
-            junction_bed_file.write(bed_line)
+            bed = Bed(jcn2JcnInfo[jcn_str].chr, int(intron_left), int(intron_right) - 1,
+                      name='.', score=num_blocks, strand=jcn_strand)
+            bed.write(junction_bed_file)
 
     junction_bed_file.close()
     # Print out junction to read file for paired end reads
