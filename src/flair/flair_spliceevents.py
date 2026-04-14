@@ -15,7 +15,7 @@ from flair.isoform_data import Junc, ReadRec
 from flair.read_processing import (add_corrected_read_to_groups, get_sequence_from_bed)
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
-from flair.pycbio.hgdata.bed import Bed
+from flair.pycbio.hgdata.bed import Bed, BedReader
 
 # FIXME: this is temp, need to move into a
 import flair.flair_transcriptome as ft
@@ -1126,16 +1126,12 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
     pipettor.run([('rm', f'{temp_prefix}.matchannot.counts.tsv', f'{temp_prefix}.readtoends.txt', f'{temp_prefix}.reads.fasta', f'{temp_prefix}.reads.genomicclipping.txt')])
     genome.close()
 
-def process_bed_line(line):
-    # FIXME: use BED class
-    line = line.rstrip().split('\t')
-    transcript = line[3]
-    gene = line[3].split('_')[-1]
-    start, esizes, estarts = int(line[1]), [int(x) for x in line[-2].rstrip(',').split(',')], \
-        [int(x) for x in line[-1].rstrip(',').split(',')]
-    exons = [(start + estarts[i], start + estarts[i] + esizes[i]) for i in range(len(esizes))]
-    junctions = [(start + estarts[i] + esizes[i], start + estarts[i + 1]) for i in range(len(esizes) - 1)]
-    strand = line[5]
+def process_bed_line(bed_rec):
+    transcript = bed_rec.name
+    gene = bed_rec.name.split('_')[-1]
+    exons = [(blk.start, blk.end) for blk in bed_rec.blocks]
+    junctions = [(exons[i][1], exons[i + 1][0]) for i in range(len(exons) - 1)]
+    strand = bed_rec.strand
     return gene, transcript, exons, junctions, strand
 
 
@@ -1168,8 +1164,8 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  
 
         annot_afe_ss, annot_ale_ss = {}, {}
         if args.annot_basic:
-            for line in open(region_annot_basic):
-                gene, transcript, exons, junctions, strand = process_bed_line(line)
+            for bed_rec in BedReader(region_annot_basic, fixScores=True):
+                gene, transcript, exons, junctions, strand = process_bed_line(bed_rec)
                 if gene not in annot_afe_ss:
                     annot_afe_ss[gene] = set()
                     annot_ale_ss[gene] = set()
