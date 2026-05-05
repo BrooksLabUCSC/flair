@@ -1,18 +1,104 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   viewBox="0 0 1200 700"
-   width="1200"
-   height="700"
+   viewBox="0 0 1032.7273 630.90912"
+   width="1032.7273"
+   height="630.90912"
    version="1.1"
    id="svg85"
    sodipodi:docname="toy_diu_usage.svg"
-   inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
   <defs
-     id="defs85" />
+     id="defs85">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath15">
+      <g
+         id="g17"
+         class="grid-line"
+         style="opacity:1">
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="M 100,50 H 1150"
+           id="path16" />
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="m 100,49.705078 v 0.589844 h 1050 v -0.589844 z"
+           id="path17" />
+      </g>
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath17">
+      <g
+         id="g19"
+         class="grid-line"
+         style="opacity:1">
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="M 100,50 H 1150"
+           id="path18" />
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="m 100,49.705078 v 0.589844 h 1050 v -0.589844 z"
+           id="path19" />
+      </g>
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath19">
+      <g
+         id="g21"
+         class="grid-line"
+         style="opacity:1">
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="M 100,50 H 1150"
+           id="path20" />
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="m 100,49.705078 v 0.589844 h 1050 v -0.589844 z"
+           id="path21" />
+      </g>
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath21">
+      <g
+         id="g23"
+         class="grid-line"
+         style="opacity:1">
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="M 100,50 H 1150"
+           id="path22" />
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="m 100,49.705078 v 0.589844 h 1050 v -0.589844 z"
+           id="path23" />
+      </g>
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath23">
+      <g
+         id="g25"
+         class="grid-line"
+         style="opacity:1">
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="M 100,50 H 1150"
+           id="path24" />
+        <path
+           style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+           d="m 100,49.705078 v 0.589844 h 1050 v -0.589844 z"
+           id="path25" />
+      </g>
+    </clipPath>
+  </defs>
   <sodipodi:namedview
      id="namedview85"
      pagecolor="#ffffff"
@@ -23,15 +109,16 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
-     inkscape:zoom="0.48166667"
-     inkscape:cx="600"
-     inkscape:cy="349.82699"
-     inkscape:window-width="1472"
-     inkscape:window-height="890"
-     inkscape:window-x="158"
-     inkscape:window-y="38"
+     inkscape:zoom="0.55"
+     inkscape:cx="547.27273"
+     inkscape:cy="297.27273"
+     inkscape:window-width="1619"
+     inkscape:window-height="868"
+     inkscape:window-x="14"
+     inkscape:window-y="158"
      inkscape:window-maximized="0"
-     inkscape:current-layer="svg85" />
+     inkscape:current-layer="svg85"
+     showborder="false" />
   <style
      id="style1">
     .axis-line { stroke: #333; stroke-width: 1.5; fill: none; }
@@ -49,121 +136,153 @@
     .isoform5 { fill: #f5a623; }
   </style>
   <!-- Background -->
-  <rect
-     width="1200"
-     height="700"
-     fill="#ffffff"
-     id="rect1" />
   <!-- Grid lines -->
-  <line
-     x1="100"
-     y1="550"
-     x2="1150"
-     y2="550"
-     class="grid-line"
-     id="line1" />
-  <line
-     x1="100"
-     y1="450"
-     x2="1150"
-     y2="450"
-     class="grid-line"
-     id="line2" />
-  <line
-     x1="100"
-     y1="350"
-     x2="1150"
-     y2="350"
-     class="grid-line"
-     id="line3" />
-  <line
-     x1="100"
-     y1="250"
-     x2="1150"
-     y2="250"
-     class="grid-line"
-     id="line4" />
-  <line
-     x1="100"
-     y1="150"
-     x2="1150"
-     y2="150"
-     class="grid-line"
-     id="line5" />
-  <line
-     x1="100"
-     y1="50"
-     x2="1150"
-     y2="50"
-     class="grid-line"
-     id="line6" />
   <!-- Y-axis -->
-  <line
-     x1="100"
-     y1="50"
-     x2="100"
-     y2="550"
-     class="axis-line"
-     id="line7" />
-  <text
-     x="100"
-     y="565"
-     class="tick-label"
-     text-anchor="middle"
-     id="text7"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">0</text>
-  <text
-     x="100"
-     y="465"
-     class="tick-label"
-     text-anchor="end"
-     dx="-5"
-     id="text8"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">20</text>
-  <text
-     x="100"
-     y="365"
-     class="tick-label"
-     text-anchor="end"
-     dx="-5"
-     id="text9"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">40</text>
-  <text
-     x="100"
-     y="265"
-     class="tick-label"
-     text-anchor="end"
-     dx="-5"
-     id="text10"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">60</text>
-  <text
-     x="100"
-     y="165"
-     class="tick-label"
-     text-anchor="end"
-     dx="-5"
-     id="text11"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">80</text>
-  <text
-     x="100"
-     y="65"
-     class="tick-label"
-     text-anchor="end"
-     dx="-5"
-     id="text12"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">100</text>
   <!-- Y-axis label -->
-  <text
-     x="30"
-     y="300"
-     class="axis-label"
-     text-anchor="middle"
-     transform="rotate(-90 30 300)"
-     id="text13"
-     style="-inkscape-font-specification:'Arial, Normal';font-family:Arial;font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:14.5714283px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Percent Usage</text>
   <!-- Bar 1: day0_ctrl_batch1 -->
+  <!-- Bar 2: day0_ctrl_batch2 -->
+  <!-- Bar 3: day0_exp_batch1 -->
+  <!-- Bar 4: day0_exp_batch2 -->
+  <!-- Bar 5: day8_ctrl_batch1 -->
+  <!-- Bar 6: day8_exp_batch1 -->
+  <!-- Bar 7: day8_exp_batch2 -->
+  <!-- Bar 8: day12_ctrl_batch1 -->
+  <!-- Bar 9: day12_exp_batch1 -->
   <g
-     id="g22">
+     id="g26"
+     transform="translate(-18.181818,-21.818182)">
+    <g
+       id="line1"
+       class="grid-line"
+       style="opacity:1"
+       clip-path="url(#clipPath23)">
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="M 100,550 H 1150"
+         id="path14" />
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="m 100,549.5 v 1 h 1050 v -1 z"
+         id="path15" />
+    </g>
+    <g
+       id="line2"
+       class="grid-line"
+       style="opacity:1"
+       clip-path="url(#clipPath21)">
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="M 100,450 H 1150"
+         id="path12" />
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="m 100,449.5 v 1 h 1050 v -1 z"
+         id="path13" />
+    </g>
+    <g
+       id="line3"
+       class="grid-line"
+       style="opacity:1"
+       clip-path="url(#clipPath19)">
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="M 100,350 H 1150"
+         id="path10" />
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="m 100,349.5 v 1 h 1050 v -1 z"
+         id="path11" />
+    </g>
+    <g
+       id="line4"
+       class="grid-line"
+       style="opacity:1"
+       clip-path="url(#clipPath17)">
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="M 100,250 H 1150"
+         id="path8" />
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="m 100,249.5 v 1 h 1050 v -1 z"
+         id="path9" />
+    </g>
+    <g
+       id="line5"
+       class="grid-line"
+       style="opacity:1"
+       clip-path="url(#clipPath15)">
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="M 100,150 H 1150"
+         id="path6" />
+      <path
+         style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#e0e0e0;enable-background:accumulate;stop-color:#000000;stop-opacity:1"
+         d="m 100,149.5 v 1 h 1050 v -1 z"
+         id="path7" />
+    </g>
+    <line
+       x1="100"
+       y1="50"
+       x2="100"
+       y2="550"
+       class="axis-line"
+       id="line7" />
+    <text
+       x="100"
+       y="565"
+       class="tick-label"
+       text-anchor="middle"
+       id="text7"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">0</text>
+    <text
+       x="100"
+       y="465"
+       class="tick-label"
+       text-anchor="end"
+       dx="-5"
+       id="text8"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">20</text>
+    <text
+       x="100"
+       y="365"
+       class="tick-label"
+       text-anchor="end"
+       dx="-5"
+       id="text9"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">40</text>
+    <text
+       x="100"
+       y="265"
+       class="tick-label"
+       text-anchor="end"
+       dx="-5"
+       id="text10"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">60</text>
+    <text
+       x="100"
+       y="165"
+       class="tick-label"
+       text-anchor="end"
+       dx="-5"
+       id="text11"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">80</text>
+    <text
+       x="100"
+       y="65"
+       class="tick-label"
+       text-anchor="end"
+       dx="-5"
+       id="text12"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">100</text>
+    <text
+       x="-298.18182"
+       y="51.81818"
+       class="axis-label"
+       text-anchor="middle"
+       transform="rotate(-90)"
+       id="text13"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.5714px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Percent Usage</text>
     <rect
        x="130"
        y="385"
@@ -240,16 +359,12 @@
        class="isoform5"
        id="rect21" />
     <text
-       x="170"
-       y="595"
+       x="-281.23566"
+       y="526.79456"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 170 595)"
+       transform="rotate(-45)"
        id="text22">day0_ctrl_batch1</text>
-  </g>
-  <!-- Bar 2: day0_ctrl_batch2 -->
-  <g
-     id="g31">
     <rect
        x="230"
        y="425"
@@ -326,16 +441,12 @@
        class="bar-label-pct"
        id="text30">7.7%</text>
     <text
-       x="270"
-       y="595"
+       x="-210.52498"
+       y="597.50519"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 270 595)"
+       transform="rotate(-45)"
        id="text31">day0_ctrl_batch2</text>
-  </g>
-  <!-- Bar 3: day0_exp_batch1 -->
-  <g
-     id="g40">
     <rect
        x="330"
        y="463"
@@ -412,16 +523,12 @@
        class="bar-label-pct"
        id="text39">8.5%</text>
     <text
-       x="370"
-       y="595"
+       x="-139.8143"
+       y="668.21588"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 370 595)"
+       transform="rotate(-45)"
        id="text40">day0_exp_batch1</text>
-  </g>
-  <!-- Bar 4: day0_exp_batch2 -->
-  <g
-     id="g48">
     <rect
        x="430"
        y="427"
@@ -493,16 +600,12 @@
        class="isoform5"
        id="rect47" />
     <text
-       x="470"
-       y="595"
+       x="-69.103622"
+       y="738.92657"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 470 595)"
+       transform="rotate(-45)"
        id="text48">day0_exp_batch2</text>
-  </g>
-  <!-- Bar 5: day8_ctrl_batch1 -->
-  <g
-     id="g58">
     <rect
        x="530"
        y="414"
@@ -584,16 +687,12 @@
        class="bar-label-pct"
        id="text57">8.1%</text>
     <text
-       x="570"
-       y="595"
+       x="1.6070609"
+       y="809.63727"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 570 595)"
+       transform="rotate(-45)"
        id="text58">day8_ctrl_batch1</text>
-  </g>
-  <!-- Bar 6: day8_exp_batch1 -->
-  <g
-     id="g63">
     <rect
        x="630"
        y="156"
@@ -643,16 +742,12 @@
        class="isoform5"
        id="rect62" />
     <text
-       x="670"
-       y="595"
+       x="72.317741"
+       y="880.3479"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 670 595)"
+       transform="rotate(-45)"
        id="text63">day8_exp_batch1</text>
-  </g>
-  <!-- Bar 7: day8_exp_batch2 -->
-  <g
-     id="g70">
     <rect
        x="730"
        y="223"
@@ -712,16 +807,12 @@
        class="bar-label-pct"
        id="text69">8.3%</text>
     <text
-       x="770"
-       y="595"
+       x="143.02843"
+       y="951.05859"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 770 595)"
+       transform="rotate(-45)"
        id="text70">day8_exp_batch2</text>
-  </g>
-  <!-- Bar 8: day12_ctrl_batch1 -->
-  <g
-     id="g77">
     <rect
        x="830"
        y="419"
@@ -788,16 +879,12 @@
        class="isoform5"
        id="rect76" />
     <text
-       x="870"
-       y="595"
+       x="213.73909"
+       y="1021.7692"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 870 595)"
+       transform="rotate(-45)"
        id="text77">day12_ctrl_batch1</text>
-  </g>
-  <!-- Bar 9: day12_exp_batch1 -->
-  <g
-     id="g85">
     <rect
        x="930"
        y="234"
@@ -864,11 +951,11 @@
        class="bar-label-reads"
        id="text84">83 reads</text>
     <text
-       x="970"
-       y="595"
+       x="284.44977"
+       y="1092.48"
        class="sample-label"
        text-anchor="middle"
-       transform="rotate(-45 970 595)"
+       transform="rotate(-45)"
        id="text85">day12_exp_batch1</text>
   </g>
 </svg>
