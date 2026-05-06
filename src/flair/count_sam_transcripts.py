@@ -296,9 +296,7 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
             tendpos += blen
             # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
         elif btype == pysam.CINS:
-            if len(coveredpos) == 0:
-                coveredpos.append(blen)
-            else:
+            if len(coveredpos) > 0:
                 coveredpos[-1] += blen
             if blen > LARGE_INDEL_TOLDERANCE:
                 if exoninfo:
