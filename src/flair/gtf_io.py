@@ -5,9 +5,9 @@ import re
 from enum import Enum
 from typing import Optional
 from collections import defaultdict
-from intervaltree import IntervalTree
 from flair.pycbio.sys import fileOps
 from flair import SeqRange
+from flair.interval_index import IntervalIndex
 
 StrNone = Optional[str]
 StrSetNone = Optional[set[str]]
@@ -185,14 +185,14 @@ class GtfData:
         self.transcripts = []
         self.transcripts_by_id: dict[str, GtfTranscript] = {}
         # transcripts by chrom then range overlap.
-        self.transcripts_by_range = defaultdict(IntervalTree)
+        self.transcripts_by_range = defaultdict(IntervalIndex)
 
     def add_transcript(self, transcript: GtfTranscript):
         if transcript.transcript_id in self.transcripts_by_id:
             raise GtfParseError(f"adding duplicate transcript id: `{transcript.transcript_id}'")
         self.transcripts.append(transcript)
         self.transcripts_by_id[transcript.transcript_id] = transcript
-        self.transcripts_by_range[transcript.chrom].addi(transcript.start, transcript.end, transcript)
+        self.transcripts_by_range[transcript.chrom].add(transcript.start, transcript.end, transcript)
 
     def get_transcript(self, transcript_id):
         """return transcript for id or None if not found"""
@@ -215,8 +215,7 @@ class GtfData:
     def iter_overlap_transcripts(self, chrom, start, end, *, strand=None):
         """Generator overlapping transcripts, optionally filtering for strand"""
         # defaultdict will handle chrom not in GTF
-        for interval in self.transcripts_by_range[chrom].overlap(start, end):
-            transcript = interval.data
+        for transcript in self.transcripts_by_range[chrom].overlap(start, end):
             if (strand is None) or (transcript.strand == strand):
                 yield transcript
 

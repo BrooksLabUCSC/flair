@@ -7,18 +7,18 @@ import shutil
 import pysam
 import logging
 import scipy.stats as sps
-from flair.partition_runner import PartitionRunner
+from flair.partition_runner import PartitionRunner, combine_temp_files_by_suffix
 from flair import SeqRange
 from statistics import median
 from flair.junction_correct import junction_corrector_factory
-from flair.isoform_data import Junc, ReadRec
-from flair.read_processing import (add_corrected_read_to_groups, get_sequence_from_bed)
+from flair.isoform_data import ReadRec
+from flair.io_utils import make_temp_dir
+from flair.read_processing import get_sequence_from_bed, generate_genomic_alignment_read_to_clipping_file
+from flair.read_correction import filter_correct_group_reads
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed, BedReader
-
-# FIXME: this is temp, need to move into a
-import flair.flair_transcriptome as ft
+from flair.count_sam_transcripts import run_count_sam_transcripts
 
 def get_args():
     parser = argparse.ArgumentParser(description='identifies counts of different splicing events directly from a '
@@ -1025,38 +1025,30 @@ def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region
         pipettor.run([('samtools', 'view', '-h', bamfile_name, f'{region.name}:{region.start}-{region.end}'),
                       ('samtools', 'fasta', '-')],
                      stdout=temp_prefix + '.reads.fasta')
-        mm2_cmd = ('minimap2', '-a', '-N', '4', '--MD',
-                   region_annot_fa, temp_prefix + '.reads.fasta')
-        flairpath = '/'.join(os.path.realpath(__file__).split('/')[:-1])
-        # count_cmd = ('python3', flairpath + '/filter_transcriptome_align.py',
-        count_cmd = ('python3', flairpath + '/count_sam_transcripts.py',
-                     '--sam', '-',
-                     '-o', temp_prefix + '.matchannot.counts.tsv',
-                     '-t', 1,  # feeding 1 thread in because this is already multithreaded here
-                     '--quality', 0,
-                     #  '--generate_map', temp_prefix + '.matchannot.read.map.txt',
-                     '--check_splice',
-                     '-i', region_annot,
-                     '--trimmedreads', clipping_file,
-                     '--allow_UTR_indels',
-                     '--soft_clipping_buffer', 10,
-                     '--output_endpos', temp_prefix + '.readtoends.txt',
-                     )
-
-        pipettor.run([mm2_cmd, count_cmd])
+        mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD',
+                   region_annot_fa, temp_prefix + '.reads.fasta']
+        # 1 thread because already multithreaded here
+        run_count_sam_transcripts(
+            mm2_cmd=mm2_cmd,
+            output=temp_prefix + '.matchannot.counts.tsv',
+            threads=1,
+            quality=0,
+            check_splice=True,
+            isoforms=region_annot,
+            trimmedreads=clipping_file,
+            allow_UTR_indels=True,
+            soft_clipping_buffer=10,
+            output_endpos=temp_prefix + '.readtoends.txt')
         return temp_prefix + '.readtoends.txt'  # temp_prefix + '.matchannot.read.map.txt'
     else:
         return None
 
 
-def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, region_annot, region_annot_fa, junction_corrector, annots):  # noqa: C901 - FIXME: reduce complexity
-
-    genome = pysam.FastaFile(args.genome)
-
+def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, region_annot, region_annot_fa, junction_corrector, annots):
     temp_prefix = temp_prefix + '_' + sample
 
     bam_file = pysam.AlignmentFile(bamfile_name, 'rb')
-    num_reads, clipping_file = ft.generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region)
+    num_reads, clipping_file = generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region)
     bam_file.close()
 
     # FIXME: what format is this? reading into memory, why write file?
@@ -1069,48 +1061,17 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
         startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
         read_to_transcript[read] = (transcript, startindex, startdist, endindex, enddist)
 
-    sj_to_ends = {}
     bamfile = pysam.AlignmentFile(bamfile_name, 'rb')
-    dropped_secondary_sup, dropped_quality, dropped_correction = 0, 0, 0
-    annot_match, corrected_cnt = 0, 0
-    for read in bamfile.fetch(region.name, region.start, region.end):
-        if not read.is_secondary and (not read.is_supplementary or args.keep_sup):
-            readrec = ReadRec.from_read(read)
-            corrected = False
-            if read.query_name in read_to_transcript:
-                transcript, startindex, startdist, endindex, enddist = read_to_transcript[read.query_name]
-                juncs = annots.transcript_to_sjc[transcript]
-                if len(juncs) > 0:
-                    newstart = juncs[startindex][0] - startdist
-                    newend = juncs[endindex][1] + enddist
-                    juncs = tuple([Junc(x[0], x[1]) for x in juncs[startindex:endindex + 1]])
-                    strand = annots.gene_to_strand[transcript.split('_')[-1]]
-                    readrec.correct_from_annotation(newstart, newend, strand, juncs)
-                    corrected = True
-                    annot_match += 1
-                else:
-                    annot_match += 1
-            elif read.mapping_quality >= args.quality:
-                # FIXME: is this being done in-place
-                corrected = junction_corrector.correct_readrec(readrec)
-                if corrected:
-                    corrected_cnt += 1
-                else:
-                    dropped_correction += 1
-                    logging.debug(f"read dropped: junction correction failed: {read.query_name}")
-            else:
-                dropped_quality += 1
-                logging.debug(f"read dropped: low quality ({read.mapping_quality} < {args.quality}): {read.query_name}")
-            if corrected:
-                add_corrected_read_to_groups(readrec, sj_to_ends)
-        else:
-            dropped_secondary_sup += 1
-            logging.debug(f"read dropped: secondary or supplementary: {read.query_name}")
+    sj_to_ends = {}
+    filter_correct_group_reads(bam_file=bamfile, region=region,
+                               read_to_annot_transcript=read_to_transcript,
+                               annots=annots, junction_corrector=junction_corrector,
+                               genome=None,
+                               quality=args.quality, keep_sup=args.keep_sup,
+                               sj_to_ends=sj_to_ends,
+                               allow_outside_range=True,
+                               keep_single_exon=False)
     bamfile.close()
-    logging.debug(f"spliceevents region {region.name}:{region.start}-{region.end}: "
-                  f"annot_match={annot_match}, corrected={corrected_cnt}, "
-                  f"dropped_quality={dropped_quality}, dropped_correction={dropped_correction}, "
-                  f"dropped_secondary_sup={dropped_secondary_sup}")
 
     genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sj_to_ends, annots.sjc_to_gene, annots.junc_to_gene_id, annots.gene_to_exons, annots.gene_to_annot_juncs)
 
@@ -1124,7 +1085,7 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
                     outline = [gene, juncstring, str(read_info.start), str(read_info.end), genetojuncs[gene][juncs].strand, read_info.name]
                     out.write('\t'.join(outline) + '\n')
     pipettor.run([('rm', f'{temp_prefix}.matchannot.counts.tsv', f'{temp_prefix}.readtoends.txt', f'{temp_prefix}.reads.fasta', f'{temp_prefix}.reads.genomicclipping.txt')])
-    genome.close()
+
 
 def process_bed_line(bed_rec):
     transcript = bed_rec.name
@@ -1219,12 +1180,12 @@ def combine_regions(regions, buffersize=0):
         c, s, e = range.name, range.start, range.end
         if c != lastchrom or s > lastend + buffersize:
             if lastchrom != -1:
-                new_regions.append(ft.SeqRange(lastchrom, laststart, lastend))
+                new_regions.append(SeqRange(lastchrom, laststart, lastend))
             lastchrom, laststart, lastend = c, s, e
         else:
             lastend = max((lastend, e))
     if lastchrom != -1:
-        new_regions.append(ft.SeqRange(lastchrom, laststart, lastend))
+        new_regions.append(SeqRange(lastchrom, laststart, lastend))
     return new_regions
 
 
@@ -1235,7 +1196,7 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     genome = pysam.FastaFile(args.genome)
 
     # FIXME: make this a common function somewhere
-    tempDir = ft.make_temp_dir(args.output)
+    tempDir = make_temp_dir(args.output)
     logging.info('temp directory: %s', tempDir)
 
     if args.region_bed:
@@ -1287,12 +1248,12 @@ def main():  # noqa: C901 - FIXME: reduce complexity
                              threads=args.threads)
     runner.run(_run_region, args=args, allsamples=allsamples)
 
-    ft.combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner],
-                                    ['.diffsplice.bed', '.diffsplice.counts.tsv', '.diffsplice.PSIjunc.tsv', '.diffsplice.PSItot.tsv'])
+    combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner],
+                                 ['.diffsplice.bed', '.diffsplice.counts.tsv', '.diffsplice.PSIjunc.tsv', '.diffsplice.PSItot.tsv'])
     if args.output_read_ends:
-        ft.combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.readends.bed'])
+        combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.readends.bed'])
     if args.check_outliers:
-        ft.combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.outliers.tsv', '.diffsplice.outliers.filtered.tsv'])
+        combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.outliers.tsv', '.diffsplice.outliers.filtered.tsv'])
 
     counts_header = ['eventname', 'eventtype', 'gene', 'junctions_included', 'junctions_excluded', 'outer_junctions', 'exons']
     for suffix in ['.diffsplice.counts', '.diffsplice.PSIjunc', '.diffsplice.PSItot']:

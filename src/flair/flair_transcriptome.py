@@ -10,14 +10,14 @@ from collections import Counter
 from flair import FlairError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
-from flair.partition_runner import parallel_mode_parse, partition_runner_factory
+from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
+from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
-from flair.isoform_data import (Junc, Exon, ReadRec, Gene, Isoform, exons_to_juncs,
-                                get_bed_exons_from_exons, get_sequence_for_exons, binary_search,
-                                convert_to_bed)
-from flair.read_processing import (should_process_read, add_corrected_read_to_groups,
-                                   generate_genomic_alignment_read_to_clipping_file)
-from flair.count_sam_transcripts import TRUST_ENDS_WINDOW
+from flair.isoform_data import (Exon, Gene, Isoform, exons_to_juncs, get_bed_exons_from_exons,
+                                get_sequence_for_exons, binary_search, convert_to_bed)
+from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
+from flair.read_correction import filter_correct_group_reads
+from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed
 
@@ -164,70 +164,9 @@ ANNOT_SE_SEARCH_WINDOW = 2
 
 
 ####
-# misc
-###
-def make_temp_dir(out_prefix):
-    # FIXME: use TMPDIR unless directory explicitly specified
-    temp_dir = out_prefix + ".intermediate"
-    try:
-        os.makedirs(temp_dir, exist_ok=True)
-    except OSError as exc:
-        raise OSError(f"Creation of the directory `{temp_dir}' failed") from exc
-    return temp_dir + '/'
-
-
-####
 # transcriptome alignment
 ####
-def get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):  # noqa: C901 - FIXME: reduce complexity
-    # FIXME: convert filter_transcriptome_align.py to a library, however
-    # minimap output needs to be piped through filter_transcriptome_align
-    # without saving the bam file.
-
-    # count sam transcripts ; the dash at the end means STDIN
-    # use 1 thread in because this is already multithreaded here
-    # count_cmd = ['filter_transcriptome_align.py', '--sam', '-',
-    # FIXME why use filter_transcriptome_align if not multithreading? Remove?
-    count_cmd = ['count_sam_transcripts.py', '--sam', '-',
-                 '-o', output_name,]
-    if clipping_file:
-        count_cmd.extend(['--trimmedreads', clipping_file])
-    if map_file:
-        count_cmd.extend(['--generate_map', map_file])
-    if args.output_endpos or is_annot:
-        count_cmd.extend(['--output_endpos', output_name.split('.counts.txt')[0] + '.ends.tsv'])
-    if args.end_norm_dist:
-        count_cmd.extend(['--end_norm_dist', args.end_norm_dist])
-    if not is_annot and not args.no_stringent:
-        count_cmd.extend(['--stringent'])
-    if is_annot:
-        count_cmd.extend(['--allow_UTR_indels'])
-    if args.output_bam:
-        count_cmd.extend(['--output_bam', output_name.split('.counts.txt')[0] + '.bam'])
-    if not args.no_check_splice:
-        count_cmd.append('--check_splice')
-    if not args.no_check_splice or not args.no_stringent or is_annot or args.fusion_breakpoints:
-        count_cmd.extend(['-i', ref_bed])  # annotated isoform bed file
-    if args.trust_ends:
-        count_cmd.append('--trust_ends')
-    if unique_bound and (not args.no_stringent or is_annot):
-        count_cmd.extend(['--unique_bound', unique_bound])
-    if args.remove_internal_priming:
-        count_cmd.extend(['--remove_internal_priming',
-                          '--intprimingthreshold', str(args.intprimingthreshold),
-                          '--intprimingfracAs', str(args.intprimingfracAs),
-                          '--transcriptomefasta', args.transcriptfasta])
-    if args.remove_internal_priming and is_annot:
-        count_cmd.append('--permissive_last_exons')
-    if args.fusion_breakpoints:
-        count_cmd += ['--fusion_breakpoints', args.fusion_breakpoints]
-    if args.allow_paralogs:
-        count_cmd += ['--allow_paralogs']
-    # print(' '.join([str(x) for x in count_cmd]))
-    return count_cmd
-
-
-def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):
+def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):  # noqa: C901 - FIXME: reduce complexity
     # minimap (results are piped into count_sam_transcripts.py)
     # '--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
     if isinstance(input_reads, str):
@@ -236,9 +175,47 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
 
     # FIXME add in step to filter out chimeric reads here
     # FIXME really need to go in and check on how count_sam_transcripts is working
-    count_cmd = get_filter_tome_align_cmd(args, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound)
+    trimmedreads = clipping_file or None
+    generate_map = map_file or None
+    output_endpos = (output_name.split('.counts.txt')[0] + '.ends.tsv'
+                     if (args.output_endpos or is_annot) else None)
+    output_bam = (output_name.split('.counts.txt')[0] + '.bam'
+                  if args.output_bam else None)
+    stringent = (not is_annot) and (not args.no_stringent)
+    check_splice = not args.no_check_splice
+    # annotated isoform bed file
+    isoforms = ref_bed if (check_splice or stringent or is_annot or args.fusion_breakpoints) else None
+    unique_bound_path = unique_bound if unique_bound and (not args.no_stringent or is_annot) else None
+    intprimingthreshold = None
+    intprimingfracAs = None
+    transcriptomefasta = None
+    if args.remove_internal_priming:
+        intprimingthreshold = args.intprimingthreshold
+        intprimingfracAs = args.intprimingfracAs
+        transcriptomefasta = args.transcriptfasta
+    permissive_last_exons = args.remove_internal_priming and is_annot
 
-    pipettor.run([mm2_cmd, count_cmd])
+    run_count_sam_transcripts(
+        mm2_cmd=mm2_cmd,
+        output=output_name,
+        trimmedreads=trimmedreads,
+        generate_map=generate_map,
+        output_endpos=output_endpos,
+        end_norm_dist=args.end_norm_dist or 0,
+        stringent=stringent,
+        allow_UTR_indels=is_annot,
+        output_bam=output_bam,
+        check_splice=check_splice,
+        isoforms=isoforms,
+        trust_ends=args.trust_ends,
+        unique_bound=unique_bound_path,
+        remove_internal_priming=args.remove_internal_priming,
+        intprimingthreshold=intprimingthreshold,
+        intprimingfracAs=intprimingfracAs,
+        transcriptomefasta=transcriptomefasta,
+        permissive_last_exons=permissive_last_exons,
+        fusion_breakpoints=args.fusion_breakpoints,
+        allow_paralogs=args.allow_paralogs)
 
 
 ##
@@ -600,54 +577,6 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
     return read_to_transcript
 
 
-def _correct_and_group_read(read, read_to_annot_transcript, annots, junction_corrector, sj_to_ends, genome):
-    """Correct a single read's splice junctions and add it to sj_to_ends groups.
-
-    Spliced and single-exon reads are fundamentally different:
-    - Spliced: junctions corrected from annotation or intron support, strand from correction
-    - Single-exon: no correction, strand resolved later in group_se_by_overlap
-    """
-    readrec = ReadRec.from_read(read, genome=genome)
-
-    # annotated spliced: correct junctions and strand from annotation
-    if read.query_name in read_to_annot_transcript:
-        # FIXME more id assumptions
-        tid, startindex, startdist, endindex, enddist = read_to_annot_transcript[read.query_name]
-        transcript = '_'.join(tid.split('_')[:-1])
-        gene = tid.split('_')[-1]
-        exons = annots.transcript_to_exons[(transcript, gene)]
-        annot_juncs = [(exons[x].end, exons[x + 1].start) for x in range(len(exons) - 1)]
-        if len(annot_juncs) > 0:
-            newstart = annot_juncs[startindex][0] - startdist
-            newend = annot_juncs[endindex][1] + enddist
-            juncs = tuple([Junc(x[0], x[1]) for x in annot_juncs[startindex:endindex + 1]])
-            readrec.correct_from_annotation(newstart, newend, annots.gene_to_strand[gene], juncs)
-            add_corrected_read_to_groups(readrec, sj_to_ends)
-            return
-
-    # unannotated spliced: correct junctions and strand from intron support
-    if readrec.juncs:
-        if junction_corrector.correct_readrec(readrec):
-            add_corrected_read_to_groups(readrec, sj_to_ends)
-        else:
-            logging.debug(f"read dropped: junction correction failed: {readrec.name}")
-        return
-
-    # single-exon: no correction, strand resolved later in group_se_by_overlap
-    add_corrected_read_to_groups(readrec, sj_to_ends)
-
-def filter_correct_group_reads(args, temp_prefix, region, bam_file, read_to_annot_transcript, annots,
-                               junction_corrector, genome, *, sj_to_ends=None,
-                               allow_secondary=False):
-    """Filter reads, correct splice junctions, and group by junction chain."""
-    if sj_to_ends is None:
-        sj_to_ends = {}
-    for read in bam_file.fetch(region.name, region.start, region.end):
-        if should_process_read(read, region, args.quality, args.keep_sup, allow_secondary):
-            _correct_and_group_read(read, read_to_annot_transcript, annots, junction_corrector, sj_to_ends, genome)
-    return sj_to_ends
-
-
 def filter_ends_allow_multiple(isoforms, sjc_support, max_ends):
     """Allow multiple ends per junction chain.
     Returns list of Isoform objects that meet support threshold."""
@@ -944,14 +873,6 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
     return firstpass, iso_to_unique_bound
 
 
-def combine_temp_files_by_suffix(output, temp_prefixes, suffixes):
-    for filesuffix in suffixes:
-        with open(output + filesuffix, 'wb') as combined_fh:
-            for temp_prefix in temp_prefixes:
-                with open(temp_prefix + filesuffix, 'rb') as in_fh:
-                    shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
-
-
 def get_genes_with_shared_juncs(juncs, annots):
     # FIXME: what does this actually return?
     gene_hits = {}
@@ -1202,7 +1123,6 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
     # For comparing with amount of clipping after alignment to transcriptome
     # in order to check whether transcriptome alignment is comparable to or better than genomic alignment,
     # which can be considered to support isoform.
-    # used in filter_transcriptome_align
 
     # logging.info('generating genomic clipping reference')
     num_reads, clipping_file = generate_genomic_alignment_read_to_clipping_file(partition.file_prefix, bam_file, region)
@@ -1232,8 +1152,13 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
 
     # takes in bam file, for each read attempts to correct splice junctions (removes unsupported ones), then groups reads by junction chains
     # this also handles read strandedness if necessary
-    sj_to_ends = filter_correct_group_reads(args, partition.file_prefix, region, bam_file, read_to_annot_transcript, annots,
-                                            junction_corrector, genome)
+    sj_to_ends = {}
+    filter_correct_group_reads(bam_file=bam_file, region=region,
+                               read_to_annot_transcript=read_to_annot_transcript,
+                               annots=annots, junction_corrector=junction_corrector,
+                               genome=genome,
+                               quality=args.quality, keep_sup=args.keep_sup,
+                               sj_to_ends=sj_to_ends)
     bam_file.close()
 
     # for each junction chain, clusters ends - generates junction chain x ends

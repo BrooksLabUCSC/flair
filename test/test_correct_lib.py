@@ -11,7 +11,8 @@ from flair.junction_correct import JunctionCorrector
 # tests for loading intron support data
 ###
 def _assert_introns(over, expect):
-    assert [str(o) for o in over] == expect
+    # order-insensitive: overlap() has no defined order
+    assert sorted(str(o) for o in over) == sorted(expect)
 
 def _basic_load_reads_annot_support_test(intron_support):
     "same data, loaded from BED or STAR SJ"

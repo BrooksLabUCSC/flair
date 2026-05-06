@@ -7,6 +7,7 @@ function on each partition.
 """
 import os
 import re
+import shutil
 import pickle
 import multiprocessing as mp
 import pipettor
@@ -15,6 +16,14 @@ from flair.pycbio.hgdata.bed import BedReader
 
 _GTF_DATA_PKL = 'gtf_data.pkl'
 _JUNCTION_CORRECTOR_PKL = 'junction_corrector.pkl'
+
+
+def combine_temp_files_by_suffix(output, temp_prefixes, suffixes):
+    for filesuffix in suffixes:
+        with open(output + filesuffix, 'wb') as combined_fh:
+            for temp_prefix in temp_prefixes:
+                with open(temp_prefix + filesuffix, 'rb') as in_fh:
+                    shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
 
 
 def parallel_mode_parse(parser, parallel_mode):

@@ -3,9 +3,9 @@ Annotation and orthogonal intron support.
 """
 import sys
 from collections import defaultdict
-from intervaltree import IntervalTree
 from flair import MIN_INTRON_SIZE, MAX_INTRON_SIZE, FlairInputDataError
 from flair.gtf_io import GtfData
+from flair.interval_index import IntervalIndex
 from flair.pycbio.hgdata.bed import BedReader
 from flair.pycbio.tsv import TsvReader
 
@@ -34,16 +34,16 @@ class IntronSupport:
     Table of intron support index by both start and end positions
     """
     def __init__(self, *, min_intron_size=MIN_INTRON_SIZE, max_intron_size=MAX_INTRON_SIZE):
-        # dict index by chrom of interval trees, keyed on first base of donor and last base of the acceptor sites
-        self.coords_maps = defaultdict(IntervalTree)
+        # dict index by chrom of per-chrom interval indexes, keyed on first base of donor and last base of the acceptor sites
+        self.coords_maps = defaultdict(IntervalIndex)
         self.min_intron_size = min_intron_size
         self.max_intron_size = max_intron_size
         self.chroms = set()
 
     def _find_point_strand(self, chrom, point, strand):
-        for entry in self.coords_maps[chrom][point]:
-            if entry.data.strand == strand:
-                return entry.data
+        for intron in self.coords_maps[chrom].overlap(point, point + 1):
+            if intron.strand == strand:
+                return intron
         return None
 
     def _find_intron(self, chrom, start, end, strand):
@@ -57,8 +57,8 @@ class IntronSupport:
     def _add_intron(self, chrom, start, end, strand):
         assert start < end
         intron = SupportIntron(chrom, start, end, strand)
-        self.coords_maps[chrom].addi(start, start + 1, intron)
-        self.coords_maps[chrom].addi(end - 1, end, intron)
+        self.coords_maps[chrom].add(start, start + 1, intron)
+        self.coords_maps[chrom].add(end - 1, end, intron)
         self.chroms.add(chrom)
         return intron
 
@@ -83,7 +83,7 @@ class IntronSupport:
     def overlap(self, chrom, start, end, flank_window=0):
         """Get list of overlapping introns where either ends overlaps this range with
         a +/-bp window"""
-        return [entry.data for entry in self.coords_maps[chrom].overlap(start - flank_window, end + flank_window)]
+        return self.coords_maps[chrom].overlap(start, end, slack=flank_window)
 
     def overlap_introns(self, chrom, start, end, flank_window=0):
         """get introns were splice junctions overlap each end of this range,
@@ -102,19 +102,19 @@ class IntronSupport:
         return self.coords_maps.keys()
 
     def entries(self, chrom=None):
-        "generator for (chrom, entries), optionally on a chrom (introns have two entries)"
+        "generator for (chrom, start, end, intron), optionally on a chrom (introns have two entries)"
         chroms = [chrom] if chrom is not None else self.chroms()
         for chrom in chroms:
-            for entry in self.coords_maps[chrom].items():
-                yield chrom, entry
+            for start, end, intron in self.coords_maps[chrom].items():
+                yield chrom, start, end, intron
 
     def introns(self, chrom=None):
         "generator for introns, optionally on a chrom"
         seen = set()  # introns are in twice
-        for _, entry in self.entries(chrom):
-            if id(entry.data) not in seen:
-                yield entry.data
-                seen.add(id(entry.data))
+        for _, _, _, intron in self.entries(chrom):
+            if id(intron) not in seen:
+                yield intron
+                seen.add(id(intron))
 
     def subset_for_region(self, chrom, start, end):
         """Return a new IntronSupport with introns overlapping [start, end) on chrom.
@@ -131,8 +131,8 @@ class IntronSupport:
 
     def dump(self, fh=sys.stderr):
         print("IntronSupport:", file=fh)
-        for chrom, entry in self.entries():
-            print(f"{chrom}:{entry.begin}-{entry.end}: {entry.data}", file=fh)
+        for chrom, start, end, intron in self.entries():
+            print(f"{chrom}:{start}-{end}: {intron}", file=fh)
 
     @staticmethod
     def _no_introns_loaded_error(file_name, file_desc, chrom_filter=None):

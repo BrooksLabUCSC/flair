@@ -70,7 +70,8 @@ Optional arguments
   --stringent           [HIGHLY RECOMMENDED] specify if all supporting reads need to be full-length 
                         (spanning 25 bp of the first and last exons)
   --check_splice        [HIGHLY RECOMMENDED] enforce coverage of 4 out of 6 bp around each splice site 
-                        and no insertions greater than 3 bp at the splice site DON'T USE WITH DATA WITH HIGH ERROR RATES (old direct-RNA)
+                        and no insertions greater than 3 bp at the splice site. DON'T USE WITH DATA WITH ERROR RATES of 5% or more, such
+                        as older direct-RNA (anything before using the RNA-specific flow-cell with the Dorado basecaller).
   -w --end_window
                         window size for comparing TSS/TES (100)
   --noaligntoannot      related to old annotation_reliant, now specify if you don't want an initial alignment 

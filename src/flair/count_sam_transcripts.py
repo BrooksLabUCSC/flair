@@ -4,10 +4,15 @@ import argparse
 import logging
 import re
 import os
+from dataclasses import dataclass, field
 from flair.remove_internal_priming import removeinternalpriming
+import pipettor
 import pysam
 from flair import FlairInputDataError
 from flair.pycbio.hgdata.bed import BedReader
+
+
+_COUNT_SAM_TRANSCRIPTS_SCRIPT = os.path.realpath(__file__)
 
 
 def parse_args():
@@ -77,28 +82,47 @@ def check_args(args):
     return args
 
 
-def get_annot_info(args):  # noqa: C901 - FIXME: reduce complexity
+MIN_INSERTION_LEN = 3
+HALF_SS_WINDOW_SIZE = 6
+NUM_MISTAKES_IN_SS_WINDOW = 2
+TRUST_ENDS_WINDOW = 50
+LARGE_INDEL_TOLDERANCE = 25
+REQ_BP_ALIGNED_IN_EDGE_EXONS = 10
+
+@dataclass
+class IsoformInfo:
+    """Per-transcript information parsed out of an isoforms BED (which is
+    upstream-derived from a GTF via gtf_to_bed)."""
+    transcript_to_exons: dict = field(default_factory=dict)
+    transcript_to_bp_ss_index: dict = field(default_factory=dict)
+    transcript_to_genomic_ends: dict = field(default_factory=dict)
+    transcript_to_unique_bounds: dict = field(default_factory=dict)
+
+
+def read_isoforms_bed(*, isoforms, stringent=False, check_splice=False,  # noqa: C901 - FIXME: reduce complexity
+                      fusion_dist=False, fusion_breakpoints=None,
+                      output_endpos=False, unique_bound=None):
+    """Read the isoforms BED (and optional unique-bound TSV) and build an
+    IsoformInfo with exon block sizes, genomic ends, fusion-breakpoint
+    splice-site indices, and unique-sequence boundaries per transcript."""
+    info = IsoformInfo()
     chrtobp = {}
-    if args.fusion_breakpoints:
-        for bed in BedReader(args.fusion_breakpoints, numStdCols=3):
+    if fusion_breakpoints:
+        for bed in BedReader(fusion_breakpoints, numStdCols=3):
             chrtobp[bed.chrom] = bed.chromStart
 
-    transcript_to_bp_ss_index = {}
-    transcript_to_exons = {}
-    transcript_to_genomic_ends = {}
-    transcript_to_unique_bounds = {}
-    if args.stringent or args.check_splice or args.fusion_dist or args.fusion_breakpoints or args.output_endpos:
-        for bed in BedReader(args.isoforms, fixScores=True):
+    if stringent or check_splice or fusion_dist or fusion_breakpoints or output_endpos:
+        for bed in BedReader(isoforms, fixScores=True):
             name, left, right, chrom, strand = bed.name, bed.chromStart, bed.chromEnd, bed.chrom, bed.strand
             if name[:10] == 'fusiongene':
                 name = '_'.join(name.split('_')[1:])
             blocksizes = [len(blk) for blk in bed.blocks]
             if strand == '+':
-                transcript_to_exons[name] = blocksizes
+                info.transcript_to_exons[name] = blocksizes
             else:
-                transcript_to_exons[name] = blocksizes[::-1]
-            transcript_to_genomic_ends[name] = (left, right, strand)
-            if args.fusion_breakpoints:
+                info.transcript_to_exons[name] = blocksizes[::-1]
+            info.transcript_to_genomic_ends[name] = (left, right, strand)
+            if fusion_breakpoints:
                 blockstarts = [blk.start - left for blk in bed.blocks]
                 bpindex = -1
                 for i in range(len(blocksizes) - 1):
@@ -106,24 +130,25 @@ def get_annot_info(args):  # noqa: C901 - FIXME: reduce complexity
                         bpindex = i
                 if bpindex >= 0 and strand == '-':
                     bpindex = (len(blocksizes) - 2) - bpindex
-                transcript_to_bp_ss_index[name] = bpindex
-        if args.unique_bound:
-            for line in open(args.unique_bound):
+                info.transcript_to_bp_ss_index[name] = bpindex
+        if unique_bound:
+            for line in open(unique_bound):
                 name, bounds = line.rstrip().split('\t')
                 bounds = [x.split('_') for x in bounds.split(',')]
                 leftbounds = [int(x[1]) for x in bounds if x[0] == '0']
                 rightbounds = [int(x[1]) for x in bounds if x[0] == '1']
                 boundsdict = {'left': None, 'right': None}
                 if len(leftbounds) > 0:
-                    boundsdict['left'] = transcript_to_exons[name][0] - max(leftbounds)
+                    boundsdict['left'] = info.transcript_to_exons[name][0] - max(leftbounds)
                 if len(rightbounds) > 0:
-                    boundsdict['right'] = sum(transcript_to_exons[name][:-1]) + max(rightbounds)
-                transcript_to_unique_bounds[name] = boundsdict
+                    boundsdict['right'] = sum(info.transcript_to_exons[name][:-1]) + max(rightbounds)
+                info.transcript_to_unique_bounds[name] = boundsdict
 
-    return transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, transcript_to_unique_bounds
+    return info
 
 
 def check_singleexon(read_start, read_end, tlen, end_norm_dist):
+    """Decide whether a read covers enough of a single-exon transcript to be counted."""
     if read_end - read_start > (tlen / 2) - end_norm_dist:  # must cover at least 50% of single exon transcript
         return True
     else:
@@ -131,6 +156,8 @@ def check_singleexon(read_start, read_end, tlen, end_norm_dist):
 
 
 def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttoblock, unique_bound):
+    """Decide whether a read's alignment extends far enough into a terminal
+    exon, honoring trust_ends and unique-bound relaxations."""
     if trust_ends:
         return abs(transcript_edge - read_edge) <= TRUST_ENDS_WINDOW
     elif unique_bound:
@@ -143,12 +170,16 @@ def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttob
 
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends, unique_bound_left, unique_bound_right):
+    """Require the read to cover enough of both the first and last exons
+    of a multi-exon transcript."""
     left_coverage = check_exonenddist(first_blocksize, read_start, 0, trust_ends, first_blocksize - read_start, unique_bound_left)
     right_coverage = check_exonenddist(last_blocksize, read_end, tlen, trust_ends, read_end - (tlen - last_blocksize), unique_bound_right)
     return right_coverage and left_coverage
 
 
 def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends, tname, end_norm_dist, transcript_to_unique_bounds):
+    """Stringent-mode coverage test: single-exon transcripts need 50%
+    coverage; multi-exon transcripts need their terminal exons covered."""
     # FIXME - could add back the 80% of the transcript rule - maybe as an option? needs further testing
     read_start, read_end = blockstarts[0], blockstarts[-1] + blocksizes[-1]
     first_blocksize, last_blocksize = exonpos[0], exonpos[-1]
@@ -167,6 +198,8 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
 
 
 def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
+    """Require that every splice site the read covers matches (within a
+    tolerance window) and that at least one splice site is covered."""
     currpos = 0
     allerrors = []
     all_ss_res = ['notcov' for x in range(len(exonpos) - 1)]
@@ -190,6 +223,8 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
 
 
 def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss_index):
+    """Require that the read's alignment covers the fusion breakpoint splice
+    site of a fusion transcript with few mismatches in the window."""
     if tname not in transcript_to_bp_ss_index or transcript_to_bp_ss_index[tname] == -1:
         return False
     else:
@@ -206,9 +241,11 @@ def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss
         return False
 
 
-def get_matchvals(args, md):
+def get_matchvals(md, *, stringent, check_splice, fusion_breakpoints):
+    """Expand the MD tag into a per-reference-position vector of 1 (match)
+    and 0 (mismatch), used later to score splice-site windows."""
     matchvals = []
-    if args.stringent or args.check_splice or args.fusion_breakpoints:
+    if stringent or check_splice or fusion_breakpoints:
         mdblocks = re.findall(r'\d+|\D+', md)
         for b in mdblocks:
             if b[0] != '^':
@@ -220,9 +257,13 @@ def get_matchvals(args, md):
 
 
 def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # noqa: C901 - FIXME: reduce complexity
+    """Walk the CIGAR operations of a transcript alignment to build a
+    per-transcript-position coverage vector, collect query-side clipping,
+    record alignment block positions, and flag large indels outside the
+    terminal exons."""
     matchpos = 0
     coveredpos = [0] * (startpos - 1)
-    queryclipping = []
+    query_clipping = []
     tendpos = startpos
     blockstarts, blocksizes = [], []
     if exoninfo:
@@ -236,15 +277,15 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
         lb, rb = None, None
     indel_detected = False
     for btype, blen in cigarblocks:
-        if btype in {4, 5}:  # soft or hard clipping:
-            queryclipping.append(blen)
-        elif btype == 0:  # match
+        if btype in (pysam.CSOFT_CLIP, pysam.CHARD_CLIP):
+            query_clipping.append(blen)
+        elif btype == pysam.CMATCH:
             coveredpos.extend(matchvals[matchpos:matchpos + blen])
             blockstarts.append(tendpos)
             blocksizes.append(blen)
             matchpos += blen
             tendpos += blen
-        elif btype in {2, 3}:  # deletion or intron
+        elif btype in (pysam.CDEL, pysam.CREF_SKIP):
             coveredpos.extend([0] * blen)
             if blen > LARGE_INDEL_TOLDERANCE:
                 if exoninfo:
@@ -254,7 +295,7 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
                     indel_detected = True
             tendpos += blen
             # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
-        elif btype == 1:  # insertion
+        elif btype == pysam.CINS:
             if len(coveredpos) == 0:
                 coveredpos.append(blen)
             else:
@@ -266,10 +307,12 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
                 else:
                     indel_detected = True
             # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
-    return indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos
+    return indel_detected, coveredpos, query_clipping, blockstarts, blocksizes, tendpos
 
 
 def check_transcript_in_annot(exondict, tname):
+    """Look up exon structure for a transcript name, raising a descriptive
+    error if the annotation and FASTA name sets disagree."""
     try:
         exoninfo = exondict[tname]
     except KeyError:
@@ -282,25 +325,31 @@ def check_transcript_in_annot(exondict, tname):
     return exoninfo
 
 
-def check_stringentandsplice(args, exoninfo, tname, coveredpos, tlen, blockstarts, blocksizes, tstart, tend, transcript_to_bp_ss_index, transcript_to_unique_bounds):
-    passesstringent, passessplice, passesfusion = True, True, True
-    if args.stringent or args.check_splice or args.fusion_breakpoints:
+def check_stringent_and_splice(exoninfo, tname, coveredpos, tlen, blockstarts, blocksizes, tstart, tend,
+                               transcript_to_bp_ss_index, transcript_to_unique_bounds,
+                               *, stringent, check_splice, fusion_breakpoints, trust_ends, end_norm_dist):
+    """Combined filter: an alignment must pass the stringent coverage, splice-site,
+    and fusion-breakpoint checks that are enabled."""
+    passes_stringent, passes_splice, passes_fusion = True, True, True
+    if stringent or check_splice or fusion_breakpoints:
         # single exon genes always get checked
-        passesstringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
-                                          args.trust_ends, tname, args.end_norm_dist,
-                                          transcript_to_unique_bounds) if args.stringent or len(exoninfo) == 1 else True
+        passes_stringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
+                                           trust_ends, tname, end_norm_dist,
+                                           transcript_to_unique_bounds) if stringent or len(exoninfo) == 1 else True
         # only run if spliced transcript
-        passessplice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if args.check_splice and len(exoninfo) > 1 else True
-        passesfusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcript_to_bp_ss_index) if args.fusion_breakpoints else True
+        passes_splice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if check_splice and len(exoninfo) > 1 else True
+        passes_fusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcript_to_bp_ss_index) if fusion_breakpoints else True
         if tname == testtname:
-            print(tname, passesstringent, passessplice)
-    return passesstringent and passessplice and passesfusion
+            print(tname, passes_stringent, passes_splice)
+    return passes_stringent and passes_splice and passes_fusion
 
 
 testtname = 'none'
 
 
 def identify_corrected_ends(exoninfo, startpos, endpos, transcript_to_genomic_ends, tname, output_endpos, tlen):
+    """Locate the intron-relative position of a read's start/end on its best
+    transcript so callers can translate transcript coords back to genome."""
     left_intron_index, left_dist, right_intron_index, right_dist = None, None, None, None
     # Can only correct read ends if assigned to spliced transcript
     if output_endpos:
@@ -325,7 +374,13 @@ def identify_corrected_ends(exoninfo, startpos, endpos, transcript_to_genomic_en
     return left_intron_index, left_dist, right_intron_index, right_dist
 
 
-def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_index, genomicclipping, transcript_to_genomic_ends, transcript_to_unique_bounds):
+def get_best_transcript(tinfo, info, genomicclipping,
+                        *, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
+                        trimmedreads, soft_clipping_buffer, output_endpos,
+                        trust_ends, end_norm_dist):
+    """Given all transcript alignments for a single read, apply the filtering
+    checks and return the single best assignment (or None if none qualify or
+    the top two tie)."""
     # parse CIGAR + MD tag to ID transcript pos covered by alignment
     # get start + end of transcript on read, alignment block positions
     # also save soft/hard clipping at ends of read
@@ -333,42 +388,45 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
     # not positions of insertions larger than MIN_INSERTION_LEN, apply those to check_splice
     # filter out reads with long indels
     # generate list of 0s and 1s - transcript pos with match to query, val > 1 = insertion
-    passingtranscripts = []
+    passing_transcripts = []
     for tname in tinfo:
         thist = tinfo[tname]
         # process MD tag here to query positions with mismatches
         # for MD tag, keep track of position of mismatch in all match positions
-        if args.stringent or args.check_splice or args.fusion_breakpoints:
-            exoninfo = check_transcript_in_annot(transcript_to_exons, tname)
+        if stringent or check_splice or fusion_breakpoints:
+            exoninfo = check_transcript_in_annot(info.transcript_to_exons, tname)
         else:
             exoninfo = None
-        matchvals = get_matchvals(args, thist.md)
-        terminal_exon_info = exoninfo if args.allow_UTR_indels else None
-        terminal_exon_bounds = transcript_to_unique_bounds[thist.name] if thist.name in transcript_to_unique_bounds else None
-        indel_detected, coveredpos, queryclipping, blockstarts, blocksizes, tendpos = process_cigar(matchvals, thist.cigar, thist.startpos, terminal_exon_info, terminal_exon_bounds)
-        if tname == testtname:
-            print('indel', indel_detected)
+        matchvals = get_matchvals(thist.md, stringent=stringent, check_splice=check_splice,
+                                  fusion_breakpoints=fusion_breakpoints)
+        terminal_exon_info = exoninfo if allow_UTR_indels else None
+        terminal_exon_bounds = info.transcript_to_unique_bounds[thist.name] if thist.name in info.transcript_to_unique_bounds else None
+        indel_detected, coveredpos, query_clipping, blockstarts, blocksizes, tendpos = process_cigar(matchvals, thist.cigar, thist.startpos, terminal_exon_info, terminal_exon_bounds)
         if indel_detected:
             logging.debug(f"transcript alignment dropped: indel detected: {tname}")
-        elif args.trimmedreads and genomicclipping is not None and sum(queryclipping) > genomicclipping + args.soft_clipping_buffer:
-            logging.debug(f"transcript alignment dropped: excess soft clipping ({sum(queryclipping)} > {genomicclipping} + {args.soft_clipping_buffer}): {tname}")
+        elif trimmedreads and genomicclipping is not None and sum(query_clipping) > genomicclipping + soft_clipping_buffer:
+            logging.debug(f"transcript alignment dropped: excess soft clipping ({sum(query_clipping)} > {genomicclipping} + {soft_clipping_buffer}): {tname}")
         else:
-            if check_stringentandsplice(args, exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes, thist.startpos, tendpos, transcript_to_bp_ss_index, transcript_to_unique_bounds):
-                left_intron_index, left_dist, right_intron_index, right_dist = identify_corrected_ends(exoninfo, thist.startpos, tendpos, transcript_to_genomic_ends, tname, args.output_endpos, thist.tlen)
-                passingtranscripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(queryclipping), thist.tlen, tname, (left_intron_index, left_dist), (right_intron_index, right_dist)])
+            if check_stringent_and_splice(exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes,
+                                          thist.startpos, tendpos, info.transcript_to_bp_ss_index, info.transcript_to_unique_bounds,
+                                          stringent=stringent, check_splice=check_splice,
+                                          fusion_breakpoints=fusion_breakpoints,
+                                          trust_ends=trust_ends, end_norm_dist=end_norm_dist):
+                left_intron_index, left_dist, right_intron_index, right_dist = identify_corrected_ends(exoninfo, thist.startpos, tendpos, info.transcript_to_genomic_ends, tname, output_endpos, thist.tlen)
+                passing_transcripts.append([-1 * thist.alignscore, -1 * sum(matchvals), sum(query_clipping), thist.tlen, tname, (left_intron_index, left_dist), (right_intron_index, right_dist)])
             else:
                 logging.debug(f"transcript alignment dropped: failed stringent/splice check: {tname}")
 
     # order passing transcripts by alignment score
     # then order by amount of query covered
     # then order by amount of transcript covered
-    if len(passingtranscripts) > 0:
-        passingtranscripts.sort()
+    if len(passing_transcripts) > 0:
+        passing_transcripts.sort()
 
-        if len(passingtranscripts) == 1 or passingtranscripts[0][:3] != passingtranscripts[1][:3]:
-            return [passingtranscripts[0][-3:], ]
+        if len(passing_transcripts) == 1 or passing_transcripts[0][:3] != passing_transcripts[1][:3]:
+            return [passing_transcripts[0][-3:], ]
         else:
-            logging.debug(f"read dropped: ambiguous multi-mapping, top 2 transcripts tied: {passingtranscripts[0][4]}, {passingtranscripts[1][4]}")
+            logging.debug(f"read dropped: ambiguous multi-mapping, top 2 transcripts tied: {passing_transcripts[0][4]}, {passing_transcripts[1][4]}")
             return None
 
     else:
@@ -376,6 +434,7 @@ def get_best_transcript(tinfo, args, transcript_to_exons, transcript_to_bp_ss_in
 
 
 class IsoAln(object):
+    """Alignment fields needed to score one transcript alignment of one read."""
     def __init__(self, name=None, p=None, cigar=None, tlen=None, als=None, md=None):
         self.name = name
         self.startpos = p
@@ -385,14 +444,21 @@ class IsoAln(object):
         self.md = md
 
 
-def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, readstoclipping, transcript_to_unique_bounds):  # noqa: C901 - FIXME: reduce complexity
+def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
+              *, quality, remove_internal_priming, transcriptomefasta,
+              permissive_last_exons, intprimingthreshold, intprimingfracAs,
+              stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
+              trimmedreads, soft_clipping_buffer, output_endpos,
+              trust_ends, end_norm_dist):
+    """Iterate the SAM stream, group alignments per read, call get_best_transcript,
+    and accumulate {transcript: [(read, gt_start, gt_end), ...]}."""
     lastread = None
     curr_transcripts = {}
-    transcripttoreads = {}
-    samfile = pysam.AlignmentFile(args.sam, 'r')
+    transcript_to_reads = {}
+    samfile = pysam.AlignmentFile(sam, 'r')
     genome = None
-    if args.remove_internal_priming:
-        genome = pysam.FastaFile(args.transcriptomefasta)
+    if remove_internal_priming:
+        genome = pysam.FastaFile(transcriptomefasta)
 
     for read in samfile:
         if not read.is_mapped:
@@ -400,22 +466,22 @@ def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_t
         else:
             readname = read.query_name
             transcript = read.reference_name
-            quality = read.mapping_quality
-            if quality < args.quality:
-                logging.debug(f"read dropped: low quality ({quality} < {args.quality}): {readname}")
-            elif quality >= args.quality:
+            rquality = read.mapping_quality
+            if rquality < quality:
+                logging.debug(f"read dropped: low quality ({rquality} < {quality}): {readname}")
+            elif rquality >= quality:
                 # for transcriptome alignment, always take rightmost side on transcript
-                if args.remove_internal_priming:
-                    intprimannot = transcript_to_exons if args.permissive_last_exons else None
-                    notinternalpriming = removeinternalpriming(read.reference_name,
-                                                               read.reference_start,
-                                                               read.reference_end, False,
-                                                               genome, None, intprimannot,
-                                                               args.intprimingthreshold,
-                                                               args.intprimingfracAs)
+                if remove_internal_priming:
+                    intprim_annot = info.transcript_to_exons if permissive_last_exons else None
+                    not_internal_priming = removeinternalpriming(read.reference_name,
+                                                                 read.reference_start,
+                                                                 read.reference_end, False,
+                                                                 genome, None, intprim_annot,
+                                                                 intprimingthreshold,
+                                                                 intprimingfracAs)
                 else:
-                    notinternalpriming = True
-                if not notinternalpriming:
+                    not_internal_priming = True
+                if not not_internal_priming:
                     logging.debug(f"read dropped: internal priming on {transcript}: {readname}")
                 else:
                     pos = read.reference_start
@@ -423,37 +489,51 @@ def parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_t
                         alignscore = read.get_tag('AS')
                         mdtag = read.get_tag('MD')
                     except KeyError as ex:
-                        raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}' in '{args.sam.name}'") from ex
+                        raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}'") from ex
                     cigar = read.cigartuples
                     tlen = samfile.get_reference_length(transcript)
                     if lastread and readname != lastread:
                         if testtname in curr_transcripts:
                             print('\n', lastread, curr_transcripts.keys())
-                        thisclipping = readstoclipping[lastread] if lastread in readstoclipping else None
-                        assignedts = get_best_transcript(curr_transcripts, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)
+                        clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+                        assignedts = get_best_transcript(curr_transcripts, info, clipping,
+                                                         stringent=stringent, check_splice=check_splice,
+                                                         fusion_breakpoints=fusion_breakpoints,
+                                                         allow_UTR_indels=allow_UTR_indels,
+                                                         trimmedreads=trimmedreads,
+                                                         soft_clipping_buffer=soft_clipping_buffer,
+                                                         output_endpos=output_endpos,
+                                                         trust_ends=trust_ends, end_norm_dist=end_norm_dist)
                         if not assignedts:
                             logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
                         else:
                             for assignedt, gtstart, gtend in assignedts:
-                                if assignedt not in transcripttoreads:
-                                    transcripttoreads[assignedt] = []
-                                transcripttoreads[assignedt].append((lastread, gtstart, gtend))
+                                if assignedt not in transcript_to_reads:
+                                    transcript_to_reads[assignedt] = []
+                                transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
 
                         curr_transcripts = {}
                     curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
                     lastread = readname
     if lastread:
-        thisclipping = readstoclipping[lastread] if lastread in readstoclipping else None
-        assignedts = get_best_transcript(curr_transcripts, args, transcript_to_exons, transcript_to_bp_ss_index, thisclipping, transcript_to_genomic_ends, transcript_to_unique_bounds)
+        clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+        assignedts = get_best_transcript(curr_transcripts, info, clipping,
+                                         stringent=stringent, check_splice=check_splice,
+                                         fusion_breakpoints=fusion_breakpoints,
+                                         allow_UTR_indels=allow_UTR_indels,
+                                         trimmedreads=trimmedreads,
+                                         soft_clipping_buffer=soft_clipping_buffer,
+                                         output_endpos=output_endpos,
+                                         trust_ends=trust_ends, end_norm_dist=end_norm_dist)
         if not assignedts:
             logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
         else:
             for assignedt, gtstart, gtend in assignedts:
-                if assignedt not in transcripttoreads:
-                    transcripttoreads[assignedt] = []
-                transcripttoreads[assignedt].append((lastread, gtstart, gtend))
+                if assignedt not in transcript_to_reads:
+                    transcript_to_reads[assignedt] = []
+                transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
 
-    return transcripttoreads
+    return transcript_to_reads
 
 
 def write_output(args, transcripttoreads):
@@ -475,21 +555,114 @@ def write_output(args, transcripttoreads):
         endout.close()
 
 
-MIN_INSERTION_LEN = 3
-HALF_SS_WINDOW_SIZE = 6
-NUM_MISTAKES_IN_SS_WINDOW = 2
-TRUST_ENDS_WINDOW = 50
-LARGE_INDEL_TOLDERANCE = 25
-REQ_BP_ALIGNED_IN_EDGE_EXONS = 10
+def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   # noqa: C901 - linear function okay
+                                    isoforms=None, stringent=False, check_splice=False,
+                                    trust_ends=False, generate_map=None, output_bam=None,
+                                    fusion_dist=None, remove_internal_priming=False,
+                                    permissive_last_exons=False, intprimingthreshold=12,
+                                    intprimingfracAs=0.6, soft_clipping_buffer=50,
+                                    transcriptomefasta=None, unique_bound=None,
+                                    fusion_breakpoints=None, allow_paralogs=False,
+                                    allow_UTR_indels=False, trimmedreads=None,
+                                    end_norm_dist=0, output_endpos=None):
+    """Build count_sam_transcripts.py argv."""
+    # FIXNE: default values should be centralized
+    cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
+           '--sam', str(sam), '-o', str(output),
+           '--quality', str(quality)]
+    if threads != 4:
+        cmd += ['-t', str(threads)]
+    if isoforms:
+        cmd += ['-i', str(isoforms)]
+    if stringent:
+        cmd.append('--stringent')
+    if check_splice:
+        cmd.append('--check_splice')
+    if trust_ends:
+        cmd.append('--trust_ends')
+    if generate_map:
+        cmd += ['--generate_map', str(generate_map)]
+    if output_bam:
+        cmd += ['--output_bam', str(output_bam)]
+    if fusion_dist:
+        cmd += ['--fusion_dist', str(fusion_dist)]
+    if remove_internal_priming:
+        cmd += ['--remove_internal_priming',
+                '--intprimingthreshold', str(intprimingthreshold),
+                '--intprimingfracAs', str(intprimingfracAs)]
+        if transcriptomefasta:
+            cmd += ['--transcriptomefasta', str(transcriptomefasta)]
+    if permissive_last_exons:
+        cmd.append('--permissive_last_exons')
+    if soft_clipping_buffer != 50:
+        cmd += ['--soft_clipping_buffer', str(soft_clipping_buffer)]
+    if unique_bound:
+        cmd += ['--unique_bound', str(unique_bound)]
+    if fusion_breakpoints:
+        cmd += ['--fusion_breakpoints', str(fusion_breakpoints)]
+    if allow_paralogs:
+        cmd.append('--allow_paralogs')
+    if allow_UTR_indels:
+        cmd.append('--allow_UTR_indels')
+    if trimmedreads:
+        cmd += ['--trimmedreads', str(trimmedreads)]
+    if end_norm_dist:
+        cmd += ['--end_norm_dist', str(end_norm_dist)]
+    if output_endpos:
+        cmd += ['--output_endpos', str(output_endpos)]
+    return cmd
+
+
+def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quality=0,
+                              isoforms=None, stringent=False, check_splice=False,
+                              trust_ends=False, generate_map=None, output_bam=None,
+                              fusion_dist=None, remove_internal_priming=False,
+                              permissive_last_exons=False, intprimingthreshold=12,
+                              intprimingfracAs=0.6, soft_clipping_buffer=50,
+                              transcriptomefasta=None, unique_bound=None,
+                              fusion_breakpoints=None, allow_paralogs=False,
+                              allow_UTR_indels=False, trimmedreads=None,
+                              end_norm_dist=0, output_endpos=None):
+    """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
+    cmd = build_count_sam_transcripts_cmd(
+        output=output, sam=sam, threads=threads, quality=quality,
+        isoforms=isoforms, stringent=stringent, check_splice=check_splice,
+        trust_ends=trust_ends, generate_map=generate_map, output_bam=output_bam,
+        fusion_dist=fusion_dist, remove_internal_priming=remove_internal_priming,
+        permissive_last_exons=permissive_last_exons,
+        intprimingthreshold=intprimingthreshold, intprimingfracAs=intprimingfracAs,
+        soft_clipping_buffer=soft_clipping_buffer,
+        transcriptomefasta=transcriptomefasta, unique_bound=unique_bound,
+        fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
+        allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
+        end_norm_dist=end_norm_dist, output_endpos=output_endpos)
+    pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]
+    pipettor.run(pipeline)
+
 
 if __name__ == '__main__':
     args = parse_args()
     args = check_args(args)
-    transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, transcript_to_unique_bounds = get_annot_info(args)
+    info = read_isoforms_bed(
+        isoforms=args.isoforms, stringent=args.stringent, check_splice=args.check_splice,
+        fusion_dist=args.fusion_dist, fusion_breakpoints=args.fusion_breakpoints,
+        output_endpos=args.output_endpos, unique_bound=args.unique_bound)
     readstoclipping = {}
     if args.trimmedreads:
         for line in open(args.trimmedreads):
             rname, clipping = line.rstrip().split('\t')
             readstoclipping[rname] = int(clipping)
-    transcripttoreads = parse_sam(args, transcript_to_exons, transcript_to_bp_ss_index, transcript_to_genomic_ends, readstoclipping, transcript_to_unique_bounds)
-    write_output(args, transcripttoreads)
+    transcript_to_reads = parse_sam(args.sam, info, readstoclipping,
+                                    quality=args.quality, remove_internal_priming=args.remove_internal_priming,
+                                    transcriptomefasta=args.transcriptomefasta,
+                                    permissive_last_exons=args.permissive_last_exons,
+                                    intprimingthreshold=args.intprimingthreshold,
+                                    intprimingfracAs=args.intprimingfracAs,
+                                    stringent=args.stringent, check_splice=args.check_splice,
+                                    fusion_breakpoints=args.fusion_breakpoints,
+                                    allow_UTR_indels=args.allow_UTR_indels,
+                                    trimmedreads=args.trimmedreads,
+                                    soft_clipping_buffer=args.soft_clipping_buffer,
+                                    output_endpos=args.output_endpos,
+                                    trust_ends=args.trust_ends, end_norm_dist=args.end_norm_dist)
+    write_output(args, transcript_to_reads)
