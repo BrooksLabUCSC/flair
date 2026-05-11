@@ -101,11 +101,11 @@ def get_args():
                             if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
                             parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion,
                             auto:xGB - for setting the auto threshold, it must be in units of GB.''')
-    parser.add_argument('--predict_cds', default=False, action='store_true',
-                        help='specify if you want to predict the CDS of the final isoforms. '
-                             'Will be output in the final bed file but not the gtf file. '
-                             'Productivity annotation is also added in the name field, '
-                             'which is detailed further in the predictProductivity documentation')
+    # parser.add_argument('--predict_cds', default=False, action='store_true',
+    #                     help='specify if you want to predict the CDS of the final isoforms. '
+    #                          'Will be output in the final bed file but not the gtf file. '
+    #                          'Productivity annotation is also added in the name field, '
+    #                          'which is detailed further in the predictProductivity documentation')
     parser.add_argument('--keep_intermediate', default=False, action='store_true',
                         help='''specify if intermediate and temporary files are to be kept for debugging.
                         Intermediate files include: promoter-supported reads file,
@@ -1088,8 +1088,8 @@ def predict_productivity(out_prefix, genome_fasta, gtf):
            '-i', out_prefix + '.isoforms.bed',
            '-o', out_prefix + '.isoforms.CDS',
            '--gtf', gtf,
-           '--genome_fasta', genome_fasta,
-           '--longestORF')
+           '--genome_fasta', genome_fasta,)
+        #    '--longestORF')
     pipettor.run(cmd)
 
 def _iso_passes_support_filter(args, iso, num_exons, iso_to_counts, gene_to_tot):
@@ -1310,9 +1310,11 @@ def flair_transcriptome():
     combine_chunks(args, args.output, runner.partitions)
 
     # this needs to be done here outside of chunking because needs to load whole annotation gtf, which should only be done once
-    if args.predict_cds:
+    if args.annot_gtf:
         logging.info('predicting CDS')
         # FIXME: why is this passing in annotation GTF?
+        # NOTE FROM COLETTE: Needs annotated GTF to define confident start codons
+        #   could probably make this code more efficient by a) making it run as a module and b) passing in pre-computed start codons
         predict_productivity(args.output, args.genome, args.annot_gtf)
 
     if not args.keep_intermediate:

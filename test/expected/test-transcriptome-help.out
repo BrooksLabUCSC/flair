@@ -8,7 +8,7 @@ usage: transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME [-o OUTPUT]
                      [--no_check_splice] [--no_align_to_annot]
                      [-n NO_REDUNDANT] [--max_ends MAX_ENDS] [--filter FILTER]
                      [--quality QUALITY] [--parallel_mode PARALLEL_MODE]
-                     [--predict_cds] [--keep_intermediate] [--keep_sup]
+                     [--keep_intermediate] [--keep_sup]
                      [--end_norm_dist END_NORM_DIST] [--output_endpos]
                      [--output_bam] [--fusion_breakpoints FUSION_BREAKPOINTS]
                      [--allow_paralogs] [--generate_map] [--trust_strand]
@@ -95,11 +95,6 @@ options:
                         of non-overlapping reads. Other modes: bychrom,
                         byregion, auto:xGB - for setting the auto threshold,
                         it must be in units of GB.
-  --predict_cds         specify if you want to predict the CDS of the final
-                        isoforms. Will be output in the final bed file but not
-                        the gtf file. Productivity annotation is also added in
-                        the name field, which is detailed further in the
-                        predictProductivity documentation
   --keep_intermediate   specify if intermediate and temporary files are to be
                         kept for debugging. Intermediate files include:
                         promoter-supported reads file, read assignments to

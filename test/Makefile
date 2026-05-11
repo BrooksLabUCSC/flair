@@ -401,7 +401,7 @@ test-diffsplice-help: mkdirs
 predict-productivity-tests: test-predict-productivity test-predict-productivity-help
 
 test-predict-productivity : mkdirs ${GENOME_FA}
-	predictProductivity -i $(BASIC_ISOFORMS_BED) -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@ --longestORF
+	predictProductivity -i $(BASIC_ISOFORMS_BED) -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@
 	$(call cmp_expect,$@.bed)
 	$(call cmp_expect,$@.info.tsv)
 
@@ -440,8 +440,7 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-predcds \
-	test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-help
+transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-help
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcriptome-ends"; \
@@ -455,6 +454,7 @@ update-transcriptome-tests:
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.isoforms.CDS.bed)
 
 # FIXME: not working
 test-transcriptome-ends: mkdirs ${TEST_ALIGN_BAM}
@@ -468,11 +468,6 @@ test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --no_align_to_annot
 	$(diff_bed_gtf)
-
-test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --predict_cds
-	$(diff_bed_gtf)
-	$(call cmp_expect,$@.isoforms.CDS.bed)
 
 test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@

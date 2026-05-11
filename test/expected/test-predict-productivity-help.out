@@ -1,6 +1,5 @@
 usage: predictProductivity [-h] -i INPUT_ISOFORMS -g GTF -f GENOME_FASTA -o
-                           OUTPUT [--quiet] [--append_column]
-                           (--firstTIS | --longestORF)
+                           OUTPUT
 
 used to predict coding sequence and amino acid sequence of novel isoforms
 based on annotated start codons
@@ -14,7 +13,3 @@ options:
                         Fasta file containing transcript sequences.
   -o OUTPUT, --output OUTPUT
                         prefix of output files
-  --quiet               Do not display progress
-  --append_column       Append prediction as an additional column in file
-  --firstTIS            Defined ORFs by the first annotated TIS.
-  --longestORF          Defined ORFs by the longest open reading frame.

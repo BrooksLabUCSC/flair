@@ -639,8 +639,7 @@ def getvariants():
                '-i', args.bedisoforms,
                '-o', args.output_prefix + '.isoforms.productivity',
                '--gtf', args.gtf,
-               '--genome_fasta', args.genome,
-               '--longestORF')
+               '--genome_fasta', args.genome)
     pipettor.run([prodcmd])
 
     # adjust productivity prediction to account for variants

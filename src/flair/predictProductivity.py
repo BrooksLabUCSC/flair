@@ -52,12 +52,12 @@ class CommandLine(object):
         self.parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
         self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
         self.parser.add_argument('-o', "--output", action='store', required=True, help='prefix of output files')
-        self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
-        self.parser.add_argument("--append_column", action='store_true', required=False, default=False, help='Append prediction as an additional column in file')
+        # self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
+        # self.parser.add_argument("--append_column", action='store_true', required=False, default=False, help='Append prediction as an additional column in file')
 
-        self.group = self.parser.add_mutually_exclusive_group(required=True)
-        self.group.add_argument('--firstTIS', action='store_true', default=False, help='Defined ORFs by the first annotated TIS.')
-        self.group.add_argument('--longestORF', action='store_true', default=False, help='Defined ORFs by the longest open reading frame.')
+        # self.group = self.parser.add_mutually_exclusive_group(required=True)
+        # self.group.add_argument('--firstTIS', action='store_true', default=False, help='Defined ORFs by the first annotated TIS.')
+        # self.group.add_argument('--longestORF', action='store_true', default=False, help='Defined ORFs by the longest open reading frame.')
 
         if inOpts is None:
             self.args = vars(self.parser.parse_args())
@@ -306,10 +306,11 @@ def predict(bed, starts, isoDict, nmdexcep):  # noqa: C901 - FIXME: reduce compl
             intersection = intersection_line.split('\t')
             bed_a = Bed.parse(intersection[:12])
             # B record is BED6 at indices 12-17, overlap at index 18
-            b_start = int(intersection[13])
-            b_end = int(intersection[14])
-            b_strand = intersection[17]
-            overlap = intersection[18]
+            # adjusting to count second record from the end of the line to accomodate for additional columns in isoform bed file
+            b_start = int(intersection[-6])
+            b_end = int(intersection[-5])
+            b_strand = intersection[-2]
+            overlap = intersection[-1]
 
             read = bed_a.name
             if read[:10] == 'fusiongene' and read[10] != '1':
@@ -343,6 +344,7 @@ def predict(bed, starts, isoDict, nmdexcep):  # noqa: C901 - FIXME: reduce compl
                 stopReached = False
                 for i in range(0, len(rest), 3):
                     if rest[i:i + 3] in stops:
+                        # print(iso, rest[:i+3])
                         stopReached = True
                         break
 
@@ -404,14 +406,25 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     genome = myCommandLine.args['genome_fasta']
     gtf = myCommandLine.args['gtf']
     output = myCommandLine.args['output']
-    extra_col = myCommandLine.args['append_column']
+    # extra_col = myCommandLine.args['append_column']
 
-    if myCommandLine.args['firstTIS']:
-        defineORF = 'first'
-    elif myCommandLine.args['longestORF']:
-        defineORF = 'longest'
-    else:
-        raise FlairInputDataError('** ERR. Select method for ORF definition with --firstTIS or --longestORF')
+    # if myCommandLine.args['firstTIS']:
+    #     defineORF = 'first'
+    # elif myCommandLine.args['longestORF']:
+    #     defineORF = 'longest'
+    # else:
+    #     raise FlairInputDataError('** ERR. Select method for ORF definition with --firstTIS or --longestORF')
+
+    defineORF = 'longest'
+
+    iso_to_add_cols = {}
+    for line in open(bed):
+        line = line.rstrip().split('\t')
+        iso_to_add_cols[line[3]] = line[12:]
+
+    shortbedname = bed.split('.bed')[0] + '.shortcols.bed'
+    pipettor.run([('cut', '-f', '1-12', bed)], stdout=open(shortbedname, 'w'))
+    bed = shortbedname
 
     starts, nmdexcep = getStarts(gtf)
     isoformObjs = getSeqs(bed, genome)
@@ -435,11 +448,8 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             isoObj.orfs.sort(key=lambda x: x[4])
         pro, start, end, orfLen, tisPos = isoObj.orfs[0]
 
-        if extra_col:
-            bed_rec.extraCols = [pro] if bed_rec.extraCols is None else list(bed_rec.extraCols) + [pro]
-        else:
-            iso, gene = split_iso_gene(bed_rec.name)
-            bed_rec.name = "%s_%s_%s" % (iso, pro, gene)
+        initial_cols = iso_to_add_cols[bed_rec.name]
+        bed_rec.extraCols = initial_cols + [pro]
 
         bed_rec.itemRgb = beaut[pro]
         if 'fusiongene' in bed_rec.name:
@@ -462,8 +472,8 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             else:
                 bed_rec.thickEnd, bed_rec.thickStart = start, end
         bed_rec.write(bedout)
-        infoout.write('\t'.join([bed_rec.name, str(tisPos), str(tisPos + orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos + orfLen])]) + '\n')
-
+        infoout.write('\t'.join([bed_rec.name, pro, str(tisPos), str(tisPos + orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos + orfLen])]) + '\n')
+    pipettor.run(('rm', shortbedname))
 
 if __name__ == "__main__":
     main()
