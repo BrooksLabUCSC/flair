@@ -23,7 +23,7 @@ import argparse
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.hgdata.bed import Bed, BedReader
-from flair.isoform_data import BED_FIELDS, EXTRA_BED_FIELDS, write_as_file, make_big_bed
+from flair.isoform_data import BED_FIELDS, make_big_bed
 from flair.bed_to_gtf import bed_to_gtf
 
 def parse_args():
@@ -33,11 +33,9 @@ def parse_args():
     parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
     parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
     parser.add_argument('-o', "--output", action='store', required=True, help='prefix of output files')
-    parser.add_argument("--as_file", action='store',  help='optional: as file to define additional bed fields beyond bed12')
-
+    parser.add_argument("--as_file", action='store', help='optional: as file to define additional bed fields beyond bed12')
 
     return parser.parse_args()
-
 
 class Isoform(object):
     '''
@@ -366,7 +364,7 @@ def translate(seq):
     return protein
 
 
-def predict_productivity(gtf, genome, bed, output, as_file=None):
+def predict_productivity(gtf, genome, bed, output, as_file=None):  # noqa: C901 - FIXME: reduce complexity
     iso_to_add_cols = {}
     needs_as = False
     for line in open(bed):
@@ -375,7 +373,7 @@ def predict_productivity(gtf, genome, bed, output, as_file=None):
             needs_as = True
         iso_to_add_cols[line[3]] = line[12:]
     if needs_as:
-        if as_file == None:
+        if as_file is None:
             raise FlairInputDataError('input bed has more columns than standard bed12. please provide as file to define columns')
         else:
             c = 0
@@ -388,8 +386,7 @@ def predict_productivity(gtf, genome, bed, output, as_file=None):
                     my_fields.append(this_data)
     else:
         my_fields = BED_FIELDS
-    my_fields.append(('string','productivity',"PRO (productive), PTC (premature termination codon, i.e. unproductive), NGO (no start codon), or NST (has start codon but no stop codon)"))
-
+    my_fields.append(('string', 'productivity', "PRO (productive), PTC (premature termination codon, i.e. unproductive), NGO (no start codon), or NST (has start codon but no stop codon)"))
 
     shortbedname = bed.split('.bed')[0] + '.shortcols.bed'
     pipettor.run([('cut', '-f', '1-12', bed)], stdout=open(shortbedname, 'w'))
@@ -452,15 +449,13 @@ def predict_productivity(gtf, genome, bed, output, as_file=None):
 
     if needs_as:
         gene_field_index = [x[1] for x in my_fields].index('gene_id') - 12
-        extracolindexnames = [(x-12, my_fields[x][1]) for x in range(12, len(my_fields))]
-        bed_to_gtf(output + '.bed', output + '.gtf', genecol=gene_field_index, extracolindexnames=extracolindexnames) # index of column with gene id in extracols, then additional column indexes + names
+        extracolindexnames = [(x - 12, my_fields[x][1]) for x in range(12, len(my_fields))]
+        bed_to_gtf(output + '.bed', output + '.gtf', genecol=gene_field_index, extracolindexnames=extracolindexnames)  # index of column with gene id in extracols, then additional column indexes + names
     else:
         bed_to_gtf(output + '.bed', output + '.gtf')
 
 
-
-
-def main():  # noqa: C901 - FIXME: reduce complexity
+def main():
     args = parse_args()
     predict_productivity(args.gtf, args.genome_fasta, args.input_isoforms, args.output, args.as_file)
 

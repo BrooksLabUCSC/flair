@@ -29,17 +29,13 @@ def main():
                 line = line.rstrip().split('\t')
                 this_data = (line[0], line[1].rstrip(';'), line[2].strip('"'))
                 my_fields.append(this_data)
-        
         extracolindexnames = []
         for i in range(12, len(my_fields)):
-            if i-12 in extra_cols:
-                extracolindexnames.append((i-12, my_fields[i][1]))
+            if i - 12 in extra_cols:
+                extracolindexnames.append((i - 12, my_fields[i][1]))
         args.extra_cols_to_use = extracolindexnames
-
-    
     bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
                reference_transcript_id=args.reference_transcript_id, useCDS=not args.noCDS, genecol=args.gene_col, extracolindexnames=args.extra_cols_to_use)
-
 
 def split_iso_gene(iso_gene):
     if '_chr' in iso_gene:
@@ -65,7 +61,6 @@ def split_iso_gene(iso_gene):
         gene = iso_gene[iso_gene.rfind('_') + 1:]
     return iso, gene
 
-
 def _make_attrs(gene_id, transcript_id, reference_transcript_id, extraCols, extracolindexnames, exon_number=None):
     """Build attrs dict for GTF output."""
     attrs = {'gene_id': gene_id, 'transcript_id': transcript_id}
@@ -73,13 +68,11 @@ def _make_attrs(gene_id, transcript_id, reference_transcript_id, extraCols, extr
         attrs['exon_number'] = str(exon_number)
     if reference_transcript_id is not None:
         attrs['reference_transcript_id'] = reference_transcript_id
-    if extracolindexnames != None:
+    if extracolindexnames is not None:
         for index, name in extracolindexnames:
             if extraCols[index] != 'NA':
                 attrs[name] = extraCols[index]
     return attrs
-
-
 
 def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, useCDS=True, genecol=None, extracolindexnames=None):  # noqa: C901 - FIXME: reduce complexity
     outfile = open(outputfile, 'w')
@@ -87,7 +80,7 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, us
     gene_to_chrom_strand = {}
     for bed in BedReader(query):
         name = bed.name
-        if '_' not in name and not force and genecol == None:
+        if '_' not in name and not force and genecol is None:
             raise FlairInputDataError('Entry name should contain underscore-delimited transcriptid and geneid like so: \n'
                                       'ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n'
                                       'So no GTF conversion was done. Please run identify_gene_isoform first\n'
@@ -96,7 +89,7 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, us
         if ';' in name:
             name = name.replace(';', ':')
 
-        if genecol != None:
+        if genecol is not None:
             transcript_id = name
             gene_id = bed.extraCols[genecol]
         elif force is True:
@@ -120,37 +113,34 @@ def bed_to_gtf(query, outputfile, force=False, reference_transcript_id=False, us
             exon_attrs = _make_attrs(gene_id, transcript_id, ref_tid, bed.extraCols, extracolindexnames, exon_number=b)
             gene_to_records[gene_id].append(('exon', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
             if bed.thickStart != bed.thickEnd and (bed.thickStart != bed.chromStart or bed.thickEnd != bed.chromEnd) and useCDS:
-                if bed.thickStart < blk.start and blk.end < bed.thickEnd: # in CDS
+                if bed.thickStart < blk.start and blk.end < bed.thickEnd:  # in CDS
                     gene_to_records[gene_id].append(('CDS', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
-                elif blk.end < bed.thickStart: # fully left of CDS
+                elif blk.end < bed.thickStart:  # fully left of CDS
                     if bed.strand == '+':
                         gene_to_records[gene_id].append(('5UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
                         gene_to_records[gene_id].append(('3UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
-                elif blk.start > bed.thickEnd: # fully right of CDS
+                elif blk.start > bed.thickEnd:  # fully right of CDS
                     if bed.strand == '+':
                         gene_to_records[gene_id].append(('3UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
                         gene_to_records[gene_id].append(('5UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
-                elif blk.start <= bed.thickStart <= blk.end: # left end of CDS in exon
+                elif blk.start <= bed.thickStart <= blk.end:  # left end of CDS in exon
                     if bed.strand == '+':
                         gene_to_records[gene_id].append(('5UTR', bed.chrom, blk.start, bed.thickStart, bed.strand, exon_attrs))
-                        gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickStart, bed.thickStart+3, bed.strand, attrs))
+                        gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickStart, bed.thickStart + 3, bed.strand, attrs))
                         gene_to_records[gene_id].append(('CDS', bed.chrom, bed.thickStart, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
                         gene_to_records[gene_id].append(('3UTR', bed.chrom, blk.start, bed.thickStart, bed.strand, exon_attrs))
                         gene_to_records[gene_id].append(('CDS', bed.chrom, bed.thickStart, blk.end, bed.strand, exon_attrs))
-                elif blk.start <= bed.thickEnd <= blk.end: # right end of CDS in exon
+                elif blk.start <= bed.thickEnd <= blk.end:  # right end of CDS in exon
                     if bed.strand == '+':
                         gene_to_records[gene_id].append(('CDS', bed.chrom, blk.start, bed.thickEnd, bed.strand, exon_attrs))
                         gene_to_records[gene_id].append(('3UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
                         gene_to_records[gene_id].append(('CDS', bed.chrom, blk.start, bed.thickEnd, bed.strand, exon_attrs))
-                        gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickEnd-3, bed.thickEnd, bed.strand, attrs))
+                        gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickEnd - 3, bed.thickEnd, bed.strand, attrs))
                         gene_to_records[gene_id].append(('5UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
-
-
-
 
     for gene_id, records in gene_to_records.items():
         chrom, strand = gene_to_chrom_strand[gene_id]
