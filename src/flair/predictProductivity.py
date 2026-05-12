@@ -23,7 +23,8 @@ import argparse
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.hgdata.bed import Bed, BedReader
-from flair.isoform_data import BED_FIELDS, EXTRA_BED_FIELDS, write_as_file
+from flair.isoform_data import BED_FIELDS, EXTRA_BED_FIELDS, write_as_file, make_big_bed
+from flair.bed_to_gtf import bed_to_gtf
 
 def parse_args():
     parser = argparse.ArgumentParser(description='used to predict coding sequence and amino acid sequence of novel isoforms based on annotated start codons')
@@ -445,16 +446,16 @@ def predict_productivity(gtf, genome, bed, output, as_file=None):
     infoout.close()
 
     genome = pysam.FastaFile(genome)
-    with open(output + '.chrom.sizes', 'w') as fh:
-        for chrom in genome.references:
-            fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
+    make_big_bed(genome, output + '.chrom.sizes', output.split('/')[-1], output, my_fields)
     genome.close()
-
-    write_as_file(my_fields, output + '.as', output.split('/')[-1].replace('-', '').replace('.', ''), f'Isoforms with CDS for {output.split('/')[-1]}')
-    pipettor.run([('bedToBigBed', f'-as={output}.as', '-type=bed12+', '-sort', f'{output}.bed', f'{output}.chrom.sizes', f'{output}.bb')])
-    
-    
     pipettor.run(('rm', shortbedname, output + '.chrom.sizes'))
+
+    if needs_as:
+        gene_field_index = [x[1] for x in my_fields].index('gene_id') - 12
+        extracolindexnames = [(x-12, my_fields[x][1]) for x in range(12, len(my_fields))]
+        bed_to_gtf(output + '.bed', output + '.gtf', genecol=gene_field_index, extracolindexnames=extracolindexnames) # index of column with gene id in extracols, then additional column indexes + names
+    else:
+        bed_to_gtf(output + '.bed', output + '.gtf')
 
 
 

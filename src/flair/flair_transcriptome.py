@@ -14,7 +14,7 @@ from flair.partition_runner import parallel_mode_parse, partition_runner_factory
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, exons_to_juncs, get_bed_exons_from_exons,
-                                get_sequence_for_exons, binary_search, convert_to_bed, BED_FIELDS, EXTRA_BED_FIELDS, write_as_file)
+                                get_sequence_for_exons, binary_search, convert_to_bed, BED_FIELDS, EXTRA_BED_FIELDS, write_as_file, make_big_bed)
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
@@ -1303,13 +1303,8 @@ def flair_transcriptome():
     runner.run(_run_region, args=args)
     combine_chunks(args, args.output, runner.partitions)
 
-    with open(temp_dir + 'chrom.sizes', 'w') as fh:
-        for chrom in genome.references:
-            fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
+    make_big_bed(genome, temp_dir + 'chrom.sizes', args.output.split('/')[-1], args.output + '.isoforms', BED_FIELDS + EXTRA_BED_FIELDS)
     
-    write_as_file(BED_FIELDS + EXTRA_BED_FIELDS, args.output + '.isoforms.as', args.output.split('/')[-1].replace('-', '').replace('.', ''), f'FLAIR isoforms for {args.output.split('/')[-1]}')
-    pipettor.run([('bedToBigBed', f'-as={args.output}.isoforms.as', '-type=bed12+', f'{args.output}.isoforms.bed', f'{temp_dir}chrom.sizes', f'{args.output}.isoforms.bb', '-sort')])
-
     # this needs to be done here outside of chunking because needs to load whole annotation gtf, which should only be done once
     if args.annot_gtf:
         logging.info('predicting CDS')

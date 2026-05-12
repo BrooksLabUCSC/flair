@@ -5,6 +5,7 @@ from flair import PosRange
 from flair.pycbio.hgdata.bed import Bed
 from statistics import median
 import pysam
+import pipettor
 
 BED_FIELDS = [('string','chrom',"Reference sequence chromosome or scaffold"),
                 ('uint',   'chromStart',	"Start position of feature on chromosome"),
@@ -146,6 +147,15 @@ def binary_search(query, data):
         else:  # found
             break
     return i
+
+
+def make_big_bed(genome, chrom_sizes_file_name, output_name, output_prefix, my_fields):
+    with open(chrom_sizes_file_name, 'w') as fh:
+        for chrom in genome.references:
+            fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
+    write_as_file(my_fields, output_prefix + '.as', output_name.replace('-', '').replace('.', ''), f'FLAIR isoforms for {output_name}')
+    pipettor.run([('bedToBigBed', f'-as={output_prefix}.as', '-type=bed12+', f'{output_prefix}.bed', chrom_sizes_file_name, f'{output_prefix}.bb', '-sort')])
+
 
 
 def write_as_file(fields, filename, tablename, description):
