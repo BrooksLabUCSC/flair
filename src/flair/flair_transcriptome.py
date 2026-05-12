@@ -14,12 +14,13 @@ from flair.partition_runner import parallel_mode_parse, partition_runner_factory
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, exons_to_juncs, get_bed_exons_from_exons,
-                                get_sequence_for_exons, binary_search, convert_to_bed)
+                                get_sequence_for_exons, binary_search, convert_to_bed, BED_FIELDS, EXTRA_BED_FIELDS, write_as_file)
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed
+from flair.predictProductivity import predict_productivity
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -353,7 +354,7 @@ def _check_novel_iso_subset(novel_iso_id, all_isoforms,
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
-                       sup_annot_transcript_to_juncs, strand, annot_id):
+                       sup_annot_transcript_to_juncs, strand):
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
     novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
@@ -469,7 +470,7 @@ def max_terminal_exons_ends_from_iso_infos(iso_to_info):
     max_terminal_exons_ends = MaxTerminalExonsEnds()
     for iso_name in iso_to_info:
         isoform = iso_to_info[iso_name]
-        max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, isoform.transcript_id, isoform.exons)
+        max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, isoform.name, isoform.exons)
     return max_terminal_exons_ends
 
 ####
@@ -491,7 +492,7 @@ def generate_transcriptome_reference_transcript(strand, transcript_to_strand, tr
     assert isinstance(exons[0], Exon)  # FIXME tmp debugging
     juncs = exons_to_juncs(exons)
     is_not_subset, unique_seq = filter_spliced_iso('nosubset', 0, juncs, exons, (transcript_id, gene_id),
-                                                   0, annots, None, None, None, strand, transcript_id)
+                                                   0, annots, None, None, None, strand)
     if is_not_subset:
         if normalize_ends:
             normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons,
@@ -860,7 +861,7 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                     is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, isoform.exons,
                                                                    iso_name, isoform.num_reads, annots,
                                                                    candidates.junc_to_names, candidates.isoforms,
-                                                                   sup_annot_transcript_to_juncs, isoform.strand, isoform.transcript_id)
+                                                                   sup_annot_transcript_to_juncs, isoform.strand)
                     if not is_not_subset:
                         logging.debug(f"isoform dropped: subset of another isoform: {iso_name} ({isoform.num_reads} reads)")
                     else:
@@ -978,7 +979,7 @@ def build_genes(firstpass, annots):
     for iso_key in firstpass:
         isoform = firstpass[iso_key]
         gene_id, isoform_id = get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts)
-        isoform.transcript_id = isoform_id
+        isoform.ref_transcript_id = isoform_id
         if gene_id is not None:
             # removing this strand correction breaks the unusual junction (due to underlying variant?) test
             isoform.strand = annots.gene_to_strand[gene_id]
@@ -1024,9 +1025,9 @@ def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_ex
         normalize_gene_terminal_exons(max_terminal_exons_ends, isoform.gene_id, isoform.strand, isoform.exons,
                                       add_length_at_ends=add_length_at_ends)
         isoform.reset_from_exons(isoform.exons)
-    if isoform.transcript_id is None:
-        isoform.transcript_id = isoform.name
-    isoform.name = isoform.transcript_id + '_' + isoform.gene_id
+    # if isoform.transcript_id is None:
+    #     isoform.transcript_id = isoform.name
+    # isoform.name = isoform.transcript_id + '_' + isoform.gene_id
 
     if unique_bound and iso_name in unique_bound:
         unique_fh.write(isoform.name + '\t' + unique_bound[iso_name] + '\n')
@@ -1083,24 +1084,15 @@ def write_transcript_ends_beds(args, temp_prefix, read_to_final_transcript, ends
     for suffix in ['.matchannot.ends.tsv']:
         write_transcript_ends_bed(args, temp_prefix, suffix, read_to_final_transcript, ends_fh)
 
-def predict_productivity(out_prefix, genome_fasta, gtf):
-    cmd = ('predictProductivity',
-           '-i', out_prefix + '.isoforms.bed',
-           '-o', out_prefix + '.isoforms.CDS',
-           '--gtf', gtf,
-           '--genome_fasta', genome_fasta,)
-        #    '--longestORF')
-    pipettor.run(cmd)
-
-def _iso_passes_support_filter(args, iso, num_exons, iso_to_counts, gene_to_tot):
+def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_to_tot):
     if iso not in iso_to_counts:
-        return False
+        return False, 0
     else:
         count = iso_to_counts[iso][0]
         if num_exons > 1:
-            return (count >= args.sjc_support) and (count / gene_to_tot[iso.split('_')[-1]][0]) >= args.frac_support
+            return (count >= args.sjc_support) and (count / gene_to_tot[gene][0]) >= args.frac_support, (count / gene_to_tot[gene][0])
         else:
-            return (count >= args.se_support) and (count / gene_to_tot[iso.split('_')[-1]][1]) >= args.frac_support
+            return (count >= args.se_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
 
 
 def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901 - FIXME: reduce complexity
@@ -1213,7 +1205,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
     for line in open(partition.output_path('isoform.ends.tsv')):
         line = line.rstrip().split('\t')
         read, transcript = line[:2]
-        gene = transcript.split('_')[-1]
+        gene = final_transcript_objs[transcript].gene_id
         if gene not in gene_to_tot:
             gene_to_tot[gene] = [0, 0, 0]
         if transcript not in iso_to_counts:
@@ -1240,7 +1232,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
                 gene_to_tot[gene][1] += 1
         iso_to_counts[transcript][1] += 1
         gene_to_tot[gene][2] += 1
-
+    
     with open(partition.output_path('isoform.counts.txt'), 'w') as fh:
         for transcript in iso_to_counts:
             fh.write(f'{transcript}\t{iso_to_counts[transcript][0]}\t{iso_to_counts[transcript][1]}\n')
@@ -1249,15 +1241,17 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
          open(partition.output_path('isoforms.fa'), 'w') as seq_fh:
         for tname in final_transcript_objs:
             # spliced isos checked against spliced total, single exon checked against full-length total
-            if _iso_passes_support_filter(args, tname, len(final_transcript_objs[tname].exons), iso_to_counts, gene_to_tot):
+            passes_support, my_frac_support = _iso_passes_support_filter(args, tname, final_transcript_objs[tname].gene_id, len(final_transcript_objs[tname].exons), iso_to_counts, gene_to_tot)
+            if passes_support:
                 # print(final_transcript_objs[tname].score, iso_to_counts[tname])
                 final_transcript_objs[tname].score = iso_to_counts[tname][0]
-
-                convert_to_bed(final_transcript_objs[tname]).write(iso_fh)
+                final_transcript_objs[tname].read_support = iso_to_counts[tname][0]
+                final_transcript_objs[tname].frac_support = round(my_frac_support, 4)
+                convert_to_bed(final_transcript_objs[tname],  extraCols =[x[1] for x in EXTRA_BED_FIELDS]).write(iso_fh) 
                 seq_fh.write('>' + final_transcript_objs[tname].name + '\n')
                 seq_fh.write(final_transcript_objs[tname].get_sequence(genome) + '\n')
 
-    bed_to_gtf(partition.output_path('isoforms.bed'), partition.output_path('isoforms.gtf'))
+    bed_to_gtf(partition.output_path('isoforms.bed'), partition.output_path('isoforms.gtf'), genecol=0, extracolindexnames=[(1, EXTRA_BED_FIELDS[1][1])]) # index of column with gene id in extracols, then additional column indexes + names
 
     genome.close()
 
@@ -1309,13 +1303,20 @@ def flair_transcriptome():
     runner.run(_run_region, args=args)
     combine_chunks(args, args.output, runner.partitions)
 
+    with open(temp_dir + 'chrom.sizes', 'w') as fh:
+        for chrom in genome.references:
+            fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
+    
+    write_as_file(BED_FIELDS + EXTRA_BED_FIELDS, args.output + '.isoforms.as', args.output.split('/')[-1].replace('-', '').replace('.', ''), f'FLAIR isoforms for {args.output.split('/')[-1]}')
+    pipettor.run([('bedToBigBed', f'-as={args.output}.isoforms.as', '-type=bed12+', f'{args.output}.isoforms.bed', f'{temp_dir}chrom.sizes', f'{args.output}.isoforms.bb', '-sort')])
+
     # this needs to be done here outside of chunking because needs to load whole annotation gtf, which should only be done once
     if args.annot_gtf:
         logging.info('predicting CDS')
         # FIXME: why is this passing in annotation GTF?
         # NOTE FROM COLETTE: Needs annotated GTF to define confident start codons
-        #   could probably make this code more efficient by a) making it run as a module and b) passing in pre-computed start codons
-        predict_productivity(args.output, args.genome, args.annot_gtf)
+        # could probably make this code more efficient by passing in pre-computed start codons
+        predict_productivity(args.annot_gtf, args.genome, args.output + '.isoforms.bed', args.output + '.isoforms.CDS', args.output + '.isoforms.as')
 
     if not args.keep_intermediate:
         shutil.rmtree(temp_dir)

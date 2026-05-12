@@ -24,7 +24,7 @@ def defaultIfNone(v, dflt=""):
 def encodeRow(row):
     """convert a list of values to a list of strings, making None empty.
     """
-    return [str(v) if v is not None else "" for v in row]
+    return [str(v) if v is not None else "NA" for v in row]
 
 def _fmtItemRgb(itemRgb):
     "allows itemRgb to be a Color, None, a number, or a string"

@@ -73,13 +73,13 @@ test:
 	${MAKE} test-base test-with-R
 
 test-base:
-	${MAKE} align-tests quantify-tests \
+	${MAKE} align-tests quantify-tests bed-to-gtf-tests \
 		combine-tests predict-productivity-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
 		spliceevents-tests partition-tests lib-tests
 
 test-no-align:
-	${MAKE} quantify-tests \
+	${MAKE} quantify-tests bed-to-gtf-tests \
 		combine-tests predict-productivity-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
 		spliceevents-tests partition-tests lib-tests
@@ -395,6 +395,24 @@ test-diffsplice-help: mkdirs
 	$(call cmp_expect,$@.out)
 
 
+bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-cds test-bed-to-gtf-extracols test-bed-to-gtf-extracols-cds
+
+test-bed-to-gtf : mkdirs
+	bed_to_gtf $(BASIC_ISOFORMS_BED) > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
+test-bed-to-gtf-cds : 
+	bed_to_gtf $E/test-predict-productivity.bed > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
+test-bed-to-gtf-extracols : 
+	bed_to_gtf --gene_col 0 --as_file $E/test-transcriptome.isoforms.as --extra_cols_to_use 1,2,3 $E/test-transcriptome.isoforms.bed > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
+test-bed-to-gtf-extracols-cds : 
+	bed_to_gtf --gene_col 0 --as_file $E/test-transcriptome.isoforms.CDS.as --extra_cols_to_use 1,4 $E/test-transcriptome.isoforms.CDS.bed > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
 ##
 # PREDICT PRODUCTIVITY
 ##
@@ -440,14 +458,13 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-help
+transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcriptome-ends"; \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcripome-mutant-splice"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
-	cp $O/$$tname.isoform.read.map.txt $E/$$tname.isoform.read.map.txt; \
 	done
 
 
@@ -457,16 +474,22 @@ test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	$(call cmp_expect,$@.isoforms.CDS.bed)
 
 # FIXME: not working
-test-transcriptome-ends: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --end_norm_dist 500 --output_endpos
-	$(diff_bed_gtf)
+# test-transcriptome-ends: mkdirs ${TEST_ALIGN_BAM}
+# 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --end_norm_dist 500 --output_endpos
+# 	$(diff_bed_gtf)
 
 test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --parallel_mode byregion
 	$(diff_bed_gtf)
 
+test-transcriptome-lowannot: mkdirs ${TEST_ALIGN_BAM}
+	intronProspector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --junction_bed $O/$@.IPjunctions.bed --junction_support 2 -o $O/$@ --no_align_to_annot --sjc_support 3
+	$(diff_bed_gtf)
+
 test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --no_align_to_annot
+	intronProspector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3
 	$(diff_bed_gtf)
 
 test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}

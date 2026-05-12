@@ -1,5 +1,5 @@
 usage: predictProductivity [-h] -i INPUT_ISOFORMS -g GTF -f GENOME_FASTA -o
-                           OUTPUT
+                           OUTPUT [--as_file AS_FILE]
 
 used to predict coding sequence and amino acid sequence of novel isoforms
 based on annotated start codons
@@ -13,3 +13,5 @@ options:
                         Fasta file containing transcript sequences.
   -o OUTPUT, --output OUTPUT
                         prefix of output files
+  --as_file AS_FILE     optional: as file to define additional bed fields
+                        beyond bed12

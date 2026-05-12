@@ -17,57 +17,26 @@
 ########################################################################
 
 import pipettor
+import pysam
 import os
+import argparse
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.hgdata.bed import Bed, BedReader
-########################################################################
-# CommandLine
-########################################################################
+from flair.isoform_data import BED_FIELDS, EXTRA_BED_FIELDS, write_as_file
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='used to predict coding sequence and amino acid sequence of novel isoforms based on annotated start codons')
+    # Add args
+    parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in bed12 format.')
+    parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
+    parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
+    parser.add_argument('-o', "--output", action='store', required=True, help='prefix of output files')
+    parser.add_argument("--as_file", action='store',  help='optional: as file to define additional bed fields beyond bed12')
 
 
-class CommandLine(object):
-    '''
-    Handle the command line, usage and help requests.
-    CommandLine uses argparse, now standard in 2.7 and beyond.
-    it implements a standard command line argument parser with various argument options,
-    and a standard usage and help,
-    attributes:
-    myCommandLine.args is a dictionary which includes each of the available command line arguments as
-    myCommandLine.args['option']
+    return parser.parse_args()
 
-    methods:
-
-    '''
-
-    def __init__(self, inOpts=None):
-        '''
-        CommandLine constructor.
-        Implements a parser to interpret the command line argv string using argparse.
-        '''
-        import argparse
-        self.parser = argparse.ArgumentParser(description='used to predict coding sequence and amino acid sequence of novel isoforms based on annotated start codons')
-        # Add args
-        self.parser.add_argument('-i', "--input_isoforms", action='store', required=True, help='Input collapsed isoforms in bed12 format.')
-        self.parser.add_argument('-g', "--gtf", action='store', required=True, help='Gencode annotation file.')
-        self.parser.add_argument('-f', "--genome_fasta", action='store', required=True, help='Fasta file containing transcript sequences.')
-        self.parser.add_argument('-o', "--output", action='store', required=True, help='prefix of output files')
-        # self.parser.add_argument("--quiet", action='store_false', required=False, default=True, help='Do not display progress')
-        # self.parser.add_argument("--append_column", action='store_true', required=False, default=False, help='Append prediction as an additional column in file')
-
-        # self.group = self.parser.add_mutually_exclusive_group(required=True)
-        # self.group.add_argument('--firstTIS', action='store_true', default=False, help='Defined ORFs by the first annotated TIS.')
-        # self.group.add_argument('--longestORF', action='store_true', default=False, help='Defined ORFs by the longest open reading frame.')
-
-        if inOpts is None:
-            self.args = vars(self.parser.parse_args())
-        else:
-            self.args = vars(self.parser.parse_args(inOpts))
-
-
-########################################################################
-# Isoform
-########################################################################
 
 class Isoform(object):
     '''
@@ -241,7 +210,8 @@ def checkPTC(orfEndPos, exonSizes, allExons, nmdexcep, isoname):  # noqa: C901 -
     else:
         ptcpointont = sum(exonSizes[:-1]) - maxdistfromexonedge
 
-    isoname = '_'.join(isoname.split('_')[:-1])
+    # FIXME will need to re-test that a bunch of this works with new isoform ids that don't contain gene
+    # isoname = '_'.join(isoname.split('_')[:-1])
     if isoname[-2] == '-':
         isoname = isoname[:-2]
     if isoname in nmdexcep:
@@ -395,32 +365,30 @@ def translate(seq):
     return protein
 
 
-def main():  # noqa: C901 - FIXME: reduce complexity
-    '''
-    maine
-    '''
-
-    # Command Line Stuff...
-    myCommandLine = CommandLine()
-    bed = myCommandLine.args['input_isoforms']
-    genome = myCommandLine.args['genome_fasta']
-    gtf = myCommandLine.args['gtf']
-    output = myCommandLine.args['output']
-    # extra_col = myCommandLine.args['append_column']
-
-    # if myCommandLine.args['firstTIS']:
-    #     defineORF = 'first'
-    # elif myCommandLine.args['longestORF']:
-    #     defineORF = 'longest'
-    # else:
-    #     raise FlairInputDataError('** ERR. Select method for ORF definition with --firstTIS or --longestORF')
-
-    defineORF = 'longest'
-
+def predict_productivity(gtf, genome, bed, output, as_file=None):
     iso_to_add_cols = {}
+    needs_as = False
     for line in open(bed):
         line = line.rstrip().split('\t')
+        if len(line) > 12:
+            needs_as = True
         iso_to_add_cols[line[3]] = line[12:]
+    if needs_as:
+        if as_file == None:
+            raise FlairInputDataError('input bed has more columns than standard bed12. please provide as file to define columns')
+        else:
+            c = 0
+            my_fields = []
+            for line in open(as_file):
+                c += 1
+                if c > 3 and line[0] != ')':
+                    line = line.rstrip().split('\t')
+                    this_data = (line[0], line[1].rstrip(';'), line[2].strip('"'))
+                    my_fields.append(this_data)
+    else:
+        my_fields = BED_FIELDS
+    my_fields.append(('string','productivity',"PRO (productive), PTC (premature termination codon, i.e. unproductive), NGO (no start codon), or NST (has start codon but no stop codon)"))
+
 
     shortbedname = bed.split('.bed')[0] + '.shortcols.bed'
     pipettor.run([('cut', '-f', '1-12', bed)], stdout=open(shortbedname, 'w'))
@@ -442,10 +410,10 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             isoname = bed_rec.name
         isoObj = isoformObjs[isoname]
 
-        if defineORF == 'longest':
-            isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
-        elif defineORF == 'first':
-            isoObj.orfs.sort(key=lambda x: x[4])
+        # if defineORF == 'longest':
+        isoObj.orfs.sort(key=lambda x: x[3], reverse=True)
+        # elif defineORF == 'first':
+        #     isoObj.orfs.sort(key=lambda x: x[4])
         pro, start, end, orfLen, tisPos = isoObj.orfs[0]
 
         initial_cols = iso_to_add_cols[bed_rec.name]
@@ -473,7 +441,28 @@ def main():  # noqa: C901 - FIXME: reduce complexity
                 bed_rec.thickEnd, bed_rec.thickStart = start, end
         bed_rec.write(bedout)
         infoout.write('\t'.join([bed_rec.name, pro, str(tisPos), str(tisPos + orfLen), str(isoObj.ptcpoint), translate(isoObj.sequence[tisPos:tisPos + orfLen])]) + '\n')
-    pipettor.run(('rm', shortbedname))
+    bedout.close()
+    infoout.close()
+
+    genome = pysam.FastaFile(genome)
+    with open(output + '.chrom.sizes', 'w') as fh:
+        for chrom in genome.references:
+            fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
+    genome.close()
+
+    write_as_file(my_fields, output + '.as', output.split('/')[-1].replace('-', '').replace('.', ''), f'Isoforms with CDS for {output.split('/')[-1]}')
+    pipettor.run([('bedToBigBed', f'-as={output}.as', '-type=bed12+', '-sort', f'{output}.bed', f'{output}.chrom.sizes', f'{output}.bb')])
+    
+    
+    pipettor.run(('rm', shortbedname, output + '.chrom.sizes'))
+
+
+
+
+def main():  # noqa: C901 - FIXME: reduce complexity
+    args = parse_args()
+    predict_productivity(args.gtf, args.genome_fasta, args.input_isoforms, args.output, args.as_file)
+
 
 if __name__ == "__main__":
     main()
