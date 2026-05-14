@@ -4,6 +4,7 @@ import os
 import pipettor
 import shutil
 import pysam
+import hashlib
 import logging
 from statistics import median
 from collections import Counter
@@ -54,7 +55,7 @@ def get_args():
                                                'STAR will automatically output this file')
     mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
                                                '(can be generated from long-read alignment with intron-prospector)')
-    parser.add_argument('--junction_support', type=int, default=1,
+    parser.add_argument('--junction_support', type=int, default=2,
                         help='if providing short-read junctions, minimum junction support required to keep junction. '
                              'If your junctions file is in bed format, the score field will be used for read support.')
     parser.add_argument('--ss_window', type=int, default=15,
@@ -657,7 +658,7 @@ class CandidateIsoforms:
             self.exons.update(set(isoform.exons))
 
 
-def _process_junc_ends(args, isoforms, candidates, iso_fh):
+def _filter_isos_by_redundant_and_support(args, isoforms, candidates, iso_fh):
     # this assumes single exons are pre-grouped by overlap
     # previously treated single exons separately due to them being in larger groups
     filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.se_support, args.no_redundant, args.max_ends)
@@ -665,11 +666,11 @@ def _process_junc_ends(args, isoforms, candidates, iso_fh):
         candidates.add(isoform)
         convert_to_bed(isoform).write(iso_fh)
 
-def _process_junc(args, isoform, candidates, iso_fh, iso_unfilt_fh):
+def _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh):
     # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
     these_firstpass = collapse_end_groups(args.end_window, isoform)
     _write_unfiltered_ends(these_firstpass, iso_unfilt_fh)
-    _process_junc_ends(args, these_firstpass, candidates, iso_fh)
+    _filter_isos_by_redundant_and_support(args, these_firstpass, candidates, iso_fh)
 
 
 def correct_se_strand_polyA(read_group, se_support):
@@ -777,15 +778,13 @@ def group_by_overlap(sj_to_ends, se_support, trust_strand):
 def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, region_chrom):
     sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.se_support, args.trust_strand)
     # FIXME everything below here requires confidence in transcript strand
-    genes, novel_gene_isos_to_group = build_genes(sjc_with_overlap_groups, annots)
-    for strand in novel_gene_isos_to_group:
-        generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, region_chrom, sjc_with_overlap_groups)
+    genes = build_genes(sjc_with_overlap_groups, annots, region_chrom, sjc_with_overlap_groups)    
 
     candidates = CandidateIsoforms()
     with open(temp_prefix + '.firstpass.unfiltered.bed', 'w') as iso_fh, \
             open(temp_prefix + '.firstpass.reallyunfiltered.bed', 'w') as iso_unfilt_fh:
         for juncs, isoform in sjc_with_overlap_groups.items():
-            _process_junc(args, isoform, candidates, iso_fh, iso_unfilt_fh)
+            _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh)
     return candidates
 
 ####
@@ -875,16 +874,36 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
 
 
 def get_genes_with_shared_juncs(juncs, annots):
-    # FIXME: what does this actually return?
-    gene_hits = {}
-    if juncs != ():
-        for j in juncs:
-            if j in annots.junc_to_gene:
-                for transcript_id, gene_id in annots.junc_to_gene[j]:
-                    if gene_id not in gene_hits:
-                        gene_hits[gene_id] = [0, -1 * len(annots.gene_to_annot_juncs[gene_id])]
-                    gene_hits[gene_id][0] += 1
-    return gene_hits
+    # Go through junctions, get genes annotated as assigned to junctions
+    # Assemble gene to junction code
+    # check junction sets against each other. If genes share junctions, pick the gene[s] with the most junctions
+    # if genes share all junctions, pick the shortest gene
+    # if there are multiple unique sets of junctions assigned to a gene, return list of genes
+    gene_to_juncs = {}
+    #get gene length (total number of junctions): len(annots.gene_to_annot_juncs[gene_id])
+    for j in juncs:
+        if j in annots.junc_to_gene:
+            for transcript_id, gene_id in annots.junc_to_gene[j]:
+                if gene_id not in gene_to_juncs:
+                    gene_to_juncs[gene_id] = set()
+                gene_to_juncs[gene_id].add(j)
+    gene_to_juncs = [(k, frozenset(v)) for k,v in gene_to_juncs.items()]
+    longest_junc_sets_to_genes = {}
+    for g1, sjc1 in gene_to_juncs:
+        is_subset = False
+        for g2, sjc2 in gene_to_juncs:
+            if g1 != g2 and len(sjc1) < len(sjc2) and len(sjc1 & sjc2) > 0:
+                is_subset = True
+                break
+        if not is_subset:
+            if sjc1 not in longest_junc_sets_to_genes:
+                longest_junc_sets_to_genes[sjc1] = []
+            longest_junc_sets_to_genes[sjc1].append((len(annots.gene_to_annot_juncs[g1]), g1))
+    final_genes = []
+    for sjc in longest_junc_sets_to_genes:
+        final_genes.append(sorted(longest_junc_sets_to_genes[sjc], reverse=True)[0][1])
+    final_genes.sort()
+    return tuple(final_genes)
 
 
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
@@ -930,33 +949,35 @@ def _get_transcript_gene_from_annot(iso_readrec, annots, annot_name_to_used_coun
             transcript_id = transcript_id + '-endvar' + str(annot_name_to_used_counts[transcript_id])
         else:
             annot_name_to_used_counts[transcript_id] = 1
-        return transcript_id, gene_id
+        return transcript_id, (gene_id, )
     else:
         return None, None
 
 
 def _find_gene_id_by_overlap(iso_readrec, annots):
     """Find gene_id for an isoform without a matching junction chain, using junction or exon overlap."""
-    # FIXME this all requires that we already trust the strand of the transcript
+    # this all requires that we already trust the strand of the transcript
+    # returns tuple of matching genes, will go into ref_gene_id field
     if iso_readrec.juncs != ():
         gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, annots)
+        if gene_hits:
+            return gene_hits
     else:
         gene_hits = get_single_exon_gene_overlaps(iso_readrec.strand, iso_readrec, annots)
-    if gene_hits:
-        return sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0]
-    else:
-        # look for exon overlap
-        if iso_readrec.strand != 'ambig':
-            gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
-        else:
-            gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
         if gene_hits:
-            gene_hits.sort(reverse=True)
-            if iso_readrec.strand == 'ambig':
-                iso_readrec.strand = gene_hits[0][2]
-            return gene_hits[0][1]
-        else:
-            return None
+            return (sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0], )
+    # if no gene from above, look for exon overlap
+    if iso_readrec.strand != 'ambig':
+        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+    else:
+        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+    if gene_hits:
+        gene_hits.sort(reverse=True)
+        if iso_readrec.strand == 'ambig':
+            iso_readrec.strand = gene_hits[0][2]
+        return (gene_hits[0][1], )
+    else:
+        return None
 
 
 def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
@@ -965,8 +986,15 @@ def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
         gene_id = _find_gene_id_by_overlap(isoform, annots)
     return gene_id, transcript_id
 
+def add_gene_isoform(genes, gene_id, isoform, strand):
+    hashed_id = int(hashlib.md5(','.join(gene_id).encode('utf-8')).hexdigest(), 16)
+    if hashed_id not in genes:
+        genes[hashed_id] = Gene(hashed_id, gene_id, isoform.chrom, strand)
+    # this command also sets the gene_id in the isoform object
+    genes[hashed_id].add_isoform(isoform)
 
-def build_genes(firstpass, annots):
+
+def build_genes(firstpass, annots, region_chrom, sjc_with_overlap_groups):
     """Assign gene names to firstpass isoforms, building Gene objects.
 
     Returns (genes, novel_gene_isos_to_group) where:
@@ -982,23 +1010,23 @@ def build_genes(firstpass, annots):
         isoform.ref_transcript_id = isoform_id
         if gene_id is not None:
             # removing this strand correction breaks the unusual junction (due to underlying variant?) test
-            isoform.strand = annots.gene_to_strand[gene_id]
-            if gene_id not in genes:
-                genes[gene_id] = Gene(gene_id, isoform.chrom, annots.gene_to_strand[gene_id])
-            genes[gene_id].add_isoform(isoform)
+            # currently just using first gene in list, ideally would use the most 5' annotated gene for this strand correction, if we want to do strand correction at all
+            isoform.strand = annots.gene_to_strand[gene_id[0]]
+            add_gene_isoform(genes, gene_id, isoform, annots.gene_to_strand[gene_id[0]])
         else:
             novel_gene_isos_to_group[isoform.strand].append((isoform.start, isoform.end, iso_key))
+    
+    for strand in novel_gene_isos_to_group:
+        generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, region_chrom, sjc_with_overlap_groups)
 
-    return genes, novel_gene_isos_to_group
+    return genes
 
 
 def _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass):
     """Create a Gene for a group of novel overlapping isoforms."""
     gene_id = f'{chrom}:{group_start}-{last_end}:{strand}'
-    gene = Gene(gene_id, chrom, strand)
-    genes[gene_id] = gene
     for s, e, n in curr_group:
-        gene.add_isoform(firstpass[n])
+        add_gene_isoform(genes, gene_id, firstpass[n], strand)
 
 def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
     """Group novel isoforms by coordinate overlap and create Gene objects."""
@@ -1247,24 +1275,24 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
                 final_transcript_objs[tname].score = iso_to_counts[tname][0]
                 final_transcript_objs[tname].read_support = iso_to_counts[tname][0]
                 final_transcript_objs[tname].frac_support = round(my_frac_support, 4)
+                final_transcript_objs[tname].gene_desc = ','.join(final_transcript_objs[tname].gene.gene_desc)
+
                 convert_to_bed(final_transcript_objs[tname], extraCols=[x[1] for x in EXTRA_BED_FIELDS]).write(iso_fh)
                 seq_fh.write('>' + final_transcript_objs[tname].name + '\n')
                 seq_fh.write(final_transcript_objs[tname].get_sequence(genome) + '\n')
 
-    bed_to_gtf(partition.output_path('isoforms.bed'), partition.output_path('isoforms.gtf'), genecol=0, extracolindexnames=[(1, EXTRA_BED_FIELDS[1][1])])  # index of column with gene id in extracols, then additional column indexes + names
-
     genome.close()
 
 def combine_chunks(args, output, partitions):
-    files_to_combine = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed',
-                        '.isoforms.bed',
-                        '.isoform.read.map.txt', '.isoforms.gtf', '.isoforms.fa', '.isoform.counts.txt']
+    files_to_combine = ['.isoforms.bed', '.isoform.read.map.txt', '.isoforms.fa', '.isoform.counts.txt']
+    if args.keep_intermediate:
+        files_to_combine.extend(['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed'])
     if args.end_norm_dist:
         files_to_combine.extend(('.read_ends.bed', '.matchannot.ends.tsv'))
     # if args.predict_cds:
     #     files_to_combine.append('.isoforms.CDS.bed')
-    if not args.no_align_to_annot:
-        files_to_combine.extend(['.matchannot.counts.txt', '.matchannot.read.map.txt'])
+    # if not args.no_align_to_annot:
+    #     files_to_combine.extend(['.matchannot.counts.txt', '.matchannot.read.map.txt'])
     combine_temp_files_by_suffix(output, [p.file_prefix for p in partitions], files_to_combine)
 
 ####
@@ -1303,6 +1331,58 @@ def flair_transcriptome():
     runner.run(_run_region, args=args)
     combine_chunks(args, args.output, runner.partitions)
 
+    # FIXME: need to go through combined bed file and simplify isoform and gene ID hashes
+    # FIXME: currently only going through bed file, also need to correct read map, counts, and fa files
+    iso_hash_to_ID, gene_hash_to_ID = {}, {}
+    
+    iso_count, gene_count = 1, 1
+    with open(args.output + '.isoforms.newids.bed', 'w') as fh:
+        for line in open(args.output + '.isoforms.bed'):
+            line = line.rstrip().split('\t')
+            iso_hash, gene_hash = line[3], line[12]
+            if iso_hash not in iso_hash_to_ID:
+                iso_id = f'FLT{iso_count:08d}'
+                iso_hash_to_ID[iso_hash] = iso_id
+                iso_count += 1
+            if gene_hash not in gene_hash_to_ID:
+                gene_id = f'FLG{gene_count:08d}'
+                gene_hash_to_ID[gene_hash] = gene_id
+                gene_count += 1
+            line[3] = iso_hash_to_ID[iso_hash]
+            line[12] = gene_hash_to_ID[gene_hash]
+            fh.write('\t'.join(line) + '\n')
+    
+    with open(args.output + '.isoform.read.map.newids.txt', 'w') as fh:
+        for line in open(args.output + '.isoform.read.map.txt'):
+            line = line.split('\t', 1)
+            if line[0] in iso_hash_to_ID:  # had to add this check due to having isoforms in this file that were not in bed due to not passing final filters
+                line[0] = iso_hash_to_ID[line[0]]
+                fh.write('\t'.join(line))
+    with open(args.output + '.isoform.counts.newids.txt', 'w') as fh:
+        for line in open(args.output + '.isoform.counts.txt'):
+            line = line.split('\t', 1)
+            if line[0] in iso_hash_to_ID:
+                line[0] = iso_hash_to_ID[line[0]]
+                fh.write('\t'.join(line))
+    with open(args.output + '.isoforms.newids.fa', 'w') as fh:
+        last = False
+        for line in open(args.output + '.isoforms.fa'):
+            if line[0] == '>':
+                if line[1:].rstrip() in iso_hash_to_ID:
+                    line = '>' + iso_hash_to_ID[line[1:].rstrip()] + '\n'
+                    last = True
+                else:
+                    last = False
+            if last:
+                fh.write(line)
+
+    pipettor.run([('mv', args.output + '.isoforms.newids.bed', args.output + '.isoforms.bed')])
+    pipettor.run([('mv', args.output + '.isoform.read.map.newids.txt', args.output + '.isoform.read.map.txt')])
+    pipettor.run([('mv', args.output + '.isoform.counts.newids.txt', args.output + '.isoform.counts.txt')])
+    pipettor.run([('mv', args.output + '.isoforms.newids.fa', args.output + '.isoforms.fa')])
+    
+    bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', genecol=0, extracolindexnames=[(1, EXTRA_BED_FIELDS[1][1])])  # index of column with gene id in extracols, then additional column indexes + names
+    
     make_big_bed(genome, temp_dir + 'chrom.sizes', args.output.split('/')[-1], args.output + '.isoforms', BED_FIELDS + EXTRA_BED_FIELDS)
 
     # this needs to be done here outside of chunking because needs to load whole annotation gtf, which should only be done once
