@@ -87,7 +87,7 @@ HALF_SS_WINDOW_SIZE = 6
 NUM_MISTAKES_IN_SS_WINDOW = 2
 TRUST_ENDS_WINDOW = 50
 LARGE_INDEL_TOLDERANCE = 25
-REQ_BP_ALIGNED_IN_EDGE_EXONS = 10
+REQ_BP_ALIGNED_IN_EDGE_EXONS = 6  # must be same or more than HALF_SS_WINDOW_SIZE
 
 @dataclass
 class IsoformInfo:
@@ -161,12 +161,12 @@ def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttob
     if trust_ends:
         return abs(transcript_edge - read_edge) <= TRUST_ENDS_WINDOW
     elif unique_bound:
-        if transcript_edge < read_edge:  # left end of transcript
-            return unique_bound - read_edge >= min(REQ_BP_ALIGNED_IN_EDGE_EXONS, unique_bound - 5) and disttoblock > abs(transcript_edge - read_edge)
+        if transcript_edge < unique_bound:  # left end of transcript
+            return unique_bound - read_edge >= REQ_BP_ALIGNED_IN_EDGE_EXONS and disttoblock > abs(transcript_edge - read_edge)
         else:
-            return read_edge - unique_bound >= min(REQ_BP_ALIGNED_IN_EDGE_EXONS, (transcript_edge - unique_bound) - 5) and disttoblock > abs(transcript_edge - read_edge)
-    else:      
-        return disttoblock >= min(REQ_BP_ALIGNED_IN_EDGE_EXONS, blocksize - 5)
+            return read_edge - unique_bound >= REQ_BP_ALIGNED_IN_EDGE_EXONS and disttoblock > abs(transcript_edge - read_edge)
+    else:
+        return disttoblock >= REQ_BP_ALIGNED_IN_EDGE_EXONS
 
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends, unique_bound_left, unique_bound_right):
@@ -190,7 +190,6 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
         if tname in transcript_to_unique_bounds:
             unique_bound_left = transcript_to_unique_bounds[tname]['left']  # can also be None
             unique_bound_right = transcript_to_unique_bounds[tname]['right']
-
         else:
             unique_bound_left, unique_bound_right = None, None
 
@@ -263,7 +262,7 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
     terminal exons."""
     matchpos = 0
     coveredpos = [0] * (startpos - 1)
-    query_clipping = [0,0]
+    query_clipping = [0, 0]
     tendpos = startpos
     blockstarts, blocksizes = [], []
     if exoninfo:
@@ -299,7 +298,6 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
                 else:
                     indel_detected = True
             tendpos += blen
-            # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
         elif btype == pysam.CINS:
             if len(coveredpos) > 0:
                 coveredpos[-1] += blen
@@ -309,7 +307,6 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
                         indel_detected = True
                 else:
                     indel_detected = True
-            # if blen > LARGE_INDEL_TOLDERANCE: return True, None, None, None, None, None
     return indel_detected, coveredpos, query_clipping, blockstarts, blocksizes, tendpos
 
 
@@ -360,32 +357,82 @@ def identify_corrected_ends(exoninfo, startpos, endpos, gtstrand, tname, output_
         # clipping has already been flipped for strand prior to being passed into here
         left_clipping, right_clipping = query_clipping
     # Can only correct read ends if assigned to spliced transcript
-    if output_endpos:
-        if len(exoninfo) > 1:
-            currpos = 0
-            for i in range(len(exoninfo) - 1):
-                elen = exoninfo[i]
-                currpos += elen
-                if left_intron_index is None and startpos < currpos:
-                    left_intron_index = i
-                    left_dist = currpos - startpos
-                if currpos < endpos:
-                    right_intron_index = i
-                    right_dist = endpos - currpos
-            if left_intron_index == 0:
-                left_end_dist = startpos
-            if right_intron_index == len(exoninfo)-2:
-                right_end_dist = tlen - endpos
-            if gtstrand == '-':
-                left_intron_index, right_intron_index = (len(exoninfo) - 2) - right_intron_index, (len(exoninfo) - 2) - left_intron_index
-                left_dist, right_dist = right_dist, left_dist
-                left_end_dist, right_end_dist = right_end_dist, left_end_dist
-        else:
+    if len(exoninfo) > 1:
+        currpos = 0
+        for i in range(len(exoninfo) - 1):
+            elen = exoninfo[i]
+            currpos += elen
+            if left_intron_index is None and startpos < currpos:
+                left_intron_index = i
+                left_dist = currpos - startpos
+            if currpos < endpos:
+                right_intron_index = i
+                right_dist = endpos - currpos
+        if left_intron_index == 0:
             left_end_dist = startpos
+        if right_intron_index == len(exoninfo) - 2:
             right_end_dist = tlen - endpos
-            if gtstrand == '-':
-                left_end_dist, right_end_dist = right_end_dist, left_end_dist
+        if gtstrand == '-':
+            left_intron_index, right_intron_index = (len(exoninfo) - 2) - right_intron_index, (len(exoninfo) - 2) - left_intron_index
+            left_dist, right_dist = right_dist, left_dist
+            left_end_dist, right_end_dist = right_end_dist, left_end_dist
+    else:
+        left_end_dist = startpos
+        right_end_dist = tlen - endpos
+        if gtstrand == '-':
+            left_end_dist, right_end_dist = right_end_dist, left_end_dist
     return (left_intron_index, left_dist, left_end_dist, left_clipping), (right_intron_index, right_dist, right_end_dist, right_clipping)
+
+def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer):
+    # check that any of the alignments have low clipping
+    # if there's no genomic clipping info, skip this first filter (will filter for minimum clipping later)
+    if genomicclipping is None or any([x[-2][3] < soft_clipping_buffer and x[-1][3] < soft_clipping_buffer for x in passing_transcripts]):
+        top_sj_cov = min([x[2] for x in passing_transcripts])
+        passing_transcripts = [x for x in passing_transcripts if x[2] == top_sj_cov]
+        passes_end_qual = []
+        clipping_min = sorted(passing_transcripts, key=lambda x: x[-2][3] + x[-1][3])[0]
+        clipping_min = (clipping_min[-2][3], clipping_min[-1][3])
+        for t in passing_transcripts:
+            # check each end for either has minimum clipping, or has 0 distance to transcript end
+            # allowing wiggle room of 5, to allow for suboptimal alignment near transcript/read ends
+            if (t[-2][3] <= clipping_min[0] + 5 or t[-2][2] <= 5) and (t[-1][3] <= clipping_min[1] + 5 or t[-1][2] <= 5):
+                passes_end_qual.append(t)
+            else:
+                logging.debug(f"{rname} transcript alignment dropped: excess soft-clipping: {t[-3]}")
+        # sort by end distance, for each end is distance to transcript end plus soft clipping
+        passes_end_qual.sort(key=lambda x: x[-2][2] + x[-2][3] + x[-1][2] + x[-1][3])
+
+        return [passes_end_qual[0][-3:], ]
+    else:
+        logging.debug(f"{rname} read dropped: excess soft-clipping in all transcript alignments")
+        return None
+
+def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_detected, exoninfo, thist,
+                                     coveredpos, blockstarts, blocksizes, tendpos, info, stringent, check_splice,
+                                     fusion_breakpoints, trust_ends, end_norm_dist, genomicclipping, soft_clipping_buffer,
+                                     query_clipping, matchvals, gtstrand, output_endpos):
+    if indel_detected:
+        logging.debug(f"{rname} transcript alignment dropped: indel detected: {tname}")
+    else:
+        if check_stringent_and_splice(exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes,
+                                      thist.startpos, tendpos, info.transcript_to_bp_ss_index, info.transcript_to_unique_bounds,
+                                      stringent=stringent, check_splice=check_splice,
+                                      fusion_breakpoints=fusion_breakpoints,
+                                      trust_ends=trust_ends, end_norm_dist=end_norm_dist):
+            # if not stringent, check soft clipping here, otherwise clipping gets incorporated into ends and checked later
+            # not stringent: don't check clipping here
+            # stringent, has genomic clipping info: check soft clipping
+            # stringent, no genomic clipping info: check clipping with extended buffer (double buffer)
+            if (not stringent and genomicclipping is not None and (query_clipping[0] < soft_clipping_buffer and query_clipping[1] < soft_clipping_buffer)) \
+                    or (not stringent and genomicclipping is None and (query_clipping[0] < soft_clipping_buffer * 2 and query_clipping[1] < soft_clipping_buffer * 2)) \
+                    or stringent:
+                left_end_info, right_end_info = identify_corrected_ends(exoninfo, thist.startpos, tendpos, gtstrand, tname, output_endpos, thist.tlen, query_clipping)
+                covered_sj = (right_end_info[0] + 1) - left_end_info[0] if left_end_info[0] is not None else 0
+                passing_transcripts.append([-1 * thist.alignscore, -1 * sum(matchvals), -1 * covered_sj, sum(query_clipping), thist.tlen, tname, left_end_info, right_end_info])
+            else:
+                logging.debug(f"{rname} transcript alignment dropped: excess soft clipping ({query_clipping} > {soft_clipping_buffer}): {tname}")
+        else:
+            logging.debug(f"{rname} transcript alignment dropped: failed stringent/splice check: {tname}")
 
 
 def get_best_transcript(tinfo, info, genomicclipping,
@@ -418,98 +465,29 @@ def get_best_transcript(tinfo, info, genomicclipping,
 
         indel_detected, coveredpos, query_clipping, blockstarts, blocksizes, tendpos = process_cigar(matchvals, thist.cigar, thist.startpos, terminal_exon_info, terminal_exon_bounds)
         gtstrand = info.transcript_to_genomic_ends[tname][2]
-        
-        #correcting clipping values to subtract out genomic clipping
+
+        # correcting clipping values to subtract out genomic clipping
         if gtstrand == '-':
             query_clipping = query_clipping[::-1]
-        query_clipping = [query_clipping[x] - genomicclipping[x] for x in range(2)]
+        # FIXME: If count sam transcripts is run without genomic clipping input (eg from quantify), will not check clipping as stringently, need to evaluate how this impacts performance
+        if genomicclipping:
+            query_clipping = [query_clipping[x] - genomicclipping[x] for x in range(2)]
 
-        if indel_detected:
-            logging.debug(f"{rname} transcript alignment dropped: indel detected: {tname}")
-        # elif trimmedreads and genomicclipping is not None and sum([x for x in query_clipping]) > soft_clipping_buffer:
-        #     logging.debug(f"transcript alignment dropped: excess soft clipping ({query_clipping} > {genomicclipping} + {soft_clipping_buffer}): {tname}")
-        else:
-            if check_stringent_and_splice(exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes,
-                                          thist.startpos, tendpos, info.transcript_to_bp_ss_index, info.transcript_to_unique_bounds,
-                                          stringent=stringent, check_splice=check_splice,
-                                          fusion_breakpoints=fusion_breakpoints,
-                                          trust_ends=trust_ends, end_norm_dist=end_norm_dist):
-                # if not stringent, check soft clipping here, otherwise clipping gets incorporated into ends and checked later
-                if stringent or (query_clipping[0] < soft_clipping_buffer and query_clipping[1] < soft_clipping_buffer):
-                    left_end_info, right_end_info = identify_corrected_ends(exoninfo, thist.startpos, tendpos, gtstrand, tname, output_endpos, thist.tlen, query_clipping)
-                    covered_sj = (right_end_info[0] + 1) - left_end_info[0] if left_end_info[0] is not None else 0
-                    passing_transcripts.append([-1 * thist.alignscore, -1 * sum(matchvals), -1*covered_sj, sum(query_clipping), thist.tlen, tname, left_end_info, right_end_info])
-                else:
-                    logging.debug(f"{rname} transcript alignment dropped: excess soft clipping ({query_clipping} > {genomicclipping} + {soft_clipping_buffer}): {tname}")
-            else:
-                logging.debug(f"{rname} transcript alignment dropped: failed stringent/splice check: {tname}")
+        filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_detected, exoninfo, thist,
+                                         coveredpos, blockstarts, blocksizes, tendpos, info, stringent, check_splice,
+                                         fusion_breakpoints, trust_ends, end_norm_dist, genomicclipping, soft_clipping_buffer,
+                                         query_clipping, matchvals, gtstrand, output_endpos)
 
-    # order passing transcripts by alignment score
-    # then order by amount of query covered
-    # then order by amount of transcript covered
     if len(passing_transcripts) > 0:
-        # passing_transcripts.sort()
-
-        # if len(passing_transcripts) == 1 or passing_transcripts[0][:3] != passing_transcripts[1][:3]:
-        #     return [passing_transcripts[0][-3:], ]
-        # else:
-        #     logging.debug(f"read dropped: ambiguous multi-mapping, top 2 transcripts tied: {passing_transcripts[0][4]}, {passing_transcripts[1][4]}")
-        #     return None
-        
         # if not stringent, report top transcript, even if there's ties (assume just want SJ + ends correction, don't need exactly correct transcript)
+        # order passing transcripts by alignment score
+        # then order by amount of query covered
+        # then order by amount of transcript covered
         if not stringent:
             passing_transcripts.sort()
             return [passing_transcripts[0][-3:], ]
         else:
-            # check that any of the alignments have low clipping
-            if any([x[-2][3] < soft_clipping_buffer and x[-1][3] < soft_clipping_buffer for x in passing_transcripts]):
-                top_sj_cov = min([x[2] for x in passing_transcripts])
-                passing_transcripts = [x for x in passing_transcripts if x[2] == top_sj_cov]
-                passes_end_qual = []
-                # print(passing_transcripts)
-                # print(passing_transcripts[0][-1], passing_transcripts[0][-2])
-                clipping_min = sorted(passing_transcripts, key=lambda x:x[-2][3] + x[-1][3])[0]
-                clipping_min = (clipping_min[-2][3], clipping_min[-1][3])
-                for t in passing_transcripts:
-                    # check each end for either has minimum clipping, or has 0 distance to transcript end
-                    # allowing wiggle room of 5, to allow for suboptimal alignment near transcript/read ends
-                    if (t[-2][3] <= clipping_min[0] + 5 or t[-2][2] <= 5) and (t[-1][3] <= clipping_min[1] + 5 or t[-1][2] <= 5):
-                    # if True:
-                        passes_end_qual.append(t)
-                    else:
-                        logging.debug(f"{rname} transcript alignment dropped: excess soft-clipping: {t[-3]}")
-                # sort by end distance, for each end is distance to transcript end plus soft clipping
-                passes_end_qual.sort(key=lambda x: x[-2][2] + x[-2][3] + x[-1][2] + x[-1][3])
-
-                # if len(passes_end_qual) > 1:
-                #     print(rname)
-                #     for i in passes_end_qual:
-                #         print('\t'.join([str(x) for x in i]))
-                #     print('-------------')
-
-                return [passes_end_qual[0][-3:], ]
-            else:
-                logging.debug(f"{rname} read dropped: excess soft-clipping in all transcript alignments")
-                return None
-        
-
-
-        # interesting_aligns = []
-        # for i in passing_transcripts:
-        #     if i[-2][2] is not None and i[-1][2] is not None:
-        #         interesting_aligns.append(i)
-        # # if len(interesting_aligns) > 0:
-        # if len(set([x[2] for x in interesting_aligns])) > 1:
-        #     for i in interesting_aligns:
-        #         print('\t'.join([str(x) for x in i]))
-        #     print('-------------')
-
-        # if len(passing_transcripts) == 1 or passing_transcripts[0][:3] != passing_transcripts[1][:3]:
-        #     return [passing_transcripts[0][-3:], ]
-        # else:
-        #     logging.debug(f"read dropped: ambiguous multi-mapping, top 2 transcripts tied: {passing_transcripts[0][4]}, {passing_transcripts[1][4]}")
-        #     return None
-
+            return return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer)
     else:
         logging.debug(f"{rname} read dropped: no transcripts passed filters")
         return None

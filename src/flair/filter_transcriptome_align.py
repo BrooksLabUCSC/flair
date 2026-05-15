@@ -65,7 +65,7 @@ def process_read_chunk(chunkinfo):  # noqa: C901 - FIXME: reduce complexity
                                              trimmedreads=args.trimmedreads,
                                              soft_clipping_buffer=args.soft_clipping_buffer,
                                              output_endpos=args.output_endpos,
-                                             trust_ends=args.trust_ends, end_norm_dist=args.end_norm_dist)
+                                             trust_ends=args.trust_ends, end_norm_dist=args.end_norm_dist, rname=readname)
             if not assignedts:
                 logging.debug(f"read dropped: no passing transcript assignment: {readname}")
             else:

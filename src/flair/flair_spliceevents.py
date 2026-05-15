@@ -1058,8 +1058,9 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
     for line in open(good_annot_aligns):
         line = line.rstrip().split('\t')
         read, transcript = line[:2]
-        startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
-        read_to_transcript[read] = (transcript, startindex, startdist, endindex, enddist)
+        start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
+        if start_sj_index != 'None':  # not a single exon transcript
+            read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
 
     bamfile = pysam.AlignmentFile(bamfile_name, 'rb')
     sj_to_ends = {}

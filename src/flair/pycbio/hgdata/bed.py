@@ -21,10 +21,19 @@ def defaultIfNone(v, dflt=""):
     "also converts to a string"
     return str(v) if v is not None else str(dflt)
 
+# FIXME more cleanly write lists/tuples "(a, b, c)" -> a,b,c
 def encodeRow(row):
     """convert a list of values to a list of strings, making None empty.
     """
-    return [str(v) if v is not None else "NA" for v in row]
+    outlist = []
+    for v in row:
+        if v is None:
+            outlist.append('')
+        elif type(v) is list or type(v) is tuple or type(v) is set:
+            outlist.append(','.join(str(x) for x in v))
+        else:
+            outlist.append(str(v))
+    return outlist
 
 def _fmtItemRgb(itemRgb):
     "allows itemRgb to be a Color, None, a number, or a string"

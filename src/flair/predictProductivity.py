@@ -368,7 +368,7 @@ def predict_productivity(gtf, genome, bed, output, as_file=None):  # noqa: C901 
     iso_to_add_cols = {}
     needs_as = False
     for line in open(bed):
-        line = line.rstrip().split('\t')
+        line = line.rstrip('\n').split('\t')
         if len(line) > 12:
             needs_as = True
         iso_to_add_cols[line[3]] = line[12:]
@@ -381,7 +381,7 @@ def predict_productivity(gtf, genome, bed, output, as_file=None):  # noqa: C901 
             for line in open(as_file):
                 c += 1
                 if c > 3 and line[0] != ')':
-                    line = line.rstrip().split('\t')
+                    line = line.rstrip('\n').split('\t')
                     this_data = (line[0], line[1].rstrip(';'), line[2].strip('"'))
                     my_fields.append(this_data)
     else:
