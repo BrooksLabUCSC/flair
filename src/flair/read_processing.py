@@ -61,10 +61,10 @@ def generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, regi
                 c += 1
                 name = read.query_name
                 cigar = read.cigartuples
-                tot_clipped = 0
+                left_clipping, right_clipping = 0, 0
                 if cigar[0][0] in clipping_types:
-                    tot_clipped += cigar[0][1]
+                    left_clipping = cigar[0][1]
                 if cigar[-1][0] in clipping_types:
-                    tot_clipped += cigar[-1][1]
-                clipping_fh.write(name + '\t' + str(tot_clipped) + '\n')
+                    right_clipping = cigar[-1][1]
+                clipping_fh.write(name + '\t' + str(left_clipping) + '\t' + str(right_clipping) + '\n')
     return c, temp_prefix + '.reads.genomicclipping.txt'

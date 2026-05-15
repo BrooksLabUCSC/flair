@@ -179,8 +179,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     # FIXME really need to go in and check on how count_sam_transcripts is working
     trimmedreads = clipping_file or None
     generate_map = map_file or None
-    output_endpos = (output_name.split('.counts.txt')[0] + '.ends.tsv'
-                     if (args.output_endpos or is_annot) else None)
+    output_endpos = output_name.split('.counts.txt')[0] + '.ends.tsv' #  if (args.output_endpos or is_annot) else None)
     output_bam = (output_name.split('.counts.txt')[0] + '.bam'
                   if args.output_bam else None)
     stringent = (not is_annot) and (not args.no_stringent)
@@ -205,7 +204,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         output_endpos=output_endpos,
         end_norm_dist=args.end_norm_dist or 0,
         stringent=stringent,
-        allow_UTR_indels=is_annot,
+        allow_UTR_indels= True,   #is_annot,
         output_bam=output_bam,
         check_splice=check_splice,
         isoforms=isoforms,
@@ -561,9 +560,9 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
         for line in open(temp_prefix + '.matchannot.ends.tsv'):
             line = line.rstrip().split('\t')
             read, transcript = line[:2]
-            if line[2] != 'None':
-                startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
-                read_to_transcript[read] = (transcript, startindex, startdist, endindex, enddist)
+            start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
+            if start_sj_index != 'None':  # not a single exon transcript
+                read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
     else:
         # create empty output files
         # FIXME: why doesn't this create all of them?
@@ -1210,7 +1209,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
                                       partition.output_path('firstpass.fa'),
                                       partition.output_path('firstpass.bed'),
                                       partition.output_path('isoform.counts.txt'),
-                                      partition.output_path('isoform.read.map.txt'), True,
+                                      partition.output_path('isoform.read.map.txt'), False, ## say is not annot, requires stringent, returns different end values
                                       partition.output_path('reads.genomicclipping.txt'),
                                       partition.output_path('firstpass.uniquebound.txt'))
     else:
@@ -1230,34 +1229,36 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
 
     iso_to_counts = {}
     gene_to_tot = {}
+    # FIXME: with new count sam transcripts logic, there are now no longer non-full-length transcripts in the isoform.ends.tsv
     for line in open(partition.output_path('isoform.ends.tsv')):
         line = line.rstrip().split('\t')
         read, transcript = line[:2]
+        start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
         gene = final_transcript_objs[transcript].gene_id
         if gene not in gene_to_tot:
+            # total spliced full-length, total full-length spliced + unspliced, total all
             gene_to_tot[gene] = [0, 0, 0]
         if transcript not in iso_to_counts:
-            # total spliced full-length, total full-length spliced + unspliced, total all
             iso_to_counts[transcript] = [0, 0]
-        if line[2] == 'None':  # single exon transcript
-            startdist, enddist = int(line[3]), int(line[5])
+        if start_sj_index is None:  # single exon transcript
             if args.trust_ends:
-                if startdist <= TRUST_ENDS_WINDOW and enddist <= TRUST_ENDS_WINDOW:
+                if start_tend_dist <= TRUST_ENDS_WINDOW and end_tend_dist <= TRUST_ENDS_WINDOW:
                     iso_to_counts[transcript][0] += 1
                     gene_to_tot[gene][1] += 1
             else:
                 tlen = final_transcript_objs[transcript].end - final_transcript_objs[transcript].start
-                rlen = tlen - (startdist + enddist)
+                rlen = tlen - (start_tend_dist + end_tend_dist)
                 # FIXME might not work if end_norm_dist is set - add test, or just remove end_norm_dist
                 if rlen > (tlen / 2):
                     iso_to_counts[transcript][0] += 1
                     gene_to_tot[gene][1] += 1
         else:
-            startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
-            if startindex == 0 and endindex == len(final_transcript_objs[transcript].juncs) - 1:
+            if start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1:
                 iso_to_counts[transcript][0] += 1
                 gene_to_tot[gene][0] += 1
                 gene_to_tot[gene][1] += 1
+            else:
+                print('ERROR: not full-length')
         iso_to_counts[transcript][1] += 1
         gene_to_tot[gene][2] += 1
 

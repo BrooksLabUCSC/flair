@@ -475,10 +475,13 @@ update-transcriptome-tests:
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
 	done
+	cp $O/test-transcriptome.isoforms.CDS.bed $E/test-transcriptome.isoforms.CDS.bed
+	cp $O/test-transcriptome.isoforms.CDS.as $E/test-transcriptome.isoforms.CDS.as
+	cp $O/test-transcriptome.isoforms.as $E/test-transcriptome.isoforms.as
 
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoforms.CDS.bed)
