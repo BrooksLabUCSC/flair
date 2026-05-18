@@ -486,7 +486,7 @@ test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 test-transcriptome-trust-ends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --trust_ends
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
-# 	$(diff_bed_gtf)
+	$(diff_bed_gtf)
 
 test-transcriptome-mult-ends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --max_ends 5 --keep_intermediate
@@ -496,7 +496,7 @@ test-transcriptome-mult-ends: mkdirs ${TEST_ALIGN_BAM}
 test-transcriptome-mult-ends-trust-ends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --max_ends 5 --trust_ends
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
-# 	$(diff_bed_gtf)
+	$(diff_bed_gtf)
 
 test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --parallel_mode byregion

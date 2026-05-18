@@ -139,7 +139,7 @@ def identify_best_orf_from_starts(transcript, my_annot_starts, my_seq, transcrip
             identify_prod_from_start(orfs, annot_start, rel_start, my_exons, exon_sizes, my_seq, transcript.strand,
                                      transcript.ref_transcript_id, transcript_to_nmd_except)
     if len(orfs) == 0:
-        orfs.append(["NGO", my_exons[0].start, my_exons[0].end, 0, 0])
+        orfs.append(["NGO", sorted(my_exons)[0].start, sorted(my_exons)[0].start, 0, 0])
     orfs.sort(key=lambda x: x[3], reverse=True)
     return orfs[0]
 
