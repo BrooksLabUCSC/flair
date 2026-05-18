@@ -1,3 +1,5 @@
 chr20	FLAIR	gene	32186477	32189823	.	-	.	gene_id "FLG00000001";
-chr20	FLAIR	transcript	32186477	32189823	.	-	.	gene_id "FLG00000001"; transcript_id "FLT00000001"; ref_transcript_id "";
-chr20	FLAIR	exon	32186477	32189823	.	-	.	gene_id "FLG00000001"; transcript_id "FLT00000001"; exon_number "0"; ref_transcript_id "";
+chr20	FLAIR	transcript	32186477	32189823	.	-	.	gene_id "FLG00000001"; transcript_id "FLT00000001"; ref_transcript_id ""; gene_desc "ENSG00000293164.1"; read_support "7"; frac_support "1.0"; productivity "NGO";
+chr20	FLAIR	exon	32186477	32189823	.	-	.	gene_id "FLG00000001"; transcript_id "FLT00000001"; exon_number "0"; ref_transcript_id ""; gene_desc "ENSG00000293164.1"; read_support "7"; frac_support "1.0"; productivity "NGO";
+chr20	FLAIR	3UTR	32186477	32189823	.	-	.	gene_id "FLG00000001"; transcript_id "FLT00000001"; exon_number "0"; ref_transcript_id ""; gene_desc "ENSG00000293164.1"; read_support "7"; frac_support "1.0"; productivity "NGO";
+chr20	FLAIR	CDS	32189824	32189823	.	-	.	gene_id "FLG00000001"; transcript_id "FLT00000001"; exon_number "0"; ref_transcript_id ""; gene_desc "ENSG00000293164.1"; read_support "7"; frac_support "1.0"; productivity "NGO";

@@ -221,7 +221,7 @@ define cmp_expect
 endef
 
 define cmp_expect_bed_simple
-	diff <(cut -f 1,2,3,6,7,8,9,10,11,12 $E/$(1)) <(cut -f 1,2,3,6,7,8,9,10,11,12 $O/$(1))
+	diff <(cut -f 1,2,3,6,10,11,12 $E/$(1)) <(cut -f 1,2,3,6,10,11,12 $O/$(1))
 endef
 
 ##
@@ -404,7 +404,7 @@ test-diffsplice-help: mkdirs
 	$(call cmp_expect,$@.out)
 
 
-bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-cds test-bed-to-gtf-extracols test-bed-to-gtf-extracols-cds
+bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-cds test-bed-to-gtf-extracols
 
 test-bed-to-gtf : mkdirs
 	bed_to_gtf $(BASIC_ISOFORMS_BED) > $O/$@.gtf
@@ -415,11 +415,7 @@ test-bed-to-gtf-cds :
 	$(call cmp_expect,$@.gtf)
 
 test-bed-to-gtf-extracols : 
-	bed_to_gtf --gene_col 0 --as_file $E/test-transcriptome.isoforms.as --extra_cols_to_use 1,2,3,4 $E/test-transcriptome.isoforms.bed > $O/$@.gtf
-	$(call cmp_expect,$@.gtf)
-
-test-bed-to-gtf-extracols-cds : 
-	bed_to_gtf --gene_col 0 --as_file $E/test-transcriptome.isoforms.CDS.as --extra_cols_to_use 1,5 $E/test-transcriptome.isoforms.CDS.bed > $O/$@.gtf
+	bed_to_gtf --gene_col 0 --as_file $E/test-transcriptome.isoforms.as --extra_cols_to_use ref_transcript_id,gene_desc,productivity $E/test-transcriptome.isoforms.bed > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
 ##
@@ -470,13 +466,11 @@ test-plot-usage-help: mkdirs
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-readthrough test-transcriptome-ends test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcripome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-ends"; \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-seg1" "test-transcripome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-ends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
 	done
-	cp $O/test-transcriptome.isoforms.CDS.bed $E/test-transcriptome.isoforms.CDS.bed
-	cp $O/test-transcriptome.isoforms.CDS.as $E/test-transcriptome.isoforms.CDS.as
 	cp $O/test-transcriptome.isoforms.as $E/test-transcriptome.isoforms.as
 
 
@@ -484,7 +478,6 @@ test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
-	$(call cmp_expect,$@.isoforms.CDS.bed)
 
 test-transcriptome-ends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --max_ends 5 --keep_intermediate

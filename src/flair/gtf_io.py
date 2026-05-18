@@ -29,9 +29,13 @@ EXON_FEATURES = frozenset([EXON_FEATURE])
 CDS_FEATURE = "CDS"
 CDS_FEATURES = frozenset([CDS_FEATURE])
 
-TRANSCRIPT_EXON_FEATURES = TRANSCRIPT_FEATURES | EXON_FEATURES
+START_CODON_FEATURE = "start_codon"
+START_CODON_FEATURES = frozenset([START_CODON_FEATURE])
 
-FLAIR_ATTRS = ('gene_id', 'gene_name', 'transcript_id')
+TRANSCRIPT_EXON_FEATURES = TRANSCRIPT_FEATURES | EXON_FEATURES | START_CODON_FEATURES
+
+FLAIR_ATTRS = frozenset(('gene_id', 'gene_name', 'transcript_id'))
+FLAIR_TRANSCRIPT_ATTRS = FLAIR_ATTRS | frozenset(('tag', ))
 
 _ALL_ATTR_RE = re.compile(r'(\w+)\s+(?:"([^"]*)"|([^;\s]+))')
 
@@ -150,6 +154,18 @@ class GtfCDS(GtfRecord):
                          attrs=attrs, gene_id=gene_id, gene_name=gene_name, transcript_id=transcript_id,
                          exon_number=exon_number)
 
+class GtfStartCodon(GtfRecord):
+    """GTF start codon (start of coding sequence)."""
+
+    def __init__(self, chrom: str, source: str, feature: str, start: int, end: int,
+                 score: str, strand: str, frame: str, *,
+                 attrs: Attrs = None,
+                 gene_id: str = None, gene_name: str = None, transcript_id: str = None,
+                 exon_number: int = None):
+        super().__init__(chrom, source, feature, start, end, score, strand, frame,
+                         attrs=attrs, gene_id=gene_id, gene_name=gene_name, transcript_id=transcript_id,
+                         exon_number=exon_number)
+
 class GtfTranscript(GtfRecord):
     """GTF transcript with exons."""
     def __init__(self, chrom: str, source: str, feature: str, start: int, end: int,
@@ -163,6 +179,7 @@ class GtfTranscript(GtfRecord):
 
         self.exons: list[GtfExon] = []
         self.cds_recs: list[GtfCDS] = []
+        self.start_codon = None
 
     def add_exon(self, exon: GtfExon) -> None:
         """Add exon to transcript."""
@@ -253,7 +270,7 @@ def _parse_attribute_match(match: re.Match) -> tuple[str, str | int | float]:
             # If conversion fails, keep as string
             return key, unquoted_value
 
-def _parse_all_attributes(attrs_str: str, attr_re=_ALL_ATTR_RE) -> Attrs:
+def _parse_all_attributes(attrs_str: str, end_str: str, attr_re=_ALL_ATTR_RE) -> Attrs:
     """Parse GTF attributes string into dict."""
     attrs = {}
     for attr_str in attr_re.finditer(attrs_str):
@@ -284,13 +301,16 @@ def _find_flair_attr_value(attrs_str: str, key: str):
     val_end = attrs_str.find('"', val_start)
     return attrs_str[val_start:val_end] if val_end >= 0 else None
 
-def _parse_flair_attributes(attrs_str: str) -> Attrs:
+def _parse_flair_attributes(attrs_str: str, record_type: str) -> Attrs:
     """Fast-path parser for FLAIR_ATTRS using str.find() instead of regex."""
     attrs = {}
     for key in FLAIR_ATTRS:
         value = _find_flair_attr_value(attrs_str, key)
         if value is not None:
             attrs[key] = value
+    if record_type == 'transcript':
+        all_tags = [x.split('"')[0] for x in attrs_str.split('tag "')[1:]]
+        attrs['tag'] = all_tags
     return attrs
 
 
@@ -345,6 +365,8 @@ def _gtf_record_class(feature):
         return GtfExon
     elif feature == CDS_FEATURE:
         return GtfCDS
+    elif feature == START_CODON_FEATURE:
+        return GtfStartCodon
     else:
         return GtfRecord
 
@@ -369,7 +391,7 @@ def _parse_gtf_line(line: str, include_features: StrSetNone, attrs_parser=_parse
         return None
 
     start, end = _parse_coordinates(fields[3], fields[4])
-    attrs = attrs_parser(fields[8])
+    attrs = attrs_parser(fields[8], fields[2])
     _check_id_whitespace(attrs)
 
     cls = _gtf_record_class(fields[2])
@@ -434,7 +456,7 @@ def gtf_record_parser(gtf_file: str, *, include_features: StrSetNone = None, att
     File maybe compressed"""
     yield from _gtf_record_iter(gtf_file, include_features, _ATTRS_SET_TO_PARSER[attrs])
 
-def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, include_features, attrs_parser):
+def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons, include_features, attrs_parser):
     for rec in _gtf_record_iter(gtf_file, include_features, attrs_parser):
         if isinstance(rec, GtfTranscript):
             gtf_data.add_transcript(rec)
@@ -442,22 +464,27 @@ def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_
             transcript_id_to_exons[rec.transcript_id].append(rec)
         elif isinstance(rec, GtfCDS):
             transcript_id_to_cds_recs[rec.transcript_id].append(rec)
+        elif isinstance(rec, GtfStartCodon):
+            transcript_id_to_start_codons[rec.transcript_id] = rec
 
-def _add_children(transcript, exons, cds_recs):
+def _add_children(transcript, exons, cds_recs, start_codon):
     if exons is not None:
         for exon in exons:
             transcript.add_exon(exon)
     if cds_recs is not None:
         for cds_rec in cds_recs:
             transcript.add_cds(cds_rec)
+    transcript.start_codon = start_codon
+
     transcript.sort_children()
 
-def _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs):
+def _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons):
     """add exon and CDS records to transcripts and sort"""
     for transcript in gtf_data.transcripts:
         _add_children(transcript,
                       transcript_id_to_exons.get(transcript.transcript_id),
-                      transcript_id_to_cds_recs.get(transcript.transcript_id))
+                      transcript_id_to_cds_recs.get(transcript.transcript_id),
+                      transcript_id_to_start_codons.get(transcript.transcript_id))
 
 def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: GtfAttrsSet = GtfAttrsSet.FLAIR):
     """parse a GTF file into a GtfData object.  Use attrs=GtfAttrsSet.FLAIR
@@ -466,8 +493,9 @@ def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: Gtf
     gtf_data = GtfData()
     transcript_id_to_exons = defaultdict(list)
     transcript_id_to_cds_recs = defaultdict(list)
-    _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, include_features, _ATTRS_SET_TO_PARSER[attrs])
-    _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs)
+    transcript_id_to_start_codons = defaultdict(lambda: None)
+    _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons, include_features, _ATTRS_SET_TO_PARSER[attrs])
+    _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons)
     return gtf_data
 
 def gtf_write_row(gtf_fh, chrom, source, feature, start, end, score, strand, frame, *,

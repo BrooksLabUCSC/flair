@@ -17,10 +17,10 @@ def main():
                         help='do not carry forward CDS from bed file (thickstart and thickend) to gtf file')
     parser.add_argument('--gene_col', type=int, help='if bed file is bed12+, specifiy index of column with gene ID in context of extra columns - if gene_id is in column 13, enter index 0, since it is the first extra column')
     parser.add_argument('--as_file', help='if input is bed12 and want to add extra columns from bed to gtf (besides gene ID), specify path to as file with column definitions')
-    parser.add_argument('--extra_cols_to_use', help='comma separated list of additional bed columns to carry over to gtf in context of extra columns (see gene_col)')
+    parser.add_argument('--extra_cols_to_use', help='comma separated list of additional bed columns to carry over to gtf (list of column names)')
     args = parser.parse_args()
     if args.as_file:
-        extra_cols = [int(x) for x in args.extra_cols_to_use.split(',')]
+        extra_cols = args.extra_cols_to_use.split(',')
         c = 0
         my_fields = []
         for line in open(args.as_file):
@@ -31,7 +31,7 @@ def main():
                 my_fields.append(this_data)
         extracolindexnames = []
         for i in range(12, len(my_fields)):
-            if i - 12 in extra_cols:
+            if my_fields[i][1] in extra_cols:
                 extracolindexnames.append((i - 12, my_fields[i][1]))
         args.extra_cols_to_use = extracolindexnames
     bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',

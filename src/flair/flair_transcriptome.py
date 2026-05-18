@@ -15,13 +15,14 @@ from flair.partition_runner import parallel_mode_parse, partition_runner_factory
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, exons_to_juncs, get_bed_exons_from_exons,
-                                get_sequence_for_exons, binary_search, convert_to_bed, BED_FIELDS, EXTRA_BED_FIELDS, make_big_bed)
+                                get_sequence_for_exons, binary_search, convert_to_bed, BED_FIELDS,
+                                EXTRA_BED_FIELDS, make_big_bed)
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed
-from flair.predictProductivity import predict_productivity
+from flair.predictProductivity import predict_prod_temp
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -1124,7 +1125,6 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
         else:
             return (count >= args.se_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
 
-
 def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901 - FIXME: reduce complexity
     region = partition.region
     # FIXME confusing name if taking gtf_data,
@@ -1281,7 +1281,14 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
                 final_transcript_objs[tname].frac_support = round(my_frac_support, 4)
                 final_transcript_objs[tname].gene_desc = final_transcript_objs[tname].gene.gene_desc
 
-                convert_to_bed(final_transcript_objs[tname], extraCols=[x[1] for x in EXTRA_BED_FIELDS]).write(iso_fh)
+                thickStart, thickEnd, prodRGB = predict_prod_temp(final_transcript_objs[tname], annots.start_codon_count,
+                                                                  annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
+
+                convert_to_bed(final_transcript_objs[tname],
+                               extraCols=[x[1] for x in EXTRA_BED_FIELDS],
+                               thickStart=thickStart,
+                               thickEnd=thickEnd,
+                               rgb=prodRGB).write(iso_fh)
                 seq_fh.write('>' + final_transcript_objs[tname].name + '\n')
                 seq_fh.write(final_transcript_objs[tname].get_sequence(genome) + '\n')
 
@@ -1386,21 +1393,14 @@ def flair_transcriptome():
     runner.run(_run_region, args=args)
     combine_chunks(args, args.output, runner.partitions)
 
-    # FIXME: need to go through combined bed file and simplify isoform and gene ID hashes
-    # FIXME: currently only going through bed file, also need to correct read map, counts, and fa files
+    #  simplify isoform and gene ID hashes in bed file, read map, counts, and fa files
     fix_iso_labels(args.output)
 
-    bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', genecol=0, extracolindexnames=[(1, EXTRA_BED_FIELDS[1][1])])  # index of column with gene id in extracols, then additional column indexes + names
+    # index of column with gene id in extracols, then additional column indexes + names
+    bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', genecol=0,
+               extracolindexnames=[(i, EXTRA_BED_FIELDS[i][1]) for i in range(1, len(EXTRA_BED_FIELDS))])
 
     make_big_bed(genome, temp_dir + 'chrom.sizes', args.output.split('/')[-1], args.output + '.isoforms', BED_FIELDS + EXTRA_BED_FIELDS)
-
-    # this needs to be done here outside of chunking because needs to load whole annotation gtf, which should only be done once
-    if args.annot_gtf:
-        logging.info('predicting CDS')
-        # FIXME: why is this passing in annotation GTF?
-        # NOTE FROM COLETTE: Needs annotated GTF to define confident start codons
-        # could probably make this code more efficient by passing in pre-computed start codons
-        predict_productivity(args.annot_gtf, args.genome, args.output + '.isoforms.bed', args.output + '.isoforms.CDS', args.output + '.isoforms.as')
 
     if not args.keep_intermediate:
         shutil.rmtree(temp_dir)
