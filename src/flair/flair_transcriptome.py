@@ -132,9 +132,12 @@ def get_args():
                         help='''specify this argument to generate a txt file of read-isoform assignments''')
     parser.add_argument('--trust_strand', default=False, action='store_true',
                         help='''specify if you want FLAIR to trust the stranding of the input reads and not attempt strand correction''')
+    parser.add_argument('--trust_ends', default=False, action='store_true',
+                        help='''specify if you want FLAIR to trust the ends of the input reads - a more stringent way of requiring read ends to match the ends of transcript models''')
+
     args = parser.parse_args()
     args.parallel_mode = parallel_mode_parse(parser, args.parallel_mode)
-    args.trust_ends = False
+    # args.trust_ends = False
     args.remove_internal_priming = False
 
     if not os.path.exists(args.genome_aligned_bam):
