@@ -113,7 +113,7 @@ def setupNullLogger(logger, level=logging.INFO):
     return setupLogger(logger, handler)
 
 
-def addCmdOptions(parser, *, defaultLevel=logging.INFO, inclSyslog=False):
+def addCmdOptions(parser, *, defaultLevel=logging.WARNING, inclSyslog=False):
     """
     Add command line options related to logging.  None of these are defaulted,
     as one might need to determine if they were explicitly set. The use case

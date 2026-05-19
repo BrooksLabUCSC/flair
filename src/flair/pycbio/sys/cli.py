@@ -61,11 +61,12 @@ def splitOptionsArgs(parser, parsed_args):
             args[name] = value
     return opts, args
 
-def parseOptsArgs(parser, args=None, namespace=None):
+def parseOptsArgs(parser, *, args=None, namespace=None):
     """Call argparse parse_args and return (opts, args)"""
     return splitOptionsArgs(parser, parser.parse_args(args, namespace))
 
-def parseArgsWithLogging(parser, args=None, namespace=None):
+def parseArgsWithLogging(parser, *, args=None, namespace=None, defaultLevel=logging.WARNING,
+                         inclSyslog=False):
     """Call argparse.parse_args and return args. Add logging command options
     if they are not already there and configuring logging after parsing.  This
     handles common cases.
@@ -73,7 +74,7 @@ def parseArgsWithLogging(parser, args=None, namespace=None):
     WARNING: this does not work with sub-parsers
     """
     if not loggingOps.haveCmdOptions(parser):
-        loggingOps.addCmdOptions(parser)
+        loggingOps.addCmdOptions(parser, defaultLevel=defaultLevel, inclSyslog=inclSyslog)
     args = parser.parse_args(args, namespace)
     loggingOps.setupFromCmd(args)
     return args
@@ -85,7 +86,7 @@ def parseOptsArgsWithLogging(parser, args=None, namespace=None):
 
     WARNING: this does not work with sub-parsers
     """
-    return splitOptionsArgs(parser, parseArgsWithLogging(parser, args, namespace))
+    return splitOptionsArgs(parser, parseArgsWithLogging(parser, args=args, namespace=namespace))
 
 ###
 # error handling
