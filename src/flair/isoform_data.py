@@ -3,6 +3,7 @@
 from collections import namedtuple
 from flair import PosRange
 from flair.pycbio.hgdata.bed import Bed
+from flair.flair_bed import FlairBed
 from statistics import median
 import pysam
 import pipettor
@@ -165,23 +166,32 @@ def write_as_file(fields, filename, tablename, description):
             as_fh.write(field[0] + '\t' + field[1] + ';\t"' + field[2] + '"\n')
         as_fh.write(')')
 
-def convert_to_bed(readrec, extraCols=None, thickStart=None, thickEnd=None, rgb=None):
-    """Create and return a Bed object."""
-    if extraCols is None:
-        extraCols = []
-    else:
-        extraCols = [readrec.__dict__[x] for x in extraCols]
-    thickStart = thickStart if thickStart is not None else readrec.start
-    thickEnd = thickEnd if thickEnd is not None else readrec.end
-    rgb = rgb if rgb is not None else get_rgb(readrec.strand, len(readrec.juncs))
+def add_blocks_from_readrec(bed, readrec):
     exon_starts, exon_sizes = get_bed_exons_from_juncs(readrec.juncs, readrec.start, readrec.end)
-    bed = Bed(readrec.chrom, readrec.start, readrec.end, readrec.name,
-              score=readrec.score, strand=readrec.strand,
-              thickStart=thickStart, thickEnd=thickEnd,
-              itemRgb=rgb, extraCols=extraCols)
     for i in range(len(exon_starts)):
         blk_start = readrec.start + exon_starts[i]
         bed.addBlock(blk_start, blk_start + exon_sizes[i])
+
+def convert_to_bed12(readrec):
+    """Create and return a Bed object."""
+    bed = Bed(readrec.chrom, readrec.start, readrec.end, readrec.name,
+              score=readrec.score, strand=readrec.strand,
+              thickStart=readrec.start, thickEnd=readrec.end,
+              itemRgb=get_rgb(readrec.strand, len(readrec.juncs)))
+    add_blocks_from_readrec(bed, readrec)
+    return bed
+
+def convert_to_flair_bed(readrec, thickStart=None, thickEnd=None, itemRgb=None,
+                         read_support=None, frac_support=None, productivity=None):
+    if read_support is not None:
+        readrec.score = read_support
+    if itemRgb is None:
+        itemRgb = get_rgb(readrec.strand, len(readrec.juncs))
+    bed = FlairBed(readrec.chrom, readrec.start, readrec.end, readrec.name, score=readrec.score, strand=readrec.strand,
+                   thickStart=thickStart, thickEnd=thickEnd, itemRgb=itemRgb,
+                   gene_id=readrec.gene_id, ref_transcript_id=readrec.ref_transcript_id, ref_gene_mappings=readrec.gene.gene_desc,
+                   read_support=read_support, frac_support=frac_support, productivity=productivity)
+    add_blocks_from_readrec(bed, readrec)
     return bed
 
 def get_exons(readrec):
@@ -343,6 +353,8 @@ class Gene:
 
     def __init__(self, gene_id, gene_desc, chrom, strand):
         self.gene_id = gene_id
+        if type(gene_desc) is str or type(gene_desc) is int:
+            gene_desc = (str(gene_desc), )
         self.gene_desc = gene_desc
         self.chrom = chrom
         self.strand = strand
@@ -418,7 +430,7 @@ class Isoform:
         if self._score is None:
             return len(self.reads)
         else:
-            return self._score
+            return min(self._score, 1000)
 
     @score.setter
     def score(self, new_score):

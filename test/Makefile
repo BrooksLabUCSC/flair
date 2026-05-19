@@ -415,16 +415,21 @@ test-bed-to-gtf-cds :
 	$(call cmp_expect,$@.gtf)
 
 test-bed-to-gtf-extracols : 
-	bed_to_gtf --gene_col 0 --as_file $E/test-transcriptome.isoforms.as --extra_cols_to_use ref_transcript_id,gene_desc,productivity $E/test-transcriptome.isoforms.bed > $O/$@.gtf
+	bed_to_gtf --is_flair_bed $E/test-transcriptome.isoforms.bed > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
 ##
 # PREDICT PRODUCTIVITY
 ##
-predict-productivity-tests: test-predict-productivity test-predict-productivity-help
+predict-productivity-tests: test-predict-productivity test-predict-productivity-extracols test-predict-productivity-help
 
 test-predict-productivity : mkdirs ${GENOME_FA}
 	predictProductivity -i $(BASIC_ISOFORMS_BED) -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@
+	$(call cmp_expect,$@.bed)
+	$(call cmp_expect,$@.info.tsv)
+
+test-predict-productivity-extracols : mkdirs ${GENOME_FA}
+	predictProductivity -i $E/test-transcriptome-noannot.isoforms.bed -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@ --is_flair_bed
 	$(call cmp_expect,$@.bed)
 	$(call cmp_expect,$@.info.tsv)
 

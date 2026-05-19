@@ -1,13 +1,18 @@
 """
 FLAIR BED record that is used to pass extra fields.
 """
-from flair.pycbio.hgdata.bed import Bed, BedException
+from flair.pycbio.hgdata.bed import Bed, BedException, defaultIfNone
 from flair.pycbio.hgdata.autoSql import strArraySplit, strArrayJoin
 from flair.pycbio.tsv.tabFile import TabFileReader
 
 def parseStrOrNone(s):
     return None if len(s) == 0 else s
 
+def defaultIfNoneNoStr(x, z):
+    if x is None:
+        return z
+    else:
+        return x
 
 class FlairBed(Bed):
     """
@@ -47,17 +52,17 @@ class FlairBed(Bed):
 
     def toRow(self):
         row = super().toRow()
-        row.extend([self.gene_id,
-                    self.ref_transcript_id,
+        row.extend([defaultIfNone(self.gene_id, ''),
+                    defaultIfNone(self.ref_transcript_id, ''),
                     strArrayJoin(self.ref_gene_mappings),
-                    self.read_support,
-                    self.frac_support,
-                    self.productivity])
+                    defaultIfNone(int(self.read_support), ''),
+                    defaultIfNone(round(self.frac_support, 4), ''),
+                    defaultIfNone(self.productivity, '')])
         return row
 
     @classmethod
-    def _parse(cls, row):
-        base = Bed.parse(row[:12], numStdCols=12)
+    def _parse(cls, row, fixScores=None):
+        base = Bed.parse(row[:12], numStdCols=12, fixScores=fixScores)
         bed = cls(base.chrom, base.chromStart, base.chromEnd,
                   name=base.name, score=base.score, strand=base.strand,
                   thickStart=base.thickStart, thickEnd=base.thickEnd,
@@ -65,20 +70,34 @@ class FlairBed(Bed):
         bed.gene_id = parseStrOrNone(row[12])
         bed.ref_transcript_id = parseStrOrNone(row[13])
         bed.ref_gene_mappings = strArraySplit(row[14])
-        bed.read_support = int(row[15])
-        bed.frac_support = float(row[16])
-        bed.productivity = row[17]
+        bed.read_support = int(row[15]) if row[15] != '' else None
+        bed.frac_support = float(row[16]) if row[16] != '' else None
+        bed.productivity = parseStrOrNone(row[17])
         return bed
 
     @classmethod
-    def parse(cls, row):
+    def parse(cls, row, numStdCols=None, fixScores=None):  # numStdCols is only here for compatibility with BedReader
         needed_cols = 12 + len(cls.__slots__)
         if len(row) != needed_cols:
             raise BedException("expected at {} columns, found {}: ".format(needed_cols, len(row)))
         try:
-            return cls._parse(row)
+            return cls._parse(row, fixScores=fixScores)
         except Exception as ex:
             raise BedException(f"parsing of BED row failed: {row}") from ex
+
+    def get_named_extra_attrs(self):
+        my_attrs = []
+        if self.ref_transcript_id is not None:
+            my_attrs.append(('ref_transcript_id', self.ref_transcript_id))
+        if self.ref_gene_mappings is not None:
+            my_attrs.append(('ref_gene_mappings', self.ref_gene_mappings))
+        if self.read_support is not None:
+            my_attrs.append(('read_support', self.read_support))
+        if self.frac_support is not None:
+            my_attrs.append(('frac_support', self.frac_support))
+        if self.productivity is not None:
+            my_attrs.append(('productivity', self.productivity))
+        return my_attrs
 
 
 def FlairBedReader(fspec):
