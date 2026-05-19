@@ -2,7 +2,6 @@
 tests of flair_bed module
 """
 import pytest
-from io import StringIO
 from flair.flair_bed import FlairBed, FlairBedReader, parseStrOrNone
 from flair.pycbio.hgdata.bed import BedException
 
