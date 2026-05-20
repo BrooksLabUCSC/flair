@@ -22,6 +22,7 @@ import argparse
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.hgdata.bed import Bed, BedReader
+from flair.pycbio.sys import fileOps
 # from flair.isoform_data import BED_FIELDS, make_big_bed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.flair_bed import FlairBed
@@ -193,7 +194,7 @@ class Isoform(object):
 
 
 def getStarts(gtf):
-    starts = 'predictProd_starts_intermediate.bed'
+    starts = fileOps.tmpFileGet(prefix='predictProd_starts_intermediate', suffix='.bed')
     scount = 0
     out = open(starts, 'w')
     tnamenmdexcep = set()
