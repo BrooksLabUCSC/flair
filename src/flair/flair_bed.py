@@ -8,12 +8,6 @@ from flair.pycbio.tsv.tabFile import TabFileReader
 def parseStrOrNone(s):
     return None if len(s) == 0 else s
 
-def defaultIfNoneNoStr(x, z):
-    if x is None:
-        return z
-    else:
-        return x
-
 class FlairBed(Bed):
     """
     BED class that passes along flair-derived attributes.
@@ -55,7 +49,7 @@ class FlairBed(Bed):
         row.extend([defaultIfNone(self.gene_id, ''),
                     defaultIfNone(self.ref_transcript_id, ''),
                     strArrayJoin(self.ref_gene_mappings),
-                    defaultIfNone(int(self.read_support), ''),
+                    defaultIfNone(self.read_support, ''),
                     defaultIfNone(round(self.frac_support, 4), ''),
                     defaultIfNone(self.productivity, '')])
         return row

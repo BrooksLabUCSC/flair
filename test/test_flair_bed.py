@@ -100,7 +100,6 @@ def test_to_row_values():
     assert row[12] == "geneA"
     assert row[13] == "refTx1"
     assert row[14] == "g1:tx1,g2:tx2,"
-    # FIXME should these be integers/floats in the row?
     assert row[15] == '5'
     assert row[16] == '0.5'
     assert row[17] == "PRO"
