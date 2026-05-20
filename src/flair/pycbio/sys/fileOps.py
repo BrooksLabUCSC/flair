@@ -76,7 +76,7 @@ def rmTree(root):
 
 def isCompressed(path):
     "determine if a file appears to be compressed by extension"
-    return path.endswith(".gz") or path.endswith(".bz2") or path.endswith(".Z")
+    return path.endswith(".gz") or path.endswith(".bgz") or path.endswith(".bz2") or path.endswith(".Z")
 
 
 def compressCmd(path, *, bgzip=False):
@@ -84,15 +84,14 @@ def compressCmd(path, *, bgzip=False):
     to the `cat' command, so that it just gets written through"""
     if path.endswith(".Z"):
         raise PycbioException("writing compress .Z files not supported")
+
+    if path.endswith(".bgz") or bgzip:
+        return ["bgzip"]
     if path.endswith(".gz"):
-        if bgzip:
-            return ["bgzip"]
-        elif which("pigz"):
+        if which("pigz"):
             return ["pigz"]
         else:
             return ["gzip"]
-    if bgzip:
-        raise PycbioException(f"bgzip requested however file does not end in `.gz': `{path}'")
     if path.endswith(".bz2"):
         return ["bzip2"]
     else:
@@ -108,9 +107,8 @@ def compressBaseName(path):
 def decompressCmd(path):
     """"return the command to decompress the file to stdout, or default if not compressed, which defaults
     to the `cat' command, so that it just gets written through"""
-    if path.endswith(".gz") and which("unpigz"):
-        return ["unpigz", "-c"]
-    elif path.endswith(".Z") or path.endswith(".gz"):
+    # FIXME: default MacOS zcat doesn't recongize .gz
+    if path.endswith(".gz") or path.endswith(".bgz") or path.endswith(".Z"):
         return ["zcat"]
     elif path.endswith(".bz2"):
         return ["bzcat"]
@@ -352,6 +350,7 @@ def atomicTmpFile(finalPath):
     /dev/stdout), it is returned unchanged and atomicTmpInstall will do
     nothing.  The output directory will be created if it doesn't exist.
     Thread-safe."""
+    # FIXME: not that test name for function: atomicCreate ?
     # note: this can't use tmpFileGet, since file should not be created or be private
     finalDir = osp.dirname(osp.normpath(finalPath))  # maybe empty
     if finalDir == '/dev':

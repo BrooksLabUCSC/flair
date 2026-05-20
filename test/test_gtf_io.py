@@ -5,7 +5,7 @@ import pytest
 from io import StringIO
 from flair.gtf_io import (gtf_data_parser, gtf_record_parser, GtfAttrsSet, GtfExon, GtfTranscript, GtfCDS,
                           GtfIdError, GtfParseError, gtf_write_row, FLAIR_ATTRS,
-                          EXON_FEATURES, TRANSCRIPT_FEATURES, TRANSCRIPT_EXON_FEATURES)
+                          EXON_FEATURES, TRANSCRIPT_FEATURES, TRANSCRIPT_EXON_FEATURES, FLAIR_TRANSCRIPT_ATTRS)
 from flair import SeqRange
 
 GTF_FILE = "input/basic.annotation.gtf"
@@ -14,7 +14,8 @@ KRAS_TRANS_ID = 'ENST00000556131.1'
 def test_gtf_data_parser_flair():
     gtf_data = gtf_data_parser(GTF_FILE, attrs=GtfAttrsSet.FLAIR)
     transcript = gtf_data.fetch_transcript(KRAS_TRANS_ID)
-    assert set(transcript.attrs.keys()) == set(FLAIR_ATTRS)
+    # FIXME: add FLAIR_TRANSCRIPT_ATTRS
+    assert frozenset(transcript.attrs.keys()) == FLAIR_TRANSCRIPT_ATTRS
 
 def test_gtf_data_parser_all():
     gtf_data = gtf_data_parser(GTF_FILE, attrs=GtfAttrsSet.ALL)
@@ -72,7 +73,7 @@ def test_trans_lookup_flair(basic_gtf_data):
     assert transcript.gene_name == "KRAS"
     assert transcript.coords == SeqRange(name='chr12', start=25233818, end=25250929, strand='-')
     assert transcript.coords_no_strand == SeqRange(name='chr12', start=25233818, end=25250929)
-    assert set(transcript.attrs.keys()) == set(FLAIR_ATTRS)
+    assert frozenset(transcript.attrs.keys()) == FLAIR_TRANSCRIPT_ATTRS
 
 def test_trans_lookup_all(basic_gtf_data_all):
     transcript = basic_gtf_data_all.get_transcript('ENST00000556131.1')

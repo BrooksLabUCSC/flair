@@ -36,28 +36,28 @@ def quantify(isoform_sequences=''):  # noqa: C901 - FIXME: reduce complexity
                         help='specify if reads are generated from a long read method with minimal fragmentation')
     parser.add_argument('--generate_map', default=False, action='store_true', dest='generate_map',
                         help='''create read-to-isoform assignment files for each sample (default: not specified)''')
-    parser.add_argument('--isoform_bed', '--isoformbed', default='', type=str, action='store', dest='isoforms',
-                        help='''isoform .bed file, must be specified if --stringent or check_splice is specified''')
-    parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
-                        help='''Supporting reads must cover 80 percent of their isoform and extend at least 25 nt into the
-                        first and last exons. If those exons are themselves shorter than 25 nt, the requirement becomes
-                        'must start within 4 nt from the start" or "must end within 4 nt from the end" ''')
-    parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
-                        help='''enforce coverage of 4 out of 6 bp around each splice site and no
-                        insertions greater than 3 bp at the splice site''')
+    required.add_argument('--isoform_bed', '--isoformbed', default='', type=str, action='store', dest='isoforms',
+                          help='''isoform .bed file, must be specified if --stringent or check_splice is specified''')
+    # parser.add_argument('--stringent', default=False, action='store_true', dest='stringent',
+    #                     help='''Supporting reads must cover 80 percent of their isoform and extend at least 25 nt into the
+    #                     first and last exons. If those exons are themselves shorter than 25 nt, the requirement becomes
+    #                     'must start within 4 nt from the start" or "must end within 4 nt from the end" ''')
+    # parser.add_argument('--check_splice', default=False, action='store_true', dest='check_splice',
+    #                     help='''enforce coverage of 4 out of 6 bp around each splice site and no
+    #                     insertions greater than 3 bp at the splice site''')
     parser.add_argument('--output_bam', default=False, action='store_true', dest='output_bam',
                         help='whether to output bam file of reads aligned to correct isoforms')
     args = parser.parse_args()
     if isoform_sequences:
         args.i = isoform_sequences
         args.o += '.counts_matrix.tsv'
-    if (args.stringent or args.check_splice):
-        if not args.isoforms:
-            raise Exception('Please specify isoform models as .bed file using --isoform_bed')
-        elif not os.path.exists(args.isoforms):
-            raise Exception('Isoform models bed file path does not exist: ' + args.isoforms)
-        elif args.isoforms.endswith('.psl'):
-            raise Exception('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
+    # if (args.stringent or args.check_splice):
+    #     if not args.isoforms:
+    #         raise Exception('Please specify isoform models as .bed file using --isoform_bed')
+    if not os.path.exists(args.isoforms):
+        raise Exception('Isoform models bed file path does not exist: ' + args.isoforms)
+    elif args.isoforms.endswith('.psl'):
+        raise Exception('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
     if not os.path.exists(args.i):
         raise Exception('Isoform sequences fasta file path does not exist: ' + args.i)
 
@@ -91,15 +91,15 @@ def quantify(isoform_sequences=''):  # noqa: C901 - FIXME: reduce complexity
         mm2_command = ('minimap2', '--MD', '-a', '-N', '4', '-t', str(args.t), args.i, readFile)
 
         count_cmd = ['filter_transcriptome_align.py', '-s', '-',
-                     '-o', samOut + '.counts.txt', '-t', str(args.t), '--quality', str(args.quality)]
+                     '-o', samOut + '.counts.txt', '-t', str(args.t), '--quality', str(args.quality), '--stringent', '--check_splice', '-i', args.isoforms]
         if args.trust_ends:
             count_cmd += ['--trust_ends']
-        if args.stringent:
-            count_cmd += ['--stringent']
-        if args.check_splice:
-            count_cmd += ['--check_splice']
-        if args.check_splice or args.stringent:
-            count_cmd += ['-i', args.isoforms]
+        # if args.stringent:
+        #     count_cmd += ['--stringent']
+        # if args.check_splice:
+        #     count_cmd += ['--check_splice']
+        # if args.check_splice or args.stringent:
+        #     count_cmd += ['-i', args.isoforms]
         if args.generate_map:
             count_cmd += ['--generate_map', args.o + '.' + sample + '.' + group + '.isoform.read.map.txt']
         if args.output_bam:

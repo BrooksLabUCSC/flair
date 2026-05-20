@@ -1,4 +1,5 @@
 # Copyright 2006-2025 Mark Diekhans
+"""TSV row objects with column values accessible as attributes."""
 
 # FIXME: danger of dump, etc, methods conflicting with columns.  maybe
 # a better convention to avoid collisions or make these functions rather
@@ -6,11 +7,6 @@
 # FIXME: need accessor functions for columns
 # FIXME: need way to get raw row with Nones for sql
 # FIXME: this could actually be a dict-like object since py3
-
-def tsvRowToDict(row):
-    """convert a TSV row to a dict"""
-    return {col: getattr(row, col) for col in row._columnSpecs_.columns}
-
 
 class TsvRow:
     "Row of a TSV where columns are fields."
@@ -33,7 +29,7 @@ class TsvRow:
     def __setitem__(self, key, val):
         "set a column by string key or numeric index"
         if isinstance(key, int):
-            setattr(self, self._columnSpecs.columns[key], val)
+            setattr(self, self._columnSpecs_.columns[key], val)
         else:
             setattr(self, key, val)
 
@@ -92,3 +88,17 @@ class TsvRow:
             fh.write(str(col))
             i += 1
         fh.write("\n")
+
+
+def tsvRowToDict(row):
+    """convert a TSV row to a dict"""
+    return {col: getattr(row, col) for col in row._columnSpecs_.columns}
+
+
+def tsvRowGetColumnSpecs(row):
+    """return the hidden ColumnSpecs object"""
+    return row._columnSpecs_
+
+def tsvRowGetColumns(row):
+    """return the hidden ColumnSpecs object"""
+    return row._columnSpecs_.columns

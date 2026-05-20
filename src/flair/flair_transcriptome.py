@@ -4,6 +4,7 @@ import os
 import pipettor
 import shutil
 import pysam
+import hashlib
 import logging
 from statistics import median
 from collections import Counter
@@ -14,12 +15,14 @@ from flair.partition_runner import parallel_mode_parse, partition_runner_factory
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, exons_to_juncs, get_bed_exons_from_exons,
-                                get_sequence_for_exons, binary_search, convert_to_bed)
+                                get_sequence_for_exons, binary_search, convert_to_bed12, convert_to_flair_bed, BED_FIELDS,
+                                EXTRA_BED_FIELDS, make_big_bed)
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed
+from flair.predictProductivity import predict_prod_temp
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -53,7 +56,7 @@ def get_args():
                                                'STAR will automatically output this file')
     mutexc.add_argument('--junction_bed', help='short-read junctions in bed format '
                                                '(can be generated from long-read alignment with intron-prospector)')
-    parser.add_argument('--junction_support', type=int, default=1,
+    parser.add_argument('--junction_support', type=int, default=2,
                         help='if providing short-read junctions, minimum junction support required to keep junction. '
                              'If your junctions file is in bed format, the score field will be used for read support.')
     parser.add_argument('--ss_window', type=int, default=15,
@@ -101,11 +104,11 @@ def get_args():
                             if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
                             parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion,
                             auto:xGB - for setting the auto threshold, it must be in units of GB.''')
-    parser.add_argument('--predict_cds', default=False, action='store_true',
-                        help='specify if you want to predict the CDS of the final isoforms. '
-                             'Will be output in the final bed file but not the gtf file. '
-                             'Productivity annotation is also added in the name field, '
-                             'which is detailed further in the predictProductivity documentation')
+    # parser.add_argument('--predict_cds', default=False, action='store_true',
+    #                     help='specify if you want to predict the CDS of the final isoforms. '
+    #                          'Will be output in the final bed file but not the gtf file. '
+    #                          'Productivity annotation is also added in the name field, '
+    #                          'which is detailed further in the predictProductivity documentation')
     parser.add_argument('--keep_intermediate', default=False, action='store_true',
                         help='''specify if intermediate and temporary files are to be kept for debugging.
                         Intermediate files include: promoter-supported reads file,
@@ -129,9 +132,12 @@ def get_args():
                         help='''specify this argument to generate a txt file of read-isoform assignments''')
     parser.add_argument('--trust_strand', default=False, action='store_true',
                         help='''specify if you want FLAIR to trust the stranding of the input reads and not attempt strand correction''')
+    parser.add_argument('--trust_ends', default=False, action='store_true',
+                        help='''specify if you want FLAIR to trust the ends of the input reads - a more stringent way of requiring read ends to match the ends of transcript models''')
+
     args = parser.parse_args()
     args.parallel_mode = parallel_mode_parse(parser, args.parallel_mode)
-    args.trust_ends = False
+    # args.trust_ends = False
     args.remove_internal_priming = False
 
     if not os.path.exists(args.genome_aligned_bam):
@@ -177,8 +183,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     # FIXME really need to go in and check on how count_sam_transcripts is working
     trimmedreads = clipping_file or None
     generate_map = map_file or None
-    output_endpos = (output_name.split('.counts.txt')[0] + '.ends.tsv'
-                     if (args.output_endpos or is_annot) else None)
+    output_endpos = output_name.split('.counts.txt')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
     output_bam = (output_name.split('.counts.txt')[0] + '.bam'
                   if args.output_bam else None)
     stringent = (not is_annot) and (not args.no_stringent)
@@ -203,7 +208,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         output_endpos=output_endpos,
         end_norm_dist=args.end_norm_dist or 0,
         stringent=stringent,
-        allow_UTR_indels=is_annot,
+        allow_UTR_indels=True,  # is_annot,
         output_bam=output_bam,
         check_splice=check_splice,
         isoforms=isoforms,
@@ -353,7 +358,7 @@ def _check_novel_iso_subset(novel_iso_id, all_isoforms,
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
-                       sup_annot_transcript_to_juncs, strand, annot_id):
+                       sup_annot_transcript_to_juncs, strand):
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
     novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
@@ -469,7 +474,7 @@ def max_terminal_exons_ends_from_iso_infos(iso_to_info):
     max_terminal_exons_ends = MaxTerminalExonsEnds()
     for iso_name in iso_to_info:
         isoform = iso_to_info[iso_name]
-        max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, isoform.transcript_id, isoform.exons)
+        max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, isoform.name, isoform.exons)
     return max_terminal_exons_ends
 
 ####
@@ -491,7 +496,7 @@ def generate_transcriptome_reference_transcript(strand, transcript_to_strand, tr
     assert isinstance(exons[0], Exon)  # FIXME tmp debugging
     juncs = exons_to_juncs(exons)
     is_not_subset, unique_seq = filter_spliced_iso('nosubset', 0, juncs, exons, (transcript_id, gene_id),
-                                                   0, annots, None, None, None, strand, transcript_id)
+                                                   0, annots, None, None, None, strand)
     if is_not_subset:
         if normalize_ends:
             normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons,
@@ -559,9 +564,9 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
         for line in open(temp_prefix + '.matchannot.ends.tsv'):
             line = line.rstrip().split('\t')
             read, transcript = line[:2]
-            if line[2] != 'None':
-                startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
-                read_to_transcript[read] = (transcript, startindex, startdist, endindex, enddist)
+            start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
+            if start_sj_index != 'None':  # not a single exon transcript
+                read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
     else:
         # create empty output files
         # FIXME: why doesn't this create all of them?
@@ -630,7 +635,7 @@ def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, no_r
 
 def _write_unfiltered_ends(isoforms, fh):
     for iso_readrec in isoforms:
-        convert_to_bed(iso_readrec).write(fh)
+        convert_to_bed12(iso_readrec).write(fh)
 
 class CandidateIsoforms:
     """Candidate isoforms before filtering, with junction and exon indices.
@@ -656,19 +661,19 @@ class CandidateIsoforms:
             self.exons.update(set(isoform.exons))
 
 
-def _process_junc_ends(args, isoforms, candidates, iso_fh):
+def _filter_isos_by_redundant_and_support(args, isoforms, candidates, iso_fh):
     # this assumes single exons are pre-grouped by overlap
     # previously treated single exons separately due to them being in larger groups
     filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.se_support, args.no_redundant, args.max_ends)
     for isoform in filtered_isoforms:
         candidates.add(isoform)
-        convert_to_bed(isoform).write(iso_fh)
+        convert_to_bed12(isoform).write(iso_fh)
 
-def _process_junc(args, isoform, candidates, iso_fh, iso_unfilt_fh):
+def _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh):
     # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
     these_firstpass = collapse_end_groups(args.end_window, isoform)
     _write_unfiltered_ends(these_firstpass, iso_unfilt_fh)
-    _process_junc_ends(args, these_firstpass, candidates, iso_fh)
+    _filter_isos_by_redundant_and_support(args, these_firstpass, candidates, iso_fh)
 
 
 def correct_se_strand_polyA(read_group, se_support):
@@ -776,15 +781,13 @@ def group_by_overlap(sj_to_ends, se_support, trust_strand):
 def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, region_chrom):
     sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.se_support, args.trust_strand)
     # FIXME everything below here requires confidence in transcript strand
-    genes, novel_gene_isos_to_group = build_genes(sjc_with_overlap_groups, annots)
-    for strand in novel_gene_isos_to_group:
-        generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, region_chrom, sjc_with_overlap_groups)
+    build_genes(sjc_with_overlap_groups, annots, region_chrom, sjc_with_overlap_groups)
 
     candidates = CandidateIsoforms()
     with open(temp_prefix + '.firstpass.unfiltered.bed', 'w') as iso_fh, \
             open(temp_prefix + '.firstpass.reallyunfiltered.bed', 'w') as iso_unfilt_fh:
         for juncs, isoform in sjc_with_overlap_groups.items():
-            _process_junc(args, isoform, candidates, iso_fh, iso_unfilt_fh)
+            _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh)
     return candidates
 
 ####
@@ -860,7 +863,7 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                     is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, isoform.exons,
                                                                    iso_name, isoform.num_reads, annots,
                                                                    candidates.junc_to_names, candidates.isoforms,
-                                                                   sup_annot_transcript_to_juncs, isoform.strand, isoform.transcript_id)
+                                                                   sup_annot_transcript_to_juncs, isoform.strand)
                     if not is_not_subset:
                         logging.debug(f"isoform dropped: subset of another isoform: {iso_name} ({isoform.num_reads} reads)")
                     else:
@@ -872,18 +875,41 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
 
     return firstpass, iso_to_unique_bound
 
+def get_longest_junc_sets_to_genes(gene_to_juncs, annots):
+    longest_junc_sets_to_genes = {}
+    for g1, sjc1 in gene_to_juncs:
+        is_subset = False
+        for g2, sjc2 in gene_to_juncs:
+            if g1 != g2 and len(sjc1) < len(sjc2) and len(sjc1 & sjc2) > 0:
+                is_subset = True
+                break
+        if not is_subset:
+            if sjc1 not in longest_junc_sets_to_genes:
+                longest_junc_sets_to_genes[sjc1] = []
+            longest_junc_sets_to_genes[sjc1].append((len(annots.gene_to_annot_juncs[g1]), g1))
+    return longest_junc_sets_to_genes
 
 def get_genes_with_shared_juncs(juncs, annots):
-    # FIXME: what does this actually return?
-    gene_hits = {}
-    if juncs != ():
-        for j in juncs:
-            if j in annots.junc_to_gene:
-                for transcript_id, gene_id in annots.junc_to_gene[j]:
-                    if gene_id not in gene_hits:
-                        gene_hits[gene_id] = [0, -1 * len(annots.gene_to_annot_juncs[gene_id])]
-                    gene_hits[gene_id][0] += 1
-    return gene_hits
+    # Go through junctions, get genes annotated as assigned to junctions
+    # Assemble gene to junction code
+    # check junction sets against each other. If genes share junctions, pick the gene[s] with the most junctions
+    # if genes share all junctions, pick the shortest gene
+    # if there are multiple unique sets of junctions assigned to a gene, return list of genes
+    gene_to_juncs = {}
+    # get gene length (total number of junctions): len(annots.gene_to_annot_juncs[gene_id])
+    for j in juncs:
+        if j in annots.junc_to_gene:
+            for transcript_id, gene_id in annots.junc_to_gene[j]:
+                if gene_id not in gene_to_juncs:
+                    gene_to_juncs[gene_id] = set()
+                gene_to_juncs[gene_id].add(j)
+    gene_to_juncs = [(k, frozenset(v)) for k, v in gene_to_juncs.items()]
+    longest_junc_sets_to_genes = get_longest_junc_sets_to_genes(gene_to_juncs, annots)
+    final_genes = []
+    for sjc in longest_junc_sets_to_genes:
+        final_genes.append(sorted(longest_junc_sets_to_genes[sjc], reverse=True)[0][1])
+    final_genes.sort()
+    return tuple(final_genes)
 
 
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
@@ -929,33 +955,35 @@ def _get_transcript_gene_from_annot(iso_readrec, annots, annot_name_to_used_coun
             transcript_id = transcript_id + '-endvar' + str(annot_name_to_used_counts[transcript_id])
         else:
             annot_name_to_used_counts[transcript_id] = 1
-        return transcript_id, gene_id
+        return transcript_id, (gene_id, )
     else:
         return None, None
 
 
 def _find_gene_id_by_overlap(iso_readrec, annots):
     """Find gene_id for an isoform without a matching junction chain, using junction or exon overlap."""
-    # FIXME this all requires that we already trust the strand of the transcript
+    # this all requires that we already trust the strand of the transcript
+    # returns tuple of matching genes, will go into ref_gene_id field
     if iso_readrec.juncs != ():
         gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, annots)
+        if gene_hits:
+            return gene_hits
     else:
         gene_hits = get_single_exon_gene_overlaps(iso_readrec.strand, iso_readrec, annots)
-    if gene_hits:
-        return sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0]
-    else:
-        # look for exon overlap
-        if iso_readrec.strand != 'ambig':
-            gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
-        else:
-            gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
         if gene_hits:
-            gene_hits.sort(reverse=True)
-            if iso_readrec.strand == 'ambig':
-                iso_readrec.strand = gene_hits[0][2]
-            return gene_hits[0][1]
-        else:
-            return None
+            return (sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0], )
+    # if no gene from above, look for exon overlap
+    if iso_readrec.strand != 'ambig':
+        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+    else:
+        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+    if gene_hits:
+        gene_hits.sort(reverse=True)
+        if iso_readrec.strand == 'ambig':
+            iso_readrec.strand = gene_hits[0][2]
+        return (gene_hits[0][1], )
+    else:
+        return None
 
 
 def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
@@ -964,8 +992,15 @@ def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
         gene_id = _find_gene_id_by_overlap(isoform, annots)
     return gene_id, transcript_id
 
+def add_gene_isoform(genes, gene_id, isoform, strand):
+    hashed_id = int(hashlib.md5(','.join(gene_id).encode('utf-8')).hexdigest(), 16)
+    if hashed_id not in genes:
+        genes[hashed_id] = Gene(hashed_id, gene_id, isoform.chrom, strand)
+    # this command also sets the gene_id in the isoform object
+    genes[hashed_id].add_isoform(isoform)
 
-def build_genes(firstpass, annots):
+
+def build_genes(firstpass, annots, region_chrom, sjc_with_overlap_groups):
     """Assign gene names to firstpass isoforms, building Gene objects.
 
     Returns (genes, novel_gene_isos_to_group) where:
@@ -978,26 +1013,26 @@ def build_genes(firstpass, annots):
     for iso_key in firstpass:
         isoform = firstpass[iso_key]
         gene_id, isoform_id = get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts)
-        isoform.transcript_id = isoform_id
+        isoform.ref_transcript_id = isoform_id
         if gene_id is not None:
             # removing this strand correction breaks the unusual junction (due to underlying variant?) test
-            isoform.strand = annots.gene_to_strand[gene_id]
-            if gene_id not in genes:
-                genes[gene_id] = Gene(gene_id, isoform.chrom, annots.gene_to_strand[gene_id])
-            genes[gene_id].add_isoform(isoform)
+            # currently just using first gene in list, ideally would use the most 5' annotated gene for this strand correction, if we want to do strand correction at all
+            isoform.strand = annots.gene_to_strand[gene_id[0]]
+            add_gene_isoform(genes, gene_id, isoform, annots.gene_to_strand[gene_id[0]])
         else:
             novel_gene_isos_to_group[isoform.strand].append((isoform.start, isoform.end, iso_key))
 
-    return genes, novel_gene_isos_to_group
+    for strand in novel_gene_isos_to_group:
+        generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, region_chrom, sjc_with_overlap_groups)
+
+    return genes
 
 
 def _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass):
     """Create a Gene for a group of novel overlapping isoforms."""
     gene_id = f'{chrom}:{group_start}-{last_end}:{strand}'
-    gene = Gene(gene_id, chrom, strand)
-    genes[gene_id] = gene
     for s, e, n in curr_group:
-        gene.add_isoform(firstpass[n])
+        add_gene_isoform(genes, gene_id, firstpass[n], strand)
 
 def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
     """Group novel isoforms by coordinate overlap and create Gene objects."""
@@ -1024,14 +1059,14 @@ def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_ex
         normalize_gene_terminal_exons(max_terminal_exons_ends, isoform.gene_id, isoform.strand, isoform.exons,
                                       add_length_at_ends=add_length_at_ends)
         isoform.reset_from_exons(isoform.exons)
-    if isoform.transcript_id is None:
-        isoform.transcript_id = isoform.name
-    isoform.name = isoform.transcript_id + '_' + isoform.gene_id
+    # if isoform.transcript_id is None:
+    #     isoform.transcript_id = isoform.name
+    # isoform.name = isoform.transcript_id + '_' + isoform.gene_id
 
     if unique_bound and iso_name in unique_bound:
         unique_fh.write(isoform.name + '\t' + unique_bound[iso_name] + '\n')
 
-    convert_to_bed(isoform).write(iso_fh)
+    convert_to_bed12(isoform).write(iso_fh)
     seq_fh.write('>' + isoform.name + '\n')
     seq_fh.write(isoform.get_sequence(genome) + '\n')
 
@@ -1083,27 +1118,86 @@ def write_transcript_ends_beds(args, temp_prefix, read_to_final_transcript, ends
     for suffix in ['.matchannot.ends.tsv']:
         write_transcript_ends_bed(args, temp_prefix, suffix, read_to_final_transcript, ends_fh)
 
-def predict_productivity(out_prefix, genome_fasta, gtf):
-    cmd = ('predictProductivity',
-           '-i', out_prefix + '.isoforms.bed',
-           '-o', out_prefix + '.isoforms.CDS',
-           '--gtf', gtf,
-           '--genome_fasta', genome_fasta,
-           '--longestORF')
-    pipettor.run(cmd)
-
-def _iso_passes_support_filter(args, iso, num_exons, iso_to_counts, gene_to_tot):
+def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_to_tot):
     if iso not in iso_to_counts:
-        return False
+        return False, 0
     else:
         count = iso_to_counts[iso][0]
         if num_exons > 1:
-            return (count >= args.sjc_support) and (count / gene_to_tot[iso.split('_')[-1]][0]) >= args.frac_support
+            return (count >= args.sjc_support) and (count / gene_to_tot[gene][0]) >= args.frac_support, (count / gene_to_tot[gene][0])
         else:
-            return (count >= args.se_support) and (count / gene_to_tot[iso.split('_')[-1]][1]) >= args.frac_support
+            return (count >= args.se_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
+
+def generate_full_set_empty_intermediate_files(file_prefix, end_norm_dist, no_align_to_annot):
+    suffixes = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed', '.isoforms.bed',
+                '.isoform.read.map.txt', '.isoforms.gtf', '.isoforms.fa', '.isoform.counts.txt']
+    if end_norm_dist:
+        suffixes.extend(['.read_ends.bed', '.matchannot.ends.tsv'])
+    if not no_align_to_annot:
+        suffixes.extend(['.matchannot.counts.txt', '.matchannot.read.map.txt'])
+    generate_empty_intermediate_files(file_prefix, suffixes)
+
+def generate_empty_intermediate_files(file_prefix, suffixes):
+    for s in suffixes:
+        out = open(file_prefix + s, 'w')
+        out.close()
+
+def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends):
+    iso_to_counts = {}
+    gene_to_tot = {}
+    # FIXME: with new count sam transcripts logic, there are now no longer non-full-length transcripts in the isoform.ends.tsv
+    for line in open(read_ends_file):
+        line = line.rstrip().split('\t')
+        read, transcript = line[:2]
+        start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
+        gene = final_transcript_objs[transcript].gene_id
+        if gene not in gene_to_tot:
+            # total spliced full-length, total full-length spliced + unspliced, total all
+            gene_to_tot[gene] = [0, 0, 0]
+        if transcript not in iso_to_counts:
+            iso_to_counts[transcript] = [0, 0]
+        if start_sj_index is None:  # single exon transcript
+            if trust_ends:
+                if start_tend_dist <= TRUST_ENDS_WINDOW and end_tend_dist <= TRUST_ENDS_WINDOW:
+                    iso_to_counts[transcript][0] += 1
+                    gene_to_tot[gene][1] += 1
+            else:
+                tlen = final_transcript_objs[transcript].end - final_transcript_objs[transcript].start
+                rlen = tlen - (start_tend_dist + end_tend_dist)
+                # FIXME might not work if end_norm_dist is set - add test, or just remove end_norm_dist
+                if rlen > (tlen / 2):
+                    iso_to_counts[transcript][0] += 1
+                    gene_to_tot[gene][1] += 1
+        else:
+            if start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1:
+                iso_to_counts[transcript][0] += 1
+                gene_to_tot[gene][0] += 1
+                gene_to_tot[gene][1] += 1
+            else:
+                print('ERROR: not full-length')
+        iso_to_counts[transcript][1] += 1
+        gene_to_tot[gene][2] += 1
+    return iso_to_counts, gene_to_tot
+
+def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome):
+    with open(partition.output_path('isoform.counts.txt'), 'w') as fh:
+        for transcript in iso_to_counts:
+            fh.write(f'{transcript}\t{iso_to_counts[transcript][0]}\t{iso_to_counts[transcript][1]}\n')
+    with open(partition.output_path('isoforms.bed'), 'w') as iso_fh, \
+         open(partition.output_path('isoforms.fa'), 'w') as seq_fh:
+        for tname in final_transcript_objs:
+            # spliced isos checked against spliced total, single exon checked against full-length total
+            passes_support, my_frac_support = _iso_passes_support_filter(args, tname, final_transcript_objs[tname].gene_id, len(final_transcript_objs[tname].exons), iso_to_counts, gene_to_tot)
+            if passes_support:
+                thickStart, thickEnd, prodRGB, productivity = predict_prod_temp(final_transcript_objs[tname], annots.start_codon_count,
+                                                                                annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
+                convert_to_flair_bed(final_transcript_objs[tname], thickStart=thickStart, thickEnd=thickEnd, itemRgb=prodRGB, read_support=iso_to_counts[tname][0],
+                                     frac_support=my_frac_support, productivity=productivity).write(iso_fh)
+                seq_fh.write('>' + final_transcript_objs[tname].name + '\n')
+                seq_fh.write(final_transcript_objs[tname].get_sequence(genome) + '\n')
 
 
-def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901 - FIXME: reduce complexity
+def _run_region(*, partition, gtf_data, junction_corrector, args):
     region = partition.region
     # FIXME confusing name if taking gtf_data,
     # FIXME: should only have region, so why take region arg
@@ -1128,16 +1222,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
     num_reads, clipping_file = generate_genomic_alignment_read_to_clipping_file(partition.file_prefix, bam_file, region)
 
     if num_reads == 0:
-        suffixes = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed',
-                    '.isoforms.bed',
-                    '.isoform.read.map.txt', '.isoforms.gtf', '.isoforms.fa', '.isoform.counts.txt']
-        if args.end_norm_dist:
-            suffixes.extend(['.read_ends.bed', '.matchannot.ends.tsv'])
-        if not args.no_align_to_annot:
-            suffixes.extend(['.matchannot.counts.txt', '.matchannot.read.map.txt'])
-        for s in suffixes:
-            out = open(partition.file_prefix + s, 'w')
-            out.close()
+        generate_full_set_empty_intermediate_files(partition.file_prefix, args.end_norm_dist, args.no_align_to_annot)
         return
 
     # aligning to reference transcriptome, then identifying reads that match well to reference transcripts
@@ -1145,8 +1230,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
     # logging.info('identifying good match to annot')
     if not args.no_align_to_annot:
         logging.info('aligning to transcriptome reference')
-    read_to_annot_transcript = \
-        identify_good_match_to_annot(args, partition.file_prefix, region.name, annots, genome)
+    read_to_annot_transcript = identify_good_match_to_annot(args, partition.file_prefix, region.name, annots, genome)
 
     logging.info('correcting and grouping reads, filtering isoforms')
 
@@ -1190,88 +1274,84 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):  # noqa: C901
                                       partition.output_path('firstpass.fa'),
                                       partition.output_path('firstpass.bed'),
                                       partition.output_path('isoform.counts.txt'),
-                                      partition.output_path('isoform.read.map.txt'), True,
+                                      partition.output_path('isoform.read.map.txt'), False,  # say is not annot, requires stringent, returns different end values
                                       partition.output_path('reads.genomicclipping.txt'),
                                       partition.output_path('firstpass.uniquebound.txt'))
     else:
         logging.info('no firstpass isoforms found')
-        # create empty files
-        with open(partition.output_path('firstpass.fa'), 'w') as _, \
-             open(partition.output_path('firstpass.bed'), 'w') as _, \
-             open(partition.output_path('isoform.counts.txt'), 'w') as _, \
-             open(partition.output_path('isoform.read.map.txt'), 'w') as _, \
-             open(partition.output_path('isoform.ends.tsv'), 'w') as _:
-            pass
+        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.txt', '.isoform.read.map.txt', '.isoform.ends.tsv'])
 
     # FIXME this is messy, shouldn't have to reorganize like this
     final_transcript_objs = {}
     for og_key in firstpass:
         final_transcript_objs[firstpass[og_key].name] = firstpass[og_key]
 
-    iso_to_counts = {}
-    gene_to_tot = {}
-    for line in open(partition.output_path('isoform.ends.tsv')):
-        line = line.rstrip().split('\t')
-        read, transcript = line[:2]
-        gene = transcript.split('_')[-1]
-        if gene not in gene_to_tot:
-            gene_to_tot[gene] = [0, 0, 0]
-        if transcript not in iso_to_counts:
-            # total spliced full-length, total full-length spliced + unspliced, total all
-            iso_to_counts[transcript] = [0, 0]
-        if line[2] == 'None':  # single exon transcript
-            startdist, enddist = int(line[3]), int(line[5])
-            if args.trust_ends:
-                if startdist <= TRUST_ENDS_WINDOW and enddist <= TRUST_ENDS_WINDOW:
-                    iso_to_counts[transcript][0] += 1
-                    gene_to_tot[gene][1] += 1
-            else:
-                tlen = final_transcript_objs[transcript].end - final_transcript_objs[transcript].start
-                rlen = tlen - (startdist + enddist)
-                # FIXME might not work if end_norm_dist is set - add test, or just remove end_norm_dist
-                if rlen > (tlen / 2):
-                    iso_to_counts[transcript][0] += 1
-                    gene_to_tot[gene][1] += 1
-        else:
-            startindex, startdist, endindex, enddist = [int(x) for x in line[2:]]
-            if startindex == 0 and endindex == len(final_transcript_objs[transcript].juncs) - 1:
-                iso_to_counts[transcript][0] += 1
-                gene_to_tot[gene][0] += 1
-                gene_to_tot[gene][1] += 1
-        iso_to_counts[transcript][1] += 1
-        gene_to_tot[gene][2] += 1
-
-    with open(partition.output_path('isoform.counts.txt'), 'w') as fh:
-        for transcript in iso_to_counts:
-            fh.write(f'{transcript}\t{iso_to_counts[transcript][0]}\t{iso_to_counts[transcript][1]}\n')
-
-    with open(partition.output_path('isoforms.bed'), 'w') as iso_fh, \
-         open(partition.output_path('isoforms.fa'), 'w') as seq_fh:
-        for tname in final_transcript_objs:
-            # spliced isos checked against spliced total, single exon checked against full-length total
-            if _iso_passes_support_filter(args, tname, len(final_transcript_objs[tname].exons), iso_to_counts, gene_to_tot):
-                # print(final_transcript_objs[tname].score, iso_to_counts[tname])
-                final_transcript_objs[tname].score = iso_to_counts[tname][0]
-
-                convert_to_bed(final_transcript_objs[tname]).write(iso_fh)
-                seq_fh.write('>' + final_transcript_objs[tname].name + '\n')
-                seq_fh.write(final_transcript_objs[tname].get_sequence(genome) + '\n')
-
-    bed_to_gtf(partition.output_path('isoforms.bed'), partition.output_path('isoforms.gtf'))
-
+    iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.trust_ends)
+    write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome)
     genome.close()
 
 def combine_chunks(args, output, partitions):
-    files_to_combine = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed',
-                        '.isoforms.bed',
-                        '.isoform.read.map.txt', '.isoforms.gtf', '.isoforms.fa', '.isoform.counts.txt']
+    files_to_combine = ['.isoforms.bed', '.isoform.read.map.txt', '.isoforms.fa', '.isoform.counts.txt']
+    if args.keep_intermediate:
+        files_to_combine.extend(['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed'])
     if args.end_norm_dist:
         files_to_combine.extend(('.read_ends.bed', '.matchannot.ends.tsv'))
     # if args.predict_cds:
     #     files_to_combine.append('.isoforms.CDS.bed')
-    if not args.no_align_to_annot:
-        files_to_combine.extend(['.matchannot.counts.txt', '.matchannot.read.map.txt'])
+    # if not args.no_align_to_annot:
+    #     files_to_combine.extend(['.matchannot.counts.txt', '.matchannot.read.map.txt'])
     combine_temp_files_by_suffix(output, [p.file_prefix for p in partitions], files_to_combine)
+
+def get_new_ids(output):
+    iso_hash_to_ID, gene_hash_to_ID = {}, {}
+    iso_count, gene_count = 1, 1
+    with open(output + '.isoforms.newids.bed', 'w') as fh:
+        for line in open(output + '.isoforms.bed'):
+            line = line.rstrip('\n').split('\t')
+            iso_hash, gene_hash = line[3], line[12]
+            if iso_hash not in iso_hash_to_ID:
+                iso_id = f'FLT{iso_count:08d}'
+                iso_hash_to_ID[iso_hash] = iso_id
+                iso_count += 1
+            if gene_hash not in gene_hash_to_ID:
+                gene_id = f'FLG{gene_count:08d}'
+                gene_hash_to_ID[gene_hash] = gene_id
+                gene_count += 1
+            line[3] = iso_hash_to_ID[iso_hash]
+            line[12] = gene_hash_to_ID[gene_hash]
+            fh.write('\t'.join(line) + '\n')
+    return iso_hash_to_ID
+
+def fix_ids_txt_file(iso_hash_to_ID, oldfile, newfile):
+    with open(newfile, 'w') as fh:
+        for line in open(oldfile):
+            line = line.split('\t', 1)
+            if line[0] in iso_hash_to_ID:  # had to add this check due to having isoforms in this file that were not in bed due to not passing final filters
+                line[0] = iso_hash_to_ID[line[0]]
+                fh.write('\t'.join(line))
+
+def fix_ids_fa_file(iso_hash_to_ID, oldfile, newfile):
+    with open(newfile, 'w') as fh:
+        last = False
+        for line in open(oldfile):
+            if line[0] == '>':
+                if line[1:].rstrip('\n') in iso_hash_to_ID:
+                    line = '>' + iso_hash_to_ID[line[1:].rstrip('\n')] + '\n'
+                    last = True
+                else:
+                    last = False
+            if last:
+                fh.write(line)
+
+def fix_iso_labels(output):
+    iso_hash_to_ID = get_new_ids(output)
+    fix_ids_txt_file(iso_hash_to_ID, output + '.isoform.read.map.txt', output + '.isoform.read.map.newids.txt')
+    fix_ids_txt_file(iso_hash_to_ID, output + '.isoform.counts.txt', output + '.isoform.counts.newids.txt')
+    fix_ids_fa_file(iso_hash_to_ID, output + '.isoforms.fa', output + '.isoforms.newids.fa')
+    pipettor.run([('mv', output + '.isoforms.newids.bed', output + '.isoforms.bed')])
+    pipettor.run([('mv', output + '.isoform.read.map.newids.txt', output + '.isoform.read.map.txt')])
+    pipettor.run([('mv', output + '.isoform.counts.newids.txt', output + '.isoform.counts.txt')])
+    pipettor.run([('mv', output + '.isoforms.newids.fa', output + '.isoforms.fa')])
 
 ####
 # main
@@ -1309,11 +1389,13 @@ def flair_transcriptome():
     runner.run(_run_region, args=args)
     combine_chunks(args, args.output, runner.partitions)
 
-    # this needs to be done here outside of chunking because needs to load whole annotation gtf, which should only be done once
-    if args.predict_cds:
-        logging.info('predicting CDS')
-        # FIXME: why is this passing in annotation GTF?
-        predict_productivity(args.output, args.genome, args.annot_gtf)
+    #  simplify isoform and gene ID hashes in bed file, read map, counts, and fa files
+    fix_iso_labels(args.output)
+
+    # index of column with gene id in extracols, then additional column indexes + names
+    bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', is_flair_bed=True)
+
+    make_big_bed(genome, temp_dir + 'chrom.sizes', args.output.split('/')[-1], args.output + '.isoforms', BED_FIELDS + EXTRA_BED_FIELDS)
 
     if not args.keep_intermediate:
         shutil.rmtree(temp_dir)

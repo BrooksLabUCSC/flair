@@ -53,6 +53,12 @@ class AnnotData(object):
         # used by spliceevents for simple junction-to-gene lookup
         self.junc_to_gene_id = {}
 
+        self.gene_to_cds_starts = {}
+
+        self.transcript_to_nmd_except = {}
+
+        self.start_codon_count = 0
+
 
 def annot_data_from_gtf(gtf_data, region):
     """Build AnnotData for a region from a pre-partitioned GtfData object."""
@@ -75,12 +81,45 @@ def _process_transcript(annots, region, region_map, trans):
     t_start = sorted_exons[0].start
     t_end = sorted_exons[-1].end
     _save_transcript_annot(trans.transcript_id, trans.gene_id, region,
-                           region_map, t_start, t_end, trans.strand, sorted_exons)
+                           region_map, t_start, t_end, trans.strand, sorted_exons,
+                           trans.attrs['tag'], trans.start_codon)
 
+def _save_cds_starts(gene_id, start_codon, strand, annots):
+    if gene_id not in annots.gene_to_cds_starts:
+        annots.gene_to_cds_starts[gene_id] = set()
+    if start_codon is not None:
+        annots.start_codon_count += 1
+        if strand == '+':
+            annots.gene_to_cds_starts[gene_id].add(start_codon.start)
+        else:
+            annots.gene_to_cds_starts[gene_id].add(start_codon.end)
 
-def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, t_end, strand, t_exons):
+def _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand, annots):
+    if gene_id not in annots.spliced_exons[strand]:
+        annots.spliced_exons[strand][gene_id] = set()
+    annots.spliced_exons[strand][gene_id].update(set(t_exons))
+    annots.juncchain_to_transcript[tuple(juncs)] = (transcript_id, gene_id)
+    annots.sjc_to_gene[tuple(juncs)] = gene_id
+    annots.transcript_to_sjc[f"{transcript_id}_{gene_id}"] = tuple(juncs)
+    if gene_id not in annots.gene_to_annot_juncs:
+        annots.gene_to_annot_juncs[gene_id] = set()
+    for j in juncs:
+        if j not in annots.junc_to_gene:
+            annots.junc_to_gene[j] = set()
+        annots.junc_to_gene[j].add((transcript_id, gene_id))
+        annots.junc_to_gene_id[j] = gene_id
+        annots.gene_to_annot_juncs[gene_id].add(j)
+
+def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, t_end,
+                           strand, t_exons, transcript_tags, start_codon):
     # region is a SeqRegion object
     annots = region_map[region]
+
+    _save_cds_starts(gene_id, start_codon, strand, annots)
+    annots.transcript_to_nmd_except[transcript_id] = False
+    if 'NMD_exception' in transcript_tags:
+        annots.transcript_to_nmd_except[transcript_id] = True
+
     annots.transcript_to_exons[(transcript_id, gene_id)] = tuple(t_exons)
     juncs = exons_to_juncs(t_exons)
     annots.transcripts.append((transcript_id, gene_id, strand))
@@ -95,19 +134,6 @@ def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, 
     if len(juncs) == 0:
         annots.all_annot_SE[strand].append(Exon(t_start, t_end, gene_id))
     else:
-        if gene_id not in annots.spliced_exons[strand]:
-            annots.spliced_exons[strand][gene_id] = set()
-        annots.spliced_exons[strand][gene_id].update(set(t_exons))
-        annots.juncchain_to_transcript[tuple(juncs)] = (transcript_id, gene_id)
-        annots.sjc_to_gene[tuple(juncs)] = gene_id
-        annots.transcript_to_sjc[f"{transcript_id}_{gene_id}"] = tuple(juncs)
-        if gene_id not in annots.gene_to_annot_juncs:
-            annots.gene_to_annot_juncs[gene_id] = set()
-        for j in juncs:
-            if j not in annots.junc_to_gene:
-                annots.junc_to_gene[j] = set()
-            annots.junc_to_gene[j].add((transcript_id, gene_id))
-            annots.junc_to_gene_id[j] = gene_id
-            annots.gene_to_annot_juncs[gene_id].add(j)
+        _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand, annots)
     for strand in ['+', '-']:
         annots.all_annot_SE[strand] = sorted(annots.all_annot_SE[strand])  # FIXME: make set? Colette note: needs to be sorted for binary search later

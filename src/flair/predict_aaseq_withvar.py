@@ -60,13 +60,13 @@ transcriptToInfo = {}
 for line in open(referencetranscriptfile):
     if line[0] != '#':
         line = line.rstrip().split('\t')
-        if len(line) == 3:
+        if len(line) == 4:
             line += ['', '']
-        elif len(line) == 4:
+        elif len(line) == 5:
             line.append('')
-        tinfo, orfstart, orfstop, ptcpoint, seq = line
+        tinfo, propred, orfstart, orfstop, ptcpoint, seq = line
         tinfo = tinfo.split('_')
-        tname, propred, gname = '_'.join(tinfo[:-2]), tinfo[-2], tinfo[-1]
+        tname, gname = '_'.join(tinfo[:-1]), tinfo[-1]
         if 'fusiongene' in tname:
             tname = '_'.join(tname.split('_')[1:])
         transcriptToInfo[(tname, gname)] = TranscriptInfo(seq, int(orfstart), int(orfstop), propred, ptcpoint)
