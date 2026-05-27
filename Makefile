@@ -9,6 +9,11 @@ include ${root}/defs.mk
 #   make test-installed
 #
 
+# get files to include in flake8
+PYPROGS = $(shell file -F $$'\t' test/bin/* | awk '/Python script/{print $$1}')
+
+FLAKE8_CHECK = src/flair/*.py test/*.py ${PYPROGS}
+
 default:
 
 doc:
@@ -34,7 +39,6 @@ test-base-installed:
 #   see .flake8 for configuration
 #   due to to gradual cleanup of code, flake8.mk is the list of files to check
 ##
-include flake8.mk
 lint: flake8
 pycbio-lint: pycbio-flake8
 

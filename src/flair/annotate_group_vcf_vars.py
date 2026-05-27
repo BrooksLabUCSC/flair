@@ -32,7 +32,7 @@ def main():
     out = open(args.output, 'w')
     for chrom, region in vcfvars:
         annotate_vars_in_region(vcfvars[(chrom, region)], chrom, region, out)
-        
+
 
 if __name__ == "__main__":
     main()

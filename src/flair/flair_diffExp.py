@@ -14,7 +14,6 @@
 
 import os
 import os.path as osp
-import sys
 import argparse
 import errno
 import csv
@@ -22,12 +21,11 @@ from collections import Counter
 from scipy.stats import ttest_ind
 from statistics import median, mean
 import pipettor
-import numpy as np
 
 from flair import FlairError, FlairInputDataError, set_unix_path
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-import numpy as np
+import numpy as np  # noqa: E402
 
 
 pkgdir = osp.dirname(osp.realpath(__file__))
@@ -99,7 +97,7 @@ def multipletests(pvals, alpha=0.05):
     pvals_corrected = np.maximum.accumulate(pvals_corrected_raw)
     del pvals_corrected_raw
 
-    if not pvals_corrected is None:  # not necessary anymore
+    if pvals_corrected is not None:  # not necessary anymore
         pvals_corrected[pvals_corrected > 1] = 1
     pvals_corrected_ = np.empty_like(pvals_corrected)
     pvals_corrected_[sortind] = pvals_corrected
@@ -334,7 +332,7 @@ def run_dirmseq(prefix, workdir, threads, groups, batches, matrixFile, outDir, f
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 
-def calculate_sig(args):
+def calculate_sig(args):  # noqa: C901 - FIXME: reduce complexity
     outDir = args.out_dir
     quant_table_tsv = args.counts_matrix
     sFilter = args.exp_thresh
@@ -437,6 +435,7 @@ def diffExp(counts_matrix=''):
         raise FlairInputDataError('Counts matrix file path does not exist')
 
     calculate_sig(args)
+
 
 if __name__ == "__main__":
     exit(diffExp())

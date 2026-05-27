@@ -38,6 +38,13 @@ endif
 # all targets
 ##
 default:
+	@echo "====="
+	@echo "===== to see all targets: make help"
+	@echo "====="
+	${MAKE} test
+
+
+help:
 	@echo To run all tests, use: >&2
 	@echo "   " make test >&2
 	@echo To run tests without R depedencies, use: >&2
@@ -61,19 +68,18 @@ default:
 	@echo "build test case hub" >&2
 	@echo "   " make test-hub >&2
 	@echo "   " make make hub-check huburl=https://public.gi.ucsc.edu/~you/flair/test/hub/hub.txt >&2
-	@exit 1
 
 test:
 	${MAKE} test-base test-with-R
 
 test-base:
-	${MAKE} align-tests quantify-tests \
+	${MAKE} align-tests quantify-tests bed-to-gtf-tests \
 		combine-tests predict-productivity-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
 		spliceevents-tests partition-tests lib-tests
 
 test-no-align:
-	${MAKE} quantify-tests \
+	${MAKE} quantify-tests bed-to-gtf-tests \
 		combine-tests predict-productivity-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
 		spliceevents-tests partition-tests lib-tests
@@ -191,6 +197,11 @@ SEG1_ISOFORMS_BED = expected/test-collapse-seg1.isoforms.bed
 ##
 # mutant splice site, BED is truth
 ##
+DDX5_READTHROUGH_FQ = input/DDX5_readthrough.badread40x.fastq
+DDX5_READTHROUGH_BAM = output/DDX5_readthrough_sim_badread40x.bam
+DDX5_READTHROUGH_ANNOT = input/DDX5_POLG2_gencode38.gtf
+DDX5_READTHROUGH_SJ = input/DDX5_readthrough_IPSJ.bed
+
 KRAS_MUT_SPLICE_FQ = input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.fastq
 KRAS_MUT_SPLICE_BAM = output/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.bam
 KRAS_MUT_SPLICE_SJ_BED = input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.sj.bed
@@ -207,6 +218,10 @@ export COLUMNS = 80
 ##
 define cmp_expect
 	diff $E/$(1) $O/$(1)
+endef
+
+define cmp_expect_bed_simple
+	diff <(cut -f 1,2,3,6,10,11,12 $E/$(1)) <(cut -f 1,2,3,6,10,11,12 $O/$(1))
 endef
 
 ##
@@ -389,13 +404,32 @@ test-diffsplice-help: mkdirs
 	$(call cmp_expect,$@.out)
 
 
+bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-cds test-bed-to-gtf-extracols
+
+test-bed-to-gtf : mkdirs
+	bed_to_gtf $(BASIC_ISOFORMS_BED) > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
+test-bed-to-gtf-cds : 
+	bed_to_gtf $E/test-predict-productivity.bed > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
+test-bed-to-gtf-extracols : 
+	bed_to_gtf --is_flair_bed $E/test-transcriptome.isoforms.bed > $O/$@.gtf
+	$(call cmp_expect,$@.gtf)
+
 ##
 # PREDICT PRODUCTIVITY
 ##
-predict-productivity-tests: test-predict-productivity test-predict-productivity-help
+predict-productivity-tests: test-predict-productivity test-predict-productivity-extracols test-predict-productivity-help
 
 test-predict-productivity : mkdirs ${GENOME_FA}
-	predictProductivity -i $(BASIC_ISOFORMS_BED) -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@ --longestORF
+	predictProductivity -i $(BASIC_ISOFORMS_BED) -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@
+	$(call cmp_expect,$@.bed)
+	$(call cmp_expect,$@.info.tsv)
+
+test-predict-productivity-extracols : mkdirs ${GENOME_FA}
+	predictProductivity -i $E/test-transcriptome-noannot.isoforms.bed -g $(BASIC_ANNOTATION) -f ${GENOME_FA} -o $O/$@ --is_flair_bed
 	$(call cmp_expect,$@.bed)
 	$(call cmp_expect,$@.info.tsv)
 
@@ -434,50 +468,75 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-noannot test-transcriptome-predcds \
-	test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-help
+transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot \
+                    test-transcriptome-seg1 test-transcripome-mutant-splice test-transcriptome-readthrough test-transcriptome-mult-ends \
+					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-noannot" "test-transcriptome-predcds" "test-transcriptome-seg1" "test-transcriptome-ends"; \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" \
+	"test-transcriptome-seg1" "test-transcripome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-mult-ends" \
+	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
-	cp $O/$$tname.isoform.read.map.txt $E/$$tname.isoform.read.map.txt; \
 	done
+	cp $O/test-transcriptome.isoforms.as $E/test-transcriptome.isoforms.as
 
 
 test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --keep_intermediate
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
-# FIXME: not working
-test-transcriptome-ends: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --end_norm_dist 500 --output_endpos
+test-transcriptome-trust-ends: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --trust_ends
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+test-transcriptome-mult-ends: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --max_ends 5 --keep_intermediate
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+test-transcriptome-mult-ends-trust-ends: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --max_ends 5 --trust_ends
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --parallel_mode byregion
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+test-transcriptome-lowannot: mkdirs ${TEST_ALIGN_BAM}
+	intronProspector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --junction_bed $O/$@.IPjunctions.bed --junction_support 2 -o $O/$@ --no_align_to_annot --sjc_support 3
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --no_align_to_annot
+	intronProspector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
+	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
-test-transcriptome-predcds: mkdirs ${TEST_ALIGN_BAM}
-	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --predict_cds
-	$(diff_bed_gtf)
-	$(call cmp_expect,$@.isoforms.CDS.bed)
-
-# FIXME: doesn't work, returns nothing. Need to debug later
 test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 # test of an artifical mutated splice site.
 test-transcripome-mutant-splice: mkdirs ${KRAS_MUT_SPLICE_BAM}
 	flair transcriptome -b ${KRAS_MUT_SPLICE_BAM} -g ${GENOME_FA} \
 	   --junction_bed=${KRAS_MUT_SPLICE_SJ_BED} \
-	   -t 4 -f ${BASIC_ANNOTATION} -o $O/$@
+	   -t 4 -f ${BASIC_ANNOTATION} -o $O/$@ --sjc_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+#test of an artificial read through transcript
+test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
+	flair transcriptome -b ${DDX5_READTHROUGH_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 
@@ -487,6 +546,12 @@ ${KRAS_MUT_SPLICE_BAM}: ${KRAS_MUT_SPLICE_FQ}  ${GENOME_FA}
 	   --genome ${GENOME_FA} -t 4 -o $(basename ${KRAS_MUT_SPLICE_BAM} .bam) \
 	   --minfragmentsize 40 --maxintronlen 350k
 
+#DDX5_readthrough.badread40x.fastq
+${DDX5_READTHROUGH_BAM}: ${DDX5_READTHROUGH_FQ}  ${GENOME_FA}
+	@mkdir -p $O
+	flair align -r ${DDX5_READTHROUGH_FQ} \
+	   --genome ${GENOME_FA} -t 4 -o $(basename ${DDX5_READTHROUGH_BAM} .bam) \
+	   --minfragmentsize 40 --maxintronlen 350k
 
 test-transcriptome-help: mkdirs
 	flair transcriptome --help > $O/$@.out
@@ -529,25 +594,24 @@ test-variants-help: mkdirs
 ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
 FUSION_TEST_SHARED_OUT = $O/fusion_tests
 FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
-FUSION_TEST_CHIMERIC_BAM = ${FUSION_TEST_SHARED_OUT}_chimeric.bam
 
 fusion-tests: test-fusion test-fusion-pary test-fusion-help
 
-test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_CHIMERIC_BAM}
-	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -r ${ERGIC3_KRAS_SIM_FA_GZ} -b ${FUSION_TEST_CHIMERIC_BAM} --maxloci 4 -o $O/$@ -s 2
+test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --maxloci 4 -o $O/$@ -s 2
 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
 
-test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_CHIMERIC_BAM}
-	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -r ${ERGIC3_KRAS_SIM_FA_GZ} -b ${FUSION_TEST_CHIMERIC_BAM} --maxloci 4 -o $O/$@ -s 2
+test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
+	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --maxloci 4 -o $O/$@ -s 2
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 
-${FUSION_TEST_BAM} ${FUSION_TEST_CHIMERIC_BAM}&: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
+${FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
 	@mkdir -p $O
 	flair align -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq \
 	   --genome ${GENOME_FA} -t 4 -o ${FUSION_TEST_SHARED_OUT} \
-	   --filtertype separate --minfragmentsize 40 --maxintronlen 350k
+	   --minfragmentsize 40 --maxintronlen 350k
 
 test-fusion-help: mkdirs
 	flair fusion  --help > $O/$@.out
@@ -561,10 +625,13 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 ###
 # flair spliceevents
 ###
-spliceevents-tests: test-spliceevents
+spliceevents-tests: test-spliceevents test-spliceevents-extraannot
 
 test-spliceevents: mkdirs ${TEST_ALIGN_BAM}
 	python3 ../src/flair/flair_spliceevents.py -m $I/spliceevents.manifest.tsv -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+
+test-spliceevents-extraannot: mkdirs ${TEST_ALIGN_BAM}
+	python3 ../src/flair/flair_spliceevents.py -m $I/spliceevents.manifest.tsv -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --annot_basic $(BASIC_ANNOTATION) -o $O/$@
 
 # FIXME: orphan, this does not work and is not referenced; is this still needed
 # the annotation file is there

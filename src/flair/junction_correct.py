@@ -2,10 +2,10 @@
 Correction of read splice junctions from external evidence.
 """
 import logging
-import copy
 from math import inf
 from flair import PosRange
-from flair.pycbio.hgdata.bed import Bed
+from flair.intron_support import IntronSupport
+from flair.isoform_data import Junc
 
 ##
 # Notes:
@@ -13,8 +13,6 @@ from flair.pycbio.hgdata.bed import Bed
 #   where annotations often pick just one.
 # - A scoring method for junctions based on weighting should be considered
 ##
-
-
 
 ##
 # somewhat arbitrary sizes to keep from going off ends
@@ -40,47 +38,48 @@ class JunctionCorrector:
     def chroms(self):
         return self.intron_support.chroms
 
-    def overlap_introns(self, chrom, start, end, strand):
+    def overlap_introns(self, chrom, start, end):
         def _filter_intron(intron):
-            return ((intron.strand == strand) and
-                    (intron.annot_supported or (intron.read_support_cnt > self.min_read_support)))
+            return intron.annot_supported or (intron.read_support_cnt > self.min_read_support)
         return list(filter(_filter_intron,
                            self.intron_support.overlap_introns(chrom, start, end, self.flank_window)))
 
-    def correct_read_junctions(self, read_bed):
-        """correct a read based on support from introns.  Return None if there
-        is no support for an intron."""
-        assert len(read_bed.blocks) > 0
-        return _correct_junctions(self, read_bed)
-
-    def correct_read_bed(self, read_bed):
-        """correct a read based on support from introns.  Return None if there
-        is no support for an intron. Return a new BED"""
-        new_junctions = self.correct_read_junctions(read_bed)
+    def correct_readrec(self, readrec):
+        """Correct a ReadRec's junctions and strand in place from intron support.
+        Returns True if corrected, False if there is no support."""
+        new_junctions, strand = _correct_junctions(self, readrec)
         if new_junctions is None:
-            return None
-        return _build_corrected_read_bed(read_bed, new_junctions)
+            return False
+        else:
+            readrec.juncs = tuple(Junc(j.start, j.end) for j in new_junctions)
+            readrec.strand = strand
+            return True
+
+    def subset_for_region(self, chrom, start, end):
+        """Return a JunctionCorrector object with entries overlapping [start, end) on chrom."""
+        return JunctionCorrector(self.intron_support.subset_for_region(chrom, start, end),
+                                 self.flank_window, self.min_read_support)
 
 ###
 # intron support search
 ###
-def _calc_possible_junction_range(read_bed, new_junctions):
+def _calc_possible_junction_range(readrec, new_junctions):
     """prevent going off ends of read or overlapping small exons"""
-    min_start = read_bed.chromStart + MIN_TERMINAL_EXON_SIZE
+    min_start = readrec.start + MIN_TERMINAL_EXON_SIZE
     if len(new_junctions) > 0:
         # adjust for previous intron
         min_start = max(min_start, new_junctions[-1].end + MIN_INTERNAL_EXON_SIZE)
-    max_end = read_bed.chromEnd - MIN_INTERNAL_EXON_SIZE
+    max_end = readrec.end - MIN_INTERNAL_EXON_SIZE
     return (min_start, max_end)
 
-def _filter_too_close(read_bed, new_junctions, intron_hits):
+def _filter_too_close(readrec, new_junctions, intron_hits):
     """drop introns overlapping the previous intron or making a too short
     an exon at ends"""
-    min_start, max_end = _calc_possible_junction_range(read_bed, new_junctions)
+    min_start, max_end = _calc_possible_junction_range(readrec, new_junctions)
     return list(filter(lambda ih: (ih.start >= min_start) and (ih.end <= max_end),
                        intron_hits))
 
-def _find_best_hit(strand, start, end, intron_hits):
+def _find_best_intron_support(start, end, intron_hits):
     """Pick an intron as `best'  This prefers annotated introns, then
     read-support introns with the larger number of reads.
     """
@@ -105,46 +104,78 @@ def _collect_closest_hits(start, end, intron_hits):
             closest_introns.append(intron)
     return closest_introns
 
-def _correct_junction(corrector, read_bed, start, end, new_junctions):
-    """add and update an intron junctions. Return False if any are not supported."""
+def _correct_junction(corrector, readrec, start, end, new_junctions):
+    """Add a corrected intron junction. Return intron record used or
+    None if not supported."""
 
-    intron_hits = corrector.overlap_introns(read_bed.chrom, start, end, read_bed.strand)
+    intron_hits = corrector.overlap_introns(readrec.chrom, start, end)
     if intron_hits is None:
-        logging.debug(f"No intron support for '{read_bed.name}' {read_bed.chrom}:{start}-{end}")
-        return False
-    intron_hits = _filter_too_close(read_bed, new_junctions, intron_hits)
+        logging.debug(f"Read: '{readrec.name}': no intron support for {readrec.chrom}:{start}-{end}")
+        return None
+    intron_hits = _filter_too_close(readrec, new_junctions, intron_hits)
     if len(intron_hits) == 0:
-        logging.debug("Supporting introns too close to ends or another intron for "
-                      f"'{read_bed.name}' {read_bed.chrom}:{start}-{end}")
-        return False
-    best_intron = _find_best_hit(read_bed.strand, start, end, intron_hits)
+        logging.debug(f"Read: '{readrec.name}': supporting introns too close to ends or another intron for "
+                      f"{readrec.chrom}:{start}-{end}")
+        return None
+    best_intron = _find_best_intron_support(start, end, intron_hits)
     new_junctions.append(PosRange(best_intron.start, best_intron.end))
-    return True
+    return best_intron
 
-def _correct_junctions(corrector, read_bed):
-    """create a list of new introns for a read, or None if can't be correct"""
+def _determine_strand(readrec, intron_supports):
+    """Determine the strand from the IntronSupport objects use for
+    splice junction correction, or None if there are conflicts.
+    Junctions with strand of '.' don't go into the calculation.
+    """
+    strand = None
+    for intron_support in intron_supports:
+        if intron_support.strand != '.':
+            if strand is None:
+                strand = intron_support.strand
+            elif intron_support.strand != strand:
+                logging.debug(f"Read: '{readrec.name}': conflicting strands in junction support")
+                return None
+    if strand is None:
+        # all unknown strand
+        logging.debug(f"Read: '{readrec.name}': all of the {len(intron_supports)} intron have unknown splice junction so strand can not be determined")
+        return None
+    return strand
+
+def _correct_junctions(corrector, readrec):
+    """Create a list of new junctions for a read and determine
+    strand.  Returns (None, None) if can't be corrected or strands are inconsistent"""
     new_junctions = []
-    prev_end = read_bed.blocks[0].end
-    for blk in read_bed.blocks[1:]:
-        if not _correct_junction(corrector, read_bed, prev_end, blk.start,
-                                 new_junctions):
-            return None
-        prev_end = blk.end
-    return new_junctions
+    intron_supports = []
+    for junc in readrec.juncs:
+        intron_support = _correct_junction(corrector, readrec, junc.start, junc.end,
+                                           new_junctions)
+        if intron_support is None:
+            return None, None
+        intron_supports.append(intron_support)
 
-###
-# create correct bed
-###
-def _build_corrected_read_bed(read_bed, new_junctions):
-    new_bed = Bed(read_bed.chrom, read_bed.chromStart, read_bed.chromEnd,
-                  read_bed.name, score=read_bed.score, strand=read_bed.strand,
-                  thickStart=read_bed.thickStart, thickEnd=read_bed.thickEnd,
-                  itemRgb=read_bed.itemRgb,
-                  extraCols=copy.deepcopy(read_bed.extraCols),
-                  numStdCols=read_bed.numStdCols)
-    prev_end = read_bed.chromStart
-    for junction in new_junctions:
-        new_bed.addBlock(prev_end, junction.start)
-        prev_end = junction.end
-    new_bed.addBlock(prev_end, read_bed.chromEnd)
-    return new_bed
+    strand = _determine_strand(readrec, intron_supports)
+    if strand is None:
+        return None, None
+    return new_junctions, strand
+
+def _intron_file_spec_normalize(file_spec):
+    "make single file, multiple files, or None into a list/tuple"
+    if file_spec is None:
+        return ()
+    elif isinstance(file_spec, str):
+        return (file_spec,)
+    else:
+        return file_spec
+
+def junction_corrector_factory(ss_window, min_read_support, *,
+                               annot_gtf_data=None, intron_beds=None, star_sj_tabs=None):
+    """Create a JunctionCorrector and load splice junction evidence.
+    The intron_beds and star_sj_tabs can be either a single file or
+    a list of files"""
+    is_db = IntronSupport()
+    for intron_bed in _intron_file_spec_normalize(intron_beds):
+        is_db.load_introns_bed(intron_bed)
+    for star_sj_tab in _intron_file_spec_normalize(star_sj_tabs):
+        is_db.load_star(star_sj_tab)
+    if annot_gtf_data is not None:
+        is_db.load_gtf(annot_gtf_data)
+    return JunctionCorrector(is_db, ss_window, min_read_support)

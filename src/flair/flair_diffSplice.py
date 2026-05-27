@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-import sys
 import argparse
 import os
 import os.path as osp
@@ -14,44 +13,44 @@ diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
 # FIXME: restructure, odd the say argument parsing is done bases on function
 # arguments
 
-def diffSplice(isoforms='', counts_matrix=''):
+def diffSplice(isoforms='', counts_matrix=''):  # noqa: C901 - FIXME: reduce complexity
     set_unix_path()
     parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required named arguments')
     if not isoforms:
         required.add_argument('-i', '--isoforms', action='store', required=True,
-                type=str, help='isoforms in bed format')
+                              type=str, help='isoforms in bed format')
         required.add_argument('-q', '--counts_matrix', action='store',
-                type=str, required=True, help='tab-delimited isoform count matrix from flair quantify module')
+                              type=str, required=True, help='tab-delimited isoform count matrix from flair quantify module')
     required.add_argument('-o', '--out_dir', action='store',
-            type=str, required=True, help='Output directory for tables and plots.')
+                          type=str, required=True, help='Output directory for tables and plots.')
     parser.add_argument('-t', '--threads', action='store',
-            type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq (4)')
+                        type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq (4)')
     parser.add_argument('--test', action='store_true', dest='test',
-            required=False, default=False, help='Run DRIMSeq statistical testing')
+                        required=False, default=False, help='Run DRIMSeq statistical testing')
     parser.add_argument('--drim1', action='store', dest='drim1', type=int, required=False, default=6,
-            help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion
-            for DRIMSeq testing; events with too few samples are filtered out and not tested (6)''')
+                        help='''The minimum number of samples that have coverage over an AS event inclusion/exclusion
+                        for DRIMSeq testing; events with too few samples are filtered out and not tested (6)''')
     parser.add_argument('--drim2', action='store', dest='drim2', type=int, required=False, default=3,
-            help='''The minimum number of samples expressing the inclusion of an AS event;
-             events with too few samples are filtered out and not tested (3)''')
+                        help='''The minimum number of samples expressing the inclusion of an AS event;
+                         events with too few samples are filtered out and not tested (3)''')
     parser.add_argument('--drim3', action='store', dest='drim3', type=int, required=False, default=15,
-            help='''The minimum number of reads covering an AS event inclusion/exclusion for DRIMSeq testing,
-             events with too few samples are filtered out and not tested (15)''')
+                        help='''The minimum number of reads covering an AS event inclusion/exclusion for DRIMSeq testing,
+                         events with too few samples are filtered out and not tested (15)''')
     parser.add_argument('--drim4', action='store', dest='drim4', type=int, required=False, default=5,
-            help='''The minimum number of reads covering an AS event inclusion for DRIMSeq testing,
-             events with too few samples are filtered out and not tested (5)''')
+                        help='''The minimum number of reads covering an AS event inclusion for DRIMSeq testing,
+                         events with too few samples are filtered out and not tested (5)''')
     parser.add_argument('--batch', action='store_true', dest='batch', required=False, default=False,
-            help='''If specified with --test, DRIMSeq will perform batch correction''')
+                        help='''If specified with --test, DRIMSeq will perform batch correction''')
     parser.add_argument('--conditionA', action='store', dest='conditionA', required=False, default='',
-            help='''Implies --test. Specify one condition corresponding to samples in the counts_matrix to be compared against
-            condition2; by default, the first two unique conditions are used''')
+                        help='''Implies --test. Specify one condition corresponding to samples in the counts_matrix to be compared against
+                        condition2; by default, the first two unique conditions are used''')
     parser.add_argument('--conditionB', action='store', dest='conditionB', required=False, default='',
-            help='''Specify another condition corresponding to samples in the counts_matrix to be compared against
-            conditionA''')
+                        help='''Specify another condition corresponding to samples in the counts_matrix to be compared against
+                        conditionA''')
     parser.add_argument('-of', '--out_dir_force', action='store_true',
-            required=False, help='''Specify this argument to force overwriting of files in
-            an existing output directory''')
+                        required=False, help='''Specify this argument to force overwriting of files in
+                        an existing output directory''')
     args = parser.parse_args()
 
     if isoforms:
@@ -81,10 +80,10 @@ def diffSplice(isoforms='', counts_matrix=''):
 
     filebase = os.path.join(args.out_dir, 'diffsplice')
     pipettor.run(['call_diffsplice_events.py', args.isoforms, filebase, args.counts_matrix])
-    pipettor.run(['es_as.py', args.isoforms], stdout=open(filebase+'.es.events.tsv', 'w'))
-    pipettor.run(['es_as_inc_excl_to_counts.py', args.counts_matrix, filebase+'.es.events.tsv'],
-                 stdout=open(filebase+'.es.events.quant.tsv', 'w'))
-    os.unlink(filebase+'.es.events.tsv')
+    pipettor.run(['es_as.py', args.isoforms], stdout=open(filebase + '.es.events.tsv', 'w'))
+    pipettor.run(['es_as_inc_excl_to_counts.py', args.counts_matrix, filebase + '.es.events.tsv'],
+                 stdout=open(filebase + '.es.events.quant.tsv', 'w'))
+    os.unlink(filebase + '.es.events.tsv')
 
     if args.test or args.conditionA:
         logging.info('DRIMSeq testing for each AS event type')
@@ -98,7 +97,7 @@ def diffSplice(isoforms='', counts_matrix=''):
                 return 1
             ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
-        with open(workdir+'/ds.stderr.txt', 'w') as ds_stderr:
+        with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:
             for event in ['es', 'alt5', 'alt3', 'ir']:
                 matrixfile = f'{filebase}.{event}.events.quant.tsv'
                 if emptyMatrix(matrixfile):

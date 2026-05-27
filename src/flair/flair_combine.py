@@ -1,19 +1,15 @@
 #! /usr/bin/env python3
 
-import sys
 import argparse
-import os
-import pipettor
-import pysam
-import math
+import logging
 from flair.bed_to_gtf import bed_to_gtf
+from flair.pycbio.hgdata.bed import Bed, BedBlock, BedReader
 from statistics import mode
 
-def bedReadToIntronChain(line): # line is a list of strings from a tab separated line
-    dir, start, esizes, estarts = line[5], int(line[1]), [int(x) for x in line[10].rstrip(',').split(',')], [int(x) for x in line[11].rstrip(',').split(',')]
+def bedReadToIntronChain(bed):
     introns = []
-    for i in range(len(esizes) - 1):
-        introns.append((start + estarts[i] + esizes[i], start + estarts[i + 1]))
+    for i in range(len(bed.blocks) - 1):
+        introns.append((bed.blocks[i].end, bed.blocks[i + 1].start))
     # strand is not accounted for here, all intron chains will be left to right
     return tuple(introns)
 
@@ -28,9 +24,11 @@ def intronChainToestarts(ichain, start, end):
 def getbestends(isodata):
     bestiso = (None, None, None, None, 0)
     for info in isodata:
-        if info[4] > bestiso[4]: bestiso = info
+        if info[4] > bestiso[4]:
+            bestiso = info
         elif info[4] == bestiso[4]:
-            if info[1]-info[0] > bestiso[1]-bestiso[0]: bestiso = info
+            if info[1] - info[0] > bestiso[1] - bestiso[0]:
+                bestiso = info
     return bestiso
 
 def combineIsos(isolist, endwindow):
@@ -40,7 +38,7 @@ def combineIsos(isolist, endwindow):
     currgroup = []
     for isoinfo in isolist:
         start, end = isoinfo[0], isoinfo[1]
-        if start-laststart <= endwindow and end - lastend <= endwindow:
+        if start - laststart <= endwindow and end - lastend <= endwindow:
             currgroup.append(isoinfo)
         else:
             if len(currgroup) > 0:
@@ -52,16 +50,6 @@ def combineIsos(isolist, endwindow):
     return isoendgroups
 
 
-revcomp_dict = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 'R': 'Y',
-        'Y':'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
-
-
-def revcomp(seq):
-    rev_seq = []
-    for i in reversed(range(len(seq))):
-        rev_seq.append(revcomp_dict[seq[i]])
-    return ''.join(rev_seq)
-
 def cleanisoname(isoname):
     # removes PAR_Y from end of isoform IDs
     # this is deprecated in new gencode annot, but required for backwards compatibility
@@ -69,10 +57,11 @@ def cleanisoname(isoname):
     return ''.join(isoname.split('_PAR_Y'))
 
 
-def combine():
+def combine():  # noqa: C901 - FIXME: reduce complexity
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--manifest', required=True, type=str,
-                        help="path to manifest files that points to transcriptomes to combine. Each line of file should be tab separated with sample name, sample type (isoform or fusionisoform), path/to/isoforms.bed, path/to/isoforms.fa, path/to/combined.isoform.read.map.txt. fa and read.map.txt files are not required, although if .fa files are not provided for each sample a .fa output will not be generated")
+                        help="path to manifest files that points to transcriptomes to combine. Each line of file should be tab separated with sample name, sample type (isoform or fusionisoform), path/to/isoforms.bed, path/to/isoforms.fa, path/to/combined.isoform.read.map.txt."  # noqa: E501
+                             " fa and read.map.txt files are not required, although if .fa files are not provided for each sample a .fa output will not be generated")
     parser.add_argument('-o', '--output_prefix', default='flair.combined.isoforms',
                         help="path to collapsed_output.bed file. default: 'collapsed_flairomes'")
     parser.add_argument('-w', '--endwindow', type=int, default=200,
@@ -83,8 +72,10 @@ def combine():
                         help="[optional] whether to convert the combined transcriptome bed file to gtf")
     parser.add_argument('-s', '--include_se', action='store_true',
                         help='whether to include single exon isoforms. Default: dont include')
-    parser.add_argument('-f', '--filter', default='usageandlongest',
-                        help='type of filtering. Options: usageandlongest(default), usageonly, none, or a number for the total count of reads required to call an isoform')
+    parser.add_argument('--end_filter', default='longest',
+                        help='type of filtering transcript ends. Options: longest(default), usage, or none, or a number for the maximum amount of ends allowed for a single splice junction chain')
+    parser.add_argument('--min_reads', type=int, default=3,
+                        help='min reads from all samples to call isoform')
 
     args = parser.parse_args()
     manifest = args.manifest
@@ -92,10 +83,12 @@ def combine():
     endwindow = int(args.endwindow)
     minpercentusage = int(args.minpercentusage) / 100.
 
+    logging.info('parsing manifest')
+    # FIXME: remove fasta file input, add genome input, generate reference by getting sequence from genome
     bedfiles, mapfiles, samples, fafiles = [], [], [], []
     for line in open(manifest):
         line = line.rstrip().split('\t')
-        print(line)
+        # print(line)
         if not (3 <= len(line) <= 5):
             raise Exception(f'Expected between 3 to 5 columns in manifest, got {len(line)} in {manifest}')
         samples.append(line[0] + '__' + line[1])
@@ -109,8 +102,10 @@ def combine():
         else:
             mapfiles.append('')
 
+    # all samples have fasta file, so fasta
     generatefa = all([len(x) > 0 for x in fafiles])
 
+    logging.info('loading isoforms from individual samples')
     intronchaintoisos = {}
     sampletoseq = {}
     for i in range(len(samples)):
@@ -129,12 +124,11 @@ def combine():
                 isotoreads[iso] = numreads
         if isfusion:
             fnametoinfo = {}
-            for line in open(bedfiles[i]):
-                line = line.rstrip().split('\t')
-                chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
+            for bed in BedReader(bedfiles[i], fixScores=True):
+                chr, start, end, strand, isoname = bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, bed.name
                 isoname = '_'.join(isoname.split('_')[1:])
-                if int(line[9]) > 1:
-                    ichain = bedReadToIntronChain(line)
+                if bed.blockCount > 1:
+                    ichain = bedReadToIntronChain(bed)
                 else:
                     ichain = chr + '-' + str(int(round(start, -4)))
                 if isoname not in fnametoinfo:
@@ -166,14 +160,13 @@ def combine():
                     intronchaintoisos[ichainid] = []
                 isoname = cleanisoname(isoname)
                 intronchaintoisos[ichainid].append((start, end, sample, isoname, isousage, isocounts))
-        else: # not loading fusion reads
-            for line in open(bedfiles[i]):
-                line = line.rstrip().split('\t')
-                chr, start, end, strand, isoname = line[0], int(line[1]), int(line[2]), line[5], line[3]
+        else:  # not loading fusion reads
+            for bed in BedReader(bedfiles[i], fixScores=True):
+                chr, start, end, strand, isoname = bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, bed.name
                 gene = isoname.split('_')[-1]
                 ichain = None
-                if int(line[9]) > 1:  # removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
-                    ichain = bedReadToIntronChain(line)
+                if bed.blockCount > 1:  # removing single exon isoforms, may want to add this as a user input option later - although how am I handling single exon isoforms? Are they all getting stored as the same empty intron chain? that seems bad
+                    ichain = bedReadToIntronChain(bed)
                 elif args.include_se:
                     ichain = chr + '-' + str(int(round(start, -4)))
                 if ichain:
@@ -198,8 +191,8 @@ def combine():
                     last = cleanisoname(last)
                     sampletoseq[sample][last] = line.rstrip()
 
+    logging.info('combining isoforms')
     finalisostosupport = {}
-
     isocount = 1
     outbed, outcounts = open(outprefix + '.bed', 'w'), open(outprefix + '.counts.tsv', 'w')
     if generatefa:
@@ -210,29 +203,33 @@ def combine():
     for ichainid in intronchaintoisos:
         # chr, strand, gene, ichain = ichainid
         collapsedIsos = combineIsos(intronchaintoisos[ichainid], endwindow)
-        isse = type(ichainid[-1]) == str
-        isfusion = type(ichainid[0]) == tuple
-        longestEnds = (None, None)
-        biggestdiff = 0
+        isse = isinstance(ichainid[-1], str)
+        isfusion = isinstance(ichainid[0], tuple)
         maxintronchainusage = 0
         totintronchaincounts = 0
         ichainendscount = 1
+        ends_for_sorting = []
         for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
-            if abs(end - start) > biggestdiff:
-                longestEnds = (start, end)
             maxisousage = max([x[4] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
             totintronchaincounts += sum([x[5] for x in collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]])
             if maxisousage > maxintronchainusage:
                 maxintronchainusage = maxisousage
-        if args.filter == 'none' or maxintronchainusage > minpercentusage or (args.filter.isnumeric() and totintronchaincounts > int(args.filter)):
-            for start, end, sample, isoname, isousage, isocounts in collapsedIsos:
+            if args.end_filter == 'longest':
+                ends_for_sorting.append((abs(end - start), start, end, sample, isoname, isousage, isocounts))
+            else:
+                ends_for_sorting.append((maxisousage, start, end, sample, isoname, isousage, isocounts))
+        ends_for_sorting.sort(reverse=True)
+        if args.end_filter == 'none' or (maxintronchainusage > minpercentusage and (totintronchaincounts > args.min_reads or totintronchaincounts == 0)):  # the only way for the tot counts to be 0 is if there's no map files provided, allow that
+            if args.end_filter in {'longest', 'usage'}:
+                ends_for_sorting = [ends_for_sorting[0]]
+            elif args.end_filter.is_numeric():
+                ends_for_sorting = ends_for_sorting[:int(args.end_filter)]
+            for _, start, end, sample, isoname, isousage, isocounts in ends_for_sorting:
                 theseisos = collapsedIsos[(start, end, sample, isoname, isousage, isocounts)]
                 theseisos.sort(key=lambda x: x[1] - x[0], reverse=True)  # longest first
                 maxisousage = max([x[4] for x in theseisos])
                 totisocounts = sum([x[5] for x in theseisos])
-                if args.filter == 'none' or maxisousage > minpercentusage or \
-                        ((start, end) == longestEnds and not isse and args.filter == 'usageandlongest') or \
-                        (args.filter.isnumeric() and totisocounts > int(args.filter)):
+                if ichainendscount == 1 or (args.end_filter.isnumeric() and (totisocounts > int(args.min_reads) or totisocounts == 0)):
                     if isfusion:
                         outgene = mode([x[3].split('_')[-1] for x in theseisos])
                         outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
@@ -256,7 +253,6 @@ def combine():
                                 outgene = mode([x[3].split('_')[-1] for x in theseisos])
                             outname = 'flairiso' + str(isocount) + '-' + str(ichainendscount) + '_' + outgene
 
-
                     # output bed line
                     if isfusion:
                         ichainid = [list(x) for x in ichainid]
@@ -271,25 +267,25 @@ def combine():
                             ichainid[-1][2] = end
                         for gindex in range(len(ichainid)):
                             chr, strand, fstart, fend, ichain = ichainid[gindex]
-                            if type(ichain) == str:
+                            if isinstance(ichain, str):
                                 esizes, estarts = [fend - fstart], [0]
                             else:
                                 esizes, estarts = intronChainToestarts(ichain, fstart, fend)
-                            outbed.write('\t'.join([chr, str(fstart), str(fend),
-                                                    'fusiongene' + str(gindex+1) + '_' + outname, '1000', strand,
-                                                    str(fstart), str(fend), '0',str(len(esizes)),
-                                                    ','.join([str(x) for x in esizes]) + ',',
-                                                    ','.join([str(x) for x in estarts]) + ',']) + '\n')
+                            blocks = [BedBlock(fstart + estarts[i], fstart + estarts[i] + esizes[i]) for i in range(len(esizes))]
+                            Bed(chr, fstart, fend,
+                                name='fusiongene' + str(gindex + 1) + '_' + outname,
+                                score=1000, strand=strand, thickStart=fstart, thickEnd=fend,
+                                itemRgb='0', blocks=blocks).write(outbed)
                     else:
                         chr, strand, ichain = ichainid
                         if isse:
                             esizes, estarts = [end - start], [0]
                         else:
                             esizes, estarts = intronChainToestarts(ichain, start, end)
-                        outbed.write(
-                            '\t'.join([chr, str(start), str(end), outname, '1000', strand, str(start), str(end), '0',
-                                       str(len(esizes)), ','.join([str(x) for x in esizes]) + ',',
-                                       ','.join([str(x) for x in estarts]) + ',']) + '\n')
+                        blocks = [BedBlock(start + estarts[i], start + estarts[i] + esizes[i]) for i in range(len(esizes))]
+                        Bed(chr, start, end, name=outname, score=1000, strand=strand,
+                            thickStart=start, thickEnd=end, itemRgb='0',
+                            blocks=blocks).write(outbed)
 
                     # output sequence
                     if generatefa:
@@ -348,8 +344,10 @@ def combine():
     if args.convert_gtf:
         bed_to_gtf(query=outprefix + '.bed', outputfile=outprefix + '.gtf')
 
+
 def main():
     combine()
+
 
 if __name__ == "__main__":
     main()

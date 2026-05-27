@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import sys
 import csv
 import os
 import scipy.stats as sps
@@ -28,26 +27,26 @@ def parse_args():
 def split_iso_gene(iso_gene):
     if '_chr' in iso_gene:
         iso = iso_gene[:iso_gene.rfind('_chr')]
-        gene = iso_gene[iso_gene.rfind('_chr')+1:]
+        gene = iso_gene[iso_gene.rfind('_chr') + 1:]
     elif '_XM' in iso_gene:
         iso = iso_gene[:iso_gene.rfind('_XM')]
-        gene = iso_gene[iso_gene.rfind('_XM')+1:]
+        gene = iso_gene[iso_gene.rfind('_XM') + 1:]
     elif '_XR' in iso_gene:
         iso = iso_gene[:iso_gene.rfind('_XR')]
-        gene = iso_gene[iso_gene.rfind('_XR')+1:]
+        gene = iso_gene[iso_gene.rfind('_XR') + 1:]
     elif '_NM' in iso_gene:
         iso = iso_gene[:iso_gene.rfind('_NM')]
-        gene = iso_gene[iso_gene.rfind('_NM')+1:]
+        gene = iso_gene[iso_gene.rfind('_NM') + 1:]
     elif '_NR' in iso_gene:
         iso = iso_gene[:iso_gene.rfind('_NR')]
-        gene = iso_gene[iso_gene.rfind('_NR')+1:]
+        gene = iso_gene[iso_gene.rfind('_NR') + 1:]
     else:
         iso = iso_gene[:iso_gene.rfind('_')]
-        gene = iso_gene[iso_gene.rfind('_')+1:]
+        gene = iso_gene[iso_gene.rfind('_') + 1:]
     return iso, gene
 
 
-def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
+def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):  # noqa: C901 - FIXME: reduce complexity
     counts_matrix_fh = open(counts_matrix_tsv)
     header = counts_matrix_fh.readline().rstrip().split('\t')
 
@@ -65,8 +64,9 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
         line = line.rstrip().split('\t')
         iso_gene, count1, count2 = line[0], float(line[col1]), float(line[col2])
         if '_' not in iso_gene:
-            raise FlairInputDataError('Incorrect isoform names: Please run identify_annotated_gene first so that \n'
-                             'isoforms can be grouped by their parent genes\n')
+            raise FlairInputDataError(
+                'Incorrect isoform names: Please run identify_annotated_gene first so that \n'
+                'isoforms can be grouped by their parent genes\n')
         iso, gene = split_iso_gene(iso_gene)
         if gene not in counts:
             counts[gene] = {}
@@ -91,15 +91,14 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):
                 else:
                     s1PSI, s2PSI, deltaPSI = 'NA', 'NA', 'NA'
                     if ctable[1][0] + ctable[0][0] > 0:
-                        s1PSI = round(ctable[0][0]/(ctable[1][0] + ctable[0][0]), 3)
+                        s1PSI = round(ctable[0][0] / (ctable[1][0] + ctable[0][0]), 3)
                     if ctable[1][1] + ctable[0][1] > 0:
-                        s2PSI = round(ctable[0][1]/(ctable[1][1] + ctable[0][1]), 3)
+                        s2PSI = round(ctable[0][1] / (ctable[1][1] + ctable[0][1]), 3)
                     if s1PSI != 'NA' and s2PSI != 'NA':
-                        deltaPSI = round(s2PSI-s1PSI, 3)
+                        deltaPSI = round(s2PSI - s1PSI, 3)
                     psi_data = [s1PSI, s2PSI, deltaPSI]
 
                     generes.append([gene, iso, sps.fisher_exact(ctable)[1]] + ctable[0] + ctable[1] + psi_data)
-
 
             # if not generes:
             #     writer.writerow([gene, iso, 'NA'] + ctable[0] + ctable[1] + psi_data)
@@ -113,6 +112,7 @@ def main():
     args = parse_args()
     with cli.ErrorHandler():
         diff_iso_usage(args.counts_matrix_tsv, args.colname1, args.colname2, args.outfile)
+
 
 if __name__ == '__main__':
     main()

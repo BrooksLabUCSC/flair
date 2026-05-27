@@ -1,5 +1,6 @@
 import pytest
 from flair.pycbio.hgdata.bed import Bed
+from flair.isoform_data import ReadRec, Junc
 from flair.intron_support import IntronSupport
 from flair.junction_correct import JunctionCorrector
 
@@ -10,7 +11,8 @@ from flair.junction_correct import JunctionCorrector
 # tests for loading intron support data
 ###
 def _assert_introns(over, expect):
-    assert [str(o) for o in over] == expect
+    # order-insensitive: overlap() has no defined order
+    assert sorted(str(o) for o in over) == sorted(expect)
 
 def _basic_load_reads_annot_support_test(intron_support):
     "same data, loaded from BED or STAR SJ"
@@ -63,31 +65,37 @@ def basic_corrector(basic_support):
     # standard parameters for flair_correct
     return JunctionCorrector(basic_support, 15, 1)
 
-def _mk_bed(bed_str):
-    return Bed.parse(bed_str.split('\t'))
+def _readrec_from_bed_str(bed_str):
+    """Parse a BED string into a ReadRec for testing."""
+    bed = Bed.parse(bed_str.split('\t'))
+    juncs = tuple(Junc(bed.blocks[i].end, bed.blocks[i + 1].start)
+                  for i in range(len(bed.blocks) - 1))
+    return ReadRec(bed.chrom, bed.strand, juncs, bed.chromStart, bed.chromEnd, bed.name)
 
 def test_no_support(basic_corrector):
-    read = "chr20	35542150	35557051	HISEQ:1287:HKCG7BCX3:1:1106:16788:27192	60	+	35542150	35557051	27,158,119	10	35,71,88,120,94,166,62,132,65,79,	0,172,362,671,5261,6358,6657,13847,14056,14822,"
-    got = basic_corrector.correct_read_bed(_mk_bed(read))
-    assert got is None
+    readrec = _readrec_from_bed_str("chr20	35542150	35557051	HISEQ:1287:HKCG7BCX3:1:1106:16788:27192	60	+	35542150	35557051	27,158,119	10	35,71,88,120,94,166,62,132,65,79,	0,172,362,671,5261,6358,6657,13847,14056,14822,")
+    assert basic_corrector.correct_readrec(readrec) is False
 
 def test_adjust_start(basic_corrector):
     # start of intron adjusted
-    read = "chr20	35548585	35557571	HISEQ:1287:HKCG7BCX3:1:1106:18816:99230	60	+	35548585	35557571	27,158,119	7	89,58,32,97,65,81,132,	0,222,6458,7447,7621,8387,8854,"
-    expt = "chr20	35548585	35557571	HISEQ:1287:HKCG7BCX3:1:1106:18816:99230	60	+	35548585	35557571	27,158,119	7	89,58,32,97,65,83,132,	0,222,6458,7447,7621,8387,8854,"
-    got = basic_corrector.correct_read_bed(_mk_bed(read))
-    assert str(got) == expt
+    readrec = _readrec_from_bed_str("chr20	35548585	35557571	HISEQ:1287:HKCG7BCX3:1:1106:18816:99230	60	+	35548585	35557571	27,158,119	7	89,58,32,97,65,81,132,	0,222,6458,7447,7621,8387,8854,")
+    expt = _readrec_from_bed_str("chr20	35548585	35557571	HISEQ:1287:HKCG7BCX3:1:1106:18816:99230	60	+	35548585	35557571	27,158,119	7	89,58,32,97,65,83,132,	0,222,6458,7447,7621,8387,8854,")
+    assert basic_corrector.correct_readrec(readrec) is True
+    assert readrec.juncs == expt.juncs
+    assert readrec.strand == expt.strand
 
 def test_adjust_end(basic_corrector):
     # end of intron adjusted
-    read = "chr20	35548508	35557489	HISEQ:1287:HKCG7BCX3:1:1107:10927:56503	60	+	35548508	35557489	27,158,119	7	166,58,32,97,65,87,46,	0,299,6535,7524,7698,8464,8935,"
-    expt = "chr20	35548508	35557489	HISEQ:1287:HKCG7BCX3:1:1107:10927:56503	60	+	35548508	35557489	27,158,119	7	166,58,32,97,65,83,50,	0,299,6535,7524,7698,8464,8931,"
-    got = basic_corrector.correct_read_bed(_mk_bed(read))
-    assert str(got) == expt
+    readrec = _readrec_from_bed_str("chr20	35548508	35557489	HISEQ:1287:HKCG7BCX3:1:1107:10927:56503	60	+	35548508	35557489	27,158,119	7	166,58,32,97,65,87,46,	0,299,6535,7524,7698,8464,8935,")
+    expt = _readrec_from_bed_str("chr20	35548508	35557489	HISEQ:1287:HKCG7BCX3:1:1107:10927:56503	60	+	35548508	35557489	27,158,119	7	166,58,32,97,65,83,50,	0,299,6535,7524,7698,8464,8931,")
+    assert basic_corrector.correct_readrec(readrec) is True
+    assert readrec.juncs == expt.juncs
+    assert readrec.strand == expt.strand
 
 def test_adjust_both(basic_corrector):
     # both of intron adjusted
-    read = "chr17	64499205	64504277	HISEQ:1287:HKCG7BCX3:1:1101:17977:51378	60	-	64499205	64504277	217,95,2	11	1121,225,64,62,111,173,161,142,66,134,56,	0,1343,2800,2956,3233,3720,3982,4224,4597,4777,5016,"
-    expt = "chr17	64499205	64504277	HISEQ:1287:HKCG7BCX3:1:1101:17977:51378	60	-	64499205	64504277	217,95,2	11	1121,225,60,62,111,173,161,142,66,134,56,	0,1343,2804,2956,3233,3720,3982,4224,4597,4777,5016,"
-    got = basic_corrector.correct_read_bed(_mk_bed(read))
-    assert str(got) == expt
+    readrec = _readrec_from_bed_str("chr17	64499205	64504277	HISEQ:1287:HKCG7BCX3:1:1101:17977:51378	60	-	64499205	64504277	217,95,2	11	1121,225,64,62,111,173,161,142,66,134,56,	0,1343,2800,2956,3233,3720,3982,4224,4597,4777,5016,")
+    expt = _readrec_from_bed_str("chr17	64499205	64504277	HISEQ:1287:HKCG7BCX3:1:1101:17977:51378	60	-	64499205	64504277	217,95,2	11	1121,225,60,62,111,173,161,142,66,134,56,	0,1343,2804,2956,3233,3720,3982,4224,4597,4777,5016,")
+    assert basic_corrector.correct_readrec(readrec) is True
+    assert readrec.juncs == expt.juncs
+    assert readrec.strand == expt.strand

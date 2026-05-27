@@ -7,13 +7,14 @@ import math
 import flair.flair_variantmodels as fv
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
-compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 
-                'R':'Y', 'Y':'R','K':'M','M':'K','S':'S','W':'W', 'B':'V','V':'B','D':'H','H':'D'}
+compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
+            'R': 'Y', 'Y': 'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W',
+            'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
 
 
 def parse_var_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--manifest', type=str, #required=True, 
+    parser.add_argument('-m', '--manifest', type=str,  # required=True,
                         help="[USED INSTEAD OF input_bam AND vcf] path to manifest files that points to sample names, bam files aligned to transcriptome, "
                              "and vcf vars for that sample called on the genome. "
                              "Each line of file should be tab separated. "
@@ -27,7 +28,7 @@ def parse_var_args():
                         help="path to collapsed_output.bed file. default: 'flair'")
     parser.add_argument('-b', '--bedisoforms',
                         help="path to transcriptome bed file")
-    parser.add_argument('-t', '--threshold', type=int, default=5, 
+    parser.add_argument('-t', '--threshold', type=int, default=5,
                         help='specify minimum total read coverage threshold to output a site')
     parser.add_argument('-k', '--output_all', action='store_true',
                         help="specify this option if you want to output read counts for all putative RNA editing sites that pass the coverage threshold, regardless of whether any reads are edited")
@@ -74,7 +75,7 @@ def _parse_cigar(cigar, alignstart, transcriptvars):
     return coveredvars
 
 
-def _parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename): ##add mode
+def _parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename):  # add mode
     """for each read, figure out what variants it overlaps with. Then figure out whether it's modified or not at that variant"""
     # check for which vars are covered
     coveredvars = _parse_cigar(s.cigartuples, s.reference_start, vcfvars)
@@ -99,7 +100,7 @@ def _parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename): ##ad
                 '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
 
 
-def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, mode, sampledata, threshold, output_all):
+def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, mode, sampledata, threshold, output_all):  # noqa: C901 - FIXME: reduce complexity
     samplenames = [x[0] for x in sampledata]
 
     with open(f'{outprefix}.{mode}.var.counts.tsv', 'w') as out, open(f'{outprefix}.{mode}.vargroup.counts.tsv', 'w') as out2:
@@ -114,13 +115,13 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, mode, samp
 
                     allgenes = []
                     for x in allmuts:
-                        for i in range(1, len(x)-1):
+                        for i in range(1, len(x) - 1):
                             if x[i] != '':
                                 allgenes.append(x[i])
-                    
-                    if len(allgenes) > 0: ###only use reads that overlap annotated genes
+
+                    if len(allgenes) > 0:  # only use reads that overlap annotated genes
                         mygene = max(set(allgenes), key=allgenes.count)
-                        
+
                         varpos = [x[0] for x in allmuts]
                         varkey = ','.join(varpos)
                         key = (refname, mygene, varkey)
@@ -156,7 +157,7 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, mode, samp
                 outmods.append(str(totmods))
             outline = [chrom, gene, str(len(outmods)), str(totpos), ','.join(outmods), varpos]
             out2.write('\t'.join(outline) + '\n')
-        
+
         for var in vartocounts:
             if any([x[0] + x[1] >= threshold for x in vartocounts[var]]) and (any([x[1] > 0 for x in vartocounts[var]]) or output_all):  # any modified reads in any sample
                 varcounts = [f'{x[0]};{x[1]}' for x in vartocounts[var]]
@@ -172,7 +173,7 @@ def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, gene
         potgenes = fv.get_potential_genes(chrom, gpos, chrregiontogenes)
 
         overlapgenes = set()
-        ##THIS MAY BE THE BOTTLENECK
+        # THIS MAY BE THE BOTTLENECK
         for gene, _, _ in fv.retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
             overlapgenes.add(gene)
         vcfvars = _add_vcf_var(vcfvars, chrom, ref, alts, gpos, ','.join(overlapgenes))
@@ -195,7 +196,7 @@ def quantvarpos():
             sampledata = [['sample', args.input_bam]]
     else:
         raise ValueError("please provide either manifest or bam and vcf")
-    
+
     print('done loading annot')
 
     vcfvars = {}

@@ -1,6 +1,9 @@
 # Copyright 2006-2025 Mark Diekhans
 """support classes for parsing autoSql generated objects"""
 
+##
+# string array
+##
 def strArraySplit(commaStr):
     "parser for comma-separated string list into a list"
     if len(commaStr) == 0:
@@ -15,17 +18,19 @@ def strArraySplit(commaStr):
 
 
 def strArrayJoin(strs):
-    "formatter for a list into a comma separated string"
-    if strs is not None:
-        return ",".join(strs) + ","
-    else:
+    """formatter for a list of values into a comma separated string, not-str values are
+    converted to a string"""
+    if strs is None:
         return ","
+    return ",".join([str(s) for s in strs]) + ","
 
 
 # TSV typeMap tuple for str arrays
 strArrayType = (strArraySplit, strArrayJoin)
 
-
+##
+# int arrays
+##
 def intArraySplit(commaStr):
     "parser for comma-separated string list into a list of ints"
     ints = []

@@ -1,16 +1,13 @@
-usage: fusion [-h] -g GENOME -f GTF -r READS [READS ...] -b GENOMECHIMBAM
-              [--transcriptchimbam TRANSCRIPTCHIMBAM] [-o OUTPUT] [-t THREADS]
-              [--minfragmentsize MINFRAGMENTSIZE] [-s SUPPORT]
-              [--maxloci MAXLOCI] [--keep_intermediate]
+usage: fusion [-h] -g GENOME -f GTF -b GENOME_ALIGNED_BAM [-o OUTPUT]
+              [-t THREADS] [--minfragmentsize MINFRAGMENTSIZE] [-s SUPPORT]
+              [--maxloci MAXLOCI] [--max_dist_to_TSS MAX_DIST_TO_TSS]
+              [--min_dist_between_bp MIN_DIST_BETWEEN_BP]
+              [--keep_intermediate]
 
 options:
   -h, --help            show this help message and exit
   -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
                         to annotated isoforms and adjusting TSS/TESs
-  --transcriptchimbam TRANSCRIPTCHIMBAM
-                        Optional: bam file of chimeric reads from
-                        transcriptomic alignment. If not provided, this will
-                        be made for you
   -o OUTPUT, --output OUTPUT
                         output file name base for FLAIR isoforms (default:
                         flair.collapse)
@@ -23,15 +20,19 @@ options:
                         minimum number of supporting reads for a fusion (3)
   --maxloci MAXLOCI     max loci detected in fusion. Set higher for detection
                         of 3-gene+ fusions
+  --max_dist_to_TSS MAX_DIST_TO_TSS
+                        maximum allowed distance of 5' alignment to TSS of
+                        annotated transcript. To not check this, set to -1
+  --min_dist_between_bp MIN_DIST_BETWEEN_BP
+                        minimum allowed distance between breakpoints when they
+                        are on the same strand. Removes read-through
+                        transcripts.
   --keep_intermediate   keep intermediate and temporary files for debugging
                         purposes
 
 required named arguments:
   -g GENOME, --genome GENOME
                         FastA of reference genome
-  -r READS [READS ...], --reads READS [READS ...]
-                        FASTA/FASTQ files of raw reads, can specify multiple
-                        files
-  -b GENOMECHIMBAM, --genomechimbam GENOMECHIMBAM
+  -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
                         bam file of chimeric reads from genomic alignment from
                         flair align

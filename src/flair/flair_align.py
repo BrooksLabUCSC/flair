@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-import sys
 import argparse
 import os
 import pipettor
@@ -20,7 +19,7 @@ def parse_args():
 
     reads = parser.add_argument_group('required named arguments')
     reads.add_argument('-r', '--reads', nargs='+', type=str, required=True,
-                          help='FASTA/FASTQ file(s) of raw reads, either space or comma separated')
+                       help='FASTA/FASTQ file(s) of raw reads, either space or comma separated')
     genome = parser.add_argument_group('Either one of the following arguments is required')
     genome.add_argument('-g', '--genome', type=str,
                         help='FASTA of reference genome, can be minimap2 indexed')
@@ -37,7 +36,7 @@ def parse_args():
     parser.add_argument('--quality', type=int, default=0,
                         help='minimum MAPQ of read alignment to the genome (0)')
     parser.add_argument('--filtertype', type=str, choices=FILTERS, default=FILTER_REMOVESUP,
-                        help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')
+                        help='method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)')  # noqa: E501
     parser.add_argument('--minfragmentsize', type=int, default=80,
                         help='minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection')
     parser.add_argument('--maxintronlen', default='200k',
@@ -82,29 +81,39 @@ def dofiltering(args, inbam):
     if args.filtertype == FILTER_SEPARATE:
         withsup = pysam.AlignmentFile(args.output + '_chimeric.bam', "wb", template=samfile)
     totalalignments, mappednotsec, supplementary, primary = 0, 0, 0, 0
+    dropped_unmapped_secondary, dropped_quality, dropped_supplementary = 0, 0, 0
     for read in samfile.fetch():
         totalalignments += 1
         if read.is_mapped and not read.is_secondary:
             mappednotsec += 1
             if read.mapping_quality < args.quality:
-                continue
-            if read.is_supplementary:
+                dropped_quality += 1
+                logging.debug(f"read dropped: low quality ({read.mapping_quality} < {args.quality}): {read.query_name}")
+            elif read.is_supplementary:
                 supplementary += 1
                 if args.filtertype == FILTER_SEPARATE:
                     withsup.write(read)
                 elif args.filtertype == FILTER_KEEPSUP:
                     outbam.write(read)
-                # removesup: drop supplementary
+                else:
+                    dropped_supplementary += 1
+                    logging.debug(f"read dropped: supplementary removed: {read.query_name}")
             else:
                 primary += 1
                 if read.has_tag('SA') and args.filtertype == FILTER_SEPARATE:
                     withsup.write(read)
                 else:
                     outbam.write(read)
+        else:
+            dropped_unmapped_secondary += 1
+            logging.debug(f"read dropped: unmapped or secondary: {read.query_name}")
     logging.info(f'total alignments in bam file (includes unaligned reads): {totalalignments}')
     logging.info(f'total non-secondary alignments: {mappednotsec}')
     logging.info(f'total primary alignments with quality >= {args.quality}: {primary}')
     logging.info(f'total supplementary alignments with quality >= {args.quality}: {supplementary}')
+    logging.info(f'reads dropped: unmapped or secondary: {dropped_unmapped_secondary}')
+    logging.info(f'reads dropped: quality < {args.quality}: {dropped_quality}')
+    logging.info(f'reads dropped: supplementary removed: {dropped_supplementary}')
     samfile.close()
     outbam.close()
     pysam.index(args.output + '.filtered.bam')
@@ -120,6 +129,7 @@ def align():
 
 def main():
     align()
+
 
 if __name__ == "__main__":
     main()

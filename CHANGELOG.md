@@ -1,6 +1,9 @@
 # Major user-visible changes
 
 ## [v3.x.xx]
+* General
+  * fixed problems with some diffsplice_fishers_exact, and other
+    auxiliary console script installs
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

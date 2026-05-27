@@ -7,26 +7,20 @@ import pipettor
 import pysam
 import shutil
 from flair import FlairInputDataError
+from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+from flair.pycbio.hgdata.bed import Bed
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 
 compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
-                'R':'Y', 'Y':'R','K':'M','M':'K','S':'S','W':'W', 'B':'V','V':'B','D':'H','H':'D'}
+            'R': 'Y', 'Y': 'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W',
+            'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
 
 def getStarts(gtf):
     starts = list()
-    with open(gtf) as lines:
-        for l in lines:
-            if l[0] == "#":
-                continue
-            cols = l.rstrip().split("\t")
-            chrom, c1, c2, strand = cols[0], int(cols[3]) - 1, int(cols[4]), cols[6]
-            if cols[2] == "start_codon":
-                gene = cols[8][cols[8].find('gene_id') + len('gene_id') + 2:]
-                gene = gene[:gene.find('"')]
-
-                starts.append((chrom, c1, c2, gene, ".", strand))
-    if (len(starts)) == 0:
+    for rec in gtf_record_parser(gtf, include_features={'start_codon'}, attrs=GtfAttrsSet.ALL):
+        starts.append((rec.chrom, rec.start, rec.end, rec.gene_id, ".", rec.strand))
+    if len(starts) == 0:
         raise FlairInputDataError(f'ERROR, no start codons were found in {gtf}')
     return starts
 
@@ -119,10 +113,10 @@ def extract_sample_data(manifestfile):
     return sampledata
 
 def process_bedline(line):
-    line = line.rstrip().split('\t')
-    thischr, iso, dir, start, esizes, estarts, end = line[0], line[3], line[5], int(line[1]), \
-        [int(x) for x in line[10].split(',')[:-1]], \
-        [int(x) for x in line[11].split(',')[:-1]], int(line[2])
+    bed = Bed.parse(line.rstrip().split('\t'))
+    thischr, iso, dir, start, end = bed.chrom, bed.name, bed.strand, bed.chromStart, bed.chromEnd
+    esizes = [len(blk) for blk in bed.blocks]
+    estarts = [blk.start - start for blk in bed.blocks]
     exonblocks = []  # block is gstart, tstart, len
     if dir == '-':
         esizes = esizes[::-1]
@@ -645,8 +639,7 @@ def getvariants():
                '-i', args.bedisoforms,
                '-o', args.output_prefix + '.isoforms.productivity',
                '--gtf', args.gtf,
-               '--genome_fasta', args.genome,
-               '--longestORF')
+               '--genome_fasta', args.genome)
     pipettor.run([prodcmd])
 
     # adjust productivity prediction to account for variants

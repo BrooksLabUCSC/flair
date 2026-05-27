@@ -23,18 +23,18 @@ Modified for FLAIR-correct input - Alison Tang 2019
 # intron_exon_jctn_counts.py.  Used for quantifying intron retention,
 # alternative donor, and alternative acceptor events.
 
-import sys
 import optparse
 import math
 import re
 import pysam
 import logging
 from flair import FlairInputDataError
+from flair.pycbio.hgdata.bed import Bed
 
-#############
+##############
 # CONSTANTS #
-#############
-#IE_SCRIPT = "/h/angela/bin/intron_exon_jctn_counts.py"
+##############
+# IE_SCRIPT = "/h/angela/bin/intron_exon_jctn_counts.py"
 
 DEF_NAME = "junctions_from_sam"
 K_RGB_STR = "0,0,0"
@@ -50,15 +50,15 @@ DEF_BEG_JCN_OVERHANG = 25
 
 MAX_CHAR = 60
 
-CIGAR_OPER = {0:"M",
-              1:"I",
-              2:"D",
-              3:"N",
-              4:"S",
-              5:"H",
-              6:"P",
-              7:"=",
-              8:"X"}
+CIGAR_OPER = {0: "M",
+              1: "I",
+              2: "D",
+              3: "N",
+              4: "S",
+              5: "H",
+              6: "P",
+              7: "=",
+              8: "X"}
 
 #################
 # END CONSTANTS #
@@ -118,7 +118,7 @@ class JcnInfo:
         self.intron_start = intron_start
         self.intron_end = intron_end
 
-    def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):
+    def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):  # noqa: C901 - FIXME: reduce complexity
         # Check that name, chromosome, strand are the same
         if not chr.startswith("chr"):
             chr = "chr" + chr
@@ -172,7 +172,7 @@ class JcnInfo:
 ########
 # MAIN #
 ########
-def main():
+def main():  # noqa: C901 - FIXME: reduce complexity
 
     opt_parser = OptionParser()
 
@@ -396,7 +396,7 @@ def main():
                 m_count = cigar.count('M')
 
             # Check if it is a genome read
-            if m_count == 1: # A GENOME READ
+            if m_count == 1:  # A GENOME READ
                 pass
                 this_read_len = int(cigar.rstrip("M"))
 
@@ -404,9 +404,9 @@ def main():
                     if this_read_len != read_len:
                         raise ValueError(f"Expecting reads of length: {read_len} not {this_read_len}")
 
-                #chr_end = chr_start + this_read_len - 1
+                # chr_end = chr_start + this_read_len - 1
 
-                #genome_line = "%s\t%s\t%d\t%d\n" % (q_name, chr, chr_start, chr_end)
+                # genome_line = "%s\t%s\t%d\t%d\n" % (q_name, chr, chr_start, chr_end)
                 # if paired_end_exists:
                 #     if isPairedRead(flag):
                 #         paired_end_genome_file.write(genome_line)
@@ -415,7 +415,7 @@ def main():
                 # else:
                 #     genome_file.write(genome_line)
 
-            else: # A JUNCTION READ
+            else:  # A JUNCTION READ
                 n_count = cigar.count("N")
 
                 if n_count == 0:
@@ -486,8 +486,8 @@ def main():
                         # Need to make multiple jcn_str for each intron
                         jcn_str = "%s|%s:%d-%d" % (jcn_tag,
                                                    chr,
-                                                  chr_start + upstr_len,
-                                                  chr_start + upstr_len + intron_len - 1)
+                                                   chr_start + upstr_len,
+                                                   chr_start + upstr_len + intron_len - 1)
 
                     # Check for odd junctions that are aligned toward the
                     # beginning of the chromosome, which causes problems later
@@ -557,20 +557,17 @@ def main():
             confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr,
                                              jcn2JcnInfo[jcn_str].intron_start,
                                              jcn2JcnInfo[jcn_str].intron_end))
-            intron_left = jcn_str[jcn_str.find(':')+1:jcn_str.find('-')]
-            intron_right = jcn_str[jcn_str.find('-')+1:]
+            intron_left = jcn_str[jcn_str.find(':') + 1:jcn_str.find('-')]
+            intron_right = jcn_str[jcn_str.find('-') + 1:]
             if jcn2JcnInfo[jcn_str].strand in {'+', '-'}:
                 strandFlag = True
                 jcn_strand = jcn2JcnInfo[jcn_str].strand
             else:
                 jcn_strand = '.'
-            bed_line = '\t'.join([jcn2JcnInfo[jcn_str].chr,
-                                                intron_left,
-                                                str(int(intron_right)-1),
-                                                '.',
-                                                str(min(1000, len(jcn2JcnInfo[jcn_str].block_list))),
-                                                 jcn_strand]) + '\n'
-            junction_bed_file.write(bed_line)
+            num_blocks = min(1000, len(jcn2JcnInfo[jcn_str].block_list))
+            bed = Bed(jcn2JcnInfo[jcn_str].chr, int(intron_left), int(intron_right) - 1,
+                      name='.', score=num_blocks, strand=jcn_strand)
+            bed.write(junction_bed_file)
 
     junction_bed_file.close()
     # Print out junction to read file for paired end reads
@@ -581,7 +578,7 @@ def main():
     #             jcn2qname_file.write(outline)
     #     jcn2qname_file.close()
 
-    if strandFlag == False:
+    if strandFlag is False:
         logging.info('WARNING, no stranded junctions were found.')
 
 
@@ -608,14 +605,14 @@ def convert2SAMLine(bam_file, read_obj):
         rnext = read_obj.rnext
         pnext = read_obj.pnext
         tlen = read_obj.tlen
-    except:
+    except Exception:
         rnext = read_obj.mrnm
         pnext = read_obj.mpos
         tlen = read_obj.isize
 
     try:
         rname = bam_file.getrname(read_obj.tid)
-    except:
+    except Exception:
         rname = None
 
     samline = "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s" % (read_obj.qname,
@@ -667,21 +664,21 @@ def extended_to_simple_cigar(cigar):
             prevnum += num
         else:
             if prevop != 'N':
-                newcigar += str(prevnum)+'M'
+                newcigar += str(prevnum) + 'M'
             else:
-                newcigar += str(prevnum)+'N'
+                newcigar += str(prevnum) + 'N'
             prevnum = num
             prevop = op
     if prevop != 'N':
-        newcigar += str(prevnum)+'M'
+        newcigar += str(prevnum) + 'M'
     else:
-        newcigar += str(prevnum)+'N'
+        newcigar += str(prevnum) + 'N'
     return newcigar
 
 
 def formatLine(line):
-    line = line.replace("\r","")
-    line = line.replace("\n","")
+    line = line.replace("\r", "")
+    line = line.replace("\n", "")
     return line
 
 

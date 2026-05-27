@@ -3,6 +3,7 @@ import sys
 import csv
 import os
 from flair import FlairInputDataError
+from flair.pycbio.hgdata.bed import BedReader
 
 try:
     bedfh = open(sys.argv[1])
@@ -12,28 +13,28 @@ try:
     else:
         counts_tsv = ''
     wiggle = 10  # minimum distance apart for alt SS to be tested
-except:
+except Exception:
     raise FlairInputDataError('usage: call_diffsplice_events.py in.bed out.tsv [counts_tsv]\n')
 
 
 def get_junctions_bed(starts, sizes):
     junctions = []
-    for b in range(len(starts)-1):
-        junctions += [(starts[b]+sizes[b], starts[b+1], starts[b], starts[b+1]+sizes[b+1])]
+    for b in range(len(starts) - 1):
+        junctions += [(starts[b] + sizes[b], starts[b + 1], starts[b], starts[b + 1] + sizes[b + 1])]
     return junctions
 
 
 def update_altsplice_dict(jdict, fiveprime, threeprime, exon_start, exon_end, sample_names,
-        iso_counts, search_threeprime=True):
+                          iso_counts, search_threeprime=True):
     if fiveprime not in jdict[chrom]:
         jdict[chrom][fiveprime] = {}  # 5' end anchor if search_threeprime
     if threeprime not in jdict[chrom][fiveprime]:
         jdict[chrom][fiveprime][threeprime] = {}
-        jdict[chrom][fiveprime][threeprime]['counts'] = [0]*len(sample_names)
-        jdict[chrom][fiveprime][threeprime]['isos'] = []# isoform list for this junction
+        jdict[chrom][fiveprime][threeprime]['counts'] = [0] * len(sample_names)
+        jdict[chrom][fiveprime][threeprime]['isos'] = []  # isoform list for this junction
         jdict[chrom][fiveprime][threeprime]['exon_end'] = exon_end  # for detecting exon skipping
     elif (search_threeprime and strand == '+') or (not search_threeprime and strand == '-'):
-        if exon_end < jdict[chrom][fiveprime][threeprime]['exon_end']: # pick shorter exon end
+        if exon_end < jdict[chrom][fiveprime][threeprime]['exon_end']:  # pick shorter exon end
             jdict[chrom][fiveprime][threeprime]['exon_end'] = exon_end
     else:
         if exon_end > jdict[chrom][fiveprime][threeprime]['exon_end']:
@@ -56,8 +57,8 @@ def find_altss(alljuncs, writer, search_threeprime=True):
             n = 0
             for tp1 in all_tp:  # tp1 = three prime SS number 1
                 exon_end = alljuncs[chrom][fiveprime][tp1]['exon_end']
-                for tp2 in all_tp: # tp2 is also a 3' SS with the same 5' anchor as tp1
-                    if tp1 == tp2 or abs(tp2-tp1) < wiggle or abs(fiveprime - tp1) > abs(fiveprime - tp2):
+                for tp2 in all_tp:  # tp2 is also a 3' SS with the same 5' anchor as tp1
+                    if tp1 == tp2 or abs(tp2 - tp1) < wiggle or abs(fiveprime - tp1) > abs(fiveprime - tp2):
                         # two sites are the same, too close together, or have already been tested in another order
                         continue
                     inclusion = tp1
@@ -70,15 +71,15 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                     elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor
                         continue
 
-                    feature_suffix = chrom_clean+':'+str(fiveprime) if n == 0 else chrom_clean+':'+str(fiveprime)+'-'+str(n)
-                    event = chrom_clean+':'+str(fiveprime)+'-'+str(inclusion)+'_'+chrom_clean+':'+str(fiveprime)+'-'+str(exclusion)
+                    feature_suffix = chrom_clean + ':' + str(fiveprime) if n == 0 else chrom_clean + ':' + str(fiveprime) + '-' + str(n)
+                    event = chrom_clean + ':' + str(fiveprime) + '-' + str(inclusion) + '_' + chrom_clean + ':' + str(fiveprime) + '-' + str(exclusion)
 
-                    writer.writerow(['inclusion_'+feature_suffix, event] +
-                            alljuncs[chrom][fiveprime][inclusion]['counts'] +
-                            [','.join(sorted(alljuncs[chrom][fiveprime][inclusion]['isos']))])
-                    writer.writerow(['exclusion_'+feature_suffix, event] +
-                            alljuncs[chrom][fiveprime][exclusion]['counts'] +
-                            [','.join(sorted(alljuncs[chrom][fiveprime][exclusion]['isos']))])
+                    writer.writerow(['inclusion_' + feature_suffix, event] +
+                                    alljuncs[chrom][fiveprime][inclusion]['counts'] +
+                                    [','.join(sorted(alljuncs[chrom][fiveprime][inclusion]['isos']))])
+                    writer.writerow(['exclusion_' + feature_suffix, event] +
+                                    alljuncs[chrom][fiveprime][exclusion]['counts'] +
+                                    [','.join(sorted(alljuncs[chrom][fiveprime][exclusion]['isos']))])
                     n += 1
 
 
@@ -95,16 +96,14 @@ isoforms = {}  # ir detection
 ir_junctions = {}  # ir detection
 a3_junctions = {}  # alt 3' ss detection
 a5_junctions = {}  # alt 5' ss detection
-for line in bedfh:
-    line = line.rstrip().split('\t')
-
-    chrom, name, start, end, strand = line[0], line[3], int(line[1]), int(line[2]), line[5]
+for bed in BedReader(bedfh, fixScores=True):
+    chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
 
     if iso_counts and name not in iso_counts:
         continue
 
-    blockstarts = [int(n) + start for n in line[11].rstrip(',').split(',')]
-    blocksizes = [int(n) for n in line[10].rstrip(',').split(',')]
+    blockstarts = [blk.start for blk in bed.blocks]
+    blocksizes = [len(blk) for blk in bed.blocks]
 
     chrom = strand + chrom  # stranded comparisons
     if chrom not in isoforms:
@@ -114,9 +113,9 @@ for line in bedfh:
         a5_junctions[chrom] = {}
 
     isoforms[chrom][name] = {}
-    isoforms[chrom][name]['sizes']  = blocksizes
+    isoforms[chrom][name]['sizes'] = blocksizes
     isoforms[chrom][name]['starts'] = blockstarts
-    isoforms[chrom][name]['range']  = start, end
+    isoforms[chrom][name]['range'] = start, end
 
     these_jcns = get_junctions_bed(blockstarts, blocksizes)
     for j_index in range(len(these_jcns)):
@@ -129,37 +128,37 @@ for line in bedfh:
             exon_end, exon_start = exon_start, exon_end
 
         a3_junctions = update_altsplice_dict(a3_junctions, fiveprime, threeprime,
-                exon_start, exon_end, sample_names, iso_counts)
+                                             exon_start, exon_end, sample_names, iso_counts)
         a5_junctions = update_altsplice_dict(a5_junctions, threeprime, fiveprime,
-                exon_end, exon_start, sample_names, iso_counts, search_threeprime=False)
+                                             exon_end, exon_start, sample_names, iso_counts, search_threeprime=False)
 
         j = (j[0], j[1])  # IR junctions do not need the flanking exon info from get_junctions_bed
         if j not in ir_junctions[chrom]:  # ir detection
             ir_junctions[chrom][j] = {}
             ir_junctions[chrom][j]['exclusion'] = {}
             ir_junctions[chrom][j]['inclusion'] = {}
-            ir_junctions[chrom][j]['exclusion']['counts'] = [0]*len(sample_names)
-            ir_junctions[chrom][j]['inclusion']['counts'] = [0]*len(sample_names)
+            ir_junctions[chrom][j]['exclusion']['counts'] = [0] * len(sample_names)
+            ir_junctions[chrom][j]['inclusion']['counts'] = [0] * len(sample_names)
             ir_junctions[chrom][j]['exclusion']['isos'] = []
             ir_junctions[chrom][j]['inclusion']['isos'] = []
         ir_junctions[chrom][j]['exclusion']['isos'] += [name]
         for c in range(len(sample_names)):
             ir_junctions[chrom][j]['exclusion']['counts'][c] += iso_counts[name][c]
 
-with open(outfilenamebase+'.alt3.events.quant.tsv', 'wt') as outfile:
+with open(outfilenamebase + '.alt3.events.quant.tsv', 'wt') as outfile:
     writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-    writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
+    writer.writerow(['feature_id', 'coordinate'] + sample_names + ['isoform_ids'])
     find_altss(a3_junctions, writer)
 
-with open(outfilenamebase+'.alt5.events.quant.tsv', 'wt') as outfile:
+with open(outfilenamebase + '.alt5.events.quant.tsv', 'wt') as outfile:
     writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-    writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
+    writer.writerow(['feature_id', 'coordinate'] + sample_names + ['isoform_ids'])
     find_altss(a5_junctions, writer, search_threeprime=False)
 
 with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
     writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-    writer.writerow(['feature_id', 'coordinate']+sample_names+['isoform_ids'])
-    for chrom in ir_junctions:
+    writer.writerow(['feature_id', 'coordinate'] + sample_names + ['isoform_ids'])
+    for chrom in ir_junctions:  # noqa: C901 - FIXME: reduce complexity
         for j in ir_junctions[chrom]:
             for iname in isoforms[chrom]:  # compare with all other isoforms to find IR
                 if iname in ir_junctions[chrom][j]['exclusion']['isos']:  # is an exclusion isoform
@@ -169,7 +168,7 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
                     continue
                 starts, sizes = isoforms[chrom][iname]['starts'], isoforms[chrom][iname]['sizes']
                 for start, size in zip(starts[1:], sizes[1:]):
-                    estart, eend = start, start+size  # exon start, exon end
+                    estart, eend = start, start + size  # exon start, exon end
                     if estart < j[0] and eend > j[1]:  # retention
                         ir_junctions[chrom][j]['inclusion']['isos'] += [iname]
                         for c in range(len(sample_names)):
@@ -183,11 +182,11 @@ with open(outfilenamebase + '.ir.events.quant.tsv', 'wt') as outfile:
                 ir_junctions[chrom][j]['exclusion']['counts'] = ir_junctions[chrom][j]['inclusion']['counts'] = []
 
             chrom_clean = chrom[1:]
-            event = chrom_clean+':'+str(j[0])+'-'+str(j[1])
-            writer.writerow(['inclusion_'+event, event] +
-                    ir_junctions[chrom][j]['inclusion']['counts'] +
-                    [','.join(sorted(ir_junctions[chrom][j]['inclusion']['isos']))])
-            writer.writerow(['exclusion_'+event, event] +
-                    ir_junctions[chrom][j]['exclusion']['counts'] +
-                    [','.join(sorted(ir_junctions[chrom][j]['exclusion']['isos']))])
+            event = chrom_clean + ':' + str(j[0]) + '-' + str(j[1])
+            writer.writerow(['inclusion_' + event, event] +
+                            ir_junctions[chrom][j]['inclusion']['counts'] +
+                            [','.join(sorted(ir_junctions[chrom][j]['inclusion']['isos']))])
+            writer.writerow(['exclusion_' + event, event] +
+                            ir_junctions[chrom][j]['exclusion']['counts'] +
+                            [','.join(sorted(ir_junctions[chrom][j]['exclusion']['isos']))])
         ir_junctions[chrom] = None
