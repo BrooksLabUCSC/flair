@@ -1,5 +1,6 @@
 import argparse
 import pysam
+from flair import FlairInputDataError
 from flair.isoform_data import get_reverse_complement
 from flair.gtf_io import gtf_record_parser, gtf_write_row, GtfAttrsSet
 from flair.pycbio.hgdata.bed import BedReader
@@ -46,7 +47,18 @@ for bed in BedReader(args.chimbp, numStdCols=6, fixScores=True):
         fgenes[gene][2] = max(end, fgenes[gene][2])
 
 genome = pysam.FastaFile(args.g)
+chromSizes = dict(zip(genome.references, genome.lengths))
 # print('loaded genome')
+
+
+def getChromSize(chrom):
+    "size of chrom, error if the annotation names a sequence the genome doesn't have"
+    size = chromSizes.get(chrom)
+    if size is None:
+        raise FlairInputDataError(f"sequence '{chrom}' in annotation {args.a} is not in genome {args.g}; "
+                                  "supply an annotation and genome from the same assembly, using the same sequence names")
+    return size
+
 
 # To make synthetic transcriptome:
 # DONE Get transcript/exon annotation for fusion genes
@@ -61,7 +73,11 @@ for rec in gtf_record_parser(args.a, include_features={'gene', 'exon', 'start_co
     if genename in fgenes:
         if rec.feature == 'gene':
             # learned that can't assume that transcript appears in anno only once - two diff ENSG can have same hugo name
-            fgenes[genename] = (rec.chrom, min([rec.start - 500, fgenes[genename][1]]), max([rec.end + 500, fgenes[genename][2]]), rec.strand)
+            # the 500 base padding is held within the sequence; a gene near either end has less room than that
+            fgenes[genename] = (rec.chrom,
+                                min([max(0, rec.start - 500), fgenes[genename][1]]),
+                                max([min(getChromSize(rec.chrom), rec.end + 500), fgenes[genename][2]]),
+                                rec.strand)
         elif rec.feature in ('exon', 'start_codon'):
             tname = rec.transcript_id
             if tname not in transcripts[genename]:
