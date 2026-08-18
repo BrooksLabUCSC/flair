@@ -19,6 +19,15 @@ pip install -e .[dev]
 
 ```
 
+Use `conda env create`, not `conda create --file`, which does not read a
+YAML environment file and fails with `could not parse 'name: flair-dev'`.
+
+The conda environment supplies only the non-python programs.  Recreating
+it discards the editable install, so `pip install -e .[dev]` has to be
+repeated every time the environment is recreated.  Skipping it leaves the
+tests failing with `ModuleNotFoundError` for pysam, pipettor, scipy and
+pytest.
+
 If you get warning like:
 ```
 warning  libmamba Problem type not implemented SOLVER_RULE_STRICT_REPO_PRIORITY
