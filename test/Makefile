@@ -169,7 +169,9 @@ BASIC_DIFFSPLICE_BED = $I/test-collapse-annot.isoforms.bed
 TOME_OUT_FA = $O/test-transcriptome.isoforms.fa
 TOME_OUT_FAI = $O/test-transcriptome.isoforms.fa.fai
 
-QUANTIFY_INPUT_BAMS = $O/test-quantify.input.success_message.txt
+QUANTIFY_INPUT_READS = basic.reads.1 basic.reads.2 basic.reads.3 \
+                       basic.reads.4 basic.reads.5 basic.reads.6
+QUANTIFY_INPUT_BAMS = ${QUANTIFY_INPUT_READS:%=$O/%.genomealigned.bam}
 
 ##
 # Files generate by tests that are used by other tests.
@@ -733,26 +735,16 @@ ${GENOME_FA}:
 	rm chr12.fa.gz chr17.fa.gz chr20.fa.gz
 	samtools faidx $@
 
-# ${BASIC_ISOFORMS_OUT_FA}: ${BASIC_ISOFORMS_FA}
-# 	mkdir -p $(dir $@)
-# 	cp -f $< $@
-
-# ${BASIC_ISOFORMS_OUT_FAI}: ${BASIC_ISOFORMS_OUT_FA}
-# 	samtools faidx --output $@ $<
-
-${TOME_OUT_FA}:
+${TOME_OUT_FA}: | mkdirs
 	cp $E/test-transcriptome.isoforms.fa $@
 
 ${TOME_OUT_FAI}: ${TOME_OUT_FA}
 	samtools faidx --output $@ $<
 
-${QUANTIFY_INPUT_BAMS}: ${GENOME_FA}
-	for name in "basic.reads.1" "basic.reads.2" "basic.reads.3" "basic.reads.4" "basic.reads.5" "basic.reads.6" ; \
-	do \
-	minimap2 -ax splice --secondary=no ${GENOME_FA} $I/$$name.fa | samtools view -hb - | samtools sort - > $O/$$name.genomealigned.bam; \
-	samtools index $O/$$name.genomealigned.bam; \
-	done
-	echo "done aligning input bams" > $@
+$O/%.genomealigned.bam: $I/%.fa ${GENOME_FA} | mkdirs
+	minimap2 -ax splice --secondary=no ${GENOME_FA} $< | samtools view -hb - | samtools sort - > $@.tmp.bam
+	mv -f $@.tmp.bam $@
+	samtools index $@
 
 ##
 # test hub (work in progress)
