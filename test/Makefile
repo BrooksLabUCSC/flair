@@ -164,7 +164,10 @@ BASIC_READS_MANIFEST = $I/basic.reads_manifest.txt
 # does not produce sufficient pvalues to work diffexpr
 BASIC_COUNTS_MATRIX = $I/basic.counts_matrix_diffexp.tsv
 BASIC_DIFFSPLICE_MATRIX = $I/basic.counts_matrix_diffsplice.tsv
-BASIC_DIFFSPLICE_BED = $I/test-collapse-annot.isoforms.bed
+# isoforms matching BASIC_DIFFSPLICE_MATRIX; test-collapse-annot.isoforms.bed
+# is a different generation of the data and does not match the counts
+BASIC_DIFFSPLICE_BED = $I/basic.isoforms_diffsplice.bed
+COLLAPSE_ANNOT_ISOFORMS_BED = $I/test-collapse-annot.isoforms.bed
 
 TOME_OUT_FA = $O/test-transcriptome.isoforms.fa
 TOME_OUT_FAI = $O/test-transcriptome.isoforms.fa.fai
@@ -407,7 +410,7 @@ test-diffsplice-help: mkdirs
 bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-extracols
 
 test-bed-to-gtf : mkdirs
-	bed_to_gtf $(BASIC_DIFFSPLICE_BED) > $O/$@.gtf
+	bed_to_gtf $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
 test-bed-to-gtf-extracols : 
