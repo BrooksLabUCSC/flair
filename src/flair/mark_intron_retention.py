@@ -12,7 +12,7 @@ def overlap(coords0, coords1):
 
 # FIXME: use argparse
 
-def main()::  # noqa C901
+def main():  # noqa C901
     try:
         bedfh = open(sys.argv[1])
         outfilename = sys.argv[2]
