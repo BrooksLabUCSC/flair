@@ -9,10 +9,12 @@ include ${root}/defs.mk
 #   make test-installed
 #
 
-# get files to include in flake8
-PYPROGS = $(shell file -F $$'\t' test/bin/* | awk '/Python script/{print $$1}')
+# flake8 walks the tree for *.py itself; PYPROGS adds executable scripts that
+# have no .py extension.  Symbolic links are not reported by file(1), so the
+# bin/ commands are not checked twice, only their targets in src/flair.
+PYPROGS = $(shell file -F $$'\t' bin/* test/bin/* | awk -F'\t' '/Python script/{print $$1}')
 
-FLAKE8_CHECK = src/flair/*.py test/*.py ${PYPROGS}
+FLAKE8_CHECK = . ${PYPROGS}
 
 default:
 
@@ -36,8 +38,7 @@ test-base-installed:
 
 ##
 # lint check with flake8
-#   see .flake8 for configuration
-#   due to to gradual cleanup of code, flake8.mk is the list of files to check
+#   see .flake8 for configuration and the list of excluded directories
 ##
 lint: flake8
 pycbio-lint: pycbio-flake8

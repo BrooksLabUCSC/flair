@@ -13,3 +13,6 @@ test/output/
 /dist/
 .claude.bak/
 .claude/
+
+# random directory for taking notes while working
+/notes/
