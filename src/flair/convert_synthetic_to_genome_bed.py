@@ -1,3 +1,4 @@
+import logging
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
 
@@ -115,7 +116,7 @@ def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, thickS
     for i in range(len(esizes)):
         thisstart, thisend = start + estarts[i], start + estarts[i] + esizes[i]
         for order in range(numloci):
-            if locusbounds[order][0] < thisstart and thisend <= locusbounds[order][1]:
+            if locusbounds[order][0] <= thisstart and thisend <= locusbounds[order][1]:
                 if starts[order] is None:
                     starts[order] = estarts[i]  # thisstart #- locusbounds[order][0]
                 exonindexes[order].append(i)
@@ -231,6 +232,11 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
             # FIXME add handling of existing thickStart and thickEnd values from synthetic aligned bed,
             hasThickEdges = bed.thickStart != bed.thickEnd
             starts, exonindexes, thickEdges = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, bed.thickStart, bed.thickEnd)
+
+            assigned_exons = sorted(i for indexes in exonindexes for i in indexes)
+            if assigned_exons != list(range(len(esizes))):
+                logging.warning('skipping %s: not all synthetic exons could be assigned to exactly one locus', iso)
+                continue
 
             if None not in starts:
                 genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, hasThickEdges, thickEdges)
