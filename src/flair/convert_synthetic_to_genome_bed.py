@@ -109,7 +109,7 @@ def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start):
         thisstart, thisend = start + estarts[i], start + estarts[i] + esizes[i]
 
         for order in range(numloci):
-            if locusbounds[order][0] < thisstart and thisend <= locusbounds[order][1]:
+            if locusbounds[order][0] <= thisstart and thisend <= locusbounds[order][1]:
                 if starts[order] == None:
                     starts[order] = estarts[i]  # thisstart #- locusbounds[order][0]
                 exonindexes[order].append(i)
@@ -217,6 +217,10 @@ def convert_synthetic_isos(annotgtf, isoformsbed, readmapfile, readsfile, breakp
 
                 numloci = len(synthinfo)
                 starts, exonindexes = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start)
+                assigned_exons = sorted(i for indexes in exonindexes for i in indexes)
+                if assigned_exons != list(range(len(esizes))):
+                    print('Skipping ' + iso + ': not all synthetic exons could be assigned to exactly one locus', file=sys.stderr)
+                    continue
 
                 if None not in starts:
                     genomicbounds, outlines = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso)
@@ -226,6 +230,4 @@ def convert_synthetic_isos(annotgtf, isoformsbed, readmapfile, readsfile, breakp
                         freadsfinal.update(isoreadsup[iso])
     out.close()
     write_final_fusion_reads(readsfile, freadsfinal)
-
-
 
