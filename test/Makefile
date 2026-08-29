@@ -579,10 +579,18 @@ ${ALIGN_LONGSHOT}: ${GENOME_FA} ${TEST_ALIGN_BAM}
 	longshot --force_overwrite --bam ${TEST_ALIGN_BAM} --ref ${GENOME_FA} --out ${ALIGN_LONGSHOT} --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
 
 
-variants-tests:  test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant test-identifyvars-snvs test-identifyvars-indels test-identifyvars-snvsindels
-
-# longshot is not currently include in the docker container
+# longshot is not currently include in the docker container, so tests needing
+# it are skipped with a warning rather than failing
 have_longshot := $(shell which longshot >/dev/null 2>&1 && echo yes || echo no)
+longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant
+
+ifeq (${have_longshot},yes)
+variants-tests: ${longshot_tests}
+else
+variants-tests:
+	@echo "Note: skipping ${longshot_tests}: longshot is not in PATH, install it to run these tests" >&2
+endif
+variants-tests: test-identifyvars-snvs test-identifyvars-indels test-identifyvars-snvsindels
 
 test-alleles: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 	flair alleles --bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
