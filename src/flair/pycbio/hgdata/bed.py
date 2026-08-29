@@ -1,4 +1,4 @@
-# Copyright 2006-2025 Mark Diekhans
+# Copyright 2006-2026 Mark Diekhans
 import copy
 from collections import defaultdict, namedtuple
 from flair.pycbio import PycbioException
@@ -17,6 +17,25 @@ bed12Columns = ("chrom", "chromStart", "chromEnd", "name", "score", "strand", "t
 class BedException(PycbioException):
     """Error parsing or operating on a BED"""
     pass
+
+
+# widths where the optional field groups are complete: thickStart with thickEnd,
+# and all three block columns.  Other widths are legal BEDs, they just can not be
+# guessed at: see numStdColsForRow.
+NUM_STD_COLS_COMPLETE = (3, 4, 5, 6, 8, 9, 12)
+
+def numStdColsForRow(numCols):
+    """the standard-column count to assume for a row of numCols columns when the
+    caller did not say: the widest one whose field groups are complete, with the
+    rest being extra columns.  A row of 11 columns is read as a BED9 with two extra
+    columns, since the block columns of a BED11 are missing chromStarts and no
+    blocks can be built from them.  A caller whose 7th, 10th or 11th column is a
+    standard column, or a derived class that gives those columns a meaning, says so
+    with numStdCols."""
+    for numStdCols in reversed(NUM_STD_COLS_COMPLETE):
+        if numStdCols <= numCols:
+            return numStdCols
+    raise BedException("a BED needs at least 3 columns, found {}".format(numCols))
 
 def defaultIfNone(v, dflt=""):
     "also converts to a string"
@@ -54,6 +73,47 @@ class BedBlock(namedtuple("Block", ("start", "end"))):
 
     def __str__(self):
         return "{}-{}".format(self.start, self.end)
+
+def _parseNumStdCols(row, numStdCols):
+    "the standard-column count to parse with, checked against the row"
+    if numStdCols is None:
+        numStdCols = numStdColsForRow(len(row))
+    elif numStdCols in (10, 11):
+        raise BedException(
+            "can not parse a BED of {} standard columns: blocks need all three of "
+            "blockCount, blockSizes and chromStarts.  Use numStdCols=9, which puts "
+            "the block columns in extraCols, or numStdCols=12".format(numStdCols))
+    if len(row) < numStdCols:
+        raise BedException("expected at least {} columns, found {}: ".format(numStdCols, len(row)))
+    return numStdCols
+
+def _parseColumn(row, numStdCols, iCol):
+    "a column's value, or None when the width does not reach it"
+    return row[iCol] if numStdCols > iCol else None
+
+def _parseScore(row, numStdCols, fixScores):
+    "score, as an int to match browser behavior; fixScores makes a bad one zero"
+    if numStdCols <= 4:
+        return None
+    try:
+        return int(float(row[4]))
+    except ValueError:
+        if fixScores:
+            return 0
+        raise
+
+def _parseThickCols(row, numStdCols):
+    "thickStart and thickEnd; a BED7 has the first of them and not the second"
+    thickStart = int(row[6]) if numStdCols > 6 else None
+    thickEnd = int(row[7]) if numStdCols > 7 else None
+    return thickStart, thickEnd
+
+def _parseExtraCols(row, numStdCols, skipExtraCols):
+    "the columns past the standard ones"
+    if skipExtraCols or (len(row) <= numStdCols):
+        return ()
+    return row[numStdCols:]
+
 
 class Bed:
     """Object wrapper for a BED record.  ExtraCols is a vector of extra
@@ -96,7 +156,7 @@ class Bed:
         elif self.itemRgb is not None:
             numStdCols = 9
         elif self.thickStart is not None:
-            numStdCols = 8
+            numStdCols = 8 if self.thickEnd is not None else 7
         elif self.strand is not None:
             numStdCols = 6
         elif self.score is not None:
@@ -143,21 +203,28 @@ class Bed:
     def _defaultBlockColumns(self):
         return "1", str(self.chromEnd - self.chromStart) + ',', "0,"
 
+    def _blockColumns(self):
+        """the block columns, as many of blockCount, blockSizes and chromStarts as
+        the width has room for; a BED10 or BED11 carries only the first one or two"""
+        cols = self._getBlockColumns() if self.blocks is not None else self._defaultBlockColumns()
+        return cols[0:self.numStdCols - 9]
+
     def toRow(self):
         row = [self.chrom, str(self.chromStart), str(self.chromEnd)]
         if self.numStdCols >= 4:
             row.append(str(self.name) if self.name is not None else f"{self.chrom}:{self.chromStart}-{self.chromEnd}")
         if self.numStdCols >= 5:
-            row.append('0' if self.score is None else str(min(1000, self.score)))
+            row.append(defaultIfNone(self.score, 0))
         if self.numStdCols >= 6:
             row.append(defaultIfNone(self.strand, '+'))
-        if self.numStdCols >= 8:
+        if self.numStdCols >= 7:
             row.append(defaultIfNone(self.thickStart, self.chromEnd))
+        if self.numStdCols >= 8:
             row.append(defaultIfNone(self.thickEnd, self.chromEnd))
         if self.numStdCols >= 9:
             row.append(_fmtItemRgb(self.itemRgb))
         if self.numStdCols >= 10:
-            row.extend(self._getBlockColumns() if self.blocks is not None else self._defaultBlockColumns())
+            row.extend(self._blockColumns())
         if len(self.extraCols) > 0:
             row.extend(encodeRow(self.extraCols))
         return row
@@ -174,54 +241,18 @@ class Bed:
 
     @classmethod
     def _parse(cls, row, numStdCols=None, *, fixScores=False, skipExtraCols=False):
-        assert (numStdCols is None) or (3 <= numStdCols <= 12)
-        if numStdCols is None:
-            numStdCols = min(len(row), 12)
-        if len(row) < numStdCols:
-            raise BedException("expected at least {} columns, found {}: ".format(numStdCols, len(row)))
-        chrom = row[0]
+        numStdCols = _parseNumStdCols(row, numStdCols)
         chromStart = int(row[1])
-        chromEnd = int(row[2])
-        if numStdCols > 3:
-            name = row[3]
-        else:
-            name = None
-        if numStdCols > 4:
-            try:
-                # match browser behavior of converting to ints
-                score = int(float(row[4]))
-            except ValueError:
-                if fixScores:
-                    score = 0
-                else:
-                    raise
-        else:
-            score = None
-        if numStdCols > 5:
-            strand = row[5]
-        else:
-            strand = None
-        if numStdCols > 7:
-            thickStart = int(row[6])
-            thickEnd = int(row[7])
-        else:
-            thickStart = None
-            thickEnd = None
-        if numStdCols > 8:
-            itemRgb = row[8]
-        else:
-            itemRgb = None
-        if numStdCols > 11:
-            blocks = Bed._parseBlockColumns(chromStart, row)
-        else:
-            blocks = None
-        if (not skipExtraCols) and (len(row) > numStdCols):
-            extraCols = row[numStdCols:]
-        else:
-            extraCols = ()
-        return cls(chrom, chromStart, chromEnd, name=name, score=score, strand=strand,
-                   thickStart=thickStart, thickEnd=thickEnd, itemRgb=itemRgb, blocks=blocks,
-                   extraCols=extraCols, numStdCols=numStdCols)
+        thickStart, thickEnd = _parseThickCols(row, numStdCols)
+        return cls(row[0], chromStart, int(row[2]),
+                   name=_parseColumn(row, numStdCols, 3),
+                   score=_parseScore(row, numStdCols, fixScores),
+                   strand=_parseColumn(row, numStdCols, 5),
+                   thickStart=thickStart, thickEnd=thickEnd,
+                   itemRgb=_parseColumn(row, numStdCols, 8),
+                   blocks=(cls._parseBlockColumns(chromStart, row) if numStdCols > 11 else None),
+                   extraCols=_parseExtraCols(row, numStdCols, skipExtraCols),
+                   numStdCols=numStdCols)
 
     @classmethod
     def parse(cls, row, numStdCols=None, *, fixScores=False, skipExtraCols=False):
@@ -229,7 +260,13 @@ class Bed:
         self.numStdCols is specified, only those columns are parsed and the
         remainder goes into extraCols.  Floating point scores are converted to
         ints to match UCSC browser behavior. If fixScores is True, non-numeric
-        scores are converted to zero rather than generating an error."""
+        scores are converted to zero rather than generating an error.
+
+        With no numStdCols, a row of 7, 10 or 11 columns is read as the widest BED
+        whose field groups are complete plus extra columns, since blocks can not be
+        built from part of the block trio (see numStdColsForRow).  Declaring
+        numStdCols=10 or 11 is an error here, as those columns can not be carried;
+        a Bed that HAS blocks may still be written at those widths."""
         try:
             return cls._parse(row, numStdCols=numStdCols, fixScores=fixScores, skipExtraCols=skipExtraCols)
         except Exception as ex:
@@ -272,6 +309,9 @@ class Bed:
     def getGaps(self):
         """return a tuple of BedBlocks for the coordinates of the gaps between
         the blocks, which are often introns"""
+        if self.blocks is None:
+            raise BedException("getGaps needs a BED12; this BED has {} standard columns".format(
+                self.numStdCols))
         gaps = []
         prevBlk = None
         for blk in self.blocks:
@@ -318,7 +358,9 @@ class BedTable(TabFile):
             self._mkNameIdx()
 
     def getByName(self, name):
-        "get *tuple* of BEDs by name"
+        "get *tuple* of BEDs by name; the table must have been built with nameIdx"
+        if self.nameMap is None:
+            raise BedException("getByName needs a BedTable built with nameIdx=True")
         if name in self.nameMap:
             return tuple(self.nameMap[name])
         else:
@@ -339,6 +381,9 @@ def bedFromPsl(psl, *, extraCols=()):
 def _bedMergeCollectBlocks(beds, stranded):
     """Collect all blocks from BEDs and validate compatibility."""
     bed0 = beds[0]
+    if bed0.blocks is None:
+        raise BedException("merging blocks needs BED12s; {} has {} standard columns".format(
+            bed0.name, bed0.numStdCols))
     all_blocks = list(bed0.blocks)
     for bed in beds[1:]:
         if bed.numStdCols != bed0.numStdCols:

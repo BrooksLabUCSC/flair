@@ -1,4 +1,4 @@
-# Copyright 2006-2025 Mark Diekhans
+# Copyright 2006-2026 Mark Diekhans
 """TSV column and type information shared by TsvReader and TsvWriter."""
 from flair.pycbio.tsv import TsvError
 

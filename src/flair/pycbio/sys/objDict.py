@@ -1,4 +1,4 @@
-# Copyright 2006-2025 Mark Diekhans
+# Copyright 2006-2026 Mark Diekhans
 # Copyright of original unknown (https://goodcode.io/articles/python-dict-object/)
 
 # dictionary with keys as object files, based on:
@@ -43,6 +43,10 @@ class DefaultObjDict(defaultdict):
     __slots__ = ()
 
     def __getattr__(self, name):
+        # dunder names are Python protocol probes (__deepcopy__, __getstate__, ...);
+        # creating an entry for them corrupts the data and breaks copy and pickle.
+        if name.startswith("__") and name.endswith("__"):
+            _attributeError(name)
         return self[name]
 
     def __setattr__(self, name, value):

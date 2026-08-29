@@ -1,4 +1,4 @@
-# Copyright 2006-2025 Mark Diekhans
+# Copyright 2006-2026 Mark Diekhans
 """TSV reading classes"""
 import sys
 import csv

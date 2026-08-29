@@ -1,12 +1,14 @@
 """Miscellaneous file operations"""
-# Copyright 2006-2025 Mark Diekhans
+# Copyright 2006-2026 Mark Diekhans
 
 import os
 import os.path as osp
 from pathlib import Path
 import sys
 import re
+import glob
 import socket
+import threading
 import tempfile
 import pipettor
 from shutil import which
@@ -58,30 +60,108 @@ def rmFiles(*files):
             unlinkIfExists(f)
 
 
+def _rmTreeEntries(dir, subdirs, files):
+    """unlink the files and the symlinked directories of one directory of a walk;
+    os.walk reports a symlink to a directory in subdirs and does not descend into
+    it, so it must be unlinked here or its parent is not empty."""
+    dir_fd = os.open(dir, os.O_DIRECTORY)
+    try:
+        for f in files:
+            unlinkIfExists(f, dir_fd=dir_fd)
+        for d in subdirs:
+            if os.path.islink(osp.join(dir, d)):
+                unlinkIfExists(d, dir_fd=dir_fd)
+    finally:
+        os.close(dir_fd)
+
 def rmTree(root):
-    """remove a file hierarchy, root can be a file or a directory, missing files don't
-    generate errors"""
-    if osp.isdir(root):
+    """remove a file hierarchy, root can be a file, a symlink, or a directory,
+    missing files don't generate errors.  Symlinks are removed, not followed."""
+    if osp.isdir(root) and not osp.islink(root):
         for dir, subdirs, files in os.walk(root, topdown=False):
-            dir_fd = os.open(dir, os.O_DIRECTORY)
-            try:
-                for f in files:
-                    unlinkIfExists(f, dir_fd=dir_fd)
-            finally:
-                os.close(dir_fd)
+            _rmTreeEntries(dir, subdirs, files)
             rmdirIfExists(dir)
     else:
         unlinkIfExists(root)
 
 
+FAST_REMOVE_SUFFIX = ".drop"    # marks a tree renamed aside, awaiting removal
+_GLOB_CHARS = "*?["             # a path spec containing any of these is a pattern
+
+
+def _glob_matches(spec):
+    "the existing paths a spec refers to; a glob pattern may match several"
+    spec = os.fspath(spec)
+    if any(c in spec for c in _GLOB_CHARS):
+        return sorted(glob.glob(spec))
+    return [spec] if osp.lexists(spec) else []
+
+
+def _partition_dirs(targets):
+    "(directories, other paths) among targets; a symlink counts as an other path"
+    dirs, others = [], []
+    for target in targets:
+        isdir = osp.isdir(target) and not osp.islink(target)
+        (dirs if isdir else others).append(target)
+    return dirs, others
+
+
+def _rename_aside(path):
+    "rename a directory to a unique <name>.<uniq>.drop sibling, returning the new name"
+    parent = osp.dirname(osp.abspath(path))
+    base = osp.basename(osp.normpath(path))
+    drop = tempfile.mktemp(prefix=base + ".", suffix=FAST_REMOVE_SUFFIX, dir=parent)
+    os.rename(path, drop)
+    return drop
+
+
+def _background_rm(paths):
+    """fire off a detached `rm -rf` of paths; the caller neither waits nor checks it.
+    setsid puts it in its own session, so it is not killed by a hangup on the
+    terminal that started it."""
+    pipettor.Pipeline(["setsid", "rm", "-rf", *paths], stdout=1, stderr=2).start()
+
+
+def _report_removed(label, dropped, unlinked):
+    "report what was renamed aside for background removal and what was unlinked"
+    for path in dropped:
+        prfErr(f"{label}: renamed aside, removing in background: {path}")
+    for path in unlinked:
+        prfErr(f"{label}: removed {path}")
+    if not (dropped or unlinked):
+        prfErr(f"{label}: nothing to remove")
+
+
+def fast_remove(specs, label="clean"):
+    """Discard paths without waiting for the (slow) recursive delete: each existing
+    directory is renamed aside to a unique .drop sibling and one detached `rm -rf`
+    is fired off for them all, so the caller returns immediately and the space is
+    reclaimed on its own; other paths (plain files, symlinks) are unlinked outright.
+    Specs may be str or Path, and may be glob patterns.  Renaming is a rename within
+    the parent directory, so a spec's parent must be on one filesystem.  Returns the
+    renamed-aside names.
+    """
+    targets = [match for spec in specs for match in _glob_matches(spec)]
+    dirs, others = _partition_dirs(targets)
+    dropped = [_rename_aside(path) for path in dirs]
+    for path in others:
+        os.unlink(path)
+    _report_removed(label, dropped, others)
+    if dropped:
+        _background_rm(dropped)
+    return dropped
+
+
 def isCompressed(path):
     "determine if a file appears to be compressed by extension"
+    path = os.fspath(path)
     return path.endswith(".gz") or path.endswith(".bgz") or path.endswith(".bz2") or path.endswith(".Z")
 
 
 def compressCmd(path, *, bgzip=False):
     """return the command to compress the path, or default if not compressed, which defaults
     to the `cat' command, so that it just gets written through"""
+    path = os.fspath(path)
     if path.endswith(".Z"):
         raise PycbioException("writing compress .Z files not supported")
 
@@ -99,6 +179,7 @@ def compressCmd(path, *, bgzip=False):
 
 def compressBaseName(path):
     """if a file is compressed, return the path without the compressed extension"""
+    path = os.fspath(path)
     if isCompressed(path):
         return osp.splitext(path)[0]
     else:
@@ -108,6 +189,7 @@ def decompressCmd(path):
     """"return the command to decompress the file to stdout, or default if not compressed, which defaults
     to the `cat' command, so that it just gets written through"""
     # FIXME: default MacOS zcat doesn't recongize .gz
+    path = os.fspath(path)
     if path.endswith(".gz") or path.endswith(".bgz") or path.endswith(".Z"):
         return ["zcat"]
     elif path.endswith(".bz2"):
@@ -116,18 +198,19 @@ def decompressCmd(path):
         return ["cat"]
 
 
-def opengz(fileName, mode="r", *, buffering=-1, encoding=None, errors=None, bgzip=False):
+def opengz(fileName, mode="r", *, buffering=-1, encoding=None, errors=None, newline=None, bgzip=False):
     """open a file, if it ends in an extension indicating compression, open
     with a compression or decompression pipe.  If bgzip is specified for write,
     it is used to writing"""
+    fileName = os.fspath(fileName)
     if not isCompressed(fileName):
-        return open(fileName, mode, buffering=buffering, encoding=encoding, errors=errors)
+        return open(fileName, mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)
     elif mode.startswith("r"):
         cmd = decompressCmd(fileName)
-        return pipettor.Popen(cmd + [fileName], mode=mode, buffering=buffering, encoding=encoding, errors=errors)
+        return pipettor.Popen(cmd + [fileName], mode=mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)
     elif mode.startswith("w"):
         cmd = compressCmd(fileName, bgzip=bgzip)
-        return pipettor.Popen(cmd, mode=mode, stdout=fileName, buffering=buffering, encoding=encoding, errors=errors)
+        return pipettor.Popen(cmd, mode=mode, stdout=fileName, buffering=buffering, encoding=encoding, errors=errors, newline=newline)
     else:
         raise PycbioException("mode {} not support with compression for {}".format(mode, fileName))
 
@@ -231,6 +314,13 @@ def prRowv(fh, *objs):
     prRow(fh, objs)
 
 
+def fileSpecName(fspec):
+    "name to use for a file spec in an error message; file objects may have one"
+    if isFilePath(fspec):
+        return os.fspath(fspec)
+    return getattr(fspec, "name", "<file>")
+
+
 class FileAccessor:
     """Context manager that opens a file (possibly compressed) if specified as
     a string, otherwise assume it is file-like and don't open/close"""
@@ -240,11 +330,11 @@ class FileAccessor:
         self.fh = None
 
     def __enter__(self):
-        self.fh = opengz(self.fspec, self.mode) if isinstance(self.fspec, str) else self.fspec
+        self.fh = opengz(self.fspec, self.mode) if isFilePath(self.fspec) else self.fspec
         return self.fh
 
     def __exit__(self, typ, value, traceback):
-        if isinstance(self.fspec, str):
+        if isFilePath(self.fspec):
             self.fh.close()
 
 
@@ -254,7 +344,7 @@ def iterLines(fspec):
     not be closed."""
     with FileAccessor(fspec) as fh:
         for line in fh:
-            yield line[:-1]
+            yield line.rstrip("\n")
 
 
 def iterRows(fspec):
@@ -264,7 +354,7 @@ def iterRows(fspec):
     closed."""
     with FileAccessor(fspec) as fh:
         for line in fh:
-            yield line[0:-1].split("\t")
+            yield line.rstrip("\n").split("\t")
 
 
 def readFileLines(fspec):
@@ -357,7 +447,10 @@ def atomicTmpFile(finalPath):
         return finalPath
     finalBasename = osp.basename(finalPath)
     finalExt = osp.splitext(finalPath)[1]
-    tmpBasename = "{}.{}.{}.tmp{}".format(finalBasename, socket.gethostname(), os.getpid(), finalExt)
+    # the thread id is part of the name for the thread-safety the docstring claims:
+    # host and pid alone gave two threads of one process the same temporary file
+    tmpBasename = "{}.{}.{}.{}.tmp{}".format(finalBasename, socket.gethostname(), os.getpid(),
+                                             threading.get_ident(), finalExt)
     tmpPath = osp.join(finalDir, tmpBasename)
     if osp.exists(tmpPath):
         os.unlink(tmpPath)
@@ -393,23 +486,22 @@ def AtomicFileCreate(finalPath, *, keep=False):
 
 @contextmanager
 def AtomicFileOpen(finalPath, mode='w', *, buffering=-1, encoding=None,
-                   errors=None, newline=None, keep=False):
-    """Context manager to open a temporary file.  Entering returns path to
-    the temporary file in the same directory as finalPath.  If the code in
-    context succeeds, the file renamed to its actually name.  If an error
+                   errors=None, newline=None, bgzip=False, keep=False):
+    """Context manager to open a temporary file.  Entering returns an open file
+    object on a temporary file in the same directory as finalPath.  If the code
+    in context succeeds, the file renamed to its actually name.  If an error
     occurs, the file is not installed and is removed unless keep is specified.
     The output directory will be created if it doesn't exist.  Thread-safe.
+    A compression extension on finalPath is honored, as with opengz.
     """
     with AtomicFileCreate(finalPath, keep=keep) as tmpFileName:
-        with open(tmpFileName, mode=mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline) as fh:
+        with opengz(tmpFileName, mode=mode, buffering=buffering, encoding=encoding,
+                    errors=errors, newline=newline, bgzip=bgzip) as fh:
             yield fh
 
 def uncompressedBase(path):
     "return the file path, removing a compression extension if it exists"
-    if path.endswith(".gz") or path.endswith(".bz2") or path.endswith(".Z"):
-        return osp.splitext(path)[0]
-    else:
-        return path
+    return compressBaseName(path)
 
 
 _devNullFh = None

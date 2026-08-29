@@ -2,6 +2,7 @@
 Operations associated with logging
 """
 import logging
+import logging.config
 import os
 import sys
 from logging.handlers import SysLogHandler
@@ -61,8 +62,12 @@ def setupLogger(logger, handler, level=logging.INFO, *, formatter=None):
     logger = _loggerBySpec(logger)
     if level is not None:
         logger.setLevel(_convertLevel(level))
-    if handler.level is not None:
+    # only lower the logger to the handler when both levels are actually set;
+    # NOTSET on either side means "no opinion", not level zero
+    if (handler.level != logging.NOTSET) and (logger.level != logging.NOTSET):
         logger.setLevel(min(handler.level, logger.level))
+    elif handler.level != logging.NOTSET:
+        logger.setLevel(handler.level)
     logger.addHandler(handler)
     if formatter is not None:
         handler.setFormatter(formatter)
@@ -101,8 +106,8 @@ def setupSyslogLogger(logger, facility, level, *, prog=None, address=None, forma
     # add a formatter that includes the program name as the syslog ident
     if prog is not None:
         handler.setFormatter(logging.Formatter(fmt=f"{prog} %(message)s"))
-    handler.setLevel(level)
-    return setupLogger(logger, handler, formatter=formatter)
+    handler.setLevel(_convertLevel(level))
+    return setupLogger(logger, handler, formatter=formatter, level=level)
 
 
 def setupNullLogger(logger, level=logging.INFO):
@@ -110,7 +115,7 @@ def setupNullLogger(logger, level=logging.INFO):
     handler = logging.NullHandler()
     if level is not None:
         handler.setLevel(_convertLevel(level))
-    return setupLogger(logger, handler)
+    return setupLogger(logger, handler, level=level)
 
 
 def addCmdOptions(parser, *, defaultLevel=logging.WARNING, inclSyslog=False):
@@ -189,8 +194,15 @@ class StreamToLogger:
         self.linebuf = ''
 
     def write(self, buf):
-        for line in buf.rstrip().splitlines():
+        "buffers a partial line until the write that completes it"
+        self.linebuf += buf
+        lines = self.linebuf.split('\n')
+        self.linebuf = lines.pop()
+        for line in lines:
             self.logger.log(self.level, line.rstrip())
 
     def flush(self):
-        pass
+        "log whatever partial line is held"
+        if self.linebuf != '':
+            self.logger.log(self.level, self.linebuf.rstrip())
+            self.linebuf = ''

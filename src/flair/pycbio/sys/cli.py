@@ -1,5 +1,6 @@
-# Copyright 2006-2025 Mark Diekhans
+# Copyright 2006-2026 Mark Diekhans
 """Support for command line parsing"""
+import sys
 import logging
 import traceback
 import io
@@ -95,6 +96,13 @@ class CliError(PycbioException, NoStackError):
     "Error with command line arguments"
     pass
 
+def _exceptionCause(exc):
+    """the next exception to report, honoring `raise ... from None', which asks for
+    the context to be left out"""
+    if exc.__cause__ is not None:
+        return exc.__cause__
+    return None if exc.__suppress_context__ else exc.__context__
+
 def _exceptionPrintNoTraceback(exc, file, indent):
     depth = 0
     while exc:
@@ -102,7 +110,7 @@ def _exceptionPrintNoTraceback(exc, file, indent):
             prefix = depth * '  ' if indent else ''
             file.write(f"{prefix}Caused by: ")
         file.write(f"{type(exc).__name__}: {str(exc)}\n")
-        exc = exc.__cause__ or exc.__context__
+        exc = _exceptionCause(exc)
         depth += 1
 
 def _exceptionPrint(exc, *, file=None, showTraceback=True, indent=True):
@@ -178,4 +186,4 @@ class ErrorHandler:
                 raise exc_val
             else:
                 self._handleError(exc_val)
-                exit(1)
+                sys.exit(1)

@@ -1,0 +1,80 @@
+#!/bin/bash
+# Update FLAIR's imported copy of selected pycbio modules from a pycbio
+# checkout.  Only modules already present in FLAIR's copy are updated; adding a
+# new module is done by hand, then it is maintained by this program.  See
+# src/flair/pycbio/README-pycbio.md
+set -beEu -o pipefail
+
+usage="usage: pycbio-import pycbioRoot [flairPycbioDir]
+
+  pycbioRoot     - root of a checked-out pycbio tree (github.com/diekhans/pycbio)
+  flairPycbioDir - FLAIR's copy, defaults to src/flair/pycbio relative to this program"
+
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+# directory holding the pycbio package in a checkout, which has moved over time
+findPycbioPkgDir() {
+    local pycbioRoot="$1" pkgDir
+    for pkgDir in "$pycbioRoot/lib/pycbio" "$pycbioRoot/src/pycbio" "$pycbioRoot/pycbio" ; do
+        if [ -d "$pkgDir" ] ; then
+            echo "$pkgDir"
+            return
+        fi
+    done
+    die "no pycbio package directory found under '$pycbioRoot', expected one of lib/pycbio, src/pycbio, or pycbio"
+}
+
+# paths of imported modules, relative to the package directory
+listImportedModules() {
+    local flairPycbioDir="$1"
+    (cd "$flairPycbioDir" && find . -name '*.py' -not -path './__pycache__/*' -printf '%P\n' | sort)
+}
+
+# copy one module and rename its imports to flair.pycbio
+importModule() {
+    local pycbioPkgDir="$1" flairPycbioDir="$2" module="$3"
+    if [ ! -f "$pycbioPkgDir/$module" ] ; then
+        die "module '$module' is in FLAIR's copy but not in '$pycbioPkgDir'; it was renamed or dropped in pycbio, so update or remove '$flairPycbioDir/$module' by hand"
+    fi
+    cp -f "$pycbioPkgDir/$module" "$flairPycbioDir/$module"
+    sed --in-place -r -e 's/^from pycbio/from flair.pycbio/' "$flairPycbioDir/$module"
+    echo "imported $module"
+}
+
+# catch imports the sed doesn't rewrite, such as `import pycbio.sys.fileOps'
+checkImports() {
+    local flairPycbioDir="$1" module="$2" bad
+    bad=$(grep -n -E '^[[:space:]]*(import|from)[[:space:]]+pycbio\b' "$flairPycbioDir/$module" || true)
+    if [ -n "$bad" ] ; then
+        die "unconverted pycbio imports remain in '$flairPycbioDir/$module', edit them to flair.pycbio by hand:
+$bad"
+    fi
+}
+
+importModules() {
+    local pycbioPkgDir="$1" flairPycbioDir="$2" module
+    for module in $(listImportedModules "$flairPycbioDir") ; do
+        importModule "$pycbioPkgDir" "$flairPycbioDir" "$module"
+        checkImports "$flairPycbioDir" "$module"
+    done
+}
+
+main() {
+    if [ $# -lt 1 -o $# -gt 2 ] ; then
+        echo "$usage" >&2
+        exit 1
+    fi
+    local pycbioRoot="$1"
+    local flairPycbioDir="${2:-$(dirname $(dirname $(dirname $(realpath "$0"))))/src/flair/pycbio}"
+    [ -d "$pycbioRoot" ] || die "pycbio root does not exist: '$pycbioRoot'"
+    [ -d "$flairPycbioDir" ] || die "FLAIR pycbio directory does not exist: '$flairPycbioDir'"
+    local pycbioPkgDir
+    pycbioPkgDir=$(findPycbioPkgDir "$pycbioRoot")
+    importModules "$pycbioPkgDir" "$flairPycbioDir"
+    echo "run tests and commit; see src/flair/pycbio/README-pycbio.md"
+}
+
+main "$@"
