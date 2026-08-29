@@ -14,5 +14,5 @@ test/output/
 .claude.bak/
 .claude/
 
-# random directory for taking notes while working
+# directory for taking random notes while working, never checked in
 /notes/
