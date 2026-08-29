@@ -53,4 +53,4 @@ a non-canonical acceptor
 * `input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.fastq`
 * `input/KRAS_sim_genomic_mut_driven_splicing.bed`
 * `input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.sj.bed`
-   Junctions create with intronProspector --sj-filter=all from alignments
+   Junctions create with intron-prospector --sj-filter=all from alignments

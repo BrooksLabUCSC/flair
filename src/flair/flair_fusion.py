@@ -315,7 +315,7 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
                    args.output + '.syntheticAligned.unsorted.bam')])
 
     logging.info('getting ss')
-    ipcmd = ('intronProspector', f'--genome-fasta={args.output}-syntheticFusionGenome.fa', f'--intron-bed6={args.output}.syntheticAligned.IPSJ.bed', '-C', '0.0', '--sj-filter=all', f'{args.output}.syntheticAligned.bam')
+    ipcmd = ('intron-prospector', f'--genome-fasta={args.output}-syntheticFusionGenome.fa', f'--intron-bed6={args.output}.syntheticAligned.IPSJ.bed', '-C', '0.0', '--sj-filter=all', f'{args.output}.syntheticAligned.bam')
     pipettor.run([ipcmd])
 
     fusiontobp = {}

@@ -86,7 +86,7 @@ long-read data
     - If your short-reads have already been aligned with another
       aligner, you can extract the junctions with the junctions_from_sam
       script included with FLAIR or using
-      `intronProspector <https://github.com/diekhans/intronProspector>`__.
+      `intron-prospector <https://github.com/diekhans/intron-prospector>`__.
 
 - Using long-read junctions:
 
@@ -97,8 +97,8 @@ long-read data
   - Usage:
 
     - After genomic alignment of your reads (have indexed BAM file), use
-      intronProspector to generate a junctions.bed file:
-    - ``intronProspector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.IPjunctions.bed -C 0.0 SAMPLE.genomealigned.bam``
+      intron-prospector to generate a junctions.bed file:
+    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.IPjunctions.bed -C 0.0 SAMPLE.genomealigned.bam``
 
 Generating transcriptomes
 -------------------------

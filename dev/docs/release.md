@@ -69,7 +69,9 @@ updated.  Use `conda search <package>` to find versions.
 The FLAIR version in `misc/*.yaml` files are updated by bump-my-version.
 
 Edit `misc/Dockerfile` to have the same non-Python package dependencies as the conda
-files.  Also ensure that the Docker Ubuntu versions is a current LTS release.
+files.  The non-Python programs FLAIR runs are listed as `external_progs` in
+test/Makefile; each must be provided by both conda files and the Dockerfile.
+Also ensure that the Docker Ubuntu versions is a current LTS release.
 You can find the versions of packages matching the Ubuntu release at
 https://packages.ubuntu.com/. 
 
@@ -87,8 +89,13 @@ pip install -e .[dev]
    
 ## 5. Run pre-release tests
 ```
-make -k -O -j 64 test-installed
+make -k -O -j 64 test-env-only use_installed_flair=yes
 ```
+This runs the full test suite with only the conda environment and the system
+directories in PATH.  Running plain `make test-installed` instead will pass on a
+developer machine whose personal PATH supplies a program that is missing from
+misc/flair_dev_conda_env.yaml.
+
 Repeat this on Apple ARM (M1, M2, ...) processor systems.
 
 ## 6. Check documentation

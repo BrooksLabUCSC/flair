@@ -58,6 +58,22 @@ RUN \
    wget -nv -O /tmp/libhts3t64.deb ${DEB_URL}/h/htslib/libhts3t64_1.22.1%2Bds2-1_amd64.deb && \
    apt-get install -y /tmp/libhts3t64.deb /tmp/samtools.deb
 
+# bedToBigBed, used by flair transcriptome, combine, fusion and isoalleles
+RUN \
+   wget -nv -O /usr/local/bin/bedToBigBed https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/bedToBigBed && \
+   chmod +x /usr/local/bin/bedToBigBed
+
+# intron-prospector, used by flair fusion, built from source as there are no
+# binary releases
+RUN \
+    IP_VER=1.5.1 && \
+    apt-get install -y libhts-dev && \
+    wget -nv -O /tmp/intron-prospector.tar.gz https://github.com/diekhans/intron-prospector/archive/refs/tags/v${IP_VER}.tar.gz && \
+    tar -xzf /tmp/intron-prospector.tar.gz -C /tmp && \
+    cd /tmp/intron-prospector-${IP_VER} && ./configure --prefix=/usr/local && \
+    make && make install && cd / && \
+    rm -rf /tmp/intron-prospector.tar.gz /tmp/intron-prospector-${IP_VER}
+
 FROM base AS unix_base
 
 ##

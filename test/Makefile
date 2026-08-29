@@ -104,6 +104,25 @@ test-fast:
 		test-diff-iso-usage test-plot-usage test-transcriptome \
 		test-fusion test-variants
 
+##
+# Non-python programs FLAIR runs.  test-env-only reruns the tests with only the
+# conda environment and system directories in PATH; a developer's personal PATH
+# will otherwise hide a program missing from misc/flair_dev_conda_env.yaml.
+# Used for release testing.
+##
+external_progs = minimap2 samtools bedtools intron-prospector bedToBigBed longshot Rscript
+env_only_path = ${CONDA_PREFIX}/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+check-externals:
+	@for prog in ${external_progs} ; do \
+	    command -v $$prog >/dev/null || \
+	        { echo "Error: required program not in PATH: $$prog; add it to misc/flair_dev_conda_env.yaml and misc/Dockerfile, then update the environment" >&2 ; exit 1 ; } ; \
+	done
+
+test-env-only:
+	@[ -n "${CONDA_PREFIX}" ] || { echo "Error: activate the flair conda environment before running $@" >&2 ; exit 1 ; }
+	PATH=${env_only_path} ${MAKE} check-externals test use_installed_flair=${use_installed_flair}
+
 
 
 lint: flake8
@@ -497,13 +516,13 @@ test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 	$(diff_bed_gtf)
 
 test-transcriptome-lowannot: mkdirs ${TEST_ALIGN_BAM}
-	intronProspector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
+	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --junction_bed $O/$@.IPjunctions.bed --junction_support 2 -o $O/$@ --sample_name $@ --no_align_to_annot --sjc_support 3
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-noannot: mkdirs ${TEST_ALIGN_BAM}
-	intronProspector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
+	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)

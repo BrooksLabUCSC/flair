@@ -35,6 +35,11 @@ test-installed:
 test-base-installed:
 	${MAKE} -C test test-base-installed
 
+# release testing: tests with only the conda environment and system directories
+# in PATH, see test/Makefile
+test-env-only:
+	${MAKE} -C test test-env-only use_installed_flair=${use_installed_flair}
+
 
 ##
 # lint check with flake8
