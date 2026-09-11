@@ -105,7 +105,8 @@ def get_bed_exons_from_juncs(juncs, start, end):
 
 
 def get_bed_exons_from_exons(exons, start):
-    exon_starts = [e.end - start for e in exons]
+    "BED12 blockStarts and blockSizes; blockStarts are offsets from chromStart"
+    exon_starts = [e.start - start for e in exons]
     exon_sizes = [e.end - e.start for e in exons]
     return exon_starts, exon_sizes
 
