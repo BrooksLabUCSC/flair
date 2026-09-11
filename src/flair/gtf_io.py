@@ -40,6 +40,7 @@ FLAIR_TRANSCRIPT_ATTRS = FLAIR_ATTRS | frozenset(('tag', ))
 BASIC_ATTRS = frozenset(('gene_id', 'transcript_id'))
 
 _ALL_ATTR_RE = re.compile(r'(\w+)\s+(?:"([^"]*)"|([^;\s]+))')
+_TAG_ATTR_RE = re.compile(r'(?:^|[^\w])tag\s+"([^"]*)"')
 
 class GtfAttrsSet(Enum):
     """Selects which GTF attributes to parse.
@@ -273,7 +274,12 @@ def _parse_attribute_match(match: re.Match) -> tuple[str, str | int | float]:
             # If conversion fails, keep as string
             return key, unquoted_value
 
-def _parse_all_attributes(attrs_str: str, end_str: str, attr_re=_ALL_ATTR_RE) -> Attrs:
+def _parse_tags(attrs_str: str) -> list[str]:
+    """The tag attribute values, which may repeat, as a list.  GTF transcripts are
+    expected to carry these, so the list is set even when empty."""
+    return _TAG_ATTR_RE.findall(attrs_str)
+
+def _parse_all_attributes(attrs_str: str, record_type: str, attr_re=_ALL_ATTR_RE) -> Attrs:
     """Parse GTF attributes string into dict."""
     attrs = {}
     for attr_str in attr_re.finditer(attrs_str):
@@ -285,13 +291,23 @@ def _parse_all_attributes(attrs_str: str, end_str: str, attr_re=_ALL_ATTR_RE) ->
         else:
             attrs[key] = value
 
+    if record_type in TRANSCRIPT_FEATURES:
+        attrs['tag'] = _parse_tags(attrs_str)
     return attrs
+
+def _find_attr_key(attrs_str: str, key: str) -> int:
+    """Index of key as a whole attribute name, skipping matches that are the tail
+    of a longer name such as gene_id inside ref_gene_id.  -1 when not found."""
+    idx = attrs_str.find(key)
+    while (idx > 0) and (attrs_str[idx - 1].isalnum() or (attrs_str[idx - 1] == '_')):
+        idx = attrs_str.find(key, idx + 1)
+    return idx
 
 def _find_flair_attr_value(attrs_str: str, key: str):
     """Find the quoted value of a single GTF attribute by key using str.find().
     Returns the value as a str or None if not found."""
     alen = len(attrs_str)
-    idx = attrs_str.find(key)
+    idx = _find_attr_key(attrs_str, key)
     if idx < 0:
         return None
     # skip whitespace to opening quote
@@ -320,9 +336,8 @@ def _parse_flair_attributes(attrs_str: str, record_type: str) -> Attrs:
         value = _find_flair_attr_value(attrs_str, key)
         if value is not None:
             attrs[key] = value
-    if record_type == 'transcript':
-        all_tags = [x.split('"')[0] for x in attrs_str.split('tag "')[1:]]
-        attrs['tag'] = all_tags
+    if record_type in TRANSCRIPT_FEATURES:
+        attrs['tag'] = _parse_tags(attrs_str)
     return attrs
 
 
