@@ -188,8 +188,9 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
                   if args.output_bam else None)
     stringent = (not is_annot) and (not args.no_stringent)
     check_splice = not args.no_check_splice
-    # annotated isoform bed file
-    isoforms = ref_bed if (check_splice or stringent or is_annot or args.fusion_breakpoints) else None
+    # annotated isoform bed file; output_endpos needs it too, for the transcript
+    # ends that read_isoforms_bed loads
+    isoforms = ref_bed if (check_splice or stringent or is_annot or args.fusion_breakpoints or output_endpos) else None
     unique_bound_path = unique_bound if unique_bound and (not args.no_stringent or is_annot) else None
     intprimingthreshold = None
     intprimingfracAs = None

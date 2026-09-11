@@ -454,7 +454,8 @@ def get_best_transcript(tinfo, info, genomicclipping,
         thist = tinfo[tname]
         # process MD tag here to query positions with mismatches
         # for MD tag, keep track of position of mismatch in all match positions
-        if stringent or check_splice or fusion_breakpoints:
+        # output_endpos reaches identify_corrected_ends, which needs the exon sizes
+        if stringent or check_splice or fusion_breakpoints or output_endpos:
             exoninfo = check_transcript_in_annot(info.transcript_to_exons, tname)
         else:
             exoninfo = None
