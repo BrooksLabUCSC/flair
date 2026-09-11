@@ -9,6 +9,11 @@ def parseStrOrNone(s):
     return None if len(s) == 0 else s
 
 
+def round_or_none(value, ndigits):
+    "round a value, leaving a missing one missing"
+    return None if value is None else round(value, ndigits)
+
+
 def get_strand_rgb(strand, junclen):
     if junclen == 0:
         return "99,99,99"
@@ -86,7 +91,7 @@ class FlairBed(Bed):
                     defaultIfNone(self.ref_transcript_id, ''),
                     strArrayJoin(self.ref_gene_mappings),
                     defaultIfNone(self.read_support, ''),
-                    defaultIfNone(round(self.frac_support, 4), ''),
+                    defaultIfNone(round_or_none(self.frac_support, 4), ''),
                     defaultIfNone(self.productivity, ''),
                     self.transcript_class,
                     strArrayJoin(self.fused_genes),
