@@ -2,7 +2,7 @@
 FLAIR BED record that is used to pass extra fields.
 """
 from flair.pycbio.hgdata.bed import Bed, BedException, defaultIfNone
-from flair.pycbio.hgdata.autoSql import strArraySplit, strArrayJoin
+from flair.pycbio.hgdata.autoSql import strArraySplitNone, strArrayJoin
 from flair.pycbio.tsv.tabFile import TabFileReader
 
 def parseStrOrNone(s):
@@ -107,14 +107,14 @@ class FlairBed(Bed):
                   itemRgb=base.itemRgb, blocks=base.blocks)
         bed.gene_id = parseStrOrNone(row[12])
         bed.ref_transcript_id = parseStrOrNone(row[13])
-        bed.ref_gene_mappings = tuple(strArraySplit(row[14]))
+        bed.ref_gene_mappings = tuple(strArraySplitNone(row[14]))
         bed.read_support = int(row[15]) if row[15] != '' else None
         bed.frac_support = float(row[16]) if row[16] != '' else None
         bed.productivity = parseStrOrNone(row[17])
         bed.transcript_class = row[18]
-        bed.fused_genes = tuple(strArraySplit(row[19]))
+        bed.fused_genes = tuple(strArraySplitNone(row[19]))
         bed.pos_in_fusion = int(row[20]) if row[20] != '' else None
-        bed.samples = tuple(strArraySplit(row[21]))
+        bed.samples = tuple(strArraySplitNone(row[21]))
         bed.source_isoform = parseStrOrNone(row[22])
         bed.allele_group = parseStrOrNone(row[23])
         bed.aaseq_id = parseStrOrNone(row[24])

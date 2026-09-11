@@ -14,6 +14,25 @@ from flair.pycbio.hgdata.autoSql import intArraySplit, intArrayJoin, strArrayJoi
 bed12Columns = ("chrom", "chromStart", "chromEnd", "name", "score", "strand", "thickStart",
                 "thickEnd", "reserved", "blockCount", "blockSizes", "chromStarts")
 
+##
+# A BED score is an integer in the range 0 to 1000.  The browser truncates a float
+# score and clamps one outside the range, so that is what reading and writing do by
+# default; rawScores leaves the value exactly as it is in the file or the object.
+##
+bedScoreMin = 0
+bedScoreMax = 1000
+
+def bedScoreParse(score):
+    "a score left as it is written: an int, or a float when it has a fraction"
+    try:
+        return int(score)
+    except ValueError:
+        return float(score)
+
+def bedScoreFix(score):
+    "a score truncated to an int and clamped to the BED range"
+    return min(bedScoreMax, max(bedScoreMin, int(float(score))))
+
 class BedException(PycbioException):
     """Error parsing or operating on a BED"""
     pass
@@ -91,16 +110,23 @@ def _parseColumn(row, numStdCols, iCol):
     "a column's value, or None when the width does not reach it"
     return row[iCol] if numStdCols > iCol else None
 
-def _parseScore(row, numStdCols, fixScores):
-    "score, as an int to match browser behavior; fixScores makes a bad one zero"
+def _parseScore(row, numStdCols, fixScores, rawScores):
+    """score, truncated and clamped to match browser behavior unless rawScores;
+    fixScores makes a bad one zero"""
     if numStdCols <= 4:
         return None
     try:
-        return int(float(row[4]))
+        return bedScoreParse(row[4]) if rawScores else bedScoreFix(row[4])
     except ValueError:
         if fixScores:
             return 0
         raise
+
+def _scoreStr(score, rawScores):
+    "the score column; a missing score is zero"
+    if score is None:
+        return '0'
+    return str(score) if rawScores else str(bedScoreFix(score))
 
 def _parseThickCols(row, numStdCols):
     "thickStart and thickEnd; a BED7 has the first of them and not the second"
@@ -209,12 +235,12 @@ class Bed:
         cols = self._getBlockColumns() if self.blocks is not None else self._defaultBlockColumns()
         return cols[0:self.numStdCols - 9]
 
-    def toRow(self):
+    def toRow(self, *, rawScores=False):
         row = [self.chrom, str(self.chromStart), str(self.chromEnd)]
         if self.numStdCols >= 4:
             row.append(str(self.name) if self.name is not None else f"{self.chrom}:{self.chromStart}-{self.chromEnd}")
         if self.numStdCols >= 5:
-            row.append(defaultIfNone(self.score, 0))
+            row.append(_scoreStr(self.score, rawScores))
         if self.numStdCols >= 6:
             row.append(defaultIfNone(self.strand, '+'))
         if self.numStdCols >= 7:
@@ -240,13 +266,13 @@ class Bed:
         return blocks
 
     @classmethod
-    def _parse(cls, row, numStdCols=None, *, fixScores=False, skipExtraCols=False):
+    def _parse(cls, row, numStdCols=None, *, fixScores=False, rawScores=False, skipExtraCols=False):
         numStdCols = _parseNumStdCols(row, numStdCols)
         chromStart = int(row[1])
         thickStart, thickEnd = _parseThickCols(row, numStdCols)
         return cls(row[0], chromStart, int(row[2]),
                    name=_parseColumn(row, numStdCols, 3),
-                   score=_parseScore(row, numStdCols, fixScores),
+                   score=_parseScore(row, numStdCols, fixScores, rawScores),
                    strand=_parseColumn(row, numStdCols, 5),
                    thickStart=thickStart, thickEnd=thickEnd,
                    itemRgb=_parseColumn(row, numStdCols, 8),
@@ -255,12 +281,13 @@ class Bed:
                    numStdCols=numStdCols)
 
     @classmethod
-    def parse(cls, row, numStdCols=None, *, fixScores=False, skipExtraCols=False):
+    def parse(cls, row, numStdCols=None, *, fixScores=False, rawScores=False, skipExtraCols=False):
         """Parse a list of BED columns, as strings, into a Bed object.  If
         self.numStdCols is specified, only those columns are parsed and the
-        remainder goes into extraCols.  Floating point scores are converted to
-        ints to match UCSC browser behavior. If fixScores is True, non-numeric
-        scores are converted to zero rather than generating an error.
+        remainder goes into extraCols.  Scores are truncated to ints and clamped to
+        0..1000 to match UCSC browser behavior, unless rawScores is True, which keeps
+        the value in the file.  If fixScores is True, non-numeric scores are converted
+        to zero rather than generating an error.
 
         With no numStdCols, a row of 7, 10 or 11 columns is read as the widest BED
         whose field groups are complete plus extra columns, since blocks can not be
@@ -268,7 +295,8 @@ class Bed:
         numStdCols=10 or 11 is an error here, as those columns can not be carried;
         a Bed that HAS blocks may still be written at those widths."""
         try:
-            return cls._parse(row, numStdCols=numStdCols, fixScores=fixScores, skipExtraCols=skipExtraCols)
+            return cls._parse(row, numStdCols=numStdCols, fixScores=fixScores, rawScores=rawScores,
+                              skipExtraCols=skipExtraCols)
         except Exception as ex:
             raise BedException(f"parsing of BED row failed: {row}") from ex
 
@@ -320,9 +348,9 @@ class Bed:
             prevBlk = blk
         return tuple(gaps)
 
-    def write(self, fh):
+    def write(self, fh, *, rawScores=False):
         """write BED to a tab-separated file"""
-        fh.write(str(self))
+        fh.write("\t".join(self.toRow(rawScores=rawScores)))
         fh.write('\n')
 
     def addExtraCols(self, cols):
@@ -333,10 +361,12 @@ class Bed:
     def genome_sort_key(bed):
         return bed.chrom, bed.chromStart
 
-def BedReader(fspec, numStdCols=None, bedClass=Bed, *, fixScores=False):
+def BedReader(fspec, numStdCols=None, bedClass=Bed, *, fixScores=False, rawScores=False):
     """Generator to read BED objects loaded from a tab-file or file-like
     object.  See Bed.parse()."""
-    for bed in TabFileReader(fspec, rowClass=lambda r: bedClass.parse(r, numStdCols=numStdCols, fixScores=fixScores),
+    def parseRow(row):
+        return bedClass.parse(row, numStdCols=numStdCols, fixScores=fixScores, rawScores=rawScores)
+    for bed in TabFileReader(fspec, rowClass=parseRow,
                              hashAreComments=True, skipBlankLines=True):
         yield bed
 
