@@ -8,7 +8,7 @@ from flair import VERSION, set_unix_path
 from flair.pycbio.sys import cli
 
 VALID_MODULES = ('align', 'transcriptome', 'quantify', 'combine',
-                 'variants', 'variantquant', 'fusion', 'diffexp', 'diffsplice', 'alleles', 'isoalleles')
+                 'variantquant', 'fusion', 'diffexp', 'diffsplice', 'alleles', 'isoalleles')
 
 def parse_args():
     """Argument parsing a module name for this and then returns the remaining arguments
@@ -48,9 +48,6 @@ def flair_module_run(opts, module, module_argv):  # noqa: C901
     elif module == 'combine':
         from flair import flair_combine
         flair_combine.combine()
-    elif module == 'variants':
-        from flair.flair_variantmodels import getvariants
-        getvariants()
     elif module == 'alleles':
         from flair.flair_allelotyping import getvariants
         getvariants()

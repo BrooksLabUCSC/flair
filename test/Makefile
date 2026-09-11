@@ -97,12 +97,12 @@ test-help:
 	${MAKE} test-main-help test-align-help \
 		test-quantify-help test-diffexp-help test-diffsplice-help \
 		test-diff-iso-usage-help \
-		test-plot-usage-help test-transcriptome-help test-variants-help test-fusion-help
+		test-plot-usage-help test-transcriptome-help test-fusion-help
 
 test-fast:
 	${MAKE} test-combine-bed-only \
 		test-diff-iso-usage test-plot-usage test-transcriptome \
-		test-fusion test-variants
+		test-fusion
 
 ##
 # Non-python programs FLAIR runs.  test-env-only reruns the tests with only the
