@@ -62,7 +62,7 @@ def doalignment(args):
         mm2_cmd += ['-uf', '-k14']
     if args.junction_bed:
         mm2_cmd += ['--junc-bed', args.junction_bed]
-    mm2_cmd += ['-secondary=no']
+    mm2_cmd += ['--secondary=no']
     if args.mm_index:
         mm2_cmd += [args.mm_index]
     else:
