@@ -239,13 +239,15 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     opt_parser.check_required("-s")
     # opt_parser.check_required("-o")
 
+    # each entry is (handle, is_bam); -s takes a comma-separated list, so the
+    # format has to be remembered per file rather than tested on the option string
     sam_files = []
     sam_file_names = options.sam_file.split(",")
     for sam_file in sam_file_names:
         if sam_file.endswith(".sam"):
-            sam_files.append(open(sam_file))
+            sam_files.append((open(sam_file), False))
         elif sam_file.endswith(".bam"):
-            sam_files.append(pysam.Samfile(sam_file, "rb"))
+            sam_files.append((pysam.Samfile(sam_file, "rb"), True))
     #        sam_file = gzip.open(options.sam_file)
         else:
             opt_parser.print_help()
@@ -312,9 +314,9 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     truncation_warn = False
 
     print("Parsing sam/bam file")
-    for sam_file in sam_files:
+    for sam_file, is_bam in sam_files:
         for line in sam_file:
-            if options.sam_file.endswith(".bam"):
+            if is_bam:
                 # I realize this is bad style, but the original code was written
                 # for parsing SAM files. So less updating is necessary if I convert
                 # the AlignedRead object back to a SAM line
@@ -565,7 +567,8 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             else:
                 jcn_strand = '.'
             num_blocks = min(1000, len(jcn2JcnInfo[jcn_str].block_list))
-            bed = Bed(jcn2JcnInfo[jcn_str].chr, int(intron_left), int(intron_right) - 1,
+            # intron_left and intron_right are the 1-based inclusive intron bounds
+            bed = Bed(jcn2JcnInfo[jcn_str].chr, int(intron_left) - 1, int(intron_right),
                       name='.', score=num_blocks, strand=jcn_strand)
             bed.write(junction_bed_file)
 
