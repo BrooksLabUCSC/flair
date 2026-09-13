@@ -850,15 +850,17 @@ def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_o
                                get_junc_string(event.chrom, jinfo.exc_juncs), get_junc_string(event.chrom, jinfo.outer_juncs), get_junc_string(event.chrom, jinfo.inc_exon)]
                     juncpsi = write_counts_psi(outinfo, jinfo.samplecounts, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
 
-                    if outoutlier is not None:
-                        vals_for_outlier = [x for x in juncpsi if x != 'NA']
+                    # every sample can be below event_support, leaving no PSI to
+                    # take a median of and nothing to score the BED with
+                    vals_for_outlier = [x for x in juncpsi if x != 'NA']
+                    if len(vals_for_outlier) > 0:
                         med = median(vals_for_outlier)
                         # FIXME: use BED class
                         for line in jinfo.bedlines:
                             line[4] = round(med * 100)
                             outbed.write('\t'.join([str(x) for x in line]) + '\n')
 
-                        if len(vals_for_outlier) >= 5:
+                        if (outoutlier is not None) and (len(vals_for_outlier) >= 5):
                             dev = sps.iqr(vals_for_outlier) / 2
                             for s in allsamples:
                                 thiscount = jinfo.samplecounts[s]
@@ -1044,6 +1046,32 @@ def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region
         return None
 
 
+def read_annot_alignments(good_annot_aligns):
+    """Read-to-transcript assignments from the ends file.  With --noaligntoannot
+    there is no file and no assignments."""
+    read_to_transcript = {}
+    if good_annot_aligns is None:
+        return read_to_transcript
+    for line in open(good_annot_aligns):
+        line = line.rstrip().split('\t')
+        read, transcript = line[:2]
+        start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
+        if start_sj_index != 'None':  # not a single exon transcript
+            read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
+    return read_to_transcript
+
+
+def remove_region_temp_files(temp_prefix, aligned_to_annot):
+    """Drop the per-region intermediates.  The annotation-alignment ones only exist
+    when that step ran."""
+    temp_files = [f'{temp_prefix}.reads.genomicclipping.txt']
+    if aligned_to_annot:
+        temp_files += [f'{temp_prefix}.matchannot.counts.tsv',
+                       f'{temp_prefix}.readtoends.txt',
+                       f'{temp_prefix}.reads.fasta']
+    pipettor.run([tuple(['rm'] + temp_files)])
+
+
 def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, region_annot, region_annot_fa, junction_corrector, annots):
     temp_prefix = temp_prefix + '_' + sample
 
@@ -1054,13 +1082,7 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
     # FIXME: what format is this? reading into memory, why write file?
     good_annot_aligns = generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region_annot, region_annot_fa, clipping_file)
 
-    read_to_transcript = {}
-    for line in open(good_annot_aligns):
-        line = line.rstrip().split('\t')
-        read, transcript = line[:2]
-        start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
-        if start_sj_index != 'None':  # not a single exon transcript
-            read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
+    read_to_transcript = read_annot_alignments(good_annot_aligns)
 
     bamfile = pysam.AlignmentFile(bamfile_name, 'rb')
     sj_to_ends = {}
@@ -1085,7 +1107,7 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
                     c += 1
                     outline = [gene, juncstring, str(read_info.start), str(read_info.end), genetojuncs[gene][juncs].strand, read_info.name]
                     out.write('\t'.join(outline) + '\n')
-    pipettor.run([('rm', f'{temp_prefix}.matchannot.counts.tsv', f'{temp_prefix}.readtoends.txt', f'{temp_prefix}.reads.fasta', f'{temp_prefix}.reads.genomicclipping.txt')])
+    remove_region_temp_files(temp_prefix, good_annot_aligns is not None)
 
 
 def process_bed_line(bed_rec):
