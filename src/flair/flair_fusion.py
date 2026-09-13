@@ -54,6 +54,8 @@ def parse_args():
     args = parser.parse_args()
     if args.max_dist_to_TSS == -1:
         args.max_dist_to_TSS = None
+    if args.output is None:
+        args.output = args.sample_name
 
     if not os.path.exists(args.genome):
         raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
@@ -134,8 +136,8 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
             genetoname[gene_id] = rec.gene_name if rec.gene_name else gene_id
             if rec.chrom not in chrom_to_gene_pos:
                 chrom_to_gene_pos[rec.chrom] = []
-                chrom_to_gene_pos[rec.chrom].append((rec.start, rec.end, rec.strand, gene_id))
                 juncs_to_gene[rec.chrom] = {}
+            chrom_to_gene_pos[rec.chrom].append((rec.start, rec.end, rec.strand, gene_id))
 
         elif rec.feature == 'exon':
             if gene_id not in genetoexons:
