@@ -28,8 +28,9 @@ def write_bed_row(include_gene, name_sep, iso_to_cds, prev_transcript, blockstar
     else:
         qname = prev_transcript
 
-    if qname in iso_to_cds:
-        cds_start, cds_end = iso_to_cds[qname]
+    # iso_to_cds is keyed by transcript id; qname may also carry the gene
+    if prev_transcript in iso_to_cds:
+        cds_start, cds_end = iso_to_cds[prev_transcript]
     else:
         cds_start, cds_end = tstart, tend
     blocks = [BedBlock(blockstarts[i], blockstarts[i] + blocksizes[i]) for i in range(blockcount)]
