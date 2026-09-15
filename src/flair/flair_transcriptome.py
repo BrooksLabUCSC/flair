@@ -561,7 +561,9 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
             line = line.rstrip().split('\t')
             read, transcript = line[:2]
             start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
-            if start_sj_index != 'None':  # not a single exon transcript
+            # is not None: the value was converted on the line above, so the old
+            # comparison with the string 'None' was always true
+            if start_sj_index is not None:  # not a single exon transcript
                 read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
     # good_align_to_annot = set(good_align_to_annot)
     # return good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs

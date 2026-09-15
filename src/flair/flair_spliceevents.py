@@ -121,9 +121,11 @@ def get_juncs_to_gene(juncs, isoinfo, sjc_to_gene, junc_to_gene, gene_to_exons, 
             sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
             thisgene = sortedgenes[0][0]
         else:
-            # look for exon overlap
-            mystart = max(x.start for x in isoinfo)
-            myend = min(x.end for x in isoinfo)
+            # look for exon overlap.  isoinfo is an Isoform, which is not iterable;
+            # its reads are what was wanted.  The median is how isoform_data turns a
+            # read cluster into one isoform, and neither extreme is outlier proof
+            mystart = int(median(isoinfo.starts))
+            myend = int(median(isoinfo.ends))
             exons = [(mystart, juncs[0][0])] + [(juncs[i][1], juncs[i + 1][0]) for i in range(len(juncs) - 1)] + [
                 (juncs[-1][1], myend)]
             # strand = isoinfo[0][2]  # not a super robust strand picking, assumes well stranded reads
@@ -662,7 +664,10 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
 
                     if any([othercounts[s] >= min_read_support for s in allsamples]):
                         event_to_info[ename].other = othercounts
-                    ref_junc = (ssA, min(goodB)) if ssA < ssB else (max(goodB), ssA)
+                    # against min(goodB), not the ssB the loop above left behind.  All
+                    # goodB lie on the same side of ssA, so this is the same junction
+                    # the leaked value gave, said properly
+                    ref_junc = (ssA, min(goodB)) if ssA < min(goodB) else (max(goodB), ssA)
                     event_to_info[ename].totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
     eventtype = 'alt3' if eventtype == 'alt5' else 'alt5'
     for ssBgroup in ssB_groups_to_ssA:
@@ -1056,7 +1061,9 @@ def read_annot_alignments(good_annot_aligns):
         line = line.rstrip().split('\t')
         read, transcript = line[:2]
         start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
-        if start_sj_index != 'None':  # not a single exon transcript
+        # is not None: the value was converted on the line above, so the old
+        # comparison with the string 'None' was always true
+        if start_sj_index is not None:  # not a single exon transcript
             read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
     return read_to_transcript
 
