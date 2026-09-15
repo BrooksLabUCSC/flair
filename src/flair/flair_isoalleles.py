@@ -7,28 +7,9 @@ from copy import deepcopy
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
 from flair.predictProductivity import translate_from_bed
-from flair.isoform_data import make_big_bed, get_reverse_complement, COMPBASE
+from flair.isoform_data import make_big_bed, get_reverse_complement, translate_codon, COMPBASE
 import vcfpy
 
-
-CODON_TABLE = {
-    'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
-    'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
-    'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
-    'AGC': 'S', 'AGT': 'S', 'AGA': 'R', 'AGG': 'R',
-    'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',
-    'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
-    'CAC': 'H', 'CAT': 'H', 'CAA': 'Q', 'CAG': 'Q',
-    'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',
-    'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
-    'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',
-    'GAC': 'D', 'GAT': 'D', 'GAA': 'E', 'GAG': 'E',
-    'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
-    'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
-    'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
-    'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': '_',
-    'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
-}
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -156,9 +137,11 @@ def identify_nmd_pos(isoform):
     return nmd_pos_genomic, new_nmd_pos
 
 def get_vars_overlapping_block(block, allele_group_vars):
+    """Variants inside the block.  block.end is exclusive, and a variant at it used to
+    be accepted, leaving adjust_seq_with_vars with an empty slice to index."""
     block_vars = []
     for chrom, pos, ref, alt in allele_group_vars:
-        if block.start <= pos <= block.end:
+        if block.start <= pos < block.end:
             block_vars.append((chrom, pos, ref, alt))
     return block_vars
 
@@ -200,12 +183,16 @@ def identify_aaseq_with_vars(new_seq_complex, new_cds_start):
     aaseq = ''
     stop_index = None
     for i in range(new_cds_start, len(new_seq_complex), 3):
-        if i + 3 >= len(new_seq_complex):
+        # > not >=: at i + 3 == len the codon is complete and in range, and it is
+        # often the stop, which the old bound dropped
+        if i + 3 > len(new_seq_complex):
             break
         this_codon = ''.join([x[0] for x in new_seq_complex[i:i + 3]])
-        if i == 0 and this_codon != 'ATG':
+        # i == new_cds_start, not i == 0: i is 0 only for a transcript with no 5' UTR,
+        # so every other transcript skipped the start codon requirement
+        if i == new_cds_start and this_codon != 'ATG':
             break
-        this_aa = CODON_TABLE[this_codon]
+        this_aa = translate_codon(this_codon)
         if this_aa == '_':
             stop_index = i + 2
             break

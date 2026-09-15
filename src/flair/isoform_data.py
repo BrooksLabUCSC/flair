@@ -3,7 +3,7 @@
 from bisect import bisect_right
 from collections import namedtuple
 from operator import attrgetter
-from flair import PosRange
+from flair import PosRange, FlairInputDataError
 from flair.pycbio.hgdata.bed import Bed
 from flair.flair_bed import FlairBed, get_strand_rgb
 from statistics import median
@@ -111,6 +111,55 @@ def get_bed_exons_from_exons(exons, start):
     exon_starts = [e.start - start for e in exons]
     exon_sizes = [e.end - e.start for e in exons]
     return exon_starts, exon_sizes
+
+
+# the standard genetic code; '_' is a stop.  Two copies of this table were in the
+# tree, in flair_isoalleles and predictProductivity, and they were identical
+CODON_TABLE = {
+    'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
+    'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
+    'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
+    'AGC': 'S', 'AGT': 'S', 'AGA': 'R', 'AGG': 'R',
+    'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',
+    'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
+    'CAC': 'H', 'CAT': 'H', 'CAA': 'Q', 'CAG': 'Q',
+    'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',
+    'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
+    'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',
+    'GAC': 'D', 'GAT': 'D', 'GAA': 'E', 'GAG': 'E',
+    'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
+    'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
+    'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
+    'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': '_',
+    'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
+}
+
+# N and the IUPAC ambiguity codes.  A codon holding one of these is real data, not a
+# defect, so it translates to X rather than ending the run
+AMBIGUOUS_BASES = frozenset('NRYKMSWBVDH')
+
+
+def translate_codon(codon):
+    """One codon to its amino acid, '_' for a stop and 'X' when the codon holds an N
+    or an IUPAC ambiguity code."""
+    codon = codon.upper()
+    aa = CODON_TABLE.get(codon)
+    if aa is not None:
+        return aa
+    elif (len(codon) == 3) and all((b in AMBIGUOUS_BASES) or (b in 'ACGT') for b in codon):
+        return 'X'
+    else:
+        raise FlairInputDataError(f"not a nucleotide codon: '{codon}'; sequences must be "
+                                  "ACGT plus the IUPAC ambiguity codes")
+
+
+def translate(seq):
+    """A coding sequence to its protein, stop included as '_'.  The sequence must be a
+    whole number of codons; a frame error is a defect, not an empty protein."""
+    if (len(seq) % 3) != 0:
+        raise FlairInputDataError(f"coding sequence of {len(seq)} bases is not a whole "
+                                  "number of codons, so it cannot be translated")
+    return ''.join(translate_codon(seq[i:i + 3]) for i in range(0, len(seq), 3))
 
 
 def get_reverse_complement(seq):
