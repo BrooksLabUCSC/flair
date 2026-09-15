@@ -128,6 +128,30 @@ def getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, r
     return my_gene
 
 
+def name_nongenic_group(ognongenic_to_genes, group, chrom, start, end):
+    "name every locus in an overlapping group after the group's merged span"
+    gname = f'{chrom}:{start}-{end}'
+    for n in group:
+        ognongenic_to_genes[n] = gname
+
+
+def group_nongenic_loci(nongenicloci):
+    """Map each non-genic locus to the merged span of the overlapping loci it belongs
+    to.  nongenicloci must be sorted."""
+    ognongenic_to_genes = {}
+    lastchrom, laststart, lastend, group = None, -1, -1, []
+    for chrom, s, e in nongenicloci:
+        if s > lastend or chrom != lastchrom:
+            name_nongenic_group(ognongenic_to_genes, group, lastchrom, laststart, lastend)
+            group = []
+            lastchrom, laststart, lastend = chrom, s, e
+        elif e > lastend:
+            lastend = e
+        group.append((chrom, s, e))
+    name_nongenic_group(ognongenic_to_genes, group, lastchrom, laststart, lastend)
+    return ognongenic_to_genes
+
+
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
                 genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None):
     isrevtosign = {True: '-', False: '+'}
@@ -170,22 +194,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
     withsup.close()
 
     nongenicloci.sort()
-    ognongenic_to_genes = {}
-    lastchrom, laststart, lastend, group = None, -1, -1, []
-    for chrom, s, e in nongenicloci:
-        if s > lastend or chrom != lastchrom:
-            if len(group) > 0:
-                gname = f'{lastchrom}:{laststart}-{lastend}'
-                for n in group:
-                    ognongenic_to_genes[n] = gname
-            lastchrom, laststart, lastend = chrom, s, e
-        elif e > lastend:
-            lastend = e
-        group.append((chrom, s, e))
-    if len(group) > 0:
-        gname = f'{lastchrom}:{laststart}-{lastend}'
-        for n in group:
-            ognongenic_to_genes[n] = gname
+    ognongenic_to_genes = group_nongenic_loci(nongenicloci)
 
     interestingloci = {}
     for read in readToAligns:
