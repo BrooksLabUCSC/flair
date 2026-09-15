@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 import math
+from contextlib import ExitStack
 import pysam
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
@@ -13,6 +14,14 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
             'R': 'Y', 'Y': 'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W',
             'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
+
+# genes are binned by the start coordinate of the gene for the variant lookup
+GENE_BIN_SIZE = 10 ** 7
+
+# a temp record is pos, gene list, status; the gene list is itself a list, so the two
+# need separators that cannot be confused, or the field count varies with gene count
+VAR_FIELD_SEP = '|'
+GENE_LIST_SEP = ','
 
 
 def parse_var_args():
@@ -54,13 +63,14 @@ def extract_varinfo(refinfo, alt):
     return chrom, gpos, ref, alt
 
 def get_potential_genes(chrom, gpos, chrregiontogenes):
-    chromregion1, chromregion2 = (chrom, math.floor(gpos / (10 ** 7)) * 10 ** 7), \
-                                 (chrom, (math.floor(gpos / (10 ** 7)) + 1) * 10 ** 7)
+    """Genes that might contain gpos.  chrregiontogenes is keyed by the bin of each
+    gene's start, and a gene containing gpos starts at or before it, so the bin that
+    matters beside gpos's own is the one before, not the one after.  A gene longer
+    than the bin is still missed; the longest human gene is a fifth of one."""
+    this_bin = math.floor(gpos / GENE_BIN_SIZE) * GENE_BIN_SIZE
     potgenes = set()
-    if chromregion1 in chrregiontogenes:
-        potgenes.update(chrregiontogenes[chromregion1])
-    if chromregion2 in chrregiontogenes:
-        potgenes.update(chrregiontogenes[chromregion2])
+    for bin_start in (this_bin - GENE_BIN_SIZE, this_bin):
+        potgenes.update(chrregiontogenes.get((chrom, bin_start), ()))
     return potgenes
 
 def process_bedline(bed):
@@ -116,7 +126,7 @@ def get_bedisoform_info(bedisofile):
             genetoiso[gene] = set()
         genetoiso[gene].add(iso)
 
-        chromregion = (thischr, math.floor(start / (10 ** 7)) * 10 ** 7)
+        chromregion = (thischr, math.floor(start / GENE_BIN_SIZE) * GENE_BIN_SIZE)
         if chromregion not in chrregiontogenes:
             chrregiontogenes[chromregion] = set()
         chrregiontogenes[chromregion].add(gene)
@@ -158,7 +168,7 @@ def _parse_cigar(cigar, alignstart, transcriptvars):
     return coveredvars
 
 
-def parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename):
+def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
     """for each read, figure out what variants it overlaps with. Then figure out whether it's modified or not at that variant"""
     # check for which vars are covered
     coveredvars = _parse_cigar(s.cigartuples, s.reference_start, vcfvars)
@@ -177,10 +187,10 @@ def parse_single_bam_read(s, tempdir, vcfvars, sampleindex, tempfilename):
                         coveredvars[i[1] + 1] = 1
 
     if coveredvars:  # for now, only outputting reads that cover var pos
-        coveredvarstrings = [','.join([str(v), vcfvars[v][2], str(coveredvars[v])]) for v in coveredvars]
-        with open(tempdir + tempfilename + '.txt', 'a') as tempvarout:
-            tempvarout.write(
-                '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
+        coveredvarstrings = [VAR_FIELD_SEP.join([str(v), vcfvars[v][2], str(coveredvars[v])]) for v in coveredvars]
+        tempvarout = temp_files.open(s.reference_name)
+        tempvarout.write(
+            '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
 
 
 def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata, threshold, output_all):  # noqa: C901 - FIXME: reduce complexity
@@ -194,13 +204,13 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
             with open(tempdir + tf + '.txt', 'r') as mutstringfile:
                 for line in mutstringfile:
                     refname, readname, mutstring = line.rstrip('\n').split('\t')
-                    allmuts = [x.split(',') for x in mutstring.split(';')]
+                    # three fields per mut now, whatever the gene count: the gene list
+                    # used to be comma joined into a comma joined record
+                    allmuts = [x.split(VAR_FIELD_SEP) for x in mutstring.split(';')]
 
                     allgenes = []
                     for x in allmuts:
-                        for i in range(1, len(x) - 1):
-                            if x[i] != '':
-                                allgenes.append(x[i])
+                        allgenes.extend([g for g in x[1].split(GENE_LIST_SEP) if g != ''])
 
                     if len(allgenes) > 0:  # only use reads that overlap annotated genes
                         mygene = max(set(allgenes), key=allgenes.count)
@@ -219,7 +229,9 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
                     sampleindex = int(readname.split('__')[0])
                     for m in allmuts:
                         varpos = refname + ':' + m[0]
-                        gene = m[1]
+                        # first of the sorted gene list, as before, when a variant falls
+                        # in more than one gene
+                        gene = m[1].split(GENE_LIST_SEP)[0]
                         transcript = ''
                         var = (varpos, gene, transcript)
                         if var not in vartocounts:
@@ -272,7 +284,9 @@ def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, gene
         # THIS MAY BE THE BOTTLENECK
         for gene, _, _ in retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
             overlapgenes.add(gene)
-        vcfvars = add_vcf_var(vcfvars, chrom, ref, alts, gpos, ','.join(overlapgenes))
+        # sorted: overlapgenes is a set, so the order, and therefore which gene the
+        # counts are attributed to below, varied between runs
+        vcfvars = add_vcf_var(vcfvars, chrom, ref, alts, gpos, GENE_LIST_SEP.join(sorted(overlapgenes)))
     return vcfvars
 
 def combine_vcf_files(vcffilelist):
@@ -287,21 +301,41 @@ def combine_vcf_files(vcffilelist):
                 vartoalt[refinfo].add(alt)
     return vartoalt
 
-def parse_all_bam_files(sampledata, tempdir, vcfvars):
-    for sindex in range(len(sampledata)):
-        sample, bamfile = sampledata[sindex][0], sampledata[sindex][1]
-        samfile = pysam.AlignmentFile(bamfile, 'rb')
+class TempVarFiles:
+    """Append handles for the per-reference temp files, opened once each.  The write
+    path used to open, append and close the file for every read covering a variant."""
+    def __init__(self, tempdir, stack):
+        self.tempdir = tempdir
+        self.stack = stack
+        self.by_refname = {}
+
+    def open(self, refname):
+        out = self.by_refname.get(refname)
+        if out is None:
+            out = self.stack.enter_context(open(self.tempdir + refname + '.txt', 'a'))
+            self.by_refname[refname] = out
+        return out
+
+
+def _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex):
+    with pysam.AlignmentFile(bamfile, 'rb') as samfile:
         c = 0
         for s in samfile:
             if s.is_mapped:  # and not s.is_supplementary: ##not s.is_secondary and
                 c += 1
                 if c % 100000 == 0:
                     print(c, 'reads checked')
-                tempfilename = s.reference_name
                 myvcfvars = get_correct_vcf_vars(vcfvars, s.reference_name, s.reference_start, s.reference_end)
-                parse_single_bam_read(s, tempdir, myvcfvars, sindex, tempfilename)
-        samfile.close()
-        print('done parsing reads for', sample)
+                parse_single_bam_read(s, temp_files, myvcfvars, sindex)
+
+
+def parse_all_bam_files(sampledata, tempdir, vcfvars):
+    with ExitStack() as stack:
+        temp_files = TempVarFiles(tempdir, stack)
+        for sindex in range(len(sampledata)):
+            sample, bamfile = sampledata[sindex][0], sampledata[sindex][1]
+            _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex)
+            print('done parsing reads for', sample)
 
 def get_genes_from_tempdir(tempdir):
     genenames = set()
