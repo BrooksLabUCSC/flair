@@ -116,6 +116,9 @@ def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, thickS
     for i in range(len(esizes)):
         thisstart, thisend = start + estarts[i], start + estarts[i] + esizes[i]
         for order in range(numloci):
+            # <= on both edges: with a strict test on the left an exon starting
+            # exactly on a boundary matched no locus, failing its own locus's left
+            # test and the previous locus's right test, and locus 0 starts at 0
             if locusbounds[order][0] <= thisstart and thisend <= locusbounds[order][1]:
                 if starts[order] is None:
                     starts[order] = estarts[i]  # thisstart #- locusbounds[order][0]

@@ -80,9 +80,11 @@ def diffSplice(isoforms='', counts_matrix=''):  # noqa: C901 - FIXME: reduce com
 
     filebase = os.path.join(args.out_dir, 'diffsplice')
     pipettor.run(['call_diffsplice_events.py', args.isoforms, filebase, args.counts_matrix])
-    pipettor.run(['es_as.py', args.isoforms], stdout=open(filebase + '.es.events.tsv', 'w'))
-    pipettor.run(['es_as_inc_excl_to_counts.py', args.counts_matrix, filebase + '.es.events.tsv'],
-                 stdout=open(filebase + '.es.events.quant.tsv', 'w'))
+    with open(filebase + '.es.events.tsv', 'w') as es_fh:
+        pipettor.run(['es_as.py', args.isoforms], stdout=es_fh)
+    with open(filebase + '.es.events.quant.tsv', 'w') as quant_fh:
+        pipettor.run(['es_as_inc_excl_to_counts.py', args.counts_matrix, filebase + '.es.events.tsv'],
+                     stdout=quant_fh)
     os.unlink(filebase + '.es.events.tsv')
 
     if args.test or args.conditionA:
@@ -93,8 +95,11 @@ def diffSplice(isoforms='', counts_matrix=''):  # noqa: C901 - FIXME: reduce com
             ds_command += ['--batch']
         if args.conditionA:
             if not args.conditionB:
-                logging.info('Both conditionA and conditionB must be specified, or both left unspecified')
-                return 1
+                # raise, not return 1: flair_cli discards the return value, so
+                # flair diffsplice --conditionA X printed a line and exited 0 having
+                # done no testing at all
+                raise FlairInputDataError('--conditionA and --conditionB must both be given, '
+                                          'or both left out to test every pair of conditions')
             ds_command += ['--conditionA', args.conditionA, '--conditionB', args.conditionB]
 
         with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:

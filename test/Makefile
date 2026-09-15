@@ -729,7 +729,7 @@ test-partition-basic: mkdirs
 
 # merge adjacent partitions
 test-partition-adjacent: mkdirs
-	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 --part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 

@@ -69,7 +69,10 @@ def _calc_possible_junction_range(readrec, new_junctions):
     if len(new_junctions) > 0:
         # adjust for previous intron
         min_start = max(min_start, new_junctions[-1].end + MIN_INTERNAL_EXON_SIZE)
-    max_end = readrec.end - MIN_INTERNAL_EXON_SIZE
+    # MIN_TERMINAL_EXON_SIZE, as at the left end: both bounds are the read's terminal
+    # exons, and with the internal size here a junction could be placed 3 bp from the
+    # read end while its mirror image 3 bp from the start was rejected
+    max_end = readrec.end - MIN_TERMINAL_EXON_SIZE
     return (min_start, max_end)
 
 def _filter_too_close(readrec, new_junctions, intron_hits):

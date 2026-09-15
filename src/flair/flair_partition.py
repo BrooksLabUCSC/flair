@@ -12,8 +12,9 @@ import pipettor
 from flair.pycbio.sys import fileOps, loggingOps
 from flair.pycbio.hgdata.bed import BedReader, Bed
 
-def check_input_files(bed_files, bam_files):
-    for f in bed_files + bam_files:
+def check_input_files(bed_files, bam_files, gtf_files):
+    "fail here rather than inside the sort pipeline, where the message is not the point"
+    for f in bed_files + bam_files + gtf_files:
         open(f).close()
 
 def parse_args():
@@ -23,7 +24,7 @@ def parse_args():
     )
     parser.add_argument("--min_partition_items", type=int, default=0,
                         help="Minimum number of input items in a partition")
-    parser.add_argument("-part_merge_dist", type=int, default=0,
+    parser.add_argument("--part_merge_dist", type=int, default=0,
                         help="Combine adjacent non-overlapping partitions separated by this distance")
     parser.add_argument("--threads", type=int, default=1,
                         help="Number of cores for parallel sorting")
@@ -38,9 +39,9 @@ def parse_args():
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
     args = parser.parse_args()
     loggingOps.setupFromCmd(args)
-    if (len(args.bed_files) + len(args.bam_files)) == 0:
-        parser.error("No input files specified; must have at least one --bam= or --bed= option")
-    check_input_files(args.bed_files, args.bam_files)
+    if (len(args.bed_files) + len(args.bam_files) + len(args.gtf_files)) == 0:
+        parser.error("No input files specified; must have at least one --bam=, --bed= or --gtf= option")
+    check_input_files(args.bed_files, args.bam_files, args.gtf_files)
     return args
 
 class PartitionCounts:

@@ -173,7 +173,9 @@ def do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols):
     if len(allpval) == 0:
         raise FlairInputDataError(f"no p-values with sufficient delta values from: {filename}")
 
-    # Apply multiple-testing correction (Benjamini–Hochberg FDR by default)
+    # Apply multiple-testing correction.  This is Holm-Sidak, not Benjamini-Hochberg
+    # as this comment used to say: the adjusted values control the family-wise error
+    # rate, not the false discovery rate
 
     corrpval = list(multipletests(allpval)[1])
     return allids, alldeltas, corrpval

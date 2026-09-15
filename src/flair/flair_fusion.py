@@ -118,8 +118,6 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
                    args.annotated_fa, '-')
 
         filter_cmd = ('samtools', 'view', '-hF', '0x104', '-e', '[SA] != ""')
-        _sort_cmd = ('samtools', 'sort', '-o', args.output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)  # noqa: F841
-        _samtools_index_cmd = ('samtools', 'index', args.output + '_unfilteredtranscriptome.bam')  # noqa: F841
         pipettor.run([fa_cmd, mm2_cmd, filter_cmd], stdout=args.output + '.transcriptomealigned.chim.bam')
         pipettor.run([('samtools', 'sort', '-o', args.output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
         pipettor.run([('mv', args.output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
@@ -336,7 +334,10 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
         if readsup >= 2:
             if sjmotif in {"GT/AG", "GC/AG", "AT/AC"} and strand == '+':  # for synthetic alignment, all junctions should be '+'
                 good_sj.append(bed.toRow())
-                if start < fusiontobp[fusion] < end:
+                # get: fusiontobp holds only the contigs named in the breakpoint BED,
+                # so a junction on any other contig used to raise KeyError
+                breakpoint = fusiontobp.get(fusion)
+                if (breakpoint is not None) and (start < breakpoint < end):
                     fusion_to_bp_sj[fusion] = True
 
     for bed in BedReader(f'{args.output}.syntheticAligned.IPSJ.bed', numStdCols=6):
@@ -344,7 +345,9 @@ def detectfusions():  # noqa: C901 - FIXME: reduce complexity
         start, end = bed.chromStart, bed.chromEnd
         readsup = bed.score
         strand = bed.strand
-        if readsup >= 2 and fusion_to_bp_sj[fusion] is False and start < fusiontobp[fusion] < end:  # no good breakpoint junctions yet
+        breakpoint = fusiontobp.get(fusion)
+        if readsup >= 2 and (breakpoint is not None) and fusion_to_bp_sj.get(fusion) is False \
+                and start < breakpoint < end:  # no good breakpoint junctions yet
             good_sj.append(bed.toRow())
 
     out = open(f'{args.output}.syntheticAligned.SJ.bed', 'w')
