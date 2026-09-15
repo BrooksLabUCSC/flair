@@ -173,6 +173,17 @@ def plot_blocks(data, panel, names, iso_to_variant, upper, lower, strand, base_c
         di += 1
 
 
+def read_color_palette(palette_file):
+    """One color per line.  At least six are needed, since four of them also serve as
+    the base colors."""
+    colors = [line.strip() for line in open(palette_file) if line.strip() != '']
+    if len(colors) < 6:
+        raise FlairInputDataError(
+            f"{palette_file}: found {len(colors)} colors, at least 6 are needed; "
+            "the file holds one color per line")
+    return colors
+
+
 def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     args = parse_args()
     counts_matrix = open(args.counts_matrix)
@@ -180,11 +191,10 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
         args.o = args.gene_name
 
     color_palette = name_colors + hex_colors
-    base_colors = {'C': color_palette[0], 'A': color_palette[1], 'G': color_palette[4], 'T': color_palette[5]}
     if args.palette:
-        color_palette = []
-        for line in open(args.palette):
-            color_palette += line.rstrip()
+        color_palette = read_color_palette(args.palette)
+    # after any --palette replacement, so a custom palette reaches the base colors too
+    base_colors = {'C': color_palette[0], 'A': color_palette[1], 'G': color_palette[4], 'T': color_palette[5]}
 
     keepiso = {}  # isoforms that they have a sufficient proportion of reads mapping to them
     sample_ids = counts_matrix.readline().rstrip().split('\t')[1:]
