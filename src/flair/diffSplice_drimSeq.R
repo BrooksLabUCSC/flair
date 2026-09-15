@@ -10,7 +10,9 @@ options(error = function() traceback(2))
 parse_arguments <- function() {
   parser <- ArgumentParser(description = 'run dirmSeq')
   parser$add_argument("--matrix", required=TRUE, help="Input DRIM-Seq formatted count files.")
-  parser$add_argument("--outDir", default='', help="Write to specified output directory.")
+  # required, not default='': file.path("", "workdir") is "/workdir", at the
+  # filesystem root, so the default could never work
+  parser$add_argument("--outDir", required=TRUE, help="Write to specified output directory.")
   parser$add_argument("--prefix", required=TRUE, help="Specify file prefix.")
   parser$add_argument('--drim1', type="integer", default=6, help="Minimum number of samples expressing event inclusion/exclusion (6).")
   parser$add_argument('--drim2', type="integer", default=3, help="Minimum number of samples expressing the inclusion of an event (3).")
@@ -60,7 +62,10 @@ run_DRIMSeq <- function(args) {
 
   # Read counts and prepare the quantification data frame
   quantDF <- fread(args$matrix)
-  quantDF <- quantDF[, c("feature_id", "coordinate", samples, "isoform_ids"), with=FALSE]
+  # formulaDF$sample_id, not samples: the matrix used to keep every sample column
+  # while the pseudocount loop below covered only the selected ones, so the counts
+  # handed to dmDSdata were inflated in some columns and not others
+  quantDF <- quantDF[, c("feature_id", "coordinate", formulaDF$sample_id, "isoform_ids"), with=FALSE]
   setnames(quantDF, "coordinate", "gene_id")
 
   # Add pseudocount
@@ -76,11 +81,17 @@ run_DRIMSeq <- function(args) {
   data <- dmDSdata(counts = count_df, samples = sample_df)
   filtered <- dmFilter(data, min_samps_gene_expr = args$drim1, min_samps_feature_expr = args$drim2, min_gene_expr = args$drim3, min_feature_expr = args$drim4)
 
+  # conditionA is the reference, so the reported fold change has the direction the
+  # output file name states.  Without this, condition is a character column and
+  # model.matrix orders its levels alphabetically
+  filtered_samples <- samples(filtered)
+  filtered_samples$condition <- relevel(factor(filtered_samples$condition), ref=args$conditionA)
+
   # Design matrix and fitting
   design_full <- if (args$batch) {
-    model.matrix(~ condition + batch, data = samples(filtered))
+    model.matrix(~ condition + batch, data = filtered_samples)
   } else {
-    model.matrix(~ condition, data = samples(filtered))
+    model.matrix(~ condition, data = filtered_samples)
   }
 
   set.seed(123)

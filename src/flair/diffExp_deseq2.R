@@ -10,7 +10,6 @@ parse_arguments <- function() {
 
   parser$add_argument("--group1", required = TRUE, help = "Sample group 1.")
   parser$add_argument("--group2", required = TRUE, help = "Sample group 2.")
-  parser$add_argument("--batch", required = FALSE, default = NULL, help = "Secondary sample attribute (used in design matrix).")
   parser$add_argument("--matrix", required = TRUE, help = "Input count files.")
   parser$add_argument("--outDir", required = TRUE, help = "Write to specified output directory.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
@@ -79,7 +78,11 @@ plot_results <- function(dds, args) {
   
   pdf(qcOut)
 
-  plotMA(results(dds), ylim = c(-3, 3), main = "MA-plot results")
+  # the named coefficient, as the results table uses: bare results(dds) takes the last
+  # coefficient in resultsNames, which is the batch term once batch is in the design
+  name <- paste('condition_', group2, '_vs_', group1, sep='')
+  plotMA(results(dds, name = name), ylim = c(-3, 3),
+         main = sprintf("MA-plot: %s vs %s", group2, group1))
   plotDispEsts(dds, main = "Dispersion Estimates")
 
   nsub <- min(nrow(read.table(matrixFile, header = TRUE, sep = "\t", row.names = 1)), 1000)

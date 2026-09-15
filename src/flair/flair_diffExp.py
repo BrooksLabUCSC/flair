@@ -336,11 +336,13 @@ def calc_gene_norm_sig(workdir, quant_table_tsv):
     out.close()
 
 def run_deseq2(prefix, workdir, groups, batches, matrixFile, outDir, formulaMatrixFile):
+    # no --batch: neither R script ever read it, and one arbitrary batch label would
+    # not have said anything anyway.  Both take the batch column from the formula matrix
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_deseq2, "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", matrixFile, "--outDir", outDir,
+                          "--matrix", matrixFile, "--outDir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
@@ -350,7 +352,7 @@ def run_dirmseq(prefix, workdir, threads, groups, batches, matrixFile, outDir, f
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", matrixFile, "--outDir", outDir,
+                          "--matrix", matrixFile, "--outDir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc

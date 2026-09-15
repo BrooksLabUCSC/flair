@@ -50,12 +50,14 @@ def calc_transcript_rel_start_pos(annot_start, exon_sizes, my_exons, start_exon_
     return rel_start
 
 def calc_stop_codon_pos(seq_from_start):
-    stop_reached = False
+    """Offset of the first stop codon, and whether one was found.  The loop variable
+    used to be returned even when the loop never ran, which is an UnboundLocalError on
+    an empty sequence, as happens when the annotated start codon is at the last base."""
+    stop_codon_pos = 0
     for stop_codon_pos in range(0, len(seq_from_start), 3):
         if seq_from_start[stop_codon_pos:stop_codon_pos + 3] in STOP_CODON_SEQS:
-            stop_reached = True
-            break
-    return stop_reached, stop_codon_pos
+            return True, stop_codon_pos
+    return False, stop_codon_pos
 
 def calc_ptc(exon_sizes, orf_end_pos, ref_transcript_id, transcript_to_nmd_except):
     is_ptc = True

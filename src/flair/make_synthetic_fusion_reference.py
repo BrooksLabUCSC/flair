@@ -104,6 +104,13 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
     for order in range(len(fusion)):
         isochunks = {}
         gene, thisChr, leftbound, rightbound = allBP[fusion][order]
+        # the breakpoint BED is padded by 1000 and clamped only at the low end, so a
+        # bound can run past the chromosome.  genome.fetch then returns a short
+        # sequence while startLoc advances by the nominal distance, which shifts every
+        # later locus and the breakpoint offsets against the FASTA actually written
+        chrom_size = getChromSize(thisChr)
+        leftbound = max(0, min(leftbound, chrom_size))
+        rightbound = max(0, min(rightbound, chrom_size))
         if order == 0:  # 5' gene, correct end to 5' end of gene
             if leftbound < rightbound:
                 leftbound = fgenes[gene][1]
@@ -147,7 +154,6 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
                         isochunks[tname].append(tuple(synthexon))
         allstartloc.append(startLoc)
         startLoc = startLoc + abs(rightbound - leftbound)
-        seqlen = len(''.join(sequence))
         allisochunks.append(isochunks)
     # finalisochunks = [[] for x in range(len(fusion))]
     finalisochunks = []
