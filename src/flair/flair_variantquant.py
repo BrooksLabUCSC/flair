@@ -254,9 +254,11 @@ def retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblo
                         if dir == '+':
                             tpos2 = tstart + (gpos - gstart)
                         else:
-                            tpos2 = (tstart + bsize + 1) - (gpos - gstart)
+                            # mirror within the block, covering the same
+                            # tstart .. tstart + bsize - 1 the plus branch does
+                            tpos2 = tstart + (bsize - 1 - (gpos - gstart))
                         break
-                if tpos2:
+                if tpos2 is not None:
                     yield gene, iso2, tpos2
 
 def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks):
