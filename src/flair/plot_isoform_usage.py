@@ -43,23 +43,23 @@ gray = "xkcd:greyish"
 reverse_complement = {'C': 'G', 'G': 'C', 'A': 'T', 'T': 'A'}
 
 
-def parse_bed(bedfile, *, names=False, keepiso=set()):  # noqa: C901 - FIXME: reduce complexity
+def parse_bed(bedfile, keepiso, *, names=False):  # noqa: C901 - FIXME: reduce complexity
+    """keepiso maps an isoform name to its plot colour, and is what selects the
+    isoforms to draw.  It had a default of set(), the wrong type for the lookup
+    below, so calling this without it raised TypeError rather than doing nothing."""
     info = []
     usednames = []
     lowbound, upbound = 1e9, 0
     gene_strand = None
     for bed in BedReader(bedfile, bedClass=FlairBed):
-        blocksizes = [x.end - x.start for x in bed.blocks]
-        blockstarts = [x.start for x in bed.blocks]
-
-        if bed.name not in keepiso:
-            continue
-
-        gene_strand = bed.strand
-        lowbound = min(lowbound, bed.chromStart)
-        upbound = max(upbound, bed.chromEnd)
-        info += [[blocksizes, blockstarts, keepiso[bed.name], bed.productivity, bed.name]]  # exon sizes, exon starts, color, prod, iso
-        usednames += [bed.name]
+        if bed.name in keepiso:
+            blocksizes = [x.end - x.start for x in bed.blocks]
+            blockstarts = [x.start for x in bed.blocks]
+            gene_strand = bed.strand
+            lowbound = min(lowbound, bed.chromStart)
+            upbound = max(upbound, bed.chromEnd)
+            info += [[blocksizes, blockstarts, keepiso[bed.name], bed.productivity, bed.name]]  # exon sizes, exon starts, color, prod, iso
+            usednames += [bed.name]
     upbound += 100  # padding up and downstream of isoforms
     lowbound -= 100
     for i in range(len(info)):
@@ -173,6 +173,26 @@ def plot_blocks(data, panel, names, iso_to_variant, upper, lower, strand, base_c
         di += 1
 
 
+def _add_counts_row(line, gray_bar, totals, proportions, sample_ids, min_reads):
+    """One counts-matrix row: an isoform below min_reads in every sample goes into the
+    gray minor-isoform bar, the rest get their own bar."""
+    counts = [float(x) for x in line[1:]]
+    if all(x < min_reads for x in counts):
+        for i in range(len(sample_ids)):
+            gray_bar[0][i + 1] += counts[i]   # add to gray bar bc expression is too low
+            totals[i] += counts[i]
+    else:
+        # a kept isoform's counts reach totals in the colour loop below
+        proportions += [[line[0].split('_')[0]] + counts + [sum(counts)]]
+
+
+def _id_is_for_gene(iso_id, gene_name):
+    """Is a counts-matrix id one of this gene's isoforms.  The ids are isoform_gene,
+    so the gene is the last field; a substring test pulled in any id that merely
+    contained the name, such as a longer gene id or a read name inside an isoform id."""
+    return (iso_id == gene_name) or iso_id.endswith('_' + gene_name)
+
+
 def read_color_palette(palette_file):
     """One color per line.  At least six are needed, since four of them also serve as
     the base colors."""
@@ -185,7 +205,6 @@ def read_color_palette(palette_file):
 
 
 def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
-    args = parse_args()
     counts_matrix = open(args.counts_matrix)
     if not args.o:
         args.o = args.gene_name
@@ -216,16 +235,8 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
     for line in counts_matrix:
         line = line.rstrip().split('\t')
-        if args.gene_name not in line[0]:
-            continue
-        counts = [float(x) for x in line[1:]]
-        if all(x < args.min_reads for x in counts):
-            for i in range(len(sample_ids)):
-                gray_bar[0][i + 1] += counts[i]   # add to gray bar bc expression is too low
-            for i in range(len(sample_ids)):
-                totals[i] += counts[i]
-            continue
-        proportions += [[line[0].split('_')[0]] + counts + [sum(counts)]]
+        if _id_is_for_gene(line[0], args.gene_name):
+            _add_counts_row(line, gray_bar, totals, proportions, sample_ids, args.min_reads)
 
     colori = 0
     proportions = sorted(proportions, key=lambda x: x[-1], reverse=True)  # sort by expression
@@ -293,7 +304,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     # plotting isoform structures
     panel = plt.axes([0.005, 0.015, .99, 0.97], frameon=True)  # annotation
 
-    isoforms, lower, upper, strand, names = parse_bed(args.isoforms, keepiso=keepiso)
+    isoforms, lower, upper, strand, names = parse_bed(args.isoforms, keepiso)
     isoforms = sorted(isoforms, key=lambda x: x[3], reverse=True)  # sort by productivity
     packed = pack(isoforms, rev=False, tosort=False)
 
