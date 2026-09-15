@@ -165,12 +165,12 @@ def main():
             geneID = parse_gene_id(iso)
             exons = bed12toExons(start, starts, sizes)
 
-            if chrom not in genes:
-                genes[chrom] = Gene(geneID, chrom, strand)
-            geneObj = genes[chrom]
+            if geneID not in genes:
+                genes[geneID] = Gene(geneID, chrom, strand)
+            geneObj = genes[geneID]
             geneObj.isoforms[iso] = exons
 
-    for chrom, gobj in genes.items():
+    for gobj in genes.values():
         gobj.buildGraph()
         gobj.findSkippedExonsV1()
 
