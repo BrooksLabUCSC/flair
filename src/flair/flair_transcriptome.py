@@ -8,7 +8,7 @@ import hashlib
 import logging
 from statistics import median
 from collections import Counter
-from flair import FlairError
+from flair import FlairError, FlairInputDataError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
@@ -20,7 +20,7 @@ from flair.read_processing import generate_genomic_alignment_read_to_clipping_fi
 from flair.read_correction import filter_correct_group_reads
 from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
-from flair.pycbio.hgdata.bed import Bed, BedReader
+from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_prod_temp
 from flair.flair_bed import FlairBed
 
@@ -433,11 +433,9 @@ class MaxTerminalExonsEnds:
     """
     def __init__(self):
         # FIXME: this is temporary.  The code groups by (gene_id, strand)
-        # for reasons that are suspected to be bugs in stranding.  We keep
-        # this but generate a warning until we are sure it is fixed
+        # for reasons that are suspected to be bugs in stranding.
         self._by_gene_id = {}  # (gene_id, strand) -> GeneMaxTerminalExonsEnds
         self._gene_id_to_strand = {}
-        self._genes_warned = set()
 
     def _obtain(self, gene_id, strand):
         "get current entry or create a new one"
@@ -447,17 +445,13 @@ class MaxTerminalExonsEnds:
             gene_entry = GeneMaxTerminalExonsEnds(gene_id)
             self._by_gene_id[gene_key] = gene_entry
 
-        # FIXME: tmp generate strand warning or error. it should be impossible to get here
-        # with gene broken like this.
         existing_strand = self._gene_id_to_strand.get(gene_id)
         if existing_strand is None:
             self._gene_id_to_strand[gene_id] = strand
         elif strand != existing_strand:
-            raise FlairError(f"BUG: gene id '{gene_id}' has transcripts on both strands")
-        elif (strand != existing_strand) and (gene_id not in self._genes_warned):
-            # FIXME: this is disabled for not to get hard failure
-            self._genes_warned.add(gene_id)
-            logging.warning("BUG: gene id '%s' has transcripts on both strands", gene_id)
+            raise FlairInputDataError(f"gene id '{gene_id}' has transcripts on both strands, "
+                                      f"'{existing_strand}' and '{strand}'; give each strand its own "
+                                      "gene id in the annotation GTF")
 
         return gene_entry
 
@@ -965,15 +959,12 @@ def _find_gene_id_by_overlap(iso_readrec, annots):
         gene_hits = get_single_exon_gene_overlaps(iso_readrec.strand, iso_readrec, annots)
         if gene_hits:
             return (sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0], )
-    # if no gene from above, look for exon overlap
-    if iso_readrec.strand != 'ambig':
-        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
-    else:
-        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+    # if no gene from above, look for exon overlap.  There was an 'ambig' strand
+    # branch here; nothing assigns that strand, the two branches were identical, and
+    # annots.spliced_exons is keyed by '+' and '-' only, so it would have raised
+    gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
     if gene_hits:
         gene_hits.sort(reverse=True)
-        if iso_readrec.strand == 'ambig':
-            iso_readrec.strand = gene_hits[0][2]
         return (gene_hits[0][1], )
     else:
         return None
@@ -986,7 +977,10 @@ def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
     return gene_id, transcript_id
 
 def add_gene_isoform(genes, gene_id, isoform, strand, is_novel):
-    hashed_id = int(hashlib.md5(','.join(gene_id).encode('utf-8')).hexdigest(), 16)
+    # gene_id is a tuple of annotated gene ids, or one novel locus name.  A bare
+    # ','.join put a comma between every character of the novel name
+    key = gene_id if isinstance(gene_id, str) else ','.join(gene_id)
+    hashed_id = int(hashlib.md5(key.encode('utf-8')).hexdigest(), 16)
     if is_novel:
         gene_id = ()
     if hashed_id not in genes:
@@ -1088,25 +1082,6 @@ def write_firstpass(temp_prefix, chrom, firstpass, annots, genome, *,
 # results output
 ####
 
-def get_transcirpts_to_reads(temp_prefix, suffix):
-    transcript_to_reads = {}
-    for line in open(temp_prefix + suffix):
-        read_name, transcript_id, start, end = line.rstrip().split('\t')
-        if transcript_id not in transcript_to_reads:
-            transcript_to_reads[transcript_id] = []
-        transcript_to_reads[transcript_id].append((read_name, start, end))
-    return transcript_to_reads
-
-def write_transcript_ends_bed(args, temp_prefix, suffix, read_to_final_transcript, ends_fh):
-    transcript_to_reads = get_transcirpts_to_reads(temp_prefix, suffix)
-    for t in transcript_to_reads:
-        if len(transcript_to_reads[t]) >= args.sjc_support:  # FIXME this needs to be adjusted to consider single exons vs junction chains, also frac_support
-            for r, start, end in transcript_to_reads[t]:
-                if r in read_to_final_transcript:
-                    t_name, chrom, strand = read_to_final_transcript[r]
-                    Bed(chrom, int(start), int(end), name=t_name + '|' + r,
-                        score=0, strand=strand).write(ends_fh)
-
 def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_to_tot):
     if iso not in iso_to_counts:
         return False, 0
@@ -1160,7 +1135,11 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends):
                 gene_to_tot[gene][0] += 1
                 gene_to_tot[gene][1] += 1
             else:
-                print('ERROR: not full-length')
+                # the FIXME above says count_sam_transcripts no longer emits these, so
+                # reaching this means the two disagree about what ends.tsv holds
+                raise FlairError(f"{read_ends_file}: read '{read}' on transcript '{transcript}' is not "
+                                 f"full length: junctions {start_sj_index} to {end_sj_index} of "
+                                 f"{len(final_transcript_objs[transcript].juncs)}")
         iso_to_counts[transcript][1] += 1
         gene_to_tot[gene][2] += 1
     return iso_to_counts, gene_to_tot
@@ -1212,14 +1191,21 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
                   ('samtools', 'fasta', '-')],
                  stdout=partition.output_path('reads.fasta'))
     if os.path.getsize(partition.output_path('reads.fasta')) > 0:
-        # FIXME confusing name if taking gtf_data,
-        # FIXME: should only have region, so why take region arg
-        annots = annot_data_from_gtf(gtf_data, region)
+        _run_region_reads(partition=partition, region=region, gtf_data=gtf_data,
+                          junction_corrector=junction_corrector, args=args)
+    else:
+        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.bed', '.isoform.counts.txt', '.isoform.read.map.txt', '.isoforms.bed', '.isoforms.fa', '.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed'])
 
-        # then align reads to transcriptome and run count_sam_transcripts
-        genome = pysam.FastaFile(args.genome)
-        bam_file = pysam.AlignmentFile(args.genome_aligned_bam, 'rb')
 
+def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
+    # FIXME confusing name if taking gtf_data,
+    # FIXME: should only have region, so why take region arg
+    annots = annot_data_from_gtf(gtf_data, region)
+
+    # then align reads to transcriptome and run count_sam_transcripts.  with, not a
+    # bare open: the no-reads path below returns early and used to leak both files
+    with pysam.FastaFile(args.genome) as genome, \
+         pysam.AlignmentFile(args.genome_aligned_bam, 'rb') as bam_file:
         # genomic clipping: amount of clipping (from cigar) at ends of reads when aligned to genome
         # generates file with [read{\t}clipping amount] on each line
         # For comparing with amount of clipping after alignment to transcriptome
@@ -1292,9 +1278,6 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
 
         iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.trust_ends)
         write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, args.generate_map)
-        genome.close()
-    else:
-        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.bed', '.isoform.counts.txt', '.isoform.read.map.txt', '.isoforms.bed', '.isoforms.fa', '.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed'])
 
 def combine_chunks(args, output, partitions):
     files_to_combine = ['.isoforms.bed', '.isoforms.fa', '.isoform.counts.txt']
