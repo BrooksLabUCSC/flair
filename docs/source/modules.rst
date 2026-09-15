@@ -304,7 +304,7 @@ flair quantify
 
 .. code:: text
 
-    usage: flair quantify -r reads_manifest.tsv -i isoforms.fa [options]
+    usage: flair quantify --manifest manifest.tsv --genome genome.fa --isoform_bed isoforms.bed [options]
 
 **Output**
 
@@ -326,20 +326,22 @@ Required arguments
 
 .. code:: text
 
-    --isoforms          Fasta of Flair collapsed or combined isoforms
-    --reads_manifest    Tab delimited file containing sample id, condition, batch, 
-                        reads.fq, where reads.fq is the path to the sample fastq file. 
+    --manifest          Tab delimited file containing sample id, condition, batch,
+                        and the path to that sample's reads aligned to the genome
+                        as a sorted, indexed BAM, such as the output of flair align.
+    --genome            FastA of genome
+    --isoform_bed       Isoform .bed file, from flair transcriptome or flair combine
 
 Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
 
-   sample1      condition1      batch1  mydata/sample1.fq
-   sample2      condition1      batch1  mydata/sample2.fq
-   sample3      condition1      batch1  mydata/sample3.fq
-   sample4      condition2      batch1  mydata/sample4.fq
-   sample5      condition2      batch1  mydata/sample5.fq
-   sample6      condition2      batch1  mydata/sample6.fq
+   sample1      condition1      batch1  mydata/sample1.bam
+   sample2      condition1      batch1  mydata/sample2.bam
+   sample3      condition1      batch1  mydata/sample3.bam
+   sample4      condition2      batch1  mydata/sample4.bam
+   sample5      condition2      batch1  mydata/sample5.bam
+   sample6      condition2      batch1  mydata/sample6.bam
 
 Note: Do **not** use underscores in the first three fields, see below for details.
 
@@ -353,25 +355,20 @@ Optional arguments
     --output	        Name base for output files (default: flair.quantify). You 
                         can supply an output directory (e.g. output/flair_quantify).
     --threads	        Number of processors to use (default 4).
-    --temp_dir	        Directory to put temporary files. use ./ to indicate current 
-                        directory (default: python tempfile directory).
     --sample_id_only	Only use sample id in output header instead of a concatenation 
                         of id, condition, and batch.
+    --tpm	        Also write <output>.tpm.tsv, the counts matrix converted to 
+                        transcripts per million.
     --quality	        Minimum MAPQ of read assignment to an isoform (default 0). 
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
     --generate_map	Create read-to-isoform assignment files for each sample.
-    --isoform_bed	isoform .bed file, must be specified if --stringent or 
-                        --check-splice is specified.
-    --stringent	        Supporting reads must cover 80% of their isoform and extend 
-                        at least 25 nt into the first and last exons. If those exons 
-                        are themselves shorter than 25 nt, the requirement becomes 
-                        'must start within 4 nt from the start' or 'end within 4 nt 
-                        from the end'.
-    --check_splice	Enforces coverage of 4 out of 6 bp around each splice site 
-                        and no insertions greater than 3 bp at the splice site.
-    --output_bam	If selected, forces output of each reads file aligned to the 
-                        FLAIR transcriptome. This will be a bam with no secondary alignments
+    --with_gene	        Output lines with isoform_gene rather than isoform alone.
+    --norm_ends	        Normalize transcript ends. Recommended when not using 
+                        --trust_ends and transcript ends are not of interest.
+
+Reads are matched to isoforms with the stringent and splice-site checks always
+on; there are no --stringent, --check_splice or --output_bam options.
 
 Other info
 ----------

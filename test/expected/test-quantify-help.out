@@ -25,7 +25,8 @@ options:
 
 required named arguments:
   --manifest MANIFEST   Tab delimited file containing sample id, condition,
-                        batch, reads.fq
+                        batch, and the path to that sample's reads aligned to
+                        the genome as a sorted, indexed BAM
   --genome GENOME       FastA of genome
   --isoform_bed ISOFORM_BED
                         isoform .bed file

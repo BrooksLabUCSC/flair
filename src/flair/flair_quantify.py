@@ -24,7 +24,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--manifest', action='store', type=str,
-                          required=True, help='Tab delimited file containing sample id, condition, batch, reads.fq')
+                          required=True,
+                          help='Tab delimited file containing sample id, condition, batch, and the path to '
+                               "that sample's reads aligned to the genome as a sorted, indexed BAM")
     required.add_argument('--genome', action='store',
                           type=str, required=True, help='FastA of genome')
     parser.add_argument('-o', '--output', type=str, action='store', default='flair.quantify',
@@ -60,7 +62,6 @@ def parse_args():
     return args
 
 def check_args(args):
-    args = parse_args()
     # if (args.stringent or args.check_splice):
     #     if not args.isoforms:
     #         raise Exception('Please specify isoform models as .bed file using --isoform_bed')
@@ -119,12 +120,10 @@ class GeneData():
 
 def load_isoform_data(isoform_bed):
     gene_data = {}
-    isoform_to_gene = {}
     for bed in BedReader(isoform_bed, bedClass=FlairBed):
         if bed.gene_id not in gene_data:
             gene_data[bed.gene_id] = GeneData(bed.gene_id, bed.chrom, bed.strand)
         gene_data[bed.gene_id].add_isoform_bed(bed)
-        isoform_to_gene[bed.name] = bed.gene_id
     return gene_data
 
 def write_unique_bound(fh, isoform, unique_seq_bound):
@@ -184,8 +183,10 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
     pipettor.run([('samtools', 'view', '-h', bamfile, gene_info.chrom + ':' + str(gene_info.left_bound) + '-' + str(gene_info.right_bound)),
                   ('samtools', 'fasta', '-')],
                  stdout=temp_prefix_sample + '.reads.fasta')
-    bam_file = pysam.AlignmentFile(bamfile, 'rb')
-    generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
+    # with, not a bare open: this runs once per gene per sample, so the descriptors
+    # grew without bound in a worker handling many genes
+    with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
+        generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
     read_map_file = temp_prefix_sample + '.isoform.read.map.txt' if generate_map else None
     mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
     run_count_sam_transcripts(
@@ -257,7 +258,8 @@ def quantify():
 
     write_map_out(sample_data, gene_data, temp_dir, args.output, args.generate_map)
 
-    counts_to_tpm(open(args.output + '.counts.tsv'), args.output + '.tpm.tsv')
+    if args.tpm:
+        counts_to_tpm(open(args.output + '.counts.tsv'), args.output + '.tpm.tsv')
 
     rmtree(temp_dir)
 
