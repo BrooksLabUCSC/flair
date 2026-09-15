@@ -77,7 +77,7 @@ def finish_sort_process(sort_proc):
     rc = sort_proc.wait()
     if rc != 0:
         err = sort_proc.stderr.read()
-        subprocess.CalledProcessError(rc, sort_proc.args, output=None, stderr=err)
+        raise subprocess.CalledProcessError(rc, sort_proc.args, output=None, stderr=err)
 
 def copy_bed_to_sort(bed_file, to_sort_fh):
     with fileOps.opengz(bed_file) as bed_fh:
