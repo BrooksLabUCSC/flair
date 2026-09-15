@@ -340,6 +340,9 @@ def write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoform
                     cds_start_genomic, new_cds_start = identify_cds_pos(isoform)
                     nmd_pos_genomic, new_nmd_pos = identify_nmd_pos(isoform)
                     this_iso_vars, new_seq_complex, new_cds_start, new_nmd_pos = get_iso_seq_with_vars(isoform, allele_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
+                    # a non-coding isoform has no ORF; '' makes it NGO below rather
+                    # than leaving the previous isoform's protein in scope
+                    aaseq, stop_index = '', None
                     if cds_start_genomic is not None:
                         aaseq, stop_index = identify_aaseq_with_vars(new_seq_complex, new_cds_start)
                     aaseq_count = write_out_new_isoform(isoform, allele, genome,
@@ -372,7 +375,9 @@ def load_iso_allele_read_maps(iso_read_map, iso_read_map_norm, allele_read_map, 
 def load_allele_to_vars(allele_vcf):
     allele_to_vars = {}
     for record in vcfpy.Reader.from_path(allele_vcf):
-        varinfo = [record.CHROM, record.POS, record.REF]
+        # record.begin, not record.POS: flair alleles keeps variant positions 0-based
+        # and writes POS as pos + 1, and every use below is 0-based genomic
+        varinfo = [record.CHROM, record.begin, record.REF]
         varinfo += [alt.value for alt in record.ALT]  # there should always only be one alt per line
         for ag in record.INFO["AG"]:
             allele = f'{record.INFO["PS"]}|{ag}'
