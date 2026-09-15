@@ -5,6 +5,7 @@ import csv
 import os
 import scipy.stats as sps
 from flair import FlairInputDataError
+from flair.iso_gene_id import split_iso_gene
 from flair.pycbio.sys import cli
 
 
@@ -23,28 +24,6 @@ def parse_args():
                         help='output filename containing the p-value associated with differential '
                         'isoform usage for each isoform')
     return cli.parseArgsWithLogging(parser)
-
-def split_iso_gene(iso_gene):
-    if '_chr' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_chr')]
-        gene = iso_gene[iso_gene.rfind('_chr') + 1:]
-    elif '_XM' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_XM')]
-        gene = iso_gene[iso_gene.rfind('_XM') + 1:]
-    elif '_XR' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_XR')]
-        gene = iso_gene[iso_gene.rfind('_XR') + 1:]
-    elif '_NM' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_NM')]
-        gene = iso_gene[iso_gene.rfind('_NM') + 1:]
-    elif '_NR' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_NR')]
-        gene = iso_gene[iso_gene.rfind('_NR') + 1:]
-    else:
-        iso = iso_gene[:iso_gene.rfind('_')]
-        gene = iso_gene[iso_gene.rfind('_') + 1:]
-    return iso, gene
-
 
 def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):  # noqa: C901 - FIXME: reduce complexity
     counts_matrix_fh = open(counts_matrix_tsv)

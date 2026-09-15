@@ -107,7 +107,9 @@ def dofiltering(args, inbam):
         else:
             dropped_unmapped_secondary += 1
             logging.debug(f"read dropped: unmapped or secondary: {read.query_name}")
-    logging.info(f'total alignments in bam file (includes unaligned reads): {totalalignments}')
+    # fetch() with no region walks the index, which never yields an unplaced unmapped
+    # read, so this count cannot include them
+    logging.info(f'total alignments in bam file: {totalalignments}')
     logging.info(f'total non-secondary alignments: {mappednotsec}')
     logging.info(f'total primary alignments with quality >= {args.quality}: {primary}')
     logging.info(f'total supplementary alignments with quality >= {args.quality}: {supplementary}')

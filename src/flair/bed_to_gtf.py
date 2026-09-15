@@ -2,6 +2,7 @@
 import argparse
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_write_row
+from flair.iso_gene_id import split_iso_gene
 from flair.pycbio.hgdata.bed import BedReader, Bed
 from flair.flair_bed import FlairBed
 
@@ -19,29 +20,30 @@ def main():
     args = parser.parse_args()
     bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout', useCDS=not args.noCDS, is_flair_bed=args.is_flair_bed)
 
-def split_iso_gene(iso_gene):
-    if '_chr' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_chr')]
-        gene = iso_gene[iso_gene.rfind('_chr') + 1:]
-    elif '_XM' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_XM')]
-        gene = iso_gene[iso_gene.rfind('_XM') + 1:]
-    elif '_XR' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_XR')]
-        gene = iso_gene[iso_gene.rfind('_XR') + 1:]
-    elif '_NM' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_NM')]
-        gene = iso_gene[iso_gene.rfind('_NM') + 1:]
-    elif '_NR' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_NR')]
-        gene = iso_gene[iso_gene.rfind('_NR') + 1:]
-    elif '_R2_' in iso_gene:
-        iso = iso_gene[:iso_gene.rfind('_R2_')]
-        gene = iso_gene[iso_gene.rfind('_R2_') + 1:]
-    else:
-        iso = iso_gene[:iso_gene.rfind('_')]
-        gene = iso_gene[iso_gene.rfind('_') + 1:]
-    return iso, gene
+def _add_record(records, record):
+    """Record a feature, dropping an empty range.  A CDS or UTR piece is empty when the
+    thick boundary sits exactly on an exon edge, and gtf_write_row writes start + 1, so
+    an empty feature came out as start > end, which is not a GTF record and which
+    flair's own parser rejects on re-read."""
+    if record[2] < record[3]:
+        records.append(record)
+
+
+def _write_gene_records(outfile, gene_id, records):
+    """The gene line and its features, one gene line per chrom and strand the gene id
+    appears on.  A fusion gene has blocks on two chroms, and taking the first chrom
+    with the min and max over all of them gave one line spanning both."""
+    by_place = {}
+    for record in records:
+        by_place.setdefault((record[1], record[4]), []).append(record)
+    for (chrom, strand), place_records in by_place.items():
+        gtf_write_row(outfile, chrom, 'FLAIR', 'gene',
+                      min(r[2] for r in place_records), max(r[3] for r in place_records),
+                      None, strand, None, gene_id=gene_id)
+        for feature, rec_chrom, start, end, rec_strand, attrs in place_records:
+            gtf_write_row(outfile, rec_chrom, 'FLAIR', feature, start, end, None, rec_strand, None,
+                          attrs=attrs)
+
 
 def _make_attrs(gene_id, transcript_id, bed, is_flair_bed, exon_number=None):
     """Build attrs dict for GTF output."""
@@ -82,50 +84,43 @@ def bed_to_gtf(query, outputfile, force=False, useCDS=True, is_flair_bed=False):
             gene_to_chrom_strand[gene_id] = (bed.chrom, bed.strand)
 
         attrs = _make_attrs(gene_id, transcript_id, bed, is_flair_bed)
-        gene_to_records[gene_id].append(('transcript', bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, attrs))
+        _add_record(gene_to_records[gene_id], ('transcript', bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, attrs))
 
         for b, blk in enumerate(bed.blocks):
             exon_attrs = _make_attrs(gene_id, transcript_id, bed, is_flair_bed, exon_number=b)
-            gene_to_records[gene_id].append(('exon', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+            _add_record(gene_to_records[gene_id], ('exon', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
             if bed.thickStart != bed.thickEnd and (bed.thickStart != bed.chromStart or bed.thickEnd != bed.chromEnd) and useCDS:
                 if bed.thickStart < blk.start and blk.end < bed.thickEnd:  # in CDS
-                    gene_to_records[gene_id].append(('CDS', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+                    _add_record(gene_to_records[gene_id], ('CDS', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                 elif blk.end < bed.thickStart:  # fully left of CDS
                     if bed.strand == '+':
-                        gene_to_records[gene_id].append(('5UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('5UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
-                        gene_to_records[gene_id].append(('3UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('3UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                 elif blk.start > bed.thickEnd:  # fully right of CDS
                     if bed.strand == '+':
-                        gene_to_records[gene_id].append(('3UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('3UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
-                        gene_to_records[gene_id].append(('5UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('5UTR', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                 elif blk.start <= bed.thickStart <= blk.end:  # left end of CDS in exon
                     if bed.strand == '+':
-                        gene_to_records[gene_id].append(('5UTR', bed.chrom, blk.start, bed.thickStart, bed.strand, exon_attrs))
-                        gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickStart, bed.thickStart + 3, bed.strand, attrs))
-                        gene_to_records[gene_id].append(('CDS', bed.chrom, bed.thickStart, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('5UTR', bed.chrom, blk.start, bed.thickStart, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('start_codon', bed.chrom, bed.thickStart, min(bed.thickStart + 3, blk.end), bed.strand, attrs))
+                        _add_record(gene_to_records[gene_id], ('CDS', bed.chrom, bed.thickStart, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
-                        gene_to_records[gene_id].append(('3UTR', bed.chrom, blk.start, bed.thickStart, bed.strand, exon_attrs))
-                        gene_to_records[gene_id].append(('CDS', bed.chrom, bed.thickStart, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('3UTR', bed.chrom, blk.start, bed.thickStart, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('CDS', bed.chrom, bed.thickStart, blk.end, bed.strand, exon_attrs))
                 elif blk.start <= bed.thickEnd <= blk.end:  # right end of CDS in exon
                     if bed.strand == '+':
-                        gene_to_records[gene_id].append(('CDS', bed.chrom, blk.start, bed.thickEnd, bed.strand, exon_attrs))
-                        gene_to_records[gene_id].append(('3UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('CDS', bed.chrom, blk.start, bed.thickEnd, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('3UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
                     elif bed.strand == '-':
-                        gene_to_records[gene_id].append(('CDS', bed.chrom, blk.start, bed.thickEnd, bed.strand, exon_attrs))
-                        gene_to_records[gene_id].append(('start_codon', bed.chrom, bed.thickEnd - 3, bed.thickEnd, bed.strand, attrs))
-                        gene_to_records[gene_id].append(('5UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('CDS', bed.chrom, blk.start, bed.thickEnd, bed.strand, exon_attrs))
+                        _add_record(gene_to_records[gene_id], ('start_codon', bed.chrom, max(bed.thickEnd - 3, blk.start), bed.thickEnd, bed.strand, attrs))
+                        _add_record(gene_to_records[gene_id], ('5UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
 
     for gene_id, records in gene_to_records.items():
-        chrom, strand = gene_to_chrom_strand[gene_id]
-        gene_start = min(r[2] for r in records)
-        gene_end = max(r[3] for r in records)
-        gtf_write_row(outfile, chrom, 'FLAIR', 'gene', gene_start, gene_end, None, strand, None,
-                      gene_id=gene_id)
-        for feature, chrom, start, end, strand, attrs in records:
-            gtf_write_row(outfile, chrom, 'FLAIR', feature, start, end, None, strand, None,
-                          attrs=attrs)
+        _write_gene_records(outfile, gene_id, records)
     outfile.close()
 
 

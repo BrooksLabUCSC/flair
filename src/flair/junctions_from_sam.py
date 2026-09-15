@@ -92,9 +92,10 @@ class JcnInfo:
 
         self.name = name
 
+        # the reference name as the alignment gives it.  This used to prepend 'chr'
+        # to anything without it, which on an Ensembl or NCBI assembly invents names
+        # that match nothing in the genome the reads were aligned to
         self.chr = chr
-        if not chr.startswith("chr"):
-            self.chr = "chr" + chr
 
         self.leftmost_start = chromStart
         self.rightmost_end = chromEnd
@@ -120,9 +121,6 @@ class JcnInfo:
 
     def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):  # noqa: C901 - FIXME: reduce complexity
         # Check that name, chromosome, strand are the same
-        if not chr.startswith("chr"):
-            chr = "chr" + chr
-
         if self.name != name:
             raise FlairInputDataError(f"Not the same name of the junctions: {self.name}, {name}")
         if self.chr != chr:
@@ -342,9 +340,6 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             if chr == "*":
                 continue
 
-            if not chr.startswith("chr"):
-                chr = "chr" + chr
-
             chr_start = int(sam_elems[3])
 
             cigar = sam_elems[5]
@@ -559,16 +554,18 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr,
                                              jcn2JcnInfo[jcn_str].intron_start,
                                              jcn2JcnInfo[jcn_str].intron_end))
-            intron_left = jcn_str[jcn_str.find(':') + 1:jcn_str.find('-')]
-            intron_right = jcn_str[jcn_str.find('-') + 1:]
             if jcn2JcnInfo[jcn_str].strand in {'+', '-'}:
                 strandFlag = True
                 jcn_strand = jcn2JcnInfo[jcn_str].strand
             else:
                 jcn_strand = '.'
             num_blocks = min(1000, len(jcn2JcnInfo[jcn_str].block_list))
-            # intron_left and intron_right are the 1-based inclusive intron bounds
-            bed = Bed(jcn2JcnInfo[jcn_str].chr, int(intron_left) - 1, int(intron_right),
+            # intron_start and intron_end off the record, not re-parsed out of the key:
+            # the key may carry a Y0 tag before a '|', and a contig name containing '-'
+            # broke the find('-'), so the parse could pick the wrong numbers.  They are
+            # the 1-based inclusive intron bounds
+            bed = Bed(jcn2JcnInfo[jcn_str].chr,
+                      jcn2JcnInfo[jcn_str].intron_start - 1, jcn2JcnInfo[jcn_str].intron_end,
                       name='.', score=num_blocks, strand=jcn_strand)
             bed.write(junction_bed_file)
 
@@ -701,9 +698,6 @@ def getForcedJunctions(forced_junction_file):
         # Slicing list in case strand is included in the file
         if len(lineList) < 3:
             raise FlairInputDataError("Problem with forced junction file. Needs to be tab-delimited: chr start end")
-
-        if not lineList[0].startswith("chr"):
-            lineList[0] = "chr" + lineList[0]
 
         forced_junctions.add("_".join(lineList[0:3]))
 

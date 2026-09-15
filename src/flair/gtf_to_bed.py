@@ -44,10 +44,15 @@ def get_iso_info(gtf):
     iso_to_info = {}
     for rec in gtf_record_parser(gtf, include_features={'exon', 'CDS'}, attrs=GtfAttrsSet.ALL):
         if rec.feature == 'CDS':
+            # both ends: GTF need not be coordinate sorted and the parser does not
+            # sort CDS records, so taking the start from the first record seen put
+            # thickStart inside the CDS whenever the lines were out of order
             if rec.transcript_id not in iso_to_cds:
                 iso_to_cds[rec.transcript_id] = [rec.start, rec.end]
-            elif rec.end > iso_to_cds[rec.transcript_id][1]:
-                iso_to_cds[rec.transcript_id][1] = rec.end
+            else:
+                cds = iso_to_cds[rec.transcript_id]
+                cds[0] = min(cds[0], rec.start)
+                cds[1] = max(cds[1], rec.end)
         elif rec.feature == 'exon':
             if rec.transcript_id not in iso_to_exons:
                 iso_to_exons[rec.transcript_id] = []
