@@ -6,6 +6,13 @@ from flair import FlairInputDataError
 
 # FIXME: use argparse
 
+def _write_seq_length(writer, length_frequencies, name, seqlen):
+    "one sequence's length row, and its contribution to the histogram"
+    if name is not None:
+        writer.writerow([name, seqlen])
+        length_frequencies[seqlen] = length_frequencies.get(seqlen, 0) + 1
+
+
 def main():
     try:
         fasta = open(sys.argv[1])
@@ -25,16 +32,14 @@ def main():
         for line in fasta:
             line = line.rstrip()
             if line.startswith('>'):
-                if seqlen:
-                    writer.writerow([name, seqlen])
-                    if seqlen not in length_frequencies:
-                        length_frequencies[seqlen] = 0
-                    length_frequencies[seqlen] += 1
+                _write_seq_length(writer, length_frequencies, name, seqlen)
                 name = line[1:]
                 seqlen = 0
-                continue
-            seqlen += len(line.rstrip())
-        writer.writerow([name, seqlen])
+            else:
+                seqlen += len(line)
+        # the last sequence: it used to be written without being counted, and an
+        # empty file wrote a row of None 0
+        _write_seq_length(writer, length_frequencies, name, seqlen)
 
     if outfilename2:
         alllengths = sorted(length_frequencies.keys())

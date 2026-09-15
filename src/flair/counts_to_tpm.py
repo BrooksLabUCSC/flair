@@ -42,6 +42,10 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None):
         matrix_data += [[isoform_id] + rpk]
 
     all_rpk = [rpk / 1e6 for rpk in all_rpk]
+    empty = [n for n, rpk in enumerate(all_rpk) if rpk == 0]
+    if len(empty) > 0:
+        raise FlairInputDataError(f"{outfilename}: samples in columns {empty} have no counts in any row, "
+                                  "so TPM cannot be computed; drop them from the counts matrix")
 
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)

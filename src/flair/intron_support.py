@@ -83,7 +83,9 @@ class IntronSupport:
 
     def entries(self, chrom=None):
         "generator for (chrom, start, end, intron), optionally on a chrom (introns have two entries)"
-        chroms = [chrom] if chrom is not None else self.chroms()
+        # self.chroms is a set attribute, so calling it raised TypeError and every
+        # caller of the whole-index path, dump() included, was unusable
+        chroms = [chrom] if chrom is not None else sorted(self.chroms)
         for chrom in chroms:
             if chrom in self.chroms:
                 for interval, intron in self.coords_maps[chrom].items():

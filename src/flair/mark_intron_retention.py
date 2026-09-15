@@ -6,8 +6,10 @@ from flair import FlairInputDataError
 from flair.pycbio.hgdata.bed import BedReader
 
 def overlap(coords0, coords1):
-    return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
-        coords1[1] >= coords0[0] and coords1[1] <= coords0[1]
+    """Do two closed ranges share any position.  The old test asked only whether an
+    end of coords1 fell inside coords0, so a coords1 containing coords0 came back
+    False, which is the very shape an intron retention pair has."""
+    return (coords1[0] <= coords0[1]) and (coords0[0] <= coords1[1])
 
 
 # FIXME: use argparse
