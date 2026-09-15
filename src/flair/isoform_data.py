@@ -1,6 +1,8 @@
 """Read/exon structures and junction utilities, shared across FLAIR modules."""
 
+from bisect import bisect_right
 from collections import namedtuple
+from operator import attrgetter
 from flair import PosRange
 from flair.pycbio.hgdata.bed import Bed
 from flair.flair_bed import FlairBed, get_strand_rgb
@@ -120,33 +122,27 @@ def get_reverse_complement(seq):
 
 
 def get_sequence_for_exons(genome, chrom, strand, exons):
+    """Transcript sequence, upper case on both strands.  The FASTA is soft-masked, so
+    leaving the case alone made a sequence's case depend on its strand, and every
+    comparison of these sequences is case sensitive."""
     trans_seq = ''.join([genome.fetch(chrom, e.start, e.end)
-                         for e in exons])
-    # FIXME: this upper cases only if reverse strand
+                         for e in exons]).upper()
     if strand == '-':
         trans_seq = get_reverse_complement(trans_seq)
     return trans_seq
 
 
-def binary_search(query, data):
-    """ Query is a coordinate interval. Binary search for the query in sorted data,
-        which is a list of coordinates. Finishes when an overlapping value of query and
-        data exists and returns the index in data. """
-    # FIXME: uses python bisect module
-    i = int(round(len(data) / 2))  # binary search prep
-    lower, upper = 0, len(data)
-    while True:
-        if upper - lower < 2:  # stop condition but not necessarily found
-            break
-        if data[i].end < query.start:
-            lower = i
-            i = int(round((i + upper) / 2))
-        elif data[i].start > query.end:
-            upper = i
-            i = int(round((lower + i) / 2))
-        else:  # found
-            break
-    return i
+def binary_search(query, data, start_of=attrgetter('start'), end_of=attrgetter('end')):
+    """Index in data, a list of coordinate intervals sorted by start, of the best
+    candidate to overlap query: the last interval starting at or before the query end.
+    An earlier long interval can also overlap, so callers scan a window around the
+    index rather than trusting it alone.  The index is always in range.
+
+    start_of and end_of read a coordinate; pass itemgetter for plain tuples."""
+    if len(data) == 0:
+        return 0
+    index = bisect_right(data, end_of(query), key=start_of) - 1
+    return min(max(index, 0), len(data) - 1)
 
 
 def make_big_bed(genome, chrom_sizes_file_name, output_prefix):
@@ -241,6 +237,13 @@ class ReadRec:
     @classmethod
     def _intern_juncs(cls, juncs):
         return cls._juncs_cache.setdefault(juncs, juncs)
+
+    @classmethod
+    def clear_juncs_cache(cls):
+        """Drop the interned junction chains.  Nothing else releases them, and a tuple
+        cannot be weakly referenced, so the caller has to say when a set of chains is
+        finished with; chains are only shared within a region anyway."""
+        cls._juncs_cache.clear()
 
     def __init__(self, chrom, strand, juncs, start, end, name, *, score=None, polyA=None, intprim=None):
         self.chrom = chrom
@@ -359,6 +362,13 @@ class Isoform:
     def _intern_juncs(cls, juncs):
         return cls._juncs_cache.setdefault(juncs, juncs)
 
+    @classmethod
+    def clear_juncs_cache(cls):
+        """Drop the interned junction chains.  Nothing else releases them, and a tuple
+        cannot be weakly referenced, so the caller has to say when a set of chains is
+        finished with; chains are only shared within a region anyway."""
+        cls._juncs_cache.clear()
+
     def __init__(self, chrom, strand, juncs, start=None, end=None, reads=None, gene=None, gene_id=None, ref_transcript_id=None):
         self.chrom = chrom
         self.strand = strand
@@ -376,15 +386,15 @@ class Isoform:
 
     @property
     def name(self):
+        """An assigned name, otherwise a hash of the junctions before the ends are
+        known and of the exons once they are."""
         # FIXME: ideally would add chromosome and strand to this hash
-        # FIXME: start none might not be the best trigger.
-        # if self._name is None:
-        if self.start is None:
+        if self._name is not None:
+            return self._name
+        elif self.start is None:
             return str(abs(hash(tuple(self.juncs))))
         else:
             return str(abs(hash(tuple(self.exons))))
-        # else:
-        #     return self._name
 
     @name.setter
     def name(self, new_name):
@@ -442,7 +452,7 @@ class Isoform:
         return cls(readrec.chrom, readrec.strand, readrec.juncs)
 
     @classmethod
-    def regroup(cls, iso, newstart=None, newend=None, newreads=[], newstrand=None):
+    def regroup(cls, iso, newstart=None, newend=None, newreads=None, newstrand=None):
         """Create a new Isoform by regrouping reads from an existing one."""
         if newstrand is None:
             newstrand = iso.strand

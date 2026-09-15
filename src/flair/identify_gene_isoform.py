@@ -2,9 +2,13 @@
 import csv
 import os
 import argparse
-
+from operator import itemgetter
 from flair.gtf_to_bed import get_iso_info
+from flair.isoform_data import binary_search
 from flair.pycbio.hgdata.bed import BedReader
+
+# annotated single-exon genes scanned either side of the search index
+SE_SEARCH_WINDOW = 2
 
 def main():
     parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
@@ -50,26 +54,6 @@ def get_junctions_bed12(bed):
     for b in range(len(bed.blocks) - 1):  # block
         junctions.add((bed.blocks[b].end, bed.blocks[b + 1].start))
     return junctions
-
-
-def bin_search(query, data):
-    """ Query is a coordinate interval. Binary search for the query in sorted data,
-    which is a list of coordinates. Finishes when an overlapping value of query and
-    data exists and returns the index in data. """
-    i = int(round(len(data) / 2))  # binary search prep
-    lower, upper = 0, len(data)
-    while True:
-        if upper - lower < 2:  # stop condition but not necessarily found
-            break
-        if data[i][1] < query[0]:
-            lower = i
-            i = int(round((i + upper) / 2))
-        elif data[i][0] > query[1]:
-            upper = i
-            i = int(round((lower + i) / 2))
-        else:  # found
-            break
-    return i
 
 
 def overlapping_bases(coords0, coords1):
@@ -163,8 +147,9 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
             se_gene_tiebreaker = {}
             if not junctions:
                 exon = (start, end)
-                i = bin_search(exon, all_se[chrom])
-                for e in all_se[chrom][i - 2:i + 2]:
+                i = binary_search(exon, all_se[chrom], start_of=itemgetter(0), end_of=itemgetter(1))
+                # max(0, ...): a negative slice start reads from the end of the list
+                for e in all_se[chrom][max(0, i - SE_SEARCH_WINDOW):i + SE_SEARCH_WINDOW]:
                     overlap = overlapping_bases(exon, e)
                     if overlap:
                         proportion = float(overlap) / (exon[1] - exon[0])  # base coverage of long-read isoform by the annotated isoform

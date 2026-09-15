@@ -14,7 +14,7 @@ from flair.junction_correct import junction_corrector_factory
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
-from flair.isoform_data import (Exon, Gene, Isoform, exons_to_juncs, get_bed_exons_from_exons,
+from flair.isoform_data import (Exon, Gene, Isoform, ReadRec, exons_to_juncs, get_bed_exons_from_exons,
                                 get_sequence_for_exons, binary_search, convert_to_bed12, convert_to_flair_bed, make_big_bed)
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
@@ -908,7 +908,9 @@ def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
     exon = iso_readrec.exons[0]
     index = binary_search(exon, annots.all_annot_SE[strand])
     # FIXME: how does this ever work? all_annot_SE is [(start, end, strand, gene_id), ...]
-    for annot_exon_info in annots.all_annot_SE[strand][index - ANNOT_SE_SEARCH_WINDOW:index + ANNOT_SE_SEARCH_WINDOW]:
+    # max(0, ...): a negative slice start would be read as an offset from the end of
+    # the list, which for a long list gives an empty window
+    for annot_exon_info in annots.all_annot_SE[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
         # FIXME: make overlap a function
         overlap = min(exon.end, annot_exon_info.end) - max(exon.start, annot_exon_info.start)
         if overlap > 0:
@@ -1200,6 +1202,10 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
 
 def _run_region(*, partition, gtf_data, junction_corrector, args):
     region = partition.region
+    # junction chains are interned in class-level caches; with one thread every region
+    # runs in this process, so they have to be dropped between regions
+    ReadRec.clear_juncs_cache()
+    Isoform.clear_juncs_cache()
 
     # first extract reads for region as fasta
     pipettor.run([('samtools', 'view', '-h', args.genome_aligned_bam, region.name + ':' + str(region.start) + '-' + str(region.end)),

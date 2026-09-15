@@ -2,8 +2,13 @@
 import sys
 import csv
 import os
+from operator import itemgetter
 from flair import FlairInputDataError
+from flair.isoform_data import binary_search
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+
+# annotated single-exon genes scanned either side of the search index
+SE_SEARCH_WINDOW = 2
 
 def get_junctions(line):
     junctions = set()
@@ -14,26 +19,6 @@ def get_junctions(line):
     for b in range(len(starts) - 1):  # block
         junctions.add((starts[b] + sizes[b], starts[b + 1]))
     return junctions
-
-
-def bin_search(query, data):
-    """ Query is a coordinate interval. Binary search for the query in sorted data,
-    which is a list of coordinates. Finishes when an overlapping value of query and
-    data exists and returns the index in data. """
-    i = int(round(len(data) / 2))  # binary search prep
-    lower, upper = 0, len(data)
-    while True:
-        if upper - lower < 2:  # stop condition but not necessarily found
-            break
-        if data[i][1] < query[0]:
-            lower = i
-            i = int(round((i + upper) / 2))
-        elif data[i][0] > query[1]:
-            upper = i
-            i = int(round((lower + i) / 2))
-        else:  # found
-            break
-    return i
 
 
 def contained(coords0, coords1, tol=0):
@@ -131,8 +116,9 @@ def main():  # noqa C901
             gene_hits = {}
             if not junctions:
                 exon = (int(line[15]), int(line[16]))
-                i = bin_search(exon, all_se[chrom])
-                for e in all_se[chrom][i - 2:i + 2]:
+                i = binary_search(exon, all_se[chrom], start_of=itemgetter(0), end_of=itemgetter(1))
+                # max(0, ...): a negative slice start reads from the end of the list
+                for e in all_se[chrom][max(0, i - SE_SEARCH_WINDOW):i + SE_SEARCH_WINDOW]:
                     overlap = contained(exon, e, 20)
                     if overlap:
                         gene_hits[e[2]] = float(overlap) / (exon[1] - exon[0])  # gene name, % overlap
