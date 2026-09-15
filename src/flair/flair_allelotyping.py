@@ -321,6 +321,26 @@ def process_alleotype_graph(readvarinfo_to_reads, read_support, frac_support, ge
     return identify_final_allele_groups(graph, readvarinfo_to_reads)
 
 
+def format_allele_group(index):
+    """Allele-group label for a zero-based index: A through Z, then AA, AB and so on.
+    A locus with more than 26 allele groups is rare but legal, and indexing
+    string.ascii_uppercase directly ended the run with IndexError."""
+    label = ''
+    index += 1
+    while index > 0:
+        index, rem = divmod(index - 1, 26)
+        label = string.ascii_uppercase[rem] + label
+    return label
+
+
+def parse_allele_group(label):
+    "zero-based index of an allele-group label, the inverse of format_allele_group"
+    index = 0
+    for ch in label:
+        index = (index * 26) + string.ascii_uppercase.index(ch) + 1
+    return index - 1
+
+
 def label_bam_file(bamname, output_name, read_to_allele_group):
     with pysam.AlignmentFile(bamname, 'rb') as bam:
         with pysam.AlignmentFile(output_name, 'wb', template=bam) as out:
@@ -334,7 +354,7 @@ def label_bam_file(bamname, output_name, read_to_allele_group):
                         ps_ag = list(read_to_allele_group[a.query_name])[0]
                         a.set_tag('PS', ps_ag[0])
                         a.set_tag('AG', ps_ag[1])
-                        a.set_tag('HP', ord(ps_ag[1]) - 65)
+                        a.set_tag('HP', parse_allele_group(ps_ag[1]))
 
                     else:
                         c += 1
@@ -432,7 +452,7 @@ def split_if_all_alleles_dont_connect_ps(ps_graph, ps_ag_graph, edge_to_reads, p
                         check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, nextnode, thisnode, moved_edge_nodes)
 
 def combine_allele_groups_between_ps(ps_count, ag_count, ps_ag_set, all_reads_in_ps_ag, old_to_new, new_phaseset_to_allele_groups, new_index_to_allele_group_info, new_file_to_read_to_allele_group):
-    new_ag = string.ascii_uppercase[ag_count]
+    new_ag = format_allele_group(ag_count)
     # print(ps_count, new_ag, ps_ag_set)
     for ps_ag in ps_ag_set:
         old_to_new[ps_ag] = (ps_count, new_ag)
@@ -500,7 +520,7 @@ def get_gt(tot_var, tot_cov, my_ag, ag_count):
     else:
         allele_statuses = [0] * len(ag_count)
         for allele in my_ag:
-            allele_statuses[ord(allele) - 65] = 1
+            allele_statuses[parse_allele_group(allele)] = 1
         gt = '|'.join([str(x) for x in allele_statuses])
     return gt
 
@@ -544,16 +564,20 @@ def write_vcf_file(output, new_header, variant_to_allele_group_counts_info, norm
                     allele_group_to_final_vars[allele_group].add((chrom, int(pos), ref, alt))
     return allele_group_to_final_vars
 
-def write_allele_group_counts_read_map(index_to_allele_group_info, output, generate_map, norm_bam):
+def write_allele_group_counts_read_map(index_to_allele_group_info, output, generate_map, norm_bam, read_support):
+    """Read counts per allele group.  With --norm_bam, a group supported by fewer than
+    read_support normal reads is called somatic; this is the only place that call is
+    reported."""
     with open(output + '.allelegroups.counts.tsv', 'w') as fh:
         outline = ['#phase_set', 'allele_group', 'tumor_counts']
         if norm_bam is not None:
-            outline.append('normal_counts')
+            outline.extend(['normal_counts', 'somatic'])
         fh.write('\t'.join(outline) + '\n')
         for (ps, ag), group_info in index_to_allele_group_info.items():
             ol = [str(ps), ag, str(len(group_info['t']))]
             if norm_bam is not None:
-                ol.append(str(len(group_info['n'])))
+                normal_counts = len(group_info['n'])
+                ol.extend([str(normal_counts), 'yes' if normal_counts < read_support else 'no'])
             fh.write('\t'.join(ol) + '\n')
     if generate_map:
         with open(output + '.allelegroups.tumor.read.map.txt', 'w') as fh:
@@ -564,16 +588,11 @@ def write_allele_group_counts_read_map(index_to_allele_group_info, output, gener
                 for (ps, ag), group_info in index_to_allele_group_info.items():
                     fh.write(f'{ps}|{ag}\t{",".join(sorted(group_info["n"]))}\n')
 
-def make_allele_group_label(phaseset, group, allele_group_count, allele_group_to_reads, norm_bam, read_support):
-    tot_reads_for_file = {'t': 0, 'n': 0}
-    for file_label, read in allele_group_to_reads[group]:
-        tot_reads_for_file[file_label] += 1
-    allele_group_label = (phaseset, string.ascii_uppercase[allele_group_count])
-    # identify if is somatic
-    if norm_bam is not None and tot_reads_for_file['n'] < read_support:
-        allele_group_label = (allele_group_label[0], allele_group_label[1] + '-S')
-    allele_group_count += 1
-    return allele_group_count, allele_group_label
+def make_allele_group_label(phaseset, allele_group_count):
+    """Label of the next allele group in a phase set.  combine_phase_sets relabels
+    every group afterwards, so nothing may be encoded here that the outputs need;
+    the somatic call is made in write_allele_group_counts_read_map instead."""
+    return allele_group_count + 1, (phaseset, format_allele_group(allele_group_count))
 
 def get_phase_sets(allele_group_to_reads, var_info, phaseset_count):
     pos_ranges = []
@@ -599,14 +618,14 @@ def get_phase_sets(allele_group_to_reads, var_info, phaseset_count):
         phaseset_count += 1
     return phaseset_to_groups, phaseset_count
 
-def get_allele_group_info(allele_group_to_reads, phaseset_count, var_info, gene_id, gene_chrom, index_to_allele_group_info, file_to_read_to_allele_group, variant_to_allele_group_counts_info, phaseset_to_allele_groups, norm_bam, read_support):
+def get_allele_group_info(allele_group_to_reads, phaseset_count, var_info, gene_id, gene_chrom, index_to_allele_group_info, file_to_read_to_allele_group, variant_to_allele_group_counts_info, phaseset_to_allele_groups):
     phaseset_to_groups, phaseset_count = get_phase_sets(allele_group_to_reads, var_info, phaseset_count)
     for ps in phaseset_to_groups:
         allele_group_count = 0
         phaseset_to_allele_groups[ps] = set()
         # print(', '.join(var_info))
         for group in phaseset_to_groups[ps]:
-            allele_group_count, allele_group_label = make_allele_group_label(ps, group, allele_group_count, allele_group_to_reads, norm_bam, read_support)
+            allele_group_count, allele_group_label = make_allele_group_label(ps, allele_group_count)
             # print(allele_group_label, group)
             phaseset_to_allele_groups[ps].add(allele_group_label[1])
             index_to_allele_group_info[allele_group_label] = {'chrom': gene_chrom, 'vars': var_info, 'has_vars': group, 't': set(), 'n': set()}
@@ -771,7 +790,7 @@ def getvariants():
             # don't report if there's only one final group
             # if len(allele_group_to_reads) > 1: allele_group_to_reads, phaseset_count, var_info, gene_id
             phaseset_count = get_allele_group_info(allele_group_to_reads, phaseset_count, var_info, gene_id, gene_chrom, index_to_allele_group_info,
-                                                   file_to_read_to_allele_group, variant_to_allele_group_counts_info, phaseset_to_allele_groups, args.norm_bam, args.read_support)
+                                                   file_to_read_to_allele_group, variant_to_allele_group_counts_info, phaseset_to_allele_groups)
 
             # getting variant coverage from original assignments, not collapsed ones
             get_variant_final_coverage(readvarinfo_to_reads, var_info, gene_chrom, variant_to_allele_group_counts_info)
@@ -783,7 +802,7 @@ def getvariants():
     new_header = generate_new_vcf_header(args.vcf, args.norm_bam)
     write_vcf_file(args.output, new_header, variant_to_allele_group_counts_info, args.norm_bam, phaseset_to_allele_groups)
 
-    write_allele_group_counts_read_map(index_to_allele_group_info, args.output, args.generate_map, args.norm_bam)
+    write_allele_group_counts_read_map(index_to_allele_group_info, args.output, args.generate_map, args.norm_bam, args.read_support)
 
     if args.annotate_bams:
         print('labeling bam files')
