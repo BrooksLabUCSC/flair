@@ -39,7 +39,7 @@ rundrimseq <- function(outdir, group1, group2, matrix, prefix, formula, threads)
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
   # create output working directory if it doesn't exist
-  data_folder <- file.path(getwd(), outdir)
+  data_folder <- normalizePath(outdir, mustWork = FALSE)
   workdir <- file.path(data_folder, 'workdir')
   if (!dir.exists(workdir)) {
     dir.create(workdir, recursive=TRUE)

@@ -43,7 +43,7 @@ run_deseq_analysis <- function(args) {
   colData <- read.table(formulaFile, header = TRUE, sep = "\t", row.names = 1)
   
   design <- if ("batch" %in% colnames(colData)) {
-    ~ condition + condition
+    ~ condition + batch
   } else {
     ~ condition
   }
