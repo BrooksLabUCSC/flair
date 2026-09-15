@@ -16,7 +16,7 @@ def main():
     parser.add_argument('outfilename', type=str,
                         action='store', help='Name of output file')
     parser.add_argument('--proportion', action='store', default=0.8, dest='proportion_annotated_covered',
-                        type=float, help='''proportion should be a decimal < 1 specifying the % of an annotated single-exon
+                        type=float, help='''proportion should be a decimal < 1 specifying the %% of an annotated single-exon
                         gene a FLAIR isoform has to cover (default=0.8)''')
     parser.add_argument('--annotation_reliant', action='store_true', dest='annotation_reliant',
                         help='name all isoforms with -* starting with -0')
@@ -48,7 +48,7 @@ def get_junctions_bed12(bed):
     if len(bed.blocks) == 1:
         return
     for b in range(len(bed.blocks) - 1):  # block
-        junctions.add((bed.blocks[b].end, bed.blocks[b + 1].start + 1))
+        junctions.add((bed.blocks[b].end, bed.blocks[b + 1].start))
     return junctions
 
 
@@ -118,7 +118,9 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
     gene_unique_juncs = {}  # matches a gene to its set of unique splice junctions
 
     if gtf:
-        iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf, adjustpos=False)
+        # gtf_io converts GTF starts to 0-based, which is what the BED query
+        # coordinates below are compared against
+        iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf)
 
         for transcript in iso_to_info:
             chrom, strand, gene = iso_to_info[transcript]
