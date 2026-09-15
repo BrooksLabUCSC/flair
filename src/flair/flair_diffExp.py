@@ -120,7 +120,26 @@ def get_gene_to_counts(filename):
     return genetototcounts
 
 
-def do_mtc_ttest(filename, genetototcounts):
+def group_column_indexes(filename):
+    """Column indexes of the two sample groups, read from the counts header rather
+    than assumed.  Headers are sample_group_batch, as diffexp requires elsewhere;
+    the group of the first column is the reference."""
+    with open(filename) as fh:
+        header = fh.readline().rstrip().split('\t')[1:]
+    try:
+        groups = [col.split('_')[1] for col in header]
+    except IndexError as ex:
+        raise FlairInputDataError(
+            f"{filename}: column headers must be sample_group_batch, found: {header}") from ex
+    names = list(dict.fromkeys(groups))
+    if len(names) != 2:
+        raise FlairInputDataError(
+            f"{filename}: expected two sample groups in the header, found {len(names)}: {names}")
+    return ([i for i, g in enumerate(groups) if g == names[0]],
+            [i for i, g in enumerate(groups) if g == names[1]])
+
+
+def do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols):
     allids, allpval, alldeltas = [], [], []
     for line in open(filename):
         line = line.rstrip().split('\t')
@@ -128,13 +147,15 @@ def do_mtc_ttest(filename, genetototcounts):
             id = line[0]
             gene = id.split('_')[-1]
 
-            # First three columns after ID = WT counts; rest = VAR counts
-            wtcounts = [int(x) for x in line[1:4]]
-            varcounts = [int(x) for x in line[4:]]
+            counts = [int(x) for x in line[1:]]
+            wtcounts = [counts[i] for i in ref_cols]
+            varcounts = [counts[i] for i in test_cols]
 
             # Compute median difference between variant and WT
             deltaval = median(varcounts) - median(wtcounts)
-            wttot, vartot = mean(genetototcounts[gene][:3]), mean(genetototcounts[gene][3:])
+            genetot = genetototcounts[gene]
+            wttot = mean([genetot[i] for i in ref_cols])
+            vartot = mean([genetot[i] for i in test_cols])
 
             # Compute normalized usage difference, ignore if totals are zero
             deltausage = (mean(varcounts) / vartot if vartot > 0 else 0) - (mean(wtcounts) / wttot if wttot > 0 else 0)
@@ -166,7 +187,8 @@ def get_sig_from_norm_by_gene(outname, filename):
     """
 
     genetototcounts = get_gene_to_counts(filename)
-    allids, alldeltas, corrpval = do_mtc_ttest(filename, genetototcounts)
+    ref_cols, test_cols = group_column_indexes(filename)
+    allids, alldeltas, corrpval = do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols)
 
     out = open(outname, 'w')
     for i in range(len(allids)):
