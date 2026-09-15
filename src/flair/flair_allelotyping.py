@@ -13,6 +13,12 @@ import vcfpy
 import networkx as nx
 from collections import OrderedDict
 import string
+from flair import FlairError
+
+# a read mismatch is credited to a known variant this many bases either side, to
+# tolerate a miscalled or misaligned position.  The comment here used to say 1 while
+# the code did 2; 2 is what has been running, so 2 is what is kept
+SNV_WIGGLE = 2
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -60,23 +66,37 @@ def parse_args():
 #         vizgraph.edge(og_node_to_index[edge[0]], og_node_to_index[edge[1]])
 #     vizgraph.render('test-062326.gv')
 
+def _vcf_variant_passed(filter_col):
+    """A record to use: PASS, or '.' for a caller that applied no filters, which is
+    what most reference and hand-made VCFs carry."""
+    return filter_col in ('PASS', '.')
+
+
+def _vcf_genotype(fields):
+    "genotype of the first sample, None for a sites-only VCF"
+    return fields[9].split(':')[0] if len(fields) > 9 else None
+
+
+def _add_vcf_variant(fields, vartoalt, var_to_is_homo):
+    "record the SNV alts of one VCF record; indels are not considered"
+    ref, pos = fields[3], int(fields[1]) - 1
+    if len(ref) == 1:
+        genotype = _vcf_genotype(fields)
+        for alt in fields[4].split(','):
+            if len(alt) == 1:
+                vartoalt.setdefault((fields[0], pos), set()).add((ref, alt))
+                var_to_is_homo[(fields[0], pos, ref, alt)] = genotype
+
+
 def combine_vcf_files(vcffilelist):
     vartoalt = {}
     var_to_is_homo = {}
     for samplevcf in vcffilelist:
         for line in open(samplevcf):
             if line[0] != '#':
-                line = line.rstrip('\n').split('\t')
-                if line[6] == 'PASS':
-                    ref = line[3]
-                    refinfo, alts = (line[0], int(line[1]) - 1), line[4].split(',')
-                    if len(ref) == 1:  # not considering indels
-                        if refinfo not in vartoalt:
-                            vartoalt[refinfo] = set()
-                        for alt in alts:
-                            if len(alt) == 1:  # not considering indels
-                                vartoalt[refinfo].add((ref, alt))
-                                var_to_is_homo[(line[0], int(line[1]) - 1, ref, alt)] = line[9].split(':')[0]
+                fields = line.rstrip('\n').split('\t')
+                if _vcf_variant_passed(fields[6]):
+                    _add_vcf_variant(fields, vartoalt, var_to_is_homo)
     return vartoalt, var_to_is_homo
 
 def reorganize_vars(vartoalt):
@@ -104,7 +124,8 @@ def get_gene_to_all_vars(gene_to_all_exons, chrom_to_region_to_vars, gene_to_chr
                 for region in range(math.floor(block.start / (10 ** 5)), math.floor(block.end / (10 ** 5)) + 1):
                     if region in chrom_to_region_to_vars[chrom]:
                         for pos, vars in chrom_to_region_to_vars[chrom][region]:
-                            if block.start <= pos <= block.end:
+                            # end exclusive: block.end is the first intronic base
+                            if block.start <= pos < block.end:
                                 gene_to_vars[gene][pos] = vars
     return gene_to_vars
 
@@ -136,7 +157,9 @@ def parse_cigar_for_introns_indels(cigar, alignstart):
 
 def add_indels_to_vars(insertions, deletions, chrom, readseq, genome, my_vars):
     for refpos, querpos, length in insertions:
-        if refpos - 1 in my_vars:
+        # querpos 0 has no anchor base before it, and readseq[-1] would take the last
+        # base of the read; a VCF insertion always carries the preceding base
+        if (querpos > 0) and (refpos - 1 in my_vars):
             vinfo = (readseq[querpos - 1], readseq[querpos - 1:querpos + length])
             if vinfo in my_vars[refpos - 1]:
                 my_vars[refpos - 1][vinfo][1] = 1
@@ -153,8 +176,7 @@ def get_coverage_snvs_from_read(a, my_vars):
             for v in my_vars[refpos]:
                 my_vars[refpos][v][0] = 1
         if base.islower():
-            # allow 1bp of wiggle room for miscalled variants
-            for mypos in range(refpos - 2, refpos + 3):
+            for mypos in range(refpos - SNV_WIGGLE, refpos + SNV_WIGGLE + 1):
                 if mypos in my_vars:
                     for vinfo in my_vars[mypos]:
                         if a.query_sequence[querpos].upper() == vinfo[1]:
@@ -349,9 +371,12 @@ def label_bam_file(bamname, output_name, read_to_allele_group):
                 if a.is_mapped and not a.is_secondary and not a.is_supplementary:
                     if a.query_name in read_to_allele_group:
                         if len(read_to_allele_group[a.query_name]) > 1:
-                            print('WARNING: multiple phase sets for one read', a.query_name, read_to_allele_group[a.query_name], a.reference_name, a.reference_start, a.reference_end)
-                        # a.set_tag('HP', ','.join(['|'.join([str(y) for y in x]) for x in sorted(list(read_to_allele_group[a.query_name]))]))
-                        ps_ag = list(read_to_allele_group[a.query_name])[0]
+                            logging.warning("multiple phase sets for read '%s' at %s:%s-%s: %s; tagging with the first",
+                                            a.query_name, a.reference_name, a.reference_start, a.reference_end,
+                                            sorted(read_to_allele_group[a.query_name]))
+                        # sorted, not list(...)[0]: set order for these tuples is hash
+                        # based, so which phase set won varied between runs
+                        ps_ag = sorted(read_to_allele_group[a.query_name])[0]
                         a.set_tag('PS', ps_ag[0])
                         a.set_tag('AG', ps_ag[1])
                         a.set_tag('HP', parse_allele_group(ps_ag[1]))
@@ -506,7 +531,10 @@ def combine_phase_sets(variant_to_allele_group_counts_info, file_to_read_to_alle
             if node in moved_edge_nodes:
                 old_to_new[node] = old_to_new[moved_edge_nodes[node]]
             else:
-                print('issue with', node)
+                # the loop below looks every node up in old_to_new, so carrying on
+                # here only turned this into a bare KeyError a few lines later
+                raise FlairError(f"phase set / allele group node {node} was neither combined "
+                                 "nor moved, so it has no new label")
 
     for var in variant_to_allele_group_counts_info:
         new_ag = [old_to_new[x] for x in variant_to_allele_group_counts_info[var]['ag']]
