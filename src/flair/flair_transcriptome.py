@@ -8,7 +8,7 @@ import hashlib
 import logging
 from statistics import median
 from collections import Counter
-from flair import FlairError, FlairInputDataError
+from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
@@ -107,7 +107,8 @@ def get_args():
     parser.add_argument('--quality', default=1, type=int,
                         help='minimum mapping quality threshold to consider genomic alignments for defining transcripts')
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
-                        help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
+                        help='NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent '
+                             'alignment. Specifying this is an error rather than a no-op')
 
     parser.add_argument('-t', '--threads', type=int, default=12,
                         help='number of threads to run with - related to parallel_mode')
@@ -129,9 +130,6 @@ def get_args():
                         help='''specify if you want to normalize transcript ends with similar terminal splice sites - only recommended if max_ends is 1''')
     parser.add_argument('--generate_map', default=False, action='store_true',
                         help='''specify this argument to generate a txt file of read-isoform assignments''')
-    parser.add_argument('--output_bam', default=False, action='store_true',
-                        help='output intermediate bams aligned to the transcriptome. '
-                             'Only works with --keep_intermediate, for debugging')
 
     args = parser.parse_args()
     args.parallel_mode = parallel_mode_parse(parser, args.parallel_mode)
@@ -184,8 +182,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     trimmedreads = clipping_file or None
     generate_map = map_file or None
     output_endpos = output_name.split('.counts.txt')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
-    output_bam = (output_name.split('.counts.txt')[0] + '.bam'
-                  if args.output_bam else None)
     stringent = (not is_annot) and (not args.no_stringent)
     check_splice = not args.no_check_splice
     # annotated isoform bed file; output_endpos needs it too, for the transcript
@@ -210,7 +206,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         end_norm_dist=0,
         stringent=stringent,
         allow_UTR_indels=True,  # is_annot,
-        output_bam=output_bam,
         check_splice=check_splice,
         isoforms=isoforms,
         trust_ends=args.trust_ends,
@@ -220,8 +215,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         intprimingfracAs=intprimingfracAs,
         transcriptomefasta=transcriptomefasta,
         permissive_last_exons=permissive_last_exons,
-        fusion_breakpoints=args.fusion_breakpoints,
-        allow_paralogs=args.allow_paralogs)
+        fusion_breakpoints=args.fusion_breakpoints)
 
 
 ##
@@ -1358,6 +1352,10 @@ def flair_transcriptome():
     # so args doesn't get passes but we don't have to pass so many options
 
     args = get_args()
+    if args.allow_paralogs:
+        raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
+                                       "good alignment to several paralogs is assigned to one of "
+                                       "them, and nothing downstream does otherwise")
 
     logging.info('loading genome')
     genome = pysam.FastaFile(args.genome)

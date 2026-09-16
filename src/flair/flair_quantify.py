@@ -56,8 +56,6 @@ def parse_args():
     # parser.add_argument('--check_splice', default=False, action='store_true',
     #                     help='''enforce coverage of 4 out of 6 bp around each splice site and no
     #                     insertions greater than 3 bp at the splice site''')
-    # parser.add_argument('--output_bam', default=False, action='store_true',
-    #                     help='[for development] whether to output bam file of reads aligned to correct isoforms')
     args = parser.parse_args()
     return args
 
@@ -197,7 +195,6 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
         end_norm_dist=0,
         stringent=True,
         allow_UTR_indels=True,  # is_annot,
-        output_bam=False,  # args.output_bam,
         check_splice=True,
         isoforms=temp_prefix + 'isoforms.bed',
         trust_ends=trust_ends,

@@ -13,7 +13,6 @@ usage: transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
                      [--parallel_mode PARALLEL_MODE]
                      [--fusion_breakpoints FUSION_BREAKPOINTS]
                      [--keep_intermediate] [--normalize_ends] [--generate_map]
-                     [--output_bam]
 
 generates confident transcript models directly from a bam file of aligned long
 rna-seq reads
@@ -82,8 +81,9 @@ options:
                         to define isoforms
   --quality QUALITY     minimum mapping quality threshold to consider genomic
                         alignments for defining transcripts
-  --allow_paralogs      specify if want to allow reads to be assigned to
-                        multiple paralogs with equivalent alignment
+  --allow_paralogs      NOT IMPLEMENTED: assign reads to multiple paralogs
+                        with equivalent alignment. Specifying this is an error
+                        rather than a no-op
   -t THREADS, --threads THREADS
                         number of threads to run with - related to
                         parallel_mode
@@ -108,8 +108,6 @@ options:
                         max_ends is 1
   --generate_map        specify this argument to generate a txt file of read-
                         isoform assignments
-  --output_bam          output intermediate bams aligned to the transcriptome.
-                        Only works with --keep_intermediate, for debugging
 
 required named arguments:
   -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
