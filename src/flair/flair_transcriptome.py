@@ -599,6 +599,17 @@ def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_
     if normalize_ends:  # Only by longest length
         isoforms.sort(key=lambda x: x.genomic_length, reverse=True)
     else:  # First by read support, then by length
+        # FIXME: the comment above is what was meant; the code multiplies instead, so
+        # this is not a two-level sort and a 1-read 10kb candidate outranks a 10-read
+        # 500bp one.  With max_ends 1 this single comparison sets the reported TSS and
+        # TES for every junction chain.  Sorting by (num_reads, genomic_length), which
+        # is what the comment says, moves exactly one locus in the test suite and makes
+        # it worse: on a single-exon chain it picks the modal end pair, which for
+        # long reads is a 5' truncation cluster, over the pair that reproduces the
+        # annotated 3' end.  So the product is compensating for a real bias in the
+        # single-exon case while having little to recommend it for spliced chains,
+        # where the end window is only the terminal exons.  Probably wants to branch on
+        # isoforms[0].juncs == (), which this function already distinguishes above.
         isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
 
     junc_support = sum([x.num_reads for x in isoforms])
