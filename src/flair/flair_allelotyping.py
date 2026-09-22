@@ -597,7 +597,7 @@ def write_allele_group_counts_read_map(index_to_allele_group_info, output, gener
     read_support normal reads is called somatic; this is the only place that call is
     reported."""
     with open(output + '.allelegroups.counts.tsv', 'w') as fh:
-        outline = ['#phase_set', 'allele_group', 'tumor_counts']
+        outline = ['phase_set', 'allele_group', 'tumor_counts']
         if norm_bam is not None:
             outline.extend(['normal_counts', 'somatic'])
         fh.write('\t'.join(outline) + '\n')

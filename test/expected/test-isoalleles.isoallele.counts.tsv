@@ -1,4 +1,4 @@
-#gene	source_isoform	phase_set	allele_group	allele_labeled_isoform	aaseq_id	tumor_counts
+gene	source_isoform	phase_set	allele_group	allele_labeled_isoform	aaseq_id	tumor_counts
 FLG00000001	FLT00000001	1	B	FLT00000001|1|B	FLP00000001	8
 FLG00000001	FLT00000001	1	A	FLT00000001|1|A	FLP00000001	9
 FLG00000001	FLT00000001			FLT00000001||	FLP00000001	2

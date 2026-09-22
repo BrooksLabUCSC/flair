@@ -84,7 +84,7 @@ def load_read_maps(read_map_files, read_to_data, index):
                 read_to_data[(label, read)][index] = data
 
 def write_file_header(fh_counts, has_norm):
-    outline = ['#gene', 'source_isoform', 'phase_set', 'allele_group', 'allele_labeled_isoform', 'aaseq_id', 'tumor_counts']
+    outline = ['gene', 'source_isoform', 'phase_set', 'allele_group', 'allele_labeled_isoform', 'aaseq_id', 'tumor_counts']
     if has_norm is not None:
         outline.append('normal_counts')
     fh_counts.write('\t'.join(outline) + '\n')

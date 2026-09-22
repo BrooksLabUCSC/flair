@@ -1,4 +1,4 @@
-#phase_set	allele_group	tumor_counts
+phase_set	allele_group	tumor_counts
 1	A	80
 1	B	70
 2	A	369
