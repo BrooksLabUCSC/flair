@@ -10,26 +10,28 @@ from flair.pycbio.hgdata.bed import BedReader
 # annotated single-exon genes scanned either side of the search index
 SE_SEARCH_WINDOW = 2
 
-def main():
-    parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
-            each isoform and renames the isoform''')
-    parser.add_argument('bed', type=str,
-                        action='store', help='isoforms in bed format')
-    parser.add_argument('gtf', type=str,
-                        action='store', help='annotated isoform gtf')
-    parser.add_argument('outfilename', type=str,
-                        action='store', help='Name of output file')
-    parser.add_argument('--proportion', action='store', default=0.8, dest='proportion_annotated_covered',
-                        type=float, help='''proportion should be a decimal < 1 specifying the %% of an annotated single-exon
-                        gene a FLAIR isoform has to cover (default=0.8)''')
-    parser.add_argument('--annotation_reliant', action='store_true', dest='annotation_reliant',
+def build_parser():
+    desc = ('identifies the most likely gene id associated with each isoform and '
+            'renames the isoform')
+    parser = argparse.ArgumentParser(prog='identify_gene_isoform', description=desc)
+    parser.add_argument('bed', type=str, help='isoforms in bed format')
+    parser.add_argument('gtf', type=str, help='annotated isoform gtf')
+    parser.add_argument('outfilename', type=str, help='name of output file')
+    parser.add_argument('--proportion', default=0.8, dest='proportion_annotated_covered',
+                        type=float,
+                        help='a decimal < 1 giving the fraction of an annotated single-exon '
+                             'gene a FLAIR isoform has to cover (default: %(default)s)')
+    parser.add_argument('--annotation_reliant', action='store_true',
                         help='name all isoforms with -* starting with -0')
-    parser.add_argument('--gene_only', action='store_true', dest='gene_only',
+    parser.add_argument('--gene_only', action='store_true',
                         help='only append gene name to read name')
-    parser.add_argument('--field_name', action='store', dest='field_name', default='gene_id',
-                        help='field name to use for gene id, e.g. gene_type or gene_name (default: gene_id)')
-    args = parser.parse_args()
+    parser.add_argument('--field_name', default='gene_id',
+                        help='field name to use for gene id, e.g. gene_type or gene_name '
+                             '(default: %(default)s)')
+    return parser
 
+def main():
+    args = build_parser().parse_args()
     identify_gene_isoform(gtf=args.gtf, field_name=args.field_name, outfilename=args.outfilename,
                           query=args.bed,
                           proportion_annotated_covered=args.proportion_annotated_covered,

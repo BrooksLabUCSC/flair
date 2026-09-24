@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import argparse
 import os
 import pipettor
 import shutil
 import pysam
 import hashlib
 import logging
+from dataclasses import dataclass
 from statistics import median
 from collections import Counter
 from flair import FlairError, FlairInputDataError, FlairNotImplementedError
@@ -37,9 +37,52 @@ NORM_END_EXTRA_LEN = 100
 #        that changes splice junctions.  Should this be discarded if multiple long-reads
 #        support it, but it isn't annotated.  Maybe these can be identified.
 
-def get_args():
-    parser = argparse.ArgumentParser(description='generates confident transcript models directly from a bam file '
-                                                 'of aligned long rna-seq reads')
+FILTER_MODES = ('nosubset', 'bysupport', 'comprehensive', 'ginormous')
+
+@dataclass(frozen=True)
+class TranscriptomeOpts:
+    """Options shared by the functions that make up a transcriptome run.  This is
+    internal to this module: the public entry point takes named parameters, and
+    this is what they are bundled into for the partition workers, which receive it
+    through pickling."""
+    genome_aligned_bam: str
+    genome: str
+    sample_name: str
+    output: str
+    annot_gtf: str
+    junction_tab: str
+    junction_bed: str
+    junction_support: int
+    ss_window: int
+    end_window: int
+    sjc_support: int
+    single_exon_support: int
+    frac_support: float
+    trust_strand: bool
+    trust_ends: bool
+    no_stringent: bool
+    no_check_splice: bool
+    no_align_to_annot: bool
+    max_ends: int
+    filter: str
+    keep_supplementary: bool
+    quality: int
+    threads: int
+    parallel_mode: tuple
+    fusion_breakpoints: str
+    keep_intermediate: bool
+    normalize_ends: bool
+    generate_map: bool
+    # internal priming removal was dropped from the command line; the code that reads
+    # intprimingthreshold, intprimingfracAs and transcriptfasta is unreachable while
+    # this is False
+    remove_internal_priming: bool = False
+
+def add_subparser(subparsers):
+    desc = ('generates confident transcript models directly from a bam file '
+            'of aligned long rna-seq reads')
+    parser = subparsers.add_parser('transcriptome', help="Build a transcriptome from aligned reads",
+                                   description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-b', '--genome_aligned_bam', required=True,
                           help='Sorted and indexed bam file aligned to the genome')
@@ -48,7 +91,7 @@ def get_args():
     required.add_argument('--sample_name', required=True,
                           help='name of sample - this will be added as metadata to your output files')
     parser.add_argument('-o', '--output',
-                        help='output file name base for FLAIR isoforms, if not provided, output will default to sample_name.')
+                        help='output file name base for FLAIR isoforms, defaults to --sample_name')
 
     parser.add_argument('-f', '--gtf', dest="annot_gtf", default=None,
                         help='GTF annotation file, used for identifying annotated isoforms')
@@ -59,90 +102,110 @@ def get_args():
                                                '(can be generated from long-read alignment with intron-prospector)')
     parser.add_argument('--junction_support', type=int, default=2,
                         help='if providing short-read junctions, minimum junction support required to keep junction. '
-                             'If your junctions file is in bed format, the score field will be used for read support.')
+                             'If your junctions file is in bed format, the score field will be used for read support '
+                             '(default: %(default)s)')
 
     parser.add_argument('--ss_window', type=int, default=15,
-                        help='window size for correcting splice sites (15)')
-    parser.add_argument('-w', '--end_window', type=int, default=100,
-                        help='window size for comparing TSS/TES (100)')
+                        help='window size for correcting splice sites (default: %(default)s)')
+    parser.add_argument('--end_window', type=int, default=100,
+                        help='window size for comparing TSS/TES (default: %(default)s)')
 
     parser.add_argument('--sjc_support', type=int, default=1,
-                        help='''minimum number of supporting reads for a spliced isoform''')
-    parser.add_argument('--se_support', type=int, default=3,
-                        help='''minimum number of supporting reads for a single exon isoform''')
+                        help='minimum number of supporting reads for a spliced isoform (default: %(default)s)')
+    parser.add_argument('--single_exon_support', type=int, default=3,
+                        help='minimum number of supporting reads for a single exon isoform (default: %(default)s)')
     parser.add_argument('--frac_support', type=float, default=0.05,
-                        help='''minimum fraction of gene locus support for isoform to be called
-                        default: 0.05, only isoforms that make up more than 5 percent of the gene
-                        locus are reported. Set to 0 for max recall''')
+                        help='minimum fraction of gene locus support for isoform to be called; only isoforms '
+                             'that make up more than this fraction of the gene locus are reported. Set to 0 for '
+                             'max recall (default: %(default)s)')
 
-    parser.add_argument('--trust_strand', default=False, action='store_true',
-                        help='''specify if you want FLAIR to trust the stranding of the input reads and not attempt strand correction''')
-    parser.add_argument('--trust_ends', default=False, action='store_true',
-                        help='''specify if you want FLAIR to trust the ends of the input reads - a more stringent way of requiring read ends to match the ends of transcript models''')
+    parser.add_argument('--trust_strand', action='store_true',
+                        help='trust the stranding of the input reads and do not attempt strand correction')
+    parser.add_argument('--trust_ends', action='store_true',
+                        help='trust the ends of the input reads: a more stringent way of requiring read ends '
+                             'to match the ends of transcript models')
 
-    parser.add_argument('--no_stringent', default=False, action='store_true',
-                        help='''specify if all supporting reads don't need to be full-length
-                        (aligned to first and last exons of transcript).  Use this for fragmented libraries,
-                        with an understanding that it will impact precision.''')
-    parser.add_argument('--no_check_splice', default=False, action='store_true',
-                        help='''don't enforce accurate alignment around splice site.
-                        Specify this for libraries with high error rates, but it will reduce precision''')
-    parser.add_argument('--no_align_to_annot', default=False, action='store_true',
-                        help='''related to old annotation_reliant, now specify if you don't want
-                        an initial alignment to the annotated sequences and only want transcript
-                        detection from the genomic alignment.
-                         Will be slightly faster but less accurate if the annotation is good''')
+    parser.add_argument('--no_stringent', action='store_true',
+                        help="do not require all supporting reads to be full-length, that is aligned to the "
+                             "first and last exons of the transcript. Use this for fragmented libraries, "
+                             "with an understanding that it will impact precision")
+    parser.add_argument('--no_check_splice', action='store_true',
+                        help="do not enforce accurate alignment around splice sites. Specify this for "
+                             "libraries with high error rates, but it will reduce precision")
+    parser.add_argument('--no_align_to_annot', action='store_true',
+                        help="skip the initial alignment to the annotated sequences and detect transcripts "
+                             "only from the genomic alignment. Slightly faster but less accurate when the "
+                             "annotation is good")
 
     parser.add_argument('--max_ends', type=int, default=1,
-                        help='maximum number of TSS/TES picked per isoform (1) make higher for more precise end detection')
-    parser.add_argument('--filter', default='nosubset',
-                        help='''Report options include:
-                        nosubset--any isoforms that are a proper set of another isoform are removed;
-                        bysupport--subset isoforms are removed based on support;
-                        comprehensive--default set + all subset isoforms;
-                        ginormous--comprehensive set + single exon subset isoforms''')
+                        help='maximum number of TSS/TES picked per isoform; make higher for more precise '
+                             'end detection (default: %(default)s)')
+    parser.add_argument('--filter', choices=FILTER_MODES, default='nosubset',
+                        help='nosubset: any isoforms that are a proper set of another isoform are removed; '
+                             'bysupport: subset isoforms are removed based on support; '
+                             'comprehensive: default set plus all subset isoforms; '
+                             'ginormous: comprehensive set plus single exon subset isoforms '
+                             '(default: %(default)s)')
 
-    parser.add_argument('--keep_sup', default=False, action='store_true',
-                        help='''specify if you want to keep supplementary alignments to define isoforms''')
+    parser.add_argument('--keep_supplementary', action='store_true',
+                        help='keep supplementary alignments when defining isoforms')
     parser.add_argument('--quality', default=1, type=int,
-                        help='minimum mapping quality threshold to consider genomic alignments for defining transcripts')
-    parser.add_argument('--allow_paralogs', default=False, action='store_true',
+                        help='minimum mapping quality threshold to consider genomic alignments for '
+                             'defining transcripts (default: %(default)s)')
+    parser.add_argument('--allow_paralogs', action='store_true',
                         help='NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent '
                              'alignment. Specifying this is an error rather than a no-op')
 
     parser.add_argument('-t', '--threads', type=int, default=12,
-                        help='number of threads to run with - related to parallel_mode')
+                        help='number of threads to run with, related to --parallel_mode (default: %(default)s)')
     parser.add_argument('--parallel_mode', default='auto:1GB',
-                        help='''parallelization mode. Default: "auto:1GB" This indicates an automatic threshold where
-                            if the file is less than 1GB, parallelization is done by chromosome, but if it's larger,
-                            parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion,
-                            auto:xGB - for setting the auto threshold, it must be in units of GB.''')
+                        help='parallelization mode. auto:1GB is an automatic threshold where, if the file '
+                             'is less than 1GB, parallelization is done by chromosome, and if it is larger, '
+                             'parallelization is done by region of non-overlapping reads. Other modes: '
+                             'bychrom, byregion, auto:xGB; for the auto threshold, the size must be in units '
+                             'of GB (default: %(default)s)')
 
     parser.add_argument('--fusion_breakpoints',
-                        help='''for fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
+                        help='for fusion detection only: bed file containing locations of fusion breakpoints '
+                             'on the synthetic genome')
 
-    parser.add_argument('--keep_intermediate', default=False, action='store_true',
-                        help='''specify if intermediate and temporary files are to be kept for debugging.
-                        Intermediate files include: promoter-supported reads file,
-                        read assignments to firstpass isoforms''')
+    parser.add_argument('--keep_intermediate', action='store_true',
+                        help='keep intermediate and temporary files for debugging. Intermediate files '
+                             'include the promoter-supported reads file and read assignments to firstpass isoforms')
 
-    parser.add_argument('--normalize_ends', default=False, action='store_true',
-                        help='''specify if you want to normalize transcript ends with similar terminal splice sites - only recommended if max_ends is 1''')
-    parser.add_argument('--generate_map', default=False, action='store_true',
-                        help='''specify this argument to generate a txt file of read-isoform assignments''')
+    parser.add_argument('--normalize_ends', action='store_true',
+                        help='normalize transcript ends with similar terminal splice sites; only recommended '
+                             'when --max_ends is 1')
+    parser.add_argument('--generate_map', action='store_true',
+                        help='generate a txt file of read-isoform assignments')
+    parser.set_defaults(entry=transcriptome_cmd)
 
-    args = parser.parse_args()
-    args.parallel_mode = parallel_mode_parse(parser, args.parallel_mode)
-    # args.trust_ends = False
-    args.remove_internal_priming = False
-    if args.output is None:
-        args.output = args.sample_name
-
-    if not os.path.exists(args.genome_aligned_bam):
-        parser.error(f'Aligned reads file path does not exist: {args.genome_aligned_bam}')
-    if not os.path.exists(args.genome):
-        parser.error(f'Genome file path does not exist: {args.genome}')
-    return args
+def transcriptome_cmd(args):
+    if args.allow_paralogs:
+        raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
+                                       "good alignment to several paralogs is assigned to one of "
+                                       "them, and nothing downstream does otherwise")
+    for what, path in (('aligned reads bam', args.genome_aligned_bam), ('genome fasta', args.genome)):
+        if not os.path.exists(path):
+            raise FlairInputDataError(f'{what} file does not exist: {path}')
+    flair_transcriptome(genome_aligned_bam=args.genome_aligned_bam, genome=args.genome,
+                        sample_name=args.sample_name,
+                        output=args.output if args.output is not None else args.sample_name,
+                        annot_gtf=args.annot_gtf, junction_tab=args.junction_tab,
+                        junction_bed=args.junction_bed, junction_support=args.junction_support,
+                        ss_window=args.ss_window, end_window=args.end_window,
+                        sjc_support=args.sjc_support,
+                        single_exon_support=args.single_exon_support,
+                        frac_support=args.frac_support, trust_strand=args.trust_strand,
+                        trust_ends=args.trust_ends, no_stringent=args.no_stringent,
+                        no_check_splice=args.no_check_splice,
+                        no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
+                        filter=args.filter, keep_supplementary=args.keep_supplementary,
+                        quality=args.quality, threads=args.threads,
+                        parallel_mode=parallel_mode_parse(args.parallel_mode),
+                        fusion_breakpoints=args.fusion_breakpoints,
+                        keep_intermediate=args.keep_intermediate,
+                        normalize_ends=args.normalize_ends, generate_map=args.generate_map)
 
 
 ####
@@ -669,7 +732,7 @@ class CandidateIsoforms:
 def _filter_isos_by_redundant_and_support(args, isoforms, candidates, iso_fh):
     # this assumes single exons are pre-grouped by overlap
     # previously treated single exons separately due to them being in larger groups
-    filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.se_support, args.max_ends, args.normalize_ends)
+    filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.single_exon_support, args.max_ends, args.normalize_ends)
     for isoform in filtered_isoforms:
         candidates.add(isoform)
         convert_to_bed12(isoform).write(iso_fh)
@@ -784,7 +847,7 @@ def group_by_overlap(sj_to_ends, se_support, trust_strand):
 
 
 def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, region_chrom):
-    sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.se_support, args.trust_strand)
+    sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.single_exon_support, args.trust_strand)
     # FIXME everything below here requires confidence in transcript strand
     build_genes(sjc_with_overlap_groups, annots, region_chrom, sjc_with_overlap_groups)
 
@@ -1110,7 +1173,7 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
         if num_exons > 1:
             return (count >= args.sjc_support) and (count / gene_to_tot[gene][0]) >= args.frac_support, (count / gene_to_tot[gene][0])
         else:
-            return (count >= args.se_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
+            return (count >= args.single_exon_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
 
 def generate_full_set_empty_intermediate_files(file_prefix, generate_map):
     suffixes = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed', '.isoforms.bed',
@@ -1255,7 +1318,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                    read_to_annot_transcript=read_to_annot_transcript,
                                    annots=annots, junction_corrector=junction_corrector,
                                    genome=genome,
-                                   quality=args.quality, keep_sup=args.keep_sup,
+                                   quality=args.quality, keep_sup=args.keep_supplementary,
                                    sj_to_ends=sj_to_ends)
         bam_file.close()
 
@@ -1371,18 +1434,29 @@ def fix_iso_labels(output, generate_map):
 # main
 ####
 
-def flair_transcriptome():
-    # FIXME: split options out that are flags to indicate what to do
-    # so args doesn't get passes but we don't have to pass so many options
-
-    args = get_args()
-    if args.allow_paralogs:
-        raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
-                                       "good alignment to several paralogs is assigned to one of "
-                                       "them, and nothing downstream does otherwise")
+def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
+                        junction_tab, junction_bed, junction_support, ss_window, end_window,
+                        sjc_support, single_exon_support, frac_support, trust_strand,
+                        trust_ends, no_stringent, no_check_splice, no_align_to_annot,
+                        max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
+                        fusion_breakpoints, keep_intermediate, normalize_ends, generate_map):
+    args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
+                             sample_name=sample_name, output=output, annot_gtf=annot_gtf,
+                             junction_tab=junction_tab, junction_bed=junction_bed,
+                             junction_support=junction_support, ss_window=ss_window,
+                             end_window=end_window, sjc_support=sjc_support,
+                             single_exon_support=single_exon_support, frac_support=frac_support,
+                             trust_strand=trust_strand, trust_ends=trust_ends,
+                             no_stringent=no_stringent, no_check_splice=no_check_splice,
+                             no_align_to_annot=no_align_to_annot, max_ends=max_ends,
+                             filter=filter, keep_supplementary=keep_supplementary,
+                             quality=quality, threads=threads, parallel_mode=parallel_mode,
+                             fusion_breakpoints=fusion_breakpoints,
+                             keep_intermediate=keep_intermediate, normalize_ends=normalize_ends,
+                             generate_map=generate_map)
 
     logging.info('loading genome')
-    genome = pysam.FastaFile(args.genome)
+    genome_fa = pysam.FastaFile(args.genome)
 
     # temp_dir = f'{args.output}.intermediate/'
     temp_dir = make_temp_dir(args.output)
@@ -1399,7 +1473,7 @@ def flair_transcriptome():
                                                     star_sj_tabs=args.junction_tab)
 
     logging.info('partitioning genome')
-    runner = partition_runner_factory(args.parallel_mode, genome, args.genome_aligned_bam,
+    runner = partition_runner_factory(args.parallel_mode, genome_fa, args.genome_aligned_bam,
                                       temp_dir, args.annot_gtf, args.threads,
                                       gtf_data=annot_gtf_data, junction_corrector=junction_corrector)
     logging.info(f'number of partitions: {len(runner)}')
@@ -1414,13 +1488,9 @@ def flair_transcriptome():
     # index of column with gene id in extracols, then additional column indexes + names
     bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', is_flair_bed=True)
 
-    make_big_bed(genome, temp_dir + 'chrom.sizes', args.output + '.isoforms')
+    make_big_bed(genome_fa, temp_dir + 'chrom.sizes', args.output + '.isoforms')
 
     if not args.keep_intermediate:
         shutil.rmtree(temp_dir)
 
-    genome.close()
-
-
-if __name__ == "__main__":
-    flair_transcriptome()
+    genome_fa.close()

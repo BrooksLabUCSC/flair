@@ -17,8 +17,9 @@ def check_input_files(bed_files, bam_files, gtf_files):
     for f in bed_files + bam_files + gtf_files:
         open(f).close()
 
-def parse_args():
+def build_parser():
     parser = argparse.ArgumentParser(
+        prog='flair_partition',
         description=("Define non-overlapping regions from BED, SAM/BAM, or GTF files."
                      "  Partitions are made across all input files")
     )
@@ -37,6 +38,10 @@ def parse_args():
     parser.add_argument("ranges_bed",
                         help="Output ranges BED file, will be compressed if it ends in .gz")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
+    return parser
+
+def parse_args():
+    parser = build_parser()
     args = parser.parse_args()
     loggingOps.setupFromCmd(args)
     if (len(args.bed_files) + len(args.bam_files) + len(args.gtf_files)) == 0:

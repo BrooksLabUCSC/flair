@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mplpatches  # noqa: E402
 from flair import FlairInputDataError  # noqa: E402
 
-def parse_args():
+def build_parser():
     desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
     The most highly expressed isoforms across all the samples will be plotted.
     The minor isoforms are aggregated into a gray bar. You can toggle min_reads or
     color_palette to plot more isoforms.'''
-    parser = argparse.ArgumentParser(description=desc)
+    parser = argparse.ArgumentParser(prog='plot_isoform_usage', description=desc)
     parser.add_argument('isoforms', type=str, action='store',
                         help='isoforms in bed format')
     parser.add_argument('counts_matrix', type=str, action='store',
@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument('--palette', action='store', dest='palette',
                         help='''provide a palette file if you would like to visualize more than 7
                         isoforms at once or change the palette used. each line contains a hex color for each isoform''')
-    return parser.parse_args()
+    return parser
 
 
 hex_colors = ['#ba748a', '#3498db', "#34495e"]
@@ -331,7 +331,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
 
 def main():
-    plot_isoform_usage(parse_args())
+    plot_isoform_usage(build_parser().parse_args())
 
 
 if __name__ == "__main__":

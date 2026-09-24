@@ -1,14 +1,15 @@
 #! /usr/bin/env python3
 
-import argparse
 import os
 import shutil
+import logging
 import math
 from contextlib import ExitStack
 import pysam
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
 from flair.io_utils import make_temp_dir
+from flair import FlairInputDataError
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
@@ -24,30 +25,42 @@ VAR_FIELD_SEP = '|'
 GENE_LIST_SEP = ','
 
 
-def parse_var_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--manifest', type=str,  # required=True,
-                        help="[USED INSTEAD OF input_bam AND vcf] path to manifest files that points to sample names, bam files aligned to transcriptome, "
+def add_subparser(subparsers):
+    desc = "Quantify variants at genome positions from reads aligned to the transcriptome"
+    parser = subparsers.add_parser('variantquant', help="Quantify variants at genome positions",
+                                   description=desc)
+    parser.add_argument('--manifest', type=str,
+                        help="used instead of --transcriptome_bam and --vcf: path to manifest file that points to sample names, "
+                             "bam files aligned to transcriptome, "
                              "and vcf vars for that sample called on the genome. "
                              "Each line of file should be tab separated. "
                              "If you are using just one reference vcf file, "
                              "just include it in the third column for the first sample "
                              "and leave that column blank for the rest.")
-    parser.add_argument('-i', '--input_bam', help='[USE INSTEAD OF MANIFEST] Path to bam file for individual sample')
-    parser.add_argument('-r', '--pos_ref', help='[EITHER THIS, VCF, OR MANIFEST] Path to reference file of sites to check for variants')
-    parser.add_argument('-v', '--vcf', help='[EITHER THIS, POS_REF, OR MANIFEST] Path to reference vcf file of sites to check for variants')
-    parser.add_argument('-o', '--output_prefix', default='flair',
-                        help="path to collapsed_output.bed file. default: 'flair'")
-    parser.add_argument('-b', '--bedisoforms',
+    parser.add_argument('--transcriptome_bam',
+                        help='used instead of --manifest: path to bam file for an individual sample')
+    parser.add_argument('--pos_ref',
+                        help='either this, --vcf or --manifest: path to reference file of sites to check for variants')
+    parser.add_argument('--vcf',
+                        help='either this, --pos_ref or --manifest: path to reference vcf file of sites to check for variants')
+    parser.add_argument('-o', '--output', default='flair',
+                        help="prefix for output files (default: %(default)s)")
+    parser.add_argument('--isoform_bed',
                         help="path to transcriptome bed file")
-    parser.add_argument('-t', '--threshold', type=int, default=5,
-                        help='specify minimum total read coverage threshold to output a site')
-    parser.add_argument('-k', '--output_all', action='store_true',
-                        help="specify this option if you want to output read counts for all putative RNA editing sites that pass the coverage threshold, regardless of whether any reads are edited")
-    parser.add_argument('--keep_intermediate', default=False, action='store_true',
-                        help='''specify if intermediate and temporary files are to be kept for debugging.''')
-    args = parser.parse_args()
-    return args
+    parser.add_argument('--min_coverage', type=int, default=5,
+                        help='minimum total read coverage required to output a site (default: %(default)s)')
+    parser.add_argument('--output_all', action='store_true',
+                        help="output read counts for all putative RNA editing sites that pass the coverage threshold, "
+                             "regardless of whether any reads are edited")
+    parser.add_argument('--keep_intermediate', action='store_true',
+                        help='keep intermediate and temporary files for debugging')
+    parser.set_defaults(entry=quantvarpos_cmd)
+
+def quantvarpos_cmd(args):
+    quantvarpos(manifest=args.manifest, transcriptome_bam=args.transcriptome_bam,
+                pos_ref=args.pos_ref, vcf=args.vcf, output=args.output,
+                isoform_bed=args.isoform_bed, min_coverage=args.min_coverage,
+                output_all=args.output_all, keep_intermediate=args.keep_intermediate)
 
 def extract_sample_data(manifestfile):
     sampledata = []
@@ -324,7 +337,7 @@ def _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex):
             if s.is_mapped:  # and not s.is_supplementary: ##not s.is_secondary and
                 c += 1
                 if c % 100000 == 0:
-                    print(c, 'reads checked')
+                    logging.info(f'{c} reads checked')
                 myvcfvars = get_correct_vcf_vars(vcfvars, s.reference_name, s.reference_start, s.reference_end)
                 parse_single_bam_read(s, temp_files, myvcfvars, sindex)
 
@@ -335,7 +348,7 @@ def parse_all_bam_files(sampledata, tempdir, vcfvars):
         for sindex in range(len(sampledata)):
             sample, bamfile = sampledata[sindex][0], sampledata[sindex][1]
             _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex)
-            print('done parsing reads for', sample)
+            logging.info(f'done parsing reads for {sample}')
 
 def get_genes_from_tempdir(tempdir):
     genenames = set()
@@ -344,29 +357,29 @@ def get_genes_from_tempdir(tempdir):
             genenames.add(f.split('.txt')[0])
     return genenames
 
-def quantvarpos():
-    args = parse_var_args()
+def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_bed,
+                min_coverage, output_all, keep_intermediate):
     # Load reference data
-    if args.manifest:
-        sampledata = extract_sample_data(args.manifest)
-    elif args.input_bam and (args.pos_ref or args.vcf):
-        if args.vcf:
-            sampledata = [['sample', args.input_bam, args.vcf]]
+    if manifest:
+        sampledata = extract_sample_data(manifest)
+    elif transcriptome_bam and (pos_ref or vcf):
+        if vcf:
+            sampledata = [['sample', transcriptome_bam, vcf]]
         else:
-            sampledata = [['sample', args.input_bam]]
+            sampledata = [['sample', transcriptome_bam]]
     else:
-        raise ValueError("please provide either manifest or bam and vcf")
+        raise FlairInputDataError("specify --manifest, or --transcriptome_bam with one of --vcf or --pos_ref")
 
-    print('done loading annot')
+    logging.info('done loading annot')
 
     vcfvars = {}
-    if args.manifest or args.vcf:
-        isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = get_bedisoform_info(args.bedisoforms)
+    if manifest or vcf:
+        isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = get_bedisoform_info(isoform_bed)
         vartoalt = combine_vcf_files([x[2] for x in sampledata if len(x) > 2])
-        print('done combining vcfs')
+        logging.info('done combining vcfs')
         vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
     else:
-        for line in open(args.pos_ref):
+        for line in open(pos_ref):
             line = line.rstrip('\n').split('\t')
             chrom, region, pos, ref, alt, name = line
             region, pos = int(region), int(pos)
@@ -376,16 +389,12 @@ def quantvarpos():
                 vcfvars[poskey] = {}
             vcfvars[poskey][pos] = (ref, alts, name)
 
-    print('done combining vcf variants')
-    tempdir = make_temp_dir(args.output_prefix)
+    logging.info('done combining vcf variants')
+    tempdir = make_temp_dir(output)
     parse_all_bam_files(sampledata, tempdir, vcfvars)  # parses to intermediate files with read name to all vars
-    print('parsed all reads')
+    logging.info('parsed all reads')
     genenames = get_genes_from_tempdir(tempdir)
-    read_vars_to_genome_pos_counts(genenames, tempdir, args.output_prefix, sampledata, args.threshold, args.output_all)
+    read_vars_to_genome_pos_counts(genenames, tempdir, output, sampledata, min_coverage, output_all)
 
-    if not args.keep_intermediate:
+    if not keep_intermediate:
         shutil.rmtree(tempdir)
-
-
-if __name__ == "__main__":
-    quantvarpos()

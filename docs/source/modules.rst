@@ -19,15 +19,10 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 flair transcriptome
 ===================
 
-.. code:: text
-
-    usage: usage: flair transcriptome -b reads.genomealigned.bam [options]
-
-
 This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
 To get aligned reads, you can use FLAIR align or just run the following command to generate the bam file to use as input.
 minimap2 -ax splice -s 80 -G 200k -t 20 --secondary=no genome.fa sample.fastq | samtools view -hb - | samtools sort - > sample.genomealigned.bam; samtools index sample.genomealigned.bam
-If you want to run downstream fusion detection with FLAIR fusion, run flair align with --filtertype separate to generate a separate file of chimeric alignments.
+If you want to run downstream fusion detection with FLAIR fusion, run flair align with --filter_type separate to generate a separate file of chimeric alignments.
 
 
 **Outputs**
@@ -40,69 +35,13 @@ If you want to run downstream fusion detection with FLAIR fusion, run flair alig
 Options
 -------
 
-Required arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-
-    -b --genomealignedbam    Sorted and indexed bam file aligned to the genome
-    -g --genome    Reference genome in fasta format
-
-
-Optional arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-
- -o --output
-                        output file name base for FLAIR isoforms (default: flair.collapse)
-  -t --threads
-                        minimap2 number of threads (4)
-  -f --gtf              [HIGHLY RECOMMENDED] GTF annotation file, used for renaming FLAIR isoforms 
-                        to annotated isoforms and adjusting TSS/TESs
-  -j --shortread
-                        [HIGHLY RECOMMENDED] bed format splice junctions from short-read sequencing. 
-                        NO NOVEL SPLICE SITES WILL BE DETECTED WITHOUT ORTHOGONAL SHORT READS
-  --ss_window
-                        window size for correcting splice sites (15)
-  -s  --support
-                        minimum number of supporting reads for an isoform (3)
-  --stringent           [HIGHLY RECOMMENDED] specify if all supporting reads need to be full-length 
-                        (spanning 25 bp of the first and last exons)
-  --check_splice        [HIGHLY RECOMMENDED] enforce coverage of 4 out of 6 bp around each splice site 
-                        and no insertions greater than 3 bp at the splice site. DON'T USE WITH DATA WITH ERROR RATES of 5% or more, such
-                        as older direct-RNA (anything before using the RNA-specific flow-cell with the Dorado basecaller).
-  -w --end_window
-                        window size for comparing TSS/TES (100)
-  --noaligntoannot      related to old annotation_reliant, now specify if you don't want an initial alignment 
-                        to the annotated sequences and only want transcript detection from the
-                        genomic alignment. Will be slightly faster but less accurate if the annotation is good
-  -n --no_redundant 
-                        For each unique splice junction chain, report options include: none--best TSSs/TESs chosen for each unique set of splice junctions; longest--single TSS/TES
-                        chosen to maximize length; best_only--single most supported TSS/TES used in conjunction chosen (none)
-  --max_ends            maximum number of TSS/TES picked per isoform (2)
-  --filter              Report options include: 
-                            default--subset isoforms are removed based on support;
-                            nosubset--any isoforms that are a proper set of another isoform are removed;
-                            comprehensive--default set + all subset isoforms; 
-                            ginormous--comprehensive set + single exon subset isoforms
-  --splittoregion       force running on each region of non-overlapping reads, no matter the file size 
-                        default: parallelize by chromosome if file is <1G, otherwise parallelize on all regions of non-overlapping reads
-  --predictCDS          specify if you want to predict the CDS of the final isoforms. 
-                        Will be output in the final bed file but not the gtf file. 
-                        Productivity annotation is also added in the name field, 
-                        which is detailed further in the predictProductivity documentation
-
+.. include:: cli/transcriptome.rst
 
 
 .. _align-label:
 
 flair align
 ===========
-
-.. code:: text
-
-    usage: flair align -g genome.fa -r <reads.fq>|<reads.fa> [options]
 
 Use of this modules is deprecated, as ``FLAIR transcriptome`` operates on a BAM, and other output of ``flair align`` is no longer used.
 
@@ -121,55 +60,8 @@ Aligned reads in BED12 format can be visualized in `IGV <https://igv.org/>`__ or
 Options
 -------
 
-Required arguments
-~~~~~~~~~~~~~~~~~~
+.. include:: cli/align.rst
 
-.. code:: text
-
-    --reads     Raw reads in fasta or fastq format. This argument accepts multiple 
-                (comma/space separated) files.
-
-    At least one of the following arguments is required:
-    --genome    Reference genome in fasta format. Flair will minimap index this file 
-                unless there already is a .mmi file in the same location.
-    --mm_index  If there already is a .mmi index for the genome it can be supplied 
-                directly using this option. 
-
-
-Optional arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-
-  -o OUTPUT, --output OUTPUT
-                        output file name base (default: flair.aligned)
-  -t THREADS, --threads THREADS
-                        minimap2 number of threads (4)
-  --junction_tab JUNCTION_TAB
-                        short-read junctions in SJ.out.tab format. Use this option
-                        if you aligned your short-reads with STAR, STAR will
-                        automatically output this file
-  --junction_bed JUNCTION_BED
-                        annotated isoforms/junctions bed file for splice site-guided minimap2 genomic alignment
-  --nvrna               specify this flag to use native-RNA specific alignment parameters for minimap2
-  --quality QUALITY     minimum MAPQ of read alignment to the genome (0)
-  --minfragmentsize MINFRAGMENTSIZE
-                        minimum size of alignment kept, used in minimap -s. More important when doing downstream fusion detection
-  --maxintronlen MAXINTRONLEN
-                        maximum intron length in genomic alignment. Longer can help recover more novel isoforms with long introns
-  --filtertype FILTERTYPE
-                        method of filtering chimeric alignments (potential fusion reads). Options: removesup (default), separate (required for downstream work with fusions), keepsup
-                        (keeps supplementary alignments for isoform detection, does not allow gene fusion detection)
-  --quiet               Suppress minimap progress statements from being printed
-  --remove_internal_priming
-                        specify if want to remove reads with internal priming
-  -f GTF, --gtf GTF     reference annotation, only used if --remove_internal_priming is specified, recommended if so
-  --intprimingthreshold INTPRIMINGTHRESHOLD
-                        number of bases that are at leas 75% As required to call read as internal priming
-  --intprimingfracAs INTPRIMINGFRACAS
-                        number of bases that are at least 75% As required to call read as internal priming
-  --remove_singleexon   specify if want to remove unspliced reads
-    
 
 Notes
 -----
@@ -188,10 +80,6 @@ quality: `More info on MAPQ scores <http://www.acgt.me/blog/2014/12/16/understan
 flair fusion
 ============
 
-.. code:: text
-
-    usage: flair fusion -g genome.fa -r sample.fastq -b sample.genomealigned_chimeric.bam -f annot.gtf [-o OUTPUT_PREFIX]
-
 This identifies gene fusions and generates a fusion transcriptome. 
 To incorporate this fusion transcriptome in downstream analysis, 
 use flair combine to merge it with normal isoforms. 
@@ -206,76 +94,21 @@ sample.fusions.isoforms.fa
 sample.syntheticAligned.isoform.read.map
     read map of reads to fusion isoforms
 
-Required Options
-----------------
+Options
+-------
 
-.. code:: text
+.. include:: cli/fusion.rst
 
-  -g --genome
-                        FastA of reference genome
-  -r READS [READS ...], --reads READS [READS ...]
-                        FastA/FastQ files of raw reads, can specify multiple files
-  -b --genomechimbam
-                        bam file of chimeric reads from genomic alignment from flair align run with --filtertype separate
-  -f --gtf              GTF annotation file
-
-Other Options
--------------
-
-.. code:: text
-
-  --transcriptchimbam TRANSCRIPTCHIMBAM
-                        Optional: bam file of chimeric reads from transcriptomic alignment. 
-                        If not provided, this will be made for you
-  -o OUTPUT, --output OUTPUT
-                        output file name base for FLAIR isoforms
-  -t --threads
-                        minimap2 number of threads (4)
-  --minfragmentsize 
-                        minimum size of alignment kept, used in minimap -s (40)
-  -s --support
-                        minimum number of supporting reads for a fusion (3)
-  --maxloci             max loci detected in fusion. Set higher for detection of 3-gene+ fusions
-
-  --keep_intermediate   keep intermediate and temporary files debugging purposes
 
 .. _combine-label:
 
 flair combine
 =============
-.. code:: sh
 
-    usage: flair combine (--manifest MANIFEST | --prefixes PREFIXES | --bed_paths BED_PATHS)
-                         --genome GENOME [-o OUTPUT] [-w ENDWINDOW] [-p MINPERCENTUSAGE]
-                         [--remove_se] [--max_ends MAX_ENDS] [--min_reads MIN_READS]
-
-    options:
-      -h, --help            show this help message and exit
-      --manifest MANIFEST   path to a manifest file holding one flair bed file path per
-                            line, for example path/to/isoforms.bed
-      --prefixes PREFIXES   comma separated list of file prefixes to combine, assuming the
-                            command is run in a folder containing prefix.isoform.bed
-      --bed_paths BED_PATHS
-                            comma separated list of paths to flair bed files to combine
-      --genome GENOME       genome fasta, required to generate an isoform fasta
-      -o OUTPUT, --output OUTPUT
-                            prefix for output files. default: 'flair.combined.isoforms'
-      -w ENDWINDOW, --endwindow ENDWINDOW
-                            window for comparing ends of isoforms with the same intron chain.
-                            Default:200bp
-      -p MINPERCENTUSAGE, --minpercentusage MINPERCENTUSAGE
-                            minimum percent usage required in one sample to keep isoform in
-                            combined transcriptome. Default:5
-      --remove_se           whether to remove all single exon isoforms
-      --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (1). Make it higher
-                            for more precise end detection
-      --min_reads MIN_READS
-                            min reads from all samples to call an isoform
-
-    Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation
+Combines FLAIR transcriptomes with other FLAIR transcriptomes or annotation
 transcriptomes to generate an accurate combined transcriptome. The transcriptomes to
 combine are named in one of three mutually exclusive ways: --manifest, --prefixes or
---bed_paths.
+--isoform_beds.
 
 Manifest example, one bed file path per line (we suggest using absolute file paths to
 point to your files though):
@@ -293,6 +126,10 @@ to a bed file with gtf_to_bed (see Additional Programs) and name that bed here.
 Flair combine will generate a counts file, but for the most accurate quantification, we recommend 
 running FLAIR quantify using all samples against the combined transcriptome
 
+Options
+-------
+
+.. include:: cli/combine.rst
 
 
 .. _quantify-label:
@@ -300,10 +137,6 @@ running FLAIR quantify using all samples against the combined transcriptome
 
 flair quantify
 ==============
-
-.. code:: text
-
-    usage: flair quantify --manifest manifest.tsv --genome genome.fa --isoform_bed isoforms.bed [options]
 
 **Output**
 
@@ -320,17 +153,6 @@ If you need your reads to match your isoforms well, use --check_splice and --str
 Options
 -------
 
-Required arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-
-    --manifest          Tab delimited file containing sample id, condition, batch,
-                        and the path to that sample's reads aligned to the genome
-                        as a sorted, indexed BAM, such as the output of flair align.
-    --genome            FastA of genome
-    --isoform_bed       Isoform .bed file, from flair transcriptome or flair combine
-
 Manifest example (we suggest using absolute file paths to point to your files though):
 
 .. code:: text
@@ -344,30 +166,8 @@ Manifest example (we suggest using absolute file paths to point to your files th
 
 Note: Do **not** use underscores in the first three fields, see below for details.
 
+.. include:: cli/quantify.rst
 
-Optional arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-
-    --help	        Show all options
-    --output	        Name base for output files (default: flair.quantify). You 
-                        can supply an output directory (e.g. output/flair_quantify).
-    --threads	        Number of processors to use (default 4).
-    --sample_id_only	Only use sample id in output header instead of a concatenation 
-                        of id, condition, and batch.
-    --tpm	        Also write <output>.tpm.tsv, the counts matrix converted to 
-                        transcripts per million.
-    --quality	        Minimum MAPQ of read assignment to an isoform (default 0). 
-    --trust_ends	Specify if reads are generated from a long read method with 
-                        minimal fragmentation.
-    --generate_map	Create read-to-isoform assignment files for each sample.
-    --with_gene	        Output lines with isoform_gene rather than isoform alone.
-    --norm_ends	        Normalize transcript ends. Recommended when not using 
-                        --trust_ends and transcript ends are not of interest.
-
-Reads are matched to isoforms with the stringent and splice-site checks always
-on; there are no --stringent, --check_splice or --output_bam options.
 
 Other info
 ----------
@@ -390,11 +190,6 @@ flair diffexp
 The standard `conda` environment no long installed `R` and the required packages.
 These maybe added do the environment as describe in :ref:`installing-label` 
 
-.. code:: text
-
-   usage: flair diffexp -q counts_matrix.tsv --out_dir out_dir [options]
-
-
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
 3 or more replicates. Please have your control condition name (from the flair quantify manifest file) be alphabetically lower than your test condition for best results (eg ctl and test = good, untreated and treated = less good). It does so by running these R packages:
 
@@ -407,7 +202,7 @@ If you have more than two sample condtions, either split your counts matrix ahea
 
 **Outputs**
 
-After the run, the output directory (``--out_dir``) contains the following, where COND1 and COND2 are the names of the sample groups.
+After the run, the output directory (``--output``) contains the following, where COND1 and COND2 are the names of the sample groups.
 
  - ``genes_deseq2_MCF7_v_A549.tsv`` Filtered differential gene expression table.
  - ``genes_deseq2_QCplots_MCF7_v_A549.pdf`` QC plots, see the `DESeq2 manual <https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html>`__ for details.
@@ -420,26 +215,7 @@ After the run, the output directory (``--out_dir``) contains the following, wher
 Options
 -------
 
-Required arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-    
-    --counts_matrix	Tab-delimited isoform count matrix from flair quantify
-    --out_dir	        Output directory for tables and plots.
-    
-Optional arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-    
-    --help	        Show this help message and exit
-    --threads	        Number of threads for parallel DRIMSeq.
-    --exp_thresh	Read count expression threshold. Isoforms in which both 
-                        conditions contain fewer than E reads are filtered out (Default E=10) 
-                        (This option requires that all replicates in either condition have > exp_thresh reads)
-    --out_dir_force	Specify this argument to force overwriting of files in 
-                        an existing output directory
+.. include:: cli/diffexp.rst
 
 
 Notes
@@ -469,10 +245,6 @@ flair diffsplice
 The standard `conda` environment no long installed `R` and the required packages.
 These maybe added do the environment as describe in :ref:`installing-label` 
 
-.. code:: text
-
-   usage: flair diffsplice -i isoforms.bed -q counts_matrix.tsv [options]
-
 This module calls alternative splicing (AS) events from isoforms. Currently supports
 the following AS events: 
 
@@ -492,14 +264,14 @@ script for statistical testing instead.
 
 **Outputs**
 
-After the run, the output directory (``--out_dir``) contains the following tab separated files:
+After the run, the output directory (``--output``) contains the following tab separated files:
 
  - ``diffsplice.alt3.events.quant.tsv``
  - ``diffsplice.alt5.events.quant.tsv``
  - ``diffsplice.es.events.quant.tsv``
  - ``diffsplice.ir.events.quant.tsv``
 
-If DRIMSeq was run (where ``A`` and ``B`` are conditionA and conditionB, see below):
+If DRIMSeq was run (where ``A`` and ``B`` are condition_a and condition_b, see below):
 
  - ``drimseq_alt3_A_v_B.tsv``
  - ``drimseq_alt5_A_v_B.tsv``
@@ -510,43 +282,8 @@ If DRIMSeq was run (where ``A`` and ``B`` are conditionA and conditionB, see bel
 Options
 -------
 
-Required arguments
-~~~~~~~~~~~~~~~~~~
+.. include:: cli/diffsplice.rst
 
-.. code:: text
-
-    --isoforms	        Isoforms in bed format from Flair collapse.
-    --counts_matrix	Tab-delimited isoform count matrix from Flair quantify.
-    --out_dir	        Output directory for tables and plots.
-    
-Optional arguments
-~~~~~~~~~~~~~~~~~~
-
-.. code:: text
-    
-    --help	        Show all options.
-    --threads	        Number of processors to use (default 4).
-    --test	        Run DRIMSeq statistical testing.
-    --drim1	        The minimum number of samples that have coverage over an 
-                        AS event inclusion/exclusion for DRIMSeq testing; events 
-                        with too few samples are filtered out and not tested (6).
-    --drim2	        The minimum number of samples expressing the inclusion of 
-                        an AS event; events with too few samples are filtered out 
-                        and not tested (3).
-    --drim3	        The minimum number of reads covering an AS event 
-                        inclusion/exclusion for DRIMSeq testing, events with too 
-                        few samples are filtered out and not tested (15).
-    --drim4	        The minimum number of reads covering an AS event inclusion 
-                        for DRIMSeq testing, events with too few samples are 
-                        filtered out and not tested (5).
-    --batch	        If specified with --test, DRIMSeq will perform batch correction.
-    --conditionA	Specify one condition corresponding to samples in the 
-                        counts_matrix to be compared against condition2; by default, 
-                        the first two unique conditions are used. This implies --test.
-    --conditionB	Specify another condition corresponding to samples in the 
-                        counts_matrix to be compared against conditionA.
-    --out_dir_force	Specify this argument to force overwriting of files in an 
-                        existing output directory
 
 Notes
 -----
@@ -590,3 +327,43 @@ considered to include or exclude the each event:
    inclusion_chr1:400-500  chr1:400-500    75.0    35.0    ... e,a
    exclusion_chr1:400-500  chr1:400-500    56.0    15.0    ... f
 
+.. _variantquant-label:
+
+flair variantquant
+==================
+
+Quantifies variants at genome positions using reads aligned to the transcriptome.
+Sites to check are named either with a vcf, with a reference position file, or per
+sample through a manifest.
+
+Options
+-------
+
+.. include:: cli/variantquant.rst
+
+.. _alleles-label:
+
+flair alleles
+=============
+
+Calls alleles from variants and groups the reads that carry them, writing a vcf of
+allele groups.  A normal bam and vcf may be given alongside the tumor ones to call
+variants as somatic or not.
+
+Options
+-------
+
+.. include:: cli/alleles.rst
+
+.. _isoalleles-label:
+
+flair isoalleles
+================
+
+Groups alleles by isoform, using the allele calls from flair alleles together with an
+isoform bed, and predicts the protein each isoform allele produces.
+
+Options
+-------
+
+.. include:: cli/isoalleles.rst

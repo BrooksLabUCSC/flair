@@ -4,16 +4,19 @@ from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.hgdata.bed import Bed, BedBlock
 
 
-def main():
-    parser = argparse.ArgumentParser(description='''converts a gtf to a bed, depending on the output filename extension;
-            gtf exons need to be grouped by transcript and sorted by coordinate w/in a transcript''')
+def build_parser():
+    desc = ('converts a gtf to a bed, depending on the output filename extension; '
+            'gtf exons need to be grouped by transcript and sorted by coordinate within a transcript')
+    parser = argparse.ArgumentParser(prog='gtf_to_bed', description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('gtf', type=str, help='annotated gtf')
     required.add_argument('bed', type=str, help='bed file')
-    parser.add_argument('--include_gene', action='store_true', dest='include_gene', required=False,
-                        help='''Include gene name in the isoform name''')
-    args = parser.parse_args()
+    parser.add_argument('--include_gene', action='store_true',
+                        help='include gene name in the isoform name')
+    return parser
 
+def main():
+    args = build_parser().parse_args()
     gtf_to_bed(args.bed, args.gtf, args.include_gene)
 
 def write_bed_row(include_gene, name_sep, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, fh):

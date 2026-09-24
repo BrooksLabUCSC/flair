@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-import argparse
 import logging
 import pysam
 from flair import FlairError
@@ -10,35 +9,44 @@ from flair.flair_bed import FlairBed
 from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+def add_subparser(subparsers):
+    desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
+    parser = subparsers.add_parser('combine', help="Combine transcriptomes from multiple samples",
+                                   description=desc)
     mutexc = parser.add_mutually_exclusive_group(required=True)
     mutexc.add_argument('--manifest', type=str,
                         help="path to manifest file that has a list of flair bed files paths, eg path/to/isoforms.bed")
     mutexc.add_argument('--prefixes', type=str,
                         help="comma separated list of file prefixes to combine, assuming command is being run "
                         "in folder that contains prefix.isoform.bed")
-    mutexc.add_argument('--bed_paths', type=str,
+    mutexc.add_argument('--isoform_beds', type=str,
                         help="comma separated list of paths to flair bed files to combine")
-    parser.add_argument('-o', '--output', default='flair.combined.isoforms',
-                        help="prefix for output file. default: 'flair.combined.isoforms'")
-    parser.add_argument('-w', '--endwindow', type=int, default=200,
-                        help="window for comparing ends of isoforms with the same intron chain. Default:200bp")
-    parser.add_argument('-p', '--minpercentusage', type=int, default=5,
-                        help="minimum percent usage required in one sample to keep isoform in combined transcriptome. Default:5")
-    parser.add_argument('--remove_se', action='store_true',
-                        help='whether to remove all single exon isoforms.')
-    parser.add_argument('--max_ends', type=int, default=1,
-                        help='maximum number of TSS/TES picked per isoform (1) make higher for more precise end detection'
-                             'if max_ends is 1, all isoforms/read support for a splice junction chain will be condensed into one isoform.'
-                             'max_ends > 1 introduces greater stringency for assigning og to new isoforms, more read support may be dropped')
-    parser.add_argument('--min_reads', type=int, default=3,
-                        help='min reads from all samples to call isoform')
-    parser.add_argument('--genome', required=True,
+    parser.add_argument('-g', '--genome', required=True,
                         help='genome fasta, required to generate an isoform fasta file and/or a bigbed file')
-    args = parser.parse_args()
-    args.minpercentusage = int(args.minpercentusage) / 100.
-    return args
+    parser.add_argument('-o', '--output', default='flair.combined.isoforms',
+                        help="prefix for output file (default: %(default)s)")
+    parser.add_argument('--end_window', type=int, default=200,
+                        help="window, in bases, for comparing ends of isoforms with the same intron chain (default: %(default)s)")
+    parser.add_argument('--min_percent_usage', type=int, default=5,
+                        help="minimum percent usage required in one sample to keep isoform in combined transcriptome (default: %(default)s)")
+    parser.add_argument('--remove_single_exon', action='store_true',
+                        help='remove all single exon isoforms')
+    parser.add_argument('--max_ends', type=int, default=1,
+                        help='maximum number of TSS/TES picked per isoform; make higher for more precise end detection. '
+                             'If max_ends is 1, all isoforms/read support for a splice junction chain will be condensed into one isoform. '
+                             'max_ends > 1 introduces greater stringency for assigning og to new isoforms, more read support may be dropped '
+                             '(default: %(default)s)')
+    parser.add_argument('--min_reads', type=int, default=3,
+                        help='min reads from all samples to call isoform (default: %(default)s)')
+    parser.set_defaults(entry=combine_cmd)
+
+def combine_cmd(args):
+    # the option is a percentage, the code compares against fractional usage
+    combine(manifest=args.manifest, prefixes=args.prefixes, isoform_beds=args.isoform_beds,
+            genome=args.genome, output=args.output, end_window=args.end_window,
+            min_frac_usage=args.min_percent_usage / 100.0,
+            remove_single_exon=args.remove_single_exon, max_ends=args.max_ends,
+            min_reads=args.min_reads)
 
 # def bedReadToIntronChain(bed):
 #     introns = []
@@ -233,11 +241,10 @@ def write_counts_file(output, allsamples, iso_to_samples_to_counts):
                     outline.append('0')
             fh.write('\t'.join(outline) + '\n')
 
-def combine():
-    args = parse_args()
-
+def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
+            min_frac_usage, remove_single_exon, max_ends, min_reads):
     logging.info('parsing manifest')
-    sampledata = parse_input(args.manifest, args.prefixes, args.bed_paths)
+    sampledata = parse_input(manifest, prefixes, isoform_beds)
 
     logging.info('loading isoforms from individual samples')
     intronchaintoisos, allsamples = load_isoforms_by_junc_chain(sampledata)
@@ -247,13 +254,13 @@ def combine():
     new_iso_to_og, new_gene_to_og, ref_gene_to_new, og_flair_gene_to_new = {}, {}, {}, {}
     iso_to_samples_to_counts = {}
     iso_count, gene_count = 1, 1
-    genome = pysam.FastaFile(args.genome)
-    with open(args.output + '.combined.isoforms.bed', 'w') as bed_fh, open(args.output + '.combined.isoforms.fa', 'w') as fa_fh:
+    genome_fa = pysam.FastaFile(genome)
+    with open(output + '.combined.isoforms.bed', 'w') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
         for juncchaininfo in intronchaintoisos:
             all_juncs = [x[2] for x in juncchaininfo]
             og_isos = intronchaintoisos[juncchaininfo]
-            if not args.remove_se or (len(all_juncs) > 1 or len(all_juncs[0]) > 0):
-                ends_to_iso_groups = combineIsos(og_isos, args.endwindow)
+            if not remove_single_exon or (len(all_juncs) > 1 or len(all_juncs[0]) > 0):
+                ends_to_iso_groups = combineIsos(og_isos, end_window)
                 max_usage, tot_counts = 0, 0
                 for bed_lists in ends_to_iso_groups:
                     # For transcripts grouped by ends, sort by longest ends
@@ -263,27 +270,19 @@ def combine():
                 # sort all ends groups with longest ends first
                 ends_to_iso_groups.sort(key=lambda x: (x[0][0].end - x[0][0].start, x[0][0].read_support), reverse=True)
 
-                if max_usage > args.minpercentusage and tot_counts >= args.min_reads:
+                if max_usage > min_frac_usage and tot_counts >= min_reads:
                     # sum all reads from all files, but do median usage from original usages
                     # that way high counts files don't throw off the usage estimates
-                    groups_after_end_filtering = filter_groups(ends_to_iso_groups, args.max_ends, args.minpercentusage, args.min_reads)
+                    groups_after_end_filtering = filter_groups(ends_to_iso_groups, max_ends, min_frac_usage, min_reads)
                     for bed_list_group in groups_after_end_filtering:
                         iso_count, gene_count = correct_bed_fields_write_out(bed_list_group, new_iso_to_og, ref_gene_to_new, new_gene_to_og,
-                                                                             og_flair_gene_to_new, genome, bed_fh, fa_fh, iso_count, gene_count, iso_to_samples_to_counts)
+                                                                             og_flair_gene_to_new, genome_fa, bed_fh, fa_fh, iso_count, gene_count, iso_to_samples_to_counts)
 
-    write_map_files(args.output, new_iso_to_og, new_gene_to_og)
+    write_map_files(output, new_iso_to_og, new_gene_to_og)
 
-    write_counts_file(args.output, allsamples, iso_to_samples_to_counts)
+    write_counts_file(output, allsamples, iso_to_samples_to_counts)
 
-    bed_to_gtf(args.output + '.combined.isoforms.bed', args.output + '.combined.isoforms.gtf', is_flair_bed=True)
+    bed_to_gtf(output + '.combined.isoforms.bed', output + '.combined.isoforms.gtf', is_flair_bed=True)
 
-    make_big_bed(genome, args.output + '.chrom.sizes', args.output + '.combined.isoforms')
-    genome.close()
-
-
-def main():
-    combine()
-
-
-if __name__ == "__main__":
-    main()
+    make_big_bed(genome_fa, output + '.chrom.sizes', output + '.combined.isoforms')
+    genome_fa.close()

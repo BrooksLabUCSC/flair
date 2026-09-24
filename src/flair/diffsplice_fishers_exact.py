@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 
-import sys
+import argparse
 import csv
 import os
-import scipy.stats as sps
 from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 
-# FIXME: use argparse
+def build_parser():
+    desc = "Fisher's exact test of two samples' inclusion and exclusion counts for each splicing event"
+    parser = argparse.ArgumentParser(prog='diffsplice_fishers_exact', description=desc)
+    parser.add_argument('events_quant_tsv', help='event inclusion/exclusion counts from flair diffsplice')
+    parser.add_argument('colname1', help='column name of the first sample to compare')
+    parser.add_argument('colname2', help='column name of the second sample to compare')
+    parser.add_argument('fishers_tsv', help='output TSV of the per-event test results')
+    return parser
 
-def main():
-    try:
-        events_quant = open(sys.argv[1])
-        colname1 = sys.argv[2]
-        colname2 = sys.argv[3]
-        outfilename = sys.argv[4]
-    except Exception:
-        raise FlairInputDataError('usage: diffsplice_fishers_exact events.quant.tsv colname1 colname2 out.fishers.tsv')
-
+def diffsplice_fishers_exact(events_quant_tsv, colname1, colname2, fishers_tsv):
+    # imported here rather than at module scope; scipy takes 0.7s to load and this
+    # is the only use of it
+    import scipy.stats as sps
+    events_quant = open(events_quant_tsv)
+    outfilename = fishers_tsv
     header = events_quant.readline().rstrip().split('\t')
 
     if colname1 in header:
@@ -47,6 +51,13 @@ def main():
         for feature in features_sorted:
             for line in events[feature]['entries']:
                 writer.writerow(line + [sps.fisher_exact(events[feature]['counts'])[1]])
+
+
+def main():
+    args = build_parser().parse_args()
+    with cli.ErrorHandler():
+        diffsplice_fishers_exact(args.events_quant_tsv, args.colname1, args.colname2,
+                                 args.fishers_tsv)
 
 
 if __name__ == "__main__":

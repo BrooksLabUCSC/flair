@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-import argparse
 import pysam
 import logging
 from flair.gtf_io import load_gtf_to_gene_data, GtfExon
@@ -9,49 +8,55 @@ from copy import deepcopy
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
 import math
-import vcfpy
-import networkx as nx
 from collections import OrderedDict
 import string
-from flair import FlairError
+from flair import FlairError, FlairInputDataError
 
 # a read mismatch is credited to a known variant this many bases either side, to
 # tolerate a miscalled or misaligned position.  The comment here used to say 1 while
 # the code did 2; 2 is what has been running, so 2 is what is kept
 SNV_WIGGLE = 2
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--bam', required=True, type=str,
-                        help="bam file (this is your primary bam input, required)")
-    parser.add_argument('--norm_bam', type=str,
-                        help="normal bam file (optional, used to call variants as somatic or not)")
+def add_subparser(subparsers):
+    desc = "Call alleles from variants and group the reads that carry them"
+    parser = subparsers.add_parser('alleles', help="Group reads into alleles from variants",
+                                   description=desc)
+    parser.add_argument('--tumor_bam', required=True, type=str,
+                        help="bam file; this is the primary bam input")
+    parser.add_argument('--normal_bam', type=str,
+                        help="optional normal bam file, used to call variants as somatic or not")
     parser.add_argument('--vcf', required=True, type=str,
-                        help="vcf file (even if you are inputting both normal and tumor bams, you can still provide a single vcf here)")
-    parser.add_argument('--norm_vcf', type=str,
-                        help="normal vcf file, optional even if providing a normal bam")
+                        help="vcf file; a single vcf may be given even when both normal and tumor bams are input")
+    parser.add_argument('--normal_vcf', type=str,
+                        help="normal vcf file, optional even when providing a normal bam")
+    parser.add_argument('-g', '--genome', type=str, required=True,
+                        help='FastA of reference genome')
     parser.add_argument('-o', '--output', default='flair',
-                        help="output prefix. default: 'flair'")
-    parser.add_argument('-g', '--genome',
-                        type=str, required=True, help='FastA of reference genome')
+                        help="prefix for output files (default: %(default)s)")
     parser.add_argument('-f', '--gtf', type=str,
-                        help='GTF annotation file, either this or isoform_bed must be provided')
+                        help='GTF annotation file; either this or --isoform_bed must be provided')
     parser.add_argument('--isoform_bed', type=str,
                         help="FLAIR isoform bed file, can be used as primary or supplementary annotation")
     parser.add_argument('--frac_support', default=0.05, type=float,
-                        help='fraction of reads required to call allele, not recommended to change from default')
+                        help='fraction of reads required to call allele, not recommended to change (default: %(default)s)')
     parser.add_argument('--read_support', default=3, type=int,
-                        help='number of reads required to call allele')
-    parser.add_argument('--annotate_bams', default=False, action='store_true',
+                        help='number of reads required to call allele (default: %(default)s)')
+    parser.add_argument('--annotate_bams', action='store_true',
                         help='label reads in bam files with HP tags for allele groups')
-    parser.add_argument('--generate_map', default=False, action='store_true',
+    parser.add_argument('--generate_map', action='store_true',
                         help='output read map of allele groups to read names')
-    # parser.add_argument('--keep_intermediate', default=False, action='store_true',
-    #                     help='''specify if intermediate and temporary files are to be kept for debugging.''')
-    args = parser.parse_args()
-    if args.gtf is None and args.isoform_bed is None:
-        parser.error('At least one of gtf and isoform_bed must be provided')
-    return args
+    # parser.add_argument('--keep_intermediate', action='store_true',
+    #                     help='specify if intermediate and temporary files are to be kept for debugging.')
+    parser.set_defaults(entry=alleles_cmd)
+
+def alleles_cmd(args):
+    if (args.gtf is None) and (args.isoform_bed is None):
+        raise FlairInputDataError('specify at least one of --gtf and --isoform_bed')
+    getvariants(tumor_bam=args.tumor_bam, normal_bam=args.normal_bam, vcf=args.vcf,
+                normal_vcf=args.normal_vcf, genome=args.genome, output=args.output,
+                gtf=args.gtf, isoform_bed=args.isoform_bed, frac_support=args.frac_support,
+                read_support=args.read_support, annotate_bams=args.annotate_bams,
+                generate_map=args.generate_map)
 
 # def make_vizgraph(graph, readvarinfo_to_reads):
 #     vizgraph = graphviz.Digraph()
@@ -323,6 +328,9 @@ def identify_final_allele_groups(graph, readvarinfo_to_reads):
 
 
 def process_alleotype_graph(readvarinfo_to_reads, read_support, frac_support, gene_id, gene_chrom, var_info, var_to_is_homo):
+    # imported here rather than at module scope, so that a FLAIR install missing
+    # this package still runs every other subcommand
+    import networkx as nx
     # readvarinfo_to_reads = identify_simple_superset_support(readvarinfo_to_reads, gene_id, gene_chrom, var_info, var_to_is_homo)
     reads_lost = set()
     graph = nx.DiGraph()
@@ -385,7 +393,7 @@ def label_bam_file(bamname, output_name, read_to_allele_group):
                         c += 1
                     d += 1
                 out.write(a)
-            print('unassigned reads:', c, '/', d)
+            logging.info(f'unassigned reads: {c} / {d}')
     pysam.index(output_name)
 
 def label_bam_files(bam, norm_bam, output, file_to_read_to_allele_group):
@@ -394,6 +402,9 @@ def label_bam_files(bam, norm_bam, output, file_to_read_to_allele_group):
         label_bam_file(norm_bam, output + '.normal.bam', file_to_read_to_allele_group['n'])
 
 def generate_new_vcf_header(in_vcf, norm_bam):
+    # imported here rather than at module scope, so that a FLAIR install missing
+    # this package still runs every other subcommand
+    import vcfpy
     with vcfpy.Reader.from_path(in_vcf) as reader:
         new_header = vcfpy.Header()
         for line in reader.header.lines:
@@ -413,6 +424,9 @@ def generate_new_vcf_header(in_vcf, norm_bam):
     return new_header
 
 def get_node_pairs_to_shared_reads(file_to_read_to_allele_group):
+    # imported here rather than at module scope, so that a FLAIR install missing
+    # this package still runs every other subcommand
+    import networkx as nx
     ps_graph, ps_ag_graph = nx.Graph(), nx.Graph()
     edge_to_reads = {}
     for file in file_to_read_to_allele_group:
@@ -467,7 +481,7 @@ def split_if_all_alleles_dont_connect_ps(ps_graph, ps_ag_graph, edge_to_reads, p
         all_connected_ps = identify_connected_alleles(ps, phaseset_to_allele_groups[ps], ps_ag_graph)
         bad_ps_conn = [k for k, v in all_connected_ps.items() if v < len(phaseset_to_allele_groups[ps]) and k != ps]
         if len(bad_ps_conn) > 0:
-            print('removing', ps, bad_ps_conn, all_connected_ps)
+            logging.debug(f'removing {ps} {bad_ps_conn} {all_connected_ps}')
             for ps2 in bad_ps_conn:
                 if ps_graph.has_edge(ps, ps2):
                     ps_graph.remove_edge(ps, ps2)
@@ -503,6 +517,9 @@ def check_combine_allele_groups_between_ps(ps_count, ag_count, ps_set, ps_ag_set
     return ag_count
 
 def combine_phase_sets_in_graph(ps_graph, ps_ag_graph, edge_to_reads):
+    # imported here rather than at module scope, so that a FLAIR install missing
+    # this package still runs every other subcommand
+    import networkx as nx
     ps_ag_sets = list(nx.connected_components(ps_ag_graph))
     new_file_to_read_to_allele_group = {'t': {}, 'n': {}}
     old_to_new = {}
@@ -554,6 +571,9 @@ def get_gt(tot_var, tot_cov, my_ag, ag_count):
 
 
 def write_vcf_file(output, new_header, variant_to_allele_group_counts_info, norm_bam, phaseset_to_allele_groups):
+    # imported here rather than at module scope, so that a FLAIR install missing
+    # this package still runs every other subcommand
+    import vcfpy
     # TODO: find phase sets with overlapping variants, remove those that are a subset of another phase set
     # if we want to get fancy, could also combine adjoining phase sets
     allele_group_to_final_vars = {}
@@ -784,21 +804,21 @@ def combine_gene_region_subsets(gene_to_all_exons, gene_to_all_juncs):
     new_group_to_exons, new_group_to_juncs = combine_gene_groups(chrom_to_genes, big_gene_to_little_genes, gene_to_all_exons, gene_to_all_juncs)
     return new_group_to_exons, new_group_to_juncs
 
-def getvariants():
-    args = parse_args()
-    print('loading genes and variants')
-    genome = pysam.FastaFile(args.genome)
-    my_vcfs = [args.vcf, args.norm_vcf] if args.norm_vcf is not None else [args.vcf]
+def getvariants(*, tumor_bam, normal_bam, vcf, normal_vcf, genome, output, gtf,
+                isoform_bed, frac_support, read_support, annotate_bams, generate_map):
+    logging.info('loading genes and variants')
+    genome_fa = pysam.FastaFile(genome)
+    my_vcfs = [vcf, normal_vcf] if normal_vcf is not None else [vcf]
     vartoalt, var_to_is_homo = combine_vcf_files(my_vcfs)
     chrom_to_region_to_vars = reorganize_vars(vartoalt)
-    gene_to_all_exons, gene_to_all_juncs = load_isoform_data(args.gtf, args.isoform_bed)
+    gene_to_all_exons, gene_to_all_juncs = load_isoform_data(gtf, isoform_bed)
 
     gene_to_all_exons, gene_to_all_juncs = combine_gene_region_subsets(gene_to_all_exons, gene_to_all_juncs)
 
     gene_to_vars = get_gene_to_all_vars(gene_to_all_exons, chrom_to_region_to_vars)
-    # tempdir = make_temp_dir(args.output)
+    # tempdir = make_temp_dir(output)
 
-    print('loading bam files and creating allele groups')
+    logging.info('loading bam files and creating allele groups')
     file_to_read_to_allele_group = {'t': {}, 'n': {}}
     index_to_allele_group_info = {}
     variant_to_allele_group_counts_info = {}
@@ -812,8 +832,8 @@ def getvariants():
             gene_chrom, gene_start, gene_end = get_gene_boundaries(gene_to_all_exons[gene_id])
             my_vars = create_gene_vars_dict(gene_to_vars[gene_id])
             var_info, _ = simplify_gene_vars(my_vars)
-            readvarinfo_to_reads = load_bam_files_for_region(args.bam, args.norm_bam, gene_chrom, gene_start, gene_end, my_vars, genome, gene_to_all_juncs[gene_id])
-            allele_group_to_reads = process_alleotype_graph(deepcopy(readvarinfo_to_reads), args.read_support, args.frac_support, gene_id, gene_chrom, var_info, var_to_is_homo)
+            readvarinfo_to_reads = load_bam_files_for_region(tumor_bam, normal_bam, gene_chrom, gene_start, gene_end, my_vars, genome_fa, gene_to_all_juncs[gene_id])
+            allele_group_to_reads = process_alleotype_graph(deepcopy(readvarinfo_to_reads), read_support, frac_support, gene_id, gene_chrom, var_info, var_to_is_homo)
 
             # don't report if there's only one final group
             # if len(allele_group_to_reads) > 1: allele_group_to_reads, phaseset_count, var_info, gene_id
@@ -823,19 +843,15 @@ def getvariants():
             # getting variant coverage from original assignments, not collapsed ones
             get_variant_final_coverage(readvarinfo_to_reads, var_info, gene_chrom, variant_to_allele_group_counts_info)
 
-    print('combining phase sets')
+    logging.info('combining phase sets')
     phaseset_to_allele_groups, index_to_allele_group_info, file_to_read_to_allele_group = combine_phase_sets(variant_to_allele_group_counts_info, file_to_read_to_allele_group, phaseset_to_allele_groups)
 
-    print('writing vcf file')
-    new_header = generate_new_vcf_header(args.vcf, args.norm_bam)
-    write_vcf_file(args.output, new_header, variant_to_allele_group_counts_info, args.norm_bam, phaseset_to_allele_groups)
+    logging.info('writing vcf file')
+    new_header = generate_new_vcf_header(vcf, normal_bam)
+    write_vcf_file(output, new_header, variant_to_allele_group_counts_info, normal_bam, phaseset_to_allele_groups)
 
-    write_allele_group_counts_read_map(index_to_allele_group_info, args.output, args.generate_map, args.norm_bam, args.read_support)
+    write_allele_group_counts_read_map(index_to_allele_group_info, output, generate_map, normal_bam, read_support)
 
-    if args.annotate_bams:
-        print('labeling bam files')
-        label_bam_files(args.bam, args.norm_bam, args.output + '.allelegroups', file_to_read_to_allele_group)
-
-
-if __name__ == "__main__":
-    getvariants()
+    if annotate_bams:
+        logging.info('labeling bam files')
+        label_bam_files(tumor_bam, normal_bam, output + '.allelegroups', file_to_read_to_allele_group)

@@ -11,7 +11,7 @@ parse_arguments <- function() {
   parser$add_argument("--group1", required = TRUE, help = "Sample group 1.")
   parser$add_argument("--group2", required = TRUE, help = "Sample group 2.")
   parser$add_argument("--matrix", required = TRUE, help = "Input count files.")
-  parser$add_argument("--outDir", required = TRUE, help = "Write to specified output directory.")
+  parser$add_argument("--out_dir", required = TRUE, help = "Write to specified output directory.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
   parser$add_argument("--formula", required = TRUE, help = "Formula design matrix.")
 
@@ -21,7 +21,7 @@ parse_arguments <- function() {
 
 # Function to run DESeq2 and save results
 run_deseq_analysis <- function(args) {
-  outdir <- args$outDir
+  outdir <- args$out_dir
   group1 <- args$group1
   group2 <- args$group2
   prefix <- args$prefix
@@ -70,7 +70,7 @@ plot_results <- function(dds, args) {
   group1 <- args$group1
   group2 <- args$group2
   prefix <- args$prefix
-  outdir <- args$outDir
+  outdir <- args$out_dir
   matrixFile <- args$matrix
 
   data_folder <- normalizePath(outdir, mustWork = FALSE)

@@ -1,12 +1,11 @@
 #! /usr/bin/env python3
 
 import os
-import sys
-import argparse
 import pipettor
 import pysam
 from shutil import rmtree
 import logging
+from flair import FlairInputDataError
 from flair.io_utils import make_temp_dir
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
@@ -20,57 +19,58 @@ import multiprocessing as mp
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+def add_subparser(subparsers):
+    desc = "Quantify the expression level of isoforms across samples"
+    parser = subparsers.add_parser('quantify', help="Quantify isoform expression",
+                                   description=desc)
     required = parser.add_argument_group('required named arguments')
-    required.add_argument('--manifest', action='store', type=str,
-                          required=True,
+    required.add_argument('--manifest', type=str, required=True,
                           help='Tab delimited file containing sample id, condition, batch, and the path to '
                                "that sample's reads aligned to the genome as a sorted, indexed BAM")
-    required.add_argument('--genome', action='store',
-                          type=str, required=True, help='FastA of genome')
-    parser.add_argument('-o', '--output', type=str, action='store', default='flair.quantify',
-                        help='''output file name base for FLAIR quantify (default: flair.quantify)''')
-    parser.add_argument('-t', '--threads', type=int,
-                        action='store', default=4, help='minimap2 number of threads (4)')
-    parser.add_argument('--sample_id_only', default=False, action='store_true',
-                        help='''only use sample id in output header''')
-    parser.add_argument('--tpm', action='store_true', default=False,
-                        help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
-    parser.add_argument('--quality', type=int, action='store', default=0,
-                        help='''minimum MAPQ of read assignment to an isoform (0)''')
-    parser.add_argument('--trust_ends', default=False, action='store_true',
+    required.add_argument('-g', '--genome', type=str, required=True,
+                          help='FastA of genome')
+    required.add_argument('--isoform_bed', type=str, required=True,
+                          help='isoform .bed file')
+    parser.add_argument('-o', '--output', type=str, default='flair.quantify',
+                        help='output file name base for FLAIR quantify (default: %(default)s)')
+    parser.add_argument('-t', '--threads', type=int, default=4,
+                        help='minimap2 number of threads (default: %(default)s)')
+    parser.add_argument('--sample_id_only', action='store_true',
+                        help='only use sample id in output header')
+    parser.add_argument('--tpm', action='store_true',
+                        help='convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
+    parser.add_argument('--trust_ends', action='store_true',
                         help='specify if reads are generated from a long read method with minimal fragmentation')
-    parser.add_argument('--generate_map', default=False, action='store_true',
-                        help='''create read-to-isoform assignment files for each sample (default: not specified)''')
-    required.add_argument('--isoform_bed', required=True, type=str, action='store',
-                          help='''isoform .bed file''')
+    parser.add_argument('--generate_map', action='store_true',
+                        help='create read-to-isoform assignment files for each sample')
     parser.add_argument('--with_gene', action='store_true',
-                        help='''output lines with have isoform_gene''')
-    parser.add_argument('--norm_ends', default=False, action='store_true',
-                        help='''normalize transcript ends (recommended if not using trust_ends and don't care about different transcript ends)''')
-    # parser.add_argument('--stringent', default=False, action='store_true',
-    #                     help='''Supporting reads must cover 80 percent of their isoform and extend at least 25 nt into the
+                        help='output lines with isoform_gene')
+    parser.add_argument('--normalize_ends', action='store_true',
+                        help="normalize transcript ends; recommended when not using --trust_ends and "
+                             "different transcript ends do not matter")
+    # parser.add_argument('--stringent', action='store_true',
+    #                     help="""Supporting reads must cover 80 percent of their isoform and extend at least 25 nt into the
     #                     first and last exons. If those exons are themselves shorter than 25 nt, the requirement becomes
-    #                     'must start within 4 nt from the start" or "must end within 4 nt from the end" ''')
-    # parser.add_argument('--check_splice', default=False, action='store_true',
-    #                     help='''enforce coverage of 4 out of 6 bp around each splice site and no
-    #                     insertions greater than 3 bp at the splice site''')
-    args = parser.parse_args()
-    return args
+    #                     'must start within 4 nt from the start" or "must end within 4 nt from the end" """)
+    # parser.add_argument('--check_splice', action='store_true',
+    #                     help="""enforce coverage of 4 out of 6 bp around each splice site and no
+    #                     insertions greater than 3 bp at the splice site""")
+    parser.set_defaults(entry=quantify_cmd)
 
-def check_args(args):
-    # if (args.stringent or args.check_splice):
-    #     if not args.isoforms:
-    #         raise Exception('Please specify isoform models as .bed file using --isoform_bed')
-    if not os.path.exists(args.isoform_bed):
-        raise Exception('Isoform models bed file path does not exist: ' + args.isoform_bed)
-    elif args.isoform_bed.endswith('.psl'):
-        raise Exception('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
-    if not os.path.exists(args.genome):
-        raise Exception('Genome fasta file path does not exist: ' + args.genome)
-    if not os.path.exists(args.manifest):
-        raise Exception('Manifest file path does not exist: ' + args.manifest)
+def quantify_cmd(args):
+    check_input_files(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed)
+    quantify(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed,
+             output=args.output, threads=args.threads, sample_id_only=args.sample_id_only,
+             tpm=args.tpm, trust_ends=args.trust_ends, generate_map=args.generate_map,
+             with_gene=args.with_gene, normalize_ends=args.normalize_ends)
+
+def check_input_files(*, manifest, genome, isoform_bed):
+    if isoform_bed.endswith('.psl'):
+        raise FlairInputDataError('FLAIR no longer accepts PSL input, convert it with psl_to_bed: ' + isoform_bed)
+    for what, path in (('isoform models bed', isoform_bed), ('genome fasta', genome),
+                       ('manifest', manifest)):
+        if not os.path.exists(path):
+            raise FlairInputDataError(f'{what} file does not exist: {path}')
 
 def load_manifest(manifest, sample_id_only):
     sample_data = []
@@ -228,39 +228,33 @@ def get_counts_for_gene(input):
     for sample, group, batch, bamfile in sample_data:
         get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends)
 
-def quantify():
+def quantify(*, manifest, genome, isoform_bed, output, threads, sample_id_only, tpm,
+             trust_ends, generate_map, with_gene, normalize_ends):
     logging.info('loading isos')
-    args = parse_args()
-    check_args(args)
-    temp_dir = make_temp_dir(args.output)
-    sample_data = load_manifest(args.manifest, args.sample_id_only)
-    gene_data = load_isoform_data(args.isoform_bed)
+    temp_dir = make_temp_dir(output)
+    sample_data = load_manifest(manifest, sample_id_only)
+    gene_data = load_isoform_data(isoform_bed)
 
     logging.info(f'Re-aligning reads to transcriptome. Writing temporary files into {temp_dir}')
 
     packed = []
     for gene_id in gene_data:
-        packed.append((temp_dir, gene_id, gene_data[gene_id], sample_data, args.generate_map, args.trust_ends, args.genome, args.norm_ends))
+        packed.append((temp_dir, gene_id, gene_data[gene_id], sample_data, generate_map, trust_ends, genome, normalize_ends))
 
-    if args.threads == 1:
+    if threads == 1:
         for p in packed:
             get_counts_for_gene(p)
     else:
         mp.set_start_method('fork', force=True)
-        with mp.Pool(args.threads) as pool:
+        with mp.Pool(threads) as pool:
             pool.map(get_counts_for_gene, packed)
 
     logging.info('writing quantify output')
-    write_combined_counts(sample_data, gene_data, temp_dir, args.output, args.sample_id_only, args.with_gene)
+    write_combined_counts(sample_data, gene_data, temp_dir, output, sample_id_only, with_gene)
 
-    write_map_out(sample_data, gene_data, temp_dir, args.output, args.generate_map)
+    write_map_out(sample_data, gene_data, temp_dir, output, generate_map)
 
-    if args.tpm:
-        counts_to_tpm(open(args.output + '.counts.tsv'), args.output + '.tpm.tsv')
+    if tpm:
+        counts_to_tpm(open(output + '.counts.tsv'), output + '.tpm.tsv')
 
     rmtree(temp_dir)
-
-
-if __name__ == '__main__':
-    # FIXME: need proper error handling
-    sys.exit(quantify())

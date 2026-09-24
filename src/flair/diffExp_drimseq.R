@@ -11,16 +11,16 @@ parse_args <- function() {
   parser$add_argument("--group1", required=TRUE, help='Sample group 1.')
   parser$add_argument("--group2", required=TRUE, help='Sample group 2.')
   parser$add_argument("--matrix", required=TRUE, help='Input count files.')
-  parser$add_argument("--outDir", required=TRUE, help='Write to specified output directory.')
+  parser$add_argument("--out_dir", required=TRUE, help='Write to specified output directory.')
   parser$add_argument("--prefix", required=TRUE, help='Specify file prefix.')
   parser$add_argument("--formula", required=TRUE, help='Formula design matrix.')
   parser$add_argument("--threads", type="integer", default=4, help='Number of threads for running DRIM-Seq. BBPARAM')
   # the same four dmFilter thresholds diffSplice_drimSeq.R exposes; they were inline
   # here, so the same analysis was tunable in one module and fixed in the other
-  parser$add_argument('--drim1', type="integer", default=6, help='Minimum number of samples expressing a gene (6).')
-  parser$add_argument('--drim2', type="integer", default=3, help='Minimum number of samples expressing a feature (3).')
-  parser$add_argument('--drim3', type="integer", default=15, help='Minimum number of reads covering a gene (15).')
-  parser$add_argument('--drim4', type="integer", default=5, help='Minimum number of reads covering a feature (5).')
+  parser$add_argument('--min_samps_gene_expr', type="integer", default=6, help='Minimum number of samples expressing a gene (6).')
+  parser$add_argument('--min_samps_feature_expr', type="integer", default=3, help='Minimum number of samples expressing a feature (3).')
+  parser$add_argument('--min_gene_expr', type="integer", default=15, help='Minimum number of reads covering a gene (15).')
+  parser$add_argument('--min_feature_expr', type="integer", default=5, help='Minimum number of reads covering a feature (5).')
   
   args <- parser$parse_args()
   return(args)
@@ -29,7 +29,7 @@ parse_args <- function() {
 main <- function() {
   args <- parse_args()
   
-  outdir <- args$outDir
+  outdir <- args$out_dir
   group1 <- args$group1
   group2 <- args$group2
   matrix <- args$matrix
@@ -38,11 +38,11 @@ main <- function() {
   threads <- args$threads
   
   rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads,
-             args$drim1, args$drim2, args$drim3, args$drim4)
+             args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr, args$min_feature_expr)
 }
 
 rundrimseq <- function(outdir, group1, group2, matrix, prefix, formula, threads,
-                       drim1, drim2, drim3, drim4) {
+                       min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr) {
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
   # create output working directory if it doesn't exist
@@ -69,8 +69,8 @@ rundrimseq <- function(outdir, group1, group2, matrix, prefix, formula, threads,
   condition <- samples$condition
   
   
-  filtered <- dmFilter(data, min_samps_gene_expr = drim1, min_samps_feature_expr = drim2,
-                       min_gene_expr = drim3, min_feature_expr = drim4)
+  filtered <- dmFilter(data, min_samps_gene_expr = min_samps_gene_expr, min_samps_feature_expr = min_samps_feature_expr,
+                       min_gene_expr = min_gene_expr, min_feature_expr = min_feature_expr)
   
   # group1 is the reference, so the reported fold change has the direction the output
   # file name states.  Without this, condition is a character column and model.matrix

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import sys
+import argparse
 import csv
 import os
 from operator import itemgetter
-from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 from flair.isoform_data import binary_search
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 
@@ -29,17 +29,19 @@ def contained(coords0, coords1, tol=0):
     return
 
 
-# FIXME: use argparse
+def build_parser():
+    desc = "Name isoforms after the annotated gene whose splice junctions they match"
+    parser = argparse.ArgumentParser(prog='identify_annotated_gene', description=desc)
+    parser.add_argument('isoform_psl', help='isoforms in psl format')
+    parser.add_argument('annotation', help='annotation in gtf format, or genePred when named .gp')
+    parser.add_argument('matched_psl', help='output psl with isoforms named after the matched gene')
+    return parser
 
-def main():  # noqa C901
-    try:
-        psl = open(sys.argv[1])
-        ref = open(sys.argv[2])
-        outfilename = sys.argv[3]
-        genepred = sys.argv[2][-3:].lower() == 'gp'
-    except Exception:
-        raise FlairInputDataError('usage: identify_annotated_gene.py psl ref.gtf/ref.gp isos_matched.psl')
-
+def identify_annotated_gene(isoform_psl, annotation, matched_psl):  # noqa C901
+    psl = open(isoform_psl)
+    ref = open(annotation)
+    outfilename = matched_psl
+    genepred = annotation[-3:].lower() == 'gp'
     prev_transcript, prev_exon = '', ''
     all_juncs = {}  # matches a splice junction to gene name
     all_se = {}  # single exon genes
@@ -67,7 +69,7 @@ def main():  # noqa C901
                 all_juncs[chrom][(end, start)] = gene
             # annotated_juncs[chrom] += [(junctions, gene)]
     else:
-        for rec in gtf_record_parser(sys.argv[2], include_features={'exon'}, attrs=GtfAttrsSet.ALL):
+        for rec in gtf_record_parser(annotation, include_features={'exon'}, attrs=GtfAttrsSet.ALL):
             chrom, start, end, strand = rec.chrom, rec.start, rec.end, rec.strand
             prev_gene = rec.gene_id
             this_transcript = rec.transcript_id
@@ -139,6 +141,12 @@ def main():  # noqa C901
                 gene = genes[-1][0]
                 line[9] += '_' + gene
                 writer.writerow(line)
+
+
+def main():
+    args = build_parser().parse_args()
+    with cli.ErrorHandler():
+        identify_annotated_gene(args.isoform_psl, args.annotation, args.matched_psl)
 
 
 if __name__ == "__main__":

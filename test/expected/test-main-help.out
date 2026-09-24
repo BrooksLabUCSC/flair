@@ -1,15 +1,9 @@
 usage: flair [-h] [--version] [--log-stderr] [--log-level LOG_LEVEL]
              [--log-conf LOG_CONF] [--log-debug]
-             {align,transcriptome,quantify,combine,variantquant,fusion,diffexp,diffsplice,alleles,isoalleles}
-             ...
+             <subcommand> ...
 
 Run a FLAIR module. This program is the main entry point for running FLAIR
 analysis.
-
-positional arguments:
-  {align,transcriptome,quantify,combine,variantquant,fusion,diffexp,diffsplice,alleles,isoalleles}
-                        name of module to run
-  module_args           arguments to module
 
 options:
   -h, --help            show this help message and exit
@@ -23,3 +17,16 @@ options:
                         logging.config.fileConfig()
   --log-debug           short-cut that that sets --log-stderr and --log-
                         level=DEBUG
+
+subcommands:
+  <subcommand>
+    align               Align reads to the genome
+    transcriptome       Build a transcriptome from aligned reads
+    quantify            Quantify isoform expression
+    combine             Combine transcriptomes from multiple samples
+    variantquant        Quantify variants at genome positions
+    fusion              Identify gene fusions
+    diffexp             Differential expression and usage analysis
+    diffsplice          Call and test alternative splicing events
+    alleles             Group reads into alleles from variants
+    isoalleles          Group alleles by isoform

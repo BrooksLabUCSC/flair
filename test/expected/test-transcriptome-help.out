@@ -1,18 +1,21 @@
-usage: transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
-                     SAMPLE_NAME [-o OUTPUT] [-f ANNOT_GTF]
-                     [--junction_tab JUNCTION_TAB]
-                     [--junction_bed JUNCTION_BED]
-                     [--junction_support JUNCTION_SUPPORT]
-                     [--ss_window SS_WINDOW] [-w END_WINDOW]
-                     [--sjc_support SJC_SUPPORT] [--se_support SE_SUPPORT]
-                     [--frac_support FRAC_SUPPORT] [--trust_strand]
-                     [--trust_ends] [--no_stringent] [--no_check_splice]
-                     [--no_align_to_annot] [--max_ends MAX_ENDS]
-                     [--filter FILTER] [--keep_sup] [--quality QUALITY]
-                     [--allow_paralogs] [-t THREADS]
-                     [--parallel_mode PARALLEL_MODE]
-                     [--fusion_breakpoints FUSION_BREAKPOINTS]
-                     [--keep_intermediate] [--normalize_ends] [--generate_map]
+usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
+                           SAMPLE_NAME [-o OUTPUT] [-f ANNOT_GTF]
+                           [--junction_tab JUNCTION_TAB]
+                           [--junction_bed JUNCTION_BED]
+                           [--junction_support JUNCTION_SUPPORT]
+                           [--ss_window SS_WINDOW] [--end_window END_WINDOW]
+                           [--sjc_support SJC_SUPPORT]
+                           [--single_exon_support SINGLE_EXON_SUPPORT]
+                           [--frac_support FRAC_SUPPORT] [--trust_strand]
+                           [--trust_ends] [--no_stringent] [--no_check_splice]
+                           [--no_align_to_annot] [--max_ends MAX_ENDS]
+                           [--filter {nosubset,bysupport,comprehensive,ginormous}]
+                           [--keep_supplementary] [--quality QUALITY]
+                           [--allow_paralogs] [-t THREADS]
+                           [--parallel_mode PARALLEL_MODE]
+                           [--fusion_breakpoints FUSION_BREAKPOINTS]
+                           [--keep_intermediate] [--normalize_ends]
+                           [--generate_map]
 
 generates confident transcript models directly from a bam file of aligned long
 rna-seq reads
@@ -20,8 +23,8 @@ rna-seq reads
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
-                        output file name base for FLAIR isoforms, if not
-                        provided, output will default to sample_name.
+                        output file name base for FLAIR isoforms, defaults to
+                        --sample_name
   -f ANNOT_GTF, --gtf ANNOT_GTF
                         GTF annotation file, used for identifying annotated
                         isoforms
@@ -36,78 +39,74 @@ options:
                         if providing short-read junctions, minimum junction
                         support required to keep junction. If your junctions
                         file is in bed format, the score field will be used
-                        for read support.
+                        for read support (default: 2)
   --ss_window SS_WINDOW
-                        window size for correcting splice sites (15)
-  -w END_WINDOW, --end_window END_WINDOW
-                        window size for comparing TSS/TES (100)
+                        window size for correcting splice sites (default: 15)
+  --end_window END_WINDOW
+                        window size for comparing TSS/TES (default: 100)
   --sjc_support SJC_SUPPORT
                         minimum number of supporting reads for a spliced
-                        isoform
-  --se_support SE_SUPPORT
+                        isoform (default: 1)
+  --single_exon_support SINGLE_EXON_SUPPORT
                         minimum number of supporting reads for a single exon
-                        isoform
+                        isoform (default: 3)
   --frac_support FRAC_SUPPORT
                         minimum fraction of gene locus support for isoform to
-                        be called default: 0.05, only isoforms that make up
-                        more than 5 percent of the gene locus are reported.
-                        Set to 0 for max recall
-  --trust_strand        specify if you want FLAIR to trust the stranding of
-                        the input reads and not attempt strand correction
-  --trust_ends          specify if you want FLAIR to trust the ends of the
-                        input reads - a more stringent way of requiring read
-                        ends to match the ends of transcript models
-  --no_stringent        specify if all supporting reads don't need to be full-
-                        length (aligned to first and last exons of
-                        transcript). Use this for fragmented libraries, with
-                        an understanding that it will impact precision.
-  --no_check_splice     don't enforce accurate alignment around splice site.
+                        be called; only isoforms that make up more than this
+                        fraction of the gene locus are reported. Set to 0 for
+                        max recall (default: 0.05)
+  --trust_strand        trust the stranding of the input reads and do not
+                        attempt strand correction
+  --trust_ends          trust the ends of the input reads: a more stringent
+                        way of requiring read ends to match the ends of
+                        transcript models
+  --no_stringent        do not require all supporting reads to be full-length,
+                        that is aligned to the first and last exons of the
+                        transcript. Use this for fragmented libraries, with an
+                        understanding that it will impact precision
+  --no_check_splice     do not enforce accurate alignment around splice sites.
                         Specify this for libraries with high error rates, but
                         it will reduce precision
-  --no_align_to_annot   related to old annotation_reliant, now specify if you
-                        don't want an initial alignment to the annotated
-                        sequences and only want transcript detection from the
-                        genomic alignment. Will be slightly faster but less
-                        accurate if the annotation is good
-  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform (1) make
-                        higher for more precise end detection
-  --filter FILTER       Report options include: nosubset--any isoforms that
-                        are a proper set of another isoform are removed;
-                        bysupport--subset isoforms are removed based on
-                        support; comprehensive--default set + all subset
-                        isoforms; ginormous--comprehensive set + single exon
-                        subset isoforms
-  --keep_sup            specify if you want to keep supplementary alignments
-                        to define isoforms
+  --no_align_to_annot   skip the initial alignment to the annotated sequences
+                        and detect transcripts only from the genomic
+                        alignment. Slightly faster but less accurate when the
+                        annotation is good
+  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform; make
+                        higher for more precise end detection (default: 1)
+  --filter {nosubset,bysupport,comprehensive,ginormous}
+                        nosubset: any isoforms that are a proper set of
+                        another isoform are removed; bysupport: subset
+                        isoforms are removed based on support; comprehensive:
+                        default set plus all subset isoforms; ginormous:
+                        comprehensive set plus single exon subset isoforms
+                        (default: nosubset)
+  --keep_supplementary  keep supplementary alignments when defining isoforms
   --quality QUALITY     minimum mapping quality threshold to consider genomic
-                        alignments for defining transcripts
+                        alignments for defining transcripts (default: 1)
   --allow_paralogs      NOT IMPLEMENTED: assign reads to multiple paralogs
                         with equivalent alignment. Specifying this is an error
                         rather than a no-op
   -t THREADS, --threads THREADS
-                        number of threads to run with - related to
-                        parallel_mode
+                        number of threads to run with, related to
+                        --parallel_mode (default: 12)
   --parallel_mode PARALLEL_MODE
-                        parallelization mode. Default: "auto:1GB" This
-                        indicates an automatic threshold where if the file is
-                        less than 1GB, parallelization is done by chromosome,
-                        but if it's larger, parallelization is done by region
-                        of non-overlapping reads. Other modes: bychrom,
-                        byregion, auto:xGB - for setting the auto threshold,
-                        it must be in units of GB.
+                        parallelization mode. auto:1GB is an automatic
+                        threshold where, if the file is less than 1GB,
+                        parallelization is done by chromosome, and if it is
+                        larger, parallelization is done by region of non-
+                        overlapping reads. Other modes: bychrom, byregion,
+                        auto:xGB; for the auto threshold, the size must be in
+                        units of GB (default: auto:1GB)
   --fusion_breakpoints FUSION_BREAKPOINTS
-                        for fusion detection only - bed file containing
+                        for fusion detection only: bed file containing
                         locations of fusion breakpoints on the synthetic
                         genome
-  --keep_intermediate   specify if intermediate and temporary files are to be
-                        kept for debugging. Intermediate files include:
-                        promoter-supported reads file, read assignments to
-                        firstpass isoforms
-  --normalize_ends      specify if you want to normalize transcript ends with
-                        similar terminal splice sites - only recommended if
-                        max_ends is 1
-  --generate_map        specify this argument to generate a txt file of read-
-                        isoform assignments
+  --keep_intermediate   keep intermediate and temporary files for debugging.
+                        Intermediate files include the promoter-supported
+                        reads file and read assignments to firstpass isoforms
+  --normalize_ends      normalize transcript ends with similar terminal splice
+                        sites; only recommended when --max_ends is 1
+  --generate_map        generate a txt file of read-isoform assignments
 
 required named arguments:
   -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
