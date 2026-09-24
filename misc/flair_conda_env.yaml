@@ -13,6 +13,16 @@ dependencies:
   - intron-prospector >=1.5
   - ucsc-bedtobigbed
   - pip
+  # R dependencies of flair diffexp and diffsplice
+  - r-argparse
+  - r-ggplot2
+  - r-qqman
+  - r-lazyeval
+  - r-data.table
+  - bioconductor-deseq2
+  - bioconductor-drimseq
+  - bioconductor-stager
+  - bioconductor-apeglm
   - pip:
       - flair-brookslab==v3.0.0+dev
       - matplotlib>=3.10.0,<4.0.0

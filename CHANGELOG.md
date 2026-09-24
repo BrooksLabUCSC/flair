@@ -10,6 +10,10 @@
     can no longer drift from what they accept.  flair variantquant, alleles and
     isoalleles are documented for the first time.
   * All subcommands now honor the logging options; previously only flair align did.
+  * The `diffexp` and `diffsplice` R dependencies are now part of
+    `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
+    The BioConda package still does not carry them; `installing.rst` gives the
+    `conda install` command to add them.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
