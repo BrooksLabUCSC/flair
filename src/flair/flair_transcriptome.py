@@ -984,15 +984,12 @@ def get_spliced_exon_overlaps(strand, exons, annots):
                 gene_hits.append([len(covered_pos), annot_gene, strand])
     return gene_hits
 
-def _get_transcript_gene_from_annot(iso_readrec, annots, annot_name_to_used_counts):
-    """Return (transcript_id, gene_id) if iso matches an annotated junction chain, else (None, None)."""
+def _get_transcript_gene_from_annot(iso_readrec, annots):
+    """Return (transcript_id, gene_id) if iso matches an annotated junction chain, else (None, None).
+    Each junction chain is named once, before end variants are split off; the variants
+    keep this transcript_id."""
     if iso_readrec.juncs != () and iso_readrec.juncs in annots.juncchain_to_transcript:
         transcript_id, gene_id = annots.juncchain_to_transcript[iso_readrec.juncs]
-        if transcript_id in annot_name_to_used_counts:
-            annot_name_to_used_counts[transcript_id] += 1
-            transcript_id = transcript_id + '-endvar' + str(annot_name_to_used_counts[transcript_id])
-        else:
-            annot_name_to_used_counts[transcript_id] = 1
         return transcript_id, (gene_id, )
     else:
         return None, None
@@ -1021,8 +1018,8 @@ def _find_gene_id_by_overlap(iso_readrec, annots):
         return None
 
 
-def get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts):
-    transcript_id, gene_id = _get_transcript_gene_from_annot(isoform, annots, annot_name_to_used_counts)
+def get_gene_name_firstpass(isoform, annots):
+    transcript_id, gene_id = _get_transcript_gene_from_annot(isoform, annots)
     if transcript_id is None:
         gene_id = _find_gene_id_by_overlap(isoform, annots)
     return gene_id, transcript_id
@@ -1047,12 +1044,11 @@ def build_genes(firstpass, annots, region_chrom, sjc_with_overlap_groups):
     - genes: dict of gene_id -> Gene for isoforms matched to known genes
     - novel_gene_isos_to_group: isoforms needing novel gene assignment
     """
-    annot_name_to_used_counts = {}
     genes = {}
     novel_gene_isos_to_group = {'+': [], '-': []}
     for iso_key in firstpass:
         isoform = firstpass[iso_key]
-        gene_id, isoform_id = get_gene_name_firstpass(isoform, annots, annot_name_to_used_counts)
+        gene_id, isoform_id = get_gene_name_firstpass(isoform, annots)
         isoform.ref_transcript_id = isoform_id
         if gene_id is not None:
             # removing this strand correction breaks the unusual junction (due to underlying variant?) test
