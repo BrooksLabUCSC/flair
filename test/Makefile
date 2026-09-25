@@ -476,12 +476,12 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot \
+transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
                     test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
 	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
 	do \
@@ -504,6 +504,22 @@ test-transcriptome-normends: mkdirs ${TEST_ALIGN_BAM}
 
 test-transcriptome-trust-ends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_ends
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# test of --filter comprehensive, which keeps the subset isoforms that the
+# default nosubset filter drops from test-transcriptome-mutant-splice
+test-transcriptome-comprehensive: mkdirs ${KRAS_MUT_SPLICE_BAM}
+	flair transcriptome -b ${KRAS_MUT_SPLICE_BAM} -g ${GENOME_FA} \
+	   --junction_bed=${KRAS_MUT_SPLICE_SJ_BED} \
+	   -t 4 -f ${BASIC_ANNOTATION} -o $O/$@ --sample_name $@ --sjc_support 2 --filter comprehensive
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# --filter comprehensive on the basic data, which has single-exon isoforms
+# contained in spliced exons
+test-transcriptome-comprehensive-basic: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --filter comprehensive
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 

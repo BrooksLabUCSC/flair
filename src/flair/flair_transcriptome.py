@@ -834,7 +834,7 @@ def filter_single_exon_iso(args, single_exon, curr_group, all_isoforms):
         if exon != single_exon:
             if ((exon.start - SINGLE_EXON_OVERLAP_MARGIN) <= single_exon.start and
                     single_exon.end <= (exon.end + SINGLE_EXON_OVERLAP_MARGIN)):
-                if exon.name != '' or args.filter == 'nosubset':  # is exon from spliced transcript
+                if exon.name == '' or args.filter == 'nosubset':  # is exon from spliced transcript
                     is_contained = True
                     break  # filter out
                 else:  # is other single exon - check relative expression
