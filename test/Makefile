@@ -211,6 +211,9 @@ TEST_ALIGN_BAM = $O/test-align.bam
 # evidence for strand correction
 BASIC_READS_NOPOLYA_FA = $O/basic.reads.nopolyA.fa
 NOPOLYA_ALIGN_BAM = $O/test-align-nopolya.bam
+# basic annotation plus a synthetic gene that shares one DDX5 intron
+SHARED_JUNC_GENE_GTF = $I/shared_junction_gene.gtf
+SHARED_JUNC_ANNOTATION = $O/basic.annotation.sharedjunc.gtf
 TEST_QUANTIFY_B1_BAM = $O/test-quantify.B1.B.flair.aligned.bam
 
 ###
@@ -233,6 +236,9 @@ DDX5_READTHROUGH_SJ = $I/DDX5_readthrough_IPSJ.bed
 # chr17:64500697-64506289 subset isoform dropped, so that subset outnumbers them
 DDX5_BYSUPPORT_DROP_READS = $I/DDX5_readthrough_bysupport_drop_reads.txt
 DDX5_BYSUPPORT_BAM = $O/DDX5_readthrough_bysupport.bam
+# DDX5/POLG2 annotation plus the readthrough transcript as its own gene
+DDX5_READTHROUGH_GENE_GTF = $I/DDX5_POLG2_readthrough_gene.gtf
+DDX5_READTHROUGH_GENE_ANNOT = $O/DDX5_POLG2_gencode38.readthrough_gene.gtf
 
 KRAS_MUT_SPLICE_FQ = $I/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.fastq
 KRAS_MUT_SPLICE_BAM = $O/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.bam
@@ -302,6 +308,11 @@ ${BASIC_READS_NOPOLYA_FA}: ${BASIC_READS_FA} bin/trim_polya_reads
 
 ${SEG1_ALIGN_BAM}: test-align-seg1
 ${NOPOLYA_ALIGN_BAM}: test-align-nopolya
+
+${SHARED_JUNC_ANNOTATION}: ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF}
+	@mkdir -p $O
+	cat ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF} > $@.tmp
+	mv -f $@.tmp $@
 
 test-align-seg1 : mkdirs ${GENOME_FA}
 	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@
@@ -498,12 +509,12 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-shared-junc test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-shared-junc" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -601,6 +612,18 @@ test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
 	$(diff_bed_gtf)
 
 
+# the readthrough transcript annotated as its own gene: the readthrough isoform
+# matches it, instead of being a novel isoform assigned to both DDX5 and POLG2
+test-transcriptome-readthrough-gene: mkdirs ${DDX5_READTHROUGH_BAM} ${DDX5_READTHROUGH_GENE_ANNOT}
+	flair transcriptome -b ${DDX5_READTHROUGH_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_GENE_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+${DDX5_READTHROUGH_GENE_ANNOT}: ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GENE_GTF}
+	@mkdir -p $O
+	cat ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GENE_GTF} > $@.tmp
+	mv -f $@.tmp $@
+
 # test of --filter bysupport, which keeps a subset isoform with more than 1.2x
 # the reads of its supersets; nosubset gives 2 isoforms, comprehensive 14
 test-transcriptome-bysupport: mkdirs ${DDX5_BYSUPPORT_BAM}
@@ -625,6 +648,14 @@ test-transcriptome-nopolya: mkdirs ${NOPOLYA_ALIGN_BAM}
 test-transcriptome-nopolya-trust-strand: mkdirs ${NOPOLYA_ALIGN_BAM}
 	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2 --trust_strand
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# novel DDX5 isoforms use the intron shared with the synthetic SHAREDJ1 gene; SHAREDJ1
+# has fewer of their junctions, so gene assignment drops it and the results match
+# test-transcriptome
+test-transcriptome-shared-junc: mkdirs ${TEST_ALIGN_BAM} ${SHARED_JUNC_ANNOTATION}
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f ${SHARED_JUNC_ANNOTATION} -o $O/$@ --sample_name $@
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
