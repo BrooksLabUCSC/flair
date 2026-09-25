@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Rewrite a counts matrix with its sample columns reordered so that the first and
+last column belong to the same condition.
+
+That is the A,B,B,A shape that the old diffexp code got wrong: it took one condition
+from the first column and the other from the last, so both came out the same and the
+expression filter tested one condition twice.  Results must not depend on column
+order, and this produces an input that proves it.
+"""
+import argparse
+import csv
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../src"))
+
+from flair.counts_matrix import parse_sample_fields  # noqa: E402
+
+def parse_args():
+    desc = "reorder counts matrix sample columns so the first and last share a condition"
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('counts_matrix_tsv', help='counts matrix from flair quantify')
+    parser.add_argument('out_tsv', help='counts matrix with the columns reordered')
+    return parser.parse_args()
+
+def interleaved_order(conditions):
+    """Column indexes as first-of-A, all of B, rest of A, so the ends share a
+    condition.  Requires exactly two conditions."""
+    names = sorted(set(conditions))
+    if len(names) != 2:
+        raise Exception(f"expected two conditions, found: {', '.join(names)}")
+    a = [i for i, c in enumerate(conditions) if c == names[0]]
+    b = [i for i, c in enumerate(conditions) if c == names[1]]
+    return [a[0]] + b + a[1:]
+
+def reorder_row(row, order):
+    "the id column, then the sample columns in the new order"
+    return [row[0]] + [row[1 + i] for i in order]
+
+def reorder_counts_matrix(counts_matrix_tsv, out_tsv):
+    with open(counts_matrix_tsv) as in_fh, open(out_tsv, 'w') as out_fh:
+        reader = csv.reader(in_fh, delimiter='\t')
+        writer = csv.writer(out_fh, delimiter='\t', dialect='unix', quoting=csv.QUOTE_NONE)
+        header = next(reader)
+        conditions, _ = parse_sample_fields(header[1:], counts_matrix_tsv)
+        order = interleaved_order(conditions)
+        writer.writerow(reorder_row(header, order))
+        for row in reader:
+            writer.writerow(reorder_row(row, order))
+
+def main():
+    args = parse_args()
+    reorder_counts_matrix(args.counts_matrix_tsv, args.out_tsv)
+
+
+main()

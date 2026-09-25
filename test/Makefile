@@ -265,6 +265,26 @@ define cmp_expect_sort
 	diff <(sort $E/${1}) <(sort $O/${1})
 endef
 
+##
+# compare an output file against another output file, for tests that must produce
+# the same result as an earlier test from differently arranged input
+##
+define cmp_expect_sort_as
+	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
+	diff <(sort $O/${2} | bin/tsv-round-numeric) <(sort $O/${1} | bin/tsv-round-numeric)
+endef
+
+##
+# as above, but comparing only the leading ids and the trailing statistics.  The
+# DRIMSeq result also carries one column per sample, which a test that reorders the
+# input columns permutes by construction.
+##
+define cmp_expect_sort_stats_as
+	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
+	diff <(sort $O/${2} | awk -F'\t' -v OFS='\t' '{print $$1, $$2, $$(NF-1), $$NF}' | bin/tsv-round-numeric) \
+	     <(sort $O/${1} | awk -F'\t' -v OFS='\t' '{print $$1, $$2, $$(NF-1), $$NF}' | bin/tsv-round-numeric)
+endef
+
 ###
 # MAIN COMMAND
 ###
@@ -392,13 +412,27 @@ test-quantify-help: mkdirs
 ###
 # FLAIR DIFFEXP
 ###
-diffexp-tests: test-diffexp test-diffexp-help
+diffexp-tests: test-diffexp test-diffexp-colorder test-diffexp-help
 
+# the conditions are named, so which one is the reference does not depend on where
+# their columns fall in the counts matrix
 test-diffexp : mkdirs
-	flair diffexp --counts_matrix $(BASIC_COUNTS_MATRIX) -o $O/$@ --min_expression 1 --overwrite_output
+	flair diffexp --counts_matrix $(BASIC_COUNTS_MATRIX) -o $O/$@ --min_expression 1 \
+	   --condition_a MCF7 --condition_b A549 --overwrite_output
 	$(call cmp_expect_sort,$@/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort,$@/isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+
+# same counts, columns interleaved rather than grouped by condition, compared against
+# the same expected results.  Taking the conditions from the first and last column
+# got this wrong, and with an order like A,B,B,A filtered one condition twice.
+test-diffexp-colorder : mkdirs test-diffexp
+	${PYTHON} bin/tsv-condition-interleave $(BASIC_COUNTS_MATRIX) $O/$@.counts_matrix.tsv
+	flair diffexp --counts_matrix $O/$@.counts_matrix.tsv -o $O/$@ --min_expression 1 \
+	   --condition_a MCF7 --condition_b A549 --overwrite_output
+	$(call cmp_expect_sort_as,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_as,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_stats_as,$@/isoforms_drimseq_MCF7_v_A549.tsv,test-diffexp/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help > $O/$@.out

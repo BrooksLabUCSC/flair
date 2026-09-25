@@ -10,6 +10,9 @@
     can no longer drift from what they accept.  flair variantquant, alleles and
     isoalleles are documented for the first time.
   * All subcommands now honor the logging options; previously only flair align did.
+  * `flair diffexp` gained `--condition_a` and `--condition_b`, matching
+    `flair diffsplice`.  `condition_a` is the reference that fold changes are
+    measured against.
   * The `diffexp` and `diffsplice` R dependencies are now part of
     `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
     The BioConda package still does not carry them; `installing.rst` gives the
@@ -56,6 +59,19 @@
     identify_annotated_gene and diffsplice_fishers_exact now use standard option
     parsing and accept --help; bed_to_gtf --noCDS is now --no_cds.
   * annotate_aaseq_with_uniprot is now installed as a command.
+  * `flair diffexp` no longer takes the two conditions from the first and last
+    column of the counts matrix.  With `--condition_a` and `--condition_b` left
+    out, the two conditions are used in sorted order.  For a counts matrix whose
+    first and last columns are not the conditions in sorted order, the reference
+    changes, which flips the sign of the reported fold changes and renames the
+    output files `prefix_X_v_Y.tsv`.  Results are not comparable across this
+    change; name the conditions to get a specific direction.
+  * `flair diffexp` previously took the two conditions from the first and last
+    column even when they were the same condition, as in a column order A,B,B,A,
+    which filtered one condition twice and ignored the other.  Such runs gave
+    wrong results and now give correct ones.
+  * `diff_iso_usage` output columns are named after the two samples given rather
+    than sample1 and sample2.
     
 ## [v3.0.0] 2025-11-31
 * General

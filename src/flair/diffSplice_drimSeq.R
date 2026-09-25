@@ -20,8 +20,8 @@ parse_arguments <- function() {
   parser$add_argument('--min_feature_expr', type="integer", default=5, help="Minimum number of reads covering an event inclusion (5).")
   parser$add_argument("--threads", type="integer", default=4, help="Number of threads for running DRIM-Seq.")
   parser$add_argument('--batch', action='store_true', default=FALSE, help="If specified, batch correction will be performed.")
-  parser$add_argument('--condition_a', default='', help="Specify one condition to compare against condition_b.")
-  parser$add_argument('--condition_b', default='', help="Specify one condition to compare against condition_a.")
+  parser$add_argument('--condition_a', required=TRUE, help="Reference condition; the comparison is condition_b against this.")
+  parser$add_argument('--condition_b', required=TRUE, help="Condition compared against condition_a.")
   return(parser$parse_args())
 }
 
@@ -40,12 +40,6 @@ run_DRIMSeq <- function(args) {
   samples <- colnames(sample_info)[-c(1:2, length(sample_info))]
   groups <- sapply(strsplit(samples, "_"), `[`, 2)
   batches <- sapply(strsplit(samples, "_"), `[`, 3)
-
-  # Determine condition_a and condition_b if not provided
-  if (args$condition_a == '') {
-    args$condition_a <- groups[1]
-    args$condition_b <- groups[which(groups != args$condition_a)[1]]
-  }
 
   # Fill the formula data.frame
   formulaDF <- data.table(sample_id = character(), condition = character(), batch = character())

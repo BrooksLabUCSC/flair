@@ -53,7 +53,12 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):  # noqa:
 
     with open(outfilename, 'wt') as outfile:
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-        writer.writerow(['geneID', 'isoID', 'fisher_pval', 'this_iso_sample1_count', 'this_iso_sample2_count', 'other_isos_sample1_count', 'other_isos_sample2_count', 'sample1_PSI', 'sample2_PSI', 'delta_PSI'])
+        # the column names say which sample each number came from, so the sign of
+        # delta_PSI can be read from the file without knowing the argument order
+        writer.writerow(['geneID', 'isoID', 'fisher_pval',
+                         f'this_iso_{colname1}_count', f'this_iso_{colname2}_count',
+                         f'other_isos_{colname1}_count', f'other_isos_{colname2}_count',
+                         f'{colname1}_PSI', f'{colname2}_PSI', 'delta_PSI'])
         geneordered = sorted(counts.keys())
         for gene in geneordered:
             generes = []

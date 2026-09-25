@@ -191,7 +191,11 @@ The standard `conda` environment no long installed `R` and the required packages
 These maybe added do the environment as describe in :ref:`installing-label` 
 
 This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
-3 or more replicates. Please have your control condition name (from the flair quantify manifest file) be alphabetically lower than your test condition for best results (eg ctl and test = good, untreated and treated = less good). It does so by running these R packages:
+3 or more replicates. Name the two conditions with ``--condition_a`` and ``--condition_b``;
+``--condition_a`` is the reference, so fold changes are reported for ``--condition_b``
+relative to it. With neither given, the two conditions are used in sorted order, which
+makes the control the reference when its name sorts first (eg ctl and test). It does so
+by running these R packages:
 
  - `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__ on genes and isoforms. This tests for differential expression.
  - `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.
@@ -202,13 +206,17 @@ If you have more than two sample condtions, either split your counts matrix ahea
 
 **Outputs**
 
-After the run, the output directory (``--output``) contains the following, where COND1 and COND2 are the names of the sample groups.
+After the run, the output directory (``--output``) contains the following, where ``A``
+is ``--condition_a`` and ``B`` is ``--condition_b``. Fold changes are reported for
+``B`` relative to ``A``, so naming the conditions the other way round negates them
+and renames these files.
 
- - ``genes_deseq2_MCF7_v_A549.tsv`` Filtered differential gene expression table.
- - ``genes_deseq2_QCplots_MCF7_v_A549.pdf`` QC plots, see the `DESeq2 manual <https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html>`__ for details.
- - ``isoforms_deseq2_MCF7_v_A549.tsv`` Filtered differential isoform expression table.
- - ``isoforms_deseq2_QCplots_MCF7_v_A549.pdf`` QC plots
- - ``isoforms_drimseq_MCF7_v_A549.tsv`` Filtered differential isoform usage table
+ - ``genes_deseq2_A_v_B.tsv`` Filtered differential gene expression table.
+ - ``genes_deseq2_QCplots_A_v_B.pdf`` QC plots, see the `DESeq2 manual <https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html>`__ for details.
+ - ``isoforms_deseq2_A_v_B.tsv`` Filtered differential isoform expression table.
+ - ``isoforms_deseq2_QCplots_A_v_B.pdf`` QC plots
+ - ``isoforms_drimseq_A_v_B.tsv`` Filtered differential isoform usage table
+ - ``isoforms_sig_exp_change_norm_by_gene.tsv`` Isoforms whose usage changes, from a t-test on counts normalized by gene.
  - ``workdir`` Temporary files including unfiltered output files.
 
 
@@ -271,7 +279,7 @@ After the run, the output directory (``--output``) contains the following tab se
  - ``diffsplice.es.events.quant.tsv``
  - ``diffsplice.ir.events.quant.tsv``
 
-If DRIMSeq was run (where ``A`` and ``B`` are condition_a and condition_b, see below):
+If DRIMSeq was run, where ``A`` is ``--condition_a`` and ``B`` is ``--condition_b``:
 
  - ``drimseq_alt3_A_v_B.tsv``
  - ``drimseq_alt5_A_v_B.tsv``
