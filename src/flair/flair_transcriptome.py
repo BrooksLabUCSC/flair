@@ -1139,13 +1139,6 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
         else:
             return (count >= args.single_exon_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
 
-def generate_full_set_empty_intermediate_files(file_prefix, generate_map):
-    suffixes = ['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed', '.isoforms.bed',
-                '.isoforms.gtf', '.isoforms.fa', '.isoform.counts.txt']
-    if generate_map:
-        suffixes.append('.isoform.read.map.txt')
-    generate_empty_intermediate_files(file_prefix, suffixes)
-
 def generate_empty_intermediate_files(file_prefix, suffixes):
     for s in suffixes:
         out = open(file_prefix + s, 'w')
@@ -1249,8 +1242,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
     # FIXME: should only have region, so why take region arg
     annots = annot_data_from_gtf(gtf_data, region)
 
-    # then align reads to transcriptome and run count_sam_transcripts.  with, not a
-    # bare open: the no-reads path below returns early and used to leak both files
+    # then align reads to transcriptome and run count_sam_transcripts
     with pysam.FastaFile(args.genome) as genome, \
          pysam.AlignmentFile(args.genome_aligned_bam, 'rb') as bam_file:
         # genomic clipping: amount of clipping (from cigar) at ends of reads when aligned to genome
@@ -1260,11 +1252,9 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
         # which can be considered to support isoform.
 
         # logging.info('generating genomic clipping reference')
-        num_reads, clipping_file = generate_genomic_alignment_read_to_clipping_file(partition.file_prefix, bam_file, region.name, region.start, region.end)
-
-        if num_reads == 0:
-            generate_full_set_empty_intermediate_files(partition.file_prefix, args.generate_map)
-            return
+        # never zero reads here: _run_region only calls this when samtools fasta found
+        # reads, and both skip secondary and supplementary alignments
+        _, clipping_file = generate_genomic_alignment_read_to_clipping_file(partition.file_prefix, bam_file, region.name, region.start, region.end)
 
         # aligning to reference transcriptome, then identifying reads that match well to reference transcripts
         # with filter_transcriptome_align
