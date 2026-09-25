@@ -21,8 +21,8 @@ from statistics import median, mean
 import pipettor
 
 from flair import FlairError, FlairInputDataError
-from flair.counts_matrix import (read_sample_columns, parse_sample_fields,
-                                 condition_column_indexes, select_condition_pair)
+from flair.counts_matrix import (read_sample_info, condition_column_indexes,
+                                 select_condition_pair)
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
@@ -351,9 +351,12 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
 
     # FIXME convert to just loading table upfront
     # Get sample data info
-    header = read_sample_columns(quant_table_tsv)
-    samples = ["%s_%s" % (h, num) for num, h in enumerate(header)]
-    groups, batches = parse_sample_fields(header, quant_table_tsv)
+    sample_infos = read_sample_info(quant_table_tsv)
+    groups = [si.condition for si in sample_infos]
+    batches = [si.batch for si in sample_infos]
+    # the column number keeps these unique for R, which joins the formula matrix to
+    # the counts matrix by them
+    samples = ["%s_%s" % (si.sample_id, num) for num, si in enumerate(sample_infos)]
     combos = set([(groups.index(x), batches.index(y)) for x, y in zip(groups, batches)])
 
     condition_a, condition_b = select_condition_pair(groups, condition_a, condition_b,

@@ -395,14 +395,16 @@ quantify-tests: test-quantify test-quantify-normends test-quantify-help
 
 test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	rm -rf $O/$@.intermediate
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm --sample_id_only -o $O/$@ --with_gene
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene
 	$(call cmp_expect,$@.counts.tsv)
+	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	rm -rf $O/$@.intermediate
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm --sample_id_only -o $O/$@ --with_gene --normalize_ends
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene --normalize_ends
 	$(call cmp_expect,$@.counts.tsv)
+	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
 
 test-quantify-help: mkdirs

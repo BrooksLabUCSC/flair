@@ -72,6 +72,15 @@
     wrong results and now give correct ones.
   * `diff_iso_usage` output columns are named after the two samples given rather
     than sample1 and sample2.
+  * `flair quantify` writes `<output>.sample_info.tsv` beside the counts file,
+    giving the condition and batch of each counts column, and the counts columns
+    are now named after the sample alone rather than `sample_condition_batch`.
+    `flair diffexp` and `flair diffsplice` read that file.  A counts matrix from
+    an earlier FLAIR is still read by taking the fields out of the column names.
+  * Because condition and batch are columns of their own, the id, condition and
+    batch fields of the quantify manifest may now contain underscores.
+  * `flair quantify --sample_id_only` is gone; the counts columns always name the
+    sample alone, which is what it asked for.
     
 ## [v3.0.0] 2025-11-31
 * General

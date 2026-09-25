@@ -1,16 +1,81 @@
 """The sample columns of a flair quantify counts matrix.
 
-flair quantify names each counts column sample_condition_batch, joining the first
-three manifest fields with an underscore, so condition and batch are not columns of
-their own and every reader has to take them apart again.  This module is the one
-place that does that, and the one place that decides which two conditions are being
-compared and which of them is the reference.
+flair quantify writes a sample info TSV beside the counts matrix, one row per counts
+column, naming each sample's condition and batch.  Readers take the fields from there
+rather than from the column names.
+
+Counts matrices written before that file existed name each column
+sample_condition_batch, joining the first three manifest fields with an underscore,
+so condition and batch have to be recovered by splitting the name.  That is why the
+manifest documentation forbids underscores in those fields.  Such a matrix is still
+read, by falling back to that parsing.
+
+This is also the one place that decides which two conditions are being compared and
+which of them is the reference.
 """
+import os
+import csv
 import logging
+from collections import namedtuple
 from flair import FlairInputDataError
 
 CONDITION_FIELD = 1
 BATCH_FIELD = -1
+
+SAMPLE_INFO_COLUMNS = ('sample_id', 'condition', 'batch')
+
+class SampleInfo(namedtuple('SampleInfo', SAMPLE_INFO_COLUMNS)):
+    "one counts matrix column: which sample it holds and how that sample was grouped"
+    __slots__ = ()
+
+def sample_info_path(counts_matrix_tsv):
+    "flair quantify writes <prefix>.counts.tsv beside <prefix>.sample_info.tsv"
+    for suffix in ('.counts.tsv', '.tsv'):
+        if counts_matrix_tsv.endswith(suffix):
+            return counts_matrix_tsv[:-len(suffix)] + '.sample_info.tsv'
+    return counts_matrix_tsv + '.sample_info.tsv'
+
+def write_sample_info(sample_info_tsv, sample_infos):
+    with open(sample_info_tsv, 'w') as fh:
+        writer = csv.writer(fh, delimiter='\t', dialect='unix', quoting=csv.QUOTE_NONE)
+        writer.writerow(SAMPLE_INFO_COLUMNS)
+        writer.writerows(sample_infos)
+
+def _read_sample_info_rows(sample_info_tsv):
+    with open(sample_info_tsv) as fh:
+        reader = csv.reader(fh, delimiter='\t')
+        columns = tuple(next(reader))
+        if columns != SAMPLE_INFO_COLUMNS:
+            raise FlairInputDataError(
+                f"{sample_info_tsv}: expected columns {', '.join(SAMPLE_INFO_COLUMNS)}, "
+                f"found: {', '.join(columns)}")
+        return [SampleInfo(*row) for row in reader]
+
+def _check_sample_info(sample_infos, sample_columns, sample_info_tsv, counts_matrix_tsv):
+    "the sample info rows must describe the counts columns, in the same order"
+    named = [si.sample_id for si in sample_infos]
+    if named != sample_columns:
+        raise FlairInputDataError(
+            f"{sample_info_tsv} does not describe the columns of {counts_matrix_tsv}: "
+            f"it names {', '.join(named)}, the counts columns are {', '.join(sample_columns)}")
+
+def _sample_info_from_columns(sample_columns, counts_matrix_tsv):
+    "recover the fields from sample_condition_batch column names"
+    conditions, batches = parse_sample_fields(sample_columns, counts_matrix_tsv)
+    return [SampleInfo(col, condition, batch)
+            for col, condition, batch in zip(sample_columns, conditions, batches)]
+
+def read_sample_info(counts_matrix_tsv):
+    """The sample of each counts column and how it was grouped, taken from the sample
+    info file that flair quantify writes, or from the column names when a counts
+    matrix predates that file."""
+    sample_columns = read_sample_columns(counts_matrix_tsv)
+    sample_info_tsv = sample_info_path(counts_matrix_tsv)
+    if not os.path.exists(sample_info_tsv):
+        return _sample_info_from_columns(sample_columns, counts_matrix_tsv)
+    sample_infos = _read_sample_info_rows(sample_info_tsv)
+    _check_sample_info(sample_infos, sample_columns, sample_info_tsv, counts_matrix_tsv)
+    return sample_infos
 
 def read_sample_columns(counts_matrix_tsv):
     "the sample column names, in column order, without the leading id column"

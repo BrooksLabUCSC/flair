@@ -164,20 +164,37 @@ Manifest example (we suggest using absolute file paths to point to your files th
    sample5      condition2      batch1  mydata/sample5.bam
    sample6      condition2      batch1  mydata/sample6.bam
 
-Note: Do **not** use underscores in the first three fields, see below for details.
 
 .. include:: cli/quantify.rst
 
 
 Other info
 ----------
-Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The `flair diffexp` and `flair diffsplice` modules expect this information.
+The counts file names each column after the sample it holds:
 
 .. code:: text
 
-   id   sample1_condition1_batch1  sample2_condition1_batch1  sample3_condition1_batch1  sample4_condition2_batch1  sample5_condition2_batch1  sample6_condition2_batch1
+   ids  sample1 sample2 sample3 sample4 sample5 sample6
    ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
    ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
+
+The condition and batch of each column are in ``<output>.sample_info.tsv``, written
+beside the counts file, which `flair diffexp` and `flair diffsplice` read:
+
+.. code:: text
+
+   sample_id    condition       batch
+   sample1      condition1      batch1
+   sample2      condition1      batch1
+   sample3      condition1      batch1
+   sample4      condition2      batch1
+   sample5      condition2      batch1
+   sample6      condition2      batch1
+
+Because these are columns of their own, the id, condition and batch fields may
+contain any characters. A counts matrix from an earlier FLAIR, whose columns are
+named ``sample_condition_batch``, is still read by taking the fields back out of the
+column name.
 
 
 

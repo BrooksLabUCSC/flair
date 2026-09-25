@@ -5,8 +5,7 @@ import os.path as osp
 import pipettor
 import logging
 from flair import FlairError, FlairInputDataError
-from flair.counts_matrix import (read_sample_columns, parse_sample_fields,
-                                 select_condition_pair)
+from flair.counts_matrix import read_sample_info, select_condition_pair, write_sample_info
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
@@ -108,11 +107,16 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
         logging.info('DRIMSeq testing for each AS event type')
         # resolved here, not in the R script, so that diffexp and diffsplice choose
         # the same way and R is always told both names
-        conditions, _ = parse_sample_fields(read_sample_columns(counts_matrix), counts_matrix)
-        condition_a, condition_b = select_condition_pair(conditions, condition_a, condition_b,
-                                                         counts_matrix)
+        sample_infos = read_sample_info(counts_matrix)
+        condition_a, condition_b = select_condition_pair([si.condition for si in sample_infos],
+                                                         condition_a, condition_b, counts_matrix)
+        # the condition and batch of each sample, so that the R script does not have
+        # to take them back out of the matrix column names
+        formula_tsv = os.path.join(workdir, 'formula_matrix.tsv')
+        write_sample_info(formula_tsv, sample_infos)
         ds_command = ['Rscript', diffSplice_drimSeq, '--threads', threads, '--out_dir', output,
                       '--condition_a', condition_a, '--condition_b', condition_b,
+                      '--formula', formula_tsv,
                       '--min_samps_gene_expr', min_samps_gene_expr,
                       '--min_samps_feature_expr', min_samps_feature_expr,
                       '--min_gene_expr', min_gene_expr,
