@@ -207,6 +207,10 @@ QUANTIFY_INPUT_BAMS = ${QUANTIFY_INPUT_READS:%=$O/%.genomealigned.bam}
 # These enfoce files being create in the right order.
 ## 
 TEST_ALIGN_BAM = $O/test-align.bam
+# basic reads with poly(A) tails removed, so single-exon reads have no poly(A)
+# evidence for strand correction
+BASIC_READS_NOPOLYA_FA = $O/basic.reads.nopolyA.fa
+NOPOLYA_ALIGN_BAM = $O/test-align-nopolya.bam
 TEST_QUANTIFY_B1_BAM = $O/test-quantify.B1.B.flair.aligned.bam
 
 ###
@@ -277,7 +281,7 @@ test-main-help: mkdirs
 # FLAIR ALIGN
 ###
 
-align-tests: test-align test-align-seg1 test-align-help
+align-tests: test-align test-align-seg1 test-align-nopolya test-align-help
 
 # just checks bed4 to make sure we are getting alignments
 test-align : mkdirs ${GENOME_FA}
@@ -286,10 +290,23 @@ test-align : mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.bed)
 
 ${TEST_ALIGN_BAM}: test-align
+
+${BASIC_READS_NOPOLYA_FA}: ${BASIC_READS_FA} bin/trim_polya_reads
+	@mkdir -p $O
+	bin/trim_polya_reads ${BASIC_READS_FA} $@.tmp
+	mv -f $@.tmp $@
+
 ${SEG1_ALIGN_BAM}: test-align-seg1
+${NOPOLYA_ALIGN_BAM}: test-align-nopolya
 
 test-align-seg1 : mkdirs ${GENOME_FA}
 	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@
+	bedtools bamtobed -i $O/$@.bam > $O/$@.bed
+	$(call cmp_expect,$@.bed)
+
+# basic reads with poly(A) tails trimmed
+test-align-nopolya : mkdirs ${GENOME_FA} ${BASIC_READS_NOPOLYA_FA}
+	flair align -r ${BASIC_READS_NOPOLYA_FA} --genome ${GENOME_FA} -t 4 -o $O/$@
 	bedtools bamtobed -i $O/$@.bam > $O/$@.bed
 	$(call cmp_expect,$@.bed)
 
@@ -477,12 +494,12 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -579,6 +596,20 @@ test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
+
+# basic reads with poly(A) trimmed, keeping single-exon isoforms.  Without poly(A),
+# single-exon reads can only be stranded with --trust_strand, so compare these two
+test-transcriptome-nopolya: mkdirs ${NOPOLYA_ALIGN_BAM}
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	   --filter ginormous --single_exon_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+test-transcriptome-nopolya-trust-strand: mkdirs ${NOPOLYA_ALIGN_BAM}
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	   --filter ginormous --single_exon_support 2 --trust_strand
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
 
 ${KRAS_MUT_SPLICE_BAM}: ${KRAS_MUT_SPLICE_FQ}  ${GENOME_FA}
 	@mkdir -p $O
