@@ -40,6 +40,7 @@ FLAIR_TRANSCRIPT_ATTRS = FLAIR_ATTRS | frozenset(('tag', ))
 BASIC_ATTRS = frozenset(('gene_id', 'transcript_id'))
 
 _ALL_ATTR_RE = re.compile(r'(\w+)\s+(?:"([^"]*)"|([^;\s]+))')
+_TAG_ATTR_RE = re.compile(r'(?:^|[^\w])tag\s+"([^"]*)"')
 
 class GtfAttrsSet(Enum):
     """Selects which GTF attributes to parse.
@@ -77,7 +78,8 @@ class GtfRecord:
         self.strand = strand
         self.frame = frame
 
-        # Make a copy of attrs and add optional parameters
+        # attrs is taken, not copied, as the class docstring says.  A caller that
+        # keeps its dict and goes on using it will change this record
         self.attrs = attrs if attrs is not None else {}
         if gene_id is not None:
             if re.search(r'\s', gene_id):
@@ -234,10 +236,13 @@ class GtfData:
 
     def iter_overlap_transcripts(self, chrom, start, end, *, strand=None):
         """Generator overlapping transcripts, optionally filtering for strand"""
-        # defaultdict will handle chrom not in GTF
-        for transcript in self.transcripts_by_range[chrom].overlap(start, end):
-            if (strand is None) or (transcript.strand == strand):
-                yield transcript
+        # get, not [chrom]: transcripts_by_range is a defaultdict, so indexing it with
+        # an absent chrom inserted an empty index and get_chroms then reported it
+        index = self.transcripts_by_range.get(chrom)
+        if index is not None:
+            for transcript in index.overlap(start, end):
+                if (strand is None) or (transcript.strand == strand):
+                    yield transcript
 
     def iter_overlap_transcripts_sr(self, seq_range):
         """Generator overlapping transcripts given a SeqRange object,
@@ -273,7 +278,12 @@ def _parse_attribute_match(match: re.Match) -> tuple[str, str | int | float]:
             # If conversion fails, keep as string
             return key, unquoted_value
 
-def _parse_all_attributes(attrs_str: str, end_str: str, attr_re=_ALL_ATTR_RE) -> Attrs:
+def _parse_tags(attrs_str: str) -> list[str]:
+    """The tag attribute values, which may repeat, as a list.  GTF transcripts are
+    expected to carry these, so the list is set even when empty."""
+    return _TAG_ATTR_RE.findall(attrs_str)
+
+def _parse_all_attributes(attrs_str: str, record_type: str, attr_re=_ALL_ATTR_RE) -> Attrs:
     """Parse GTF attributes string into dict."""
     attrs = {}
     for attr_str in attr_re.finditer(attrs_str):
@@ -285,13 +295,23 @@ def _parse_all_attributes(attrs_str: str, end_str: str, attr_re=_ALL_ATTR_RE) ->
         else:
             attrs[key] = value
 
+    if record_type in TRANSCRIPT_FEATURES:
+        attrs['tag'] = _parse_tags(attrs_str)
     return attrs
+
+def _find_attr_key(attrs_str: str, key: str) -> int:
+    """Index of key as a whole attribute name, skipping matches that are the tail
+    of a longer name such as gene_id inside ref_gene_id.  -1 when not found."""
+    idx = attrs_str.find(key)
+    while (idx > 0) and (attrs_str[idx - 1].isalnum() or (attrs_str[idx - 1] == '_')):
+        idx = attrs_str.find(key, idx + 1)
+    return idx
 
 def _find_flair_attr_value(attrs_str: str, key: str):
     """Find the quoted value of a single GTF attribute by key using str.find().
     Returns the value as a str or None if not found."""
     alen = len(attrs_str)
-    idx = attrs_str.find(key)
+    idx = _find_attr_key(attrs_str, key)
     if idx < 0:
         return None
     # skip whitespace to opening quote
@@ -320,9 +340,8 @@ def _parse_flair_attributes(attrs_str: str, record_type: str) -> Attrs:
         value = _find_flair_attr_value(attrs_str, key)
         if value is not None:
             attrs[key] = value
-    if record_type == 'transcript':
-        all_tags = [x.split('"')[0] for x in attrs_str.split('tag "')[1:]]
-        attrs['tag'] = all_tags
+    if record_type in TRANSCRIPT_FEATURES:
+        attrs['tag'] = _parse_tags(attrs_str)
     return attrs
 
 
@@ -470,6 +489,27 @@ def gtf_record_parser(gtf_file: str, *, include_features: StrSetNone = None, att
     yield from _gtf_record_iter(gtf_file, include_features, _ATTRS_SET_TO_PARSER[attrs])
 
 
+def _dedup_gene_exons(transcript_to_exons):
+    """The distinct exons of a gene, one GtfExon per coordinate.  GtfExon has no
+    __eq__, so putting the records straight into a set kept one copy per transcript
+    that used the exon."""
+    by_coords = {}
+    for exons in transcript_to_exons.values():
+        for exon in exons:
+            by_coords.setdefault((exon.chrom, exon.start, exon.end, exon.strand), exon)
+    return set(by_coords.values())
+
+
+def _gene_juncs(transcript_to_exons):
+    "the junctions of a gene, as (donor, acceptor) coordinate pairs"
+    juncs = set()
+    for exons in transcript_to_exons.values():
+        exons.sort(key=lambda x: (x.start, x.end))
+        for i in range(len(exons) - 1):
+            juncs.add((exons[i].end, exons[i + 1].start))
+    return juncs
+
+
 def load_gtf_to_gene_data(gtf_file):
     gene_to_transcript_to_exons = {}
     for rec in _gtf_record_iter(gtf_file, include_features=frozenset(['exon']), attrs_parser=_ATTRS_SET_TO_PARSER[GtfAttrsSet.BASIC]):
@@ -481,14 +521,8 @@ def load_gtf_to_gene_data(gtf_file):
             gene_to_transcript_to_exons[rec.gene_id][rec.transcript_id].append(rec)
     gene_to_exons, gene_to_juncs = {}, {}
     for gene in gene_to_transcript_to_exons:
-        gene_to_exons[gene] = set()
-        gene_to_juncs[gene] = set()
-        for transcript in gene_to_transcript_to_exons[gene]:
-            exons = gene_to_transcript_to_exons[gene][transcript]
-            gene_to_exons[gene].update(set(exons))
-            exons.sort(key=lambda x: (x.start, x.end))
-            for i in range(len(exons) - 1):
-                gene_to_juncs[gene].add((exons[i].end, exons[i + 1].start))
+        gene_to_exons[gene] = _dedup_gene_exons(gene_to_transcript_to_exons[gene])
+        gene_to_juncs[gene] = _gene_juncs(gene_to_transcript_to_exons[gene])
     return gene_to_exons, gene_to_juncs
 
 
@@ -522,6 +556,16 @@ def _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_
                       transcript_id_to_cds_recs.get(transcript.transcript_id),
                       transcript_id_to_start_codons.get(transcript.transcript_id))
 
+def _check_transcripts_found(gtf_file, gtf_data, transcript_id_to_exons, include_features):
+    """A GTF holding exons but no transcript features parses to an empty GtfData, and
+    everything downstream then behaves as though the annotation were empty."""
+    wanted_transcripts = (include_features is None) or ('transcript' in include_features)
+    if wanted_transcripts and (len(transcript_id_to_exons) > 0) and (len(gtf_data.transcripts) == 0):
+        raise GtfParseError(f"{gtf_file}: {len(transcript_id_to_exons)} transcript ids appear on exon lines "
+                            "but the file has no transcript feature lines; add them, or build the GTF with a "
+                            "tool that writes them")
+
+
 def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: GtfAttrsSet = GtfAttrsSet.FLAIR):
     """parse a GTF file into a GtfData object.  Use attrs=GtfAttrsSet.FLAIR
     to only parse the four attributes used by flair for faster loading."""
@@ -531,6 +575,7 @@ def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: Gtf
     transcript_id_to_cds_recs = defaultdict(list)
     transcript_id_to_start_codons = defaultdict(lambda: None)
     _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons, include_features, _ATTRS_SET_TO_PARSER[attrs])
+    _check_transcripts_found(gtf_file, gtf_data, transcript_id_to_exons, include_features)
     _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons)
     return gtf_data
 

@@ -12,14 +12,24 @@ include ${root}/defs.mk
 # flake8 walks the tree for *.py itself; PYPROGS adds executable scripts that
 # have no .py extension.  Symbolic links are not reported by file(1), so the
 # bin/ commands are not checked twice, only their targets in src/flair.
-PYPROGS = $(shell file -F $$'\t' bin/* test/bin/* | awk -F'\t' '/Python script/{print $$1}')
+PYPROGS = $(shell file -F $$'\t' bin/* test/bin/* dev/bin/* | awk -F'\t' '/Python script/{print $$1}')
 
 FLAKE8_CHECK = . ${PYPROGS}
 
 default:
 
-doc:
+##
+# documentation.  The per-subcommand option pages are generated from the argparse
+# parsers and committed, so that building the docs needs none of the runtime
+# dependencies.  Regenerate with `make doc-cli' after changing any option.
+##
+doc: doc-cli
 	${MAKE} -C docs html
+
+CLI_DOC_DIR = docs/source/cli
+
+doc-cli:
+	./dev/bin/flair-gen-cli-doc ${CLI_DOC_DIR}
 
 ##
 # test targets, the xx-installed test with the installed FLAIR rather than the

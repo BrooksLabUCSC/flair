@@ -4,10 +4,58 @@
 * General
   * fixed problems with some diffsplice_fishers_exact, and other
     auxiliary console script installs
+  * flair now uses real subcommands, so `flair <subcommand> --help` and the
+    subcommand list in `flair --help` describe what each one accepts.
+  * Command line documentation is generated from the programs themselves, so it
+    can no longer drift from what they accept.  flair variantquant, alleles and
+    isoalleles are documented for the first time.
+  * All subcommands now honor the logging options; previously only flair align did.
+  * The `diffexp` and `diffsplice` R dependencies are now part of
+    `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
+    The BioConda package still does not carry them; `installing.rst` gives the
+    `conda install` command to add them.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
   * Remove flair align options that are no longer need without flair correct.
+  * Logging options (--log-level, --log-stderr, --log-conf, --log-debug) and
+    --version must now precede the subcommand: `flair --log-debug align ...`.
+  * Options renamed for one name per concept and one meaning per short option.
+    Old names are not accepted.
+    * everywhere: --out_dir, --output_prefix to --output; --bed_paths to
+      --isoform_beds; --bedisoforms and diffsplice --isoforms to --isoform_bed;
+      --out_dir_force to --overwrite_output; --norm_ends to --normalize_ends
+    * align: --filtertype to --filter_type; --minfragmentsize to
+      --min_fragment_size; --maxintronlen to --max_intron_len; --nvrna to
+      --native_rna
+    * transcriptome: --se_support to --single_exon_support; --keep_sup to
+      --keep_supplementary
+    * combine: --endwindow to --end_window; --minpercentusage to
+      --min_percent_usage; --remove_se to --remove_single_exon
+    * fusion: --support to --min_support; --maxloci to --max_loci;
+      --max_dist_to_TSS to --max_dist_to_tss; --min_dist_between_bp to
+      --min_dist_between_breakpoints
+    * diffexp: --exp_thresh to --min_expression
+    * diffsplice: --drim1 to --drim4 to --min_samps_gene_expr,
+      --min_samps_feature_expr, --min_gene_expr, --min_feature_expr, after the
+      DRIMSeq dmFilter arguments they are passed to; --conditionA and
+      --conditionB to --condition_a and --condition_b
+    * variantquant: --input_bam to --transcriptome_bam; --threshold to
+      --min_coverage
+    * alleles and isoalleles: --bam to --tumor_bam; --norm_bam to --normal_bam;
+      --norm_vcf to --normal_vcf; --allele_read_map_norm and --iso_read_map_norm
+      to --allele_read_map_normal and --iso_read_map_normal
+  * Short options dropped where a letter meant two different things: -w, -p, -q,
+    -e, -s, -i, -k, -m, -v and -of.  -b is now always the aligned BAM, -r the
+    reads, -t threads, -g the genome, -f the annotation and -o the output.
+  * Removed options that were accepted and never used: flair align --quiet and
+    flair quantify --quality.
+  * flair align now requires exactly one of --genome and --mm_index, rather than
+    failing later when neither was given.
+  * junctions_from_sam, fasta_seq_lengths, mark_intron_retention,
+    identify_annotated_gene and diffsplice_fishers_exact now use standard option
+    parsing and accept --help; bed_to_gtf --noCDS is now --no_cds.
+  * annotate_aaseq_with_uniprot is now installed as a command.
     
 ## [v3.0.0] 2025-11-31
 * General

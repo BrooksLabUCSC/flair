@@ -11,7 +11,7 @@ import shutil
 import pickle
 import multiprocessing as mp
 import pipettor
-from flair import SeqRange
+from flair import SeqRange, FlairInputDataError
 from flair.pycbio.hgdata.bed import BedReader
 
 _GTF_DATA_PKL = 'gtf_data.pkl'
@@ -26,7 +26,7 @@ def combine_temp_files_by_suffix(output, temp_prefixes, suffixes):
                     shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
 
 
-def parallel_mode_parse(parser, parallel_mode):
+def parallel_mode_parse(parallel_mode):
     """Parse --parallel_mode option string into a tuple.
 
     Valid values: auto:10GB, bychrom, byregion
@@ -34,11 +34,11 @@ def parallel_mode_parse(parser, parallel_mode):
     """
     match = re.match(r'^(auto):(\d+)GB$|^(bychrom|byregion)$', parallel_mode)
     if match is None:
-        parser.error(f"Invalid value for --parallel_mode: '{parallel_mode}', expected auto:10GB, bychrom, or byregion")
+        raise FlairInputDataError(f"Invalid value for --parallel_mode: '{parallel_mode}', expected auto:10GB, bychrom, or byregion")
     if match.group(1) is not None:
         size = int(match.group(2))
         if size < 1:
-            parser.error("auto parallel_mode must have a size greater than zero")
+            raise FlairInputDataError("auto parallel_mode must have a size greater than zero")
         return (match.group(1), size)
     else:
         return (match.group(3), None)

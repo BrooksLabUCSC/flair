@@ -58,21 +58,21 @@ RUN \
    wget -nv -O /tmp/libhts3t64.deb ${DEB_URL}/h/htslib/libhts3t64_1.22.1%2Bds2-1_amd64.deb && \
    apt-get install -y /tmp/libhts3t64.deb /tmp/samtools.deb
 
-# bedToBigBed, used by flair transcriptome, combine, fusion and isoalleles
+# bedToBigBed, used by flair transcriptome, combine, fusion and isoalleles, and
+# intron-prospector, used by flair fusion.  Both come from bioconda, as they do in
+# misc/flair_conda_env.yaml, so the image and the documented conda install agree.
+# They go in their own environment and are linked into /usr/local/bin, which keeps
+# conda's python off PATH; the image uses the system python.
 RUN \
-   wget -nv -O /usr/local/bin/bedToBigBed https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/bedToBigBed && \
-   chmod +x /usr/local/bin/bedToBigBed
-
-# intron-prospector, used by flair fusion, built from source as there are no
-# binary releases
-RUN \
-    IP_VER=1.5.1 && \
-    apt-get install -y libhts-dev && \
-    wget -nv -O /tmp/intron-prospector.tar.gz https://github.com/diekhans/intron-prospector/archive/refs/tags/v${IP_VER}.tar.gz && \
-    tar -xzf /tmp/intron-prospector.tar.gz -C /tmp && \
-    cd /tmp/intron-prospector-${IP_VER} && ./configure --prefix=/usr/local && \
-    make && make install && cd / && \
-    rm -rf /tmp/intron-prospector.tar.gz /tmp/intron-prospector-${IP_VER}
+    MAMBA_URL=https://micro.mamba.pm/api/micromamba/linux-64/latest && \
+    wget -nv -O /tmp/micromamba.tar.bz2 ${MAMBA_URL} && \
+    tar -xj -C /usr/local/bin --strip-components=1 -f /tmp/micromamba.tar.bz2 bin/micromamba && \
+    rm -f /tmp/micromamba.tar.bz2 && \
+    micromamba create -y -p /opt/bioconda-tools -c conda-forge -c bioconda \
+        ucsc-bedtobigbed 'intron-prospector>=1.5' && \
+    micromamba clean -ay && \
+    ln -s /opt/bioconda-tools/bin/bedToBigBed /usr/local/bin/bedToBigBed && \
+    ln -s /opt/bioconda-tools/bin/intron-prospector /usr/local/bin/intron-prospector
 
 FROM base AS unix_base
 

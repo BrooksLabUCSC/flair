@@ -6,7 +6,9 @@ from flair import MIN_INTRON_SIZE, MAX_INTRON_SIZE, FlairInputDataError
 from flair.gtf_io import GtfData
 from flair.pycbio.hgdata.bed import BedReader
 from flair.pycbio.tsv import TsvReader
+from bisect import bisect_left
 from collections import namedtuple
+from itertools import islice
 
 _VALID_STRANDS = {'+', '-', '.'}
 
@@ -37,6 +39,9 @@ class IntronSupport:
     def __init__(self, *, min_intron_size=MIN_INTRON_SIZE, max_intron_size=MAX_INTRON_SIZE):
         # dict index by chrom of per-chrom interval indexes, keyed on first base of donor and last base of the acceptor sites
         self.coords_maps = {}
+        # sorted start coordinates per chrom, rebuilt lazily, so overlap() can bisect
+        # rather than scan every intron on the chromosome once per junction per read
+        self._sorted_starts = {}
         self.min_intron_size = min_intron_size
         self.max_intron_size = max_intron_size
         self.chroms = set()
@@ -50,6 +55,7 @@ class IntronSupport:
         if intron_index not in self.coords_maps[chrom]:
             intron = SupportIntron(chrom, start, end, strand)
             self.coords_maps[chrom][intron_index] = intron
+            self._sorted_starts.pop(chrom, None)
         else:
             intron = self.coords_maps[chrom][intron_index]
         return intron
@@ -70,20 +76,35 @@ class IntronSupport:
             return True
         return False
 
+    def _chrom_sorted_starts(self, chrom):
+        "the chrom's intron keys ordered by start, built once per change"
+        starts = self._sorted_starts.get(chrom)
+        if starts is None:
+            starts = sorted(self.coords_maps[chrom], key=lambda k: k.start)
+            self._sorted_starts[chrom] = starts
+        return starts
+
     def overlap(self, chrom, start, end, flank_window=0):
         """get introns were splice junctions overlap each end of this range,
         with a +/-bp window on either of ends of the range. Empty list if no hits"""
-        # only return introns that hit both ends
+        # only return introns that hit both ends.  Bisect on start rather than scanning
+        # the chromosome: this runs once per junction per read
         overlaps = []
         if chrom in self.coords_maps:
-            for interval in self.coords_maps[chrom]:
-                if abs(interval.start - start) <= flank_window and abs(interval.end - end) <= flank_window:
+            keys = self._chrom_sorted_starts(chrom)
+            lo = bisect_left(keys, start - flank_window, key=lambda k: k.start)
+            for interval in islice(keys, lo, None):
+                if interval.start > start + flank_window:
+                    break
+                if abs(interval.end - end) <= flank_window:
                     overlaps.append(self.coords_maps[chrom][interval])
         return overlaps
 
     def entries(self, chrom=None):
         "generator for (chrom, start, end, intron), optionally on a chrom (introns have two entries)"
-        chroms = [chrom] if chrom is not None else self.chroms()
+        # self.chroms is a set attribute, so calling it raised TypeError and every
+        # caller of the whole-index path, dump() included, was unusable
+        chroms = [chrom] if chrom is not None else sorted(self.chroms)
         for chrom in chroms:
             if chrom in self.chroms:
                 for interval, intron in self.coords_maps[chrom].items():

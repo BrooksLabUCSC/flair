@@ -33,8 +33,11 @@ class IntervalIndex:
         if not self._data:
             return []
         overlaps = []
+        # slack on the query, not on the intersection: + slack on the min widened
+        # whichever end happened to be smaller, so an interval to the left of the
+        # query was never reached while one to the right was
         for i in range(len(self._data)):
-            if max(self._starts[i], start) < min(self._ends[i], end) + slack:
+            if max(self._starts[i], start - slack) < min(self._ends[i], end + slack):
                 overlaps.append(self._data[i])
         return overlaps
 

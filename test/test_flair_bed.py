@@ -31,6 +31,12 @@ def test_parse_str_or_none_value():
     assert parseStrOrNone("foo") == "foo"
 
 
+def test_to_row_no_frac_support():
+    "an empty frac_support column is allowed on parse, so it must format"
+    bed = _make_bed(frac_support=None)
+    assert bed.toRow()[16] == ""
+
+
 def test_construct_minimal():
     bed = FlairBed("chr1", 0, 10)
     assert bed.chrom == "chr1"

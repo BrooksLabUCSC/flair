@@ -1,55 +1,45 @@
-usage: align [-h] -r READS [READS ...] [-g GENOME] [--mm_index MM_INDEX]
-             [-o OUTPUT] [-t THREADS] [--junction_bed JUNCTION_BED] [--nvrna]
-             [--quality QUALITY] [--filtertype {keepsup,removesup,separate}]
-             [--minfragmentsize MINFRAGMENTSIZE] [--maxintronlen MAXINTRONLEN]
-             [--quiet] [--log-stderr] [--log-level LOG_LEVEL]
-             [--log-conf LOG_CONF] [--log-debug]
+usage: flair align [-h] -r READS [READS ...] (-g GENOME | --mm_index MM_INDEX)
+                   [-o OUTPUT] [-t THREADS] [--junction_bed JUNCTION_BED]
+                   [--native_rna] [--quality QUALITY]
+                   [--filter_type {keepsup,removesup,separate}]
+                   [--min_fragment_size MIN_FRAGMENT_SIZE]
+                   [--max_intron_len MAX_INTRON_LEN]
 
 FLAIR align outputs an unfiltered bam file and a filtered bam file for use in
 the downstream pipeline
 
 options:
   -h, --help            show this help message and exit
+  -g GENOME, --genome GENOME
+                        FASTA of reference genome, can be minimap2 indexed
+  --mm_index MM_INDEX   minimap2 index .mmi file
   -o OUTPUT, --output OUTPUT
                         output file name base (default: flair.aligned)
   -t THREADS, --threads THREADS
-                        minimap2 number of threads (4)
+                        minimap2 number of threads (default: 4)
   --junction_bed JUNCTION_BED
                         annotated isoforms/junctions bed file for splice site-
                         guided minimap2 genomic alignment
-  --nvrna               specify this flag to use native-RNA specific alignment
-                        parameters for minimap2
-  --quality QUALITY     minimum MAPQ of read alignment to the genome (0)
-  --filtertype {keepsup,removesup,separate}
+  --native_rna          use native-RNA specific alignment parameters for
+                        minimap2
+  --quality QUALITY     minimum MAPQ of read alignment to the genome (default:
+                        0)
+  --filter_type {keepsup,removesup,separate}
                         method of filtering chimeric alignments (potential
-                        fusion reads). Options: removesup (default), separate
-                        (required for downstream work with fusions), keepsup
-                        (keeps supplementary alignments for isoform detection,
-                        does not allow gene fusion detection)
-  --minfragmentsize MINFRAGMENTSIZE
+                        fusion reads); separate is required for downstream
+                        work with fusions, keepsup keeps supplementary
+                        alignments for isoform detection and does not allow
+                        gene fusion detection (default: removesup)
+  --min_fragment_size MIN_FRAGMENT_SIZE
                         minimum size of alignment kept, used in minimap -s.
                         More important when doing downstream fusion detection
-  --maxintronlen MAXINTRONLEN
+                        (default: 80)
+  --max_intron_len MAX_INTRON_LEN
                         maximum intron length in genomic alignment. Longer can
                         help recover more novel isoforms with long introns
-  --quiet               Suppress minimap progress statements from being
-                        printed
-  --log-stderr          also log to stderr, even when logging to syslog
-  --log-level LOG_LEVEL
-                        Set level to integer or case-insensitive symbolic
-                        value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING,
-                        INFO, DEBUG, NOTSET
-  --log-conf LOG_CONF   Python logging configuration file, see
-                        logging.config.fileConfig()
-  --log-debug           short-cut that that sets --log-stderr and --log-
-                        level=DEBUG
+                        (default: 200k)
 
 required named arguments:
   -r READS [READS ...], --reads READS [READS ...]
                         FASTA/FASTQ file(s) of raw reads, either space or
                         comma separated
-
-Either one of the following arguments is required:
-  -g GENOME, --genome GENOME
-                        FASTA of reference genome, can be minimap2 indexed
-  --mm_index MM_INDEX   minimap2 index .mmi file

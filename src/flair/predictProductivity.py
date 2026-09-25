@@ -22,7 +22,7 @@
 # from flair.pycbio.sys import fileOps
 # from flair.bed_to_gtf import bed_to_gtf
 # from flair.flair_bed import FlairBed
-from flair.isoform_data import get_reverse_complement
+from flair.isoform_data import get_reverse_complement, translate as translate_seq
 
 STOP_CODON_SEQS = set(['TAA', 'TGA', 'TAG'])
 MAX_DIST_FROM_EXON_EDGE_FOR_PTC = 55
@@ -50,12 +50,14 @@ def calc_transcript_rel_start_pos(annot_start, exon_sizes, my_exons, start_exon_
     return rel_start
 
 def calc_stop_codon_pos(seq_from_start):
-    stop_reached = False
+    """Offset of the first stop codon, and whether one was found.  The loop variable
+    used to be returned even when the loop never ran, which is an UnboundLocalError on
+    an empty sequence, as happens when the annotated start codon is at the last base."""
+    stop_codon_pos = 0
     for stop_codon_pos in range(0, len(seq_from_start), 3):
         if seq_from_start[stop_codon_pos:stop_codon_pos + 3] in STOP_CODON_SEQS:
-            stop_reached = True
-            break
-    return stop_reached, stop_codon_pos
+            return True, stop_codon_pos
+    return False, stop_codon_pos
 
 def calc_ptc(exon_sizes, orf_end_pos, ref_transcript_id, transcript_to_nmd_except):
     is_ptc = True
@@ -143,28 +145,6 @@ def predict_prod_temp(transcript, start_codon_count, gene_to_cds_starts, transcr
     return thickStart, thickEnd, my_prod, my_aaseq
 
 def translate(seq):
-    table = {
-        'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
-        'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
-        'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
-        'AGC': 'S', 'AGT': 'S', 'AGA': 'R', 'AGG': 'R',
-        'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',
-        'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
-        'CAC': 'H', 'CAT': 'H', 'CAA': 'Q', 'CAG': 'Q',
-        'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',
-        'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
-        'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',
-        'GAC': 'D', 'GAT': 'D', 'GAA': 'E', 'GAG': 'E',
-        'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
-        'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
-        'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
-        'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': '_',
-        'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
-    }
-    seq = seq.upper()
-    protein = ""
-    if len(seq) % 3 == 0:
-        for i in range(0, len(seq), 3):
-            codon = seq[i:i + 3]
-            protein += table[codon]
-    return protein[:-1]  # cutting out stop codon
+    """Protein for a coding sequence, without the trailing stop.  The table and the
+    codon lookup live in isoform_data; this had its own identical copy."""
+    return translate_seq(seq)[:-1]

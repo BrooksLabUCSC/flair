@@ -2,11 +2,16 @@
 FLAIR BED record that is used to pass extra fields.
 """
 from flair.pycbio.hgdata.bed import Bed, BedException, defaultIfNone
-from flair.pycbio.hgdata.autoSql import strArraySplit, strArrayJoin
+from flair.pycbio.hgdata.autoSql import strArraySplitNone, strArrayJoin
 from flair.pycbio.tsv.tabFile import TabFileReader
 
 def parseStrOrNone(s):
     return None if len(s) == 0 else s
+
+
+def round_or_none(value, ndigits):
+    "round a value, leaving a missing one missing"
+    return None if value is None else round(value, ndigits)
 
 
 def get_strand_rgb(strand, junclen):
@@ -80,13 +85,13 @@ class FlairBed(Bed):
         """Returns the number of columns in the BED when formatted as a row."""
         return super().numColumns + len(self.__slots__)
 
-    def toRow(self):
-        row = super().toRow()
+    def toRow(self, *, rawScores=False):
+        row = super().toRow(rawScores=rawScores)
         row.extend([defaultIfNone(self.gene_id, ''),
                     defaultIfNone(self.ref_transcript_id, ''),
                     strArrayJoin(self.ref_gene_mappings),
                     defaultIfNone(self.read_support, ''),
-                    defaultIfNone(round(self.frac_support, 4), ''),
+                    defaultIfNone(round_or_none(self.frac_support, 4), ''),
                     defaultIfNone(self.productivity, ''),
                     self.transcript_class,
                     strArrayJoin(self.fused_genes),
@@ -99,34 +104,34 @@ class FlairBed(Bed):
         return row
 
     @classmethod
-    def _parse(cls, row, fixScores=None):
-        base = Bed.parse(row[:12], numStdCols=12, fixScores=fixScores)
+    def _parse(cls, row, fixScores=None, rawScores=False):
+        base = Bed.parse(row[:12], numStdCols=12, fixScores=fixScores, rawScores=rawScores)
         bed = cls(base.chrom, base.chromStart, base.chromEnd,
                   name=base.name, score=base.score, strand=base.strand,
                   thickStart=base.thickStart, thickEnd=base.thickEnd,
                   itemRgb=base.itemRgb, blocks=base.blocks)
         bed.gene_id = parseStrOrNone(row[12])
         bed.ref_transcript_id = parseStrOrNone(row[13])
-        bed.ref_gene_mappings = tuple(strArraySplit(row[14]))
+        bed.ref_gene_mappings = tuple(strArraySplitNone(row[14]))
         bed.read_support = int(row[15]) if row[15] != '' else None
         bed.frac_support = float(row[16]) if row[16] != '' else None
         bed.productivity = parseStrOrNone(row[17])
         bed.transcript_class = row[18]
-        bed.fused_genes = tuple(strArraySplit(row[19]))
+        bed.fused_genes = tuple(strArraySplitNone(row[19]))
         bed.pos_in_fusion = int(row[20]) if row[20] != '' else None
-        bed.samples = tuple(strArraySplit(row[21]))
+        bed.samples = tuple(strArraySplitNone(row[21]))
         bed.source_isoform = parseStrOrNone(row[22])
         bed.allele_group = parseStrOrNone(row[23])
         bed.aaseq_id = parseStrOrNone(row[24])
         return bed
 
     @classmethod
-    def parse(cls, row, numStdCols=None, fixScores=None):  # numStdCols is only here for compatibility with BedReader
+    def parse(cls, row, numStdCols=None, fixScores=None, rawScores=False):  # numStdCols is only here for compatibility with BedReader
         needed_cols = 12 + len(cls.__slots__)
         if len(row) != needed_cols:
             raise BedException("expected at {} columns, found {}: ".format(needed_cols, len(row)))
         try:
-            return cls._parse(row, fixScores=fixScores)
+            return cls._parse(row, fixScores=fixScores, rawScores=rawScores)
         except Exception as ex:
             raise BedException(f"parsing of BED row failed: {row}") from ex
 

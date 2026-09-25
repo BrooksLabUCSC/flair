@@ -1,5 +1,6 @@
 import pysam
 import sys
+from flair import FlairInputDataError
 from flair.isoform_data import get_reverse_complement
 from flair.pycbio.hgdata.bed import BedReader
 
@@ -15,6 +16,9 @@ def get_iso_info_from_bed(file):
     return isotoinfo
 
 def convert_start_pos(isoinfo, isostart):
+    """Genomic position of a transcript offset.  An offset at or past the end of the
+    last exon used to fall out of the loop and return None, which the caller then
+    assigned to a.reference_start."""
     esizes = isoinfo['esizes']
     introns = isoinfo['introns']
     if isoinfo['strand'] == '-':
@@ -25,6 +29,8 @@ def convert_start_pos(isoinfo, isostart):
                 return isoinfo['start'] + isostart + sum(introns[:i])
             else:
                 return isoinfo['end'] - (isostart + sum(introns[:i]))  # this is now the end position of the transcript on the genome
+    raise FlairInputDataError(f"transcript offset {isostart} is past the end of a transcript "
+                              f"of {sum(esizes)} bases, so it has no genomic position")
 
 
 def add_introns_to_block(exonbounds, introns, tpos, blocktype, blocklen, newcigar):

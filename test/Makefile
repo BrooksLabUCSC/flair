@@ -76,7 +76,7 @@ test-base:
 	${MAKE} align-tests quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests
+		spliceevents-tests partition-tests lib-tests test-doc-cli
 
 test-no-align:
 	${MAKE} quantify-tests bed-to-gtf-tests \
@@ -97,12 +97,19 @@ test-help:
 	${MAKE} test-main-help test-align-help \
 		test-quantify-help test-diffexp-help test-diffsplice-help \
 		test-diff-iso-usage-help \
-		test-plot-usage-help test-transcriptome-help test-variants-help test-fusion-help
+		test-plot-usage-help test-transcriptome-help test-fusion-help \
+		test-doc-cli
+
+# the committed option pages must match what the parsers currently define
+test-doc-cli: mkdirs
+	rm -rf $O/cli
+	${root}/dev/bin/flair-gen-cli-doc $O/cli >/dev/null
+	diff -r ${root}/docs/source/cli $O/cli
 
 test-fast:
 	${MAKE} test-combine-bed-only \
 		test-diff-iso-usage test-plot-usage test-transcriptome \
-		test-fusion test-variants
+		test-fusion
 
 ##
 # Non-python programs FLAIR runs.  test-env-only reruns the tests with only the
@@ -337,17 +344,17 @@ test-combine: mkdirs
 	$(combine_diff)
 
 test-combine-files: mkdirs
-	flair combine --genome ${GENOME_FA} -o $O/$@ --bed_paths expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
+	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
 test-combine-nose: mkdirs
-	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --remove_se
+	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --remove_single_exon
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
 test-combine-10pct: mkdirs
-	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --minpercentusage 10
+	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --min_percent_usage 10
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
@@ -357,7 +364,7 @@ test-combine-multends: mkdirs
 	$(combine_diff)
 
 test-combine-multends-10pct: mkdirs
-	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --minpercentusage 10
+	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --min_percent_usage 10
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
@@ -374,7 +381,7 @@ test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	rm -rf $O/$@.intermediate
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm --sample_id_only -o $O/$@ --with_gene --norm_ends
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm --sample_id_only -o $O/$@ --with_gene --normalize_ends
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
 
@@ -388,7 +395,7 @@ test-quantify-help: mkdirs
 diffexp-tests: test-diffexp test-diffexp-help
 
 test-diffexp : mkdirs
-	flair diffexp -q $(BASIC_COUNTS_MATRIX) -o $O/$@ -e 1 -of
+	flair diffexp --counts_matrix $(BASIC_COUNTS_MATRIX) -o $O/$@ --min_expression 1 --overwrite_output
 	$(call cmp_expect_sort,$@/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort,$@/isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
@@ -404,7 +411,7 @@ diffsplice-tests: test-diffsplice test-diffsplice-help
 
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
-	flair diffsplice -i $(BASIC_DIFFSPLICE_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of
+	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output
 	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
 	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
@@ -413,7 +420,7 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-cond: mkdirs
-	flair diffsplice -i $(BASIC_DIFFSPLICE_BED) -q $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ -of --conditionA A --conditionB B
+	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output --condition_a A --condition_b B
 	$(call cmp_expect_sort,test-diffsplice/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect_sort,test-diffsplice/diffsplice.alt5.events.quant.tsv)
 	$(call cmp_expect,test-diffsplice/diffsplice.es.events.quant.tsv)
@@ -538,7 +545,7 @@ test-transcriptome-seg1-badannot: mkdirs  ${SEG1_ALIGN_BAM}
 	$(diff_bed_gtf)
 
 test-transcriptome-seg1-badannot-multends: mkdirs  ${SEG1_ALIGN_BAM}
-	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 4 --se_support 2 --filter ginormous
+	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 4 --single_exon_support 2 --filter ginormous
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
@@ -561,14 +568,14 @@ ${KRAS_MUT_SPLICE_BAM}: ${KRAS_MUT_SPLICE_FQ}  ${GENOME_FA}
 	@mkdir -p $O
 	flair align -r ${KRAS_MUT_SPLICE_FQ} \
 	   --genome ${GENOME_FA} -t 4 -o $(basename ${KRAS_MUT_SPLICE_BAM} .bam) \
-	   --minfragmentsize 40 --maxintronlen 350k
+	   --min_fragment_size 40 --max_intron_len 350k
 
 #DDX5_readthrough.badread40x.fastq
 ${DDX5_READTHROUGH_BAM}: ${DDX5_READTHROUGH_FQ}  ${GENOME_FA}
 	@mkdir -p $O
 	flair align -r ${DDX5_READTHROUGH_FQ} \
 	   --genome ${GENOME_FA} -t 4 -o $(basename ${DDX5_READTHROUGH_BAM} .bam) \
-	   --minfragmentsize 40 --maxintronlen 350k
+	   --min_fragment_size 40 --max_intron_len 350k
 
 test-transcriptome-help: mkdirs
 	flair transcriptome --help > $O/$@.out
@@ -612,32 +619,32 @@ endif
 variants-tests: test-identifyvars-snvs test-identifyvars-indels test-identifyvars-snvsindels
 
 test-alleles: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
-	flair alleles --bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
+	flair alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
 	$(call cmp_expect,$@.allelegroups.counts.tsv)
 
 test-alleles-withbed: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
-	flair alleles --bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
+	flair alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
 	$(call cmp_expect,$@.allelegroups.counts.tsv)
 	$(call cmp_expect,$@.allelegroups.vcf)
 	$(call cmp_expect,$@.allelegroups.tumor.read.map.txt)
 
 test-alleles-bedonly: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
-	flair alleles --bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@ --generate_map --annotate_bams
+	flair alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@ --generate_map --annotate_bams
 	$(call cmp_expect,$@.allelegroups.counts.tsv)
 
 # test-isoalleles: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
-# 	flair isoalleles --bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA}  --isoform_bed $(TOME_ISOFORM_BED) --read_map $(TOME_READ_MAP) -o $O/$@ --generate_map --annotate_bams
+# 	flair isoalleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA}  --isoform_bed $(TOME_ISOFORM_BED) --read_map $(TOME_READ_MAP) -o $O/$@ --generate_map --annotate_bams
 # 	$(call cmp_expect,$@.isoforms.allelegroups.bed)
 
 test-isoalleles: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 	flair isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.txt --genome ${GENOME_FA} \
-	                 --isoform_bed $(TOME_ISOFORM_BED) --iso_read_map $(TOME_READ_MAP) -o $O/$@ --bam ${TEST_ALIGN_BAM} --generate_map
+	                 --isoform_bed $(TOME_ISOFORM_BED) --iso_read_map $(TOME_READ_MAP) -o $O/$@ --tumor_bam ${TEST_ALIGN_BAM} --generate_map
 	$(call cmp_expect,$@.isoalleles.bed)
 	$(call cmp_expect,$@.isoallele.counts.tsv)
 
 
 test-variantquant: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
-	flair variantquant -i ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -b $(TOME_ISOFORM_BED) -o $O/$@
+	flair variantquant --transcriptome_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
 	$(call cmp_expect_sort,$@.var.counts.tsv)
 
 test-identifyvars-snvs: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM}
@@ -669,19 +676,19 @@ update-fusion-tests:
 	done
 
 test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
-	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --maxloci 4 -o $O/$@ --sample_name $@ -s 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 # 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
 
 test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
-	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --maxloci 4 -o $O/$@ --sample_name $@ -s 2
+	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 
 test-fusion-nongenic: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
-	flair fusion -g ${GENOME_FA} -f $I/basic.annotation.ERGIC3only.gtf -b ${FUSION_TEST_BAM} --maxloci 4 -o $O/$@ --sample_name $@ -s 2
+	flair fusion -g ${GENOME_FA} -f $I/basic.annotation.ERGIC3only.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 
@@ -689,7 +696,7 @@ ${FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
 	@mkdir -p $O
 	flair align -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq \
 	   --genome ${GENOME_FA} -t 4 -o ${FUSION_TEST_SHARED_OUT} \
-	   --minfragmentsize 40 --maxintronlen 350k
+	   --min_fragment_size 40 --max_intron_len 350k
 
 test-fusion-help: mkdirs
 	flair fusion  --help > $O/$@.out
@@ -714,7 +721,7 @@ test-spliceevents-extraannot: mkdirs ${TEST_ALIGN_BAM}
 # FIXME: orphan, this does not work and is not referenced; is this still needed
 # the annotation file is there
 test-refseq: mkdirs
-	flair fusion -g genome.refSeq.fa -f $I/refSeq.test.annotation.gtf -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq -b $O/$@_chimeric.bam --maxloci 4 -o $O/$@ -s 2
+	flair fusion -g genome.refSeq.fa -f $I/refSeq.test.annotation.gtf -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq -b $O/$@_chimeric.bam --max_loci 4 -o $O/$@ --min_support 2
 
 ##
 # flair_partition command
@@ -729,7 +736,7 @@ test-partition-basic: mkdirs
 
 # merge adjacent partitions
 test-partition-adjacent: mkdirs
-	flair_partition --threads=2 -part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
+	flair_partition --threads=2 --part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/$@.ranges.bed >& output/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 

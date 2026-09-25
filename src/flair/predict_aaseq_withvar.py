@@ -90,8 +90,6 @@ for line in open(modtranscriptsfile):  # noqa: C901 - FIXME: reduce complexity
         temp = '-'.join(tinfo.split('-')[1:])
         tname = '_'.join(temp.split('_')[:-1])
         gname = temp.split('_')[-1]
-        if last[0] == '1-flairiso23973-1_ENSG00000105173.14--chr19-27666000':
-            print(tname, gname, (tname, gname) in transcriptToInfo)
         if (tname, gname) not in transcriptToInfo:
             continue
         thist = transcriptToInfo[(tname, gname)]
@@ -135,7 +133,9 @@ for line in open(modtranscriptsfile):  # noqa: C901 - FIXME: reduce complexity
                 refseqpostomodseqpos[refseqpos] = modseqpos
                 modseqpos += 1
                 refseqpos += 1
-            newptcpoint = refseqpostomodseqpos[thist.ptcpoint]
+            # get: a PTC point past the end of the modified sequence, which a deletion
+            # can produce, was a KeyError
+            newptcpoint = refseqpostomodseqpos.get(thist.ptcpoint, modseqpos)
             # Is there a base change before the predicted start?
             prestartvars = [x for x in seqvars if x[0] < thist.origstart]
             hasnovelstart = False
@@ -156,7 +156,9 @@ for line in open(modtranscriptsfile):  # noqa: C901 - FIXME: reduce complexity
                         newstart = checkstart + hasstart
                         newpredseq = translate(modseq[newstart:])
                         hasnovelstart = True
-                        if newpredseq[-1] != '_':
+                        # an empty translation has no last base; the other call site
+                        # already checks the length before indexing
+                        if len(newpredseq) == 0 or newpredseq[-1] != '_':
                             predProd = 'NST'
                         else:
                             newend = newstart + ((len(newpredseq)) * 3)

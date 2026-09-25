@@ -72,6 +72,10 @@ def annot_data_from_gtf(gtf_data, region):
     # finalize gene_to_exons as sorted tuples
     for gene_id in annots.gene_to_exons:
         annots.gene_to_exons[gene_id] = tuple(sorted(annots.gene_to_exons[gene_id]))
+    # once, not once per transcript, which made annotation loading quadratic.  The
+    # binary search over these needs them sorted
+    for se_strand in ('+', '-'):
+        annots.all_annot_SE[se_strand] = sorted(annots.all_annot_SE[se_strand])
     return annots
 
 def _process_transcript(annots, region, region_map, trans):
@@ -134,5 +138,3 @@ def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, 
         annots.all_annot_SE[strand].append(Exon(t_start, t_end, gene_id))
     else:
         _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand, annots)
-    for strand in ['+', '-']:
-        annots.all_annot_SE[strand] = sorted(annots.all_annot_SE[strand])  # FIXME: make set? Colette note: needs to be sorted for binary search later

@@ -32,6 +32,13 @@ class FlairInputDataError(FlairError, NoStackError):
     """Error in FLAIR input data"""
     pass
 
+class FlairNotImplementedError(FlairError, NoStackError):
+    """An option is accepted by the argument parser but does nothing.  Raising is
+    better than ignoring it silently, and better than dropping the option, which would
+    make an existing command line fail with an argparse message that does not say the
+    feature is missing."""
+    pass
+
 def set_unix_path():
     "add programs in package to PATH."
 

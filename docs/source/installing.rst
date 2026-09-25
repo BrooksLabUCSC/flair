@@ -27,12 +27,14 @@ On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use:
 
 Note that mamba currently fails to install FLAIR on Mac ARM64.
 
-If you are going to use the ``diffexp`` or ``diffsplice`` modules,
-you need to add addition packages to the Conda environment with:
+The BioConda ``flair`` package does not include the ``R`` packages that ``diffexp``
+and ``diffsplice`` need.  To use those modules, add them with:
 
 .. code:: sh
 
-   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0+dev/flair_diffexp_conda_env.yaml
+   conda install -n flair -c conda-forge -c bioconda \
+       r-argparse r-ggplot2 r-qqman r-lazyeval r-data.table \
+       bioconductor-deseq2 bioconductor-drimseq bioconductor-stager bioconductor-apeglm
 
 Conda Install from GitHub Release
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -45,11 +47,7 @@ a Conda environment from a release in GitHub, use:
    conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0+dev/flair_conda_env.yaml
    conda activate flair
 
-To add the `diffexp` or `diffsplice` dependencies:
-
-.. code:: sh
-
-   conda env update --name flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0+dev/flair_diffexp_conda_env.yaml
+This environment includes the ``R`` packages that ``diffexp`` and ``diffsplice`` need.
 
 Running FLAIR with Docker
 ~~~~~~~~~~~~~~~~~~~~~~~~~

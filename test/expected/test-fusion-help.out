@@ -1,33 +1,42 @@
-usage: fusion [-h] -g GENOME -f GTF -b GENOME_ALIGNED_BAM --sample_name
-              SAMPLE_NAME [-o OUTPUT] [-t THREADS]
-              [--minfragmentsize MINFRAGMENTSIZE] [-s SUPPORT]
-              [--maxloci MAXLOCI] [--max_dist_to_TSS MAX_DIST_TO_TSS]
-              [--min_dist_between_bp MIN_DIST_BETWEEN_BP]
-              [--keep_intermediate]
+usage: flair fusion [-h] -g GENOME -f GTF -b GENOME_ALIGNED_BAM --sample_name
+                    SAMPLE_NAME [-o OUTPUT] [-t THREADS]
+                    [--min_fragment_size MIN_FRAGMENT_SIZE]
+                    [--min_support MIN_SUPPORT] [--max_loci MAX_LOCI]
+                    [--max_dist_to_tss MAX_DIST_TO_TSS]
+                    [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
+                    [--keep_intermediate] [--allow_paralogs]
+
+Identify gene fusions and generate a fusion transcriptome
 
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
                         output file name base for FLAIR isoforms, defaults to
-                        sample_name if not provided
+                        --sample_name
   -t THREADS, --threads THREADS
-                        minimap2 number of threads (4)
-  --minfragmentsize MINFRAGMENTSIZE
+                        minimap2 number of threads (default: 4)
+  --min_fragment_size MIN_FRAGMENT_SIZE
                         minimum size of alignment kept, used in minimap -s.
                         More important when doing downstream fusion detection
-  -s SUPPORT, --support SUPPORT
-                        minimum number of supporting reads for a fusion (3)
-  --maxloci MAXLOCI     max loci detected in fusion. Set higher for detection
-                        of 3-gene+ fusions
-  --max_dist_to_TSS MAX_DIST_TO_TSS
+                        (default: 40)
+  --min_support MIN_SUPPORT
+                        minimum number of supporting reads for a fusion
+                        (default: 3.0)
+  --max_loci MAX_LOCI   max loci detected in fusion. Set higher for detection
+                        of 3-gene+ fusions (default: 2)
+  --max_dist_to_tss MAX_DIST_TO_TSS
                         maximum allowed distance of 5' alignment to TSS of
-                        annotated transcript. To not check this, set to -1
-  --min_dist_between_bp MIN_DIST_BETWEEN_BP
+                        annotated transcript; -1 does not check this (default:
+                        15000)
+  --min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS
                         minimum allowed distance between breakpoints when they
-                        are on the same strand. Removes read-through
-                        transcripts.
+                        are on the same strand; removes read-through
+                        transcripts (default: 100000)
   --keep_intermediate   keep intermediate and temporary files for debugging
                         purposes
+  --allow_paralogs      NOT IMPLEMENTED: assign reads to multiple paralogs
+                        with equivalent alignment. Specifying this is an error
+                        rather than a no-op
 
 required named arguments:
   -g GENOME, --genome GENOME

@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-import sys
+import argparse
 import csv
 import os
-from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import BedReader
 
 def overlap(coords0, coords1):
-    return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
-        coords1[1] >= coords0[0] and coords1[1] <= coords0[1]
+    """Do two closed ranges share any position.  The old test asked only whether an
+    end of coords1 fell inside coords0, so a coords1 containing coords0 came back
+    False, which is the very shape an intron retention pair has."""
+    return (coords1[0] <= coords0[1]) and (coords0[0] <= coords1[1])
 
 
-# FIXME: use argparse
+def build_parser():
+    desc = "Mark isoforms that retain an intron of another isoform of the same locus"
+    parser = argparse.ArgumentParser(prog='mark_intron_retention', description=desc)
+    parser.add_argument('isoform_bed', help='isoforms in bed format')
+    parser.add_argument('marked_bed', help='output bed, with intron retention marked in an extra column')
+    parser.add_argument('intron_txt', help='output text file of the retained introns')
+    return parser
 
-def main():  # noqa C901
-    try:
-        bedfh = open(sys.argv[1])
-        outfilename = sys.argv[2]
-        txtout = sys.argv[3]
-    except Exception:
-        raise FlairInputDataError('usage: mark_intron_retention in.bed out_isoforms.bed out_introns.txt')
-
+def mark_intron_retention(isoform_bed, marked_bed, intron_txt):  # noqa C901
+    bedfh = open(isoform_bed)
+    outfilename = marked_bed
+    txtout = intron_txt
     isoforms = {}
     for bed in BedReader(bedfh, fixScores=True):
         chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
@@ -72,6 +76,12 @@ def main():  # noqa C901
         writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
         for intron in introncoords:
             writer.writerow(intron)
+
+
+def main():
+    args = build_parser().parse_args()
+    with cli.ErrorHandler():
+        mark_intron_retention(args.isoform_bed, args.marked_bed, args.intron_txt)
 
 
 if __name__ == "__main__":

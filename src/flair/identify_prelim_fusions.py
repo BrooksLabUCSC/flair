@@ -8,6 +8,9 @@ from flair.convert_synthetic_to_genome_bed import identify_fusion_problems
 
 
 def binarySearch(arr, t):
+    """Nearest value in a sorted list.  The loop used to fall off the end returning
+    None when i and j converged without a branch firing, and the caller then indexed
+    with it."""
     if t <= arr[0]:
         return arr[0]
     if t >= arr[-1]:
@@ -31,6 +34,7 @@ def binarySearch(arr, t):
                 else:
                     return arr[mid + 1]
             i = mid + 1
+    return arr[i]
 
 
 def getGenomicPreciseLoc(tname, bpCoord, genedir, intronLocs, intronToGenome):
@@ -128,6 +132,30 @@ def getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, r
     return my_gene
 
 
+def name_nongenic_group(ognongenic_to_genes, group, chrom, start, end):
+    "name every locus in an overlapping group after the group's merged span"
+    gname = f'{chrom}:{start}-{end}'
+    for n in group:
+        ognongenic_to_genes[n] = gname
+
+
+def group_nongenic_loci(nongenicloci):
+    """Map each non-genic locus to the merged span of the overlapping loci it belongs
+    to.  nongenicloci must be sorted."""
+    ognongenic_to_genes = {}
+    lastchrom, laststart, lastend, group = None, -1, -1, []
+    for chrom, s, e in nongenicloci:
+        if s > lastend or chrom != lastchrom:
+            name_nongenic_group(ognongenic_to_genes, group, lastchrom, laststart, lastend)
+            group = []
+            lastchrom, laststart, lastend = chrom, s, e
+        elif e > lastend:
+            lastend = e
+        group.append((chrom, s, e))
+    name_nongenic_group(ognongenic_to_genes, group, lastchrom, laststart, lastend)
+    return ognongenic_to_genes
+
+
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
                 genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None):
     isrevtosign = {True: '-', False: '+'}
@@ -170,22 +198,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
     withsup.close()
 
     nongenicloci.sort()
-    ognongenic_to_genes = {}
-    lastchrom, laststart, lastend, group = None, -1, -1, []
-    for chrom, s, e in nongenicloci:
-        if s > lastend or chrom != lastchrom:
-            if len(group) > 0:
-                gname = f'{lastchrom}:{laststart}-{lastend}'
-                for n in group:
-                    ognongenic_to_genes[n] = gname
-            lastchrom, laststart, lastend = chrom, s, e
-        elif e > lastend:
-            lastend = e
-        group.append((chrom, s, e))
-    if len(group) > 0:
-        gname = f'{lastchrom}:{laststart}-{lastend}'
-        for n in group:
-            ognongenic_to_genes[n] = gname
+    ognongenic_to_genes = group_nongenic_loci(nongenicloci)
 
     interestingloci = {}
     for read in readToAligns:
@@ -280,7 +293,9 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                         qdistlist = sorted(qdistlist)
                         for i in range(1, len(qdistlist)):
                             simscore.append(qdistlist[i] - qdistlist[i - 1])
-                        simscores.append(median(simscore))
+                        # a single supporting read gives no consecutive differences,
+                        # and median([]) raises.  One read agrees with itself
+                        simscores.append(median(simscore) if len(simscore) > 0 else 0)
                     if max([abs(median(x)) for x in qdist]) <= 10 \
                             or (max([abs(min(x)) for x in qdist]) <= 10 and max(simscores) <= 3):  # alignments have to either have few gaps or be very consistent
                         fname = '__'.join(fgenes)

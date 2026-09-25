@@ -4,11 +4,12 @@ import argparse
 import logging
 import re
 import os
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from flair.remove_internal_priming import removeinternalpriming
 import pipettor
 import pysam
-from flair import FlairInputDataError
+from flair import FlairInputDataError, FlairNotImplementedError
 from flair.pycbio.hgdata.bed import BedReader
 
 
@@ -37,8 +38,6 @@ def parse_args():
                         help='minimum quality threshold to consider if ends are to be trusted (0)')
     parser.add_argument('--generate_map',
                         help='''specify an output path for a txt file of which isoform each read is assigned to''')
-    parser.add_argument('--output_bam',
-                        help='''specify an output path for the bam file aligned to the transcriptome if desired''')
     parser.add_argument('--fusion_dist',
                         help='''minimium distance between separate read alignments on the same chromosome to be
             considered a fusion, otherwise no reads will be assumed to be fusions''')
@@ -59,7 +58,8 @@ def parse_args():
     parser.add_argument('--fusion_breakpoints',
                         help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
     parser.add_argument('--allow_paralogs', default=False, action='store_true',
-                        help='specify if want to allow reads to be assigned to multiple paralogs with equivalent alignment')
+                        help='NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent '
+                             'alignment. Specifying this is an error rather than a no-op')
     parser.add_argument('--allow_UTR_indels', default=False, action='store_true',
                         help='specify if want to allow reads to include indels in UTRs (more permissive for population variation + A to I editing)')
     parser.add_argument('--trimmedreads',
@@ -74,9 +74,16 @@ def parse_args():
 
 
 def check_args(args):
+    if args.allow_paralogs:
+        raise FlairNotImplementedError("--allow_paralogs is not implemented: reads with an equally "
+                                       "good alignment to several paralogs are assigned to one of "
+                                       "them, and nothing in this program does otherwise")
     if args.stringent or args.fusion_dist or args.check_splice or args.fusion_breakpoints:
-        if not os.path.exists(args.isoforms):
-            raise FlairInputDataError(f'A valid isoforms bed file needs to be specified: {args.isoforms}')
+        # None, not just missing: os.path.exists(None) raises TypeError, which hid the
+        # real problem when -i was left off
+        if (args.isoforms is None) or (not os.path.exists(args.isoforms)):
+            raise FlairInputDataError("--stringent, --fusion_dist, --check_splice and --fusion_breakpoints "
+                                      f"each need an isoforms bed file from -i: {args.isoforms}")
     if args.fusion_dist:
         args.trust_ends = True
     return args
@@ -84,6 +91,10 @@ def check_args(args):
 
 MIN_INSERTION_LEN = 3
 HALF_SS_WINDOW_SIZE = 6
+# check_splicesites scores an asymmetric window, unlike check_fusionbp's symmetric
+# HALF_SS_WINDOW_SIZE.  These are the values that have been running
+SS_WINDOW_BEFORE = 6
+SS_WINDOW_AFTER = 4
 NUM_MISTAKES_IN_SS_WINDOW = 2
 TRUST_ENDS_WINDOW = 50
 LARGE_INDEL_TOLDERANCE = 25
@@ -206,11 +217,12 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
         elen = exonpos[i]
         currpos += elen
         if tstart < currpos < tend:
-            ssvals = coveredpos[currpos - 6:currpos + 4]  # total size = 10, need to check indexing, seems off. This worked in a couple cases but is not systematically tested.
+            # max(0, ...): a negative start reads from the end of the vector, and for a
+            # first exon shorter than SS_WINDOW_BEFORE the slice came back empty, which
+            # scored zero mistakes and passed the junction
+            ssvals = coveredpos[max(0, currpos - SS_WINDOW_BEFORE):currpos + SS_WINDOW_AFTER]
             totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
-            if tname == testtname:
-                print(i, currpos, ssvals, totmatch, totinsert)
             if totinsert + (len(ssvals) - totmatch) > NUM_MISTAKES_IN_SS_WINDOW:
                 # return False
                 all_ss_res[i] = 0
@@ -233,8 +245,6 @@ def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss
             ssvals = coveredpos[currpos - HALF_SS_WINDOW_SIZE:currpos + HALF_SS_WINDOW_SIZE]
             totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
-            if tname == testtname:
-                print(currpos, ssvals, totmatch, totinsert)
             if totinsert + (len(ssvals) - totmatch) <= NUM_MISTAKES_IN_SS_WINDOW:
                 return True
         return False
@@ -339,12 +349,13 @@ def check_stringent_and_splice(exoninfo, tname, coveredpos, tlen, blockstarts, b
         # only run if spliced transcript
         passes_splice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if check_splice and len(exoninfo) > 1 else True
         passes_fusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcript_to_bp_ss_index) if fusion_breakpoints else True
-        if tname == testtname:
-            print(tname, passes_stringent, passes_splice)
     return passes_stringent and passes_splice and passes_fusion
 
 
-testtname = 'none'
+def _mirror_intron_index(index, num_introns):
+    """Intron index counted from the other end of the transcript.  A read covering no
+    intron on one side has None there, and None it stays."""
+    return None if index is None else (num_introns - 1) - index
 
 
 def identify_corrected_ends(exoninfo, startpos, endpos, gtstrand, tname, output_endpos, tlen, query_clipping):
@@ -373,7 +384,9 @@ def identify_corrected_ends(exoninfo, startpos, endpos, gtstrand, tname, output_
         if right_intron_index == len(exoninfo) - 2:
             right_end_dist = tlen - endpos
         if gtstrand == '-':
-            left_intron_index, right_intron_index = (len(exoninfo) - 2) - right_intron_index, (len(exoninfo) - 2) - left_intron_index
+            num_introns = len(exoninfo) - 1
+            left_intron_index, right_intron_index = (_mirror_intron_index(right_intron_index, num_introns),
+                                                     _mirror_intron_index(left_intron_index, num_introns))
             left_dist, right_dist = right_dist, left_dist
             left_end_dist, right_end_dist = right_end_dist, left_end_dist
     else:
@@ -382,6 +395,13 @@ def identify_corrected_ends(exoninfo, startpos, endpos, gtstrand, tname, output_
         if gtstrand == '-':
             left_end_dist, right_end_dist = right_end_dist, left_end_dist
     return (left_intron_index, left_dist, left_end_dist, left_clipping), (right_intron_index, right_dist, right_end_dist, right_clipping)
+
+def _covered_splice_junctions(left_intron_index, right_intron_index):
+    "number of splice junctions a read spans, 0 when it is inside a single exon"
+    if (left_intron_index is None) or (right_intron_index is None):
+        return 0
+    return (right_intron_index + 1) - left_intron_index
+
 
 def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname):
     # check that any of the alignments have low clipping
@@ -427,7 +447,9 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
                     or (not stringent and genomicclipping is None and (query_clipping[0] < soft_clipping_buffer * 2 and query_clipping[1] < soft_clipping_buffer * 2)) \
                     or stringent:
                 left_end_info, right_end_info = identify_corrected_ends(exoninfo, thist.startpos, tendpos, gtstrand, tname, output_endpos, thist.tlen, query_clipping)
-                covered_sj = (right_end_info[0] + 1) - left_end_info[0] if left_end_info[0] is not None else 0
+                # a read inside one exon of a spliced transcript covers no junction, and
+                # leaves one or both indexes None
+                covered_sj = _covered_splice_junctions(left_end_info[0], right_end_info[0])
                 passing_transcripts.append([-1 * thist.alignscore, -1 * sum(matchvals), -1 * covered_sj, sum(query_clipping), thist.tlen, tname, left_end_info, right_end_info])
             else:
                 logging.debug(f"{rname} transcript alignment dropped: excess soft clipping ({query_clipping} > {soft_clipping_buffer}): {tname}")
@@ -454,7 +476,8 @@ def get_best_transcript(tinfo, info, genomicclipping,
         thist = tinfo[tname]
         # process MD tag here to query positions with mismatches
         # for MD tag, keep track of position of mismatch in all match positions
-        if stringent or check_splice or fusion_breakpoints:
+        # output_endpos reaches identify_corrected_ends, which needs the exon sizes
+        if stringent or check_splice or fusion_breakpoints or output_endpos:
             exoninfo = check_transcript_in_annot(info.transcript_to_exons, tname)
         else:
             exoninfo = None
@@ -553,8 +576,6 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                     cigar = read.cigartuples
                     tlen = samfile.get_reference_length(transcript)
                     if lastread and readname != lastread:
-                        if testtname in curr_transcripts:
-                            print('\n', lastread, curr_transcripts.keys())
                         clipping = readstoclipping[lastread] if lastread in readstoclipping else None
                         assignedts = get_best_transcript(curr_transcripts, info, clipping,
                                                          stringent=stringent, check_splice=check_splice,
@@ -596,27 +617,30 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
     return transcript_to_reads
 
 
-def write_output(args, transcripttoreads):
-    if args.output_endpos:
-        endout = open(args.output_endpos, 'w')
-
-    if args.generate_map:
-        mapout = open(args.generate_map, 'w')
-    countout = open(args.output, 'wt')
+def _write_transcript_counts(transcripttoreads, countout, mapout, endout):
     for t in transcripttoreads:
-        if args.generate_map:
-            mapout.write(t + '\t' + ','.join([x[0] for x in transcripttoreads[t]]) + '\n')
         countout.write(t + '\t' + str(len(transcripttoreads[t])) + '\n')
-        if args.output_endpos:
+        if mapout is not None:
+            mapout.write(t + '\t' + ','.join([x[0] for x in transcripttoreads[t]]) + '\n')
+        if endout is not None:
             for r, s, e in transcripttoreads[t]:
                 endout.write('\t'.join([str(x) for x in [r, t, s[0], s[1], s[2], e[0], e[1], e[2]]]) + '\n')
-    if args.output_endpos:
-        endout.close()
+
+
+def write_output(args, transcripttoreads):
+    """The counts file is the primary output; all three handles are closed here rather
+    than left to interpreter shutdown, where an exception in the loop left a partial
+    file behind with no error."""
+    with ExitStack() as stack:
+        countout = stack.enter_context(open(args.output, 'wt'))
+        mapout = stack.enter_context(open(args.generate_map, 'w')) if args.generate_map else None
+        endout = stack.enter_context(open(args.output_endpos, 'w')) if args.output_endpos else None
+        _write_transcript_counts(transcripttoreads, countout, mapout, endout)
 
 
 def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   # noqa: C901 - linear function okay
                                     isoforms=None, stringent=False, check_splice=False,
-                                    trust_ends=False, generate_map=None, output_bam=None,
+                                    trust_ends=False, generate_map=None,
                                     fusion_dist=None, remove_internal_priming=False,
                                     permissive_last_exons=False, intprimingthreshold=12,
                                     intprimingfracAs=0.6, soft_clipping_buffer=50,
@@ -641,8 +665,6 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
         cmd.append('--trust_ends')
     if generate_map:
         cmd += ['--generate_map', str(generate_map)]
-    if output_bam:
-        cmd += ['--output_bam', str(output_bam)]
     if fusion_dist:
         cmd += ['--fusion_dist', str(fusion_dist)]
     if remove_internal_priming:
@@ -674,7 +696,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
 
 def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quality=0,
                               isoforms=None, stringent=False, check_splice=False,
-                              trust_ends=False, generate_map=None, output_bam=None,
+                              trust_ends=False, generate_map=None,
                               fusion_dist=None, remove_internal_priming=False,
                               permissive_last_exons=False, intprimingthreshold=12,
                               intprimingfracAs=0.6, soft_clipping_buffer=50,
@@ -686,7 +708,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quali
     cmd = build_count_sam_transcripts_cmd(
         output=output, sam=sam, threads=threads, quality=quality,
         isoforms=isoforms, stringent=stringent, check_splice=check_splice,
-        trust_ends=trust_ends, generate_map=generate_map, output_bam=output_bam,
+        trust_ends=trust_ends, generate_map=generate_map,
         fusion_dist=fusion_dist, remove_internal_priming=remove_internal_priming,
         permissive_last_exons=permissive_last_exons,
         intprimingthreshold=intprimingthreshold, intprimingfracAs=intprimingfracAs,

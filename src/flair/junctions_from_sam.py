@@ -23,12 +23,13 @@ Modified for FLAIR-correct input - Alison Tang 2019
 # intron_exon_jctn_counts.py.  Used for quantifying intron retention,
 # alternative donor, and alternative acceptor events.
 
-import optparse
+import argparse
 import math
 import re
 import pysam
 import logging
 from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed
 
 ##############
@@ -68,21 +69,6 @@ CIGAR_OPER = {0: "M",
 ###########
 # CLASSES #
 ###########
-class OptionParser(optparse.OptionParser):
-    """
-    Adding a method for required arguments.
-    Taken from:
-    http://www.python.org/doc/2.3/lib/optparse-extending-examples.html
-    """
-    def check_required(self, opt):
-        option = self.get_option(opt)
-
-        # Assumes the option's 'default' is set to None!
-        if getattr(self.values, option.dest) is None:
-            self.print_help()
-            raise FlairInputDataError(f"{option} option not supplied")
-
-
 class JcnInfo:
     """
     This object holds all information necessary for junction information
@@ -92,9 +78,10 @@ class JcnInfo:
 
         self.name = name
 
+        # the reference name as the alignment gives it.  This used to prepend 'chr'
+        # to anything without it, which on an Ensembl or NCBI assembly invents names
+        # that match nothing in the genome the reads were aligned to
         self.chr = chr
-        if not chr.startswith("chr"):
-            self.chr = "chr" + chr
 
         self.leftmost_start = chromStart
         self.rightmost_end = chromEnd
@@ -120,9 +107,6 @@ class JcnInfo:
 
     def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):  # noqa: C901 - FIXME: reduce complexity
         # Check that name, chromosome, strand are the same
-        if not chr.startswith("chr"):
-            chr = "chr" + chr
-
         if self.name != name:
             raise FlairInputDataError(f"Not the same name of the junctions: {self.name}, {name}")
         if self.chr != chr:
@@ -172,84 +156,51 @@ class JcnInfo:
 ########
 # MAIN #
 ########
-def main():  # noqa: C901 - FIXME: reduce complexity
+def build_parser():
+    desc = "Call splice junctions from read alignments and write them as a bed file"
+    parser = argparse.ArgumentParser(prog='junctions_from_sam', description=desc)
+    parser.add_argument("-s", "--sam", dest="sam_file", required=True,
+                        help="SAM/BAM file of read alignments to junctions and the genome. "
+                             "More than one file can be listed, comma-delimited, "
+                             "e.g file_1.bam,file_2.bam")
+    parser.add_argument("--unique", dest="unique_only", action="store_true",
+                        help="only keep uniquely aligned reads; the NH tag must be 1")
+    parser.add_argument("-n", "--name", dest="name", default=DEF_NAME,
+                        help="name prefix used for the output BED file (default: %(default)s)")
+    parser.add_argument("-l", "--read_length", dest="read_length", type=int, default=None,
+                        help="expected read length, if all reads are of the same length")
+    parser.add_argument("-c", "--confidence_score", dest="confidence_score", type=float,
+                        default=DEF_CONFIDENCE,
+                        help="the minimum entropy score a junction has to have to be "
+                             "considered confident. The entropy score = -Shannon Entropy "
+                             "(default: %(default)s)")
+    parser.add_argument("-j", "--forced_junctions", dest="forced_junctions", default=None,
+                        help="file of intron coordinates for junctions that are kept "
+                             "regardless of the confidence score")
+    parser.add_argument("-v", "--verbose", dest="verbose", action='store_true',
+                        help="report junction strand ambiguity messages")
+    # parser.add_argument("-o", "--output_dir", dest="output_dir",
+    #                     help="Directory to place all output files.")
+#   parser.add_argument("-p", "--paired_end", dest="paired_end_exists",
+#                       action="store_true",
+#                       help="Flag to indicate there are paired-end reads.")
+    return parser
 
-    opt_parser = OptionParser()
-
-    # Add Options. Required options should have default=None
-    opt_parser.add_option("-s",
-                          dest="sam_file",
-                          type="string",
-                          help="""SAM/BAM file of read alignments to junctions and
-                                  the genome. More than one file can be listed,
-                                  but comma-delimited, e.g file_1.bam,file_2.bam""",
-                          default=None)
-    opt_parser.add_option("--unique",
-                          dest="unique_only",
-                          action="store_true",
-                          help="""Only keeps uniquely aligned reads. Looks at NH
-                                  tag to be 1 for this information.""",
-                          default=False)
-    opt_parser.add_option("-n",
-                          dest="name",
-                          type="string",
-                          help="""Name prefixed used for output BED file.
-                          Default=%s""" % DEF_NAME,
-                          default=DEF_NAME)
-    opt_parser.add_option("-l",
-                          dest="read_length",
-                          type="int",
-                          help="""Expected read length if all reads should be of
-                                  the same length""",
-                          default=None)
-    opt_parser.add_option("-c",
-                          dest="confidence_score",
-                          type="float",
-                          help="""The mininmum entropy score a junction
-                                  has to have in order to be considered
-                                  confident. The entropy score =
-                                  -Shannon Entropy. Default=%s""" % DEF_CONFIDENCE,
-                          default=DEF_CONFIDENCE)
-    opt_parser.add_option("-j",
-                          dest="forced_junctions",
-                          type="string",
-                          help="""File containing intron coordinates
-                                  that correspond to junctions that will be
-                                  kept regardless of the confidence score.""",
-                          default=None)
-    opt_parser.add_option("-v",
-                          dest="verbose",
-                          action='store_true',
-                          help="""Will run the program with junction strand ambiguity messages""",
-                          default=False)
-    # opt_parser.add_option("-o",
-    #                       dest="output_dir",
-    #                       type="string",
-    #                       help="Directory to place all output files.",
-    #                       default=None)
-#   opt_parser.add_option("-p",
-#                         dest="paired_end_exists",
-#                         action="store_true",
-#                         help="Flag to indicate there are paired-end reads.",
-#                         default=False)
-
-    (options, args) = opt_parser.parse_args()
-
-    # validate the command line arguments
-    opt_parser.check_required("-s")
-    # opt_parser.check_required("-o")
-
+def open_sam_files(sam_file_arg):
+    """each entry is (handle, is_bam); --sam takes a comma-separated list, so the
+    format has to be remembered per file rather than tested on the option string"""
     sam_files = []
-    sam_file_names = options.sam_file.split(",")
-    for sam_file in sam_file_names:
+    for sam_file in sam_file_arg.split(","):
         if sam_file.endswith(".sam"):
-            sam_files.append(open(sam_file))
+            sam_files.append((open(sam_file), False))
         elif sam_file.endswith(".bam"):
-            sam_files.append(pysam.Samfile(sam_file, "rb"))
-    #        sam_file = gzip.open(options.sam_file)
+            sam_files.append((pysam.Samfile(sam_file, "rb"), True))
         else:
-            opt_parser.print_help()
-            raise FlairInputDataError("Error in -s: Expecting .sam or .bam file.")
+            raise FlairInputDataError(f"--sam expects a .sam or .bam file: {sam_file}")
+    return sam_files
+
+def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
+    sam_files = open_sam_files(options.sam_file)
 
     unique_only = options.unique_only
 
@@ -312,9 +263,9 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     truncation_warn = False
 
     print("Parsing sam/bam file")
-    for sam_file in sam_files:
+    for sam_file, is_bam in sam_files:
         for line in sam_file:
-            if options.sam_file.endswith(".bam"):
+            if is_bam:
                 # I realize this is bad style, but the original code was written
                 # for parsing SAM files. So less updating is necessary if I convert
                 # the AlignedRead object back to a SAM line
@@ -339,9 +290,6 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             # Ignore unmapped
             if chr == "*":
                 continue
-
-            if not chr.startswith("chr"):
-                chr = "chr" + chr
 
             chr_start = int(sam_elems[3])
 
@@ -557,15 +505,18 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr,
                                              jcn2JcnInfo[jcn_str].intron_start,
                                              jcn2JcnInfo[jcn_str].intron_end))
-            intron_left = jcn_str[jcn_str.find(':') + 1:jcn_str.find('-')]
-            intron_right = jcn_str[jcn_str.find('-') + 1:]
             if jcn2JcnInfo[jcn_str].strand in {'+', '-'}:
                 strandFlag = True
                 jcn_strand = jcn2JcnInfo[jcn_str].strand
             else:
                 jcn_strand = '.'
             num_blocks = min(1000, len(jcn2JcnInfo[jcn_str].block_list))
-            bed = Bed(jcn2JcnInfo[jcn_str].chr, int(intron_left), int(intron_right) - 1,
+            # intron_start and intron_end off the record, not re-parsed out of the key:
+            # the key may carry a Y0 tag before a '|', and a contig name containing '-'
+            # broke the find('-'), so the parse could pick the wrong numbers.  They are
+            # the 1-based inclusive intron bounds
+            bed = Bed(jcn2JcnInfo[jcn_str].chr,
+                      jcn2JcnInfo[jcn_str].intron_start - 1, jcn2JcnInfo[jcn_str].intron_end,
                       name='.', score=num_blocks, strand=jcn_strand)
             bed.write(junction_bed_file)
 
@@ -699,9 +650,6 @@ def getForcedJunctions(forced_junction_file):
         if len(lineList) < 3:
             raise FlairInputDataError("Problem with forced junction file. Needs to be tab-delimited: chr start end")
 
-        if not lineList[0].startswith("chr"):
-            lineList[0] = "chr" + lineList[0]
-
         forced_junctions.add("_".join(lineList[0:3]))
 
     jcn_file.close()
@@ -799,6 +747,12 @@ def isPairedRead(flag):
 #################
 # END FUNCTIONS #
 #################
+
+
+def main():
+    options = build_parser().parse_args()
+    with cli.ErrorHandler():
+        junctions_from_sam(options)
 
 
 if __name__ == "__main__":

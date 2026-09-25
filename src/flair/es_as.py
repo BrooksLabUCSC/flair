@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+from flair.iso_gene_id import parse_gene_id
 
 
 class Gene(object):
@@ -129,24 +130,6 @@ def bed12toExons(start, starts, sizes):
     return exons
 
 
-def parse_gene_id(iso_gene):
-    if '_chr' in iso_gene:
-        gene = iso_gene[iso_gene.rfind('_chr') + 1:]
-    elif '_XM' in iso_gene:
-        gene = iso_gene[iso_gene.rfind('_XM') + 1:]
-    elif '_XR' in iso_gene:
-        gene = iso_gene[iso_gene.rfind('_XR') + 1:]
-    elif '_NM' in iso_gene:
-        gene = iso_gene[iso_gene.rfind('_NM') + 1:]
-    elif '_NR' in iso_gene:
-        gene = iso_gene[iso_gene.rfind('_NR') + 1:]
-    elif '_R2_' in iso_gene:
-        gene = iso_gene[iso_gene.rfind('_R2_') + 1:]
-    else:
-        gene = iso_gene[iso_gene.rfind('_') + 1:]
-    return gene
-
-
 # main #
 
 
@@ -165,12 +148,12 @@ def main():
             geneID = parse_gene_id(iso)
             exons = bed12toExons(start, starts, sizes)
 
-            if chrom not in genes:
-                genes[chrom] = Gene(geneID, chrom, strand)
-            geneObj = genes[chrom]
+            if geneID not in genes:
+                genes[geneID] = Gene(geneID, chrom, strand)
+            geneObj = genes[geneID]
             geneObj.isoforms[iso] = exons
 
-    for chrom, gobj in genes.items():
+    for gobj in genes.values():
         gobj.buildGraph()
         gobj.findSkippedExonsV1()
 

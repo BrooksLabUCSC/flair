@@ -14,15 +14,13 @@
 
 import os
 import os.path as osp
-import argparse
 import errno
 import csv
 from collections import Counter
-from scipy.stats import ttest_ind
 from statistics import median, mean
 import pipettor
 
-from flair import FlairError, FlairInputDataError, set_unix_path
+from flair import FlairError, FlairInputDataError
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
@@ -120,7 +118,29 @@ def get_gene_to_counts(filename):
     return genetototcounts
 
 
-def do_mtc_ttest(filename, genetototcounts):
+def group_column_indexes(filename):
+    """Column indexes of the two sample groups, read from the counts header rather
+    than assumed.  Headers are sample_group_batch, as diffexp requires elsewhere;
+    the group of the first column is the reference."""
+    with open(filename) as fh:
+        header = fh.readline().rstrip().split('\t')[1:]
+    try:
+        groups = [col.split('_')[1] for col in header]
+    except IndexError as ex:
+        raise FlairInputDataError(
+            f"{filename}: column headers must be sample_group_batch, found: {header}") from ex
+    names = list(dict.fromkeys(groups))
+    if len(names) != 2:
+        raise FlairInputDataError(
+            f"{filename}: expected two sample groups in the header, found {len(names)}: {names}")
+    return ([i for i, g in enumerate(groups) if g == names[0]],
+            [i for i, g in enumerate(groups) if g == names[1]])
+
+
+def do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols):
+    # imported here rather than at module scope; scipy takes 0.7s to import and
+    # this is the only use of it, which would be paid by every flair command
+    from scipy.stats import ttest_ind
     allids, allpval, alldeltas = [], [], []
     for line in open(filename):
         line = line.rstrip().split('\t')
@@ -128,13 +148,15 @@ def do_mtc_ttest(filename, genetototcounts):
             id = line[0]
             gene = id.split('_')[-1]
 
-            # First three columns after ID = WT counts; rest = VAR counts
-            wtcounts = [int(x) for x in line[1:4]]
-            varcounts = [int(x) for x in line[4:]]
+            counts = [int(x) for x in line[1:]]
+            wtcounts = [counts[i] for i in ref_cols]
+            varcounts = [counts[i] for i in test_cols]
 
             # Compute median difference between variant and WT
             deltaval = median(varcounts) - median(wtcounts)
-            wttot, vartot = mean(genetototcounts[gene][:3]), mean(genetototcounts[gene][3:])
+            genetot = genetototcounts[gene]
+            wttot = mean([genetot[i] for i in ref_cols])
+            vartot = mean([genetot[i] for i in test_cols])
 
             # Compute normalized usage difference, ignore if totals are zero
             deltausage = (mean(varcounts) / vartot if vartot > 0 else 0) - (mean(wtcounts) / wttot if wttot > 0 else 0)
@@ -152,7 +174,9 @@ def do_mtc_ttest(filename, genetototcounts):
     if len(allpval) == 0:
         raise FlairInputDataError(f"no p-values with sufficient delta values from: {filename}")
 
-    # Apply multiple-testing correction (Benjamini–Hochberg FDR by default)
+    # Apply multiple-testing correction.  This is Holm-Sidak, not Benjamini-Hochberg
+    # as this comment used to say: the adjusted values control the family-wise error
+    # rate, not the false discovery rate
 
     corrpval = list(multipletests(allpval)[1])
     return allids, alldeltas, corrpval
@@ -166,7 +190,8 @@ def get_sig_from_norm_by_gene(outname, filename):
     """
 
     genetototcounts = get_gene_to_counts(filename)
-    allids, alldeltas, corrpval = do_mtc_ttest(filename, genetototcounts)
+    ref_cols, test_cols = group_column_indexes(filename)
+    allids, alldeltas, corrpval = do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols)
 
     out = open(outname, 'w')
     for i in range(len(allids)):
@@ -312,11 +337,13 @@ def calc_gene_norm_sig(workdir, quant_table_tsv):
     out.close()
 
 def run_deseq2(prefix, workdir, groups, batches, matrixFile, outDir, formulaMatrixFile):
+    # no --batch: neither R script ever read it, and one arbitrary batch label would
+    # not have said anything anyway.  Both take the batch column from the formula matrix
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_deseq2, "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", matrixFile, "--outDir", outDir,
+                          "--matrix", matrixFile, "--out_dir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
@@ -326,18 +353,17 @@ def run_dirmseq(prefix, workdir, threads, groups, batches, matrixFile, outDir, f
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--group1", groups[0], "--group2", groups[-1],
-                          "--batch", batches[0], "--matrix", matrixFile, "--outDir", outDir,
+                          "--matrix", matrixFile, "--out_dir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 
-def calculate_sig(args):  # noqa: C901 - FIXME: reduce complexity
-    outDir = args.out_dir
-    quant_table_tsv = args.counts_matrix
-    sFilter = args.exp_thresh
-    threads = args.threads
-    force_dir = args.out_dir_force
+def calculate_sig(*, counts_matrix, output, min_expression, threads, overwrite_output):  # noqa: C901 - FIXME: reduce complexity
+    outDir = output
+    quant_table_tsv = counts_matrix
+    sFilter = min_expression
+    force_dir = overwrite_output
 
     # FIXME convert to just loading table upfront
     # Get sample data info
@@ -409,33 +435,27 @@ def calculate_sig(args):  # noqa: C901 - FIXME: reduce complexity
     # DIRMSeq
     run_dirmseq("isoforms_drimseq", workdir, threads, groups, batches, drimMatrixFile, outDir, formulaMatrixFile)
 
-def diffExp(counts_matrix=''):
-    set_unix_path()
-    parser = argparse.ArgumentParser()
+def add_subparser(subparsers):
+    desc = "Differential expression and differential usage analysis"
+    parser = subparsers.add_parser('diffexp', help="Differential expression and usage analysis",
+                                   description=desc)
     required = parser.add_argument_group('required named arguments')
-    if not counts_matrix:
-        required.add_argument('-q', '--counts_matrix', action='store',
-                              type=str, required=True, help='Tab-delimited isoform count matrix from flair quantify module.')
-    required.add_argument('-o', '--out_dir', action='store',
-                          type=str, required=True, help='Output directory for tables and plots.')
-    parser.add_argument('-t', '--threads', action='store',
-                        type=int, required=False, default=4, help='Number of threads for parallel DRIMSeq.')
-    parser.add_argument('-e', '--exp_thresh', action='store', type=int, required=False,
-                        default=10, help='''Read count expression threshold. Isoforms in which
-                        both conditions contain fewer than E reads are filtered out (Default E=10)''')
-    parser.add_argument('-of', '--out_dir_force', action='store_true',
-                        required=False, help='''Specify this argument to force overwriting of files in
-                        an existing output directory''')
-    args = parser.parse_args()
-    if counts_matrix:
-        args.counts_matrix = counts_matrix
-        args.out_dir = args.out_dir + '.diffExp'
+    required.add_argument('--counts_matrix', type=str, required=True,
+                          help='tab-delimited isoform count matrix from flair quantify')
+    required.add_argument('-o', '--output', type=str, required=True,
+                          help='output directory for tables and plots')
+    parser.add_argument('-t', '--threads', type=int, default=4,
+                        help='number of threads for parallel DRIMSeq (default: %(default)s)')
+    parser.add_argument('--min_expression', type=int, default=10,
+                        help='read count expression threshold; isoforms in which both conditions '
+                             'contain fewer than this many reads are filtered out (default: %(default)s)')
+    parser.add_argument('--overwrite_output', action='store_true',
+                        help='overwrite files in an existing output directory')
+    parser.set_defaults(entry=diffexp_cmd)
 
+def diffexp_cmd(args):
     if not os.path.exists(args.counts_matrix):
-        raise FlairInputDataError('Counts matrix file path does not exist')
-
-    calculate_sig(args)
-
-
-if __name__ == "__main__":
-    exit(diffExp())
+        raise FlairInputDataError(f'counts matrix file does not exist: {args.counts_matrix}')
+    calculate_sig(counts_matrix=args.counts_matrix, output=args.output,
+                  min_expression=args.min_expression, threads=args.threads,
+                  overwrite_output=args.overwrite_output)

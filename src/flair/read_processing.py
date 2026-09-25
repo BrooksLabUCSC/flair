@@ -1,6 +1,7 @@
 """Shared read-processing logic for FLAIR modules."""
 
 import logging
+import os
 import pysam
 import pipettor
 from flair.isoform_data import Isoform
@@ -27,18 +28,21 @@ def should_process_read(read, region, min_quality, keep_sup, allow_secondary, al
 
 
 def get_sequence_from_bed(genome, input_bed, output_fa):
+    """Sequence for each BED record, with the (strand) suffix bedtools appends to the
+    name removed."""
     bed_cmd = ('bedtools', 'getfasta', '-nameOnly', '-s', '-split',
                '-fi', genome,
                '-bed', input_bed,
                '-fo', output_fa)
     pipettor.run([bed_cmd])
-    out = open(output_fa.split('.fa')[0] + '.fixed.fa', 'w')
-    for line in open(output_fa):
-        if line[0] == '>':
-            line = line.split('(')[0] + '\n'
-        out.write(line)
-    out.close()
-    pipettor.run([('mv', output_fa.split('.fa')[0] + '.fixed.fa', output_fa)])
+    # output_fa + '.fixed', not output_fa.split('.fa')[0]: the split truncates at the
+    # first '.fa' anywhere in the path, so a directory named x.fa or an output called
+    # out.fasta.fa put the temporary file somewhere else entirely
+    fixed_fa = output_fa + '.fixed'
+    with open(output_fa) as in_fh, open(fixed_fa, 'w') as out_fh:
+        for line in in_fh:
+            out_fh.write(line.split('(')[0] + '\n' if line[0] == '>' else line)
+    os.replace(fixed_fa, output_fa)
 
 
 def add_corrected_read_to_groups(corrected_read, sj_to_ends):

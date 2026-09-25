@@ -2,30 +2,36 @@
 import csv
 import os
 import argparse
-
+from operator import itemgetter
 from flair.gtf_to_bed import get_iso_info
+from flair.isoform_data import binary_search
 from flair.pycbio.hgdata.bed import BedReader
 
-def main():
-    parser = argparse.ArgumentParser(description='''identifies the most likely gene id associated with
-            each isoform and renames the isoform''')
-    parser.add_argument('bed', type=str,
-                        action='store', help='isoforms in bed format')
-    parser.add_argument('gtf', type=str,
-                        action='store', help='annotated isoform gtf')
-    parser.add_argument('outfilename', type=str,
-                        action='store', help='Name of output file')
-    parser.add_argument('--proportion', action='store', default=0.8, dest='proportion_annotated_covered',
-                        type=float, help='''proportion should be a decimal < 1 specifying the % of an annotated single-exon
-                        gene a FLAIR isoform has to cover (default=0.8)''')
-    parser.add_argument('--annotation_reliant', action='store_true', dest='annotation_reliant',
-                        help='name all isoforms with -* starting with -0')
-    parser.add_argument('--gene_only', action='store_true', dest='gene_only',
-                        help='only append gene name to read name')
-    parser.add_argument('--field_name', action='store', dest='field_name', default='gene_id',
-                        help='field name to use for gene id, e.g. gene_type or gene_name (default: gene_id)')
-    args = parser.parse_args()
+# annotated single-exon genes scanned either side of the search index
+SE_SEARCH_WINDOW = 2
 
+def build_parser():
+    desc = ('identifies the most likely gene id associated with each isoform and '
+            'renames the isoform')
+    parser = argparse.ArgumentParser(prog='identify_gene_isoform', description=desc)
+    parser.add_argument('bed', type=str, help='isoforms in bed format')
+    parser.add_argument('gtf', type=str, help='annotated isoform gtf')
+    parser.add_argument('outfilename', type=str, help='name of output file')
+    parser.add_argument('--proportion', default=0.8, dest='proportion_annotated_covered',
+                        type=float,
+                        help='a decimal < 1 giving the fraction of an annotated single-exon '
+                             'gene a FLAIR isoform has to cover (default: %(default)s)')
+    parser.add_argument('--annotation_reliant', action='store_true',
+                        help='name all isoforms with -* starting with -0')
+    parser.add_argument('--gene_only', action='store_true',
+                        help='only append gene name to read name')
+    parser.add_argument('--field_name', default='gene_id',
+                        help='field name to use for gene id, e.g. gene_type or gene_name '
+                             '(default: %(default)s)')
+    return parser
+
+def main():
+    args = build_parser().parse_args()
     identify_gene_isoform(gtf=args.gtf, field_name=args.field_name, outfilename=args.outfilename,
                           query=args.bed,
                           proportion_annotated_covered=args.proportion_annotated_covered,
@@ -48,28 +54,8 @@ def get_junctions_bed12(bed):
     if len(bed.blocks) == 1:
         return
     for b in range(len(bed.blocks) - 1):  # block
-        junctions.add((bed.blocks[b].end, bed.blocks[b + 1].start + 1))
+        junctions.add((bed.blocks[b].end, bed.blocks[b + 1].start))
     return junctions
-
-
-def bin_search(query, data):
-    """ Query is a coordinate interval. Binary search for the query in sorted data,
-    which is a list of coordinates. Finishes when an overlapping value of query and
-    data exists and returns the index in data. """
-    i = int(round(len(data) / 2))  # binary search prep
-    lower, upper = 0, len(data)
-    while True:
-        if upper - lower < 2:  # stop condition but not necessarily found
-            break
-        if data[i][1] < query[0]:
-            lower = i
-            i = int(round((i + upper) / 2))
-        elif data[i][0] > query[1]:
-            upper = i
-            i = int(round((lower + i) / 2))
-        else:  # found
-            break
-    return i
 
 
 def overlapping_bases(coords0, coords1):
@@ -118,7 +104,9 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
     gene_unique_juncs = {}  # matches a gene to its set of unique splice junctions
 
     if gtf:
-        iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf, adjustpos=False)
+        # gtf_io converts GTF starts to 0-based, which is what the BED query
+        # coordinates below are compared against
+        iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf)
 
         for transcript in iso_to_info:
             chrom, strand, gene = iso_to_info[transcript]
@@ -161,8 +149,9 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
             se_gene_tiebreaker = {}
             if not junctions:
                 exon = (start, end)
-                i = bin_search(exon, all_se[chrom])
-                for e in all_se[chrom][i - 2:i + 2]:
+                i = binary_search(exon, all_se[chrom], start_of=itemgetter(0), end_of=itemgetter(1))
+                # max(0, ...): a negative slice start reads from the end of the list
+                for e in all_se[chrom][max(0, i - SE_SEARCH_WINDOW):i + SE_SEARCH_WINDOW]:
                     overlap = overlapping_bases(exon, e)
                     if overlap:
                         proportion = float(overlap) / (exon[1] - exon[0])  # base coverage of long-read isoform by the annotated isoform

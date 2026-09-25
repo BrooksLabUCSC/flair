@@ -1,6 +1,6 @@
-import flair.flair_variantmodels as fv
-from flair.flair_variantquant import _add_vcf_var, _get_correct_vcf_vars, group_annotated_ref_vars
 import argparse
+from flair.flair_variantquant import (get_bedisoform_info, combine_vcf_files,
+                                      group_annotated_ref_vars)
 
 
 def parse_args():
@@ -18,14 +18,12 @@ def annotate_vars_in_region(vcf_vars_for_region, chrom, region, out):
         out.write('\t'.join([str(x) for x in outline]) + '\n')
 
 def main():
-    args = parse_args
+    args = parse_args()
 
-    fv.add_vcf_var = _add_vcf_var
-    fv.get_correct_vcf_vars = _get_correct_vcf_vars
     print('retrieving gene info')
-    isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = fv.get_bedisoform_info(args.bed_isoforms)
+    isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = get_bedisoform_info(args.bed_isoforms)
     print('parsing vcf')
-    vartoalt = fv.combine_vcf_files([args.vcf, ])
+    vartoalt = combine_vcf_files([args.vcf, ])
     print('annotating and grouping variants')
     vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
     print('outputting annotated variants')

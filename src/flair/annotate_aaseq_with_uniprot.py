@@ -2,14 +2,21 @@ import argparse
 from flair.pycbio.sys import fileOps
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='''for annotating FLAIR aaseq predictions with UniProt names''')
-    parser.add_argument('-i', '--input_aaseq', required=True, help='protein sequence fasta file - sequence names should be aaseqID_geneID')
+def build_parser():
+    desc = "annotate FLAIR aaseq predictions with UniProt names"
+    parser = argparse.ArgumentParser(prog='annotate_aaseq_with_uniprot', description=desc)
+    parser.add_argument('-i', '--input_aaseq', required=True,
+                        help='protein sequence fasta file; sequence names should be aaseqID_geneID')
     parser.add_argument('-r', '--reference_seq', required=True,
-                        help='reference protein sequence fasta file - sequence names should be db|refID|geneName_organism, ex: >sp|Q8NH21|OR4F5_HUMAN. This script will extract the refID. this can be fasta or fasta.gz')
-    parser.add_argument('-o', '--output', required=True, help='output name - should be a fasta file')
-    args = parser.parse_args()
-    return args
+                        help='reference protein sequence fasta file; sequence names should be '
+                             'db|refID|geneName_organism, for example >sp|Q8NH21|OR4F5_HUMAN, from '
+                             'which the refID is extracted. This can be fasta or fasta.gz')
+    parser.add_argument('-o', '--output', required=True,
+                        help='output name, a fasta file')
+    return parser
+
+def parse_args():
+    return build_parser().parse_args()
 
 
 def parse_fasta(filename):

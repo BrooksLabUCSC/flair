@@ -12,18 +12,20 @@ import pipettor
 from flair.pycbio.sys import fileOps, loggingOps
 from flair.pycbio.hgdata.bed import BedReader, Bed
 
-def check_input_files(bed_files, bam_files):
-    for f in bed_files + bam_files:
+def check_input_files(bed_files, bam_files, gtf_files):
+    "fail here rather than inside the sort pipeline, where the message is not the point"
+    for f in bed_files + bam_files + gtf_files:
         open(f).close()
 
-def parse_args():
+def build_parser():
     parser = argparse.ArgumentParser(
+        prog='flair_partition',
         description=("Define non-overlapping regions from BED, SAM/BAM, or GTF files."
                      "  Partitions are made across all input files")
     )
     parser.add_argument("--min_partition_items", type=int, default=0,
                         help="Minimum number of input items in a partition")
-    parser.add_argument("-part_merge_dist", type=int, default=0,
+    parser.add_argument("--part_merge_dist", type=int, default=0,
                         help="Combine adjacent non-overlapping partitions separated by this distance")
     parser.add_argument("--threads", type=int, default=1,
                         help="Number of cores for parallel sorting")
@@ -36,11 +38,15 @@ def parse_args():
     parser.add_argument("ranges_bed",
                         help="Output ranges BED file, will be compressed if it ends in .gz")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
+    return parser
+
+def parse_args():
+    parser = build_parser()
     args = parser.parse_args()
     loggingOps.setupFromCmd(args)
-    if (len(args.bed_files) + len(args.bam_files)) == 0:
-        parser.error("No input files specified; must have at least one --bam= or --bed= option")
-    check_input_files(args.bed_files, args.bam_files)
+    if (len(args.bed_files) + len(args.bam_files) + len(args.gtf_files)) == 0:
+        parser.error("No input files specified; must have at least one --bam=, --bed= or --gtf= option")
+    check_input_files(args.bed_files, args.bam_files, args.gtf_files)
     return args
 
 class PartitionCounts:
@@ -77,7 +83,7 @@ def finish_sort_process(sort_proc):
     rc = sort_proc.wait()
     if rc != 0:
         err = sort_proc.stderr.read()
-        subprocess.CalledProcessError(rc, sort_proc.args, output=None, stderr=err)
+        raise subprocess.CalledProcessError(rc, sort_proc.args, output=None, stderr=err)
 
 def copy_bed_to_sort(bed_file, to_sort_fh):
     with fileOps.opengz(bed_file) as bed_fh:
