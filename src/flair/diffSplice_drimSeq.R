@@ -20,8 +20,9 @@ parse_arguments <- function() {
   parser$add_argument('--min_feature_expr', type="integer", default=5, help="Minimum number of reads covering an event inclusion (5).")
   parser$add_argument("--threads", type="integer", default=4, help="Number of threads for running DRIM-Seq.")
   parser$add_argument('--batch', action='store_true', default=FALSE, help="If specified, batch correction will be performed.")
-  parser$add_argument('--condition_a', default='', help="Specify one condition to compare against condition_b.")
-  parser$add_argument('--condition_b', default='', help="Specify one condition to compare against condition_a.")
+  parser$add_argument('--condition_a', required=TRUE, help="Reference condition; the comparison is condition_b against this.")
+  parser$add_argument('--condition_b', required=TRUE, help="Condition compared against condition_a.")
+  parser$add_argument("--formula", required=TRUE, help="TSV of sample_id, condition and batch, one row per matrix sample column.")
   return(parser$parse_args())
 }
 
@@ -35,25 +36,10 @@ run_DRIMSeq <- function(args) {
     dir.create(workdir, recursive=TRUE)
   }
 
-  # Read sample info from the matrix
-  sample_info <- fread(args$matrix, nrows=1)
-  samples <- colnames(sample_info)[-c(1:2, length(sample_info))]
-  groups <- sapply(strsplit(samples, "_"), `[`, 2)
-  batches <- sapply(strsplit(samples, "_"), `[`, 3)
-
-  # Determine condition_a and condition_b if not provided
-  if (args$condition_a == '') {
-    args$condition_a <- groups[1]
-    args$condition_b <- groups[which(groups != args$condition_a)[1]]
-  }
-
-  # Fill the formula data.frame
-  formulaDF <- data.table(sample_id = character(), condition = character(), batch = character())
-  for (i in seq_along(samples)) {
-    if (args$condition_a %in% groups[i] || args$condition_b %in% groups[i]) {
-      formulaDF <- rbind(formulaDF, list(samples[i], groups[i], batches[i]))
-    }
-  }
+  # The condition and batch of each sample come from the formula file rather than
+  # from the matrix column names, which carry only the sample id.
+  formulaDF <- fread(args$formula, colClasses="character")
+  formulaDF <- formulaDF[condition %in% c(args$condition_a, args$condition_b)]
 
   if (nrow(formulaDF) == 0) {
     cat(sprintf('\n**ERROR** Could not find %s and/or %s in input file, exiting\n\n', args$condition_a, args$condition_b), file=stderr())

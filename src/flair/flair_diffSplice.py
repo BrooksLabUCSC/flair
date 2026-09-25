@@ -5,6 +5,7 @@ import os.path as osp
 import pipettor
 import logging
 from flair import FlairError, FlairInputDataError
+from flair.counts_matrix import read_sample_info, select_condition_pair, write_sample_info
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
@@ -43,22 +44,24 @@ def add_subparser(subparsers):
     parser.add_argument('--batch', action='store_true',
                         help='with --test, DRIMSeq will perform batch correction')
     parser.add_argument('--condition_a', default='',
-                        help='implies --test. One condition, corresponding to samples in the counts matrix, '
-                             'to compare against --condition_b; by default the first two unique conditions are used')
+                        help='implies --test. The reference condition, as named in the counts matrix '
+                             'columns; the comparison is --condition_b against this. With neither this '
+                             'nor --condition_b given, the two conditions are taken in sorted order')
     parser.add_argument('--condition_b', default='',
-                        help='the other condition, corresponding to samples in the counts matrix, to compare '
-                             'against --condition_a')
+                        help='the condition compared against --condition_a')
     parser.add_argument('--overwrite_output', action='store_true',
                         help='overwrite files in an existing output directory')
     parser.set_defaults(entry=diffsplice_cmd)
 
 def diffsplice_cmd(args):
     if bool(args.condition_a) != bool(args.condition_b):
+        # checked here as well as in select_condition_pair, which only runs when
+        # testing is asked for; --condition_b alone would otherwise be ignored.
         # raise, not return 1: flair_cli discards the return value, so
         # flair diffsplice --condition_a X printed a line and exited 0 having
         # done no testing at all
         raise FlairInputDataError('--condition_a and --condition_b must both be given, '
-                                  'or both left out to test every pair of conditions')
+                                  'or both left out to take the two conditions in sorted order')
     diffSplice(isoform_bed=args.isoform_bed, counts_matrix=args.counts_matrix,
                output=args.output, threads=args.threads, test=args.test,
                min_samps_gene_expr=args.min_samps_gene_expr,
@@ -102,16 +105,24 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
 
     if test or condition_a:
         logging.info('DRIMSeq testing for each AS event type')
+        # resolved here, not in the R script, so that diffexp and diffsplice choose
+        # the same way and R is always told both names
+        sample_infos = read_sample_info(counts_matrix)
+        condition_a, condition_b = select_condition_pair([si.condition for si in sample_infos],
+                                                         condition_a, condition_b, counts_matrix)
+        # the condition and batch of each sample, so that the R script does not have
+        # to take them back out of the matrix column names
+        formula_tsv = os.path.join(workdir, 'formula_matrix.tsv')
+        write_sample_info(formula_tsv, sample_infos)
         ds_command = ['Rscript', diffSplice_drimSeq, '--threads', threads, '--out_dir', output,
+                      '--condition_a', condition_a, '--condition_b', condition_b,
+                      '--formula', formula_tsv,
                       '--min_samps_gene_expr', min_samps_gene_expr,
                       '--min_samps_feature_expr', min_samps_feature_expr,
                       '--min_gene_expr', min_gene_expr,
                       '--min_feature_expr', min_feature_expr]
         if batch:
             ds_command += ['--batch']
-        if condition_a:
-            ds_command += ['--condition_a', condition_a, '--condition_b', condition_b]
-
         with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:
             for event in ('es', 'alt5', 'alt3', 'ir'):
                 run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr)

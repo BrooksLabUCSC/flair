@@ -5,7 +5,9 @@
 .. code-block:: text
 
    usage: flair diffexp [-h] --counts_matrix COUNTS_MATRIX -o OUTPUT [-t THREADS]
-                        [--min_expression MIN_EXPRESSION] [--overwrite_output]
+                        [--min_expression MIN_EXPRESSION]
+                        [--condition_a CONDITION_A] [--condition_b CONDITION_B]
+                        [--overwrite_output]
 
 .. rubric:: options
 
@@ -16,6 +18,14 @@
 .. option:: --min_expression MIN_EXPRESSION
 
    read count expression threshold; isoforms in which both conditions contain fewer than this many reads are filtered out (default: 10)
+
+.. option:: --condition_a CONDITION_A
+
+   the reference condition, as named in the counts matrix columns; fold changes are reported for --condition_b relative to this. With neither this nor --condition_b given, the two conditions are taken in sorted order
+
+.. option:: --condition_b CONDITION_B
+
+   the condition compared against --condition_a
 
 .. option:: --overwrite_output
 

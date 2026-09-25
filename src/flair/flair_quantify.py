@@ -6,6 +6,7 @@ import pysam
 from shutil import rmtree
 import logging
 from flair import FlairInputDataError
+from flair.counts_matrix import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import make_temp_dir
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
@@ -35,8 +36,6 @@ def add_subparser(subparsers):
                         help='output file name base for FLAIR quantify (default: %(default)s)')
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (default: %(default)s)')
-    parser.add_argument('--sample_id_only', action='store_true',
-                        help='only use sample id in output header')
     parser.add_argument('--tpm', action='store_true',
                         help='convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
     parser.add_argument('--trust_ends', action='store_true',
@@ -60,7 +59,7 @@ def add_subparser(subparsers):
 def quantify_cmd(args):
     check_input_files(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed)
     quantify(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed,
-             output=args.output, threads=args.threads, sample_id_only=args.sample_id_only,
+             output=args.output, threads=args.threads,
              tpm=args.tpm, trust_ends=args.trust_ends, generate_map=args.generate_map,
              with_gene=args.with_gene, normalize_ends=args.normalize_ends)
 
@@ -72,20 +71,19 @@ def check_input_files(*, manifest, genome, isoform_bed):
         if not os.path.exists(path):
             raise FlairInputDataError(f'{what} file does not exist: {path}')
 
-def load_manifest(manifest, sample_id_only):
+def load_manifest(manifest):
+    """the manifest rows.  The id, condition and batch fields may contain anything:
+    they are written to the sample info file as their own columns rather than being
+    joined into the counts column names."""
     sample_data = []
     for line in open(manifest):
         cols = line.rstrip().split('\t')
         if len(cols) < 4:
-            raise Exception(f'Expected 4 columns in tab-delimited manifest.tsv, got {len(cols)}. Exiting.')
+            raise FlairInputDataError(f'expected 4 tab-separated columns in {manifest}, got {len(cols)}')
 
         sample, group, batch, readFile = cols
-        if sample_id_only is False:
-            if '_' in sample or '_' in group or '_' in batch:
-                raise Exception(f'Please do not use underscores in the id, condition, or batch fields of {manifest}.')
-
         if not os.path.exists(readFile):
-            raise Exception('Query file path does not exist: {}'.format(readFile))
+            raise FlairInputDataError(f'reads file does not exist: {readFile}')
 
         sample_data.append((sample, group, batch, readFile))
     return sample_data
@@ -151,12 +149,11 @@ def load_unique_bound(temp_prefix, gene_info):
                                                terminal_exon_is_subset, superset_support, unique_seq_bound)
                 write_unique_bound(fh, isoform, unique_seq_bound)
 
-def write_combined_counts(sample_data, gene_data, temp_dir, output, sample_id_only, with_gene):
+def write_combined_counts(sample_data, gene_data, temp_dir, output, with_gene):
     with open(output + '.counts.tsv', 'w') as fh:
-        if sample_id_only:
-            fh.write('\t'.join(['ids'] + [x[0] for x in sample_data]) + '\n')
-        else:
-            fh.write('\t'.join(['ids'] + ['_'.join(x[:3]) for x in sample_data]) + '\n')
+        # just the sample id; the condition and batch of each column are in the
+        # sample info file written beside this one
+        fh.write('\t'.join(['ids'] + [x[0] for x in sample_data]) + '\n')
         for gene_id in gene_data:
             gene_info = gene_data[gene_id]
             iso_to_counts = {x.name: [0] * len(sample_data) for x in gene_info.isoform_beds}
@@ -228,11 +225,11 @@ def get_counts_for_gene(input):
     for sample, group, batch, bamfile in sample_data:
         get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends)
 
-def quantify(*, manifest, genome, isoform_bed, output, threads, sample_id_only, tpm,
+def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
              trust_ends, generate_map, with_gene, normalize_ends):
     logging.info('loading isos')
     temp_dir = make_temp_dir(output)
-    sample_data = load_manifest(manifest, sample_id_only)
+    sample_data = load_manifest(manifest)
     gene_data = load_isoform_data(isoform_bed)
 
     logging.info(f'Re-aligning reads to transcriptome. Writing temporary files into {temp_dir}')
@@ -250,7 +247,10 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, sample_id_only, 
             pool.map(get_counts_for_gene, packed)
 
     logging.info('writing quantify output')
-    write_combined_counts(sample_data, gene_data, temp_dir, output, sample_id_only, with_gene)
+    write_combined_counts(sample_data, gene_data, temp_dir, output, with_gene)
+    write_sample_info(sample_info_path(output + '.counts.tsv'),
+                      [SampleInfo(sample, condition, batch)
+                       for sample, condition, batch, _ in sample_data])
 
     write_map_out(sample_data, gene_data, temp_dir, output, generate_map)
 

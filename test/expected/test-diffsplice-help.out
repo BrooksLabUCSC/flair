@@ -36,13 +36,13 @@ options:
                         few reads are filtered out and not tested (default: 5)
   --batch               with --test, DRIMSeq will perform batch correction
   --condition_a CONDITION_A
-                        implies --test. One condition, corresponding to
-                        samples in the counts matrix, to compare against
-                        --condition_b; by default the first two unique
-                        conditions are used
+                        implies --test. The reference condition, as named in
+                        the counts matrix columns; the comparison is
+                        --condition_b against this. With neither this nor
+                        --condition_b given, the two conditions are taken in
+                        sorted order
   --condition_b CONDITION_B
-                        the other condition, corresponding to samples in the
-                        counts matrix, to compare against --condition_a
+                        the condition compared against --condition_a
   --overwrite_output    overwrite files in an existing output directory
 
 required named arguments:
