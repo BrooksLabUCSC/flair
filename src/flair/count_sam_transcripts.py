@@ -6,7 +6,6 @@ import re
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from flair.remove_internal_priming import removeinternalpriming
 import pipettor
 import pysam
 from flair import FlairInputDataError, FlairNotImplementedError
@@ -41,18 +40,8 @@ def parse_args():
     parser.add_argument('--fusion_dist',
                         help='''minimium distance between separate read alignments on the same chromosome to be
             considered a fusion, otherwise no reads will be assumed to be fusions''')
-    parser.add_argument('--remove_internal_priming', default=False, action='store_true',
-                        help='specify if want to remove reads with internal priming')
-    parser.add_argument('--permissive_last_exons', default=False, action='store_true',
-                        help='specify if want to allow reads with internal priming in last exon of transcripts (yes for annot, no for firstpass)')
-    parser.add_argument('--intprimingthreshold', type=int, default=12,
-                        help='number of bases that are at leas 75%% As required to call read as internal priming')
-    parser.add_argument('--intprimingfracAs', type=float, default=0.6,
-                        help='number of bases that are at leas 75%% As required to call read as internal priming')
     parser.add_argument('--soft_clipping_buffer', type=int, default=50,
                         help='''number of acceptable bases for transcriptome alignment to increase softclipping by''')
-    parser.add_argument('--transcriptomefasta',
-                        help='provide transcriptome fasta aligned to if --remove_internal_priming is specified')
     parser.add_argument('--unique_bound',
                         help='text file with boundaries of unique sequence in isoforms that are a subset of other isoforms')
     parser.add_argument('--fusion_breakpoints',
@@ -528,9 +517,7 @@ class IsoAln(object):
 
 
 def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
-              *, quality, remove_internal_priming, transcriptomefasta,
-              permissive_last_exons, intprimingthreshold, intprimingfracAs,
-              stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
+              *, quality, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
               trimmedreads, soft_clipping_buffer, output_endpos,
               trust_ends, end_norm_dist):
     """Iterate the SAM stream, group alignments per read, call get_best_transcript,
@@ -539,9 +526,6 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
     curr_transcripts = {}
     transcript_to_reads = {}
     samfile = pysam.AlignmentFile(sam, 'r')
-    genome = None
-    if remove_internal_priming:
-        genome = pysam.FastaFile(transcriptomefasta)
 
     for read in samfile:
         if not read.is_mapped:
@@ -553,49 +537,35 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
             if rquality < quality:
                 logging.debug(f"read dropped: low quality ({rquality} < {quality}): {readname}")
             elif rquality >= quality:
-                # for transcriptome alignment, always take rightmost side on transcript
-                if remove_internal_priming:
-                    intprim_annot = info.transcript_to_exons if permissive_last_exons else None
-                    not_internal_priming = removeinternalpriming(read.reference_name,
-                                                                 read.reference_start,
-                                                                 read.reference_end, False,
-                                                                 genome, None, intprim_annot,
-                                                                 intprimingthreshold,
-                                                                 intprimingfracAs)
-                else:
-                    not_internal_priming = True
-                if not not_internal_priming:
-                    logging.debug(f"read dropped: internal priming on {transcript}: {readname}")
-                else:
-                    pos = read.reference_start
-                    try:
-                        alignscore = read.get_tag('AS')
-                        mdtag = read.get_tag('MD')
-                    except KeyError as ex:
-                        raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}'") from ex
-                    cigar = read.cigartuples
-                    tlen = samfile.get_reference_length(transcript)
-                    if lastread and readname != lastread:
-                        clipping = readstoclipping[lastread] if lastread in readstoclipping else None
-                        assignedts = get_best_transcript(curr_transcripts, info, clipping,
-                                                         stringent=stringent, check_splice=check_splice,
-                                                         fusion_breakpoints=fusion_breakpoints,
-                                                         allow_UTR_indels=allow_UTR_indels,
-                                                         trimmedreads=trimmedreads,
-                                                         soft_clipping_buffer=soft_clipping_buffer,
-                                                         output_endpos=output_endpos,
-                                                         trust_ends=trust_ends, end_norm_dist=end_norm_dist, rname=lastread)
-                        if not assignedts:
-                            logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
-                        else:
-                            for assignedt, gtstart, gtend in assignedts:
-                                if assignedt not in transcript_to_reads:
-                                    transcript_to_reads[assignedt] = []
-                                transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
+                pos = read.reference_start
+                try:
+                    alignscore = read.get_tag('AS')
+                    mdtag = read.get_tag('MD')
+                except KeyError as ex:
+                    raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}'") from ex
+                cigar = read.cigartuples
+                tlen = samfile.get_reference_length(transcript)
+                if lastread and readname != lastread:
+                    clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+                    assignedts = get_best_transcript(curr_transcripts, info, clipping,
+                                                     stringent=stringent, check_splice=check_splice,
+                                                     fusion_breakpoints=fusion_breakpoints,
+                                                     allow_UTR_indels=allow_UTR_indels,
+                                                     trimmedreads=trimmedreads,
+                                                     soft_clipping_buffer=soft_clipping_buffer,
+                                                     output_endpos=output_endpos,
+                                                     trust_ends=trust_ends, end_norm_dist=end_norm_dist, rname=lastread)
+                    if not assignedts:
+                        logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
+                    else:
+                        for assignedt, gtstart, gtend in assignedts:
+                            if assignedt not in transcript_to_reads:
+                                transcript_to_reads[assignedt] = []
+                            transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
 
-                        curr_transcripts = {}
-                    curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
-                    lastread = readname
+                    curr_transcripts = {}
+                curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
+                lastread = readname
     if lastread:
         clipping = readstoclipping[lastread] if lastread in readstoclipping else None
         assignedts = get_best_transcript(curr_transcripts, info, clipping,
@@ -641,10 +611,8 @@ def write_output(args, transcripttoreads):
 def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   # noqa: C901 - linear function okay
                                     isoforms=None, stringent=False, check_splice=False,
                                     trust_ends=False, generate_map=None,
-                                    fusion_dist=None, remove_internal_priming=False,
-                                    permissive_last_exons=False, intprimingthreshold=12,
-                                    intprimingfracAs=0.6, soft_clipping_buffer=50,
-                                    transcriptomefasta=None, unique_bound=None,
+                                    fusion_dist=None, soft_clipping_buffer=50,
+                                    unique_bound=None,
                                     fusion_breakpoints=None, allow_paralogs=False,
                                     allow_UTR_indels=False, trimmedreads=None,
                                     end_norm_dist=0, output_endpos=None):
@@ -667,14 +635,6 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
         cmd += ['--generate_map', str(generate_map)]
     if fusion_dist:
         cmd += ['--fusion_dist', str(fusion_dist)]
-    if remove_internal_priming:
-        cmd += ['--remove_internal_priming',
-                '--intprimingthreshold', str(intprimingthreshold),
-                '--intprimingfracAs', str(intprimingfracAs)]
-        if transcriptomefasta:
-            cmd += ['--transcriptomefasta', str(transcriptomefasta)]
-    if permissive_last_exons:
-        cmd.append('--permissive_last_exons')
     if soft_clipping_buffer != 50:
         cmd += ['--soft_clipping_buffer', str(soft_clipping_buffer)]
     if unique_bound:
@@ -697,10 +657,8 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
 def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quality=0,
                               isoforms=None, stringent=False, check_splice=False,
                               trust_ends=False, generate_map=None,
-                              fusion_dist=None, remove_internal_priming=False,
-                              permissive_last_exons=False, intprimingthreshold=12,
-                              intprimingfracAs=0.6, soft_clipping_buffer=50,
-                              transcriptomefasta=None, unique_bound=None,
+                              fusion_dist=None, soft_clipping_buffer=50,
+                              unique_bound=None,
                               fusion_breakpoints=None, allow_paralogs=False,
                               allow_UTR_indels=False, trimmedreads=None,
                               end_norm_dist=0, output_endpos=None):
@@ -709,11 +667,8 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quali
         output=output, sam=sam, threads=threads, quality=quality,
         isoforms=isoforms, stringent=stringent, check_splice=check_splice,
         trust_ends=trust_ends, generate_map=generate_map,
-        fusion_dist=fusion_dist, remove_internal_priming=remove_internal_priming,
-        permissive_last_exons=permissive_last_exons,
-        intprimingthreshold=intprimingthreshold, intprimingfracAs=intprimingfracAs,
-        soft_clipping_buffer=soft_clipping_buffer,
-        transcriptomefasta=transcriptomefasta, unique_bound=unique_bound,
+        fusion_dist=fusion_dist, soft_clipping_buffer=soft_clipping_buffer,
+        unique_bound=unique_bound,
         fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
         end_norm_dist=end_norm_dist, output_endpos=output_endpos)
@@ -736,11 +691,7 @@ if __name__ == '__main__':
             rname, left_clipping, right_clipping = line.rstrip().split('\t')
             readstoclipping[rname] = [int(left_clipping), int(right_clipping)]
     transcript_to_reads = parse_sam(args.sam, info, readstoclipping,
-                                    quality=args.quality, remove_internal_priming=args.remove_internal_priming,
-                                    transcriptomefasta=args.transcriptomefasta,
-                                    permissive_last_exons=args.permissive_last_exons,
-                                    intprimingthreshold=args.intprimingthreshold,
-                                    intprimingfracAs=args.intprimingfracAs,
+                                    quality=args.quality,
                                     stringent=args.stringent, check_splice=args.check_splice,
                                     fusion_breakpoints=args.fusion_breakpoints,
                                     allow_UTR_indels=args.allow_UTR_indels,

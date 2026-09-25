@@ -73,10 +73,6 @@ class TranscriptomeOpts:
     keep_intermediate: bool
     normalize_ends: bool
     generate_map: bool
-    # internal priming removal was dropped from the command line; the code that reads
-    # intprimingthreshold, intprimingfracAs and transcriptfasta is unreachable while
-    # this is False
-    remove_internal_priming: bool = False
 
 def add_subparser(subparsers):
     desc = ('generates confident transcript models directly from a bam file '
@@ -251,14 +247,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     # ends that read_isoforms_bed loads
     isoforms = ref_bed if (check_splice or stringent or is_annot or args.fusion_breakpoints or output_endpos) else None
     unique_bound_path = unique_bound if unique_bound and (not args.no_stringent or is_annot) else None
-    intprimingthreshold = None
-    intprimingfracAs = None
-    transcriptomefasta = None
-    if args.remove_internal_priming:
-        intprimingthreshold = args.intprimingthreshold
-        intprimingfracAs = args.intprimingfracAs
-        transcriptomefasta = args.transcriptfasta
-    permissive_last_exons = args.remove_internal_priming and is_annot
 
     run_count_sam_transcripts(
         mm2_cmd=mm2_cmd,
@@ -273,11 +261,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         isoforms=isoforms,
         trust_ends=args.trust_ends,
         unique_bound=unique_bound_path,
-        remove_internal_priming=args.remove_internal_priming,
-        intprimingthreshold=intprimingthreshold,
-        intprimingfracAs=intprimingfracAs,
-        transcriptomefasta=transcriptomefasta,
-        permissive_last_exons=permissive_last_exons,
         fusion_breakpoints=args.fusion_breakpoints)
 
 
