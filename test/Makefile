@@ -229,6 +229,10 @@ DDX5_READTHROUGH_FQ = $I/DDX5_readthrough.badread40x.fastq
 DDX5_READTHROUGH_BAM = $O/DDX5_readthrough_sim_badread40x.bam
 DDX5_READTHROUGH_ANNOT = $I/DDX5_POLG2_gencode38.gtf
 DDX5_READTHROUGH_SJ = $I/DDX5_readthrough_IPSJ.bed
+# DDX5 readthrough reads with all but 3 reads of the two supersets of the
+# chr17:64500697-64506289 subset isoform dropped, so that subset outnumbers them
+DDX5_BYSUPPORT_DROP_READS = $I/DDX5_readthrough_bysupport_drop_reads.txt
+DDX5_BYSUPPORT_BAM = $O/DDX5_readthrough_bysupport.bam
 
 KRAS_MUT_SPLICE_FQ = $I/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.fastq
 KRAS_MUT_SPLICE_BAM = $O/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.bam
@@ -494,12 +498,12 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -596,6 +600,19 @@ test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
+
+# test of --filter bysupport, which keeps a subset isoform with more than 1.2x
+# the reads of its supersets; nosubset gives 2 isoforms, comprehensive 14
+test-transcriptome-bysupport: mkdirs ${DDX5_BYSUPPORT_BAM}
+	flair transcriptome -b ${DDX5_BYSUPPORT_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 \
+	   --filter bysupport
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+${DDX5_BYSUPPORT_BAM}: ${DDX5_READTHROUGH_BAM} ${DDX5_BYSUPPORT_DROP_READS}
+	samtools view -h ${DDX5_READTHROUGH_BAM} | grep -v -F -w -f ${DDX5_BYSUPPORT_DROP_READS} | samtools view -b -o $@.tmp.bam -
+	mv -f $@.tmp.bam $@
+	samtools index $@
 
 # basic reads with poly(A) trimmed, keeping single-exon isoforms.  Without poly(A),
 # single-exon reads can only be stranded with --trust_strand, so compare these two

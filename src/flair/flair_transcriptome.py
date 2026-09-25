@@ -361,14 +361,18 @@ def _check_terminal_exon_overlap(first_exon, last_exon, other_exon, otheriso_sco
 def _check_internal_exon_overlap(first_exon, last_exon, other_exon, otheriso_score,
                                  terminal_exon_is_subset, superset_support, unique_seq_bound):
     """Check overlap with internal exon of other transcript.
-    Records unique sequence boundaries and checks containment within tolerance."""
+    Records unique sequence boundaries and checks containment within tolerance.
+    A boundary is only recorded when the terminal exon extends past the other
+    exon; when it is inside it there is no unique sequence to require."""
     if first_exon.end == other_exon.end:
-        unique_seq_bound.append((0, first_exon.end - other_exon.start))
+        if first_exon.start < other_exon.start:
+            unique_seq_bound.append((0, first_exon.end - other_exon.start))
         if first_exon.start >= (other_exon.start - TERMINAL_EXON_BOUNDARY_TOLERANCE):
             terminal_exon_is_subset[0] = 1
             superset_support.append(otheriso_score)
     if last_exon.start == other_exon.start:
-        unique_seq_bound.append((1, other_exon.end - last_exon.start))
+        if last_exon.end > other_exon.end:
+            unique_seq_bound.append((1, other_exon.end - last_exon.start))
         if last_exon.end <= (other_exon.end + TERMINAL_EXON_BOUNDARY_TOLERANCE):
             terminal_exon_is_subset[1] = 1
             superset_support.append(otheriso_score)
