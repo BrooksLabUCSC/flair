@@ -175,6 +175,8 @@ TI = tmp-input
 
 # reference data
 GENOME_FA = ${TI}/genome.fa
+# the test genome with all chromosomes concatenated into one, chr12_17_20
+ONECHROM_GENOME_FA = ${TI}/genome.onechrom.fa
 
 ##
 # basic: general tests that programs seem to work
@@ -217,6 +219,8 @@ SHARED_JUNC_ANNOTATION = $O/basic.annotation.sharedjunc.gtf
 # test-align.bam with only one chr20 read, so the chr20 partition has reads but
 # too few to support any isoform
 ONECHR20_ALIGN_BAM = $O/test-align-onechr20.bam
+# basic reads aligned to the one-chromosome genome
+ONECHROM_ALIGN_BAM = $O/test-align-onechrom.bam
 TEST_QUANTIFY_B1_BAM = $O/test-quantify.B1.B.flair.aligned.bam
 
 ###
@@ -517,12 +521,12 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -674,6 +678,18 @@ test-transcriptome-no-firstpass: mkdirs ${ONECHR20_ALIGN_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoform.read.map.txt)
+
+# test-transcriptome-noannot with all loci on one chromosome, so KRAS and DDX5 (both
+# minus strand) are separate novel genes on the same strand of one partition
+test-transcriptome-onechrom: mkdirs ${ONECHROM_ALIGN_BAM}
+	intron-prospector --genome-fasta=${ONECHROM_GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${ONECHROM_ALIGN_BAM}
+	flair transcriptome -b ${ONECHROM_ALIGN_BAM} -g ${ONECHROM_GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+${ONECHROM_ALIGN_BAM}: ${BASIC_READS_FA} ${ONECHROM_GENOME_FA}
+	@mkdir -p $O
+	flair align -r ${BASIC_READS_FA} --genome ${ONECHROM_GENOME_FA} -t 4 -o $(basename $@)
 
 ${KRAS_MUT_SPLICE_BAM}: ${KRAS_MUT_SPLICE_FQ}  ${GENOME_FA}
 	@mkdir -p $O
@@ -881,6 +897,12 @@ ${GENOME_FA}:
 	wget -nv https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr20.fa.gz
 	zcat chr12.fa.gz chr17.fa.gz chr20.fa.gz > $@
 	rm chr12.fa.gz chr17.fa.gz chr20.fa.gz
+	samtools faidx $@
+
+# one sequence, re-wrapped at 50 bases so it can be indexed
+${ONECHROM_GENOME_FA}: ${GENOME_FA}
+	awk 'BEGIN {print ">chr12_17_20"} /^>/ {next} {buf = buf $$0; while (length(buf) >= 50) {print substr(buf, 1, 50); buf = substr(buf, 51)}} END {if (buf != "") print buf}' ${GENOME_FA} > $@.tmp
+	mv -f $@.tmp $@
 	samtools faidx $@
 
 ${TOME_OUT_FA}: | mkdirs
