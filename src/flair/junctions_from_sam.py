@@ -350,7 +350,9 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
                 if read_len:
                     if this_read_len != read_len:
-                        raise ValueError(f"Expecting reads of length: {read_len} not {this_read_len}")
+                        raise FlairInputDataError(
+                            f"read of length {this_read_len} where --read_length says {read_len}; "
+                            "leave --read_length out when the reads vary in length")
 
                 # chr_end = chr_start + this_read_len - 1
 
@@ -414,7 +416,8 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
                         jcn_strand = almost_strand.lstrip(":")
 
                         if jcn_strand != "+" and jcn_strand != "-" and jcn_strand != ".":
-                            raise ValueError(f"Error in strand information for: {line}")
+                            raise FlairInputDataError(
+                                f"XS tag strand is not +, - or . in: {line}")
 
                 # Now insert all introns into jcn dictionary.
                 for intron_info in introns_info:
@@ -610,7 +613,7 @@ def extended_to_simple_cigar(cigar):
     for m in matches:
         num, op = int(m[0]), m[1]
         if op not in ['=', 'X', 'N']:
-            raise ValueError(f'Unexpectted operator in extended cigar:{cigar}')
+            raise FlairInputDataError(f"unexpected operator `{op}' in extended cigar: {cigar}")
         if op in ['=', 'X'] and prevop in ['=', 'X']:
             prevnum += num
         else:

@@ -4,6 +4,7 @@ import sys
 import csv
 import os
 from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 
 def parse_input():
     try:
@@ -56,6 +57,11 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None):
             writer.writerow(line)
 
 
-if __name__ == '__main__':
+def main():
     counts_matrix, outfilename, sizefile = parse_input()
-    counts_to_tpm(counts_matrix, outfilename, sizefile)
+    with cli.ErrorHandler():
+        counts_to_tpm(counts_matrix, outfilename, sizefile)
+
+
+if __name__ == '__main__':
+    main()

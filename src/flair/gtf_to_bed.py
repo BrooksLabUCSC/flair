@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed, BedBlock
 
 
@@ -17,7 +18,8 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
-    gtf_to_bed(args.bed, args.gtf, args.include_gene)
+    with cli.ErrorHandler():
+        gtf_to_bed(args.bed, args.gtf, args.include_gene)
 
 def write_bed_row(include_gene, name_sep, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, fh):
     blockcount = len(blockstarts)
