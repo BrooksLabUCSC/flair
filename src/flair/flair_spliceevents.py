@@ -2,6 +2,8 @@
 
 import argparse
 import os
+import os.path as osp
+import sys
 import pipettor
 import shutil
 import pysam
@@ -19,6 +21,9 @@ from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed, BedReader
 from flair.count_sam_transcripts import run_count_sam_transcripts
+
+pkgdir = osp.dirname(osp.realpath(__file__))
+gtf_to_bed_prog = osp.join(pkgdir, "gtf_to_bed.py")
 
 def get_args():
     parser = argparse.ArgumentParser(description='identifies counts of different splicing events directly from a '
@@ -1264,12 +1269,12 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     # FIXME: we appear to do this just to do bed intersect; just do in memory.
     annot_bed = tempDir + '/annotation.bed'
     if not os.path.exists(annot_bed):
-        pipettor.run([('gtf_to_bed', args.annot, annot_bed, '--include_gene')])
+        pipettor.run([(sys.executable, gtf_to_bed_prog, args.annot, annot_bed, '--include_gene')])
     args.annot = annot_bed
     if args.annot_basic:
         annot_basic_bed = tempDir + '/annotation.basic.bed'
         if not os.path.exists(annot_basic_bed):
-            pipettor.run([('gtf_to_bed', args.annot_basic, annot_basic_bed, '--include_gene')])
+            pipettor.run([(sys.executable, gtf_to_bed_prog, args.annot_basic, annot_basic_bed, '--include_gene')])
         args.annot_basic = annot_basic_bed
 
     logging.info(f'running regions with {args.threads} threads')

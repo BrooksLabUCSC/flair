@@ -3,7 +3,7 @@ import time
 from datetime import timedelta
 import argparse
 import logging
-from flair import VERSION, set_unix_path
+from flair import VERSION
 from flair.pycbio.sys import cli, loggingOps
 from flair import (flair_align, flair_allelotyping, flair_combine, flair_diffExp,
                    flair_diffSplice, flair_fusion, flair_isoalleles, flair_quantify,
@@ -74,7 +74,6 @@ def run_subcommand(args):
     logging.info(f"Flair {args.subcommand} took " + str(timedelta(seconds=round(elapsed))))
 
 def main():
-    set_unix_path()
     args = cli.parseArgsWithLogging(build_parser())
     with cli.ErrorHandler():
         run_subcommand(args)
