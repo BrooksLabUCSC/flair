@@ -246,9 +246,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     output_endpos = output_name.split('.counts.txt')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
     stringent = (not is_annot) and (not args.no_stringent)
     check_splice = not args.no_check_splice
-    # annotated isoform bed file; output_endpos needs it too, for the transcript
-    # ends that read_isoforms_bed loads
-    isoforms = ref_bed if (check_splice or stringent or is_annot or args.fusion_breakpoints or output_endpos) else None
     unique_bound_path = unique_bound if unique_bound and (not args.no_stringent or is_annot) else None
 
     run_count_sam_transcripts(
@@ -260,7 +257,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         stringent=stringent,
         allow_UTR_indels=not directRNA,
         check_splice=check_splice,
-        isoforms=isoforms,
+        isoforms=ref_bed,
         trust_ends=args.trust_ends,
         unique_bound=unique_bound_path,
         fusion_breakpoints=args.fusion_breakpoints)

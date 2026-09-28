@@ -22,8 +22,8 @@ def parse_args():
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-s', '--sam', type=argparse.FileType('r'), help='sam file or - for STDIN')
     required.add_argument('-o', '--output', default='counts.txt', help='output file name')
-    parser.add_argument('-i', '--isoforms',
-                        help='specify isoforms.bed file if --stringent and/or --check_splice is specified')
+    parser.add_argument('-i', '--isoforms', required=True,
+                        help='isoforms bed file for the transcripts the reads are aligned to')
     parser.add_argument('--stringent', action='store_true',
                         help='only count if read alignment passes stringent criteria')
     parser.add_argument('--check_splice', action='store_true',
@@ -63,12 +63,8 @@ def check_args(args):
         raise FlairNotImplementedError("--allow_paralogs is not implemented: reads with an equally "
                                        "good alignment to several paralogs are assigned to one of "
                                        "them, and nothing in this program does otherwise")
-    if args.stringent or args.fusion_dist or args.check_splice or args.fusion_breakpoints:
-        # None, not just missing: os.path.exists(None) raises TypeError, which hid the
-        # real problem when -i was left off
-        if (args.isoforms is None) or (not os.path.exists(args.isoforms)):
-            raise FlairInputDataError("--stringent, --fusion_dist, --check_splice and --fusion_breakpoints "
-                                      f"each need an isoforms bed file from -i: {args.isoforms}")
+    if not os.path.exists(args.isoforms):
+        raise FlairInputDataError(f"isoforms bed file from -i does not exist: {args.isoforms}")
     if args.fusion_dist:
         args.trust_ends = True
     return args
@@ -95,9 +91,7 @@ class IsoformInfo:
     transcript_to_unique_bounds: dict = field(default_factory=dict)
 
 
-def read_isoforms_bed(*, isoforms, stringent=False, check_splice=False,  # noqa: C901 - FIXME: reduce complexity
-                      fusion_dist=False, fusion_breakpoints=None,
-                      output_endpos=False, unique_bound=None):
+def read_isoforms_bed(*, isoforms, fusion_breakpoints=None, unique_bound=None):  # noqa: C901 - FIXME: reduce complexity
     """Read the isoforms BED (and optional unique-bound TSV) and build an
     IsoformInfo with exon block sizes, genomic ends, fusion-breakpoint
     splice-site indices, and unique-sequence boundaries per transcript."""
@@ -107,38 +101,37 @@ def read_isoforms_bed(*, isoforms, stringent=False, check_splice=False,  # noqa:
         for bed in BedReader(fusion_breakpoints, numStdCols=3):
             chrtobp[bed.chrom] = bed.chromStart
 
-    if stringent or check_splice or fusion_dist or fusion_breakpoints or output_endpos:
-        for bed in BedReader(isoforms, fixScores=True):
-            name, left, right, chrom, strand = bed.name, bed.chromStart, bed.chromEnd, bed.chrom, bed.strand
-            if name[:10] == 'fusiongene':
-                name = '_'.join(name.split('_')[1:])
-            blocksizes = [len(blk) for blk in bed.blocks]
-            if strand == '+':
-                info.transcript_to_exons[name] = blocksizes
-            else:
-                info.transcript_to_exons[name] = blocksizes[::-1]
-            info.transcript_to_genomic_ends[name] = (left, right, strand)
-            if fusion_breakpoints:
-                blockstarts = [blk.start - left for blk in bed.blocks]
-                bpindex = -1
-                for i in range(len(blocksizes) - 1):
-                    if left + blockstarts[i] + blocksizes[i] <= chrtobp[chrom] <= left + blockstarts[i + 1]:
-                        bpindex = i
-                if bpindex >= 0 and strand == '-':
-                    bpindex = (len(blocksizes) - 2) - bpindex
-                info.transcript_to_bp_ss_index[name] = bpindex
-        if unique_bound:
-            for line in open(unique_bound):
-                name, bounds = line.rstrip().split('\t')
-                bounds = [x.split('_') for x in bounds.split(',')]
-                leftbounds = [int(x[1]) for x in bounds if x[0] == '0']
-                rightbounds = [int(x[1]) for x in bounds if x[0] == '1']
-                boundsdict = {'left': None, 'right': None}
-                if len(leftbounds) > 0:
-                    boundsdict['left'] = info.transcript_to_exons[name][0] - max(leftbounds)
-                if len(rightbounds) > 0:
-                    boundsdict['right'] = sum(info.transcript_to_exons[name][:-1]) + max(rightbounds)
-                info.transcript_to_unique_bounds[name] = boundsdict
+    for bed in BedReader(isoforms, fixScores=True):
+        name, left, right, chrom, strand = bed.name, bed.chromStart, bed.chromEnd, bed.chrom, bed.strand
+        if name[:10] == 'fusiongene':
+            name = '_'.join(name.split('_')[1:])
+        blocksizes = [len(blk) for blk in bed.blocks]
+        if strand == '+':
+            info.transcript_to_exons[name] = blocksizes
+        else:
+            info.transcript_to_exons[name] = blocksizes[::-1]
+        info.transcript_to_genomic_ends[name] = (left, right, strand)
+        if fusion_breakpoints:
+            blockstarts = [blk.start - left for blk in bed.blocks]
+            bpindex = -1
+            for i in range(len(blocksizes) - 1):
+                if left + blockstarts[i] + blocksizes[i] <= chrtobp[chrom] <= left + blockstarts[i + 1]:
+                    bpindex = i
+            if bpindex >= 0 and strand == '-':
+                bpindex = (len(blocksizes) - 2) - bpindex
+            info.transcript_to_bp_ss_index[name] = bpindex
+    if unique_bound:
+        for line in open(unique_bound):
+            name, bounds = line.rstrip().split('\t')
+            bounds = [x.split('_') for x in bounds.split(',')]
+            leftbounds = [int(x[1]) for x in bounds if x[0] == '0']
+            rightbounds = [int(x[1]) for x in bounds if x[0] == '1']
+            boundsdict = {'left': None, 'right': None}
+            if len(leftbounds) > 0:
+                boundsdict['left'] = info.transcript_to_exons[name][0] - max(leftbounds)
+            if len(rightbounds) > 0:
+                boundsdict['right'] = sum(info.transcript_to_exons[name][:-1]) + max(rightbounds)
+            info.transcript_to_unique_bounds[name] = boundsdict
 
     return info
 
@@ -462,11 +455,7 @@ def get_best_transcript(tinfo, info, genomicclipping,
         thist = tinfo[tname]
         # process MD tag here to query positions with mismatches
         # for MD tag, keep track of position of mismatch in all match positions
-        # output_endpos reaches identify_corrected_ends, which needs the exon sizes
-        if stringent or check_splice or fusion_breakpoints or output_endpos:
-            exoninfo = check_transcript_in_annot(info.transcript_to_exons, tname)
-        else:
-            exoninfo = None
+        exoninfo = check_transcript_in_annot(info.transcript_to_exons, tname)
         matchvals = get_matchvals(thist.md, stringent=stringent, check_splice=check_splice,
                                   fusion_breakpoints=fusion_breakpoints)
         terminal_exon_info = exoninfo if allow_UTR_indels else None
@@ -602,7 +591,7 @@ def write_output(args, transcripttoreads):
 
 
 def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C901 - linear function okay
-                                    isoforms=None, stringent=False, check_splice=False,
+                                    isoforms, stringent=False, check_splice=False,
                                     trust_ends=False, generate_map=None,
                                     fusion_dist=None, soft_clipping_buffer=50,
                                     unique_bound=None,
@@ -615,8 +604,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
            '--sam', str(sam), '-o', str(output)]
     if threads != 4:
         cmd += ['-t', str(threads)]
-    if isoforms:
-        cmd += ['-i', str(isoforms)]
+    cmd += ['-i', str(isoforms)]
     if stringent:
         cmd.append('--stringent')
     if check_splice:
@@ -645,7 +633,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
 
 
 def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
-                              isoforms=None, stringent=False, check_splice=False,
+                              isoforms, stringent=False, check_splice=False,
                               trust_ends=False, generate_map=None,
                               fusion_dist=None, soft_clipping_buffer=50,
                               unique_bound=None,
@@ -671,10 +659,8 @@ if __name__ == '__main__':
     # logging.basicConfig(level=logging.DEBUG)
     args = parse_args()
     args = check_args(args)
-    info = read_isoforms_bed(
-        isoforms=args.isoforms, stringent=args.stringent, check_splice=args.check_splice,
-        fusion_dist=args.fusion_dist, fusion_breakpoints=args.fusion_breakpoints,
-        output_endpos=args.output_endpos, unique_bound=args.unique_bound)
+    info = read_isoforms_bed(isoforms=args.isoforms, fusion_breakpoints=args.fusion_breakpoints,
+                             unique_bound=args.unique_bound)
     readstoclipping = {}
     if args.trimmedreads:
         for line in open(args.trimmedreads):
