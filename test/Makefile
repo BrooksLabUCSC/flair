@@ -213,6 +213,10 @@ TEST_ALIGN_BAM = $O/test-align.bam
 # evidence for strand correction
 BASIC_READS_NOPOLYA_FA = $O/basic.reads.nopolyA.fa
 NOPOLYA_ALIGN_BAM = $O/test-align-nopolya.bam
+# poly(A)-trimmed basic reads with a poly(T) head added to every read, so single-exon
+# reads from minus strand genes look like plus strand reads with a poly(A) tail
+BASIC_READS_POLYT_FA = $O/basic.reads.polyT.fa
+POLYT_ALIGN_BAM = $O/test-align-polyt.bam
 # basic annotation plus a synthetic gene that shares one DDX5 intron
 SHARED_JUNC_GENE_GTF = $I/shared_junction_gene.gtf
 SHARED_JUNC_ANNOTATION = $O/basic.annotation.sharedjunc.gtf
@@ -315,6 +319,13 @@ ${BASIC_READS_NOPOLYA_FA}: ${BASIC_READS_FA} bin/trim_polya_reads
 
 ${SEG1_ALIGN_BAM}: test-align-seg1
 ${NOPOLYA_ALIGN_BAM}: test-align-nopolya
+
+${BASIC_READS_POLYT_FA}: ${BASIC_READS_NOPOLYA_FA}
+	awk '/^>/ {print; next} {print "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" $$0}' ${BASIC_READS_NOPOLYA_FA} > $@.tmp
+	mv -f $@.tmp $@
+
+${POLYT_ALIGN_BAM}: ${BASIC_READS_POLYT_FA} ${GENOME_FA}
+	flair align -r ${BASIC_READS_POLYT_FA} --genome ${GENOME_FA} -t 4 -o $(basename $@)
 
 ${ONECHR20_ALIGN_BAM}: ${TEST_ALIGN_BAM}
 	(samtools view -h ${TEST_ALIGN_BAM} chr12 chr17 && samtools view -F 0x900 ${TEST_ALIGN_BAM} chr20 | head -n 1) | samtools view -b -o $@.tmp.bam -
@@ -521,12 +532,12 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -660,6 +671,15 @@ test-transcriptome-nopolya: mkdirs ${NOPOLYA_ALIGN_BAM}
 test-transcriptome-nopolya-trust-strand: mkdirs ${NOPOLYA_ALIGN_BAM}
 	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2 --trust_strand
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# poly(T) heads on all reads, no annotation: the single-exon KRAS isoform gets re-assigned to the + strand
+# all spliced reads strand as normal due to splice junction strand correction, only single exon reads get re-stranded
+test-transcriptome-polyt: mkdirs ${POLYT_ALIGN_BAM}
+	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${POLYT_ALIGN_BAM}
+	flair transcriptome -b ${POLYT_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3 \
+	   --filter ginormous --single_exon_support 2
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
