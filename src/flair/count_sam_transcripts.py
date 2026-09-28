@@ -33,8 +33,6 @@ def parse_args():
                         help='specify if reads are generated from a long read method with minimal fragmentation')
     parser.add_argument('-t', '--threads', default=4, type=int,
                         help='number of threads to use')
-    parser.add_argument('--quality', default=0, type=int,
-                        help='minimum quality threshold to consider if ends are to be trusted (0)')
     parser.add_argument('--generate_map',
                         help='''specify an output path for a txt file of which isoform each read is assigned to''')
     parser.add_argument('--fusion_dist',
@@ -516,7 +514,7 @@ class IsoAln(object):
 
 
 def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
-              *, quality, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
+              *, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
               trimmedreads, soft_clipping_buffer, output_endpos,
               trust_ends):
     """Iterate the SAM stream, group alignments per read, call get_best_transcript,
@@ -532,39 +530,35 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
         else:
             readname = read.query_name
             transcript = read.reference_name
-            rquality = read.mapping_quality
-            if rquality < quality:
-                logging.debug(f"read dropped: low quality ({rquality} < {quality}): {readname}")
-            elif rquality >= quality:
-                pos = read.reference_start
-                try:
-                    alignscore = read.get_tag('AS')
-                    mdtag = read.get_tag('MD')
-                except KeyError as ex:
-                    raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}'") from ex
-                cigar = read.cigartuples
-                tlen = samfile.get_reference_length(transcript)
-                if lastread and readname != lastread:
-                    clipping = readstoclipping[lastread] if lastread in readstoclipping else None
-                    assignedts = get_best_transcript(curr_transcripts, info, clipping,
-                                                     stringent=stringent, check_splice=check_splice,
-                                                     fusion_breakpoints=fusion_breakpoints,
-                                                     allow_UTR_indels=allow_UTR_indels,
-                                                     trimmedreads=trimmedreads,
-                                                     soft_clipping_buffer=soft_clipping_buffer,
-                                                     output_endpos=output_endpos,
-                                                     trust_ends=trust_ends, rname=lastread)
-                    if not assignedts:
-                        logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
-                    else:
-                        for assignedt, gtstart, gtend in assignedts:
-                            if assignedt not in transcript_to_reads:
-                                transcript_to_reads[assignedt] = []
-                            transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
+            pos = read.reference_start
+            try:
+                alignscore = read.get_tag('AS')
+                mdtag = read.get_tag('MD')
+            except KeyError as ex:
+                raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}'") from ex
+            cigar = read.cigartuples
+            tlen = samfile.get_reference_length(transcript)
+            if lastread and readname != lastread:
+                clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+                assignedts = get_best_transcript(curr_transcripts, info, clipping,
+                                                 stringent=stringent, check_splice=check_splice,
+                                                 fusion_breakpoints=fusion_breakpoints,
+                                                 allow_UTR_indels=allow_UTR_indels,
+                                                 trimmedreads=trimmedreads,
+                                                 soft_clipping_buffer=soft_clipping_buffer,
+                                                 output_endpos=output_endpos,
+                                                 trust_ends=trust_ends, rname=lastread)
+                if not assignedts:
+                    logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
+                else:
+                    for assignedt, gtstart, gtend in assignedts:
+                        if assignedt not in transcript_to_reads:
+                            transcript_to_reads[assignedt] = []
+                        transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
 
-                    curr_transcripts = {}
-                curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
-                lastread = readname
+                curr_transcripts = {}
+            curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
+            lastread = readname
     if lastread:
         clipping = readstoclipping[lastread] if lastread in readstoclipping else None
         assignedts = get_best_transcript(curr_transcripts, info, clipping,
@@ -607,7 +601,7 @@ def write_output(args, transcripttoreads):
         _write_transcript_counts(transcripttoreads, countout, mapout, endout)
 
 
-def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   # noqa: C901 - linear function okay
+def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C901 - linear function okay
                                     isoforms=None, stringent=False, check_splice=False,
                                     trust_ends=False, generate_map=None,
                                     fusion_dist=None, soft_clipping_buffer=50,
@@ -618,8 +612,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
     """Build count_sam_transcripts.py argv."""
     # FIXNE: default values should be centralized
     cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
-           '--sam', str(sam), '-o', str(output),
-           '--quality', str(quality)]
+           '--sam', str(sam), '-o', str(output)]
     if threads != 4:
         cmd += ['-t', str(threads)]
     if isoforms:
@@ -651,7 +644,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
     return cmd
 
 
-def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quality=0,
+def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
                               isoforms=None, stringent=False, check_splice=False,
                               trust_ends=False, generate_map=None,
                               fusion_dist=None, soft_clipping_buffer=50,
@@ -661,7 +654,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quali
                               output_endpos=None):
     """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
     cmd = build_count_sam_transcripts_cmd(
-        output=output, sam=sam, threads=threads, quality=quality,
+        output=output, sam=sam, threads=threads,
         isoforms=isoforms, stringent=stringent, check_splice=check_splice,
         trust_ends=trust_ends, generate_map=generate_map,
         fusion_dist=fusion_dist, soft_clipping_buffer=soft_clipping_buffer,
@@ -688,7 +681,6 @@ if __name__ == '__main__':
             rname, left_clipping, right_clipping = line.rstrip().split('\t')
             readstoclipping[rname] = [int(left_clipping), int(right_clipping)]
     transcript_to_reads = parse_sam(args.sam, info, readstoclipping,
-                                    quality=args.quality,
                                     stringent=args.stringent, check_splice=args.check_splice,
                                     fusion_breakpoints=args.fusion_breakpoints,
                                     allow_UTR_indels=args.allow_UTR_indels,

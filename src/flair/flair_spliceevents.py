@@ -1039,7 +1039,6 @@ def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region
             mm2_cmd=mm2_cmd,
             output=temp_prefix + '.matchannot.counts.tsv',
             threads=1,
-            quality=0,
             check_splice=True,
             isoforms=region_annot,
             trimmedreads=clipping_file,
