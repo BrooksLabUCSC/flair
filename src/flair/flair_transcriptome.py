@@ -23,9 +23,9 @@ from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_prod_temp
 from flair.flair_bed import FlairBed
+from flair.terminal_exon_ends import TerminalExonEnds
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
-NORM_END_EXTRA_LEN = 100
 
 # FIXME: add object for all file names
 # FIXME: use real TSVs
@@ -437,106 +437,31 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
 ####
 # terminal exon normalization
 ####
-class GeneMaxTerminalExonsEnds:
-    """Class to collect the maximal terminal exons ends for a gene.
-    Exons are groups based on the location of the internal splice junction"""
-    def __init__(self, gene_id):
-        self.gene_id = gene_id
-        self.left_ends = {}
-        self.right_ends = {}
-
-    def add_left_end(self, exon):
-        if exon.end not in self.left_ends:
-            self.left_ends[exon.end] = exon.start
-        else:
-            self.left_ends[exon.end] = min(self.left_ends[exon.end], exon.start)
-
-    def add_right_end(self, exon):
-        if exon.start not in self.right_ends:
-            self.right_ends[exon.start] = exon.end
-        else:
-            self.right_ends[exon.start] = max(self.right_ends[exon.start], exon.end)
-
-    def get_left_end(self, exon):
-        # search all splice sites += 50bp from this edge splice site
-        ends = []
-        for i in range(exon.end - 50, exon.end + 50):
-            if i in self.left_ends:
-                ends.append(self.left_ends[i])
-        return min(ends)
-
-    def get_right_end(self, exon):
-        ends = []
-        for i in range(exon.start - 50, exon.start + 50):
-            if i in self.right_ends:
-                ends.append(self.right_ends[i])
-        return max(ends)
-
-class MaxTerminalExonsEnds:
-    """Collection of maximal terminal exons ends by gene.
-    A genes terminal exons are grouped by the interior exon splice junction
-    location.
-    """
-    def __init__(self):
-        # FIXME: this is temporary.  The code groups by (gene_id, strand)
-        # for reasons that are suspected to be bugs in stranding.
-        self._by_gene_id = {}  # (gene_id, strand) -> GeneMaxTerminalExonsEnds
-        self._gene_id_to_strand = {}
-
-    def _obtain(self, gene_id, strand):
-        "get current entry or create a new one"
-        gene_key = (gene_id, strand)
-        gene_entry = self._by_gene_id.get(gene_key)
-        if gene_entry is None:
-            gene_entry = GeneMaxTerminalExonsEnds(gene_id)
-            self._by_gene_id[gene_key] = gene_entry
-
-        existing_strand = self._gene_id_to_strand.get(gene_id)
-        if existing_strand is None:
-            self._gene_id_to_strand[gene_id] = strand
-        elif strand != existing_strand:
-            raise FlairInputDataError(f"gene id '{gene_id}' has transcripts on both strands, "
-                                      f"'{existing_strand}' and '{strand}'; give each strand its own "
-                                      "gene id in the annotation GTF")
-
-        return gene_entry
-
-    def add_transcript(self, gene_id, strand, transcript_id, exons):
-        # don't normalize ends for single exon transcripts, but still record gene
-        # FIXME: do we actually want to add single-exon genes?
-        gene_entry = self._obtain(gene_id, strand)
-        if len(exons) > 1:
-            gene_entry.add_left_end(exons[0])
-            gene_entry.add_right_end(exons[-1])
-
-    def fetch(self, gene_id, strand) -> GeneMaxTerminalExonsEnds:
-        """return entry or error"""
-        return self._by_gene_id[(gene_id, strand)]
+def _exon_bounds(exons):
+    return [(e.start, e.end) for e in exons]
 
 def max_terminal_exons_ends_from_annots(annots):
-    max_terminal_exons_ends = MaxTerminalExonsEnds()
+    max_terminal_exons_ends = TerminalExonEnds()
     for transcript_id, gene_id, strand in annots.transcripts:
         exons = annots.transcript_to_exons[(transcript_id, gene_id)]
-        max_terminal_exons_ends.add_transcript(gene_id, strand, transcript_id, exons)
+        max_terminal_exons_ends.add_transcript(gene_id, strand, _exon_bounds(exons))
     return max_terminal_exons_ends
 
 def max_terminal_exons_ends_from_iso_infos(iso_to_info):
-    max_terminal_exons_ends = MaxTerminalExonsEnds()
+    max_terminal_exons_ends = TerminalExonEnds()
     for iso_name in iso_to_info:
         isoform = iso_to_info[iso_name]
-        max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, isoform.name, isoform.exons)
+        max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, _exon_bounds(isoform.exons))
     return max_terminal_exons_ends
 
 ####
 # transcriptome reference
 ####
-def normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons):
+def normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons, chrom_len):
     "updates terminal exons ends"
-    gene_terminal_exons = max_terminal_exons_ends.fetch(gene_id, strand)
-    exons[0] = Exon(gene_terminal_exons.get_left_end(exons[0]) - NORM_END_EXTRA_LEN,
-                    exons[0].end)
-    exons[-1] = Exon(exons[-1].start,
-                     gene_terminal_exons.get_right_end(exons[-1]) + NORM_END_EXTRA_LEN)
+    start, end = max_terminal_exons_ends.normalized_ends(gene_id, strand, _exon_bounds(exons), chrom_len)
+    exons[0] = Exon(start, exons[0].end)
+    exons[-1] = Exon(exons[-1].start, end)
     return exons
 
 def generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, normalize_ends, max_terminal_exons_ends,
@@ -545,7 +470,7 @@ def generate_transcriptome_reference_transcript(strand, transcript_to_strand, tr
     exons = list(annots.transcript_to_exons[(transcript_id, gene_id)])
     assert isinstance(exons[0], Exon)  # FIXME tmp debugging
     if normalize_ends and len(exons) > 1:
-        normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons)
+        normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons, genome.get_reference_length(chrom))
         transcript_to_new_exons[(transcript_id, gene_id)] = tuple(exons)
     exons = tuple(exons)
     start, end = exons[0].start, exons[-1].end
@@ -1095,7 +1020,11 @@ def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand,
 def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_exons_ends, unique_bound, unique_fh, iso_fh, seq_fh, genome):
     # FIXME: do normalization outside of write function
     if normalize_ends and len(isoform.exons) > 1:  # don't normalize ends for single exon transcripts
-        exons = normalize_gene_terminal_exons(max_terminal_exons_ends, isoform.gene_id, isoform.strand, isoform.exons)
+        # kept so the padding can be removed from the final isoform, since clamping
+        # to the chromosome means it is not always NORM_END_EXTRA_LEN
+        isoform.unpadded_ends = max_terminal_exons_ends.furthest_ends(isoform.gene_id, isoform.strand, _exon_bounds(isoform.exons))
+        exons = normalize_gene_terminal_exons(max_terminal_exons_ends, isoform.gene_id, isoform.strand, isoform.exons,
+                                              genome.get_reference_length(isoform.chrom))
         isoform.reset_from_exons(exons)
     # if isoform.transcript_id is None:
     #     isoform.transcript_id = isoform.name
@@ -1207,8 +1136,8 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
                     # removing additional length from ends
                     # not entirely sure why I need to reset the exons outside of the isoform object, but it doesn't work otherwise
                     exons = isoform.exons
-                    exons[0] = Exon(exons[0].start + NORM_END_EXTRA_LEN, exons[0].end)
-                    exons[-1] = Exon(exons[-1].start, exons[-1].end - NORM_END_EXTRA_LEN)
+                    exons[0] = Exon(isoform.unpadded_ends[0], exons[0].end)
+                    exons[-1] = Exon(exons[-1].start, isoform.unpadded_ends[1])
                     isoform.reset_from_exons(exons)
 
                 thickStart, thickEnd, productivity, aaseq = predict_prod_temp(isoform, annots.start_codon_count,

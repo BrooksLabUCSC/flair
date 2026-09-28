@@ -10,6 +10,7 @@ from flair.io_utils import make_temp_dir
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from flair.flair_transcriptome import _check_junction_subset
+from flair.terminal_exon_ends import GeneTerminalExonEnds
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.counts_to_tpm import counts_to_tpm
@@ -99,8 +100,7 @@ class GeneData():
         self.right_bound = None
         self.isoform_beds = []
         # self.isoform_fas = []
-        self.left_ss_to_bound = {}
-        self.right_ss_to_bound = {}
+        self.terminal_exon_ends = GeneTerminalExonEnds(gene_id)
 
     def add_isoform_bed(self, isoform):
         self.isoform_beds.append(isoform)
@@ -109,18 +109,18 @@ class GeneData():
         if self.right_bound is None or isoform.chromEnd > self.right_bound:
             self.right_bound = isoform.chromEnd
         if len(isoform.blocks) > 1:
-            left_bound, left_ss = isoform.blocks[0].start, isoform.blocks[0].end
-            if left_ss not in self.left_ss_to_bound or left_bound < self.left_ss_to_bound[left_ss]:
-                self.left_ss_to_bound[left_ss] = left_bound
-            right_ss, right_bound = isoform.blocks[-1].start, isoform.blocks[-1].end
-            if right_ss not in self.right_ss_to_bound or right_bound > self.right_ss_to_bound[right_ss]:
-                self.right_ss_to_bound[right_ss] = right_bound
+            self.terminal_exon_ends.add(isoform.blocks[0].start, isoform.blocks[0].end,
+                                        isoform.blocks[-1].start, isoform.blocks[-1].end)
 
 def load_isoform_data(isoform_bed):
     gene_data = {}
     for bed in BedReader(isoform_bed, bedClass=FlairBed):
         if bed.gene_id not in gene_data:
             gene_data[bed.gene_id] = GeneData(bed.gene_id, bed.chrom, bed.strand)
+        elif bed.strand != gene_data[bed.gene_id].strand:
+            raise FlairInputDataError(f"gene id '{bed.gene_id}' has isoforms on both strands, "
+                                      f"'{gene_data[bed.gene_id].strand}' and '{bed.strand}'; give each strand its own "
+                                      "gene id")
         gene_data[bed.gene_id].add_isoform_bed(bed)
     return gene_data
 
@@ -209,9 +209,9 @@ def get_counts_for_gene(input):
         with open(temp_prefix + 'isoforms.bed', 'w') as fh_bed, open(temp_prefix + 'isoforms.fa', 'w') as fh_fa:
             for bed in gene_info.isoform_beds:
                 if norm_ends and len(bed.blocks) > 1:
-                    bed.chromStart = gene_info.left_ss_to_bound[bed.blocks[0].end]
+                    bed.chromStart, bed.chromEnd = gene_info.terminal_exon_ends.normalized_ends(bed.blocks[0].end, bed.blocks[-1].start,
+                                                                                                genome.get_reference_length(bed.chrom))
                     bed.blocks[0] = BedBlock(bed.chromStart, bed.blocks[0].end)
-                    bed.chromEnd = gene_info.right_ss_to_bound[bed.blocks[-1].start]
                     bed.blocks[-1] = BedBlock(bed.blocks[-1].start, bed.chromEnd)
                 bed.write(fh_bed)
                 seq = []
