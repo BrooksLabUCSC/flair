@@ -601,7 +601,7 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
             start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
             # is not None: the value was converted on the line above, so the old
             # comparison with the string 'None' was always true
-            if start_sj_index is not None:  # not a single exon transcript
+            if start_sj_index is not None and end_sj_index is not None:  # not a single exon transcript
                 read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
     # good_align_to_annot = set(good_align_to_annot)
     # return good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs
@@ -1144,10 +1144,9 @@ def generate_empty_intermediate_files(file_prefix, suffixes):
         out = open(file_prefix + s, 'w')
         out.close()
 
-def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends):
+def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends, no_stringent):
     iso_to_counts = {}
     gene_to_tot = {}
-    # FIXME: with new count sam transcripts logic, there are now no longer non-full-length transcripts in the isoform.ends.tsv
     for line in open(read_ends_file):
         line = line.rstrip().split('\t')
         read, transcript = line[:2]
@@ -1170,11 +1169,12 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends):
                     iso_to_counts[transcript][0] += 1
                     gene_to_tot[gene][1] += 1
         else:
-            if start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1:
+            # either reads are full-length or the user has explicitly specified no_stringent
+            if (start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1) or no_stringent:
                 iso_to_counts[transcript][0] += 1
                 gene_to_tot[gene][0] += 1
                 gene_to_tot[gene][1] += 1
-            else:
+            else:  # this is only kept to catch bugs in count_sam_transcripts transcript assignment
                 # the FIXME above says count_sam_transcripts no longer emits these, so
                 # reaching this means the two disagree about what ends.tsv holds
                 raise FlairError(f"{read_ends_file}: read '{read}' on transcript '{transcript}' is not "
@@ -1313,7 +1313,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
         for og_key in firstpass:
             final_transcript_objs[firstpass[og_key].name] = firstpass[og_key]
 
-        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.trust_ends)
+        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.trust_ends, args.no_stringent)
         write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, args.generate_map)
 
 def combine_chunks(args, output, partitions):

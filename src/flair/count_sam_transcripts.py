@@ -266,7 +266,8 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
     blockstarts, blocksizes = [], []
     if exoninfo:
         # this allows indels in first/last exons
-        lb, rb = exoninfo[0], sum(exoninfo) - exoninfo[-1]
+        # gives 10bp buffer so deletion of an internal exon can't count as a tolerated indel
+        lb, rb = max(exoninfo[0] - 10, 0), min(sum(exoninfo), sum(exoninfo) - exoninfo[-1] + 10)
         # this checks if transcript is a subset of a longer SJC and disallows first or last exon permissivity
         if exon_bounds:
             if exon_bounds['left']:
