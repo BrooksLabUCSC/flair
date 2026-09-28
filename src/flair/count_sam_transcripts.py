@@ -35,9 +35,6 @@ def parse_args():
                         help='number of threads to use')
     parser.add_argument('--generate_map',
                         help='''specify an output path for a txt file of which isoform each read is assigned to''')
-    parser.add_argument('--fusion_dist',
-                        help='''minimium distance between separate read alignments on the same chromosome to be
-            considered a fusion, otherwise no reads will be assumed to be fusions''')
     parser.add_argument('--soft_clipping_buffer', type=int, default=50,
                         help='''number of acceptable bases for transcriptome alignment to increase softclipping by''')
     parser.add_argument('--unique_bound',
@@ -65,8 +62,6 @@ def check_args(args):
                                        "them, and nothing in this program does otherwise")
     if not os.path.exists(args.isoforms):
         raise FlairInputDataError(f"isoforms bed file from -i does not exist: {args.isoforms}")
-    if args.fusion_dist:
-        args.trust_ends = True
     return args
 
 
@@ -103,8 +98,6 @@ def read_isoforms_bed(*, isoforms, fusion_breakpoints=None, unique_bound=None): 
 
     for bed in BedReader(isoforms, fixScores=True):
         name, left, right, chrom, strand = bed.name, bed.chromStart, bed.chromEnd, bed.chrom, bed.strand
-        if name[:10] == 'fusiongene':
-            name = '_'.join(name.split('_')[1:])
         blocksizes = [len(blk) for blk in bed.blocks]
         if strand == '+':
             info.transcript_to_exons[name] = blocksizes
@@ -593,7 +586,7 @@ def write_output(args, transcripttoreads):
 def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C901 - linear function okay
                                     isoforms, stringent=False, check_splice=False,
                                     trust_ends=False, generate_map=None,
-                                    fusion_dist=None, soft_clipping_buffer=50,
+                                    soft_clipping_buffer=50,
                                     unique_bound=None,
                                     fusion_breakpoints=None, allow_paralogs=False,
                                     allow_UTR_indels=False, trimmedreads=None,
@@ -613,8 +606,6 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
         cmd.append('--trust_ends')
     if generate_map:
         cmd += ['--generate_map', str(generate_map)]
-    if fusion_dist:
-        cmd += ['--fusion_dist', str(fusion_dist)]
     if soft_clipping_buffer != 50:
         cmd += ['--soft_clipping_buffer', str(soft_clipping_buffer)]
     if unique_bound:
@@ -635,7 +626,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
 def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
                               isoforms, stringent=False, check_splice=False,
                               trust_ends=False, generate_map=None,
-                              fusion_dist=None, soft_clipping_buffer=50,
+                              soft_clipping_buffer=50,
                               unique_bound=None,
                               fusion_breakpoints=None, allow_paralogs=False,
                               allow_UTR_indels=False, trimmedreads=None,
@@ -645,7 +636,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
         output=output, sam=sam, threads=threads,
         isoforms=isoforms, stringent=stringent, check_splice=check_splice,
         trust_ends=trust_ends, generate_map=generate_map,
-        fusion_dist=fusion_dist, soft_clipping_buffer=soft_clipping_buffer,
+        soft_clipping_buffer=soft_clipping_buffer,
         unique_bound=unique_bound,
         fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
