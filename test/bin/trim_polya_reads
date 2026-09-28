@@ -72,5 +72,6 @@ def main():
             out_fh.write(f'>{name}\n{trimmed}\n')
     print(f'{args.in_fasta}: trimmed {num_trimmed} of {num_reads} reads', file=sys.stderr)
 
+
 if __name__ == '__main__':
     main()
