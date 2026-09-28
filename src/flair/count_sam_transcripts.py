@@ -54,8 +54,6 @@ def parse_args():
     parser.add_argument('--trimmedreads',
                         help='[requires file path] specify if your reads are properly trimmed and you want to remove alignments '
                         'with too much softclipping at the ends (improves accuracy when possible). Provide a file of read to level of clipping when aligned to the genome.')
-    parser.add_argument('--end_norm_dist', type=int, default=0,
-                        help='specify the number of basepairs to extend transcript ends if you want to normalize them across transcripts in a gene and extend them')
     parser.add_argument('--output_endpos',
                         help='if desired, specify path to which to output the genomic position of all read ends after transcriptomic alignment')
     args = parser.parse_args()
@@ -147,9 +145,9 @@ def read_isoforms_bed(*, isoforms, stringent=False, check_splice=False,  # noqa:
     return info
 
 
-def check_singleexon(read_start, read_end, tlen, end_norm_dist):
+def check_singleexon(read_start, read_end, tlen):
     """Decide whether a read covers enough of a single-exon transcript to be counted."""
-    if read_end - read_start > (tlen / 2) - end_norm_dist:  # must cover at least 50% of single exon transcript
+    if read_end - read_start > (tlen / 2):  # must cover at least 50% of single exon transcript
         return True
     else:
         return False
@@ -178,7 +176,7 @@ def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, t
     return right_coverage and left_coverage
 
 
-def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends, tname, end_norm_dist, transcript_to_unique_bounds):
+def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_ends, tname, transcript_to_unique_bounds):
     """Stringent-mode coverage test: single-exon transcripts need 50%
     coverage; multi-exon transcripts need their terminal exons covered."""
     # FIXME - could add back the 80% of the transcript rule - maybe as an option? needs further testing
@@ -186,7 +184,7 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
     first_blocksize, last_blocksize = exonpos[0], exonpos[-1]
     # covers enough bases into the first and last exons
     if len(exonpos) == 1:  # single exon transcript
-        return check_singleexon(read_start, read_end, tlen, end_norm_dist)
+        return check_singleexon(read_start, read_end, tlen)
     else:
         if tname in transcript_to_unique_bounds:
             unique_bound_left = transcript_to_unique_bounds[tname]['left']  # can also be None
@@ -327,14 +325,14 @@ def check_transcript_in_annot(exondict, tname):
 
 def check_stringent_and_splice(exoninfo, tname, coveredpos, tlen, blockstarts, blocksizes, tstart, tend,
                                transcript_to_bp_ss_index, transcript_to_unique_bounds,
-                               *, stringent, check_splice, fusion_breakpoints, trust_ends, end_norm_dist):
+                               *, stringent, check_splice, fusion_breakpoints, trust_ends):
     """Combined filter: an alignment must pass the stringent coverage, splice-site,
     and fusion-breakpoint checks that are enabled."""
     passes_stringent, passes_splice, passes_fusion = True, True, True
     if stringent or check_splice or fusion_breakpoints:
         # single exon genes always get checked
         passes_stringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
-                                           trust_ends, tname, end_norm_dist,
+                                           trust_ends, tname,
                                            transcript_to_unique_bounds) if stringent or len(exoninfo) == 1 else True
         # only run if spliced transcript
         passes_splice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if check_splice and len(exoninfo) > 1 else True
@@ -419,7 +417,7 @@ def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_
 
 def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_detected, exoninfo, thist,
                                      coveredpos, blockstarts, blocksizes, tendpos, info, stringent, check_splice,
-                                     fusion_breakpoints, trust_ends, end_norm_dist, genomicclipping, soft_clipping_buffer,
+                                     fusion_breakpoints, trust_ends, genomicclipping, soft_clipping_buffer,
                                      query_clipping, matchvals, gtstrand, output_endpos):
     if indel_detected:
         logging.debug(f"{rname} transcript alignment dropped: indel detected: {tname}")
@@ -428,7 +426,7 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
                                       thist.startpos, tendpos, info.transcript_to_bp_ss_index, info.transcript_to_unique_bounds,
                                       stringent=stringent, check_splice=check_splice,
                                       fusion_breakpoints=fusion_breakpoints,
-                                      trust_ends=trust_ends, end_norm_dist=end_norm_dist):
+                                      trust_ends=trust_ends):
             # if not stringent, check soft clipping here, otherwise clipping gets incorporated into ends and checked later
             # not stringent: don't check clipping here
             # stringent, has genomic clipping info: check soft clipping
@@ -450,7 +448,7 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
 def get_best_transcript(tinfo, info, genomicclipping,
                         *, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
                         trimmedreads, soft_clipping_buffer, output_endpos,
-                        trust_ends, end_norm_dist, rname):
+                        trust_ends, rname):
     """Given all transcript alignments for a single read, apply the filtering
     checks and return the single best assignment (or None if none qualify or
     the top two tie)."""
@@ -488,7 +486,7 @@ def get_best_transcript(tinfo, info, genomicclipping,
 
         filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_detected, exoninfo, thist,
                                          coveredpos, blockstarts, blocksizes, tendpos, info, stringent, check_splice,
-                                         fusion_breakpoints, trust_ends, end_norm_dist, genomicclipping, soft_clipping_buffer,
+                                         fusion_breakpoints, trust_ends, genomicclipping, soft_clipping_buffer,
                                          query_clipping, matchvals, gtstrand, output_endpos)
 
     if len(passing_transcripts) > 0:
@@ -520,7 +518,7 @@ class IsoAln(object):
 def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
               *, quality, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
               trimmedreads, soft_clipping_buffer, output_endpos,
-              trust_ends, end_norm_dist):
+              trust_ends):
     """Iterate the SAM stream, group alignments per read, call get_best_transcript,
     and accumulate {transcript: [(read, gt_start, gt_end), ...]}."""
     lastread = None
@@ -555,7 +553,7 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                                                      trimmedreads=trimmedreads,
                                                      soft_clipping_buffer=soft_clipping_buffer,
                                                      output_endpos=output_endpos,
-                                                     trust_ends=trust_ends, end_norm_dist=end_norm_dist, rname=lastread)
+                                                     trust_ends=trust_ends, rname=lastread)
                     if not assignedts:
                         logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
                     else:
@@ -576,7 +574,7 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                                          trimmedreads=trimmedreads,
                                          soft_clipping_buffer=soft_clipping_buffer,
                                          output_endpos=output_endpos,
-                                         trust_ends=trust_ends, end_norm_dist=end_norm_dist, rname=lastread)
+                                         trust_ends=trust_ends, rname=lastread)
         if not assignedts:
             logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
         else:
@@ -616,7 +614,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
                                     unique_bound=None,
                                     fusion_breakpoints=None, allow_paralogs=False,
                                     allow_UTR_indels=False, trimmedreads=None,
-                                    end_norm_dist=0, output_endpos=None):
+                                    output_endpos=None):
     """Build count_sam_transcripts.py argv."""
     # FIXNE: default values should be centralized
     cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
@@ -648,8 +646,6 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   
         cmd.append('--allow_UTR_indels')
     if trimmedreads:
         cmd += ['--trimmedreads', str(trimmedreads)]
-    if end_norm_dist:
-        cmd += ['--end_norm_dist', str(end_norm_dist)]
     if output_endpos:
         cmd += ['--output_endpos', str(output_endpos)]
     return cmd
@@ -662,7 +658,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quali
                               unique_bound=None,
                               fusion_breakpoints=None, allow_paralogs=False,
                               allow_UTR_indels=False, trimmedreads=None,
-                              end_norm_dist=0, output_endpos=None):
+                              output_endpos=None):
     """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
     cmd = build_count_sam_transcripts_cmd(
         output=output, sam=sam, threads=threads, quality=quality,
@@ -672,7 +668,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4, quali
         unique_bound=unique_bound,
         fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
-        end_norm_dist=end_norm_dist, output_endpos=output_endpos)
+        output_endpos=output_endpos)
     pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]
     pipettor.run(pipeline)
 
@@ -699,5 +695,5 @@ if __name__ == '__main__':
                                     trimmedreads=args.trimmedreads,
                                     soft_clipping_buffer=args.soft_clipping_buffer,
                                     output_endpos=args.output_endpos,
-                                    trust_ends=args.trust_ends, end_norm_dist=args.end_norm_dist)
+                                    trust_ends=args.trust_ends)
     write_output(args, transcript_to_reads)

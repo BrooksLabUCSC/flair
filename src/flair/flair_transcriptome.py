@@ -254,7 +254,6 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         trimmedreads=trimmedreads,
         generate_map=generate_map,
         output_endpos=output_endpos,
-        end_norm_dist=0,
         stringent=stringent,
         allow_UTR_indels=True,  # is_annot,
         check_splice=check_splice,
