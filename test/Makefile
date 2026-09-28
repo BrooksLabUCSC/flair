@@ -175,6 +175,8 @@ TI = tmp-input
 
 # reference data
 GENOME_FA = ${TI}/genome.fa
+# the test genome with all chromosomes concatenated into one, chr12_17_20
+ONECHROM_GENOME_FA = ${TI}/genome.onechrom.fa
 
 ##
 # basic: general tests that programs seem to work
@@ -207,6 +209,22 @@ QUANTIFY_INPUT_BAMS = ${QUANTIFY_INPUT_READS:%=$O/%.genomealigned.bam}
 # These enfoce files being create in the right order.
 ## 
 TEST_ALIGN_BAM = $O/test-align.bam
+# basic reads with poly(A) tails removed, so single-exon reads have no poly(A)
+# evidence for strand correction
+BASIC_READS_NOPOLYA_FA = $O/basic.reads.nopolyA.fa
+NOPOLYA_ALIGN_BAM = $O/test-align-nopolya.bam
+# poly(A)-trimmed basic reads with a poly(T) head added to every read, so single-exon
+# reads from minus strand genes look like plus strand reads with a poly(A) tail
+BASIC_READS_POLYT_FA = $O/basic.reads.polyT.fa
+POLYT_ALIGN_BAM = $O/test-align-polyt.bam
+# basic annotation plus a synthetic gene that shares one DDX5 intron
+SHARED_JUNC_GENE_GTF = $I/shared_junction_gene.gtf
+SHARED_JUNC_ANNOTATION = $O/basic.annotation.sharedjunc.gtf
+# test-align.bam with only one chr20 read, so the chr20 partition has reads but
+# too few to support any isoform
+ONECHR20_ALIGN_BAM = $O/test-align-onechr20.bam
+# basic reads aligned to the one-chromosome genome
+ONECHROM_ALIGN_BAM = $O/test-align-onechrom.bam
 TEST_QUANTIFY_B1_BAM = $O/test-quantify.B1.B.flair.aligned.bam
 
 ###
@@ -225,6 +243,13 @@ DDX5_READTHROUGH_FQ = $I/DDX5_readthrough.badread40x.fastq
 DDX5_READTHROUGH_BAM = $O/DDX5_readthrough_sim_badread40x.bam
 DDX5_READTHROUGH_ANNOT = $I/DDX5_POLG2_gencode38.gtf
 DDX5_READTHROUGH_SJ = $I/DDX5_readthrough_IPSJ.bed
+# DDX5 readthrough reads with all but 3 reads of the two supersets of the
+# chr17:64500697-64506289 subset isoform dropped, so that subset outnumbers them
+DDX5_BYSUPPORT_DROP_READS = $I/DDX5_readthrough_bysupport_drop_reads.txt
+DDX5_BYSUPPORT_BAM = $O/DDX5_readthrough_bysupport.bam
+# DDX5/POLG2 annotation plus the readthrough transcript as its own gene
+DDX5_READTHROUGH_GENE_GTF = $I/DDX5_POLG2_readthrough_gene.gtf
+DDX5_READTHROUGH_GENE_ANNOT = $O/DDX5_POLG2_gencode38.readthrough_gene.gtf
 
 KRAS_MUT_SPLICE_FQ = $I/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.fastq
 KRAS_MUT_SPLICE_BAM = $O/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.bam
@@ -297,7 +322,7 @@ test-main-help: mkdirs
 # FLAIR ALIGN
 ###
 
-align-tests: test-align test-align-seg1 test-align-help
+align-tests: test-align test-align-seg1 test-align-nopolya test-align-help
 
 # just checks bed4 to make sure we are getting alignments
 test-align : mkdirs ${GENOME_FA}
@@ -306,10 +331,40 @@ test-align : mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.bed)
 
 ${TEST_ALIGN_BAM}: test-align
+
+${BASIC_READS_NOPOLYA_FA}: ${BASIC_READS_FA} bin/trim_polya_reads
+	@mkdir -p $O
+	bin/trim_polya_reads ${BASIC_READS_FA} $@.tmp
+	mv -f $@.tmp $@
+
 ${SEG1_ALIGN_BAM}: test-align-seg1
+${NOPOLYA_ALIGN_BAM}: test-align-nopolya
+
+${BASIC_READS_POLYT_FA}: ${BASIC_READS_NOPOLYA_FA}
+	awk '/^>/ {print; next} {print "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" $$0}' ${BASIC_READS_NOPOLYA_FA} > $@.tmp
+	mv -f $@.tmp $@
+
+${POLYT_ALIGN_BAM}: ${BASIC_READS_POLYT_FA} ${GENOME_FA}
+	flair align -r ${BASIC_READS_POLYT_FA} --genome ${GENOME_FA} -t 4 -o $(basename $@)
+
+${ONECHR20_ALIGN_BAM}: ${TEST_ALIGN_BAM}
+	(samtools view -h ${TEST_ALIGN_BAM} chr12 chr17 && samtools view -F 0x900 ${TEST_ALIGN_BAM} chr20 | head -n 1) | samtools view -b -o $@.tmp.bam -
+	mv -f $@.tmp.bam $@
+	samtools index $@
+
+${SHARED_JUNC_ANNOTATION}: ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF}
+	@mkdir -p $O
+	cat ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF} > $@.tmp
+	mv -f $@.tmp $@
 
 test-align-seg1 : mkdirs ${GENOME_FA}
 	flair align -r ${SEG1_READS_FQ} --genome ${GENOME_FA} -t 4 -o $O/$@
+	bedtools bamtobed -i $O/$@.bam > $O/$@.bed
+	$(call cmp_expect,$@.bed)
+
+# basic reads with poly(A) tails trimmed
+test-align-nopolya : mkdirs ${GENOME_FA} ${BASIC_READS_NOPOLYA_FA}
+	flair align -r ${BASIC_READS_NOPOLYA_FA} --genome ${GENOME_FA} -t 4 -o $O/$@
 	bedtools bamtobed -i $O/$@.bam > $O/$@.bed
 	$(call cmp_expect,$@.bed)
 
@@ -512,14 +567,14 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-mult-ends \
-					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-help
+transcriptome-tests: test-transcriptome test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
+					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-mult-ends" \
-	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends"; \
+	for tname in "test-transcriptome" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
+	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends" "test-transcriptome-seg1-badannot-comprehensive"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
 	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
@@ -540,6 +595,22 @@ test-transcriptome-normends: mkdirs ${TEST_ALIGN_BAM}
 
 test-transcriptome-trust-ends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_ends
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# test of --filter comprehensive, which keeps the subset isoforms that the
+# default nosubset filter drops from test-transcriptome-mutant-splice
+test-transcriptome-comprehensive: mkdirs ${KRAS_MUT_SPLICE_BAM}
+	flair transcriptome -b ${KRAS_MUT_SPLICE_BAM} -g ${GENOME_FA} \
+	   --junction_bed=${KRAS_MUT_SPLICE_SJ_BED} \
+	   -t 4 -f ${BASIC_ANNOTATION} -o $O/$@ --sample_name $@ --sjc_support 2 --filter comprehensive
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# --filter comprehensive on the basic data, which has single-exon isoforms
+# contained in spliced exons
+test-transcriptome-comprehensive-basic: mkdirs ${TEST_ALIGN_BAM}
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --filter comprehensive
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
@@ -585,6 +656,13 @@ test-transcriptome-seg1-badannot-multends: mkdirs  ${SEG1_ALIGN_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
+# as seg1-badannot-multends, but comprehensive compares the overlapping single-exon
+# isoforms by expression instead of keeping them all
+test-transcriptome-seg1-badannot-comprehensive: mkdirs  ${SEG1_ALIGN_BAM}
+	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 4 --single_exon_support 2 --filter comprehensive
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
 # test of an artifical mutated splice site.
 test-transcriptome-mutant-splice: mkdirs ${KRAS_MUT_SPLICE_BAM}
 	flair transcriptome -b ${KRAS_MUT_SPLICE_BAM} -g ${GENOME_FA} \
@@ -599,6 +677,82 @@ test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
+
+# the readthrough transcript annotated as its own gene: the readthrough isoform
+# matches it, instead of being a novel isoform assigned to both DDX5 and POLG2
+test-transcriptome-readthrough-gene: mkdirs ${DDX5_READTHROUGH_BAM} ${DDX5_READTHROUGH_GENE_ANNOT}
+	flair transcriptome -b ${DDX5_READTHROUGH_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_GENE_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+${DDX5_READTHROUGH_GENE_ANNOT}: ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GENE_GTF}
+	@mkdir -p $O
+	cat ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GENE_GTF} > $@.tmp
+	mv -f $@.tmp $@
+
+# test of --filter bysupport, which keeps a subset isoform with more than 1.2x
+# the reads of its supersets; nosubset gives 2 isoforms, comprehensive 14
+test-transcriptome-bysupport: mkdirs ${DDX5_BYSUPPORT_BAM}
+	flair transcriptome -b ${DDX5_BYSUPPORT_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 \
+	   --filter bysupport
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+${DDX5_BYSUPPORT_BAM}: ${DDX5_READTHROUGH_BAM} ${DDX5_BYSUPPORT_DROP_READS}
+	samtools view -h ${DDX5_READTHROUGH_BAM} | grep -v -F -w -f ${DDX5_BYSUPPORT_DROP_READS} | samtools view -b -o $@.tmp.bam -
+	mv -f $@.tmp.bam $@
+	samtools index $@
+
+# basic reads with poly(A) trimmed, keeping single-exon isoforms.  Without poly(A),
+# single-exon reads can only be stranded with --trust_strand, so compare these two
+test-transcriptome-nopolya: mkdirs ${NOPOLYA_ALIGN_BAM}
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	   --filter ginormous --single_exon_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+test-transcriptome-nopolya-trust-strand: mkdirs ${NOPOLYA_ALIGN_BAM}
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	   --filter ginormous --single_exon_support 2 --trust_strand
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# poly(T) heads on all reads, no annotation: the single-exon KRAS isoform gets re-assigned to the + strand
+# all spliced reads strand as normal due to splice junction strand correction, only single exon reads get re-stranded
+test-transcriptome-polyt: mkdirs ${POLYT_ALIGN_BAM}
+	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${POLYT_ALIGN_BAM}
+	flair transcriptome -b ${POLYT_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3 \
+	   --filter ginormous --single_exon_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# novel DDX5 isoforms use the intron shared with the synthetic SHAREDJ1 gene; SHAREDJ1
+# has fewer of their junctions, so gene assignment drops it and the results match
+# test-transcriptome
+test-transcriptome-shared-junc: mkdirs ${TEST_ALIGN_BAM} ${SHARED_JUNC_ANNOTATION}
+	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f ${SHARED_JUNC_ANNOTATION} -o $O/$@ --sample_name $@
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# the chr20 partition has one read, below --sjc_support 2, so it has no firstpass
+# isoforms; results should be the chr12 and chr17 isoforms of test-transcriptome
+test-transcriptome-no-firstpass: mkdirs ${ONECHR20_ALIGN_BAM}
+	flair transcriptome -b ${ONECHR20_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --sjc_support 2
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+	$(call cmp_expect,$@.isoform.read.map.txt)
+
+# test-transcriptome-noannot with all loci on one chromosome, so KRAS and DDX5 (both
+# minus strand) are separate novel genes on the same strand of one partition
+test-transcriptome-onechrom: mkdirs ${ONECHROM_ALIGN_BAM}
+	intron-prospector --genome-fasta=${ONECHROM_GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${ONECHROM_ALIGN_BAM}
+	flair transcriptome -b ${ONECHROM_ALIGN_BAM} -g ${ONECHROM_GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.IPjunctions.bed --junction_support 2 --sjc_support 3
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+${ONECHROM_ALIGN_BAM}: ${BASIC_READS_FA} ${ONECHROM_GENOME_FA}
+	@mkdir -p $O
+	flair align -r ${BASIC_READS_FA} --genome ${ONECHROM_GENOME_FA} -t 4 -o $(basename $@)
 
 ${KRAS_MUT_SPLICE_BAM}: ${KRAS_MUT_SPLICE_FQ}  ${GENOME_FA}
 	@mkdir -p $O
@@ -806,6 +960,12 @@ ${GENOME_FA}:
 	wget -nv https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr20.fa.gz
 	zcat chr12.fa.gz chr17.fa.gz chr20.fa.gz > $@
 	rm chr12.fa.gz chr17.fa.gz chr20.fa.gz
+	samtools faidx $@
+
+# one sequence, re-wrapped at 50 bases so it can be indexed
+${ONECHROM_GENOME_FA}: ${GENOME_FA}
+	awk 'BEGIN {print ">chr12_17_20"} /^>/ {next} {buf = buf $$0; while (length(buf) >= 50) {print substr(buf, 1, 50); buf = substr(buf, 51)}} END {if (buf != "") print buf}' ${GENOME_FA} > $@.tmp
+	mv -f $@.tmp $@
 	samtools faidx $@
 
 ${TOME_OUT_FA}: | mkdirs

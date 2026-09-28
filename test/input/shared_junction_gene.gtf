@@ -1,0 +1,6 @@
+# synthetic gene sharing one DDX5 intron (ENST00000225792.10, between exons at
+# 64502439-64502549 and 64502926-64503098), appended to basic.annotation.gtf
+chr17	SYNTH	gene	64502439	64503098	.	-	.	gene_id "SHAREDJ1"; gene_type "protein_coding"; gene_name "SHAREDJ1";
+chr17	SYNTH	transcript	64502439	64503098	.	-	.	gene_id "SHAREDJ1"; gene_type "protein_coding"; gene_name "SHAREDJ1"; transcript_id "SHAREDJ1-T1"; transcript_type "protein_coding"; transcript_name "SHAREDJ1-201";
+chr17	SYNTH	exon	64502926	64503098	.	-	.	gene_id "SHAREDJ1"; gene_type "protein_coding"; gene_name "SHAREDJ1"; transcript_id "SHAREDJ1-T1"; transcript_type "protein_coding"; transcript_name "SHAREDJ1-201"; exon_number 1;
+chr17	SYNTH	exon	64502439	64502549	.	-	.	gene_id "SHAREDJ1"; gene_type "protein_coding"; gene_name "SHAREDJ1"; transcript_id "SHAREDJ1-T1"; transcript_type "protein_coding"; transcript_name "SHAREDJ1-201"; exon_number 2;
