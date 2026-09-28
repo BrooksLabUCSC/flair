@@ -105,13 +105,14 @@ def read_isoforms_bed(*, isoforms, fusion_breakpoints=None, unique_bound=None): 
             info.transcript_to_exons[name] = blocksizes[::-1]
         info.transcript_to_genomic_ends[name] = (left, right, strand)
         if fusion_breakpoints:
+            # fusion transcripts are on the synthetic fusion genome, which
+            # make_synthetic_fusion_reference always builds on the plus strand,
+            # so the intron index needs no flipping for minus strand
             blockstarts = [blk.start - left for blk in bed.blocks]
             bpindex = -1
             for i in range(len(blocksizes) - 1):
                 if left + blockstarts[i] + blocksizes[i] <= chrtobp[chrom] <= left + blockstarts[i + 1]:
                     bpindex = i
-            if bpindex >= 0 and strand == '-':
-                bpindex = (len(blocksizes) - 2) - bpindex
             info.transcript_to_bp_ss_index[name] = bpindex
     if unique_bound:
         for line in open(unique_bound):
