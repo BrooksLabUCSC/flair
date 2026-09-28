@@ -337,12 +337,18 @@ def get_isos_with_similar_juncs(juncs, junc_to_names, junc_to_gene):
     return novel_isos
 
 def _is_junction_subset(juncs, otheriso_juncs):
-    """Check if juncs is a proper subset of otheriso_juncs using string matching."""
+    """Check if juncs is a contiguous run of junctions inside the longer
+    otheriso_juncs.  A junction chain is sorted and has no repeats, so the run can
+    only start where juncs' first junction is."""
     if len(juncs) >= len(otheriso_juncs):
         return False
-    iso_juncs_str = str(juncs)[1:-1].rstrip(',')
-    otheriso_juncs_str = str(otheriso_juncs)[1:-1]
-    return iso_juncs_str in otheriso_juncs_str
+    if len(juncs) == 0:
+        return True
+    try:
+        start = otheriso_juncs.index(juncs[0])
+    except ValueError:
+        return False
+    return tuple(otheriso_juncs[start:start + len(juncs)]) == tuple(juncs)
 
 
 def _check_terminal_exon_overlap(first_exon, last_exon, other_exon, otheriso_score,
