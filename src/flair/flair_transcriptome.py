@@ -58,6 +58,7 @@ class TranscriptomeOpts:
     sjc_support: int
     single_exon_support: int
     frac_support: float
+    directRNA: bool
     trust_strand: bool
     trust_ends: bool
     no_stringent: bool
@@ -115,6 +116,8 @@ def add_subparser(subparsers):
                              'that make up more than this fraction of the gene locus are reported. Set to 0 for '
                              'max recall (default: %(default)s)')
 
+    parser.add_argument('--directRNA', action='store_true',
+                        help="input is directRNA - this sets trust_strand to True, also doesn't allow large deletions in UTRs (an artifact of cDNA amplification)")
     parser.add_argument('--trust_strand', action='store_true',
                         help='trust the stranding of the input reads and do not attempt strand correction')
     parser.add_argument('--trust_ends', action='store_true',
@@ -192,7 +195,7 @@ def transcriptome_cmd(args):
                         ss_window=args.ss_window, end_window=args.end_window,
                         sjc_support=args.sjc_support,
                         single_exon_support=args.single_exon_support,
-                        frac_support=args.frac_support, trust_strand=args.trust_strand,
+                        frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand,
                         trust_ends=args.trust_ends, no_stringent=args.no_stringent,
                         no_check_splice=args.no_check_splice,
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
@@ -229,7 +232,7 @@ ANNOT_SE_SEARCH_WINDOW = 2
 ####
 # transcriptome alignment
 ####
-def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound):  # noqa: C901 - FIXME: reduce complexity
+def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound, directRNA):  # noqa: C901 - FIXME: reduce complexity
     # minimap (results are piped into count_sam_transcripts.py)
     # '--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
     if isinstance(input_reads, str):
@@ -255,7 +258,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
         generate_map=generate_map,
         output_endpos=output_endpos,
         stringent=stringent,
-        allow_UTR_indels=True,  # is_annot,
+        allow_UTR_indels=not directRNA,
         check_splice=check_splice,
         isoforms=isoforms,
         trust_ends=args.trust_ends,
@@ -593,7 +596,8 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
                                       temp_prefix + '.matchannot.counts.txt',
                                       None, True,
                                       clipping_file,
-                                      temp_prefix + '.annotated_transcripts_uniquebound.txt')
+                                      temp_prefix + '.annotated_transcripts_uniquebound.txt',
+                                      args.directRNA)
         for line in open(temp_prefix + '.matchannot.ends.tsv'):
             line = line.rstrip().split('\t')
             read, transcript = line[:2]
@@ -1302,7 +1306,8 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                           partition.output_path('isoform.counts.txt'),
                                           read_map_file, False,  # say is not annot, requires stringent, returns different end values
                                           partition.output_path('reads.genomicclipping.txt'),
-                                          partition.output_path('firstpass.uniquebound.txt'))
+                                          partition.output_path('firstpass.uniquebound.txt'),
+                                          args.directRNA)
         else:
             logging.info('no firstpass isoforms found')
             generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
@@ -1389,7 +1394,7 @@ def fix_iso_labels(output, generate_map):
 
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_tab, junction_bed, junction_support, ss_window, end_window,
-                        sjc_support, single_exon_support, frac_support, trust_strand,
+                        sjc_support, single_exon_support, frac_support, directRNA, trust_strand,
                         trust_ends, no_stringent, no_check_splice, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
                         fusion_breakpoints, keep_intermediate, normalize_ends, generate_map):
@@ -1399,7 +1404,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              junction_support=junction_support, ss_window=ss_window,
                              end_window=end_window, sjc_support=sjc_support,
                              single_exon_support=single_exon_support, frac_support=frac_support,
-                             trust_strand=trust_strand, trust_ends=trust_ends,
+                             directRNA=directRNA, trust_strand=trust_strand or directRNA, trust_ends=trust_ends,
                              no_stringent=no_stringent, no_check_splice=no_check_splice,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,

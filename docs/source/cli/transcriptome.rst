@@ -12,9 +12,10 @@
                               [--ss_window SS_WINDOW] [--end_window END_WINDOW]
                               [--sjc_support SJC_SUPPORT]
                               [--single_exon_support SINGLE_EXON_SUPPORT]
-                              [--frac_support FRAC_SUPPORT] [--trust_strand]
-                              [--trust_ends] [--no_stringent] [--no_check_splice]
-                              [--no_align_to_annot] [--max_ends MAX_ENDS]
+                              [--frac_support FRAC_SUPPORT] [--directRNA]
+                              [--trust_strand] [--trust_ends] [--no_stringent]
+                              [--no_check_splice] [--no_align_to_annot]
+                              [--max_ends MAX_ENDS]
                               [--filter {nosubset,bysupport,comprehensive,ginormous}]
                               [--keep_supplementary] [--quality QUALITY]
                               [--allow_paralogs] [-t THREADS]
@@ -64,6 +65,10 @@
 .. option:: --frac_support FRAC_SUPPORT
 
    minimum fraction of gene locus support for isoform to be called; only isoforms that make up more than this fraction of the gene locus are reported. Set to 0 for max recall (default: 0.05)
+
+.. option:: --directRNA
+
+   input is directRNA - this sets trust_strand to True, also doesn't allow large deletions in UTRs (an artifact of cDNA amplification)
 
 .. option:: --trust_strand
 
