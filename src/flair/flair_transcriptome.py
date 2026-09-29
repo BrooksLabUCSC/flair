@@ -227,6 +227,9 @@ MIN_ANNOT_OVERLAP_FRAC = 0
 
 # search window for binary search of single-exon annotations
 ANNOT_SE_SEARCH_WINDOW = 2
+# in gene assignment, a gene's matched splice site this close to the isoform's
+# 5' splice site counts as matching the isoform's 5' end
+FIVE_PRIME_SS_WINDOW = 20
 
 
 ####
@@ -842,41 +845,96 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
 
     return firstpass, iso_to_unique_bound
 
-def get_longest_junc_sets_to_genes(gene_to_juncs, annots):
-    longest_junc_sets_to_genes = {}
-    for g1, sjc1 in gene_to_juncs:
-        is_subset = False
-        for g2, sjc2 in gene_to_juncs:
-            if g1 != g2 and len(sjc1) < len(sjc2) and len(sjc1 & sjc2) > 0:
-                is_subset = True
-                break
-        if not is_subset:
-            if sjc1 not in longest_junc_sets_to_genes:
-                longest_junc_sets_to_genes[sjc1] = []
-            longest_junc_sets_to_genes[sjc1].append((len(annots.gene_to_annot_juncs[g1]), g1))
-    return longest_junc_sets_to_genes
+def _gene_span(gene_id, annots):
+    """span of the gene's annotated junctions, so a long first or last exon does
+    not make a gene look longer or overlap more genes"""
+    juncs = annots.gene_to_annot_juncs[gene_id]
+    return min(j.start for j in juncs), max(j.end for j in juncs)
 
-def get_genes_with_shared_juncs(juncs, annots):
-    # Go through junctions, get genes annotated as assigned to junctions
-    # Assemble gene to junction code
-    # check junction sets against each other. If genes share junctions, pick the gene[s] with the most junctions
-    # if genes share all junctions, pick the shortest gene
-    # if there are multiple unique sets of junctions assigned to a gene, return list of genes
+def _drop_subset_genes(gene_to_matches):
+    """keep the genes whose set of matches to the isoform (junctions or splice
+    sites) is not a proper subset of another gene's set"""
+    return [g for g, matches in gene_to_matches.items()
+            if not any(matches < other for other in gene_to_matches.values())]
+
+def _group_overlapping_genes(genes, annots):
+    """group genes whose genomic spans overlap, transitively"""
+    groups, group_end = [], None
+    for (start, end), gene_id in sorted((_gene_span(g, annots), g) for g in genes):
+        if groups and start < group_end:
+            groups[-1].append(gene_id)
+            group_end = max(group_end, end)
+        else:
+            groups.append([gene_id])
+            group_end = end
+    return groups
+
+def _pick_group_gene(group, gene_to_juncs, gene_to_sites, five_prime_ss, strand, annots):
+    """Pick one gene from a group of overlapping genes, none of whose matches to
+    the isoform contain another's, by the highest score: 2 for each of the
+    isoform's junctions the gene has annotated, 1 for each other splice site of
+    the isoform it has annotated, and 1 if its matched splice site nearest the
+    isoform's 5' end is within FIVE_PRIME_SS_WINDOW of the isoform's 5' splice
+    site.  Ties go to the gene with the shortest junction span, then the gene id."""
+    def score(gene_id):
+        juncs = gene_to_juncs.get(gene_id, ())
+        junc_sites = {site for j in juncs for site in (j.start, j.end)}
+        sites = gene_to_sites.get(gene_id, set())
+        matched = junc_sites | sites
+        five_prime_match = min(matched) if strand == '+' else max(matched)
+        return (2 * len(juncs) + len(sites - junc_sites)
+                + (1 if abs(five_prime_match - five_prime_ss) < FIVE_PRIME_SS_WINDOW else 0))
+
+    def length(gene_id):
+        start, end = _gene_span(gene_id, annots)
+        return end - start
+    return min(group, key=lambda g: (-score(g), length(g), g))
+
+def _genes_sharing_splice_sites(sites, strand, annots):
+    """map of same-strand gene -> set of the isoform's splice sites it has
+    annotated"""
+    gene_to_sites = {}
+    for site in sites:
+        for gene_id in annots.splice_site_to_genes.get(site, ()):
+            if annots.gene_to_strand[gene_id] == strand:
+                gene_to_sites.setdefault(gene_id, set()).add(site)
+    return gene_to_sites
+
+def get_genes_with_shared_juncs(juncs, exons, strand, annots):
+    """Assign a spliced isoform to annotated genes by the junctions and individual
+    splice sites it shares with them.  A gene is dropped if its matches, junctions
+    and splice sites together, are a proper subset of another gene's.  The
+    remaining genes are grouped by genomic overlap of their junction spans: each
+    group of overlapping genes, such as a gene cluster sharing exons or a
+    readthrough gene and its parts, gives one gene, chosen by _pick_group_gene,
+    while genes that do not overlap each other, as for a readthrough isoform
+    without a readthrough annotation, are all returned.  Returns a tuple of gene
+    ids, empty if no gene shares a junction or splice site.  When some gene shares
+    a junction, genes sharing only splice sites compete only within a group with
+    such a gene; they don't make groups of their own, which would report a
+    neighboring gene that shares a splice site as if the isoform read through it."""
     gene_to_juncs = {}
-    # get gene length (total number of junctions): len(annots.gene_to_annot_juncs[gene_id])
     for j in juncs:
         if j in annots.junc_to_gene:
             for transcript_id, gene_id in annots.junc_to_gene[j]:
                 if gene_id not in gene_to_juncs:
                     gene_to_juncs[gene_id] = set()
                 gene_to_juncs[gene_id].add(j)
-    gene_to_juncs = [(k, frozenset(v)) for k, v in gene_to_juncs.items()]
-    longest_junc_sets_to_genes = get_longest_junc_sets_to_genes(gene_to_juncs, annots)
-    final_genes = []
-    for sjc in longest_junc_sets_to_genes:
-        final_genes.append(sorted(longest_junc_sets_to_genes[sjc], reverse=True)[0][1])
-    final_genes.sort()
-    return tuple(final_genes)
+    sites = {site for j in juncs for site in (j.start, j.end)}
+    gene_to_sites = _genes_sharing_splice_sites(sites, strand, annots)
+    # a gene with a matching junction has its splice sites, strand or not
+    for gene_id, gene_juncs in gene_to_juncs.items():
+        gene_to_sites.setdefault(gene_id, set()).update(site for j in gene_juncs for site in (j.start, j.end))
+    gene_to_matches = {g: {('junc', j) for j in gene_to_juncs.get(g, ())} | {('site', s) for s in gene_sites}
+                       for g, gene_sites in gene_to_sites.items()}
+    genes = _drop_subset_genes(gene_to_matches)
+    groups = _group_overlapping_genes(genes, annots)
+    if gene_to_juncs:
+        groups = [group for group in groups if any(g in gene_to_juncs for g in group)]
+    # the isoform's first splice site, at the inner edge of its 5' exon
+    five_prime_ss = exons[-1].start if strand == '-' else exons[0].end
+    return tuple(sorted(_pick_group_gene(group, gene_to_juncs, gene_to_sites, five_prime_ss, strand, annots)
+                        for group in groups))
 
 
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
@@ -931,7 +989,7 @@ def _find_gene_id_by_overlap(iso_readrec, annots):
     # this all requires that we already trust the strand of the transcript
     # returns tuple of matching genes, will go into ref_gene_id field
     if iso_readrec.juncs != ():
-        gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, annots)
+        gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, iso_readrec.exons, iso_readrec.strand, annots)
         if gene_hits:
             return gene_hits
     else:
