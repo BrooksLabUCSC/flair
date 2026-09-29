@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Conda / Mamba Environment
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: misc/flair_dev_conda_env.yaml
+          environment-name: flair_dev
+          cache-environment: true
+
+      - name: Run tests
+        shell: bash -el {0}
+        run: |
+          make test
