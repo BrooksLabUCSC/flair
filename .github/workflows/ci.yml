@@ -22,9 +22,9 @@ jobs:
 
       - name: Install local package
         shell: bash -el {0}
-        run: pip install -e .
+        run: pip install -e ".[dev]"
 
       - name: Run tests
         shell: bash -el {0}
         run: |
-          make test
+          make test-base
