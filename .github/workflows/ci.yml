@@ -20,6 +20,10 @@ jobs:
           environment-name: flair_dev
           cache-environment: true
 
+      - name: Install local package
+        shell: bash -el {0}
+        run: pip install -e .
+
       - name: Run tests
         shell: bash -el {0}
         run: |
