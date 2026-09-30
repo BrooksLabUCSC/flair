@@ -38,7 +38,7 @@ jobs:
         if: steps.target-branch.outputs.BRANCH == 'master'
         uses: mamba-org/setup-micromamba@v1
         with:
-          environment-file: misc/flair_conda_env.yaml
+          environment-file: misc/flair_conda_env_ci.yaml
           environment-name: flair_conda_env
           cache-environment: true
 
