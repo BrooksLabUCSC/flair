@@ -1,0 +1,15 @@
+name: flair_conda_env
+channels:
+  - conda-forge
+  - bioconda
+  - conda
+
+dependencies:
+  - python >=3.12,<3.15
+  - minimap2 =2.30
+  - bedtools =2.31.1
+  - samtools =1.22.1
+  - pysam >=0.23.0,<0.24.0
+  - pip
+  - pip:
+      - matplotlib>=3.10.0,<4.0.0

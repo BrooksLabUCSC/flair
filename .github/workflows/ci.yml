@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Determine Target Branch Context
+        id: target-branch
+        run: |
+          # Determine if the target/current branch is 'master' or 'dev'
+          TARGET="${{ github.base_ref || github.ref_name }}"
+          echo "Target branch context is: $TARGET"
+          echo "BRANCH=$TARGET" >> $GITHUB_OUTPUT
+
+      - name: Reject unsupported target branch
+        if: steps.target-branch.outputs.BRANCH != 'dev' && steps.target-branch.outputs.BRANCH != 'master'
+        run: |
+          echo "::error::Unsupported target branch; expected 'dev' or 'master'."
+          exit 1
+
+      - name: Setup Conda / Mamba Environment (dev)
+        if: steps.target-branch.outputs.BRANCH == 'dev'
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: misc/flair_dev_conda_env.yaml
+          environment-name: flair_dev
+          cache-environment: true
+
+      - name: Setup Conda / Mamba Environment (master)
+        if: steps.target-branch.outputs.BRANCH == 'master'
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: misc/flair_conda_env_ci.yaml
+          environment-name: flair_conda_env
+          cache-environment: true
+
+      - name: Install local package with dev extras
+        if: steps.target-branch.outputs.BRANCH == 'dev'
+        shell: bash -el {0}
+        run: pip install -e ".[dev]"
+
+      - name: Install local package
+        if: steps.target-branch.outputs.BRANCH == 'master'
+        shell: bash -el {0}
+        run: pip install -e .
+
+      - name: Run tests
+        shell: bash -el {0}
+        run: |
+          make test-base
