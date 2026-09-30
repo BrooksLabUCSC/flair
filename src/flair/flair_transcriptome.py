@@ -24,6 +24,7 @@ from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_prod_temp
 from flair.flair_bed import FlairBed
 from flair.terminal_exon_ends import TerminalExonEnds
+from flair import thread_share
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -251,19 +252,21 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     check_splice = not args.no_check_splice
     unique_bound_path = unique_bound if unique_bound and (not args.no_stringent or is_annot) else None
 
-    run_count_sam_transcripts(
-        mm2_cmd=mm2_cmd,
-        output=output_name,
-        trimmedreads=trimmedreads,
-        generate_map=generate_map,
-        output_endpos=output_endpos,
-        stringent=stringent,
-        allow_UTR_indels=not directRNA,
-        check_splice=check_splice,
-        isoforms=ref_bed,
-        trust_ends=args.trust_ends,
-        unique_bound=unique_bound_path,
-        fusion_breakpoints=args.fusion_breakpoints)
+    # minimap2 borrows threads left idle in the thread budget while it runs
+    with thread_share.program_threads() as mm2_threads:
+        run_count_sam_transcripts(
+            mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
+            output=output_name,
+            trimmedreads=trimmedreads,
+            generate_map=generate_map,
+            output_endpos=output_endpos,
+            stringent=stringent,
+            allow_UTR_indels=not directRNA,
+            check_splice=check_splice,
+            isoforms=ref_bed,
+            trust_ends=args.trust_ends,
+            unique_bound=unique_bound_path,
+            fusion_breakpoints=args.fusion_breakpoints)
 
 
 ##

@@ -11,7 +11,9 @@ import shutil
 import pickle
 import multiprocessing as mp
 import pipettor
+import pysam
 from flair import SeqRange, FlairInputDataError
+from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader
 
 _GTF_DATA_PKL = 'gtf_data.pkl'
@@ -104,15 +106,20 @@ class Partition:
 
 
 def _call_partition_func(packed):
-    partition, func, func_kwargs = packed
-    func(partition=partition,
-         gtf_data=partition.load_gtf_data(),
-         junction_corrector=partition.load_junction_corrector(),
-         **func_kwargs)
+    partition, weight, func, func_kwargs = packed
+    thread_share.task_start(weight)
+    try:
+        func(partition=partition,
+             gtf_data=partition.load_gtf_data(),
+             junction_corrector=partition.load_junction_corrector(),
+             **func_kwargs)
+    finally:
+        thread_share.task_done()
 
 
 def _run_flair_partition(genome_aligned_bam, annot_gtf, threads):
-    """Run flair_partition and return a list of SeqRanges."""
+    """Run flair_partition and return a list of SeqRanges and a list of the number
+    of input items in each."""
     cmd = ['flair_partition',
            '--min_partition_items=1000',
            f'--threads={threads}',
@@ -120,9 +127,12 @@ def _run_flair_partition(genome_aligned_bam, annot_gtf, threads):
     if annot_gtf is not None:
         cmd += [f'--gtf={annot_gtf}']
     cmd += ['/dev/stdout']
+    regions, item_counts = [], []
     with pipettor.Popen(cmd) as fh:
-        return [SeqRange(bed.chrom, bed.chromStart, bed.chromEnd)
-                for bed in BedReader(fh)]
+        for bed in BedReader(fh, numStdCols=4):
+            regions.append(SeqRange(bed.chrom, bed.chromStart, bed.chromEnd))
+            item_counts.append(int(bed.extraCols[0]))
+    return regions, item_counts
 
 
 def _decide_parallel_mode(parallel_mode, genome_aligned_bam):
@@ -142,7 +152,7 @@ class PartitionRunner:
     per-partition temp directories under work_dir.  Call run() to apply a function
     to each partition.
     """
-    def __init__(self, regions, work_dir, *, gtf_data=None, junction_corrector=None, threads=1):
+    def __init__(self, regions, work_dir, *, gtf_data=None, junction_corrector=None, threads=1, weights=None):
         """
         Args:
             regions: iterable of SeqRange objects
@@ -150,10 +160,14 @@ class PartitionRunner:
             gtf_data: GtfData to subset and pickle per region, or None
             junction_corrector:  JunctionCorrector to subset and pickle per region, or None
             threads: number of parallel workers used by run()
+            weights: optional size of each region, such as its number of reads;
+                larger regions run first and get more of the idle threads
         """
         os.makedirs(work_dir, exist_ok=True)
         self.work_dir = work_dir
         self.threads = threads
+        regions = list(regions)
+        self.weights = list(weights) if weights is not None else [1] * len(regions)
         self.partitions = []
         region_gtf = region_jc = None
         for region in regions:
@@ -183,7 +197,12 @@ class PartitionRunner:
         Side effects (e.g. writing files to partition.temp_dir) are the
         expected pattern; return values from func are discarded.
         """
-        packed = [(p, func, kwargs) for p in self.partitions]
+        # largest partitions first, handed out one at a time, so the big ones don't
+        # end up running alone at the end; programs run by the partitions, such as
+        # minimap2, borrow threads left idle, more for larger partitions
+        packed = sorted(((p, w, func, kwargs) for p, w in zip(self.partitions, self.weights)),
+                        key=lambda x: x[1], reverse=True)
+        thread_share.init(self.threads, max(self.weights, default=1))
 
         if self.threads == 1:
             for p in packed:
@@ -191,7 +210,15 @@ class PartitionRunner:
         else:
             mp.set_start_method('fork', force=True)
             with mp.Pool(self.threads) as pool:
-                pool.map(_call_partition_func, packed)
+                for _ in pool.imap_unordered(_call_partition_func, packed, chunksize=1):
+                    pass
+
+
+def _count_chrom_reads(genome_aligned_bam, regions):
+    "number of mapped reads on each whole-chromosome region, from the BAM index"
+    with pysam.AlignmentFile(genome_aligned_bam, 'rb') as bam:
+        mapped = {s.contig: s.mapped for s in bam.get_index_statistics()}
+    return [mapped.get(r.name, 0) for r in regions]
 
 
 def _region_temp_dir(work_dir, region):
@@ -208,6 +235,8 @@ def partition_runner_factory(parallel_mode, genome, genome_aligned_bam, work_dir
     if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
         regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))
                    for chrom in genome.references]
+        weights = _count_chrom_reads(genome_aligned_bam, regions)
     else:
-        regions = _run_flair_partition(genome_aligned_bam, annot_gtf, threads)
-    return PartitionRunner(regions, work_dir, gtf_data=gtf_data, junction_corrector=junction_corrector, threads=threads)
+        regions, weights = _run_flair_partition(genome_aligned_bam, annot_gtf, threads)
+    return PartitionRunner(regions, work_dir, gtf_data=gtf_data, junction_corrector=junction_corrector, threads=threads,
+                           weights=weights)

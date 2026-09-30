@@ -36,7 +36,8 @@ def build_parser():
     parser.add_argument("--gtf", dest="gtf_files", action="append", default=[],
                         help="Input GTF file.  Maybe repeated.")
     parser.add_argument("ranges_bed",
-                        help="Output ranges BED file, will be compressed if it ends in .gz")
+                        help="Output ranges BED file, will be compressed if it ends in .gz.  "
+                        "It is a BED4 with the number of input items in each partition as a fifth column")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
     return parser
 
@@ -167,6 +168,8 @@ def write_partitions(from_sort_fh, min_partition_items, part_merge_dist,
     for bed_part, item_count in partition_reader(bed_reader,
                                                  min_partition_items, part_merge_dist):
         part_counts.count(item_count)
+        # the item count lets flair order partitions by size
+        bed_part.extraCols = (str(item_count),)
         bed_part.write(part_fh)
 
 def build_partitions(bed_files, bam_files, gtf_files, nthreads, min_partition_items, part_merge_dist,

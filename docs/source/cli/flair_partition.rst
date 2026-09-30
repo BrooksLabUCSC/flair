@@ -15,7 +15,7 @@
 
 .. option:: ranges_bed
 
-   Output ranges BED file, will be compressed if it ends in .gz
+   Output ranges BED file, will be compressed if it ends in .gz. It is a BED4 with the number of input items in each partition as a fifth column
 
 .. rubric:: options
 
