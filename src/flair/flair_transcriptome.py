@@ -13,7 +13,7 @@ from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
-from flair.io_utils import make_temp_dir
+from flair.io_utils import make_run_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, ReadRec, get_bed_exons_from_exons,
                                 get_sequence_for_exons, binary_search, convert_to_bed12, convert_to_flair_bed, make_big_bed)
@@ -75,6 +75,7 @@ class TranscriptomeOpts:
     parallel_mode: tuple
     fusion_breakpoints: str
     keep_intermediate: bool
+    temp_dir: str
     normalize_ends: bool
     generate_map: bool
 
@@ -179,9 +180,14 @@ def add_subparser(subparsers):
                         help='for fusion detection only: bed file containing locations of fusion breakpoints '
                              'on the synthetic genome')
 
+    parser.add_argument('--temp_dir',
+                        help='directory for temporary files; each run makes its own directory, named for the '
+                             'output, in it.  Many small files are written and removed, so a local disk is much '
+                             'faster than network storage (default: $TMPDIR or the system temporary directory)')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help='keep intermediate and temporary files for debugging. Intermediate files '
-                             'include the promoter-supported reads file and read assignments to firstpass isoforms')
+                        help='keep intermediate and temporary files for debugging, in the run\'s directory in '
+                             '--temp_dir, which must be given. Intermediate files include the promoter-supported '
+                             'reads file and read assignments to firstpass isoforms')
 
     parser.add_argument('--normalize_ends', action='store_true',
                         help='normalize transcript ends with similar terminal splice sites; only recommended '
@@ -195,6 +201,8 @@ def transcriptome_cmd(args):
         raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
                                        "good alignment to several paralogs is assigned to one of "
                                        "them, and nothing downstream does otherwise")
+    if args.keep_intermediate and args.temp_dir is None:
+        raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     for what, path in (('aligned reads bam', args.genome_aligned_bam), ('genome fasta', args.genome)):
         if not os.path.exists(path):
             raise FlairInputDataError(f'{what} file does not exist: {path}')
@@ -214,7 +222,7 @@ def transcriptome_cmd(args):
                         quality=args.quality, threads=args.threads,
                         parallel_mode=parallel_mode_parse(args.parallel_mode),
                         fusion_breakpoints=args.fusion_breakpoints,
-                        keep_intermediate=args.keep_intermediate,
+                        keep_intermediate=args.keep_intermediate, temp_dir=args.temp_dir,
                         normalize_ends=args.normalize_ends, generate_map=args.generate_map)
 
 
@@ -1570,7 +1578,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand,
                         trust_junctions, trust_ends, no_stringent, no_check_splice, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
-                        fusion_breakpoints, keep_intermediate, normalize_ends, generate_map):
+                        fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
                              sample_name=sample_name, output=output, annot_gtf=annot_gtf,
                              junction_tab=junction_tab, junction_bed=junction_bed,
@@ -1584,50 +1592,56 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              filter=filter, keep_supplementary=keep_supplementary,
                              quality=quality, threads=threads, parallel_mode=parallel_mode,
                              fusion_breakpoints=fusion_breakpoints,
-                             keep_intermediate=keep_intermediate, normalize_ends=normalize_ends,
+                             keep_intermediate=keep_intermediate, temp_dir=temp_dir, normalize_ends=normalize_ends,
                              generate_map=generate_map)
 
     logging.info('loading genome')
     genome_fa = pysam.FastaFile(args.genome)
 
-    # temp_dir = f'{args.output}.intermediate/'
-    temp_dir = make_temp_dir(args.output)
+    if args.keep_intermediate and args.temp_dir is None:
+        raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
+    temp_dir = make_run_temp_dir(args.output, args.temp_dir)
+    logging.info(f'temporary files in {temp_dir}')
+    try:
+        # partitioning, mostly flair_partition, runs while the annotation is parsed; it
+        # gets one thread fewer, since the parsing uses one
+        logging.info('partitioning genome')
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
+                                           args.annot_gtf, max(1, args.threads - 1))
+            annot_gtf_data = None
+            if args.annot_gtf:
+                logging.info('loading annotation GTF')
+                annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
 
-    # partitioning, mostly flair_partition, runs while the annotation is parsed; it
-    # gets one thread fewer, since the parsing uses one
-    logging.info('partitioning genome')
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
-                                       args.annot_gtf, max(1, args.threads - 1))
-        annot_gtf_data = None
-        if args.annot_gtf:
-            logging.info('loading annotation GTF')
-            annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+            logging.info('building intron support database')
+            junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
+                                                            annot_gtf_data=annot_gtf_data,
+                                                            intron_beds=args.junction_bed,
+                                                            star_sj_tabs=args.junction_tab)
+            regions, weights = partitioning.result()
 
-        logging.info('building intron support database')
-        junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
-                                                        annot_gtf_data=annot_gtf_data,
-                                                        intron_beds=args.junction_bed,
-                                                        star_sj_tabs=args.junction_tab)
-        regions, weights = partitioning.result()
+        runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
+                                 threads=args.threads, weights=weights)
+        logging.info(f'number of partitions: {len(runner)}')
 
-    runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
-                             threads=args.threads, weights=weights)
-    logging.info(f'number of partitions: {len(runner)}')
+        logging.info('running partitions')
+        runner.run(_run_region, args=args)
+        combine_chunks(args, args.output, runner.partitions)
 
-    logging.info('running partitions')
-    runner.run(_run_region, args=args)
-    combine_chunks(args, args.output, runner.partitions)
+        #  simplify isoform and gene ID hashes in bed file, read map, counts, and fa files
+        fix_iso_labels(args.output, args.generate_map)
 
-    #  simplify isoform and gene ID hashes in bed file, read map, counts, and fa files
-    fix_iso_labels(args.output, args.generate_map)
+        # index of column with gene id in extracols, then additional column indexes + names
+        bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', is_flair_bed=True)
 
-    # index of column with gene id in extracols, then additional column indexes + names
-    bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', is_flair_bed=True)
+        make_big_bed(genome_fa, temp_dir + 'chrom.sizes', args.output + '.isoforms')
 
-    make_big_bed(genome_fa, temp_dir + 'chrom.sizes', args.output + '.isoforms')
-
-    if not args.keep_intermediate:
-        shutil.rmtree(temp_dir)
+    finally:
+        # also on failure, so runs don't leave their files in $TMPDIR
+        if args.keep_intermediate:
+            logging.info(f'intermediate files kept in {temp_dir}')
+        else:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     genome_fa.close()

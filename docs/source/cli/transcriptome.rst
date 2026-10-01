@@ -21,8 +21,8 @@
                               [--allow_paralogs] [-t THREADS]
                               [--parallel_mode PARALLEL_MODE]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
-                              [--keep_intermediate] [--normalize_ends]
-                              [--generate_map]
+                              [--temp_dir TEMP_DIR] [--keep_intermediate]
+                              [--normalize_ends] [--generate_map]
 
 .. rubric:: options
 
@@ -126,9 +126,13 @@
 
    for fusion detection only: bed file containing locations of fusion breakpoints on the synthetic genome
 
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it. Many small files are written and removed, so a local disk is much faster than network storage (default: $TMPDIR or the system temporary directory)
+
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging. Intermediate files include the promoter-supported reads file and read assignments to firstpass isoforms
+   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given. Intermediate files include the promoter-supported reads file and read assignments to firstpass isoforms
 
 .. option:: --normalize_ends
 

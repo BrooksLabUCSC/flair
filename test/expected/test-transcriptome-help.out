@@ -15,8 +15,8 @@ usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
                            [--allow_paralogs] [-t THREADS]
                            [--parallel_mode PARALLEL_MODE]
                            [--fusion_breakpoints FUSION_BREAKPOINTS]
-                           [--keep_intermediate] [--normalize_ends]
-                           [--generate_map]
+                           [--temp_dir TEMP_DIR] [--keep_intermediate]
+                           [--normalize_ends] [--generate_map]
 
 generates confident transcript models directly from a bam file of aligned long
 rna-seq reads
@@ -114,9 +114,16 @@ options:
                         for fusion detection only: bed file containing
                         locations of fusion breakpoints on the synthetic
                         genome
-  --keep_intermediate   keep intermediate and temporary files for debugging.
-                        Intermediate files include the promoter-supported
-                        reads file and read assignments to firstpass isoforms
+  --temp_dir TEMP_DIR   directory for temporary files; each run makes its own
+                        directory, named for the output, in it. Many small
+                        files are written and removed, so a local disk is much
+                        faster than network storage (default: $TMPDIR or the
+                        system temporary directory)
+  --keep_intermediate   keep intermediate and temporary files for debugging,
+                        in the run's directory in --temp_dir, which must be
+                        given. Intermediate files include the promoter-
+                        supported reads file and read assignments to firstpass
+                        isoforms
   --normalize_ends      normalize transcript ends with similar terminal splice
                         sites; only recommended when --max_ends is 1
   --generate_map        generate a txt file of read-isoform assignments
