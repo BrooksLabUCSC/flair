@@ -29,7 +29,7 @@
 
 .. option:: --threads THREADS
 
-   Number of cores for parallel sorting
+   Number of cores for converting inputs, a BAM by chromosome, and sorting
 
 .. option:: --bed BED_FILES
 
