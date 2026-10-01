@@ -408,15 +408,25 @@ def _gtf_record_class(feature):
     else:
         return GtfRecord
 
+
+_ID_WHITESPACE_RE = re.compile(r'\s')
+
+
 def _check_id_whitespace(attrs):
     for key in ('gene_id', 'transcript_id'):
         val = attrs.get(key)
-        if val is not None and re.search(r'\s', val):
+        if val is not None and _ID_WHITESPACE_RE.search(val):
             raise GtfParseError(f"white space not allowed in {key}: {val!r}")
 
 
 def _parse_gtf_line(line: str, include_features: StrSetNone, attrs_parser=_parse_flair_attributes) -> GtfRecord:
     """Parse a single GTF line into a GtfRecord or derived class."""
+    # drop excluded features before stripping and splitting the whole line; in
+    # GENCODE, CDS, UTR, and codon lines are over 40% of the file
+    if include_features is not None:
+        parts = line.split('\t', 3)
+        if len(parts) == 4 and parts[2] not in include_features:
+            return None
     # skip empty and comments
     line = line.rstrip()
     if (len(line) == 0) or line.startswith('#'):
