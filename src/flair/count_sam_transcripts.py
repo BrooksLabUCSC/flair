@@ -3,6 +3,7 @@
 import argparse
 import logging
 import re
+from math import inf
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass, field
@@ -183,8 +184,12 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
 
 
 def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
-    """Require that every splice site the read covers matches (within a
-    tolerance window) and that at least one splice site is covered."""
+    """The read's total divergence from the transcript near the splice sites it
+    covers: inserted bases plus unmatched positions in the window around each
+    site, summed over the sites.  None if any covered site has more than
+    NUM_MISTAKES_IN_SS_WINDOW, or the read covers no splice site.  The total ranks
+    alignments, so a transcript whose splice sites match the read exactly is
+    preferred over a near-identical one whose sites are a few bases off."""
     currpos = 0
     allerrors = []
     all_ss_res = ['notcov' for x in range(len(exonpos) - 1)]
@@ -205,7 +210,9 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
                 all_ss_res[i] = 1
             allerrors.append(totinsert + (len(ssvals) - totmatch))
     # Does cover at least one SJ, does not fail to match any junctions it covers
-    return 0 not in all_ss_res and 1 in all_ss_res
+    if 0 not in all_ss_res and 1 in all_ss_res:
+        return sum(allerrors)
+    return None
 
 
 def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss_index):
@@ -315,17 +322,22 @@ def check_stringent_and_splice(exoninfo, tname, coveredpos, tlen, blockstarts, b
                                transcript_to_bp_ss_index, transcript_to_unique_bounds,
                                *, stringent, check_splice, fusion_breakpoints, trust_ends):
     """Combined filter: an alignment must pass the stringent coverage, splice-site,
-    and fusion-breakpoint checks that are enabled."""
-    passes_stringent, passes_splice, passes_fusion = True, True, True
+    and fusion-breakpoint checks that are enabled.  Returns the alignment's
+    splice-site divergence (see check_splicesites), 0 when splice sites aren't
+    checked, or None if it fails a check."""
+    passes_stringent, splice_divergence, passes_fusion = True, 0, True
     if stringent or check_splice or fusion_breakpoints:
         # single exon genes always get checked
         passes_stringent = check_stringent(coveredpos, exoninfo, tlen, blockstarts, blocksizes,
                                            trust_ends, tname,
                                            transcript_to_unique_bounds) if stringent or len(exoninfo) == 1 else True
         # only run if spliced transcript
-        passes_splice = check_splicesites(coveredpos, exoninfo, tstart, tend, tname) if check_splice and len(exoninfo) > 1 else True
+        if check_splice and len(exoninfo) > 1:
+            splice_divergence = check_splicesites(coveredpos, exoninfo, tstart, tend, tname)
         passes_fusion = check_fusionbp(coveredpos, exoninfo, tstart, tend, tname, transcript_to_bp_ss_index) if fusion_breakpoints else True
-    return passes_stringent and passes_splice and passes_fusion
+    if passes_stringent and (splice_divergence is not None) and passes_fusion:
+        return splice_divergence
+    return None
 
 
 def _mirror_intron_index(index, num_introns):
@@ -379,24 +391,35 @@ def _covered_splice_junctions(left_intron_index, right_intron_index):
     return (right_intron_index + 1) - left_intron_index
 
 
+def _end_dist(end_info):
+    """distance from a read end to the transcript end, from identify_corrected_ends;
+    None, when the read end isn't in the transcript's terminal exon, is the farthest"""
+    return inf if end_info[2] is None else end_info[2]
+
+
 def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname):
     # check that any of the alignments have low clipping
     # if there's no genomic clipping info, skip this first filter (will filter for minimum clipping later)
     if genomicclipping is None or any([x[-2][3] < soft_clipping_buffer and x[-1][3] < soft_clipping_buffer for x in passing_transcripts]):
-        top_sj_cov = min([x[2] for x in passing_transcripts])
-        passing_transcripts = [x for x in passing_transcripts if x[2] == top_sj_cov]
+        top_sj_cov = min([x[3] for x in passing_transcripts])
+        passing_transcripts = [x for x in passing_transcripts if x[3] == top_sj_cov]
+        # then the least divergence from the transcript at its splice sites, before
+        # ends and clipping, so a near-identical transcript with splice sites a few
+        # bases off the read's can't win on a closer end
+        min_divergence = min(x[0] for x in passing_transcripts)
+        passing_transcripts = [x for x in passing_transcripts if x[0] == min_divergence]
         passes_end_qual = []
         clipping_min = sorted(passing_transcripts, key=lambda x: x[-2][3] + x[-1][3])[0]
         clipping_min = (clipping_min[-2][3], clipping_min[-1][3])
         for t in passing_transcripts:
             # check each end for either has minimum clipping, or has 0 distance to transcript end
             # allowing wiggle room of 5, to allow for suboptimal alignment near transcript/read ends
-            if (t[-2][3] <= clipping_min[0] + 5 or t[-2][2] <= 5) and (t[-1][3] <= clipping_min[1] + 5 or t[-1][2] <= 5):
+            if (t[-2][3] <= clipping_min[0] + 5 or _end_dist(t[-2]) <= 5) and (t[-1][3] <= clipping_min[1] + 5 or _end_dist(t[-1]) <= 5):
                 passes_end_qual.append(t)
             else:
                 logging.debug(f"{rname} transcript alignment dropped: excess soft-clipping: {t[-3]}")
         # sort by end distance, for each end is distance to transcript end plus soft clipping
-        passes_end_qual.sort(key=lambda x: x[-2][2] + x[-2][3] + x[-1][2] + x[-1][3])
+        passes_end_qual.sort(key=lambda x: _end_dist(x[-2]) + x[-2][3] + _end_dist(x[-1]) + x[-1][3])
 
         return [passes_end_qual[0][-3:], ]
     else:
@@ -410,11 +433,13 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
     if indel_detected:
         logging.debug(f"{rname} transcript alignment dropped: indel detected: {tname}")
     else:
-        if check_stringent_and_splice(exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes,
-                                      thist.startpos, tendpos, info.transcript_to_bp_ss_index, info.transcript_to_unique_bounds,
-                                      stringent=stringent, check_splice=check_splice,
-                                      fusion_breakpoints=fusion_breakpoints,
-                                      trust_ends=trust_ends):
+        splice_divergence = check_stringent_and_splice(exoninfo, thist.name, coveredpos, thist.tlen, blockstarts, blocksizes,
+                                                       thist.startpos, tendpos, info.transcript_to_bp_ss_index,
+                                                       info.transcript_to_unique_bounds,
+                                                       stringent=stringent, check_splice=check_splice,
+                                                       fusion_breakpoints=fusion_breakpoints,
+                                                       trust_ends=trust_ends)
+        if splice_divergence is not None:
             # if not stringent, check soft clipping here, otherwise clipping gets incorporated into ends and checked later
             # not stringent: don't check clipping here
             # stringent, has genomic clipping info: check soft clipping
@@ -426,7 +451,14 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
                 # a read inside one exon of a spliced transcript covers no junction, and
                 # leaves one or both indexes None
                 covered_sj = _covered_splice_junctions(left_end_info[0], right_end_info[0])
-                passing_transcripts.append([-1 * thist.alignscore, -1 * sum(matchvals), -1 * covered_sj, sum(query_clipping), thist.tlen, tname, left_end_info, right_end_info])
+                # stringent assignments must span all of a spliced transcript's
+                # junctions, which calc_final_iso_support relies on.  The end checks
+                # mostly ensure it, but with trust_ends a read stopping before a last
+                # exon shorter than TRUST_ENDS_WINDOW passed them
+                if stringent and len(exoninfo) > 1 and covered_sj != len(exoninfo) - 1:
+                    logging.debug(f"{rname} transcript alignment dropped: not full length: {tname}")
+                    return
+                passing_transcripts.append([splice_divergence, -1 * thist.alignscore, -1 * sum(matchvals), -1 * covered_sj, sum(query_clipping), thist.tlen, tname, left_end_info, right_end_info])
             else:
                 logging.debug(f"{rname} transcript alignment dropped: excess soft clipping ({query_clipping} > {soft_clipping_buffer}): {tname}")
         else:
@@ -475,11 +507,18 @@ def get_best_transcript(tinfo, info, genomicclipping,
 
     if len(passing_transcripts) > 0:
         # if not stringent, report top transcript, even if there's ties (assume just want SJ + ends correction, don't need exactly correct transcript)
-        # order passing transcripts by alignment score
-        # then order by amount of query covered
-        # then order by amount of transcript covered
+        # order passing transcripts by alignment score, amount of query covered,
+        # splice junctions covered, clipping, and transcript length.  When splice
+        # sites are checked, first by the number of splice junctions covered and
+        # then divergence at splice sites (a total over the junctions covered, so
+        # only comparable between alignments covering as many), as in the stringent
+        # selection.  Without the check, an alignment to a transcript with an extra
+        # short exon the read lacks would win on junctions covered.
         if not stringent:
-            passing_transcripts.sort()
+            if check_splice:
+                passing_transcripts.sort(key=lambda x: (x[3], x[0], x[1], x[2], x[4], x[5], x[6]))
+            else:
+                passing_transcripts.sort(key=lambda x: (x[1], x[2], x[3], x[4], x[5], x[6]))
             return [passing_transcripts[0][-3:], ]
         else:
             return return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname)
