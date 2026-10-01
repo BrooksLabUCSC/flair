@@ -13,7 +13,8 @@
                               [--sjc_support SJC_SUPPORT]
                               [--single_exon_support SINGLE_EXON_SUPPORT]
                               [--frac_support FRAC_SUPPORT] [--directRNA]
-                              [--trust_strand] [--trust_ends] [--no_stringent]
+                              [--trust_strand] [--trust_junctions]
+                              [--trust_ends] [--no_stringent]
                               [--no_check_splice] [--no_align_to_annot]
                               [--max_ends MAX_ENDS]
                               [--filter {nosubset,bysupport,comprehensive,ginormous}]
@@ -72,7 +73,11 @@
 
 .. option:: --trust_strand
 
-   trust the stranding of the input reads and do not attempt strand correction
+   trust the stranding of the input reads and do not attempt strand correction: reads keep the strand of their alignment, and spliced reads are corrected only with splice junctions on that strand, and are only assigned to transcripts on that strand
+
+.. option:: --trust_junctions
+
+   trust the strand of every input splice junction for read correction, without checking splice motifs.  By default, an unannotated junction without a GT-AG motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded only by such junctions gets its strand from gene identification, or is dropped
 
 .. option:: --trust_ends
 

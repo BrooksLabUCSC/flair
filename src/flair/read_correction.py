@@ -9,12 +9,16 @@ from flair.read_processing import should_process_read, add_corrected_read_to_gro
 
 def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
                             junction_corrector, sj_to_ends, genome,
-                            keep_single_exon, trust_strand):
+                            keep_single_exon, trust_strand, check_motifs):
     """Correct a single read's splice junctions and add it to sj_to_ends groups.
 
     Spliced and single-exon reads are fundamentally different:
     - Spliced: junctions corrected from annotation or intron support, strand from correction
     - Single-exon: no correction, strand resolved later in group_se_by_overlap
+
+    Given the genome and check_motifs, a spliced read whose junctions are only
+    supported by introns that are weak strand evidence (unannotated, without a
+    GT-AG motif) gets UNKNOWN_STRAND, to be resolved by gene identification.
 
     With trust_strand, a spliced read keeps the strand of its alignment: an
     annotated transcript match on the other strand is not used, and junctions are
@@ -44,7 +48,7 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
 
     # unannotated spliced: correct junctions and strand from intron support
     if readrec.juncs:
-        if junction_corrector.correct_readrec(readrec, trust_strand):
+        if junction_corrector.correct_readrec(readrec, trust_strand, genome if check_motifs else None):
             add_corrected_read_to_groups(readrec, sj_to_ends)
         else:
             logging.debug(f"read dropped: junction correction failed: {readrec.name}")
@@ -61,7 +65,7 @@ def filter_correct_group_reads(*, bam_file, region, read_to_annot_transcript,
                                annots, junction_corrector, genome,
                                quality, keep_sup, sj_to_ends,
                                allow_secondary=False, allow_outside_range=False,
-                               keep_single_exon=True, trust_strand=False):
+                               keep_single_exon=True, trust_strand=False, check_motifs=True):
     """Filter reads, correct splice junctions, and group by junction chain.
     sj_to_ends is mutated in place."""
     for read in bam_file.fetch(region.name, region.start, region.end):
@@ -74,4 +78,5 @@ def filter_correct_group_reads(*, bam_file, region, read_to_annot_transcript,
                                     sj_to_ends=sj_to_ends,
                                     genome=genome,
                                     keep_single_exon=keep_single_exon,
-                                    trust_strand=trust_strand)
+                                    trust_strand=trust_strand,
+                                    check_motifs=check_motifs)

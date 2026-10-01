@@ -2,7 +2,7 @@ import pytest
 from flair.pycbio.hgdata.bed import Bed
 from flair.isoform_data import ReadRec, Junc
 from flair.intron_support import IntronSupport
-from flair.junction_correct import JunctionCorrector
+from flair.junction_correct import JunctionCorrector, UNKNOWN_STRAND
 
 # lots of long lines for BEDs
 # flake8: noqa: E501
@@ -124,3 +124,72 @@ def test_trust_strand_unknown_strand_support():
     readrec = _plus_read()
     assert corrector.correct_readrec(readrec, trust_strand=True) is True
     assert readrec.strand == '+'
+
+###
+# junction motifs as strand evidence: without an annotation or a canonical GT-AG
+# motif, an intron's strand is weak evidence and the read's strand is left unknown
+###
+class _FakeGenome:
+    "a chr1 of N, with the given sequence placed at positions"
+    def __init__(self, placed):
+        seq = ['N'] * 3000
+        for pos, bases in placed.items():
+            seq[pos:pos + len(bases)] = bases
+        self.seq = ''.join(seq)
+
+    def fetch(self, chrom, start, end):
+        return self.seq[start:end]
+
+def _motif_genome(donor, acceptor):
+    # the intron of _plus_read is 1000-2000
+    return _FakeGenome({1000: donor, 1998: acceptor})
+
+def test_canonical_motif_gives_strand():
+    corrector = _stranded_corrector((1000, 2000, '-'))
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec, genome=_motif_genome('CT', 'AC')) is True
+    assert readrec.strand == '-'
+
+def test_semicanonical_motif_gives_unknown_strand():
+    # GC-AG on the - strand, as intron-prospector reports it
+    corrector = _stranded_corrector((1000, 2000, '-'))
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec, genome=_motif_genome('CT', 'GC')) is True
+    assert readrec.strand == UNKNOWN_STRAND
+    # without the genome the motif isn't checked
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec) is True
+    assert readrec.strand == '-'
+
+def test_annotated_semicanonical_intron_gives_strand():
+    intron_support = IntronSupport()
+    intron_support.add_support("chr1", 1000, 2000, '-')
+    corrector = JunctionCorrector(intron_support, 15, 1)
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec, genome=_motif_genome('CT', 'GC')) is True
+    assert readrec.strand == '-'
+
+def test_one_canonical_intron_strands_the_read():
+    corrector = _stranded_corrector((1000, 2000, '-'), (2100, 2400, '-'))
+    readrec = ReadRec("chr1", '+', (Junc(1000, 2000), Junc(2100, 2400)), 500, 2900, "read2")
+    genome = _FakeGenome({1000: 'CT', 1998: 'GC', 2100: 'CT', 2398: 'AC'})
+    assert corrector.correct_readrec(readrec, genome=genome) is True
+    assert readrec.strand == '-'
+
+def _strong_plus_weak_minus_read():
+    return ReadRec("chr1", '+', (Junc(1000, 2000), Junc(2100, 2400)), 500, 2900, "read3")
+
+# GT-AG on + at 1000-2000; GC-AG on - at 2100-2400; GT-AG on + at 2104-2404
+_MIXED_GENOME = _FakeGenome({1000: 'GT', 1998: 'AG', 2100: 'CT', 2398: 'GC', 2104: 'GT', 2402: 'AG'})
+
+def test_weak_opposite_strand_recorrected_on_strong_strand():
+    corrector = _stranded_corrector((1000, 2000, '+'), (2100, 2400, '-'), (2104, 2404, '+'))
+    readrec = _strong_plus_weak_minus_read()
+    assert corrector.correct_readrec(readrec, genome=_MIXED_GENOME) is True
+    assert (readrec.juncs, readrec.strand) == ((Junc(1000, 2000), Junc(2104, 2404)), '+')
+    # without the motif check, the strands conflict
+    assert corrector.correct_readrec(_strong_plus_weak_minus_read()) is False
+
+def test_weak_opposite_strand_without_strong_strand_support():
+    corrector = _stranded_corrector((1000, 2000, '+'), (2100, 2400, '-'))
+    assert corrector.correct_readrec(_strong_plus_weak_minus_read(), genome=_MIXED_GENOME) is False

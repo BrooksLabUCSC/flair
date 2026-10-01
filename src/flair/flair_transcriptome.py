@@ -10,7 +10,7 @@ from statistics import median
 from collections import Counter
 from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
-from flair.junction_correct import junction_corrector_factory
+from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
@@ -61,6 +61,7 @@ class TranscriptomeOpts:
     frac_support: float
     directRNA: bool
     trust_strand: bool
+    trust_junctions: bool
     trust_ends: bool
     no_stringent: bool
     no_check_splice: bool
@@ -124,6 +125,11 @@ def add_subparser(subparsers):
                              'reads keep the strand of their alignment, and spliced reads are corrected only '
                              'with splice junctions on that strand, and are only assigned to transcripts '
                              'on that strand')
+    parser.add_argument('--trust_junctions', action='store_true',
+                        help='trust the strand of every input splice junction for read correction, without '
+                             'checking splice motifs.  By default, an unannotated junction without a GT-AG '
+                             'motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded '
+                             'only by such junctions gets its strand from gene identification, or is dropped')
     parser.add_argument('--trust_ends', action='store_true',
                         help='trust the ends of the input reads: a more stringent way of requiring read ends '
                              'to match the ends of transcript models')
@@ -200,7 +206,7 @@ def transcriptome_cmd(args):
                         sjc_support=args.sjc_support,
                         single_exon_support=args.single_exon_support,
                         frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand,
-                        trust_ends=args.trust_ends, no_stringent=args.no_stringent,
+                        trust_junctions=args.trust_junctions, trust_ends=args.trust_ends, no_stringent=args.no_stringent,
                         no_check_splice=args.no_check_splice,
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
@@ -746,6 +752,9 @@ class IsoformOverlapGroups:
     def __getitem__(self, key):
         return self._groups[key]
 
+    def remove(self, key):
+        del self._groups[key]
+
     def items(self):
         return self._groups.items()
 
@@ -1029,10 +1038,10 @@ def _get_transcript_gene_from_annot(iso_readrec, annots):
         return None, None
 
 
-def _find_gene_id_by_overlap(iso_readrec, annots):
-    """Find gene_id for an isoform without a matching junction chain, using junction or exon overlap."""
-    # this all requires that we already trust the strand of the transcript
-    # returns tuple of matching genes, will go into ref_gene_id field
+def _find_gene_id_by_splicing(iso_readrec, annots):
+    """Genes sharing junctions or splice sites with a spliced isoform, or, for a
+    single-exon isoform, the best overlapping single-exon gene, as a tuple of gene
+    ids, or None"""
     if iso_readrec.juncs != ():
         gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, iso_readrec.exons, iso_readrec.strand, annots)
         if gene_hits:
@@ -1041,7 +1050,12 @@ def _find_gene_id_by_overlap(iso_readrec, annots):
         gene_hits = get_single_exon_gene_overlaps(iso_readrec.strand, iso_readrec, annots)
         if gene_hits:
             return (sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0], )
-    # if no gene from above, look for exon overlap.  A spliced isoform's terminal exons
+    return None
+
+
+def _find_gene_id_by_exon_overlap(iso_readrec, annots):
+    """The gene whose exons best overlap the isoform's, as a one-gene tuple, or None"""
+    # look for exon overlap.  A spliced isoform's terminal exons
     # are given a fixed length from its terminal junctions (fixed_end_exons), so this
     # doesn't depend on its read ends.  There was an 'ambig' strand branch here; nothing
     # assigns that strand, the two branches were identical, and annots.spliced_exons is
@@ -1059,6 +1073,42 @@ def _find_gene_id_by_overlap(iso_readrec, annots):
         return (gene_hits[0][1], )
     else:
         return None
+
+
+def _find_gene_id_by_overlap(iso_readrec, annots):
+    """Find gene_id for an isoform without a matching junction chain, using junction or exon overlap."""
+    # this all requires that we already trust the strand of the transcript
+    # returns tuple of matching genes, will go into ref_gene_id field
+    return (_find_gene_id_by_splicing(iso_readrec, annots)
+            or _find_gene_id_by_exon_overlap(iso_readrec, annots))
+
+
+def get_gene_name_unknown_strand(isoform, annots):
+    """Gene identification for a spliced isoform of UNKNOWN_STRAND, whose junctions
+    were only weakly stranded, which also gives its strand.  A matching annotated
+    junction chain gives the gene.  Otherwise the isoform is tried on each strand,
+    first by shared splicing and then by exon overlap; the first of these to find
+    genes, all on one strand, gives the gene.  Returns (gene ids, transcript id,
+    strand), with gene ids and strand None if no gene was found or genes were found
+    on both strands."""
+    transcript_id, gene_id = _get_transcript_gene_from_annot(isoform, annots)
+    if transcript_id is not None:
+        return gene_id, transcript_id, annots.gene_to_strand[gene_id[0]]
+    for find_gene_id in (_find_gene_id_by_splicing, _find_gene_id_by_exon_overlap):
+        strand_to_genes = {}
+        for strand in ('+', '-'):
+            isoform.strand = strand
+            gene_id = find_gene_id(isoform, annots)
+            if gene_id:
+                # gene strand, as genes sharing a junction are found on either strand
+                strand_to_genes.setdefault(annots.gene_to_strand[gene_id[0]], gene_id)
+        isoform.strand = UNKNOWN_STRAND
+        if len(strand_to_genes) == 1:
+            strand, gene_id = strand_to_genes.popitem()
+            return gene_id, None, strand
+        elif len(strand_to_genes) > 1:
+            break
+    return None, None, None
 
 
 def get_gene_name_firstpass(isoform, annots):
@@ -1089,9 +1139,19 @@ def build_genes(firstpass, annots, region_chrom, sjc_with_overlap_groups):
     """
     genes = {}
     novel_gene_isos_to_group = {'+': [], '-': []}
-    for iso_key in firstpass:
+    for iso_key in list(firstpass):
         isoform = firstpass[iso_key]
-        gene_id, isoform_id = get_gene_name_firstpass(isoform, annots)
+        if isoform.strand == UNKNOWN_STRAND:
+            # only weakly stranded by its junctions; the strand has to come from a
+            # gene, as there can't be isoforms of unknown strand in the output
+            gene_id, isoform_id, strand = get_gene_name_unknown_strand(isoform, annots)
+            if gene_id is None:
+                logging.debug(f"isoform dropped: strand unknown and not resolved by gene identification: {iso_key}")
+                firstpass.remove(iso_key)
+                continue
+            isoform.strand = strand
+        else:
+            gene_id, isoform_id = get_gene_name_firstpass(isoform, annots)
         isoform.ref_transcript_id = isoform_id
         if gene_id is not None:
             # removing this strand correction breaks the unusual junction (due to underlying variant?) test
@@ -1387,7 +1447,8 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                    annots=annots, junction_corrector=junction_corrector,
                                    genome=genome,
                                    quality=args.quality, keep_sup=args.keep_supplementary,
-                                   sj_to_ends=sj_to_ends, trust_strand=args.trust_strand)
+                                   sj_to_ends=sj_to_ends, trust_strand=args.trust_strand,
+                                   check_motifs=not args.trust_junctions)
         bam_file.close()
 
         # for each junction chain, clusters ends - generates junction chain x ends
@@ -1506,7 +1567,7 @@ def fix_iso_labels(output, generate_map):
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_tab, junction_bed, junction_support, ss_window, end_window,
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand,
-                        trust_ends, no_stringent, no_check_splice, no_align_to_annot,
+                        trust_junctions, trust_ends, no_stringent, no_check_splice, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
                         fusion_breakpoints, keep_intermediate, normalize_ends, generate_map):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
@@ -1515,7 +1576,8 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              junction_support=junction_support, ss_window=ss_window,
                              end_window=end_window, sjc_support=sjc_support,
                              single_exon_support=single_exon_support, frac_support=frac_support,
-                             directRNA=directRNA, trust_strand=trust_strand or directRNA, trust_ends=trust_ends,
+                             directRNA=directRNA, trust_strand=trust_strand or directRNA,
+                             trust_junctions=trust_junctions, trust_ends=trust_ends,
                              no_stringent=no_stringent, no_check_splice=no_check_splice,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,

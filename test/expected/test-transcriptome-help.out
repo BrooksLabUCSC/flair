@@ -7,9 +7,9 @@ usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
                            [--sjc_support SJC_SUPPORT]
                            [--single_exon_support SINGLE_EXON_SUPPORT]
                            [--frac_support FRAC_SUPPORT] [--directRNA]
-                           [--trust_strand] [--trust_ends] [--no_stringent]
-                           [--no_check_splice] [--no_align_to_annot]
-                           [--max_ends MAX_ENDS]
+                           [--trust_strand] [--trust_junctions] [--trust_ends]
+                           [--no_stringent] [--no_check_splice]
+                           [--no_align_to_annot] [--max_ends MAX_ENDS]
                            [--filter {nosubset,bysupport,comprehensive,ginormous}]
                            [--keep_supplementary] [--quality QUALITY]
                            [--allow_paralogs] [-t THREADS]
@@ -60,7 +60,16 @@ options:
                         also doesn't allow large deletions in UTRs (an
                         artifact of cDNA amplification)
   --trust_strand        trust the stranding of the input reads and do not
-                        attempt strand correction
+                        attempt strand correction: reads keep the strand of
+                        their alignment, and spliced reads are corrected only
+                        with splice junctions on that strand, and are only
+                        assigned to transcripts on that strand
+  --trust_junctions     trust the strand of every input splice junction for
+                        read correction, without checking splice motifs. By
+                        default, an unannotated junction without a GT-AG
+                        motif, such as GC-AG or AT-AC, is only weak evidence
+                        of strand: a read stranded only by such junctions gets
+                        its strand from gene identification, or is dropped
   --trust_ends          trust the ends of the input reads: a more stringent
                         way of requiring read ends to match the ends of
                         transcript models
