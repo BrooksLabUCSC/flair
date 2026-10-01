@@ -85,6 +85,10 @@ class JunctionCorrector:
             readrec.strand = strand
             return True
 
+    def build_indexes(self):
+        """build the intron support indexes now, so processes forked afterwards share them"""
+        self.intron_support.build_indexes()
+
     def subset_for_region(self, chrom, start, end):
         """Return a JunctionCorrector object with entries overlapping [start, end) on chrom."""
         return JunctionCorrector(self.intron_support.subset_for_region(chrom, start, end),

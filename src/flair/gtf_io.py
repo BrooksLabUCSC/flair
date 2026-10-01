@@ -250,6 +250,12 @@ class GtfData:
         yield from self.iter_overlap_transcripts(seq_range.name, seq_range.start, seq_range.end,
                                                  strand=seq_range.strand)
 
+    def build_indexes(self):
+        """build the range indexes now, rather than on first use, so processes forked
+        afterwards share them"""
+        for index in self.transcripts_by_range.values():
+            index.build()
+
     def subset_for_region(self, chrom, start, end):
         """Return a new GtfData with transcripts overlapping [start, end) on chrom.
         Transcript objects are shared, not copied."""

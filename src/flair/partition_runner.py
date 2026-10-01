@@ -2,13 +2,13 @@
 Genome partitioning and parallel execution.
 
 Manages per-region Partition objects, each with a temporary working directory
-and subsets of annotation data pickled to disk, and runs a user-supplied
-function on each partition.
+and the annotation data for its region, and runs a user-supplied function on
+each partition.
 """
+import gc
 import os
 import re
 import shutil
-import pickle
 import multiprocessing as mp
 import pipettor
 import pysam
@@ -16,8 +16,11 @@ from flair import SeqRange, FlairInputDataError
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader
 
-_GTF_DATA_PKL = 'gtf_data.pkl'
-_JUNCTION_CORRECTOR_PKL = 'junction_corrector.pkl'
+# the full annotation data of each PartitionRunner, keyed by its work_dir.  The
+# pool workers are forked, so they inherit this and subset their own region,
+# rather than the main process subsetting and pickling every region up front,
+# which took minutes, or pickling the full data into every task
+_shared_data = {}
 
 
 def combine_temp_files_by_suffix(output, temp_prefixes, suffixes):
@@ -47,41 +50,34 @@ def parallel_mode_parse(parallel_mode):
 
 
 class Partition:
-    """A single genome region with annotation data pickled to its temporary directory.
+    """A single genome region with a temporary directory.
 
     Attributes:
         region:    SeqRange for this partition
         temp_dir:  per-partition working directory (created on construction)
 
-    GtfData and IntronSupport are pickled to temp_dir at construction and
-    loaded on demand by the partition runner wrapper.
+    The region's GtfData and JunctionCorrector are subset from the runner's full
+    data on demand, in the process that runs the partition.
     """
-    def __init__(self, region, temp_dir, *, gtf_data=None, junction_corrector=None):
+    def __init__(self, region, temp_dir, data_key):
         self.region = region
         self.temp_dir = temp_dir
+        self._data_key = data_key
         os.makedirs(temp_dir, exist_ok=True)
-        self._pickle(gtf_data, _GTF_DATA_PKL)
-        self._pickle(junction_corrector, _JUNCTION_CORRECTOR_PKL)
 
-    def _pickle(self, obj, name):
-        if obj is not None:
-            with open(self.temp_path(name), 'wb') as fh:
-                pickle.dump(obj, fh)
-
-    def _unpickle(self, name):
-        path = self.temp_path(name)
-        if os.path.exists(path):
-            with open(path, 'rb') as fh:
-                return pickle.load(fh)
-        return None
+    def _subset(self, name):
+        data = _shared_data.get(self._data_key, {}).get(name)
+        if data is None:
+            return None
+        return data.subset_for_region(self.region.name, self.region.start, self.region.end)
 
     def load_gtf_data(self):
-        """Load and return the pickled GtfData, or None if not present."""
-        return self._unpickle(_GTF_DATA_PKL)
+        """Return the GtfData for this region, or None if the runner has none."""
+        return self._subset('gtf_data')
 
     def load_junction_corrector(self):
-        """Load and return the pickled IntronSupport, or None if not present."""
-        return self._unpickle(_JUNCTION_CORRECTOR_PKL)
+        """Return the JunctionCorrector for this region, or None if the runner has none."""
+        return self._subset('junction_corrector')
 
     def temp_path(self, suffix):
         """Return a path inside this partition's temp_dir with the given suffix."""
@@ -146,19 +142,19 @@ def _decide_parallel_mode(parallel_mode, genome_aligned_bam):
 
 
 class PartitionRunner:
-    """A set of genome partitions, each with a temporary directory and pickled annotation data.
+    """A set of genome partitions, each with a temporary directory.
 
-    Construction subsets and pickles annotation data per region and creates the
-    per-partition temp directories under work_dir.  Call run() to apply a function
-    to each partition.
+    Construction creates the per-partition temp directories under work_dir and
+    keeps the annotation data, which each partition subsets for its region when it
+    runs.  Call run() to apply a function to each partition.
     """
     def __init__(self, regions, work_dir, *, gtf_data=None, junction_corrector=None, threads=1, weights=None):
         """
         Args:
             regions: iterable of SeqRange objects
             work_dir: root directory; per-partition subdirectories are created here
-            gtf_data: GtfData to subset and pickle per region, or None
-            junction_corrector:  JunctionCorrector to subset and pickle per region, or None
+            gtf_data: GtfData to subset per region, or None
+            junction_corrector:  JunctionCorrector to subset per region, or None
             threads: number of parallel workers used by run()
             weights: optional size of each region, such as its number of reads;
                 larger regions run first and get more of the idle threads
@@ -168,15 +164,14 @@ class PartitionRunner:
         self.threads = threads
         regions = list(regions)
         self.weights = list(weights) if weights is not None else [1] * len(regions)
-        self.partitions = []
-        region_gtf = region_jc = None
-        for region in regions:
-            if gtf_data is not None:
-                region_gtf = gtf_data.subset_for_region(region.name, region.start, region.end)
-            if junction_corrector is not None:
-                region_jc = junction_corrector.subset_for_region(region.name, region.start, region.end)
-            self.partitions.append(Partition(region, _region_temp_dir(work_dir, region),
-                                             gtf_data=region_gtf, junction_corrector=region_jc))
+        # indexes are built here, in the parent, so forked workers share them
+        # rather than each building, and so copying, its own
+        for data in (gtf_data, junction_corrector):
+            if data is not None:
+                data.build_indexes()
+        _shared_data[work_dir] = {'gtf_data': gtf_data, 'junction_corrector': junction_corrector}
+        self.partitions = [Partition(region, _region_temp_dir(work_dir, region), work_dir)
+                           for region in regions]
 
     def __iter__(self):
         return iter(self.partitions)
@@ -209,9 +204,17 @@ class PartitionRunner:
                 _call_partition_func(p)
         else:
             mp.set_start_method('fork', force=True)
-            with mp.Pool(self.threads) as pool:
-                for _ in pool.imap_unordered(_call_partition_func, packed, chunksize=1):
-                    pass
+            # objects existing at the fork go to the collector's permanent
+            # generation, so collections in the workers don't visit them; visiting
+            # writes to each object, which copied the whole annotation into every
+            # worker
+            gc.freeze()
+            try:
+                with mp.Pool(self.threads) as pool:
+                    for _ in pool.imap_unordered(_call_partition_func, packed, chunksize=1):
+                        pass
+            finally:
+                gc.unfreeze()
 
 
 def _count_chrom_reads(genome_aligned_bam, regions):
@@ -225,18 +228,14 @@ def _region_temp_dir(work_dir, region):
     return os.path.join(work_dir, f"{region.name}-{region.start}-{region.end}")
 
 
-def partition_runner_factory(parallel_mode, genome, genome_aligned_bam, work_dir, annot_gtf, threads, *,
-                             gtf_data=None, junction_corrector=None):
-    """Create a PartitionRunner, choosing bychrom or byregion based on parallel_mode.
-
-    parallel_mode is a tuple as returned by parallel_mode_parse:
+def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, threads):
+    """Divide the genome into regions to run in parallel, choosing bychrom or byregion
+    based on parallel_mode, a tuple as returned by parallel_mode_parse:
         ('bychrom', None) | ('byregion', None) | ('auto', size_gb)
-    """
+    Returns a list of SeqRanges and a list of their sizes, for PartitionRunner."""
     if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
         regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))
                    for chrom in genome.references]
-        weights = _count_chrom_reads(genome_aligned_bam, regions)
+        return regions, _count_chrom_reads(genome_aligned_bam, regions)
     else:
-        regions, weights = _run_flair_partition(genome_aligned_bam, annot_gtf, threads)
-    return PartitionRunner(regions, work_dir, gtf_data=gtf_data, junction_corrector=junction_corrector, threads=threads,
-                           weights=weights)
+        return _run_flair_partition(genome_aligned_bam, annot_gtf, threads)

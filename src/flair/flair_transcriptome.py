@@ -5,13 +5,14 @@ import shutil
 import pysam
 import hashlib
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from statistics import median
 from collections import Counter
 from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
-from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
+from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.io_utils import make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, ReadRec, get_bed_exons_from_exons,
@@ -1592,21 +1593,26 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
     # temp_dir = f'{args.output}.intermediate/'
     temp_dir = make_temp_dir(args.output)
 
-    annot_gtf_data = None
-    if args.annot_gtf:
-        logging.info('loading annotation GTF')
-        annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
-
-    logging.info('building intron support database')
-    junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
-                                                    annot_gtf_data=annot_gtf_data,
-                                                    intron_beds=args.junction_bed,
-                                                    star_sj_tabs=args.junction_tab)
-
+    # partitioning, mostly flair_partition, runs while the annotation is parsed; it
+    # gets one thread fewer, since the parsing uses one
     logging.info('partitioning genome')
-    runner = partition_runner_factory(args.parallel_mode, genome_fa, args.genome_aligned_bam,
-                                      temp_dir, args.annot_gtf, args.threads,
-                                      gtf_data=annot_gtf_data, junction_corrector=junction_corrector)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
+                                       args.annot_gtf, max(1, args.threads - 1))
+        annot_gtf_data = None
+        if args.annot_gtf:
+            logging.info('loading annotation GTF')
+            annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+
+        logging.info('building intron support database')
+        junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
+                                                        annot_gtf_data=annot_gtf_data,
+                                                        intron_beds=args.junction_bed,
+                                                        star_sj_tabs=args.junction_tab)
+        regions, weights = partitioning.result()
+
+    runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
+                             threads=args.threads, weights=weights)
     logging.info(f'number of partitions: {len(runner)}')
 
     logging.info('running partitions')
