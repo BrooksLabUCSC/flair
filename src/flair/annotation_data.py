@@ -23,6 +23,9 @@ class AnnotData(object):
         # map of Junc -> set of (transcript_id, gene_id)
         self.junc_to_gene = {}
 
+        # map of splice site position (a junction start or end) -> set of gene_id
+        self.splice_site_to_genes = {}
+
         # single-exon annotations by strand: {'+': [], '-': []}
         # each entry is Exon(start, end, gene_id), sorted for binary search
         # FIXME: rename once it is figured out how this works in get_single_exon_gene_overlaps
@@ -112,6 +115,10 @@ def _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand
         annots.junc_to_gene[j].add((transcript_id, gene_id))
         annots.junc_to_gene_id[j] = gene_id
         annots.gene_to_annot_juncs[gene_id].add(j)
+        for site in (j.start, j.end):
+            if site not in annots.splice_site_to_genes:
+                annots.splice_site_to_genes[site] = set()
+            annots.splice_site_to_genes[site].add(gene_id)
 
 def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, t_end,
                            strand, t_exons, transcript_tags, start_codon):

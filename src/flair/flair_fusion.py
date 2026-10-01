@@ -359,6 +359,11 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         out.write('\t'.join(line) + '\n')
     out.close()
 
+    # NOTE: only the chimeric reads supporting a fusion (fusionreads above) are
+    # aligned to the synthetic genome, and this transcriptome call would throw out
+    # any non-chimeric read anyway: with --fusion_breakpoints, count_sam_transcripts
+    # only accepts an alignment that covers a fusion breakpoint (check_fusionbp).
+    # Realigning all reads through flair fusion would need that changed as well.
     transcriptome_command = ['flair', 'transcriptome',
                              '--genome_aligned_bam', output + '.syntheticAligned.bam',
                              '--genome', output + '-syntheticFusionGenome.fa',

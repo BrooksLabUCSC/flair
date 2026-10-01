@@ -398,6 +398,8 @@ class Isoform:
         self.gene = gene
         self.gene_id = gene_id
         self.ref_transcript_id = ref_transcript_id
+        # (start, end) before end normalization padding, set only when normalized
+        self.unpadded_ends = None
         self.end5confidence = None
         self.end3confidence = None
 

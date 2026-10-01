@@ -8,9 +8,11 @@ import logging
 from flair import FlairInputDataError
 from flair.counts_matrix import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import make_temp_dir
+from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from flair.flair_transcriptome import _check_junction_subset
+from flair.terminal_exon_ends import GeneTerminalExonEnds
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.counts_to_tpm import counts_to_tpm
@@ -97,8 +99,7 @@ class GeneData():
         self.right_bound = None
         self.isoform_beds = []
         # self.isoform_fas = []
-        self.left_ss_to_bound = {}
-        self.right_ss_to_bound = {}
+        self.terminal_exon_ends = GeneTerminalExonEnds(gene_id)
 
     def add_isoform_bed(self, isoform):
         self.isoform_beds.append(isoform)
@@ -107,18 +108,18 @@ class GeneData():
         if self.right_bound is None or isoform.chromEnd > self.right_bound:
             self.right_bound = isoform.chromEnd
         if len(isoform.blocks) > 1:
-            left_bound, left_ss = isoform.blocks[0].start, isoform.blocks[0].end
-            if left_ss not in self.left_ss_to_bound or left_bound < self.left_ss_to_bound[left_ss]:
-                self.left_ss_to_bound[left_ss] = left_bound
-            right_ss, right_bound = isoform.blocks[-1].start, isoform.blocks[-1].end
-            if right_ss not in self.right_ss_to_bound or right_bound > self.right_ss_to_bound[right_ss]:
-                self.right_ss_to_bound[right_ss] = right_bound
+            self.terminal_exon_ends.add(isoform.blocks[0].start, isoform.blocks[0].end,
+                                        isoform.blocks[-1].start, isoform.blocks[-1].end)
 
 def load_isoform_data(isoform_bed):
     gene_data = {}
     for bed in BedReader(isoform_bed, bedClass=FlairBed):
         if bed.gene_id not in gene_data:
             gene_data[bed.gene_id] = GeneData(bed.gene_id, bed.chrom, bed.strand)
+        elif bed.strand != gene_data[bed.gene_id].strand:
+            raise FlairInputDataError(f"gene id '{bed.gene_id}' has isoforms on both strands, "
+                                      f"'{gene_data[bed.gene_id].strand}' and '{bed.strand}'; give each strand its own "
+                                      "gene id")
         gene_data[bed.gene_id].add_isoform_bed(bed)
     return gene_data
 
@@ -184,19 +185,20 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
         generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
     read_map_file = temp_prefix_sample + '.isoform.read.map.txt' if generate_map else None
     mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
-    run_count_sam_transcripts(
-        mm2_cmd=mm2_cmd,
-        output=temp_prefix_sample + '.isoform.counts.txt',
-        trimmedreads=temp_prefix_sample + '.reads.genomicclipping.txt',
-        generate_map=read_map_file,
-        end_norm_dist=0,
-        stringent=True,
-        allow_UTR_indels=True,  # is_annot,
-        check_splice=True,
-        isoforms=temp_prefix + 'isoforms.bed',
-        trust_ends=trust_ends,
-        unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
-    )
+    # minimap2 borrows threads left idle in the thread budget while it runs
+    with thread_share.program_threads() as mm2_threads:
+        run_count_sam_transcripts(
+            mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
+            output=temp_prefix_sample + '.isoform.counts.txt',
+            trimmedreads=temp_prefix_sample + '.reads.genomicclipping.txt',
+            generate_map=read_map_file,
+            stringent=True,
+            allow_UTR_indels=True,  # is_annot,
+            check_splice=True,
+            isoforms=temp_prefix + 'isoforms.bed',
+            trust_ends=trust_ends,
+            unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
+        )
 
 def get_counts_for_gene(input):
     temp_dir, gene_id, gene_info, sample_data, generate_map, trust_ends, genome_file, norm_ends = input
@@ -207,9 +209,9 @@ def get_counts_for_gene(input):
         with open(temp_prefix + 'isoforms.bed', 'w') as fh_bed, open(temp_prefix + 'isoforms.fa', 'w') as fh_fa:
             for bed in gene_info.isoform_beds:
                 if norm_ends and len(bed.blocks) > 1:
-                    bed.chromStart = gene_info.left_ss_to_bound[bed.blocks[0].end]
+                    bed.chromStart, bed.chromEnd = gene_info.terminal_exon_ends.normalized_ends(bed.blocks[0].end, bed.blocks[-1].start,
+                                                                                                genome.get_reference_length(bed.chrom))
                     bed.blocks[0] = BedBlock(bed.chromStart, bed.blocks[0].end)
-                    bed.chromEnd = gene_info.right_ss_to_bound[bed.blocks[-1].start]
                     bed.blocks[-1] = BedBlock(bed.blocks[-1].start, bed.chromEnd)
                 bed.write(fh_bed)
                 seq = []
@@ -225,6 +227,13 @@ def get_counts_for_gene(input):
     for sample, group, batch, bamfile in sample_data:
         get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends)
 
+def _count_gene_task(input):
+    thread_share.task_start()
+    try:
+        get_counts_for_gene(input)
+    finally:
+        thread_share.task_done()
+
 def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
              trust_ends, generate_map, with_gene, normalize_ends):
     logging.info('loading isos')
@@ -238,13 +247,15 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
     for gene_id in gene_data:
         packed.append((temp_dir, gene_id, gene_data[gene_id], sample_data, generate_map, trust_ends, genome, normalize_ends))
 
+    # minimap2 borrows threads left idle as the pool drains
+    thread_share.init(threads)
     if threads == 1:
         for p in packed:
-            get_counts_for_gene(p)
+            _count_gene_task(p)
     else:
         mp.set_start_method('fork', force=True)
         with mp.Pool(threads) as pool:
-            pool.map(get_counts_for_gene, packed)
+            pool.map(_count_gene_task, packed)
 
     logging.info('writing quantify output')
     write_combined_counts(sample_data, gene_data, temp_dir, output, with_gene)

@@ -68,6 +68,8 @@ def calc_ptc(exon_sizes, orf_end_pos, ref_transcript_id, transcript_to_nmd_excep
     return "PTC" if is_ptc else "PRO"
 
 def calc_genomic_end_pos(my_exons, exon_sizes, orf_end_pos, strand):
+    """Genomic position of the end of the ORF, orf_end_pos being the transcript
+    position just past the stop codon.  my_exons and exon_sizes are ordered 5' to 3'."""
     curr_start = 0
     genomic_end_pos = None
     for i in range(len(my_exons)):
@@ -77,6 +79,11 @@ def calc_genomic_end_pos(my_exons, exon_sizes, orf_end_pos, strand):
             else:
                 genomic_end_pos = my_exons[i].end - (orf_end_pos - curr_start)
         curr_start += exon_sizes[i]
+    if genomic_end_pos is None and orf_end_pos == curr_start:
+        # the stop codon ends at the transcript's 3' end, which the loop can't reach
+        # since orf_end_pos is past the last base.  Left None, the BED got a default
+        # thickStart of chromEnd on minus strand, after thickEnd, which bedToBigBed rejects
+        genomic_end_pos = my_exons[-1].end if strand == '+' else my_exons[-1].start
     return genomic_end_pos
 
 def identify_prod_from_start(orfs, annot_start, rel_start, my_exons, exon_sizes, my_seq, strand, ref_transcript_id,

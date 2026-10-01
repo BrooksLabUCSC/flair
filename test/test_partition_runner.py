@@ -43,10 +43,24 @@ def test_partition_dirs_created(runner):
         assert os.path.isdir(part.temp_dir)
 
 
-def test_partition_pickle_files_exist(runner):
+def test_partition_no_annotation_files_written(runner):
+    # annotation data is subset in the process running the partition, not pickled
     for part in runner:
-        assert os.path.exists(part.temp_path("gtf_data.pkl"))
-        assert os.path.exists(part.temp_path("junction_corrector.pkl"))
+        assert os.listdir(part.temp_dir) == []
+
+
+def _write_region_chroms(*, partition, gtf_data, junction_corrector):
+    with open(partition.temp_path("chroms.txt"), 'w') as fh:
+        fh.write(','.join(sorted(gtf_data.get_chroms())))
+
+
+def test_run_in_forked_workers_gets_region_data(tmp_path, gtf_data, junction_corrector):
+    runner = PartitionRunner([CHR12_REGION, CHR20_REGION], str(tmp_path), gtf_data=gtf_data,
+                             junction_corrector=junction_corrector, threads=2)
+    runner.run(_write_region_chroms)
+    for part in runner:
+        with open(part.temp_path("chroms.txt")) as fh:
+            assert fh.read() == part.region.name
 
 
 def test_partition_load_gtf_data(runner):
@@ -147,7 +161,6 @@ def test_partition_no_gtf(tmp_path):
     regions = [CHR12_REGION]
     runner = PartitionRunner(regions, str(tmp_path))
     part = list(runner)[0]
-    assert not os.path.exists(part.temp_path("gtf_data.pkl"))
     assert part.load_gtf_data() is None
 
 
@@ -155,5 +168,4 @@ def test_partition_no_junction_corrector(tmp_path):
     regions = [CHR12_REGION]
     runner = PartitionRunner(regions, str(tmp_path))
     part = list(runner)[0]
-    assert not os.path.exists(part.temp_path("junction_corrector.pkl"))
     assert part.load_junction_corrector() is None
