@@ -43,15 +43,15 @@ Identifies and calculates significance of alternative isoform usage between two
 samples using Fisher's exact tests. The more differentially used the isoforms are
 between the first and second condition, the lower the p-value.
 
-Output file format columns are as follows:
+Output file format columns are as follows, where the two sample names are the ones
+given on the command line, so the direction of ``delta_PSI`` can be read from the file:
 
  - gene name
  - isoform name
  - p-value
- - sample1 isoform count
- - sample2 isoform count
- - sample1 alternative isoforms for gene count
- - sample2 alternative isoforms for gene count
+ - this isoform's count in each of the two samples
+ - the gene's other isoforms' counts in each of the two samples
+ - each sample's PSI, and the difference between them
 
 diffsplice_fishers_exact
 ========================

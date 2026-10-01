@@ -1,6 +1,6 @@
 usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
-                      ISOFORM_BED [-o OUTPUT] [-t THREADS] [--sample_id_only]
-                      [--tpm] [--trust_ends] [--generate_map] [--with_gene]
+                      ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
+                      [--trust_ends] [--generate_map] [--with_gene]
                       [--normalize_ends]
 
 Quantify the expression level of isoforms across samples
@@ -12,7 +12,6 @@ options:
                         flair.quantify)
   -t THREADS, --threads THREADS
                         minimap2 number of threads (default: 4)
-  --sample_id_only      only use sample id in output header
   --tpm                 convert counts matrix to transcripts per million and
                         output as a separate file named <output>.tpm.tsv
   --trust_ends          specify if reads are generated from a long read method

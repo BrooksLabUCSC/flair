@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Copy a TSV from stdin to stdout, rounding numeric fields to N significant digits.
+
+R's results are not bit-identical when the same samples arrive in a different column
+order, differing in the last printed digit, so comparing two such runs field for
+field fails on floating point rather than on anything meaningful.  Rounding first
+compares what the numbers say rather than how they last rounded.
+"""
+import argparse
+import sys
+from decimal import Decimal
+
+def parse_args():
+    desc = "round numeric TSV fields to a number of significant digits"
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('--sig_digits', type=int, default=2,
+                        help="significant digits to keep (default: %(default)s)")
+    return parser.parse_args()
+
+def round_field(field, sig_digits):
+    "the field rounded, or unchanged when it is not a number"
+    try:
+        value = Decimal(field)
+    except Exception:
+        return field
+    if value == 0:
+        return field
+    return f"{value:.{sig_digits - 1}e}"
+
+def round_line(line, sig_digits):
+    return '\t'.join(round_field(f, sig_digits) for f in line.rstrip('\n').split('\t'))
+
+def main():
+    args = parse_args()
+    for line in sys.stdin:
+        print(round_line(line, args.sig_digits))
+
+
+main()

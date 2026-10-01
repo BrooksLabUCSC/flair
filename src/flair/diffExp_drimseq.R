@@ -8,8 +8,8 @@ options(error = function() traceback(2))
 parse_args <- function() {
   parser <- ArgumentParser(description='run DRIMSeq for flair_diffExp')
   
-  parser$add_argument("--group1", required=TRUE, help='Sample group 1.')
-  parser$add_argument("--group2", required=TRUE, help='Sample group 2.')
+  parser$add_argument("--condition_a", required=TRUE, help='Reference condition; fold changes are relative to this.')
+  parser$add_argument("--condition_b", required=TRUE, help='Condition compared against condition_a.')
   parser$add_argument("--matrix", required=TRUE, help='Input count files.')
   parser$add_argument("--out_dir", required=TRUE, help='Write to specified output directory.')
   parser$add_argument("--prefix", required=TRUE, help='Specify file prefix.')
@@ -30,18 +30,18 @@ main <- function() {
   args <- parse_args()
   
   outdir <- args$out_dir
-  group1 <- args$group1
-  group2 <- args$group2
+  condition_a <- args$condition_a
+  condition_b <- args$condition_b
   matrix <- args$matrix
   prefix <- args$prefix
   formula <- args$formula
   threads <- args$threads
   
-  rundrimseq(outdir, group1, group2, matrix, prefix, formula, threads,
+  rundrimseq(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
              args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr, args$min_feature_expr)
 }
 
-rundrimseq <- function(outdir, group1, group2, matrix, prefix, formula, threads,
+rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
                        min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr) {
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
@@ -52,8 +52,8 @@ rundrimseq <- function(outdir, group1, group2, matrix, prefix, formula, threads,
     dir.create(workdir, recursive=TRUE)
   }
   
-  resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, group1, group2))
-  cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, group1, group2))
+  resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b))
+  cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b))
   
   # Import data
   quantDF <- read.table(matrix, header=TRUE, sep='\t', row.names=1, check.names=FALSE)
@@ -72,11 +72,11 @@ rundrimseq <- function(outdir, group1, group2, matrix, prefix, formula, threads,
   filtered <- dmFilter(data, min_samps_gene_expr = min_samps_gene_expr, min_samps_feature_expr = min_samps_feature_expr,
                        min_gene_expr = min_gene_expr, min_feature_expr = min_feature_expr)
   
-  # group1 is the reference, so the reported fold change has the direction the output
+  # condition_a is the reference, so the reported fold change has the direction the output
   # file name states.  Without this, condition is a character column and model.matrix
   # orders its levels alphabetically
   filtered_samples <- samples(filtered)
-  filtered_samples$condition <- relevel(factor(filtered_samples$condition), ref=group1)
+  filtered_samples$condition <- relevel(factor(filtered_samples$condition), ref=condition_a)
 
   if ("batch" %in% names(formulaDF)) {
     design_full <- model.matrix(~ condition + batch, data = filtered_samples)

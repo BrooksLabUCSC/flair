@@ -45,11 +45,11 @@
 
 .. option:: --condition_a CONDITION_A
 
-   implies --test. One condition, corresponding to samples in the counts matrix, to compare against --condition_b; by default the first two unique conditions are used
+   implies --test. The reference condition, as named in the counts matrix columns; the comparison is --condition_b against this. With neither this nor --condition_b given, the two conditions are taken in sorted order
 
 .. option:: --condition_b CONDITION_B
 
-   the other condition, corresponding to samples in the counts matrix, to compare against --condition_a
+   the condition compared against --condition_a
 
 .. option:: --overwrite_output
 

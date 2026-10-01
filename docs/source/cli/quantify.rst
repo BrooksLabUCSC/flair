@@ -5,8 +5,8 @@
 .. code-block:: text
 
    usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
-                         ISOFORM_BED [-o OUTPUT] [-t THREADS] [--sample_id_only]
-                         [--tpm] [--trust_ends] [--generate_map] [--with_gene]
+                         ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
+                         [--trust_ends] [--generate_map] [--with_gene]
                          [--normalize_ends]
 
 .. rubric:: options
@@ -18,10 +18,6 @@
 .. option:: -t THREADS, --threads THREADS
 
    minimap2 number of threads (default: 4)
-
-.. option:: --sample_id_only
-
-   only use sample id in output header
 
 .. option:: --tpm
 

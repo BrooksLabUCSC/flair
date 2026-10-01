@@ -8,8 +8,8 @@ options(error = function() traceback(2))
 parse_arguments <- function() {
   parser <- ArgumentParser(description = 'run DESeq2 for flair_diffExp')
 
-  parser$add_argument("--group1", required = TRUE, help = "Sample group 1.")
-  parser$add_argument("--group2", required = TRUE, help = "Sample group 2.")
+  parser$add_argument("--condition_a", required = TRUE, help = "Reference condition; fold changes are relative to this.")
+  parser$add_argument("--condition_b", required = TRUE, help = "Condition compared against condition_a.")
   parser$add_argument("--matrix", required = TRUE, help = "Input count files.")
   parser$add_argument("--out_dir", required = TRUE, help = "Write to specified output directory.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
@@ -22,8 +22,8 @@ parse_arguments <- function() {
 # Function to run DESeq2 and save results
 run_deseq_analysis <- function(args) {
   outdir <- args$out_dir
-  group1 <- args$group1
-  group2 <- args$group2
+  condition_a <- args$condition_a
+  condition_b <- args$condition_b
   prefix <- args$prefix
   matrixFile <- args$matrix
   formulaFile <- args$formula
@@ -34,9 +34,9 @@ run_deseq_analysis <- function(args) {
     dir.create(workdir, recursive = TRUE)
   }
   
-  lfcOut <- file.path(workdir, sprintf("%s_%s_v_%s_results_shrinkage.tsv", prefix, group1, group2))
-  resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, group1, group2))
-  cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, group1, group2))
+  lfcOut <- file.path(workdir, sprintf("%s_%s_v_%s_results_shrinkage.tsv", prefix, condition_a, condition_b))
+  resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b))
+  cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b))
   
   countData <- read.table(matrixFile, header = TRUE, sep = "\t", row.names = 1)
   colData <- read.table(formulaFile, header = TRUE, sep = "\t", row.names = 1)
@@ -48,9 +48,9 @@ run_deseq_analysis <- function(args) {
   }
   
   dds <- DESeqDataSetFromMatrix(countData = countData, colData = colData, design = design)
-  dds$condition <- relevel(dds$condition, ref=group1)
+  dds$condition <- relevel(dds$condition, ref=condition_a)
   dds <- DESeq(dds)
-  name <- paste('condition_', group2, '_vs_', group1, sep='')
+  name <- paste('condition_', condition_b, '_vs_', condition_a, sep='')
 
   res <- results(dds, name = name)
   resLFC <- lfcShrink(dds, coef = name)
@@ -67,22 +67,22 @@ run_deseq_analysis <- function(args) {
 
 # Function for plotting results
 plot_results <- function(dds, args) {
-  group1 <- args$group1
-  group2 <- args$group2
+  condition_a <- args$condition_a
+  condition_b <- args$condition_b
   prefix <- args$prefix
   outdir <- args$out_dir
   matrixFile <- args$matrix
 
   data_folder <- normalizePath(outdir, mustWork = FALSE)
-  qcOut <- file.path(data_folder, sprintf("%s_QCplots_%s_v_%s.pdf", prefix, group1, group2))
+  qcOut <- file.path(data_folder, sprintf("%s_QCplots_%s_v_%s.pdf", prefix, condition_a, condition_b))
   
   pdf(qcOut)
 
   # the named coefficient, as the results table uses: bare results(dds) takes the last
   # coefficient in resultsNames, which is the batch term once batch is in the design
-  name <- paste('condition_', group2, '_vs_', group1, sep='')
+  name <- paste('condition_', condition_b, '_vs_', condition_a, sep='')
   plotMA(results(dds, name = name), ylim = c(-3, 3),
-         main = sprintf("MA-plot: %s vs %s", group2, group1))
+         main = sprintf("MA-plot: %s vs %s", condition_b, condition_a))
   plotDispEsts(dds, main = "Dispersion Estimates")
 
   nsub <- min(nrow(read.table(matrixFile, header = TRUE, sep = "\t", row.names = 1)), 1000)

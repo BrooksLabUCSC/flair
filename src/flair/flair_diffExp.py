@@ -21,6 +21,8 @@ from statistics import median, mean
 import pipettor
 
 from flair import FlairError, FlairInputDataError
+from flair.counts_matrix import (read_sample_info, condition_column_indexes,
+                                 select_condition_pair)
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
@@ -118,25 +120,6 @@ def get_gene_to_counts(filename):
     return genetototcounts
 
 
-def group_column_indexes(filename):
-    """Column indexes of the two sample groups, read from the counts header rather
-    than assumed.  Headers are sample_group_batch, as diffexp requires elsewhere;
-    the group of the first column is the reference."""
-    with open(filename) as fh:
-        header = fh.readline().rstrip().split('\t')[1:]
-    try:
-        groups = [col.split('_')[1] for col in header]
-    except IndexError as ex:
-        raise FlairInputDataError(
-            f"{filename}: column headers must be sample_group_batch, found: {header}") from ex
-    names = list(dict.fromkeys(groups))
-    if len(names) != 2:
-        raise FlairInputDataError(
-            f"{filename}: expected two sample groups in the header, found {len(names)}: {names}")
-    return ([i for i, g in enumerate(groups) if g == names[0]],
-            [i for i, g in enumerate(groups) if g == names[1]])
-
-
 def do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols):
     # imported here rather than at module scope; scipy takes 0.7s to import and
     # this is the only use of it, which would be paid by every flair command
@@ -182,7 +165,7 @@ def do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols):
     return allids, alldeltas, corrpval
 
 
-def get_sig_from_norm_by_gene(outname, filename):
+def get_sig_from_norm_by_gene(outname, filename, ref_cols, test_cols):
     """
     This function runs t-tests with multiple testing correction on a file of isoforms counts normalized by gene
     This method essentially does differential isoform usage testing, but accounts for differences in gene expression
@@ -190,7 +173,6 @@ def get_sig_from_norm_by_gene(outname, filename):
     """
 
     genetototcounts = get_gene_to_counts(filename)
-    ref_cols, test_cols = group_column_indexes(filename)
     allids, alldeltas, corrpval = do_mtc_ttest(filename, genetototcounts, ref_cols, test_cols)
 
     out = open(outname, 'w')
@@ -232,7 +214,7 @@ def write_tsv(columns, rows, out_tsv):
         for row in rows:
             writer.writerow(row)
 
-def separate_tables(quant_table_tsv, thresh, samples, groups, outDir):
+def separate_tables(quant_table_tsv, thresh, samples, a_cols, b_cols, outDir):
     genes, isoforms = dict(), dict()
     duplicateID = 1
 
@@ -258,10 +240,11 @@ def separate_tables(quant_table_tsv, thresh, samples, groups, outDir):
             iso = iso + "-" + str(duplicateID)
             isoforms[iso] = Isoform(iso, geneObj, counts)
 
-    # get group indices for filterin tables
-    groups = np.asarray(groups)
-    g1Ind = np.where(groups == groups[0])[0]
-    g2Ind = np.where(groups == groups[-1])[0]
+    # the two conditions' column indexes are chosen by name in calculate_sig; taking
+    # them from the first and last column made the filter depend on column order, and
+    # with an order like A,B,B,A it tested one condition twice
+    g1Ind = np.asarray(a_cols)
+    g2Ind = np.asarray(b_cols)
 
     # make gene table first
     geneIDs = np.asarray(list(genes.keys()))
@@ -336,30 +319,31 @@ def calc_gene_norm_sig(workdir, quant_table_tsv):
         out.write('\t'.join([l[0]] + thesecounts) + '\n')
     out.close()
 
-def run_deseq2(prefix, workdir, groups, batches, matrixFile, outDir, formulaMatrixFile):
+def run_deseq2(prefix, workdir, condition_a, condition_b, matrixFile, outDir, formulaMatrixFile):
     # no --batch: neither R script ever read it, and one arbitrary batch label would
     # not have said anything anyway.  Both take the batch column from the formula matrix
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
-            pipettor.run(["Rscript", diffExp_deseq2, "--group1", groups[0], "--group2", groups[-1],
+            pipettor.run(["Rscript", diffExp_deseq2, "--condition_a", condition_a, "--condition_b", condition_b,
                           "--matrix", matrixFile, "--out_dir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
-def run_dirmseq(prefix, workdir, threads, groups, batches, matrixFile, outDir, formulaMatrixFile):
+def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrixFile, outDir, formulaMatrixFile):
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
-            pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--group1", groups[0], "--group2", groups[-1],
+            pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--condition_a", condition_a, "--condition_b", condition_b,
                           "--matrix", matrixFile, "--out_dir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 
-def calculate_sig(*, counts_matrix, output, min_expression, threads, overwrite_output):  # noqa: C901 - FIXME: reduce complexity
+def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expression,  # noqa: C901 - FIXME: reduce complexity
+                  threads, overwrite_output):
     outDir = output
     quant_table_tsv = counts_matrix
     sFilter = min_expression
@@ -367,16 +351,18 @@ def calculate_sig(*, counts_matrix, output, min_expression, threads, overwrite_o
 
     # FIXME convert to just loading table upfront
     # Get sample data info
-    with open(quant_table_tsv) as l:
-        header = next(l).split()[1:]
+    sample_infos = read_sample_info(quant_table_tsv)
+    groups = [si.condition for si in sample_infos]
+    batches = [si.batch for si in sample_infos]
+    # the column number keeps these unique for R, which joins the formula matrix to
+    # the counts matrix by them
+    samples = ["%s_%s" % (si.sample_id, num) for num, si in enumerate(sample_infos)]
+    combos = set([(groups.index(x), batches.index(y)) for x, y in zip(groups, batches)])
 
-    samples = ["%s_%s" % (h, num) for num, h in enumerate(header)]
-    try:
-        groups = [x.split("_")[1] for x in header]
-        batches = [x.split("_")[-1] for x in header]
-        combos = set([(groups.index(x), batches.index(y)) for x, y in zip(groups, batches)])
-    except IndexError:
-        raise FlairInputDataError("diffExp requires column headers to contain sample, group, and batch, separated by '_'")
+    condition_a, condition_b = select_condition_pair(groups, condition_a, condition_b,
+                                                     quant_table_tsv)
+    a_cols = condition_column_indexes(groups, condition_a)
+    b_cols = condition_column_indexes(groups, condition_b)
 
     groupCounts = Counter(groups)
     if len(list(groupCounts.keys())) != 2:
@@ -405,10 +391,13 @@ def calculate_sig(*, counts_matrix, output, min_expression, threads, overwrite_o
         raise FlairInputDataError(f"** Error. Name {outDir} already exists. Choose another name for out_dir")
 
     calc_gene_norm_sig(workdir, quant_table_tsv)
-    get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv', workdir + '/counts.normbygene.tsv')
+    # counts.normbygene.tsv keeps the counts matrix header, so the same column
+    # indexes apply to it
+    get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv',
+                              workdir + '/counts.normbygene.tsv', a_cols, b_cols)
 
     # Convert count tables to dataframe and update isoform objects.
-    genes, isoforms = separate_tables(quant_table_tsv, sFilter, samples, groups, workdir)
+    genes, isoforms = separate_tables(quant_table_tsv, sFilter, samples, a_cols, b_cols, workdir)
 
     # checks linear combination
     if len(combos) == 2:
@@ -429,11 +418,11 @@ def calculate_sig(*, counts_matrix, output, min_expression, threads, overwrite_o
     drimMatrixFile = workdir + "/filtered_iso_counts_drim.tsv"
 
     # DESeq2 genes & isoforms
-    run_deseq2("genes_deseq2", workdir, groups, batches, geneMatrixFile, outDir, formulaMatrixFile)
-    run_deseq2("isoforms_deseq2", workdir, groups, batches, isoMatrixFile, outDir, formulaMatrixFile)
+    run_deseq2("genes_deseq2", workdir, condition_a, condition_b, geneMatrixFile, outDir, formulaMatrixFile)
+    run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, isoMatrixFile, outDir, formulaMatrixFile)
 
     # DIRMSeq
-    run_dirmseq("isoforms_drimseq", workdir, threads, groups, batches, drimMatrixFile, outDir, formulaMatrixFile)
+    run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drimMatrixFile, outDir, formulaMatrixFile)
 
 def add_subparser(subparsers):
     desc = "Differential expression and differential usage analysis"
@@ -449,6 +438,13 @@ def add_subparser(subparsers):
     parser.add_argument('--min_expression', type=int, default=10,
                         help='read count expression threshold; isoforms in which both conditions '
                              'contain fewer than this many reads are filtered out (default: %(default)s)')
+    parser.add_argument('--condition_a', default='',
+                        help='the reference condition, as named in the counts matrix columns; '
+                             'fold changes are reported for --condition_b relative to this. '
+                             'With neither this nor --condition_b given, the two conditions are '
+                             'taken in sorted order')
+    parser.add_argument('--condition_b', default='',
+                        help='the condition compared against --condition_a')
     parser.add_argument('--overwrite_output', action='store_true',
                         help='overwrite files in an existing output directory')
     parser.set_defaults(entry=diffexp_cmd)
@@ -457,5 +453,6 @@ def diffexp_cmd(args):
     if not os.path.exists(args.counts_matrix):
         raise FlairInputDataError(f'counts matrix file does not exist: {args.counts_matrix}')
     calculate_sig(counts_matrix=args.counts_matrix, output=args.output,
+                  condition_a=args.condition_a, condition_b=args.condition_b,
                   min_expression=args.min_expression, threads=args.threads,
                   overwrite_output=args.overwrite_output)
