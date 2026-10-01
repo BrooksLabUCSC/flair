@@ -120,7 +120,10 @@ def add_subparser(subparsers):
     parser.add_argument('--directRNA', action='store_true',
                         help="input is directRNA - this sets trust_strand to True, also doesn't allow large deletions in UTRs (an artifact of cDNA amplification)")
     parser.add_argument('--trust_strand', action='store_true',
-                        help='trust the stranding of the input reads and do not attempt strand correction')
+                        help='trust the stranding of the input reads and do not attempt strand correction: '
+                             'reads keep the strand of their alignment, and spliced reads are corrected only '
+                             'with splice junctions on that strand, and are only assigned to transcripts '
+                             'on that strand')
     parser.add_argument('--trust_ends', action='store_true',
                         help='trust the ends of the input reads: a more stringent way of requiring read ends '
                              'to match the ends of transcript models')
@@ -269,7 +272,10 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
             isoforms=ref_bed,
             trust_ends=args.trust_ends,
             unique_bound=unique_bound_path,
-            fusion_breakpoints=args.fusion_breakpoints)
+            fusion_breakpoints=args.fusion_breakpoints,
+            # reads come from samtools fasta in their sequenced orientation, and
+            # transcript sequences are sense, so an antisense read aligns reversed
+            stranded=args.trust_strand)
 
 
 ##
@@ -1381,7 +1387,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                    annots=annots, junction_corrector=junction_corrector,
                                    genome=genome,
                                    quality=args.quality, keep_sup=args.keep_supplementary,
-                                   sj_to_ends=sj_to_ends)
+                                   sj_to_ends=sj_to_ends, trust_strand=args.trust_strand)
         bam_file.close()
 
         # for each junction chain, clusters ends - generates junction chain x ends

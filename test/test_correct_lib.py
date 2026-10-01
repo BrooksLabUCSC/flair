@@ -86,3 +86,41 @@ def test_adjust_both(basic_corrector):
     assert basic_corrector.correct_readrec(readrec) is True
     assert readrec.juncs == expt.juncs
     assert readrec.strand == expt.strand
+
+###
+# trust_strand: the read's strand is kept and only introns on it are used
+###
+def _stranded_corrector(*supports):
+    intron_support = IntronSupport()
+    for start, end, strand in supports:
+        intron_support.add_support("chr1", start, end, strand, 10)
+    return JunctionCorrector(intron_support, 15, 1)
+
+def _plus_read():
+    return ReadRec("chr1", '+', (Junc(1000, 2000),), 500, 2500, "read1")
+
+def test_opposite_strand_support():
+    # like an intron-prospector junction with a semi-canonical motif on the other strand
+    corrector = _stranded_corrector((1000, 2000, '-'))
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec) is True
+    assert readrec.strand == '-'
+    assert corrector.correct_readrec(_plus_read(), trust_strand=True) is False
+
+def test_trust_strand_uses_same_strand_support():
+    # the closest support is on the other strand, so it is only used without trust_strand
+    corrector = _stranded_corrector((1000, 2000, '-'), (1004, 2004, '+'))
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec) is True
+    assert (readrec.juncs, readrec.strand) == ((Junc(1000, 2000),), '-')
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec, trust_strand=True) is True
+    assert (readrec.juncs, readrec.strand) == ((Junc(1004, 2004),), '+')
+
+def test_trust_strand_unknown_strand_support():
+    # support of unknown strand can't give a strand, but the read's can
+    corrector = _stranded_corrector((1000, 2000, '.'))
+    assert corrector.correct_readrec(_plus_read()) is False
+    readrec = _plus_read()
+    assert corrector.correct_readrec(readrec, trust_strand=True) is True
+    assert readrec.strand == '+'

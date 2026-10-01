@@ -38,16 +38,22 @@ class JunctionCorrector:
     def chroms(self):
         return self.intron_support.chroms
 
-    def overlap_introns(self, chrom, start, end):
+    def overlap_introns(self, chrom, start, end, strand=None):
+        """supported introns near [start, end); with a strand, only introns on that
+        strand or of unknown strand"""
         def _filter_intron(intron):
+            if strand is not None and intron.strand not in (strand, '.'):
+                return False
             return intron.annot_supported or (intron.read_support_cnt > self.min_read_support)
         return list(filter(_filter_intron,
                            self.intron_support.overlap(chrom, start, end, self.flank_window)))
 
-    def correct_readrec(self, readrec):
+    def correct_readrec(self, readrec, trust_strand=False):
         """Correct a ReadRec's junctions and strand in place from intron support.
-        Returns True if corrected, False if there is no support."""
-        new_junctions, strand = _correct_junctions(self, readrec)
+        With trust_strand, the read's strand is kept and only introns on that strand
+        (or of unknown strand) are used.  Returns True if corrected, False if there
+        is no support."""
+        new_junctions, strand = _correct_junctions(self, readrec, trust_strand)
         if new_junctions is None:
             return False
         else:
@@ -107,10 +113,12 @@ def _collect_closest_hits(start, end, intron_hits):
             closest_introns.append(intron)
     return closest_introns
 
-def _correct_junction(corrector, readrec, start, end, new_junctions):
+def _correct_junction(corrector, readrec, start, end, new_junctions, trust_strand):
     """Add a corrected intron junction. Return intron record used or
-    None if not supported."""
-    intron_hits = corrector.overlap_introns(readrec.chrom, start, end)
+    None if not supported.  With trust_strand, only introns on the read's
+    strand, or of unknown strand, are considered."""
+    intron_hits = corrector.overlap_introns(readrec.chrom, start, end,
+                                            strand=readrec.strand if trust_strand else None)
     if intron_hits is None or len(intron_hits) == 0:
         logging.debug(f"Read: '{readrec.name}': no intron support for {readrec.chrom}:{start}-{end}")
         return None
@@ -142,18 +150,22 @@ def _determine_strand(readrec, intron_supports):
         return None
     return strand
 
-def _correct_junctions(corrector, readrec):
+def _correct_junctions(corrector, readrec, trust_strand=False):
     """Create a list of new junctions for a read and determine
-    strand.  Returns (None, None) if can't be corrected or strands are inconsistent"""
+    strand.  Returns (None, None) if can't be corrected or strands are inconsistent.
+    With trust_strand, the strand is the read's, and the introns used are all on it
+    or of unknown strand."""
     new_junctions = []
     intron_supports = []
     for junc in readrec.juncs:
         intron_support = _correct_junction(corrector, readrec, junc.start, junc.end,
-                                           new_junctions)
+                                           new_junctions, trust_strand)
         if intron_support is None:
             return None, None
         intron_supports.append(intron_support)
 
+    if trust_strand:
+        return new_junctions, readrec.strand
     strand = _determine_strand(readrec, intron_supports)
     if strand is None:
         return None, None

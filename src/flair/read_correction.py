@@ -9,12 +9,16 @@ from flair.read_processing import should_process_read, add_corrected_read_to_gro
 
 def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
                             junction_corrector, sj_to_ends, genome,
-                            keep_single_exon):
+                            keep_single_exon, trust_strand):
     """Correct a single read's splice junctions and add it to sj_to_ends groups.
 
     Spliced and single-exon reads are fundamentally different:
     - Spliced: junctions corrected from annotation or intron support, strand from correction
     - Single-exon: no correction, strand resolved later in group_se_by_overlap
+
+    With trust_strand, a spliced read keeps the strand of its alignment: an
+    annotated transcript match on the other strand is not used, and junctions are
+    corrected only from introns on the read's strand.
 
     keep_single_exon=False drops single-exon reads (both reads without juncs
     and reads matching annotated single-exon transcripts).
@@ -30,7 +34,7 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
         transcript, gene = split_iso_gene(tid)
         exons = annots.transcript_to_exons[(transcript, gene)]
         annot_juncs = [(exons[x].end, exons[x + 1].start) for x in range(len(exons) - 1)]
-        if len(annot_juncs) > 0:
+        if len(annot_juncs) > 0 and not (trust_strand and annots.gene_to_strand[gene] != readrec.strand):
             newstart = annot_juncs[startindex][0] - startdist
             newend = annot_juncs[endindex][1] + enddist
             juncs = tuple([Junc(x[0], x[1]) for x in annot_juncs[startindex:endindex + 1]])
@@ -40,7 +44,7 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
 
     # unannotated spliced: correct junctions and strand from intron support
     if readrec.juncs:
-        if junction_corrector.correct_readrec(readrec):
+        if junction_corrector.correct_readrec(readrec, trust_strand):
             add_corrected_read_to_groups(readrec, sj_to_ends)
         else:
             logging.debug(f"read dropped: junction correction failed: {readrec.name}")
@@ -57,7 +61,7 @@ def filter_correct_group_reads(*, bam_file, region, read_to_annot_transcript,
                                annots, junction_corrector, genome,
                                quality, keep_sup, sj_to_ends,
                                allow_secondary=False, allow_outside_range=False,
-                               keep_single_exon=True):
+                               keep_single_exon=True, trust_strand=False):
     """Filter reads, correct splice junctions, and group by junction chain.
     sj_to_ends is mutated in place."""
     for read in bam_file.fetch(region.name, region.start, region.end):
@@ -69,4 +73,5 @@ def filter_correct_group_reads(*, bam_file, region, read_to_annot_transcript,
                                     junction_corrector=junction_corrector,
                                     sj_to_ends=sj_to_ends,
                                     genome=genome,
-                                    keep_single_exon=keep_single_exon)
+                                    keep_single_exon=keep_single_exon,
+                                    trust_strand=trust_strand)

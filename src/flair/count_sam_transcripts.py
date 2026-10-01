@@ -51,6 +51,9 @@ def parse_args():
                         'with too much softclipping at the ends (improves accuracy when possible). Provide a file of read to level of clipping when aligned to the genome.')
     parser.add_argument('--output_endpos',
                         help='if desired, specify path to which to output the genomic position of all read ends after transcriptomic alignment')
+    parser.add_argument('--stranded', action='store_true',
+                        help='reads are in their sense orientation, so alignments to the reverse '
+                             'complement of a transcript are not used')
     args = parser.parse_args()
     return args
 
@@ -499,9 +502,10 @@ class IsoAln(object):
 def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
               *, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
               trimmedreads, soft_clipping_buffer, output_endpos,
-              trust_ends):
+              trust_ends, stranded=False):
     """Iterate the SAM stream, group alignments per read, call get_best_transcript,
-    and accumulate {transcript: [(read, gt_start, gt_end), ...]}."""
+    and accumulate {transcript: [(read, gt_start, gt_end), ...]}.  With stranded,
+    alignments to the reverse complement of a transcript are dropped."""
     lastread = None
     curr_transcripts = {}
     transcript_to_reads = {}
@@ -510,6 +514,8 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
     for read in samfile:
         if not read.is_mapped:
             logging.debug(f"read dropped: unmapped: {read.query_name}")
+        elif stranded and read.is_reverse:
+            logging.debug(f"alignment dropped: antisense to {read.reference_name}: {read.query_name}")
         else:
             readname = read.query_name
             transcript = read.reference_name
@@ -591,7 +597,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     unique_bound=None,
                                     fusion_breakpoints=None, allow_paralogs=False,
                                     allow_UTR_indels=False, trimmedreads=None,
-                                    output_endpos=None):
+                                    output_endpos=None, stranded=False):
     """Build count_sam_transcripts.py argv."""
     # FIXNE: default values should be centralized
     cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
@@ -621,6 +627,8 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
         cmd += ['--trimmedreads', str(trimmedreads)]
     if output_endpos:
         cmd += ['--output_endpos', str(output_endpos)]
+    if stranded:
+        cmd.append('--stranded')
     return cmd
 
 
@@ -631,7 +639,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
                               unique_bound=None,
                               fusion_breakpoints=None, allow_paralogs=False,
                               allow_UTR_indels=False, trimmedreads=None,
-                              output_endpos=None):
+                              output_endpos=None, stranded=False):
     """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
     cmd = build_count_sam_transcripts_cmd(
         output=output, sam=sam, threads=threads,
@@ -641,7 +649,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
         unique_bound=unique_bound,
         fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
-        output_endpos=output_endpos)
+        output_endpos=output_endpos, stranded=stranded)
     pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]
     pipettor.run(pipeline)
 
@@ -665,5 +673,5 @@ if __name__ == '__main__':
                                     trimmedreads=args.trimmedreads,
                                     soft_clipping_buffer=args.soft_clipping_buffer,
                                     output_endpos=args.output_endpos,
-                                    trust_ends=args.trust_ends)
+                                    trust_ends=args.trust_ends, stranded=args.stranded)
     write_output(args, transcript_to_reads)
