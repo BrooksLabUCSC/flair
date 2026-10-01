@@ -146,7 +146,9 @@ def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttob
     """Decide whether a read's alignment extends far enough into a terminal
     exon, honoring trust_ends and unique-bound relaxations."""
     if trust_ends:
-        return abs(transcript_edge - read_edge) <= TRUST_ENDS_WINDOW
+        # the read end must be near the transcript end, and in its terminal exon: a
+        # last exon shorter than TRUST_ENDS_WINDOW let a read stopping before it pass
+        return abs(transcript_edge - read_edge) <= TRUST_ENDS_WINDOW and disttoblock >= REQ_BP_ALIGNED_IN_EDGE_EXONS
     elif unique_bound:
         # NOTE: I originally had this so that read ends needed to be closer to the end of the transcript than the exon edge, but found that was too stringent, especially after normalizing ends
         if transcript_edge < unique_bound:  # left end of transcript
@@ -453,8 +455,7 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
                 covered_sj = _covered_splice_junctions(left_end_info[0], right_end_info[0])
                 # stringent assignments must span all of a spliced transcript's
                 # junctions, which calc_final_iso_support relies on.  The end checks
-                # mostly ensure it, but with trust_ends a read stopping before a last
-                # exon shorter than TRUST_ENDS_WINDOW passed them
+                # should ensure it; this keeps a gap in them from reaching there
                 if stringent and len(exoninfo) > 1 and covered_sj != len(exoninfo) - 1:
                     logging.debug(f"{rname} transcript alignment dropped: not full length: {tname}")
                     return
