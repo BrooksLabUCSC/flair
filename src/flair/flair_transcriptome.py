@@ -1056,30 +1056,97 @@ def build_genes(firstpass, annots, region_chrom, sjc_with_overlap_groups):
     return genes
 
 
-def _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass):
-    """Create a Gene for a group of novel overlapping isoforms."""
-    gene_id = f'{chrom}:{group_start}-{last_end}:{strand}'
-    for s, e, n in curr_group:
-        add_gene_isoform(genes, gene_id, firstpass[n], strand, is_novel=True)
+def _sweep_overlap_groups(spans):
+    """group (start, end, key) spans whose coordinates overlap, transitively;
+    returns lists of keys"""
+    groups, group_end = [], None
+    for start, end, key in sorted(spans):
+        if groups and start < group_end:
+            groups[-1].append(key)
+            group_end = max(group_end, end)
+        else:
+            groups.append([key])
+            group_end = end
+    return groups
+
+def _junction_span(isoform):
+    return isoform.juncs[0].start, isoform.juncs[-1].end
+
+def _group_by_read_span(isos, firstpass):
+    "group isoforms by overlap of the spans between their read ends"
+    return _sweep_overlap_groups([(firstpass[k].start, firstpass[k].end, k) for k in isos])
+
+def _splice_site_components(spliced, firstpass):
+    """connected components of spliced isoforms sharing a splice site, a shared
+    junction sharing both of its sites"""
+    parent = {k: k for k in spliced}
+
+    def find(k):
+        while parent[k] != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+    site_owner = {}
+    for k in spliced:
+        for site in {site for j in firstpass[k].juncs for site in (j.start, j.end)}:
+            if site in site_owner:
+                parent[find(k)] = find(site_owner[site])
+            else:
+                site_owner[site] = k
+    components = {}
+    for k in spliced:
+        components.setdefault(find(k), []).append(k)
+    return list(components.values())
+
+def _attach_single_exon_isos(single, groups, firstpass):
+    """add each single-exon isoform to the group whose exons it overlaps most;
+    returns those overlapping no group's exons"""
+    group_exons = [[(e.start, e.end) for k in group for e in firstpass[k].exons] for group in groups]
+    unattached = []
+    for k in single:
+        start, end = firstpass[k].start, firstpass[k].end
+        overlaps = [sum(max(0, min(end, e_end) - max(start, e_start)) for e_start, e_end in exons)
+                    for exons in group_exons]
+        best = max(range(len(groups)), key=lambda i: overlaps[i], default=None)
+        if best is not None and overlaps[best] > 0:
+            groups[best].append(k)
+        else:
+            unattached.append(k)
+    return unattached
+
+def _group_novel_by_splicing(novel, firstpass):
+    """Spliced isoforms sharing a junction or splice site are grouped, and groups
+    whose junction spans overlap are merged, all without read ends.  A single-exon
+    isoform joins the spliced group whose exons it overlaps most; single-exon
+    isoforms overlapping no spliced group are grouped by their read-end spans."""
+    spliced = [k for k in novel if firstpass[k].juncs]
+    single = [k for k in novel if not firstpass[k].juncs]
+    comp_spans = []
+    for members in _splice_site_components(spliced, firstpass):
+        spans = [_junction_span(firstpass[k]) for k in members]
+        comp_spans.append((min(s for s, e in spans), max(e for s, e in spans), tuple(members)))
+    groups = [[k for members in merged for k in members] for merged in _sweep_overlap_groups(comp_spans)]
+    unattached = _attach_single_exon_isos(single, groups, firstpass)
+    return groups + _group_by_read_span(unattached, firstpass)
 
 def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
-    """Group novel isoforms by coordinate overlap and create Gene objects."""
-    transcripts_to_group = sorted(novel_gene_isos_to_group[strand])
-    last_end = 0
-    group_start = 0
-    curr_group = []
-    for start, end, iso_name in transcripts_to_group:
-        if start < last_end:
-            curr_group.append((start, end, iso_name))
-        else:
-            if len(curr_group) > 0:
-                _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass)
-            curr_group = [(start, end, iso_name)]
-            group_start = start
-        if end > last_end:
-            last_end = end
-    if len(curr_group) > 0:
-        _assign_novel_gene_group(genes, chrom, strand, group_start, last_end, curr_group, firstpass)
+    """Group the strand's isoforms that have no annotated gene into novel genes, by
+    _group_novel_by_splicing, and create their Gene objects.  A novel gene is named
+    for the span of its isoforms."""
+    novel = [iso_key for start, end, iso_key in novel_gene_isos_to_group[strand]]
+    used_ids = set()
+    for group in _group_novel_by_splicing(novel, firstpass):
+        group_start = min(firstpass[k].start for k in group)
+        group_end = max(firstpass[k].end for k in group)
+        gene_id = f'{chrom}:{group_start}-{group_end}:{strand}'
+        # groups can now share a span; a shared name would merge them
+        suffix = 1
+        while gene_id in used_ids:
+            suffix += 1
+            gene_id = f'{chrom}:{group_start}-{group_end}:{strand}.{suffix}'
+        used_ids.add(gene_id)
+        for k in group:
+            add_gene_isoform(genes, gene_id, firstpass[k], strand, is_novel=True)
 
 def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_exons_ends, unique_bound, unique_fh, iso_fh, seq_fh, genome):
     # FIXME: do normalization outside of write function
