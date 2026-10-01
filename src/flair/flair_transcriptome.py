@@ -231,6 +231,9 @@ ANNOT_SE_SEARCH_WINDOW = 2
 # in gene assignment, a gene's matched splice site this close to the isoform's
 # 5' splice site counts as matching the isoform's 5' end
 FIVE_PRIME_SS_WINDOW = 20
+# in the gene assignment fallback with fixed ends, a spliced isoform's terminal exons
+# are taken to be this long, instead of reaching its read ends
+FALLBACK_TERMINAL_EXON_LEN = 100
 
 
 ####
@@ -976,6 +979,39 @@ def get_spliced_exon_overlaps(strand, exons, annots):
                 gene_hits.append([len(covered_pos), annot_gene, strand])
     return gene_hits
 
+def _merge_intervals(intervals):
+    "merge overlapping (start, end) intervals, sorted by start"
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+def get_unspliced_exon_overlaps(strand, exons, annots):
+    """Genes on the strand whose single-exon (unspliced) annotated transcripts cover
+    more than half of the exons' length, as [bases covered, gene_id, strand]"""
+    gene_to_intervals = {}
+    for annot_exon in annots.all_annot_SE[strand]:
+        gene_to_intervals.setdefault(annot_exon.name, []).append((annot_exon.start, annot_exon.end))
+    exon_len = sum(e.end - e.start for e in exons)
+    gene_hits = []
+    for gene_id, intervals in gene_to_intervals.items():
+        covered = sum(max(0, min(e.end, a_end) - max(e.start, a_start))
+                      for e in exons for a_start, a_end in _merge_intervals(intervals))
+        if covered > exon_len * 0.5:
+            gene_hits.append([covered, gene_id, strand])
+    return gene_hits
+
+def fixed_end_exons(juncs):
+    """exons of a spliced isoform from its junctions, with terminal exons of
+    FALLBACK_TERMINAL_EXON_LEN rather than reaching its read ends"""
+    exons = [Exon(max(0, juncs[0].start - FALLBACK_TERMINAL_EXON_LEN), juncs[0].start)]
+    exons.extend(Exon(juncs[i].end, juncs[i + 1].start) for i in range(len(juncs) - 1))
+    exons.append(Exon(juncs[-1].end, juncs[-1].end + FALLBACK_TERMINAL_EXON_LEN))
+    return exons
+
 def _get_transcript_gene_from_annot(iso_readrec, annots):
     """Return (transcript_id, gene_id) if iso matches an annotated junction chain, else (None, None).
     Each junction chain is named once, before end variants are split off; the variants
@@ -999,10 +1035,19 @@ def _find_gene_id_by_overlap(iso_readrec, annots):
         gene_hits = get_single_exon_gene_overlaps(iso_readrec.strand, iso_readrec, annots)
         if gene_hits:
             return (sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)[0][0], )
-    # if no gene from above, look for exon overlap.  There was an 'ambig' strand
-    # branch here; nothing assigns that strand, the two branches were identical, and
-    # annots.spliced_exons is keyed by '+' and '-' only, so it would have raised
-    gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+    # if no gene from above, look for exon overlap.  A spliced isoform's terminal exons
+    # are given a fixed length from its terminal junctions (fixed_end_exons), so this
+    # doesn't depend on its read ends.  There was an 'ambig' strand branch here; nothing
+    # assigns that strand, the two branches were identical, and annots.spliced_exons is
+    # keyed by '+' and '-' only, so it would have raised
+    if iso_readrec.juncs != ():
+        # spliced genes first, then single-exon genes, such as an unspliced lncRNA
+        # the isoform is a spliced form of
+        exons = fixed_end_exons(iso_readrec.juncs)
+        gene_hits = (get_spliced_exon_overlaps(iso_readrec.strand, exons, annots)
+                     or get_unspliced_exon_overlaps(iso_readrec.strand, exons, annots))
+    else:
+        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
     if gene_hits:
         gene_hits.sort(reverse=True)
         return (gene_hits[0][1], )
