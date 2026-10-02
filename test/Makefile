@@ -568,13 +568,13 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-bysupport test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-trust-ends test-transcriptome-mult-ends-trust-ends test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
 					test-transcriptome-keep-intermediate-needs-temp-dir
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-nochecksplice" "test-transcriptome-nostringent" "test-transcriptome-nostringentsplice" "test-transcriptome-directrna" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-noannot-trust-junctions" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-bysupport" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-nosubset" "test-transcriptome-filter-1.2X" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
 	"test-transcriptome-trust-ends" "test-transcriptome-mult-ends-trust-ends" "test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends" "test-transcriptome-seg1-badannot-comprehensive"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -724,11 +724,19 @@ ${DDX5_READTHROUGH_GENE_ANNOT}: ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GEN
 	cat ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GENE_GTF} > $@.tmp
 	mv -f $@.tmp $@
 
-# test of --filter bysupport, which keeps a subset isoform with more than 1.2x
-# the reads of its supersets; nosubset gives 2 isoforms, comprehensive 14
-test-transcriptome-bysupport: mkdirs ${DDX5_BYSUPPORT_BAM}
+# test of --filter nosubset (the default), which removes all subset isoforms, on
+# reads chosen so subset isoforms have more reads than their supersets
+test-transcriptome-nosubset: mkdirs ${DDX5_BYSUPPORT_BAM}
 	flair transcriptome -b ${DDX5_BYSUPPORT_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 \
-	   --filter bysupport
+	   --filter nosubset
+# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# test of --filter 1.2X on the same reads, which keeps a subset isoform with more
+# than 1.2x the reads of the isoforms it is a subset of
+test-transcriptome-filter-1.2X: mkdirs ${DDX5_BYSUPPORT_BAM}
+	flair transcriptome -b ${DDX5_BYSUPPORT_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 \
+	   --filter 1.2X
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 

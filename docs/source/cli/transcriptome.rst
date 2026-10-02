@@ -16,9 +16,8 @@
                               [--trust_strand] [--trust_junctions] [--trust_ends]
                               [--no_stringent] [--no_check_splice]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
-                              [--filter {nosubset,bysupport,comprehensive,ginormous}]
-                              [--keep_supplementary] [--quality QUALITY]
-                              [--allow_paralogs] [-t THREADS]
+                              [--filter FILTER] [--keep_supplementary]
+                              [--quality QUALITY] [--allow_paralogs] [-t THREADS]
                               [--parallel_mode PARALLEL_MODE]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
@@ -98,9 +97,9 @@
 
    maximum number of TSS/TES picked per isoform; make higher for more precise end detection (default: 1)
 
-.. option:: --filter {nosubset,bysupport,comprehensive,ginormous}
+.. option:: --filter FILTER
 
-   nosubset: any isoforms that are a proper set of another isoform are removed; bysupport: subset isoforms are removed based on support; comprehensive: default set plus all subset isoforms; ginormous: comprehensive set plus single exon subset isoforms (default: nosubset)
+   which subset isoforms (a contiguous part of another isoform) to keep. <N>X, such as 10X: a subset isoform is kept if it has more than N times the reads of the isoforms it is a subset of; nosubset: all subset isoforms are removed; comprehensive: all spliced subset isoforms are kept; ginormous: comprehensive, plus single exon subset isoforms (default: nosubset)
 
 .. option:: --keep_supplementary
 

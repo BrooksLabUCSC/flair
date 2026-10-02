@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import re
 import pipettor
 import shutil
 import pysam
@@ -40,7 +41,29 @@ MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 #        that changes splice junctions.  Should this be discarded if multiple long-reads
 #        support it, but it isn't annotated.  Maybe these can be identified.
 
-FILTER_MODES = ('nosubset', 'bysupport', 'comprehensive', 'ginormous')
+# --filter: one of these, or <N>X, keeping a subset isoform with more than N times
+# the reads of the isoforms it is a subset of
+FILTER_MODES = ('nosubset', 'comprehensive', 'ginormous')
+DEFAULT_FILTER = 'nosubset'
+_SUPPORT_RATIO_FILTER_RE = re.compile(r'^(\d+(?:\.\d+)?)[xX]$')
+
+
+def subset_support_ratio(filter_mode):
+    """For a --filter of <N>X, N, the ratio of reads by which a subset isoform must
+    exceed the isoforms it is a subset of to be kept; None for the named modes"""
+    match = _SUPPORT_RATIO_FILTER_RE.match(filter_mode)
+    return float(match.group(1)) if match else None
+
+
+def parse_filter(filter_mode):
+    "validate a --filter value"
+    if filter_mode in FILTER_MODES:
+        return filter_mode
+    ratio = subset_support_ratio(filter_mode)
+    if ratio is None or ratio <= 0:
+        raise FlairInputDataError(f"invalid --filter '{filter_mode}': expected one of {', '.join(FILTER_MODES)}, "
+                                  "or a ratio such as 10X")
+    return filter_mode
 
 @dataclass(frozen=True)
 class TranscriptomeOpts:
@@ -152,11 +175,13 @@ def add_subparser(subparsers):
     parser.add_argument('--max_ends', type=int, default=1,
                         help='maximum number of TSS/TES picked per isoform; make higher for more precise '
                              'end detection (default: %(default)s)')
-    parser.add_argument('--filter', choices=FILTER_MODES, default='nosubset',
-                        help='nosubset: any isoforms that are a proper set of another isoform are removed; '
-                             'bysupport: subset isoforms are removed based on support; '
-                             'comprehensive: default set plus all subset isoforms; '
-                             'ginormous: comprehensive set plus single exon subset isoforms '
+    parser.add_argument('--filter', default=DEFAULT_FILTER,
+                        help='which subset isoforms (a contiguous part of another isoform) to keep. '
+                             '<N>X, such as 10X: a subset isoform is kept if it has more than N times the reads '
+                             'of the isoforms it is a subset of; '
+                             'nosubset: all subset isoforms are removed; '
+                             'comprehensive: all spliced subset isoforms are kept; '
+                             'ginormous: comprehensive, plus single exon subset isoforms '
                              '(default: %(default)s)')
 
     parser.add_argument('--keep_supplementary', action='store_true',
@@ -198,6 +223,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=transcriptome_cmd)
 
 def transcriptome_cmd(args):
+    parse_filter(args.filter)
     if args.allow_paralogs:
         raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
                                        "good alignment to several paralogs is assigned to one of "
@@ -238,7 +264,8 @@ TERMINAL_EXON_BOUNDARY_TOLERANCE = 20
 # margin for single-exon isoform overlap comparisons
 SINGLE_EXON_OVERLAP_MARGIN = 10
 
-# expression ratio threshold for filtering overlapping single-exon isoforms
+# expression ratio threshold for filtering overlapping single-exon isoforms with
+# --filter comprehensive; with <N>X, N is used
 SINGLE_EXON_EXPRESSION_RATIO = 1.2
 
 # overlap fraction thresholds for gene assignment
@@ -467,8 +494,9 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
 
     if sum(terminal_exon_is_subset) < 2:  # both first and last exon have to overlap
         return True, unique_seq_bound
-    elif filter_type != 'nosubset':
-        if score >= support and score > max(superset_support) * 1.2:
+    else:
+        ratio = subset_support_ratio(filter_type)
+        if ratio is not None and score >= support and score > max(superset_support) * ratio:
             return True, unique_seq_bound
     return False, None
 
@@ -831,9 +859,10 @@ def filter_single_exon_iso(args, single_exon, curr_group, all_isoforms):
                 if exon.name == '' or args.filter == 'nosubset':  # is exon from spliced transcript
                     is_contained = True
                     break  # filter out
-                else:  # is other single exon - check relative expression
+                else:  # is other single exon - check relative expression, by the --filter ratio
                     other_score = all_isoforms[exon.name].score
-                    if isoform.score >= args.sjc_support and other_score * SINGLE_EXON_EXPRESSION_RATIO < isoform.score:
+                    ratio = subset_support_ratio(args.filter) or SINGLE_EXON_EXPRESSION_RATIO
+                    if isoform.score >= args.sjc_support and other_score * ratio < isoform.score:
                         expression_comp_with_superset.append(True)
                     else:
                         expression_comp_with_superset.append(False)
@@ -1626,6 +1655,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
 
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
+    parse_filter(args.filter)
     temp_dir = make_run_temp_dir(args.output, args.temp_dir)
     logging.info(f'temporary files in {temp_dir}')
     try:
