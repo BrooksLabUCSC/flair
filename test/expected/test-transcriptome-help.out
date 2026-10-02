@@ -41,7 +41,7 @@ options:
                         file is in bed format, the score field will be used
                         for read support (default: 2)
   --ss_window SS_WINDOW
-                        window size for correcting splice sites (default: 15)
+                        window size for correcting splice sites (default: 10)
   --end_window END_WINDOW
                         window size for comparing TSS/TES (default: 100)
   --sjc_support SJC_SUPPORT

@@ -131,7 +131,7 @@ def add_subparser(subparsers):
                              'If your junctions file is in bed format, the score field will be used for read support '
                              '(default: %(default)s)')
 
-    parser.add_argument('--ss_window', type=int, default=15,
+    parser.add_argument('--ss_window', type=int, default=10,
                         help='window size for correcting splice sites (default: %(default)s)')
     parser.add_argument('--end_window', type=int, default=100,
                         help='window size for comparing TSS/TES (default: %(default)s)')

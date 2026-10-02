@@ -47,7 +47,7 @@
 
 .. option:: --ss_window SS_WINDOW
 
-   window size for correcting splice sites (default: 15)
+   window size for correcting splice sites (default: 10)
 
 .. option:: --end_window END_WINDOW
 
