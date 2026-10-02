@@ -124,7 +124,9 @@ options:
                         supported reads file and read assignments to firstpass
                         isoforms
   --normalize_ends      normalize transcript ends with similar terminal splice
-                        sites; only recommended when --max_ends is 1
+                        sites. Each spliced junction chain gives a single
+                        isoform, with the furthest start and end of its end
+                        variants, overriding --max_ends
   --generate_map        generate a txt file of read-isoform assignments
 
 required named arguments:

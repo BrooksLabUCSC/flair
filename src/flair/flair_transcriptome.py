@@ -217,8 +217,9 @@ def add_subparser(subparsers):
                              'reads file and read assignments to firstpass isoforms')
 
     parser.add_argument('--normalize_ends', action='store_true',
-                        help='normalize transcript ends with similar terminal splice sites; only recommended '
-                             'when --max_ends is 1')
+                        help='normalize transcript ends with similar terminal splice sites. Each spliced '
+                             'junction chain gives a single isoform, with the furthest start and end of its '
+                             'end variants, overriding --max_ends')
     parser.add_argument('--generate_map', action='store_true',
                         help='generate a txt file of read-isoform assignments')
     parser.set_defaults(entry=transcriptome_cmd)
@@ -658,33 +659,46 @@ def filter_ends_single_best(isoforms):
         best.reads.extend(iso.reads)
     return [best]
 
+def merge_end_variants(isoforms):
+    """One isoform from a junction chain's end variants, with all their reads, the
+    furthest start and the furthest end, which may come from different variants"""
+    merged = isoforms[0]
+    for iso in isoforms[1:]:
+        merged.reads.extend(iso.reads)
+    merged.start, merged.end = min(x.start for x in isoforms), max(x.end for x in isoforms)
+    return merged
+
 def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_ends, normalize_ends):
-    """Sort ends, then select best ones based on support and max_ends"""
+    """Sort ends, then select best ones based on support and max_ends.  With
+    normalize_ends a spliced junction chain gets a single isoform with its furthest
+    ends, whatever max_ends is, as its ends are normalized anyway."""
     if isoforms[0].juncs == ():
         support = se_support
     else:
         support = sjc_support
 
-    if normalize_ends:  # Only by longest length
-        isoforms.sort(key=lambda x: x.genomic_length, reverse=True)
-    else:  # First by read support, then by length
-        # FIXME: the comment above is what was meant; the code multiplies instead, so
-        # this is not a two-level sort and a 1-read 10kb candidate outranks a 10-read
-        # 500bp one.  With max_ends 1 this single comparison sets the reported TSS and
-        # TES for every junction chain.  Sorting by (num_reads, genomic_length), which
-        # is what the comment says, moves exactly one locus in the test suite and makes
-        # it worse: on a single-exon chain it picks the modal end pair, which for
-        # long reads is a 5' truncation cluster, over the pair that reproduces the
-        # annotated 3' end.  So the product is compensating for a real bias in the
-        # single-exon case while having little to recommend it for spliced chains,
-        # where the end window is only the terminal exons.  Probably wants to branch on
-        # isoforms[0].juncs == (), which this function already distinguishes above.
-        isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
-
     junc_support = sum([x.num_reads for x in isoforms])
     if junc_support < support:
         logging.debug(f"isoform group dropped: insufficient support ({junc_support} < {support}): {isoforms[0].chrom}:{isoforms[0].start}-{isoforms[0].end}")
         return []
+
+    if normalize_ends and isoforms[0].juncs != ():
+        return [merge_end_variants(isoforms)]
+
+
+    # First by read support, then by length
+    # FIXME: the comment above is what was meant; the code multiplies instead, so
+    # this is not a two-level sort and a 1-read 10kb candidate outranks a 10-read
+    # 500bp one.  With max_ends 1 this single comparison sets the reported TSS and
+    # TES for every junction chain.  Sorting by (num_reads, genomic_length), which
+    # is what the comment says, moves exactly one locus in the test suite and makes
+    # it worse: on a single-exon chain it picks the modal end pair, which for
+    # long reads is a 5' truncation cluster, over the pair that reproduces the
+    # annotated 3' end.  So the product is compensating for a real bias in the
+    # single-exon case while having little to recommend it for spliced chains,
+    # where the end window is only the terminal exons.  Probably wants to branch on
+    # isoforms[0].juncs == (), which this function already distinguishes above.
+    isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
 
     if max_ends > 1:
         # Allow multiple ends per junction chain

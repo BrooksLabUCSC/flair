@@ -135,7 +135,7 @@
 
 .. option:: --normalize_ends
 
-   normalize transcript ends with similar terminal splice sites; only recommended when --max_ends is 1
+   normalize transcript ends with similar terminal splice sites. Each spliced junction chain gives a single isoform, with the furthest start and end of its end variants, overriding --max_ends
 
 .. option:: --generate_map
 
