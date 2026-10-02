@@ -11,7 +11,7 @@ from flair.io_utils import make_temp_dir
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
-from flair.flair_transcriptome import _check_junction_subset
+from flair.flair_transcriptome import _check_junction_subset, unique_bounds_past
 from flair.terminal_exon_ends import GeneTerminalExonEnds
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.count_sam_transcripts import run_count_sam_transcripts
@@ -124,16 +124,9 @@ def load_isoform_data(isoform_bed):
     return gene_data
 
 def write_unique_bound(fh, isoform, unique_seq_bound):
-    unique_seq_bound = list(set(unique_seq_bound))
-    if isoform.strand == '-':
-        # just invert the indexes
-        for i in range(len(unique_seq_bound)):
-            unique_seq_bound[i] = f'{abs(unique_seq_bound[i][0] - 1)}_{unique_seq_bound[i][1]}'
-    else:
-        for i in range(len(unique_seq_bound)):
-            unique_seq_bound[i] = f'{unique_seq_bound[i][0]}_{unique_seq_bound[i][1]}'
-    if len(unique_seq_bound) > 0:
-        fh.write(isoform.name + '\t' + ','.join(unique_seq_bound) + '\n')
+    bounds = unique_bounds_past(unique_seq_bound, isoform.blocks[0], isoform.blocks[-1], isoform.strand)
+    if len(bounds) > 0:
+        fh.write(isoform.name + '\t' + ','.join(bounds) + '\n')
 
 def load_unique_bound(temp_prefix, gene_info):
     with open(temp_prefix + 'isoforms.uniquebound.txt', 'w') as fh:

@@ -431,21 +431,34 @@ def _check_internal_exon_overlap(first_exon, last_exon, other_exon, otheriso_sco
                                  terminal_exon_is_subset, superset_support, unique_seq_bound):
     """Check overlap with internal exon of other transcript.
     Records unique sequence boundaries and checks containment within tolerance.
-    A boundary is only recorded when the terminal exon extends past the other
-    exon; when it is inside it there is no unique sequence to require."""
+    A boundary is recorded whatever the terminal exon's end, as the transcript
+    built may have different ends from those checked here; unique_bounds_past
+    keeps the ones a transcript's terminal exons extend past."""
     if first_exon.end == other_exon.end:
-        if first_exon.start < other_exon.start:
-            unique_seq_bound.append((0, first_exon.end - other_exon.start))
+        unique_seq_bound.append((0, first_exon.end - other_exon.start))
         if first_exon.start >= (other_exon.start - TERMINAL_EXON_BOUNDARY_TOLERANCE):
             terminal_exon_is_subset[0] = 1
             superset_support.append(otheriso_score)
     if last_exon.start == other_exon.start:
-        if last_exon.end > other_exon.end:
-            unique_seq_bound.append((1, other_exon.end - last_exon.start))
+        unique_seq_bound.append((1, other_exon.end - last_exon.start))
         if last_exon.end <= (other_exon.end + TERMINAL_EXON_BOUNDARY_TOLERANCE):
             terminal_exon_is_subset[1] = 1
             superset_support.append(otheriso_score)
 
+
+def unique_bounds_past(unique_seq_bound, first_exon, last_exon, strand):
+    """The unique sequence boundaries, from the subset checks, that a transcript's
+    terminal exons extend past, so it has unique sequence there for reads to
+    cover, in count_sam_transcripts' '<side>_<distance from splice site>' form
+    with side 0 the transcript's 5' end"""
+    bounds = []
+    for side, dist in sorted(set(unique_seq_bound)):
+        exon = first_exon if side == 0 else last_exon
+        if exon.end - exon.start > dist:
+            if strand == '-':
+                side = 1 - side
+            bounds.append(f'{side}_{dist}')
+    return bounds
 
 def _check_junction_subset(juncs, first_exon, last_exon, otheriso_score, otheriso_juncs, otheriso_exons,
                            terminal_exon_is_subset, superset_support, unique_seq_bound):
@@ -490,21 +503,19 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
             _check_novel_iso_subset(novel_iso_id, all_isoforms,
                                     juncs, first_exon, last_exon, terminal_exon_is_subset,
                                     superset_support, unique_seq_bound)
-    unique_seq_bound = list(set(unique_seq_bound))
-    if strand == '-':
-        # just invert the indexes
-        for i in range(len(unique_seq_bound)):
-            unique_seq_bound[i] = f'{abs(unique_seq_bound[i][0] - 1)}_{unique_seq_bound[i][1]}'
-    else:
-        for i in range(len(unique_seq_bound)):
-            unique_seq_bound[i] = f'{unique_seq_bound[i][0]}_{unique_seq_bound[i][1]}'
+    # the transcript's ends aren't known yet, so these are all the boundaries,
+    # for unique_bounds_past to choose from once they are
+    unique_seq_bound = sorted(set(unique_seq_bound))
 
     if sum(terminal_exon_is_subset) < 2:  # both first and last exon have to overlap
         return True, unique_seq_bound
     elif annots.has_transcript_ends(strand, exons[0].start, exons[-1].end, end_window):
         # a subset whose ends match an annotated transcript's confirmed ends is a
-        # known isoform, not a fragment of a longer one
-        return True, unique_seq_bound
+        # known isoform, not a fragment of a longer one.  It gets no unique sequence
+        # boundaries: its ends are within TERMINAL_EXON_BOUNDARY_TOLERANCE of the
+        # superset's exons, so its reads needn't cover sequence past them, which its
+        # transcript may only have from end normalization
+        return True, []
     else:
         ratio = subset_support_ratio(filter_type)
         if ratio is not None and score >= support and score > max(superset_support) * ratio:
@@ -967,7 +978,7 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                     else:
                         firstpass[iso_name] = isoform
                         if len(unique_seq) > 0:
-                            iso_to_unique_bound[iso_name] = ','.join(unique_seq)
+                            iso_to_unique_bound[iso_name] = unique_seq
         # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of list
         firstpass = filter_all_single_exon(args, sorted(candidates.exons), candidates.isoforms, firstpass)
 
@@ -1380,7 +1391,14 @@ def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_ex
     # isoform.name = isoform.transcript_id + '_' + isoform.gene_id
 
     if unique_bound and iso_name in unique_bound:
-        unique_fh.write(isoform.name + '\t' + unique_bound[iso_name] + '\n')
+        # against the transcript's exons as built, without the normalization padding
+        first_exon, last_exon = isoform.exons[0], isoform.exons[-1]
+        if isoform.unpadded_ends is not None:
+            first_exon = Exon(isoform.unpadded_ends[0], first_exon.end)
+            last_exon = Exon(last_exon.start, isoform.unpadded_ends[1])
+        bounds = unique_bounds_past(unique_bound[iso_name], first_exon, last_exon, isoform.strand)
+        if len(bounds) > 0:
+            unique_fh.write(isoform.name + '\t' + ','.join(bounds) + '\n')
 
     convert_to_bed12(isoform).write(iso_fh)
     seq_fh.write('>' + isoform.name + '\n')
