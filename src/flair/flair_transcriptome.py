@@ -6,6 +6,7 @@ import shutil
 import pysam
 import hashlib
 import logging
+from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from statistics import median
@@ -262,6 +263,10 @@ def transcriptome_cmd(args):
 
 # tolerance for terminal exon boundary comparisons
 TERMINAL_EXON_BOUNDARY_TOLERANCE = 20
+
+# with --normalize_ends, a spliced junction chain's best supported start and end
+# are the read start and end with the most others within this distance
+BEST_END_WINDOW = 25
 
 # margin for single-exon isoform overlap comparisons
 SINGLE_EXON_OVERLAP_MARGIN = 10
@@ -686,23 +691,27 @@ def rank_end_variants(isoforms):
     # isoforms[0].juncs == (), as filter_ends_by_redundant_and_support does.
     isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
 
-def merge_end_variants(isoforms):
-    """One isoform from a junction chain's end variants, with all their reads and
-    the furthest start and end of any of the reads, rather than of the variants'
-    representative ends.  The best variant's ends are kept for the subset check, so
-    it is the same as without normalize_ends."""
-    rank_end_variants(isoforms)
-    merged = isoforms[0]
-    merged.best_ends = (merged.start, merged.end)
-    for iso in isoforms[1:]:
-        merged.reads.extend(iso.reads)
-    merged.start, merged.end = min(merged.starts), max(merged.ends)
-    return merged
+def densest_end(positions, window, outer):
+    """The read end with the most read ends within window of it, ties going to the
+    outer one: outer is min for starts and max for ends"""
+    positions = sorted(positions)
 
-def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_ends, normalize_ends):
-    """Sort ends, then select best ones based on support and max_ends.  With
-    normalize_ends a spliced junction chain gets a single isoform with its furthest
-    ends, whatever max_ends is, as its ends are normalized anyway."""
+    def support(pos):
+        return bisect_right(positions, pos + window) - bisect_left(positions, pos - window)
+    sign = -1 if outer is min else 1
+    return max(positions, key=lambda pos: (support(pos), sign * pos))
+
+def normalize_chain_ends(isoform):
+    """With --normalize_ends, a spliced junction chain is a single isoform, ending at
+    the furthest start and end of its reads.  Its densest read ends are its best
+    supported ends, which the subset check uses."""
+    starts, ends = isoform.starts, isoform.ends
+    isoform.best_ends = (densest_end(starts, BEST_END_WINDOW, min), densest_end(ends, BEST_END_WINDOW, max))
+    isoform.start, isoform.end = min(starts), max(ends)
+    return isoform
+
+def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_ends):
+    """Sort ends, then select best ones based on support and max_ends"""
     if isoforms[0].juncs == ():
         support = se_support
     else:
@@ -712,9 +721,6 @@ def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_
     if junc_support < support:
         logging.debug(f"isoform group dropped: insufficient support ({junc_support} < {support}): {isoforms[0].chrom}:{isoforms[0].start}-{isoforms[0].end}")
         return []
-
-    if normalize_ends and isoforms[0].juncs != ():
-        return [merge_end_variants(isoforms)]
 
     rank_end_variants(isoforms)
 
@@ -759,14 +765,18 @@ class CandidateIsoforms:
 def _filter_isos_by_redundant_and_support(args, isoforms, candidates, iso_fh):
     # this assumes single exons are pre-grouped by overlap
     # previously treated single exons separately due to them being in larger groups
-    filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.single_exon_support, args.max_ends, args.normalize_ends)
+    filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.single_exon_support, args.max_ends)
     for isoform in filtered_isoforms:
         candidates.add(isoform)
         convert_to_bed12(isoform).write(iso_fh)
 
 def _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh):
-    # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
-    these_firstpass = collapse_end_groups(args.end_window, isoform)
+    if args.normalize_ends and isoform.juncs != ():
+        # no end groups: one isoform, whatever max_ends is
+        these_firstpass = [normalize_chain_ends(isoform)]
+    else:
+        # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
+        these_firstpass = collapse_end_groups(args.end_window, isoform)
     _write_unfiltered_ends(these_firstpass, iso_unfilt_fh)
     _filter_isos_by_redundant_and_support(args, these_firstpass, candidates, iso_fh)
 
@@ -945,8 +955,8 @@ def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass):
 
 
 def subset_check_exons(isoform):
-    """An isoform's exons with the ends of its best supported end variant, which is
-    what the subset check compares, whether or not the variants were merged"""
+    """An isoform's exons with its best supported ends, which is what the subset
+    check compares; with --normalize_ends these differ from its furthest ends"""
     exons = list(isoform.exons)
     if isoform.best_ends is not None:
         exons[0] = Exon(isoform.best_ends[0], exons[0].end)
