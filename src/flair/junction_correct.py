@@ -6,6 +6,7 @@ from math import inf
 from flair import PosRange
 from flair.intron_support import IntronSupport
 from flair.isoform_data import Junc
+from flair.count_sam_transcripts import SPLICE_SITE_FLANK
 
 ##
 # Notes:
@@ -19,7 +20,10 @@ from flair.isoform_data import Junc
 # or overlapping other introns.
 ##
 MIN_INTERNAL_EXON_SIZE = 3   # there is one this small!
-MIN_TERMINAL_EXON_SIZE = 32
+# a corrected terminal splice site must be at least this far from the read end, so
+# the read covers the splice site window count_sam_transcripts checks; a junction
+# anchored by fewer bases at a read end is too weakly supported
+MIN_TERMINAL_EXON_SIZE = SPLICE_SITE_FLANK
 
 # strand of a read whose junctions are supported only by weak strand evidence:
 # introns that are neither annotated nor have a canonical GT-AG motif, such as
