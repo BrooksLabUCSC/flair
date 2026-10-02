@@ -74,16 +74,17 @@ def check_args(args):
     return args
 
 
-MIN_INSERTION_LEN = 3
-HALF_SS_WINDOW_SIZE = 6
-# check_splicesites scores an asymmetric window, unlike check_fusionbp's symmetric
-# HALF_SS_WINDOW_SIZE.  These are the values that have been running
-SS_WINDOW_BEFORE = 6
-SS_WINDOW_AFTER = 4
-NUM_MISTAKES_IN_SS_WINDOW = 2
+# bases on each side of a splice site in which an alignment's mismatches and
+# indels are counted, by check_splicesites and check_fusionbp; also the bases a read
+# must align into a terminal exon, so it covers that exon's splice site window
+SPLICE_SITE_FLANK = 5
+# mismatches, deleted bases and inserted bases allowed in a splice site's window
+MAX_SPLICE_SITE_MISTAKES = 2
 TRUST_ENDS_WINDOW = 50
-LARGE_INDEL_TOLDERANCE = 25
-REQ_BP_ALIGNED_IN_EDGE_EXONS = 6  # must be same or more than HALF_SS_WINDOW_SIZE
+LARGE_INDEL_TOLERANCE = 25
+# with allow_UTR_indels, a large indel in a terminal exon is only tolerated at least
+# this far from the exon's splice site
+TERMINAL_INDEL_SPLICE_SITE_DIST = 10
 
 @dataclass
 class IsoformInfo:
@@ -153,15 +154,15 @@ def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttob
     if trust_ends:
         # the read end must be near the transcript end, and in its terminal exon: a
         # last exon shorter than TRUST_ENDS_WINDOW let a read stopping before it pass
-        return abs(transcript_edge - read_edge) <= TRUST_ENDS_WINDOW and disttoblock >= REQ_BP_ALIGNED_IN_EDGE_EXONS
+        return abs(transcript_edge - read_edge) <= TRUST_ENDS_WINDOW and disttoblock >= SPLICE_SITE_FLANK
     elif unique_bound:
         # NOTE: I originally had this so that read ends needed to be closer to the end of the transcript than the exon edge, but found that was too stringent, especially after normalizing ends
         if transcript_edge < unique_bound:  # left end of transcript
-            return unique_bound - read_edge >= REQ_BP_ALIGNED_IN_EDGE_EXONS  # and disttoblock > abs(transcript_edge - read_edge)
+            return unique_bound - read_edge >= SPLICE_SITE_FLANK  # and disttoblock > abs(transcript_edge - read_edge)
         else:
-            return read_edge - unique_bound >= REQ_BP_ALIGNED_IN_EDGE_EXONS  # and disttoblock > abs(transcript_edge - read_edge)
+            return read_edge - unique_bound >= SPLICE_SITE_FLANK  # and disttoblock > abs(transcript_edge - read_edge)
     else:
-        return disttoblock >= REQ_BP_ALIGNED_IN_EDGE_EXONS
+        return disttoblock >= SPLICE_SITE_FLANK
 
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends, unique_bound_left, unique_bound_right):
@@ -194,7 +195,7 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
     """The read's total divergence from the transcript near the splice sites it
     covers: inserted bases plus unmatched positions in the window around each
     site, summed over the sites.  None if any covered site has more than
-    NUM_MISTAKES_IN_SS_WINDOW, or the read covers no splice site.  The total ranks
+    MAX_SPLICE_SITE_MISTAKES, or the read covers no splice site.  The total ranks
     alignments, so a transcript whose splice sites match the read exactly is
     preferred over a near-identical one whose sites are a few bases off."""
     currpos = 0
@@ -205,12 +206,12 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
         currpos += elen
         if tstart < currpos < tend:
             # max(0, ...): a negative start reads from the end of the vector, and for a
-            # first exon shorter than SS_WINDOW_BEFORE the slice came back empty, which
+            # first exon shorter than SPLICE_SITE_FLANK the slice came back empty, which
             # scored zero mistakes and passed the junction
-            ssvals = coveredpos[max(0, currpos - SS_WINDOW_BEFORE):currpos + SS_WINDOW_AFTER]
+            ssvals = coveredpos[max(0, currpos - SPLICE_SITE_FLANK):currpos + SPLICE_SITE_FLANK]
             totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
-            if totinsert + (len(ssvals) - totmatch) > NUM_MISTAKES_IN_SS_WINDOW:
+            if totinsert + (len(ssvals) - totmatch) > MAX_SPLICE_SITE_MISTAKES:
                 # return False
                 all_ss_res[i] = 0
             else:
@@ -231,10 +232,10 @@ def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss
         eindex = transcript_to_bp_ss_index[tname]
         currpos = sum(exonpos[:eindex + 1])
         if tstart < currpos < tend:
-            ssvals = coveredpos[currpos - HALF_SS_WINDOW_SIZE:currpos + HALF_SS_WINDOW_SIZE]
+            ssvals = coveredpos[currpos - SPLICE_SITE_FLANK:currpos + SPLICE_SITE_FLANK]
             totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
-            if totinsert + (len(ssvals) - totmatch) <= NUM_MISTAKES_IN_SS_WINDOW:
+            if totinsert + (len(ssvals) - totmatch) <= MAX_SPLICE_SITE_MISTAKES:
                 return True
         return False
 
@@ -265,9 +266,11 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
     tendpos = startpos
     blockstarts, blocksizes = [], []
     if exoninfo:
-        # this allows indels in first/last exons
-        # gives 10bp buffer so deletion of an internal exon can't count as a tolerated indel
-        lb, rb = max(exoninfo[0] - 10, 0), min(sum(exoninfo), sum(exoninfo) - exoninfo[-1] + 10)
+        # this allows indels in first/last exons, only up to lb in the first exon and
+        # from rb in the last, TERMINAL_INDEL_SPLICE_SITE_DIST from their splice sites,
+        # so a deletion of or next to an internal exon can't count as a tolerated indel
+        lb = max(exoninfo[0] - TERMINAL_INDEL_SPLICE_SITE_DIST, 0)
+        rb = min(sum(exoninfo), sum(exoninfo) - exoninfo[-1] + TERMINAL_INDEL_SPLICE_SITE_DIST)
         # this checks if transcript is a subset of a longer SJC and disallows first or last exon permissivity
         if exon_bounds:
             if exon_bounds['left']:
@@ -291,9 +294,12 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
             tendpos += blen
         elif btype in (pysam.CDEL, pysam.CREF_SKIP):
             coveredpos.extend([0] * blen)
-            if blen > LARGE_INDEL_TOLDERANCE:
+            if blen > LARGE_INDEL_TOLERANCE:
                 if exoninfo:
-                    if lb + 1 < tendpos and tendpos + blen < rb - 1:  # not in first or last exon
+                    # tolerated only if wholly before lb or wholly after rb; a deletion
+                    # starting in the first exon but ending near its splice site, or past
+                    # it, is not
+                    if not (tendpos + blen <= lb or tendpos >= rb):
                         indel_detected = True
                 else:
                     indel_detected = True
@@ -301,9 +307,9 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
         elif btype == pysam.CINS:
             if len(coveredpos) > 0:
                 coveredpos[-1] += blen
-            if blen > LARGE_INDEL_TOLDERANCE:
+            if blen > LARGE_INDEL_TOLERANCE:
                 if exoninfo:
-                    if lb + 1 < tendpos < rb - 1:  # not in first or last exon
+                    if not (tendpos <= lb or tendpos >= rb):  # not in first or last exon, away from their splice sites
                         indel_detected = True
                 else:
                     indel_detected = True
@@ -484,8 +490,6 @@ def get_best_transcript(tinfo, info, genomicclipping,
     # parse CIGAR + MD tag to ID transcript pos covered by alignment
     # get start + end of transcript on read, alignment block positions
     # also save soft/hard clipping at ends of read
-    # FIXME: MIN_INSERTION_LEN isn't implemented
-    # not positions of insertions larger than MIN_INSERTION_LEN, apply those to check_splice
     # filter out reads with long indels
     # generate list of 0s and 1s - transcript pos with match to query, val > 1 = insertion
     passing_transcripts = []

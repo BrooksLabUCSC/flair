@@ -19,10 +19,8 @@ transcript alignment would find.
 """
 from bisect import bisect_left
 import pysam
+from flair.count_sam_transcripts import SPLICE_SITE_FLANK
 
-# bases on each side of a splice site in which the genome alignment must have no
-# indels, as count_sam_transcripts' HALF_SS_WINDOW_SIZE
-SPLICE_SITE_WINDOW = 6
 # mismatches allowed in the window on each side of a splice site
 MAX_SPLICE_SITE_MISMATCHES = 1
 # a read end at most this far from an annotated splice site is still aligned
@@ -91,9 +89,10 @@ def read_introns(read):
 
 
 def splice_sites_cleanly_aligned(read, introns, genome,
-                                 window=SPLICE_SITE_WINDOW, max_mismatches=MAX_SPLICE_SITE_MISMATCHES):
-    """Is the read aligned across the window on each side of each splice site with
-    no insertion or deletion, and at most max_mismatches mismatches per side."""
+                                 window=SPLICE_SITE_FLANK, max_mismatches=MAX_SPLICE_SITE_MISMATCHES):
+    """Is the read aligned across the window on each side of each splice site
+    (count_sam_transcripts' SPLICE_SITE_FLANK) with no insertion or deletion, and
+    at most max_mismatches mismatches per side."""
     blocks = _alignment_blocks(read)
     seq = read.query_sequence
     for start, end in introns:
