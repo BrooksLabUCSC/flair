@@ -400,6 +400,9 @@ class Isoform:
         self.ref_transcript_id = ref_transcript_id
         # (start, end) before end normalization padding, set only when normalized
         self.unpadded_ends = None
+        # (start, end) of the best supported end variant, which the subset check
+        # uses, set only when a junction chain's end variants are merged
+        self.best_ends = None
         self.end5confidence = None
         self.end3confidence = None
 

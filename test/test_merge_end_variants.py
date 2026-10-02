@@ -1,5 +1,5 @@
 from flair.isoform_data import Isoform, Junc
-from flair.flair_transcriptome import filter_ends_by_redundant_and_support
+from flair.flair_transcriptome import filter_ends_by_redundant_and_support, subset_check_exons
 
 JUNCS = (Junc(200, 300), Junc(400, 500))
 
@@ -30,3 +30,14 @@ def test_without_normalize_ends_max_ends_still_applies():
     kept = filter_ends_by_redundant_and_support([_variant(100, 600, 5), _variant(50, 550, 4)],
                                                 sjc_support=2, se_support=3, max_ends=2, normalize_ends=False)
     assert len(kept) == 2
+
+
+def test_subset_check_uses_the_ends_chosen_without_normalize_ends():
+    variants = [(100, 600, 5), (50, 550, 2), (120, 700, 1)]
+    results = {}
+    for normalize_ends in (False, True):
+        kept = filter_ends_by_redundant_and_support([_variant(*v) for v in variants], sjc_support=1, se_support=3,
+                                                    max_ends=1, normalize_ends=normalize_ends)
+        results[normalize_ends] = subset_check_exons(kept[0])
+    assert results[True] == results[False]
+    assert (results[True][0].start, results[True][-1].end) == (100, 600)

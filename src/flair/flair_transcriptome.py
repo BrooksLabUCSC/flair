@@ -659,10 +659,30 @@ def filter_ends_single_best(isoforms):
         best.reads.extend(iso.reads)
     return [best]
 
+def rank_end_variants(isoforms):
+    """Sort a junction chain's end variants, best first"""
+    # First by read support, then by length
+    # FIXME: the comment above is what was meant; the code multiplies instead, so
+    # this is not a two-level sort and a 1-read 10kb candidate outranks a 10-read
+    # 500bp one.  With max_ends 1 this single comparison sets the reported TSS and
+    # TES for every junction chain.  Sorting by (num_reads, genomic_length), which
+    # is what the comment says, moves exactly one locus in the test suite and makes
+    # it worse: on a single-exon chain it picks the modal end pair, which for
+    # long reads is a 5' truncation cluster, over the pair that reproduces the
+    # annotated 3' end.  So the product is compensating for a real bias in the
+    # single-exon case while having little to recommend it for spliced chains,
+    # where the end window is only the terminal exons.  Probably wants to branch on
+    # isoforms[0].juncs == (), as filter_ends_by_redundant_and_support does.
+    isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
+
 def merge_end_variants(isoforms):
     """One isoform from a junction chain's end variants, with all their reads, the
-    furthest start and the furthest end, which may come from different variants"""
+    furthest start and the furthest end, which may come from different variants.
+    The best variant's ends are kept for the subset check, so it is the same as
+    without normalize_ends."""
+    rank_end_variants(isoforms)
     merged = isoforms[0]
+    merged.best_ends = (merged.start, merged.end)
     for iso in isoforms[1:]:
         merged.reads.extend(iso.reads)
     merged.start, merged.end = min(x.start for x in isoforms), max(x.end for x in isoforms)
@@ -685,20 +705,7 @@ def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_
     if normalize_ends and isoforms[0].juncs != ():
         return [merge_end_variants(isoforms)]
 
-
-    # First by read support, then by length
-    # FIXME: the comment above is what was meant; the code multiplies instead, so
-    # this is not a two-level sort and a 1-read 10kb candidate outranks a 10-read
-    # 500bp one.  With max_ends 1 this single comparison sets the reported TSS and
-    # TES for every junction chain.  Sorting by (num_reads, genomic_length), which
-    # is what the comment says, moves exactly one locus in the test suite and makes
-    # it worse: on a single-exon chain it picks the modal end pair, which for
-    # long reads is a 5' truncation cluster, over the pair that reproduces the
-    # annotated 3' end.  So the product is compensating for a real bias in the
-    # single-exon case while having little to recommend it for spliced chains,
-    # where the end window is only the terminal exons.  Probably wants to branch on
-    # isoforms[0].juncs == (), which this function already distinguishes above.
-    isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
+    rank_end_variants(isoforms)
 
     if max_ends > 1:
         # Allow multiple ends per junction chain
@@ -717,7 +724,8 @@ class CandidateIsoforms:
 
     isoforms: dict of isoform_name -> Isoform
     junc_to_names: dict of Junc -> set of isoform_names sharing that junction
-    exons: set of Exon (named exons for SE, all exons for spliced)
+    exons: set of Exon (named exons for SE, all exons for spliced, with the ends
+           the subset check uses)
     """
     def __init__(self):
         self.isoforms = {}
@@ -733,7 +741,8 @@ class CandidateIsoforms:
                 if j not in self.junc_to_names:
                     self.junc_to_names[j] = set()
                 self.junc_to_names[j].add(isoform.name)
-            self.exons.update(set(isoform.exons))
+            # single-exon isoforms are checked against these for being subsets
+            self.exons.update(subset_check_exons(isoform))
 
 
 def _filter_isos_by_redundant_and_support(args, isoforms, candidates, iso_fh):
@@ -924,6 +933,15 @@ def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass):
     return firstpass
 
 
+def subset_check_exons(isoform):
+    """An isoform's exons with the ends of its best supported end variant, which is
+    what the subset check compares, whether or not the variants were merged"""
+    exons = list(isoform.exons)
+    if isoform.best_ends is not None:
+        exons[0] = Exon(isoform.best_ends[0], exons[0].end)
+        exons[-1] = Exon(exons[-1].start, isoform.best_ends[1])
+    return exons
+
 def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_juncs):
     """Filter candidate isoforms by subset/support criteria.
     Returns (firstpass dict, iso_to_unique_bound dict)."""
@@ -939,7 +957,7 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                     firstpass[iso_name] = isoform
                 else:
                     assert isinstance(isoform.exons[0], Exon)  # FIXME tmp debugging
-                    is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, isoform.exons,
+                    is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, subset_check_exons(isoform),
                                                                    iso_name, isoform.num_reads, annots,
                                                                    candidates.junc_to_names, candidates.isoforms,
                                                                    sup_annot_transcript_to_juncs, isoform.strand,
