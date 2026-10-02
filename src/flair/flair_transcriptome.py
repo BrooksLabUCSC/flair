@@ -290,7 +290,11 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
             fusion_breakpoints=args.fusion_breakpoints,
             # reads come from samtools fasta in their sequenced orientation, and
             # transcript sequences are sense, so an antisense read aligns reversed
-            stranded=args.trust_strand)
+            stranded=args.trust_strand,
+            # in the annotation pass, an alignment clipped where the read runs past the
+            # transcript's end would cut the read's corrected ends short; without its
+            # match the read keeps its own ends through junction correction
+            no_extra_clipping=is_annot)
 
 
 ##

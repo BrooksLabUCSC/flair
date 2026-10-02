@@ -52,6 +52,11 @@ def parse_args():
                         'with too much softclipping at the ends (improves accuracy when possible). Provide a file of read to level of clipping when aligned to the genome.')
     parser.add_argument('--output_endpos',
                         help='if desired, specify path to which to output the genomic position of all read ends after transcriptomic alignment')
+    parser.add_argument('--no_extra_clipping', action='store_true',
+                        help='without --stringent, only accept alignments with no soft clipping beyond the '
+                             'read\'s genomic clipping (from --trimmedreads), rather than less than '
+                             '--soft_clipping_buffer.  A read extending past a transcript\'s end is clipped there, '
+                             'and the read ends reported for it stop at the transcript\'s end')
     parser.add_argument('--stranded', action='store_true',
                         help='reads are in their sense orientation, so alignments to the reverse '
                              'complement of a transcript are not used')
@@ -431,7 +436,7 @@ def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_
 def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_detected, exoninfo, thist,
                                      coveredpos, blockstarts, blocksizes, tendpos, info, stringent, check_splice,
                                      fusion_breakpoints, trust_ends, genomicclipping, soft_clipping_buffer,
-                                     query_clipping, matchvals, gtstrand, output_endpos):
+                                     query_clipping, matchvals, gtstrand, output_endpos, no_extra_clipping=False):
     if indel_detected:
         logging.debug(f"{rname} transcript alignment dropped: indel detected: {tname}")
     else:
@@ -443,10 +448,13 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
                                                        trust_ends=trust_ends)
         if splice_divergence is not None:
             # if not stringent, check soft clipping here, otherwise clipping gets incorporated into ends and checked later
-            # not stringent: don't check clipping here
-            # stringent, has genomic clipping info: check soft clipping
-            # stringent, no genomic clipping info: check clipping with extended buffer (double buffer)
-            if (not stringent and genomicclipping is not None and (query_clipping[0] < soft_clipping_buffer and query_clipping[1] < soft_clipping_buffer)) \
+            # not stringent, has genomic clipping info: clipping beyond the genomic
+            #   clipping less than the buffer, or none with no_extra_clipping
+            # not stringent, no genomic clipping info: check clipping with extended buffer (double buffer)
+            # stringent: clipping is checked later, with the ends
+            if (not stringent and genomicclipping is not None
+                and ((query_clipping[0] <= 0 and query_clipping[1] <= 0) if no_extra_clipping
+                     else (query_clipping[0] < soft_clipping_buffer and query_clipping[1] < soft_clipping_buffer))) \
                     or (not stringent and genomicclipping is None and (query_clipping[0] < soft_clipping_buffer * 2 and query_clipping[1] < soft_clipping_buffer * 2)) \
                     or stringent:
                 left_end_info, right_end_info = identify_corrected_ends(exoninfo, thist.startpos, tendpos, gtstrand, tname, output_endpos, thist.tlen, query_clipping)
@@ -461,7 +469,7 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
                     return
                 passing_transcripts.append([splice_divergence, -1 * thist.alignscore, -1 * sum(matchvals), -1 * covered_sj, sum(query_clipping), thist.tlen, tname, left_end_info, right_end_info])
             else:
-                logging.debug(f"{rname} transcript alignment dropped: excess soft clipping ({query_clipping} > {soft_clipping_buffer}): {tname}")
+                logging.debug(f"{rname} transcript alignment dropped: excess soft clipping ({query_clipping}): {tname}")
         else:
             logging.debug(f"{rname} transcript alignment dropped: failed stringent/splice check: {tname}")
 
@@ -469,7 +477,7 @@ def filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_de
 def get_best_transcript(tinfo, info, genomicclipping,
                         *, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
                         trimmedreads, soft_clipping_buffer, output_endpos,
-                        trust_ends, rname):
+                        trust_ends, rname, no_extra_clipping=False):
     """Given all transcript alignments for a single read, apply the filtering
     checks and return the single best assignment (or None if none qualify or
     the top two tie)."""
@@ -504,7 +512,7 @@ def get_best_transcript(tinfo, info, genomicclipping,
         filter_transcript_by_align_issue(passing_transcripts, rname, tname, indel_detected, exoninfo, thist,
                                          coveredpos, blockstarts, blocksizes, tendpos, info, stringent, check_splice,
                                          fusion_breakpoints, trust_ends, genomicclipping, soft_clipping_buffer,
-                                         query_clipping, matchvals, gtstrand, output_endpos)
+                                         query_clipping, matchvals, gtstrand, output_endpos, no_extra_clipping)
 
     if len(passing_transcripts) > 0:
         # if not stringent, report top transcript, even if there's ties (assume just want SJ + ends correction, don't need exactly correct transcript)
@@ -542,7 +550,7 @@ class IsoAln(object):
 def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
               *, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
               trimmedreads, soft_clipping_buffer, output_endpos,
-              trust_ends, stranded=False):
+              trust_ends, stranded=False, no_extra_clipping=False):
     """Iterate the SAM stream, group alignments per read, call get_best_transcript,
     and accumulate {transcript: [(read, gt_start, gt_end), ...]}.  With stranded,
     alignments to the reverse complement of a transcript are dropped."""
@@ -576,7 +584,8 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                                                  trimmedreads=trimmedreads,
                                                  soft_clipping_buffer=soft_clipping_buffer,
                                                  output_endpos=output_endpos,
-                                                 trust_ends=trust_ends, rname=lastread)
+                                                 trust_ends=trust_ends, rname=lastread,
+                                                 no_extra_clipping=no_extra_clipping)
                 if not assignedts:
                     logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
                 else:
@@ -597,7 +606,8 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                                          trimmedreads=trimmedreads,
                                          soft_clipping_buffer=soft_clipping_buffer,
                                          output_endpos=output_endpos,
-                                         trust_ends=trust_ends, rname=lastread)
+                                         trust_ends=trust_ends, rname=lastread,
+                                         no_extra_clipping=no_extra_clipping)
         if not assignedts:
             logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
         else:
@@ -637,7 +647,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     unique_bound=None,
                                     fusion_breakpoints=None, allow_paralogs=False,
                                     allow_UTR_indels=False, trimmedreads=None,
-                                    output_endpos=None, stranded=False):
+                                    output_endpos=None, stranded=False, no_extra_clipping=False):
     """Build count_sam_transcripts.py argv."""
     # FIXNE: default values should be centralized
     cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
@@ -669,6 +679,8 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
         cmd += ['--output_endpos', str(output_endpos)]
     if stranded:
         cmd.append('--stranded')
+    if no_extra_clipping:
+        cmd.append('--no_extra_clipping')
     return cmd
 
 
@@ -679,7 +691,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
                               unique_bound=None,
                               fusion_breakpoints=None, allow_paralogs=False,
                               allow_UTR_indels=False, trimmedreads=None,
-                              output_endpos=None, stranded=False):
+                              output_endpos=None, stranded=False, no_extra_clipping=False):
     """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
     cmd = build_count_sam_transcripts_cmd(
         output=output, sam=sam, threads=threads,
@@ -689,7 +701,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
         unique_bound=unique_bound,
         fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
-        output_endpos=output_endpos, stranded=stranded)
+        output_endpos=output_endpos, stranded=stranded, no_extra_clipping=no_extra_clipping)
     pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]
     pipettor.run(pipeline)
 
@@ -713,5 +725,6 @@ if __name__ == '__main__':
                                     trimmedreads=args.trimmedreads,
                                     soft_clipping_buffer=args.soft_clipping_buffer,
                                     output_endpos=args.output_endpos,
-                                    trust_ends=args.trust_ends, stranded=args.stranded)
+                                    trust_ends=args.trust_ends, stranded=args.stranded,
+                                    no_extra_clipping=args.no_extra_clipping)
     write_output(args, transcript_to_reads)
