@@ -219,7 +219,7 @@ def add_subparser(subparsers):
     parser.add_argument('--normalize_ends', action='store_true',
                         help='normalize transcript ends with similar terminal splice sites. Each spliced '
                              'junction chain gives a single isoform, with the furthest start and end of its '
-                             'end variants, overriding --max_ends')
+                             'reads, overriding --max_ends')
     parser.add_argument('--generate_map', action='store_true',
                         help='generate a txt file of read-isoform assignments')
     parser.set_defaults(entry=transcriptome_cmd)
@@ -687,16 +687,16 @@ def rank_end_variants(isoforms):
     isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
 
 def merge_end_variants(isoforms):
-    """One isoform from a junction chain's end variants, with all their reads, the
-    furthest start and the furthest end, which may come from different variants.
-    The best variant's ends are kept for the subset check, so it is the same as
-    without normalize_ends."""
+    """One isoform from a junction chain's end variants, with all their reads and
+    the furthest start and end of any of the reads, rather than of the variants'
+    representative ends.  The best variant's ends are kept for the subset check, so
+    it is the same as without normalize_ends."""
     rank_end_variants(isoforms)
     merged = isoforms[0]
     merged.best_ends = (merged.start, merged.end)
     for iso in isoforms[1:]:
         merged.reads.extend(iso.reads)
-    merged.start, merged.end = min(x.start for x in isoforms), max(x.end for x in isoforms)
+    merged.start, merged.end = min(merged.starts), max(merged.ends)
     return merged
 
 def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_ends, normalize_ends):
