@@ -65,6 +65,7 @@ def parse_filter(filter_mode):
                                   "or a ratio such as 10X")
     return filter_mode
 
+
 @dataclass(frozen=True)
 class TranscriptomeOpts:
     """Options shared by the functions that make up a transcriptome run.  This is
@@ -479,7 +480,12 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
     superset_support = []
     unique_seq_bound = []
     for novel_iso_id in novel_isos:
-        if novel_iso_id != name:
+        # only a superset with enough support to be reported itself can make this
+        # a subset.  A full-length isoform still removes its truncated subsets
+        # however many reads they have, but one with too few reads to keep can't
+        # take a well-supported isoform with it: its reads, which don't cover the
+        # superset's extra exons, would be left unassigned
+        if novel_iso_id != name and all_isoforms[novel_iso_id].score >= support:
             _check_novel_iso_subset(novel_iso_id, all_isoforms,
                                     juncs, first_exon, last_exon, terminal_exon_is_subset,
                                     superset_support, unique_seq_bound)
