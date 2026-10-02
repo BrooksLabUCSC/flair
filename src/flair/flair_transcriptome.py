@@ -12,6 +12,7 @@ from collections import Counter
 from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
+from flair.annotation_precheck import reads_skipping_annotation_alignment
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.io_utils import make_run_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
@@ -541,18 +542,39 @@ def generate_transcriptome_reference(temp_prefix, annots, chrom, genome, normali
         return generate_transcriptome_reference_guts(normalize_ends, annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
 
 
-def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
+def _write_reads_subset(in_fasta, out_fasta, skip):
+    "write the reads of a FASTA not named in skip; returns the number written"
+    nwritten, keep = 0, False
+    with open(in_fasta) as in_fh, open(out_fasta, 'w') as out_fh:
+        for line in in_fh:
+            if line.startswith('>'):
+                keep = line[1:].split()[0] not in skip
+                nwritten += keep
+            if keep:
+                out_fh.write(line)
+    return nwritten
+
+def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_file):
     # FIXME: refactor
     # good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs = [], set(), {}
+    chrom = region.name
     read_to_transcript = {}
     if not args.no_align_to_annot and len(annots.transcripts) > 0:
+        # reads whose correction aligning to the annotation can't change go straight
+        # to junction correction
+        skip = reads_skipping_annotation_alignment(bam_file, region, annots, genome)
+        annot_reads = temp_prefix + '.annotreads.fasta'
+        nreads = _write_reads_subset(temp_prefix + '.reads.fasta', annot_reads, skip)
+        logging.info(f'aligning {nreads} reads to the annotated transcripts; {len(skip)} need no alignment')
+        if nreads == 0:
+            return read_to_transcript
         # logging.info('generating transcriptome reference')
         # this part generates the fasta file for the annotation
         transcript_to_strand, transcript_to_new_exons = \
             generate_transcriptome_reference(temp_prefix, annots, chrom, genome, normalize_ends=args.normalize_ends)
         # FIXME: make a TSV
         clipping_file = temp_prefix + '.reads.genomicclipping.txt'
-        transcriptome_align_and_count(args, temp_prefix + '.reads.fasta',
+        transcriptome_align_and_count(args, annot_reads,
                                       temp_prefix + '.annotated_transcripts.fa',
                                       temp_prefix + '.annotated_transcripts.bed',
                                       temp_prefix + '.matchannot.counts.txt',
@@ -1448,7 +1470,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
         # logging.info('identifying good match to annot')
         if not args.no_align_to_annot:
             logging.info('aligning to transcriptome reference')
-        read_to_annot_transcript = identify_good_match_to_annot(args, partition.file_prefix, region.name, annots, genome)
+        read_to_annot_transcript = identify_good_match_to_annot(args, partition.file_prefix, region, annots, genome, bam_file)
 
         logging.info('correcting and grouping reads, filtering isoforms')
 
