@@ -6,6 +6,7 @@ flair_transcriptome and flair_spliceevents for read correction, gene
 assignment, and isoform filtering.
 """
 
+from bisect import bisect_left
 from flair.isoform_data import Exon, exons_to_juncs
 
 
@@ -62,6 +63,22 @@ class AnnotData(object):
 
         self.start_codon_count = 0
 
+        # annotated transcripts' genomic start and end, for keeping subset isoforms
+        # that match them: strand -> sorted list of (start, end), only for
+        # transcripts whose tags don't say an end wasn't found
+        self.transcript_ends = {'+': [], '-': []}
+
+    def has_transcript_ends(self, strand, start, end, window):
+        """does an annotated transcript on strand, with both ends confirmed, start
+        and end within window of start and end"""
+        ends = self.transcript_ends[strand]
+        i = bisect_left(ends, (start - window,))
+        while i < len(ends) and ends[i][0] <= start + window:
+            if abs(ends[i][1] - end) <= window:
+                return True
+            i += 1
+        return False
+
 
 def annot_data_from_gtf(gtf_data, region):
     """Build AnnotData for a region from a pre-partitioned GtfData object."""
@@ -79,6 +96,7 @@ def annot_data_from_gtf(gtf_data, region):
     # binary search over these needs them sorted
     for se_strand in ('+', '-'):
         annots.all_annot_SE[se_strand] = sorted(annots.all_annot_SE[se_strand])
+        annots.transcript_ends[se_strand].sort()
     return annots
 
 def _process_transcript(annots, region, region_map, trans):
@@ -120,6 +138,19 @@ def _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand
                 annots.splice_site_to_genes[site] = set()
             annots.splice_site_to_genes[site].add(gene_id)
 
+
+# GENCODE tags for a transcript end that couldn't be confirmed, the 5' (start)
+# and 3' (end) of the mRNA
+_MRNA_START_NOT_FOUND_TAG = 'mRNA_start_NF'
+_MRNA_END_NOT_FOUND_TAG = 'mRNA_end_NF'
+
+
+def _save_transcript_ends(annots, strand, t_start, t_end, transcript_tags):
+    """record the transcript's ends, unless its tags say either wasn't found;
+    a subset isoform is only kept for matching both ends of one transcript"""
+    if _MRNA_START_NOT_FOUND_TAG not in transcript_tags and _MRNA_END_NOT_FOUND_TAG not in transcript_tags:
+        annots.transcript_ends[strand].append((t_start, t_end))
+
 def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, t_end,
                            strand, t_exons, transcript_tags, start_codon):
     # region is a SeqRegion object
@@ -130,6 +161,7 @@ def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, 
     if 'NMD_exception' in transcript_tags:
         annots.transcript_to_nmd_except[transcript_id] = True
 
+    _save_transcript_ends(annots, strand, t_start, t_end, transcript_tags)
     annots.transcript_to_exons[(transcript_id, gene_id)] = tuple(t_exons)
     juncs = exons_to_juncs(t_exons)
     annots.transcripts.append((transcript_id, gene_id, strand))

@@ -470,7 +470,7 @@ def _check_novel_iso_subset(novel_iso_id, all_isoforms,
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
-                       sup_annot_transcript_to_juncs, strand):
+                       sup_annot_transcript_to_juncs, strand, end_window=0):
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
     novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
@@ -493,6 +493,10 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
             unique_seq_bound[i] = f'{unique_seq_bound[i][0]}_{unique_seq_bound[i][1]}'
 
     if sum(terminal_exon_is_subset) < 2:  # both first and last exon have to overlap
+        return True, unique_seq_bound
+    elif annots.has_transcript_ends(strand, exons[0].start, exons[-1].end, end_window):
+        # a subset whose ends match an annotated transcript's confirmed ends is a
+        # known isoform, not a fragment of a longer one
         return True, unique_seq_bound
     else:
         ratio = subset_support_ratio(filter_type)
@@ -918,7 +922,8 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                     is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, isoform.exons,
                                                                    iso_name, isoform.num_reads, annots,
                                                                    candidates.junc_to_names, candidates.isoforms,
-                                                                   sup_annot_transcript_to_juncs, isoform.strand)
+                                                                   sup_annot_transcript_to_juncs, isoform.strand,
+                                                                   end_window=args.end_window)
                     if not is_not_subset:
                         logging.debug(f"isoform dropped: subset of another isoform: {iso_name} ({isoform.num_reads} reads)")
                     else:
