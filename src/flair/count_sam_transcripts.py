@@ -229,11 +229,10 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
                 all_ss_res[i] = 0
             else:
                 all_ss_res[i] = 1
-            # positions outside the alignment aren't divergence, just not covered.
-            # process_cigar pads coveredpos with tstart - 1 entries before the first
-            # aligned position, and it ends at tend - 1
-            allerrors.append(_divergence(coveredpos[max(tstart - 1, currpos - SPLICE_SITE_RANKING_FLANK):
-                                                    min(tend - 1, currpos + SPLICE_SITE_RANKING_FLANK)]))
+            # positions outside the alignment, [tstart, tend), aren't divergence, just
+            # not covered
+            allerrors.append(_divergence(coveredpos[max(tstart, currpos - SPLICE_SITE_RANKING_FLANK):
+                                                    min(tend, currpos + SPLICE_SITE_RANKING_FLANK)]))
     # Does cover at least one SJ, does not fail to match any junctions it covers
     if 0 not in all_ss_res and 1 in all_ss_res:
         return sum(allerrors)
@@ -278,7 +277,8 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
     record alignment block positions, and flag large indels outside the
     terminal exons."""
     matchpos = 0
-    coveredpos = [0] * (startpos - 1)
+    # indexed by transcript position; startpos is 0-based (pysam reference_start)
+    coveredpos = [0] * startpos
     query_clipping = [0, 0]
     tendpos = startpos
     blockstarts, blocksizes = [], []
