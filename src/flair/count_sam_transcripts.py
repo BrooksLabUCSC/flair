@@ -88,8 +88,10 @@ SPLICE_SITE_RANKING_FLANK = 25
 TRUST_ENDS_WINDOW = 50
 LARGE_INDEL_TOLERANCE = 25
 # with allow_UTR_indels, a large indel in a terminal exon is only tolerated at least
-# this far from the exon's splice site
-TERMINAL_INDEL_SPLICE_SITE_DIST = 10
+# this far from the exon's splice site.  A read retaining the intron next to a
+# terminal exon aligns to the spliced transcript with the intron as one large
+# insertion, which minimap2 may place some way into the terminal exon
+TERMINAL_INDEL_SPLICE_SITE_DIST = 50
 
 @dataclass
 class IsoformInfo:
