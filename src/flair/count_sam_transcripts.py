@@ -80,6 +80,11 @@ def check_args(args):
 SPLICE_SITE_FLANK = 5
 # mismatches, deleted bases and inserted bases allowed in a splice site's window
 MAX_SPLICE_SITE_MISTAKES = 2
+# bases on each side of a splice site in which an alignment's mismatches and indels
+# rank it against others.  Wider than SPLICE_SITE_FLANK: aligned to a transcript
+# whose splice site is a few bases off the read's, the read gets an indel the size
+# of the shift, which minimap2 may place well away from the splice site
+SPLICE_SITE_RANKING_FLANK = 25
 TRUST_ENDS_WINDOW = 50
 LARGE_INDEL_TOLERANCE = 25
 # with allow_UTR_indels, a large indel in a terminal exon is only tolerated at least
@@ -191,13 +196,22 @@ def check_stringent(coveredpos, exonpos, tlen, blockstarts, blocksizes, trust_en
         return check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends, unique_bound_left, unique_bound_right)
 
 
+def _divergence(ssvals):
+    "inserted bases plus unmatched positions in a window of coveredpos"
+    totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
+    totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
+    return totinsert + (len(ssvals) - totmatch)
+
+
 def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
     """The read's total divergence from the transcript near the splice sites it
-    covers: inserted bases plus unmatched positions in the window around each
-    site, summed over the sites.  None if any covered site has more than
-    MAX_SPLICE_SITE_MISTAKES, or the read covers no splice site.  The total ranks
-    alignments, so a transcript whose splice sites match the read exactly is
-    preferred over a near-identical one whose sites are a few bases off."""
+    covers, summed over the sites.  None if any covered site has more than
+    MAX_SPLICE_SITE_MISTAKES in its SPLICE_SITE_FLANK window, or the read covers no
+    splice site.  The total, over the wider SPLICE_SITE_RANKING_FLANK window within
+    the aligned part of the read, ranks alignments, so a transcript whose splice
+    sites match the read exactly is preferred over a near-identical one whose sites
+    are a few bases off, wherever the aligner puts the indel that makes up the
+    difference."""
     currpos = 0
     allerrors = []
     all_ss_res = ['notcov' for x in range(len(exonpos) - 1)]
@@ -209,14 +223,15 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
             # first exon shorter than SPLICE_SITE_FLANK the slice came back empty, which
             # scored zero mistakes and passed the junction
             ssvals = coveredpos[max(0, currpos - SPLICE_SITE_FLANK):currpos + SPLICE_SITE_FLANK]
-            totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
-            totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
-            if totinsert + (len(ssvals) - totmatch) > MAX_SPLICE_SITE_MISTAKES:
-                # return False
+            if _divergence(ssvals) > MAX_SPLICE_SITE_MISTAKES:
                 all_ss_res[i] = 0
             else:
                 all_ss_res[i] = 1
-            allerrors.append(totinsert + (len(ssvals) - totmatch))
+            # positions outside the alignment aren't divergence, just not covered.
+            # process_cigar pads coveredpos with tstart - 1 entries before the first
+            # aligned position, and it ends at tend - 1
+            allerrors.append(_divergence(coveredpos[max(tstart - 1, currpos - SPLICE_SITE_RANKING_FLANK):
+                                                    min(tend - 1, currpos + SPLICE_SITE_RANKING_FLANK)]))
     # Does cover at least one SJ, does not fail to match any junctions it covers
     if 0 not in all_ss_res and 1 in all_ss_res:
         return sum(allerrors)
