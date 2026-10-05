@@ -29,7 +29,14 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
     """
     readrec = ReadRec.from_read(read, genome=genome)
 
-    # annotated spliced: correct junctions and strand from annotation
+    # annotated spliced: correct junctions and strand from annotation.  A read spliced
+    # inside an annotated exon, as at an intron in a 3' UTR, aligns to the transcript
+    # with that intron as a deletion, which allow_UTR_indels tolerates in a terminal
+    # exon, and the match gives it fewer junctions than its alignment has.  Such a
+    # read is corrected from intron support, keeping a real intron, and only failing
+    # that, from the annotation, the junction more likely an alignment artifact.  A
+    # short exon the genome alignment missed gives the match more junctions, which
+    # is what it corrects
     if read.query_name in read_to_annot_transcript:
         tid, startindex, startdist, endindex, enddist = read_to_annot_transcript[read.query_name]
         # the composite id heuristic, shared with bed_to_gtf and the rest, rather than
@@ -42,7 +49,12 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
             newstart = annot_juncs[startindex][0] - startdist
             newend = annot_juncs[endindex][1] + enddist
             juncs = tuple([Junc(x[0], x[1]) for x in annot_juncs[startindex:endindex + 1]])
-            readrec.correct_from_annotation(newstart, newend, annots.gene_to_strand[gene], juncs)
+            from_introns = (len(juncs) < len(readrec.juncs)
+                            and junction_corrector.correct_readrec(readrec, trust_strand, genome if check_motifs else None))
+            if from_introns:
+                logging.debug(f"annotation match would drop read junctions, corrected from intron support: {readrec.name}")
+            else:
+                readrec.correct_from_annotation(newstart, newend, annots.gene_to_strand[gene], juncs)
             add_corrected_read_to_groups(readrec, sj_to_ends)
             return
 
