@@ -493,15 +493,25 @@ def _check_novel_iso_subset(novel_iso_id, all_isoforms,
     _check_junction_subset(juncs, first_exon, last_exon, otheriso.score, otheriso.juncs, otheriso.exons,
                            terminal_exon_is_subset, superset_support, unique_seq_bound)
 
+def _matches_annotated_ends(annots, strand, start, end, truncated, end_window):
+    """Does a subset isoform end, within end_window, where an annotated transcript
+    has a confirmed end, on each side where it is truncated: one transcript's two
+    ends when it is truncated on both sides, otherwise any transcript's end on the
+    one side.  A side sharing a superset's terminal exon needs no match."""
+    if truncated[0] and truncated[1]:
+        return annots.has_transcript_ends(strand, start, end, end_window)
+    side, pos = (0, start) if truncated[0] else (1, end)
+    return annots.has_transcript_end(strand, side, pos, end_window)
+
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
                        sup_annot_transcript_to_juncs, strand, end_window=0):
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
     novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
-    terminal_exon_is_subset = [0, 0]  # first exon is a subset, last exon is a subset
     first_exon, last_exon = exons[0], exons[-1]
-    superset_support = []
+    superset_support = []  # of the isoforms this is a subset of
+    truncated = [False, False]  # its first or last exon is inside a superset's internal exon
     unique_seq_bound = []
     for novel_iso_id in novel_isos:
         # only a superset with enough support to be reported itself can make this
@@ -510,16 +520,29 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
         # take a well-supported isoform with it: its reads, which don't cover the
         # superset's extra exons, would be left unassigned
         if novel_iso_id != name and all_isoforms[novel_iso_id].score >= support:
+            # this is a subset only of an isoform containing both its first and its
+            # last exon: with the two from different isoforms, no one isoform
+            # contains it.  Unique sequence boundaries come from any isoform with its
+            # junctions, whose truncated reads could otherwise look like this one's
+            terminal_exon_is_subset = [0, 0]  # first exon is a subset, last exon is a subset
             _check_novel_iso_subset(novel_iso_id, all_isoforms,
                                     juncs, first_exon, last_exon, terminal_exon_is_subset,
-                                    superset_support, unique_seq_bound)
+                                    [], unique_seq_bound)
+            if sum(terminal_exon_is_subset) == 2:
+                otheriso = all_isoforms[novel_iso_id]
+                superset_support.append(otheriso.score)
+                # its junctions are a contiguous run of the superset's: a side short
+                # of the superset's first or last junction has an internal exon there
+                first = otheriso.juncs.index(juncs[0])
+                truncated[0] |= first > 0
+                truncated[1] |= first + len(juncs) < len(otheriso.juncs)
     # the transcript's ends aren't known yet, so these are all the boundaries,
     # for unique_bounds_past to choose from once they are
     unique_seq_bound = sorted(set(unique_seq_bound))
 
-    if sum(terminal_exon_is_subset) < 2:  # both first and last exon have to overlap
+    if len(superset_support) == 0:
         return True, unique_seq_bound
-    elif annots.has_transcript_ends(strand, exons[0].start, exons[-1].end, end_window):
+    elif _matches_annotated_ends(annots, strand, exons[0].start, exons[-1].end, truncated, end_window):
         # a subset whose ends match an annotated transcript's confirmed ends is a
         # known isoform, not a fragment of a longer one.  It gets no unique sequence
         # boundaries: its ends are within TERMINAL_EXON_BOUNDARY_TOLERANCE of the

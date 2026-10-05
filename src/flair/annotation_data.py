@@ -67,6 +67,10 @@ class AnnotData(object):
         # that match them: strand -> sorted list of (start, end), only for
         # transcripts whose tags don't say an end wasn't found
         self.transcript_ends = {'+': [], '-': []}
+        # each side's confirmed ends on its own, for a subset isoform truncated on
+        # one side: strand -> sorted list of genomic starts, and of ends
+        self.confirmed_starts = {'+': [], '-': []}
+        self.confirmed_ends = {'+': [], '-': []}
 
     def has_transcript_ends(self, strand, start, end, window):
         """does an annotated transcript on strand, with both ends confirmed, start
@@ -78,6 +82,13 @@ class AnnotData(object):
                 return True
             i += 1
         return False
+
+    def has_transcript_end(self, strand, side, pos, window):
+        """does an annotated transcript on strand have a confirmed genomic start
+        (side 0) or end (side 1) within window of pos"""
+        positions = (self.confirmed_starts if side == 0 else self.confirmed_ends)[strand]
+        i = bisect_left(positions, pos - window)
+        return i < len(positions) and positions[i] <= pos + window
 
 
 def annot_data_from_gtf(gtf_data, region):
@@ -97,6 +108,8 @@ def annot_data_from_gtf(gtf_data, region):
     for se_strand in ('+', '-'):
         annots.all_annot_SE[se_strand] = sorted(annots.all_annot_SE[se_strand])
         annots.transcript_ends[se_strand].sort()
+        annots.confirmed_starts[se_strand].sort()
+        annots.confirmed_ends[se_strand].sort()
     return annots
 
 def _process_transcript(annots, region, region_map, trans):
@@ -148,8 +161,15 @@ _MRNA_END_NOT_FOUND_TAG = 'mRNA_end_NF'
 def _save_transcript_ends(annots, strand, t_start, t_end, transcript_tags):
     """record the transcript's ends, unless its tags say either wasn't found;
     a subset isoform is only kept for matching both ends of one transcript"""
-    if _MRNA_START_NOT_FOUND_TAG not in transcript_tags and _MRNA_END_NOT_FOUND_TAG not in transcript_tags:
+    five_prime_found = _MRNA_START_NOT_FOUND_TAG not in transcript_tags
+    three_prime_found = _MRNA_END_NOT_FOUND_TAG not in transcript_tags
+    if five_prime_found and three_prime_found:
         annots.transcript_ends[strand].append((t_start, t_end))
+    # the genomic start is the 5' end on +, the 3' end on -
+    if (five_prime_found if strand == '+' else three_prime_found):
+        annots.confirmed_starts[strand].append(t_start)
+    if (three_prime_found if strand == '+' else five_prime_found):
+        annots.confirmed_ends[strand].append(t_end)
 
 def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, t_end,
                            strand, t_exons, transcript_tags, start_codon):
