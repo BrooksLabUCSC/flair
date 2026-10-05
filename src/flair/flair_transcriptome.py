@@ -330,8 +330,11 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
             stranded=args.trust_strand,
             # in the annotation pass, an alignment clipped where the read runs past the
             # transcript's end would cut the read's corrected ends short; without its
-            # match the read keeps its own ends through junction correction
-            no_extra_clipping=is_annot)
+            # match the read keeps its own ends through junction correction.  With
+            # normalize_ends, the final realignment is to padded transcripts, and an
+            # alignment clipped past the read's genomic clipping is a read whose
+            # sequence the transcript doesn't have
+            no_extra_clipping=is_annot or args.normalize_ends)
 
 
 ##

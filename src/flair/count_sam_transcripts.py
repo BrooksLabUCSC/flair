@@ -53,10 +53,10 @@ def parse_args():
     parser.add_argument('--output_endpos',
                         help='if desired, specify path to which to output the genomic position of all read ends after transcriptomic alignment')
     parser.add_argument('--no_extra_clipping', action='store_true',
-                        help='without --stringent, only accept alignments with no soft clipping beyond the '
-                             'read\'s genomic clipping (from --trimmedreads), rather than less than '
-                             '--soft_clipping_buffer.  A read extending past a transcript\'s end is clipped there, '
-                             'and the read ends reported for it stop at the transcript\'s end')
+                        help='only accept alignments with no soft clipping beyond the read\'s genomic clipping '
+                             '(from --trimmedreads), rather than less than --soft_clipping_buffer.  A read extending '
+                             'past a transcript\'s end is clipped there, and the read ends reported for it would '
+                             'stop at the transcript\'s end')
     parser.add_argument('--stranded', action='store_true',
                         help='reads are in their sense orientation, so alignments to the reverse '
                              'complement of a transcript are not used')
@@ -427,7 +427,13 @@ def _end_dist(end_info):
     return inf if end_info[2] is None else end_info[2]
 
 
-def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname):
+def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname,
+                                     no_extra_clipping=False):
+    if no_extra_clipping and genomicclipping is not None:
+        passing_transcripts = [x for x in passing_transcripts if x[-2][3] <= 0 and x[-1][3] <= 0]
+        if len(passing_transcripts) == 0:
+            logging.debug(f"{rname} read dropped: soft-clipping beyond the genomic clipping in all transcript alignments")
+            return None
     # check that any of the alignments have low clipping
     # if there's no genomic clipping info, skip this first filter (will filter for minimum clipping later)
     if genomicclipping is None or any([x[-2][3] < soft_clipping_buffer and x[-1][3] < soft_clipping_buffer for x in passing_transcripts]):
@@ -551,7 +557,8 @@ def get_best_transcript(tinfo, info, genomicclipping,
                 passing_transcripts.sort(key=lambda x: (x[1], x[2], x[3], x[4], x[5], x[6]))
             return [passing_transcripts[0][-3:], ]
         else:
-            return return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname)
+            return return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_clipping_buffer, rname,
+                                                    no_extra_clipping=no_extra_clipping)
     else:
         logging.debug(f"{rname} read dropped: no transcripts passed filters")
         return None

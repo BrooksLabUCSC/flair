@@ -36,3 +36,19 @@ def test_indel_at_the_splice_site_fails():
 def test_unaligned_positions_are_not_divergence():
     # a read starting 10 bases before the splice site
     assert check_splicesites([0] * 90 + [1] * 110, EXONS, 90, 200, 't') == 0
+
+
+def _passing(tname, left_clipping, right_clipping):
+    # an entry of get_best_transcript's passing transcripts: ranking keys, then the name
+    # and each end's (intron index, distance to it, distance to the transcript end, clipping)
+    return [0, -1000, -900, -2, left_clipping + right_clipping, 1500, tname,
+            (0, 100, 5, left_clipping), (1, 100, 5, right_clipping)]
+
+
+def test_no_extra_clipping_rejects_alignments_clipped_at_a_transcript_end():
+    from flair.count_sam_transcripts import return_best_transcript_stringent
+    clipped = [_passing('t1', 0, 30)]
+    assert return_best_transcript_stringent(clipped, [0, 0], 50, 'r')[0][0] == 't1'
+    assert return_best_transcript_stringent(clipped, [0, 0], 50, 'r', no_extra_clipping=True) is None
+    both = [_passing('t1', 0, 30), _passing('t2', 0, 0)]
+    assert return_best_transcript_stringent(both, [0, 0], 50, 'r', no_extra_clipping=True)[0][0] == 't2'
