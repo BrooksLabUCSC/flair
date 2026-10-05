@@ -333,7 +333,8 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
             # match the read keeps its own ends through junction correction.  With
             # normalize_ends, the final realignment is to padded transcripts, and an
             # alignment clipped past the read's genomic clipping is a read whose
-            # sequence the transcript doesn't have
+            # sequence the transcript doesn't have; it also gives the reported ends,
+            # which would stop at the transcript's end
             no_extra_clipping=is_annot or args.normalize_ends)
 
 
@@ -1529,6 +1530,113 @@ def assign_single_exon_reads(reads, firstpass, ends_fh, map_fh, *, trust_ends, t
         if map_fh is not None and len(reads) > 0:
             map_fh.write(isoform.name + '\t' + ','.join(read.name for read in reads) + '\n')
 
+def _nearest_end_variant(read, variants):
+    return min(variants, key=lambda v: abs(read.start - v.start) + abs(read.end - v.end))
+
+def _final_end_variants(isoform, reads, *, max_ends, end_window, sjc_support, se_support):
+    """The isoforms, with their reads, that a spliced first-pass isoform's assigned
+    reads give: one at the densest read ends, or with max_ends above 1, its kept end
+    groups, each read going to the one whose ends are nearest its own"""
+    if max_ends > 1:
+        variants = filter_ends_by_redundant_and_support(collapse_end_groups(end_window, Isoform.regroup(isoform, newreads=reads)),
+                                                        sjc_support, se_support, max_ends)
+        if len(variants) > 1:
+            variant_reads = {id(v): [] for v in variants}
+            for read in reads:
+                variant_reads[id(_nearest_end_variant(read, variants))].append(read)
+            return [(Isoform.regroup(isoform, v.start, v.end, variant_reads[id(v)]), variant_reads[id(v)]) for v in variants]
+    start = densest_end([read.start for read in reads], BEST_END_WINDOW, min)
+    end = densest_end([read.end for read in reads], BEST_END_WINDOW, max)
+    return [(Isoform.regroup(isoform, start, end, reads), reads)]
+
+class _RealignedRead:
+    "a read's genomic ends from its alignment in the final realignment"
+    __slots__ = ('name', 'start', 'end')
+
+    def __init__(self, name, start, end):
+        self.name, self.start, self.end = name, start, end
+
+def _realigned_read(isoform, fields):
+    """A read's genomic ends from its alignment to a spliced isoform in the final
+    realignment, from count_sam_transcripts' ends line for it, which gives, in
+    genomic order, how far it aligns before the isoform's first junction and past
+    its last.  The padding of the isoform's terminal exons is genome sequence, so
+    these are the read's ends on the genome.  None if the line has no distances."""
+    left_dist, right_dist = fields[3], fields[6]
+    if left_dist == 'None' or right_dist == 'None':
+        return None
+    return _RealignedRead(fields[0], isoform.juncs[0].start - int(left_dist), isoform.juncs[-1].end + int(right_dist))
+
+def _gene_spliced_reads(firstpass, lines_by_iso):
+    """each gene's spliced reads, frac_support's denominator, which splitting a
+    junction chain between end variants doesn't change"""
+    totals = {}
+    for isoform in firstpass.values():
+        if isoform.juncs != ():
+            totals[isoform.gene_id] = totals.get(isoform.gene_id, 0) + len(lines_by_iso.get(isoform.name, []))
+    return totals
+
+def _rewrite_ends_and_map(ends_lines, ends_path, map_path):
+    "write the ends lines, and from them the read map"
+    with open(ends_path, 'w') as fh:
+        for fields in ends_lines:
+            fh.write('\t'.join(fields) + '\n')
+    if map_path is not None:
+        iso_reads = {}
+        for fields in ends_lines:
+            iso_reads.setdefault(fields[1], []).append(fields[0])
+        with open(map_path, 'w') as fh:
+            for name, names in iso_reads.items():
+                fh.write(name + '\t' + ','.join(names) + '\n')
+
+def _best_supported_variant(variants):
+    "the end variant with the most reads, ties going to the longer"
+    return max(variants, key=lambda v: (len(v[1]), v[0].end - v[0].start))
+
+def assign_final_ends(firstpass, ends_path, map_path, *, max_ends, end_window, sjc_support, se_support, frac_support):
+    """With --normalize_ends, a spliced isoform's reported ends come from the reads
+    assigned to it in the final realignment, each read's ends taken from its
+    alignment there, its normalized and padded transcript being only what reads
+    align to.  With max_ends above 1, a junction chain whose reads pass
+    sjc_support and frac_support, though none of its end variants' do, still has
+    its best supported variant reported, with its own reads.  Rewrites the ends
+    and read map files for the isoforms this gives, and returns them by name."""
+    lines_by_iso = {}
+    for line in open(ends_path):
+        fields = line.rstrip('\n').split('\t')
+        lines_by_iso.setdefault(fields[1], []).append(fields)
+    gene_spliced_reads = _gene_spliced_reads(firstpass, lines_by_iso)
+
+    def passes_support(isoform, num_reads):
+        total = gene_spliced_reads.get(isoform.gene_id, 0)
+        return num_reads >= sjc_support and total > 0 and num_reads / total >= frac_support
+
+    final, out_lines = {}, []
+    for isoform in firstpass.values():
+        lines = lines_by_iso.get(isoform.name, [])
+        reads = [] if isoform.juncs == () else [r for r in (_realigned_read(isoform, f) for f in lines) if r is not None]
+        if len(reads) == 0:
+            final[isoform.name] = isoform
+            out_lines.extend(lines)
+            continue
+        line_by_read = {f[0]: f for f in lines}
+        variants = _final_end_variants(isoform, reads, max_ends=max_ends, end_window=end_window,
+                                       sjc_support=sjc_support, se_support=se_support)
+        # stringent assignments always have both distances; any line without them
+        # goes to the best supported variant
+        others = {f[0] for f in lines} - {read.name for read in reads}
+        if len(variants) > 1 and passes_support(isoform, len(lines)) and \
+                not any(passes_support(isoform, len(variant_reads) + (len(others) if i == 0 else 0))
+                        for i, (variant, variant_reads) in enumerate(variants)):
+            _best_supported_variant(variants)[0].report_unsupported = True
+        for i, (variant, variant_reads) in enumerate(variants):
+            variant.unpadded_ends = (variant.start, variant.end)
+            final[variant.name] = variant
+            names = [read.name for read in variant_reads] + (sorted(others) if i == 0 else [])
+            out_lines.extend([f[0], variant.name] + f[2:] for f in (line_by_read[n] for n in names))
+    _rewrite_ends_and_map(out_lines, ends_path, map_path)
+    return final
+
 def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends, no_stringent):
     iso_to_counts = {}
     gene_to_tot = {}
@@ -1584,7 +1692,8 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
             # spliced isos checked against spliced total, single exon checked against full-length total
             isoform = final_transcript_objs[tname]
             passes_support, my_frac_support = _iso_passes_support_filter(args, tname, isoform.gene_id, len(isoform.exons), iso_to_counts, gene_to_tot)
-            if passes_support:
+            # a junction chain's best supported end variant, its chain passing support
+            if passes_support or (isoform.report_unsupported and tname in iso_to_counts):
                 if args.normalize_ends and len(isoform.exons) > 1:
                     # removing additional length from ends
                     # not entirely sure why I need to reset the exons outside of the isoform object, but it doesn't work otherwise
@@ -1707,10 +1816,17 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             logging.info('no firstpass isoforms found')
             generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
 
-        # FIXME this is messy, shouldn't have to reorganize like this
-        final_transcript_objs = {}
-        for og_key in firstpass:
-            final_transcript_objs[firstpass[og_key].name] = firstpass[og_key]
+        if args.normalize_ends:
+            final_transcript_objs = assign_final_ends(firstpass, partition.output_path('isoform.ends.tsv'),
+                                                      partition.output_path('countsam.read.map.txt') if args.generate_map else None,
+                                                      max_ends=args.max_ends, end_window=args.end_window,
+                                                      sjc_support=args.sjc_support, se_support=args.single_exon_support,
+                                                      frac_support=args.frac_support)
+        else:
+            # FIXME this is messy, shouldn't have to reorganize like this
+            final_transcript_objs = {}
+            for og_key in firstpass:
+                final_transcript_objs[firstpass[og_key].name] = firstpass[og_key]
 
         iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.trust_ends, args.no_stringent)
         write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, args.generate_map)

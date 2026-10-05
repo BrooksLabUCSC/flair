@@ -403,6 +403,9 @@ class Isoform:
         # (start, end) best supported by the reads, which the subset check uses,
         # set only when the isoform's ends are its furthest read ends
         self.best_ends = None
+        # reported though it fails the support filters, as the best supported end
+        # variant of a junction chain that passes them
+        self.report_unsupported = False
         self.end5confidence = None
         self.end3confidence = None
 
