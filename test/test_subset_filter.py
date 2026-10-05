@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from flair.isoform_data import Isoform, Junc
+from flair.isoform_data import Exon, Isoform, Junc
 from flair.flair_transcriptome import filter_spliced_iso
 from flair.annotation_data import AnnotData, _save_transcript_ends
 
@@ -24,7 +24,7 @@ def _is_kept(others, annots=ANNOTS):
         for j in iso.juncs:
             junc_to_names.setdefault(j, set()).add(iso.name)
     kept, _ = filter_spliced_iso('nosubset', 1, cand.juncs, cand.exons, 'cand', cand.num_reads, annots,
-                                 junc_to_names, isos, {}, '+', end_window=100)
+                                 junc_to_names, isos, {}, '+', end_window=100, ss_window=10)
     return kept
 
 
@@ -43,27 +43,40 @@ def test_not_a_subset_of_two_isoforms_each_containing_one_side():
 
 
 def _annots(*transcripts):
-    "annotation with transcripts as (start, end, tags) on +"
+    "annotation with + strand transcripts given as (exons, tags)"
     annots = AnnotData()
-    for start, end, tags in transcripts:
-        _save_transcript_ends(annots, '+', start, end, tags)
-    for side in (annots.transcript_ends, annots.confirmed_starts, annots.confirmed_ends):
-        side['+'].sort()
+    for exons, tags in transcripts:
+        exons = [Exon(s, e) for s, e in exons]
+        _save_transcript_ends(annots, '+', exons[0].start, exons[-1].end, tags, exons)
+    annots.transcript_ends['+'].sort()
+    for ends in annots.confirmed_terminal_ends.values():
+        ends.sort()
     annots.junc_to_gene = {}
     return annots
 
 
-def test_truncated_on_one_side_needs_an_annotated_end_only_there():
-    # shares the superset's first exon, so truncated only at its last exon (1700)
+def test_truncated_on_one_side_needs_an_annotated_end_there_with_the_same_exon():
+    # shares the superset's first exon, so truncated only at its last exon (1500-1700)
     superset = _iso('sup', JUNCS + (Junc(1750, 1800),), 1000, 1900, 50)
     assert not _is_kept([superset], _annots())
-    assert _is_kept([superset], _annots((500, 1690, [])))  # an annotated end at 1690
-    assert not _is_kept([superset], _annots((990, 3000, [])))  # only an annotated start matches
+    # an annotated last exon 1500-1690
+    assert _is_kept([superset], _annots(([(500, 1200), (1500, 1690)], ['basic'])))
+    # a non-basic transcript's end, as a retained_intron fragment's, isn't enough
+    assert not _is_kept([superset], _annots(([(500, 1200), (1500, 1690)], [])))
+    # but one non-basic transcript matching both ends still is
+    assert _is_kept([superset], _annots(([(990, 1200), (1500, 1690)], [])))
+    # a last exon starting within ss_window of the subset's, 1506, and not beyond it
+    assert _is_kept([superset], _annots(([(500, 1200), (1506, 1690)], ['basic'])))
+    assert not _is_kept([superset], _annots(([(500, 1200), (1520, 1690)], ['basic'])))
+    # an annotated end at 1690, but of a last exon starting elsewhere, as a fragment's
+    assert not _is_kept([superset], _annots(([(500, 1450), (1600, 1690)], ['basic'])))
+    # only an annotated start matches
+    assert not _is_kept([superset], _annots(([(990, 1200), (1500, 3000)], [])))
     # an end that wasn't found doesn't count
-    assert not _is_kept([superset], _annots((500, 1690, ['mRNA_end_NF'])))
+    assert not _is_kept([superset], _annots(([(500, 1200), (1500, 1690)], ['basic', 'mRNA_end_NF'])))
 
 
 def test_truncated_on_both_sides_needs_one_transcripts_two_ends():
     both = _iso('both', (Junc(900, 950),) + JUNCS + (Junc(1750, 1800),), 800, 1900, 50)
-    assert not _is_kept([both], _annots((990, 3000, []), (500, 1690, [])))
-    assert _is_kept([both], _annots((990, 1690, [])))
+    assert not _is_kept([both], _annots(([(990, 1200), (1500, 3000)], []), ([(500, 1200), (1500, 1690)], [])))
+    assert _is_kept([both], _annots(([(990, 1200), (1500, 1690)], [])))

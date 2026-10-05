@@ -493,19 +493,23 @@ def _check_novel_iso_subset(novel_iso_id, all_isoforms,
     _check_junction_subset(juncs, first_exon, last_exon, otheriso.score, otheriso.juncs, otheriso.exons,
                            terminal_exon_is_subset, superset_support, unique_seq_bound)
 
-def _matches_annotated_ends(annots, strand, start, end, truncated, end_window):
+def _matches_annotated_ends(annots, strand, exons, truncated, end_window, ss_window):
     """Does a subset isoform end, within end_window, where an annotated transcript
-    has a confirmed end, on each side where it is truncated: one transcript's two
-    ends when it is truncated on both sides, otherwise any transcript's end on the
-    one side.  A side sharing a superset's terminal exon needs no match."""
-    if truncated[0] and truncated[1]:
-        return annots.has_transcript_ends(strand, start, end, end_window)
-    side, pos = (0, start) if truncated[0] else (1, end)
-    return annots.has_transcript_end(strand, side, pos, end_window)
+    has confirmed ends.  Truncated on one side, the other sharing a superset's
+    terminal exon, it can match just that side's end of a basic transcript with the
+    same terminal exon, its splice site within ss_window of the subset's: the end of
+    a transcript with another terminal exon, or of a non-basic one, is often a
+    fragment's, ending inside the full-length isoform's exon.  Otherwise, or truncated on both sides,
+    it has to match both ends of one transcript."""
+    if truncated[0] != truncated[1]:
+        side, splice_site, pos = (0, exons[0].end, exons[0].start) if truncated[0] else (1, exons[-1].start, exons[-1].end)
+        if annots.has_transcript_end(strand, side, splice_site, pos, end_window, ss_window):
+            return True
+    return annots.has_transcript_ends(strand, exons[0].start, exons[-1].end, end_window)
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
-                       sup_annot_transcript_to_juncs, strand, end_window=0):
+                       sup_annot_transcript_to_juncs, strand, end_window=0, ss_window=0):
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
     novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
@@ -542,7 +546,7 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
 
     if len(superset_support) == 0:
         return True, unique_seq_bound
-    elif _matches_annotated_ends(annots, strand, exons[0].start, exons[-1].end, truncated, end_window):
+    elif _matches_annotated_ends(annots, strand, exons, truncated, end_window, ss_window):
         # a subset whose ends match an annotated transcript's confirmed ends is a
         # known isoform, not a fragment of a longer one.  It gets no unique sequence
         # boundaries: its ends are within TERMINAL_EXON_BOUNDARY_TOLERANCE of the
@@ -1010,7 +1014,7 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                                                                    iso_name, isoform.num_reads, annots,
                                                                    candidates.junc_to_names, candidates.isoforms,
                                                                    sup_annot_transcript_to_juncs, isoform.strand,
-                                                                   end_window=args.end_window)
+                                                                   end_window=args.end_window, ss_window=args.ss_window)
                     if not is_not_subset:
                         logging.debug(f"isoform dropped: subset of another isoform: {iso_name} ({isoform.num_reads} reads)")
                     else:
