@@ -205,6 +205,19 @@ def _divergence(ssvals):
     return totinsert + (len(ssvals) - totmatch)
 
 
+def _splice_site_window(coveredpos, currpos, tlen):
+    """coveredpos within SPLICE_SITE_FLANK of the splice site at currpos.  coveredpos
+    has zeros, unmatched, before the alignment's start, and ends at the alignment's
+    end: the transcript positions past that are added as unmatched, so a read
+    reaching a base or two past a splice site doesn't pass it.  Positions outside
+    the transcript are left out: max(0, ...), as a negative start reads from the end
+    of the vector, and for a first exon shorter than SPLICE_SITE_FLANK the slice came
+    back empty, which scored zero mistakes and passed the junction."""
+    start, end = max(0, currpos - SPLICE_SITE_FLANK), min(tlen, currpos + SPLICE_SITE_FLANK)
+    window = coveredpos[start:end]
+    return window + [0] * (end - start - len(window))
+
+
 def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
     """The read's total divergence from the transcript near the splice sites it
     covers, summed over the sites.  None if any covered site has more than
@@ -221,10 +234,7 @@ def check_splicesites(coveredpos, exonpos, tstart, tend, tname):
         elen = exonpos[i]
         currpos += elen
         if tstart < currpos < tend:
-            # max(0, ...): a negative start reads from the end of the vector, and for a
-            # first exon shorter than SPLICE_SITE_FLANK the slice came back empty, which
-            # scored zero mistakes and passed the junction
-            ssvals = coveredpos[max(0, currpos - SPLICE_SITE_FLANK):currpos + SPLICE_SITE_FLANK]
+            ssvals = _splice_site_window(coveredpos, currpos, sum(exonpos))
             if _divergence(ssvals) > MAX_SPLICE_SITE_MISTAKES:
                 all_ss_res[i] = 0
             else:
@@ -248,7 +258,7 @@ def check_fusionbp(coveredpos, exonpos, tstart, tend, tname, transcript_to_bp_ss
         eindex = transcript_to_bp_ss_index[tname]
         currpos = sum(exonpos[:eindex + 1])
         if tstart < currpos < tend:
-            ssvals = coveredpos[currpos - SPLICE_SITE_FLANK:currpos + SPLICE_SITE_FLANK]
+            ssvals = _splice_site_window(coveredpos, currpos, sum(exonpos))
             totinsert = sum([x - 1 for x in ssvals if x > 1])  # value is match = 1 + insertsize
             totmatch = sum([1 for x in ssvals if x >= 1])  # insert at pos still counts as match
             if totinsert + (len(ssvals) - totmatch) <= MAX_SPLICE_SITE_MISTAKES:

@@ -38,6 +38,15 @@ def test_unaligned_positions_are_not_divergence():
     assert check_splicesites([0] * 90 + [1] * 110, EXONS, 90, 200, 't') == 0
 
 
+def test_read_ending_just_past_the_splice_site_fails():
+    # the alignment ends a base into the second exon, as one of the read's clipped
+    # bases can match by chance; the window's other 4 bases there are unmatched
+    assert check_splicesites([1] * 101, EXONS, 0, 101, 't') is None
+
+
+def test_read_starting_just_before_the_splice_site_fails():
+    assert check_splicesites([0] * 99 + [1] * 101, EXONS, 99, 200, 't') is None
+
 def _passing(tname, left_clipping, right_clipping):
     # an entry of get_best_transcript's passing transcripts: ranking keys, then the name
     # and each end's (intron index, distance to it, distance to the transcript end, clipping)
