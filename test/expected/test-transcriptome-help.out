@@ -7,7 +7,7 @@ usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
                            [--sjc_support SJC_SUPPORT]
                            [--single_exon_support SINGLE_EXON_SUPPORT]
                            [--frac_support FRAC_SUPPORT] [--directRNA]
-                           [--trust_strand] [--trust_junctions] [--trust_ends]
+                           [--trust_strand] [--trust_junctions]
                            [--no_stringent] [--no_check_splice]
                            [--no_align_to_annot] [--max_ends MAX_ENDS]
                            [--filter FILTER] [--keep_supplementary]
@@ -69,9 +69,6 @@ options:
                         motif, such as GC-AG or AT-AC, is only weak evidence
                         of strand: a read stranded only by such junctions gets
                         its strand from gene identification, or is dropped
-  --trust_ends          trust the ends of the input reads: a more stringent
-                        way of requiring read ends to match the ends of
-                        transcript models
   --no_stringent        do not require all supporting reads to be full-length,
                         that is aligned to the first and last exons of the
                         transcript. Use this for fragmented libraries, with an
@@ -123,10 +120,12 @@ options:
                         given. Intermediate files include the promoter-
                         supported reads file and read assignments to firstpass
                         isoforms
-  --normalize_ends      normalize transcript ends with similar terminal splice
-                        sites. Each spliced junction chain gives a single
-                        isoform, with the furthest start and end of its reads,
-                        overriding --max_ends
+  --normalize_ends      report each spliced isoform with the ends it shares
+                        with the isoforms of its gene whose terminal exons
+                        have splice sites near its own: the furthest of their
+                        read ends, rather than the ends of the reads assigned
+                        to it. Each spliced junction chain gives a single
+                        isoform, overriding --max_ends
   --generate_map        generate a txt file of read-isoform assignments
 
 required named arguments:
