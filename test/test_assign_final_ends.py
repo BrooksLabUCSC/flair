@@ -30,7 +30,7 @@ def _run(tmp_path, read_ends, max_ends, extra_lines=(), frac_support=0.05, norma
 def test_one_end_variant_takes_the_densest_read_ends(tmp_path):
     final, assigned, read_map = _run(tmp_path, [(1000, 2000), (1002, 2003), (1004, 1990), (900, 1700)], max_ends=1)
     (iso,) = final.values()
-    assert iso.unpadded_ends == (1000, 2003)
+    assert iso.unpadded_ends == (1002, 2000)
     assert assigned == {iso.name: {'r0', 'r1', 'r2', 'r3'}}
     assert read_map.split('\t')[0] == iso.name
 

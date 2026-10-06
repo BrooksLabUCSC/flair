@@ -694,22 +694,43 @@ def rank_end_variants(isoforms):
     # reads a 5' truncation cluster, over the pair reproducing the annotated 3' end
     isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
 
-def densest_end(positions, window, outer):
-    """The read end with the most read ends within window of it, ties going to the
-    outer one: outer is min for starts and max for ends"""
+def _densest_end_clustered(positions, window, outer):
+    """densest_end, and whether it is a cluster of read ends: another read end
+    within window of it"""
     positions = sorted(positions)
+    exact = Counter(positions)
 
     def support(pos):
         return bisect_right(positions, pos + window) - bisect_left(positions, pos - window)
-    sign = -1 if outer is min else 1
-    return max(positions, key=lambda pos: (support(pos), sign * pos))
+    best = max(support(pos) for pos in exact)
+    if best == 1:
+        return outer(positions), False
+    densest = [pos for pos in exact if support(pos) == best]
+    most = max(exact[pos] for pos in densest)
+    modal = sorted(pos for pos in densest if exact[pos] == most)
+    middle = len(modal) // 2
+    return (modal[middle] if len(modal) % 2 else outer(modal[middle - 1], modal[middle])), True
+
+def densest_end(positions, window, outer):
+    """The read end with the most read ends within window of it.  In a tight
+    cluster of read ends, every position in it has about as many, so ties go to the
+    position the most reads end at exactly, then to the middle of the tied
+    positions, and only between two middle ones to the outer: outer is min for
+    starts and max for ends.  Going to the outer one first moved ends past the
+    cluster's mode, out of polyA and CAGE peaks.  If no read end has another within
+    window, there is no cluster, and the outer end is taken."""
+    return _densest_end_clustered(positions, window, outer)[0]
 
 def normalize_chain_ends(isoform):
     """A spliced junction chain is a single first-pass isoform, ending at the
     furthest start and end of its reads.  Its densest read ends are its best
-    supported ends, which the subset check uses."""
+    supported ends, which the subset check uses, and whether its 3' one is a
+    cluster of read ends, which the 3' UTR fragment check uses (_ThreePrimeFragments)."""
     starts, ends = isoform.starts, isoform.ends
-    isoform.best_ends = (densest_end(starts, BEST_END_WINDOW, min), densest_end(ends, BEST_END_WINDOW, max))
+    best_start, start_clustered = _densest_end_clustered(starts, BEST_END_WINDOW, min)
+    best_end, end_clustered = _densest_end_clustered(ends, BEST_END_WINDOW, max)
+    isoform.best_ends = (best_start, best_end)
+    isoform.three_prime_clustered = end_clustered if isoform.strand == '+' else start_clustered
     isoform.start, isoform.end = min(starts), max(ends)
     return isoform
 

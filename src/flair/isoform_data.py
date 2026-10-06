@@ -416,6 +416,8 @@ class Isoform:
         # (start, end) best supported by the reads, which the subset check uses,
         # set only when the isoform's ends are its furthest read ends
         self.best_ends = None
+        # is its 3' best supported end a cluster of read ends, set with best_ends
+        self.three_prime_clustered = None
         # for a single-exon isoform, the overlap cluster of reads whose end variant it is
         self.end_variant_cluster = None
         self.end5confidence = None
