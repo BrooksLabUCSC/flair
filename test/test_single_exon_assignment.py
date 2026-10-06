@@ -15,34 +15,33 @@ def _read(name, start, end, strand='+'):
 
 
 def _assign(reads, isoforms, **opts):
-    ends_fh, map_fh = io.StringIO(), io.StringIO()
-    assign_single_exon_reads(reads, {iso.name: iso for iso in isoforms}, ends_fh, map_fh,
+    ends_fh = io.StringIO()
+    assign_single_exon_reads(reads, {iso.name: iso for iso in isoforms}, ends_fh,
                              trust_ends=opts.get('trust_ends', False), trust_strand=opts.get('trust_strand', False))
     assigned = {line.split('\t')[0]: line.split('\t')[1] for line in ends_fh.getvalue().splitlines()}
-    return assigned, map_fh.getvalue()
+    return assigned
 
 
 def test_read_goes_to_the_overlapping_isoform_with_the_closest_ends():
-    assigned, read_map = _assign([_read('r1', 1000, 2000), _read('r2', 1010, 2950)],
-                                 [_isoform('short', 1000, 2000), _isoform('long', 1000, 3000)])
+    assigned = _assign([_read('r1', 1000, 2000), _read('r2', 1010, 2950)],
+                       [_isoform('short', 1000, 2000), _isoform('long', 1000, 3000)])
     assert assigned == {'r1': 'short', 'r2': 'long'}
-    assert sorted(read_map.splitlines()) == ['long\tr2', 'short\tr1']
 
 
 def test_read_must_overlap_half_of_the_isoform_and_half_of_itself():
-    assigned, _ = _assign([_read('in', 1100, 1900), _read('short', 1000, 1400), _read('mostly_outside', 1500, 4000)],
-                          [_isoform('iso', 1000, 2000)])
+    assigned = _assign([_read('in', 1100, 1900), _read('short', 1000, 1400), _read('mostly_outside', 1500, 4000)],
+                       [_isoform('iso', 1000, 2000)])
     assert assigned == {'in': 'iso'}
 
 
 def test_ends_are_written_from_the_transcript_5_prime_end():
     ends_fh = io.StringIO()
-    assign_single_exon_reads([_read('r', 1100, 1950, '-')], {'iso': _isoform('iso', 1000, 2000, '-')}, ends_fh, None,
+    assign_single_exon_reads([_read('r', 1100, 1950, '-')], {'iso': _isoform('iso', 1000, 2000, '-')}, ends_fh,
                              trust_ends=False, trust_strand=False)
     assert ends_fh.getvalue().split('\t')[4] == '50' and ends_fh.getvalue().rstrip().split('\t')[7] == '100'
 
 
 def test_trust_strand_and_trust_ends():
     isoforms = [_isoform('iso', 1000, 2000, '+')]
-    assert _assign([_read('r', 1000, 2000, '-')], isoforms, trust_strand=True)[0] == {}
-    assert _assign([_read('near', 1040, 1960), _read('far', 1100, 2000)], isoforms, trust_ends=True)[0] == {'near': 'iso'}
+    assert _assign([_read('r', 1000, 2000, '-')], isoforms, trust_strand=True) == {}
+    assert _assign([_read('near', 1040, 1960), _read('far', 1100, 2000)], isoforms, trust_ends=True) == {'near': 'iso'}

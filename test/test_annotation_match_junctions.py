@@ -1,3 +1,4 @@
+import random
 from types import SimpleNamespace
 import pysam
 from flair.isoform_data import Exon
@@ -56,3 +57,47 @@ def test_a_match_losing_no_junction_is_used_without_correction():
     corrector = _Corrector(supported=True)
     assert _correct(_read('100M200N400M'), corrector)[0] == ((1100, 1300),)
     assert not corrector.called
+
+
+# the junctions_moved and clean_splice_sites flags correction sets on a read
+random.seed(1)
+SEQ = ''.join(random.choice('ACGT') for _ in range(3000))
+GENOME = SimpleNamespace(fetch=lambda chrom, start, end: SEQ[start:end], get_reference_length=lambda chrom: len(SEQ))
+
+
+def _genome_read(cigar, mismatches=()):
+    "a read at 1000 aligned with the genome's sequence, but for mismatches at the given positions"
+    read = _read(cigar)
+    pos, seq = 1000, ''
+    for op, length in read.cigartuples:
+        if op == pysam.CMATCH:
+            seq += SEQ[pos:pos + length]
+        pos += length
+    for m in mismatches:
+        i = m - 1000 - (200 if m > 1300 else 0)
+        seq = seq[:i] + ('A' if seq[i] != 'A' else 'C') + seq[i + 1:]
+    read.query_sequence = seq
+    return read
+
+
+def _flags(read, annotated):
+    sj_to_ends = {}
+    _correct_and_group_read(read, read_to_annot_transcript={'r': ('TX_GENE', 0, 100, 0, 400)} if annotated else {},
+                            annots=ANNOTS, junction_corrector=_Corrector(supported=True), sj_to_ends=sj_to_ends,
+                            genome=GENOME, keep_single_exon=True, trust_strand=False, check_motifs=False)
+    read_rec = next(iter(sj_to_ends.values())).reads[0]
+    return read_rec.junctions_moved, read_rec.clean_splice_sites
+
+
+def test_junctions_kept_from_the_alignment_are_checked_for_clean_splice_sites():
+    # corrected from intron support without changing the junction
+    assert _flags(_genome_read('100M200N400M'), annotated=False) == (False, True)
+    # two mismatches next to the splice site
+    assert _flags(_genome_read('100M200N400M', mismatches=(1098, 1099)), annotated=False) == (False, False)
+
+
+def test_junctions_from_an_annotation_match_are_moved_when_they_differ():
+    # the annotation's junction is the read's own: not moved
+    assert _flags(_genome_read('100M200N400M'), annotated=True) == (False, True)
+    # a read missing the annotated junction is given it: moved, and not checked
+    assert _flags(_genome_read('700M'), annotated=True) == (True, None)

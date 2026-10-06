@@ -8,7 +8,6 @@ import hashlib
 import logging
 from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import nullcontext
 from dataclasses import dataclass
 from statistics import median
 from collections import Counter
@@ -16,6 +15,7 @@ from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
 from flair.annotation_precheck import reads_skipping_annotation_alignment
+from flair.direct_assignment import direct_assignments, read_unique_bounds, write_direct_assignments
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.io_utils import make_run_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
@@ -1502,13 +1502,13 @@ def _single_exon_read_fits(isoform, read, trust_ends, trust_strand):
     overlap = min(isoform.end, read.end) - max(isoform.start, read.start)
     return overlap > (isoform.end - isoform.start) / 2 and overlap > (read.end - read.start) / 2
 
-def assign_single_exon_reads(reads, firstpass, ends_fh, map_fh, *, trust_ends, trust_strand):
+def assign_single_exon_reads(reads, firstpass, ends_fh, *, trust_ends, trust_strand):
     """Single-exon reads aren't realigned to the first-pass isoforms: aligned with
     stringent assignment, a spliced isoform never took one, and spliced reads never
     went to a single-exon isoform.  Each single-exon read goes to the overlapping
     single-exon isoform it fits with the least distance between their ends, written
-    as count_sam_transcripts writes its ends and read map, so calc_final_iso_support
-    counts them with the realigned reads."""
+    as count_sam_transcripts writes its ends, so calc_final_iso_support counts them
+    with the realigned reads."""
     se_isoforms = IntervalIndex()
     for isoform in firstpass.values():
         if isoform.juncs == ():
@@ -1527,8 +1527,6 @@ def assign_single_exon_reads(reads, firstpass, ends_fh, map_fh, *, trust_ends, t
             if isoform.strand == '-':
                 start_dist, end_dist = end_dist, start_dist
             ends_fh.write('\t'.join(str(x) for x in (read.name, isoform.name, None, None, start_dist, None, None, end_dist)) + '\n')
-        if map_fh is not None and len(reads) > 0:
-            map_fh.write(isoform.name + '\t' + ','.join(read.name for read in reads) + '\n')
 
 def _nearest_end_variant(read, variants):
     return min(variants, key=lambda v: abs(read.start - v.start) + abs(read.end - v.end))
@@ -1792,11 +1790,20 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             write_firstpass(partition.file_prefix, region.name, firstpass, annots, genome, unique_bound=iso_to_unique_bound,
                             normalize_ends=args.normalize_ends)
 
-            # aligns spliced reads to the spliced firstpass isoforms, identifies best read -> isoform
+            # reads matching a firstpass isoform exactly are assigned without the realignment
+            # (see direct_assignment); with trust_ends, count_sam_transcripts checks the ends
+            direct = {}
+            if not args.trust_ends:
+                spliced_reads = [read for (chrom, juncs), isoform in sj_to_ends.items() if juncs != () for read in isoform.reads]
+                direct = direct_assignments(spliced_reads, firstpass.values(),
+                                            read_unique_bounds(partition.output_path('firstpass.uniquebound.txt')))
+                logging.info(f'{len(direct)} reads assigned to firstpass isoforms without realignment')
+
+            # aligns the other spliced reads to the spliced firstpass isoforms, identifies best read -> isoform
             # alignment for each read, then gets read counts per isoform
             read_map_file = partition.output_path('countsam.read.map.txt') if args.generate_map else None
             num_realigned = _write_reads_subset(partition.output_path('reads.fasta'), partition.output_path('realign.reads.fasta'),
-                                                {read.name for read in se_reads})
+                                                {read.name for read in se_reads} | direct.keys())
             if num_realigned > 0 and any(isoform.juncs != () for isoform in firstpass.values()):
                 transcriptome_align_and_count(args, partition.output_path('realign.reads.fasta'),
                                               partition.output_path('firstpass.fa'),
@@ -1808,10 +1815,13 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                               args.directRNA)
             else:
                 generate_empty_intermediate_files(partition.file_prefix, ['.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
-            with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh, \
-                 (open(read_map_file, 'a') if read_map_file else nullcontext()) as map_fh:
-                assign_single_exon_reads(se_reads, firstpass, ends_fh, map_fh,
+            with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh:
+                assign_single_exon_reads(se_reads, firstpass, ends_fh,
                                          trust_ends=args.trust_ends, trust_strand=args.trust_strand)
+                write_direct_assignments(direct, ends_fh)
+            # the read map, for every way reads were assigned, from the ends
+            ends_lines = [line.rstrip('\n').split('\t') for line in open(partition.output_path('isoform.ends.tsv'))]
+            _rewrite_ends_and_map(ends_lines, partition.output_path('isoform.ends.tsv'), read_map_file)
         else:
             logging.info('no firstpass isoforms found')
             generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
