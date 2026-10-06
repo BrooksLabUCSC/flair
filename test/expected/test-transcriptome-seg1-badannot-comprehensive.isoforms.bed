@@ -1,4 +1,4 @@
-chr20	32186476	32189823	FLT00000001	3	-	32186476	32186476	0,0,0	1	3347,	0,	FLG00000001			3	0.1579	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
-chr20	32186479	32188247	FLT00000002	3	-	32186479	32186479	0,0,0	1	1768,	0,	FLG00000001			3	0.1579	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
-chr20	32186485	32188140	FLT00000003	3	-	32186485	32186485	0,0,0	1	1655,	0,	FLG00000001			3	0.1579	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
-chr20	32188013	32188752	FLT00000004	10	-	32188013	32188013	0,0,0	1	739,	0,	FLG00000001			10	0.5263	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
+chr20	32186476	32189823	FLT00000001	3	-	32186476	32186476	0,0,0	1	3347,	0,	FLG00000001			3	0.1667	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
+chr20	32186479	32188247	FLT00000002	2	-	32186479	32186479	0,0,0	1	1768,	0,	FLG00000001			2	0.1111	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
+chr20	32186485	32188140	FLT00000003	3	-	32186485	32186485	0,0,0	1	1655,	0,	FLG00000001			3	0.1667	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
+chr20	32188013	32188752	FLT00000004	10	-	32188013	32188013	0,0,0	1	739,	0,	FLG00000001			10	0.5556	NGO	basic			test-transcriptome-seg1-badannot-comprehensive,			
