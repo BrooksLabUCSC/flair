@@ -1791,9 +1791,10 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                             normalize_ends=args.normalize_ends)
 
             # reads matching a firstpass isoform exactly are assigned without the realignment
-            # (see direct_assignment); with trust_ends, count_sam_transcripts checks the ends
+            # (see direct_assignment); with trust_ends, count_sam_transcripts checks the ends,
+            # and with fusion_breakpoints, that reads cover the breakpoint
             direct = {}
-            if not args.trust_ends:
+            if not (args.trust_ends or args.fusion_breakpoints):
                 spliced_reads = [read for (chrom, juncs), isoform in sj_to_ends.items() if juncs != () for read in isoform.reads]
                 direct = direct_assignments(spliced_reads, firstpass.values(),
                                             read_unique_bounds(partition.output_path('firstpass.uniquebound.txt')))
