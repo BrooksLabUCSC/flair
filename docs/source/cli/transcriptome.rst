@@ -13,7 +13,7 @@
                               [--sjc_support SJC_SUPPORT]
                               [--single_exon_support SINGLE_EXON_SUPPORT]
                               [--frac_support FRAC_SUPPORT] [--directRNA]
-                              [--trust_strand] [--trust_junctions]
+                              [--trust_strand] [--total_rna] [--trust_junctions]
                               [--no_stringent] [--no_check_splice]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
                               [--filter FILTER] [--keep_supplementary]
@@ -72,6 +72,10 @@
 .. option:: --trust_strand
 
    trust the stranding of the input reads and do not attempt strand correction: reads keep the strand of their alignment, and spliced reads are corrected only with splice junctions on that strand, and are only assigned to transcripts on that strand
+
+.. option:: --total_rna
+
+   the library is total RNA rather than poly(A) selected: single-exon reads ending in or before genomic A runs are kept, rather than removed as internally primed, and no poly(A) tails are needed. Requires --trust_strand
 
 .. option:: --trust_junctions
 

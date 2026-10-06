@@ -4,8 +4,8 @@ from flair.flair_transcriptome import (CandidateIsoforms, _longest_supported_rea
                                        group_se_by_overlap, normalize_chain_ends)
 
 
-def _read(start, end, strand, polyA=(0, 0)):
-    return SimpleNamespace(start=start, end=end, strand=strand, polyA=polyA)
+def _read(start, end, strand, polyA=(0, 0), intprim=(False, False)):
+    return SimpleNamespace(start=start, end=end, strand=strand, polyA=polyA, intprim=intprim)
 
 
 def _groups(reads, trust_strand, se_support=2):
@@ -148,3 +148,27 @@ def test_a_spliced_isoform_whose_3_prime_end_is_not_a_cluster_makes_no_fragment(
     single = _se('single', 4000, 6000, '+', 5)
     firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([scattered, single]), None, {})
     assert sorted(firstpass) == ['scattered', 'single']
+
+
+def test_internally_primed_reads_are_left_out_before_stranding():
+    # two reads internally primed at their right ends
+    reads = [_read(1000, 2000, '+', (0, 20)), _read(1010, 1990, '+', (0, 15)), _read(1005, 1995, '+', (0, 18)),
+             _read(1002, 1998, '+', intprim=(False, True)), _read(1003, 1997, '+', intprim=(False, True))]
+    ((strand, reads_kept),) = _groups(reads, trust_strand=False, se_support=3)
+    assert strand == '+' and reads_kept == [(1000, 2000), (1005, 1995), (1010, 1990)]
+
+
+def test_with_trust_strand_only_the_3_prime_end_is_checked():
+    # priming at the start of a + read is at its 5' end: not priming
+    five_prime = [_read(1000, 2000, '+', intprim=(True, False))] * 2
+    three_prime = [_read(1000, 2000, '+', intprim=(False, True))] * 2
+    assert _groups(five_prime, trust_strand=True) == [('+', [(1000, 2000), (1000, 2000)])]
+    assert _groups(three_prime, trust_strand=True) == []
+
+
+def test_total_rna_keeps_internally_primed_reads():
+    reads = [_read(1000, 2000, '+', intprim=(False, True))] * 3
+    isoform = Isoform('chr1', '+', (), reads=reads)
+    assert list(group_se_by_overlap('chr1', isoform, 3, True)) == []
+    ((_, strand, kept),) = group_se_by_overlap('chr1', isoform, 3, True, total_rna=True)
+    assert strand == '+' and len(kept) == 3
