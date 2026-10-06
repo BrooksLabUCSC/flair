@@ -13,8 +13,9 @@ def _isoform(name, juncs=JUNCS, strand='+'):
     return iso
 
 
-def _read(name, juncs=JUNCS, start=1000, end=1700, moved=False, clean=True):
-    return SimpleNamespace(name=name, juncs=juncs, start=start, end=end, junctions_moved=moved, clean_splice_sites=clean)
+def _read(name, juncs=JUNCS, start=1000, end=1700, moved=False, clean=True, annotation=False, terminal_moved=False):
+    return SimpleNamespace(name=name, juncs=juncs, start=start, end=end, junctions_moved=moved, clean_splice_sites=clean,
+                           junctions_from_annotation=annotation, terminal_junctions_moved=terminal_moved)
 
 
 def _assigned(reads, isoforms, bounds=None):
@@ -28,6 +29,16 @@ def test_an_exact_clean_match_is_assigned_directly():
 def test_moved_or_unclean_junctions_are_realigned():
     assert _assigned([_read('moved', moved=True), _read('unclean', clean=False), _read('unchecked', clean=None)],
                      [_isoform('tx')]) == {}
+
+
+def test_annotation_corrected_reads_need_their_terminal_junctions_unmoved():
+    # a missed short exon added inside the read: assigned, whatever its splice sites
+    internal = _read('internal', moved=True, clean=None, annotation=True)
+    # a junction added or dropped at an end of the read
+    terminal = _read('terminal', moved=True, clean=None, annotation=True, terminal_moved=True)
+    # moved by intron support rather than an annotation match
+    introns = _read('introns', moved=True, clean=None)
+    assert _assigned([internal, terminal, introns], [_isoform('tx')]) == {'internal': 'tx'}
 
 
 def test_a_chain_of_two_isoforms_is_realigned():

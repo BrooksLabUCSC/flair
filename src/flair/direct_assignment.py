@@ -10,7 +10,12 @@ directly when:
   * junction correction didn't move its junctions from its alignment's introns,
     and its alignment is clean around them (ReadRec.junctions_moved and
     clean_splice_sites, set by read_correction), which also catches a short exon
-    the alignment missed;
+    the alignment missed; or its junctions came from its annotation match, which
+    checked its splice sites against the annotated transcript, and moved none of
+    its first and last ones, as for a missed short exon (junctions_from_annotation,
+    and not terminal_junctions_moved).  An annotation match that adds or drops a
+    junction at an end of the read's alignment can be a read running unspliced
+    past the transcript's splice site;
   * its ends cover the isoform's unique sequence, as count_sam_transcripts
     requires of a subset of another isoform (firstpass.uniquebound.txt).
 
@@ -62,7 +67,8 @@ def direct_assignments(corrected_reads, isoforms, unique_bounds):
             by_chain.setdefault(_juncs_key(isoform.juncs), []).append(isoform)
     assignments = {}
     for read in corrected_reads:
-        if read.junctions_moved or not read.clean_splice_sites:
+        as_aligned = not read.junctions_moved and read.clean_splice_sites
+        if not (as_aligned or (read.junctions_from_annotation and not read.terminal_junctions_moved)):
             continue
         matches = by_chain.get(_juncs_key(read.juncs), [])
         if len(matches) == 1 and covers_unique_bounds(matches[0], unique_bounds.get(matches[0].name, {}), read.start, read.end):

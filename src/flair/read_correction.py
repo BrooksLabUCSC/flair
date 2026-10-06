@@ -8,11 +8,17 @@ from flair.isoform_data import Junc, ReadRec
 from flair.read_processing import should_process_read, add_corrected_read_to_groups
 
 
-def _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends):
+def _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends, window, from_annotation):
     """Flag whether correction moved the read's junctions from its alignment's
-    introns and, if not, whether the alignment is clean around them, then group it"""
+    introns, and its first or last junction by more than window, and if none
+    moved, whether the alignment is clean around them; then group it"""
     juncs = tuple((j.start, j.end) for j in sorted(readrec.juncs))
-    readrec.junctions_moved = juncs != tuple((j.start, j.end) for j in sorted(aligned_juncs))
+    aligned = tuple((j.start, j.end) for j in sorted(aligned_juncs))
+    readrec.junctions_from_annotation = from_annotation
+    readrec.junctions_moved = juncs != aligned
+    readrec.terminal_junctions_moved = not (
+        len(aligned) > 0
+        and all(abs(a - b) <= window for a, b in zip(juncs[0] + juncs[-1], aligned[0] + aligned[-1])))
     if not readrec.junctions_moved and genome is not None:
         readrec.clean_splice_sites = splice_sites_cleanly_aligned(read, juncs, genome)
     add_corrected_read_to_groups(readrec, sj_to_ends)
@@ -67,13 +73,15 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
                 logging.debug(f"annotation match would drop read junctions, corrected from intron support: {readrec.name}")
             else:
                 readrec.correct_from_annotation(newstart, newend, annots.gene_to_strand[gene], juncs)
-            _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends)
+            _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends,
+                                        junction_corrector.flank_window, from_annotation=not from_introns)
             return
 
     # unannotated spliced: correct junctions and strand from intron support
     if readrec.juncs:
         if junction_corrector.correct_readrec(readrec, trust_strand, genome if check_motifs else None):
-            _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends)
+            _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends,
+                                        junction_corrector.flank_window, from_annotation=False)
         else:
             logging.debug(f"read dropped: junction correction failed: {readrec.name}")
         return

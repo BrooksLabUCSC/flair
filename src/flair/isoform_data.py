@@ -272,11 +272,14 @@ class ReadRec:
         self.score = score
         self.polyA = polyA  # (left int, right int)
         self.intprim = intprim  # (left int, right int)
-        # set by junction correction: whether it changed the junctions from the
-        # alignment's introns, and, when it didn't, whether the alignment is clean
-        # around them (annotation_precheck.splice_sites_cleanly_aligned); None
-        # when not checked
+        # set by junction correction: whether the junctions came from an annotation
+        # match, whether correction changed them from the alignment's introns, and
+        # its first or last one by more than the correction window, and, when none
+        # changed, whether the alignment is clean around them
+        # (annotation_precheck.splice_sites_cleanly_aligned); None when not checked
+        self.junctions_from_annotation = False
         self.junctions_moved = False
+        self.terminal_junctions_moved = False
         self.clean_splice_sites = None
 
     @property

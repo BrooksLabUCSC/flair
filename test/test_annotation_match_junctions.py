@@ -22,6 +22,8 @@ def _read(cigar):
 
 class _Corrector:
     "junction correction that finds the read's own junctions supported, or not"
+    flank_window = 10
+
     def __init__(self, supported):
         self.supported, self.called = supported, False
 
@@ -80,12 +82,15 @@ def _genome_read(cigar, mismatches=()):
     return read
 
 
-def _flags(read, annotated):
+def _flags(read, annotated, all_flags=False):
     sj_to_ends = {}
     _correct_and_group_read(read, read_to_annot_transcript={'r': ('TX_GENE', 0, 100, 0, 400)} if annotated else {},
                             annots=ANNOTS, junction_corrector=_Corrector(supported=True), sj_to_ends=sj_to_ends,
                             genome=GENOME, keep_single_exon=True, trust_strand=False, check_motifs=False)
     read_rec = next(iter(sj_to_ends.values())).reads[0]
+    if all_flags:
+        return (read_rec.junctions_from_annotation, read_rec.junctions_moved, read_rec.terminal_junctions_moved,
+                read_rec.clean_splice_sites)
     return read_rec.junctions_moved, read_rec.clean_splice_sites
 
 
@@ -101,3 +106,12 @@ def test_junctions_from_an_annotation_match_are_moved_when_they_differ():
     assert _flags(_genome_read('100M200N400M'), annotated=True) == (False, True)
     # a read missing the annotated junction is given it: moved, and not checked
     assert _flags(_genome_read('700M'), annotated=True) == (True, None)
+
+
+def test_terminal_junctions_moved():
+    # (from annotation, moved, terminal moved, clean) for a read corrected from intron support
+    assert _flags(_genome_read('100M200N400M'), annotated=False, all_flags=True) == (False, False, False, True)
+    # the annotation's junction is the read's: from the annotation, nothing moved
+    assert _flags(_genome_read('100M200N400M'), annotated=True, all_flags=True) == (True, False, False, True)
+    # the annotation gives an unspliced read a junction: its ends' junctions moved
+    assert _flags(_genome_read('700M'), annotated=True, all_flags=True) == (True, True, True, None)
