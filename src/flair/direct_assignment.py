@@ -19,6 +19,12 @@ directly when:
   * its ends cover the isoform's unique sequence, as count_sam_transcripts
     requires of a subset of another isoform (firstpass.uniquebound.txt).
 
+A spliced read whose chain isn't a kept isoform's can't be assigned by the
+realignment, which needs a read to span all of an isoform's junctions, unless its
+genome alignment left off a short exon at an end: then it is a truncated part of
+a kept isoform, ending at that isoform's next splice site with the rest of the
+read clipped.  Other such reads aren't realigned (unassignable_reads).
+
 Single-exon reads are assigned without the realignment by
 flair_transcriptome.assign_single_exon_reads.
 """
@@ -74,6 +80,35 @@ def direct_assignments(corrected_reads, isoforms, unique_bounds):
         if len(matches) == 1 and covers_unique_bounds(matches[0], unique_bounds.get(matches[0].name, {}), read.start, read.end):
             assignments[read.name] = (matches[0], read)
     return assignments
+
+
+def _could_extend_into(read, by_junction, window):
+    """Could a read be a truncated part of a kept isoform: its chain a contiguous run
+    of the isoform's junctions, its alignment clipped at an end within window of the
+    isoform's next splice site, where the genome alignment may have left off a
+    short exon"""
+    juncs = _juncs_key(read.juncs)
+    for chain, i in by_junction.get(juncs[0], ()):
+        if chain[i:i + len(juncs)] != juncs:
+            continue
+        if i > 0 and read.clipping[0] > 0 and abs(read.start - chain[i - 1][1]) <= window:
+            return True
+        after = i + len(juncs)
+        if after < len(chain) and read.clipping[1] > 0 and abs(read.end - chain[after][0]) <= window:
+            return True
+    return False
+
+
+def unassignable_reads(corrected_reads, isoforms, window):
+    """The names of the spliced reads the realignment can't assign: their chain isn't
+    a kept isoform's, and they can't be a truncated part of one (_could_extend_into)"""
+    kept = {_juncs_key(isoform.juncs) for isoform in isoforms if isoform.juncs != ()}
+    by_junction = {}
+    for chain in kept:
+        for i, junc in enumerate(chain):
+            by_junction.setdefault(junc, []).append((chain, i))
+    return {read.name for read in corrected_reads
+            if _juncs_key(read.juncs) not in kept and not _could_extend_into(read, by_junction, window)}
 
 
 def write_direct_assignments(assignments, ends_fh):

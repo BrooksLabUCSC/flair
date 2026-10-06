@@ -262,7 +262,7 @@ class ReadRec:
         finished with; chains are only shared within a region anyway."""
         cls._juncs_cache.clear()
 
-    def __init__(self, chrom, strand, juncs, start, end, name, *, score=None, polyA=None, intprim=None):
+    def __init__(self, chrom, strand, juncs, start, end, name, *, score=None, polyA=None, intprim=None, clipping=(0, 0)):
         self.chrom = chrom
         self.strand = strand
         self.juncs = self._intern_juncs(juncs)
@@ -272,6 +272,7 @@ class ReadRec:
         self.score = score
         self.polyA = polyA  # (left int, right int)
         self.intprim = intprim  # (left int, right int)
+        self.clipping = clipping  # bases soft or hard clipped from the alignment's (left, right)
         # set by junction correction: whether the junctions came from an annotation
         # match, whether correction changed them from the alignment's introns, and
         # its first or last one by more than the correction window, and, when none
@@ -358,7 +359,10 @@ class ReadRec:
         if genome is not None:
             left_intprim, right_intprim = cls._get_both_intprim(read, genome)
 
-        return cls(read.reference_name, junc_direction, juncs, align_start, ref_pos, read.query_name, polyA=(left_polyA, right_polyA), intprim=(left_intprim, right_intprim))
+        clips = [length if op in (pysam.CIGAR_OPS.CSOFT_CLIP, pysam.CIGAR_OPS.CHARD_CLIP) else 0
+                 for op, length in (read.cigartuples[0], read.cigartuples[-1])]
+        return cls(read.reference_name, junc_direction, juncs, align_start, ref_pos, read.query_name, polyA=(left_polyA, right_polyA),
+                   intprim=(left_intprim, right_intprim), clipping=tuple(clips))
 
 
 class Gene:

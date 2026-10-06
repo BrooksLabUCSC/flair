@@ -15,7 +15,7 @@ from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
 from flair.annotation_precheck import reads_skipping_annotation_alignment
-from flair.direct_assignment import direct_assignments, read_unique_bounds, write_direct_assignments
+from flair.direct_assignment import direct_assignments, read_unique_bounds, unassignable_reads, write_direct_assignments
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.io_utils import make_run_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
@@ -1790,21 +1790,24 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             write_firstpass(partition.file_prefix, region.name, firstpass, annots, genome, unique_bound=iso_to_unique_bound,
                             normalize_ends=args.normalize_ends)
 
-            # reads matching a firstpass isoform exactly are assigned without the realignment
-            # (see direct_assignment); with trust_ends, count_sam_transcripts checks the ends,
-            # and with fusion_breakpoints, that reads cover the breakpoint
-            direct = {}
+            # reads matching a firstpass isoform exactly are assigned without the realignment,
+            # and reads it can't assign aren't realigned (see direct_assignment); with
+            # trust_ends, count_sam_transcripts checks the ends, and with fusion_breakpoints,
+            # that reads cover the breakpoint
+            direct, unassignable = {}, set()
             if not (args.trust_ends or args.fusion_breakpoints):
                 spliced_reads = [read for (chrom, juncs), isoform in sj_to_ends.items() if juncs != () for read in isoform.reads]
                 direct = direct_assignments(spliced_reads, firstpass.values(),
                                             read_unique_bounds(partition.output_path('firstpass.uniquebound.txt')))
-                logging.info(f'{len(direct)} reads assigned to firstpass isoforms without realignment')
+                unassignable = unassignable_reads(spliced_reads, firstpass.values(), args.ss_window)
+                logging.info(f'{len(direct)} reads assigned to firstpass isoforms without realignment, '
+                             f'{len(unassignable)} not realigned as no firstpass isoform can take them')
 
             # aligns the other spliced reads to the spliced firstpass isoforms, identifies best read -> isoform
             # alignment for each read, then gets read counts per isoform
             read_map_file = partition.output_path('countsam.read.map.txt') if args.generate_map else None
             num_realigned = _write_reads_subset(partition.output_path('reads.fasta'), partition.output_path('realign.reads.fasta'),
-                                                {read.name for read in se_reads} | direct.keys())
+                                                {read.name for read in se_reads} | direct.keys() | unassignable)
             if num_realigned > 0 and any(isoform.juncs != () for isoform in firstpass.values()):
                 transcriptome_align_and_count(args, partition.output_path('realign.reads.fasta'),
                                               partition.output_path('firstpass.fa'),
