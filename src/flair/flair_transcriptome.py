@@ -30,6 +30,7 @@ from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_prod_temp
 from flair.flair_bed import FlairBed
 from flair.terminal_exon_ends import TerminalExonEnds
+from flair.interval_index import IntervalIndex
 from flair import thread_share
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
@@ -948,18 +949,62 @@ def filter_single_exon_iso(args, single_exon, curr_group, all_isoforms):
     return not is_contained and all(expression_comp_with_superset)
 
 
-def filter_single_exon_group(args, curr_group, all_isoforms, firstpass):
+def filter_single_exon_group(args, curr_group, all_isoforms, firstpass, utr_fragment):
     """Filter single-exon isoforms in an overlap group against spliced exons."""
     for exon in curr_group:
         if exon.name != '':  # is single exon with name
-            if filter_single_exon_iso(args, exon, curr_group, all_isoforms):
+            if utr_fragment(all_isoforms[exon.name]):
+                logging.debug(f"single-exon isoform dropped: starts in a 3' terminal exon: {exon.name} ({all_isoforms[exon.name].num_reads} reads)")
+            elif filter_single_exon_iso(args, exon, curr_group, all_isoforms):
                 firstpass[exon.name] = all_isoforms[exon.name]
             else:
                 logging.debug(f"single-exon isoform dropped: contained or low expression: {exon.name} ({all_isoforms[exon.name].num_reads} reads)")
     return firstpass
 
 
-def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass):
+class _ThreePrimeFragments:
+    """Which of a strand's single-exon isoforms are 3' UTR fragments of a spliced
+    transcript: starting inside its 3' terminal exon, within
+    SINGLE_EXON_OVERLAP_MARGIN, a fragment of its 3' UTR or of an extension of it,
+    rather than a transcript of their own.
+
+    The 3' terminal exons are those of the annotated spliced transcripts, which
+    catch fragments of a long annotated 3' UTR the sample's spliced isoforms don't
+    reach, and of the kept spliced isoforms whose 3' end is a cluster of read ends
+    (Isoform.three_prime_clustered): a few reads running through a neighbouring
+    transcript don't make it a fragment.  An isoform's are taken to its best
+    supported ends, as the containment check takes them (subset_check_exons).  A
+    single-exon isoform matching an annotated single-exon transcript, overlapping
+    more than half of each, is a transcript of its own."""
+    def __init__(self, spliced, annots, strand):
+        self.strand = strand
+        self.terminal = IntervalIndex()
+        self.annotated_single = IntervalIndex()
+        exon_lists = [subset_check_exons(isoform) for isoform in spliced.values()
+                      if isoform.juncs != () and isoform.strand == strand and isoform.three_prime_clustered]
+        if annots is not None:
+            exon_lists.extend(annots.transcript_to_exons[(transcript_id, gene_id)]
+                              for transcript_id, gene_id, tx_strand in annots.transcripts if tx_strand == strand)
+            for exon in annots.all_annot_SE[strand]:
+                self.annotated_single.add(exon.start, exon.end, exon)
+        for exons in exon_lists:
+            if len(exons) > 1:
+                exon = exons[-1] if strand == '+' else exons[0]
+                self.terminal.add(exon.start, exon.end, None)
+
+    def _matches_annotated_single_exon(self, isoform):
+        for annot in self.annotated_single.overlap(isoform.start, isoform.end):
+            overlap = min(isoform.end, annot.end) - max(isoform.start, annot.start)
+            if overlap > (isoform.end - isoform.start) / 2 and overlap > (annot.end - annot.start) / 2:
+                return True
+        return False
+
+    def __call__(self, isoform):
+        five_prime = isoform.start if isoform.strand == '+' else isoform.end - 1
+        return (len(self.terminal.overlap(five_prime, five_prime + 1, slack=SINGLE_EXON_OVERLAP_MARGIN)) > 0
+                and not self._matches_annotated_single_exon(isoform))
+
+def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass, utr_fragment):
     """Group exons by overlap and filter single-exon isoforms."""
     last_end = 0
     curr_group = []
@@ -969,12 +1014,12 @@ def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass):
             curr_group.append(exon)
         else:
             if len(curr_group) > 0:
-                firstpass = filter_single_exon_group(args, curr_group, all_isoforms, firstpass)
+                firstpass = filter_single_exon_group(args, curr_group, all_isoforms, firstpass, utr_fragment)
             curr_group = [exon]
         if exon.end > last_end:
             last_end = exon.end
     if len(curr_group) > 0:
-        firstpass = filter_single_exon_group(args, curr_group, all_isoforms, firstpass)
+        firstpass = filter_single_exon_group(args, curr_group, all_isoforms, firstpass, utr_fragment)
 
     return firstpass
 
@@ -1015,9 +1060,13 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                         if len(unique_seq) > 0:
                             iso_to_unique_bound[iso_name] = unique_seq
         # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of each strand's
-        # exons, a single-exon isoform only compared with isoforms on its strand
+        # exons, a single-exon isoform only compared with isoforms on its strand.  3' UTR
+        # fragments are of the spliced isoforms kept above, not of candidates the
+        # filter dropped
+        spliced_kept = dict(firstpass)
         for strand in sorted(candidates.exons):
-            firstpass = filter_all_single_exon(args, sorted(candidates.exons[strand]), candidates.isoforms, firstpass)
+            firstpass = filter_all_single_exon(args, sorted(candidates.exons[strand]), candidates.isoforms, firstpass,
+                                               _ThreePrimeFragments(spliced_kept, annots, strand))
 
     return firstpass, iso_to_unique_bound
 
