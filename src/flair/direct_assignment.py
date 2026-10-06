@@ -25,8 +25,8 @@ genome alignment left off a short exon at an end: then it is a truncated part of
 a kept isoform, ending at that isoform's next splice site with the rest of the
 read clipped.  Other such reads aren't realigned (unassignable_reads).
 
-Single-exon reads are assigned without the realignment by
-flair_transcriptome.assign_single_exon_reads.
+Single-exon reads aren't realigned: each stays with the single-exon isoform built
+from it.
 """
 from flair.count_sam_transcripts import SPLICE_SITE_FLANK
 

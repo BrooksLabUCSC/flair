@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import re
 import pipettor
@@ -23,13 +24,12 @@ from flair.isoform_data import (Exon, Gene, Isoform, ReadRec, get_bed_exons_from
                                 get_sequence_for_exons, binary_search, convert_to_bed12, convert_to_flair_bed, make_big_bed)
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
-from flair.count_sam_transcripts import TRUST_ENDS_WINDOW, run_count_sam_transcripts
+from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_prod_temp
 from flair.flair_bed import FlairBed
 from flair.terminal_exon_ends import TerminalExonEnds
-from flair.interval_index import IntervalIndex
 from flair import thread_share
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
@@ -91,7 +91,6 @@ class TranscriptomeOpts:
     directRNA: bool
     trust_strand: bool
     trust_junctions: bool
-    trust_ends: bool
     no_stringent: bool
     no_check_splice: bool
     no_align_to_annot: bool
@@ -160,9 +159,8 @@ def add_subparser(subparsers):
                              'checking splice motifs.  By default, an unannotated junction without a GT-AG '
                              'motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded '
                              'only by such junctions gets its strand from gene identification, or is dropped')
-    parser.add_argument('--trust_ends', action='store_true',
-                        help='trust the ends of the input reads: a more stringent way of requiring read ends '
-                             'to match the ends of transcript models')
+    # removed: each isoform's ends come from the reads assigned to it
+    parser.add_argument('--trust_ends', action='store_true', help=argparse.SUPPRESS)
 
     parser.add_argument('--no_stringent', action='store_true',
                         help="do not require all supporting reads to be full-length, that is aligned to the "
@@ -220,9 +218,10 @@ def add_subparser(subparsers):
                              'reads file and read assignments to firstpass isoforms')
 
     parser.add_argument('--normalize_ends', action='store_true',
-                        help='normalize transcript ends with similar terminal splice sites. Each spliced '
-                             'junction chain gives a single isoform, with the furthest start and end of its '
-                             'reads, overriding --max_ends')
+                        help='report each spliced isoform with the ends it shares with the isoforms of its gene '
+                             'whose terminal exons have splice sites near its own: the furthest of their read '
+                             'ends, rather than the ends of the reads assigned to it.  Each spliced junction '
+                             'chain gives a single isoform, overriding --max_ends')
     parser.add_argument('--generate_map', action='store_true',
                         help='generate a txt file of read-isoform assignments')
     parser.set_defaults(entry=transcriptome_cmd)
@@ -233,6 +232,9 @@ def transcriptome_cmd(args):
         raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
                                        "good alignment to several paralogs is assigned to one of "
                                        "them, and nothing downstream does otherwise")
+    if args.trust_ends:
+        raise FlairInputDataError("--trust_ends has been removed: each isoform's ends come from the ends "
+                                  "of the reads assigned to it")
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     for what, path in (('aligned reads bam', args.genome_aligned_bam), ('genome fasta', args.genome)):
@@ -247,7 +249,7 @@ def transcriptome_cmd(args):
                         sjc_support=args.sjc_support,
                         single_exon_support=args.single_exon_support,
                         frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand,
-                        trust_junctions=args.trust_junctions, trust_ends=args.trust_ends, no_stringent=args.no_stringent,
+                        trust_junctions=args.trust_junctions, no_stringent=args.no_stringent,
                         no_check_splice=args.no_check_splice,
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
@@ -266,7 +268,7 @@ def transcriptome_cmd(args):
 # tolerance for terminal exon boundary comparisons
 TERMINAL_EXON_BOUNDARY_TOLERANCE = 20
 
-# with --normalize_ends, a spliced junction chain's best supported start and end
+# a spliced junction chain's best supported start and end
 # are the read start and end with the most others within this distance
 BEST_END_WINDOW = 25
 
@@ -322,7 +324,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
             allow_UTR_indels=not directRNA,
             check_splice=check_splice,
             isoforms=ref_bed,
-            trust_ends=args.trust_ends,
+            trust_ends=False,
             unique_bound=unique_bound_path,
             fusion_breakpoints=args.fusion_breakpoints,
             # reads come from samtools fasta in their sequenced orientation, and
@@ -330,12 +332,12 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
             stranded=args.trust_strand,
             # in the annotation pass, an alignment clipped where the read runs past the
             # transcript's end would cut the read's corrected ends short; without its
-            # match the read keeps its own ends through junction correction.  With
-            # normalize_ends, the final realignment is to padded transcripts, and an
-            # alignment clipped past the read's genomic clipping is a read whose
-            # sequence the transcript doesn't have; it also gives the reported ends,
-            # which would stop at the transcript's end
-            no_extra_clipping=is_annot or args.normalize_ends)
+            # match the read keeps its own ends through junction correction.  The final
+            # realignment is to padded transcripts, and an alignment clipped past the
+            # read's genomic clipping is a read whose sequence the transcript doesn't
+            # have; it also gives the reported ends, which would stop at the
+            # transcript's end
+            no_extra_clipping=True)
 
 
 ##
@@ -590,12 +592,12 @@ def normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exon
     exons[-1] = Exon(exons[-1].start, end)
     return exons
 
-def generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, normalize_ends, max_terminal_exons_ends,
+def generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, max_terminal_exons_ends,
                                                 transcript_to_new_exons, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh):
     transcript_to_strand[(transcript_id, gene_id)] = strand
     exons = list(annots.transcript_to_exons[(transcript_id, gene_id)])
     assert isinstance(exons[0], Exon)  # FIXME tmp debugging
-    if normalize_ends and len(exons) > 1:
+    if len(exons) > 1:
         normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons, genome.get_reference_length(chrom))
         transcript_to_new_exons[(transcript_id, gene_id)] = tuple(exons)
     exons = tuple(exons)
@@ -611,23 +613,21 @@ def generate_transcriptome_reference_transcript(strand, transcript_to_strand, tr
     annot_fa_fh.write('>' + transcript_id + '_' + gene_id + '\n')
     annot_fa_fh.write(''.join(trans_seq) + '\n')
 
-def generate_transcriptome_reference_guts(normalize_ends, annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh):
+def generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh):
     transcript_to_strand = {}
     transcript_to_new_exons = {}
-    max_terminal_exons_ends = None
-    if normalize_ends:
-        max_terminal_exons_ends = max_terminal_exons_ends_from_annots(annots)
+    max_terminal_exons_ends = max_terminal_exons_ends_from_annots(annots)
 
     for transcript_id, gene_id, strand in annots.transcripts:
-        generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, normalize_ends, max_terminal_exons_ends,
+        generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, max_terminal_exons_ends,
                                                     transcript_to_new_exons, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
     return transcript_to_strand, transcript_to_new_exons
 
-def generate_transcriptome_reference(temp_prefix, annots, chrom, genome, normalize_ends=False):
+def generate_transcriptome_reference(temp_prefix, annots, chrom, genome):
     with (open(temp_prefix + '.annotated_transcripts.bed', 'w') as annot_bed_fh,
           open(temp_prefix + '.annotated_transcripts.fa', 'w') as annot_fa_fh,
           open(temp_prefix + '.annotated_transcripts_uniquebound.txt', 'w') as annot_uniqueseq_fh):
-        return generate_transcriptome_reference_guts(normalize_ends, annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
+        return generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
 
 
 def _write_reads_subset(in_fasta, out_fasta, skip):
@@ -659,7 +659,7 @@ def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_
         # logging.info('generating transcriptome reference')
         # this part generates the fasta file for the annotation
         transcript_to_strand, transcript_to_new_exons = \
-            generate_transcriptome_reference(temp_prefix, annots, chrom, genome, normalize_ends=args.normalize_ends)
+            generate_transcriptome_reference(temp_prefix, annots, chrom, genome)
         # FIXME: make a TSV
         clipping_file = temp_prefix + '.reads.genomicclipping.txt'
         transcriptome_align_and_count(args, annot_reads,
@@ -683,45 +683,15 @@ def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_
     return read_to_transcript
 
 
-def filter_ends_allow_multiple(isoforms, sjc_support, max_ends):
-    """Allow multiple ends per junction chain.
-    Returns list of Isoform objects that meet support threshold."""
-    if isoforms[0].num_reads < sjc_support:
-        # If top candidate doesn't meet threshold, merge all reads into it
-        best = isoforms[0]
-        for iso in isoforms[1:]:
-            best.reads.extend(iso.reads)
-        return [best]
-    else:
-        # Filter to those meeting support threshold and limit to max_ends
-        filtered = [x for x in isoforms if x.num_reads >= sjc_support]
-        filtered = filtered[:max_ends]  # select only top most supported ends
-        return filtered
-
-def filter_ends_single_best(isoforms):
-    """Pick single best end from junction chain.
-    Returns list with single Isoform object."""
-    # best_only uses the default sorting, doesn't require additional action
-    # Pick single best end and merge all reads into it
-    best = isoforms[0]
-    for iso in isoforms[1:]:
-        best.reads.extend(iso.reads)
-    return [best]
-
 def rank_end_variants(isoforms):
-    """Sort a junction chain's end variants, best first"""
+    """Sort a junction chain's or single-exon cluster's end variants, best first;
+    with max_ends above 1, the best max_ends of those with the support are kept"""
     # First by read support, then by length
     # FIXME: the comment above is what was meant; the code multiplies instead, so
     # this is not a two-level sort and a 1-read 10kb candidate outranks a 10-read
-    # 500bp one.  With max_ends 1 this single comparison sets the reported TSS and
-    # TES for every junction chain.  Sorting by (num_reads, genomic_length), which
-    # is what the comment says, moves exactly one locus in the test suite and makes
-    # it worse: on a single-exon chain it picks the modal end pair, which for
-    # long reads is a 5' truncation cluster, over the pair that reproduces the
-    # annotated 3' end.  So the product is compensating for a real bias in the
-    # single-exon case while having little to recommend it for spliced chains,
-    # where the end window is only the terminal exons.  Probably wants to branch on
-    # isoforms[0].juncs == (), as filter_ends_by_redundant_and_support does.
+    # 500bp one.  It once also chose the ends of every single-exon isoform, where
+    # sorting by (num_reads, genomic_length) picked the modal end pair, for long
+    # reads a 5' truncation cluster, over the pair reproducing the annotated 3' end
     isoforms.sort(key=lambda x: [x.num_reads * x.genomic_length], reverse=True)
 
 def densest_end(positions, window, outer):
@@ -735,35 +705,13 @@ def densest_end(positions, window, outer):
     return max(positions, key=lambda pos: (support(pos), sign * pos))
 
 def normalize_chain_ends(isoform):
-    """With --normalize_ends, a spliced junction chain is a single isoform, ending at
-    the furthest start and end of its reads.  Its densest read ends are its best
+    """A spliced junction chain is a single first-pass isoform, ending at the
+    furthest start and end of its reads.  Its densest read ends are its best
     supported ends, which the subset check uses."""
     starts, ends = isoform.starts, isoform.ends
     isoform.best_ends = (densest_end(starts, BEST_END_WINDOW, min), densest_end(ends, BEST_END_WINDOW, max))
     isoform.start, isoform.end = min(starts), max(ends)
     return isoform
-
-def filter_ends_by_redundant_and_support(isoforms, sjc_support, se_support, max_ends):
-    """Sort ends, then select best ones based on support and max_ends"""
-    if isoforms[0].juncs == ():
-        support = se_support
-    else:
-        support = sjc_support
-
-    junc_support = sum([x.num_reads for x in isoforms])
-    if junc_support < support:
-        logging.debug(f"isoform group dropped: insufficient support ({junc_support} < {support}): {isoforms[0].chrom}:{isoforms[0].start}-{isoforms[0].end}")
-        return []
-
-    rank_end_variants(isoforms)
-
-    if max_ends > 1:
-        # Allow multiple ends per junction chain
-        return filter_ends_allow_multiple(isoforms, support, max_ends)
-    else:
-        # Pick single best end
-        return filter_ends_single_best(isoforms)
-
 
 def _write_unfiltered_ends(isoforms, fh):
     for iso_readrec in isoforms:
@@ -774,44 +722,54 @@ class CandidateIsoforms:
 
     isoforms: dict of isoform_name -> Isoform
     junc_to_names: dict of Junc -> set of isoform_names sharing that junction
-    exons: set of Exon (named exons for SE, all exons for spliced, with the ends
-           the subset check uses)
+    exons: dict of strand -> set of Exon (named exons for SE, all exons for
+           spliced, with the ends the subset check uses)
     """
     def __init__(self):
         self.isoforms = {}
         self.junc_to_names = {}
-        self.exons = set()
+        self.exons = {}
 
     def add(self, isoform):
         self.isoforms[isoform.name] = isoform
+        strand_exons = self.exons.setdefault(isoform.strand, set())
         if isoform.juncs == ():
-            self.exons.add(Exon(isoform.start, isoform.end, isoform.name))
+            strand_exons.add(Exon(isoform.start, isoform.end, isoform.name))
         else:
             for j in isoform.juncs:
                 if j not in self.junc_to_names:
                     self.junc_to_names[j] = set()
                 self.junc_to_names[j].add(isoform.name)
-            # single-exon isoforms are checked against these for being subsets
-            self.exons.update(subset_check_exons(isoform))
+            # single-exon isoforms on the same strand are checked against these for
+            # being subsets
+            strand_exons.update(subset_check_exons(isoform))
 
-
-def _filter_isos_by_redundant_and_support(args, isoforms, candidates, iso_fh):
-    # this assumes single exons are pre-grouped by overlap
-    # previously treated single exons separately due to them being in larger groups
-    filtered_isoforms = filter_ends_by_redundant_and_support(isoforms, args.sjc_support, args.single_exon_support, args.max_ends)
-    for isoform in filtered_isoforms:
-        candidates.add(isoform)
-        convert_to_bed12(isoform).write(iso_fh)
 
 def _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh):
-    if args.normalize_ends and isoform.juncs != ():
-        # no end groups: one isoform, whatever max_ends is
+    if isoform.juncs != ():
+        # no end groups: one isoform, whatever max_ends is; assign_final_ends splits
+        # it into end variants
         these_firstpass = [normalize_chain_ends(isoform)]
+        support = args.sjc_support
     else:
+        # single-exon isoforms aren't realigned to, so a cluster's end variants are
+        # final here, each with its own reads; assign_final_ends gives a cluster none
+        # of whose variants passes support one isoform instead
         # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
-        these_firstpass = collapse_end_groups(args.end_window, isoform)
+        these_firstpass = [variant for variant, _ in _end_variants(isoform, isoform.reads, max_ends=args.max_ends,
+                                                                   end_window=args.end_window, support=args.single_exon_support)]
+        cluster = (isoform.chrom, isoform.strand, min(isoform.starts), max(isoform.ends))
+        for variant in these_firstpass:
+            variant.end_variant_cluster = cluster
+        support = args.single_exon_support
     _write_unfiltered_ends(these_firstpass, iso_unfilt_fh)
-    _filter_isos_by_redundant_and_support(args, these_firstpass, candidates, iso_fh)
+    num_reads = sum(variant.num_reads for variant in these_firstpass)
+    if num_reads < support:
+        logging.debug(f"isoform group dropped: insufficient support ({num_reads} < {support}): {isoform.chrom}:{isoform.start}-{isoform.end}")
+        return
+    for variant in these_firstpass:
+        candidates.add(variant)
+        convert_to_bed12(variant).write(iso_fh)
 
 
 def correct_se_strand_polyA(read_group, se_support):
@@ -854,35 +812,43 @@ def _group_se_reads_by_overlap(reads):
         read_groups.append(read_group)
     return read_groups
 
+def _se_read_groups(reads, se_support, trust_strand):
+    """(strand, reads) for each overlap group of single-exon reads.  With
+    trust_strand, the reads' strands are their transcripts', and each strand's reads
+    are grouped separately, so sense and antisense transcripts at a locus are both
+    kept.  Otherwise a group is of reads from both strands, and its strand comes
+    from the poly(A) tails of its reads, None if they don't give one."""
+    if trust_strand:
+        by_strand = {}
+        for read in reads:
+            by_strand.setdefault(read.strand, []).append(read)
+        return [(strand, read_group) for strand, strand_reads in sorted(by_strand.items())
+                for read_group in _group_se_reads_by_overlap(strand_reads)]
+    return [(correct_se_strand_polyA(read_group, se_support), read_group)
+            for read_group in _group_se_reads_by_overlap(reads)]
+
 def group_se_by_overlap(chrom, isoform, se_support, trust_strand):
-    for read_group in _group_se_reads_by_overlap(isoform.reads):
-        if trust_strand:
-            # get most common read strand for group
-            read_strands = [x.strand for x in read_group]
-            new_strand = max(set(read_strands), key=read_strands.count)
-        else:
-            # correct based on polyA
-            new_strand = correct_se_strand_polyA(read_group, se_support)
+    for new_strand, read_group in _se_read_groups(isoform.reads, se_support, trust_strand):
         # filter out single exon groups that fail stranding
         if new_strand is None:
             logging.debug(f"single-exon group dropped: strand could not be determined ({len(read_group)} reads): {chrom}:{read_group[0].start}-{read_group[-1].end}")
         else:
-            new_key = (chrom, median([x.start for x in read_group]), median([x.end for x in read_group]), ())
+            new_key = (chrom, median([x.start for x in read_group]), median([x.end for x in read_group]), (), new_strand)
             yield new_key, new_strand, read_group
 
 class IsoformOverlapGroups:
     """Isoforms grouped by junction chain with overlap-clustered ends.
 
-    Key: (chrom, median_start, median_end, juncs) where juncs is () for single-exon.
+    Key: (chrom, median_start, median_end, juncs) for spliced isoforms, and
+    (chrom, median_start, median_end, (), strand) for single-exon ones.
     Value: Isoform.
 
-    Strand is not part of the key. For spliced isoforms, strand is determined
-    during junction correction and stored on the Isoform. For single-exon
-    reads, strand cannot be determined from junctions, so overlapping reads are
-    grouped by coordinate overlap first, then strand is resolved per group by
-    majority vote (trust_strand) or polyA consensus.  This means opposite-strand
-    single-exon reads at the same locus merge into one group; the minority
-    strand is discarded.
+    For spliced isoforms, strand is determined during junction correction and
+    stored on the Isoform.  For single-exon reads, strand cannot be determined
+    from junctions: with trust_strand, each strand's reads are grouped by
+    coordinate overlap separately; otherwise overlapping reads are grouped
+    regardless of strand, and each group's strand is resolved by polyA
+    consensus (see _se_read_groups).
     """
     def __init__(self):
         self._groups = {}
@@ -935,11 +901,16 @@ def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, regio
 # single-exon transcript processing
 ####
 def filter_single_exon_iso(args, single_exon, curr_group, all_isoforms):
-    """Check if a single-exon isoform passes filtering against its overlap group."""
+    """Check if a single-exon isoform passes filtering against its overlap group.
+    The end variants of one cluster of reads aren't compared with each other: they
+    were chosen as its ends (_end_variants)."""
     isoform = all_isoforms[single_exon.name]
     expression_comp_with_superset = []
     is_contained = False
     for exon in curr_group:
+        if isoform.end_variant_cluster is not None and exon.name != '' and \
+                all_isoforms[exon.name].end_variant_cluster == isoform.end_variant_cluster:
+            continue
         if exon != single_exon:
             if ((exon.start - SINGLE_EXON_OVERLAP_MARGIN) <= single_exon.start and
                     single_exon.end <= (exon.end + SINGLE_EXON_OVERLAP_MARGIN)):
@@ -989,7 +960,7 @@ def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass):
 
 def subset_check_exons(isoform):
     """An isoform's exons with its best supported ends, which is what the subset
-    check compares; with --normalize_ends these differ from its furthest ends"""
+    check compares; these differ from its furthest ends"""
     exons = list(isoform.exons)
     if isoform.best_ends is not None:
         exons[0] = Exon(isoform.best_ends[0], exons[0].end)
@@ -1022,8 +993,10 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                         firstpass[iso_name] = isoform
                         if len(unique_seq) > 0:
                             iso_to_unique_bound[iso_name] = unique_seq
-        # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of list
-        firstpass = filter_all_single_exon(args, sorted(candidates.exons), candidates.isoforms, firstpass)
+        # HANDLE SINGLE EXONS SEPARATELY - group first - one traversal of each strand's
+        # exons, a single-exon isoform only compared with isoforms on its strand
+        for strand in sorted(candidates.exons):
+            firstpass = filter_all_single_exon(args, sorted(candidates.exons[strand]), candidates.isoforms, firstpass)
 
     return firstpass, iso_to_unique_bound
 
@@ -1420,9 +1393,9 @@ def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand,
         for k in group:
             add_gene_isoform(genes, gene_id, firstpass[k], strand, is_novel=True)
 
-def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_exons_ends, unique_bound, unique_fh, iso_fh, seq_fh, genome):
+def write_first_pass_isoforms(iso_name, isoform, max_terminal_exons_ends, unique_bound, unique_fh, iso_fh, seq_fh, genome):
     # FIXME: do normalization outside of write function
-    if normalize_ends and len(isoform.exons) > 1:  # don't normalize ends for single exon transcripts
+    if len(isoform.exons) > 1:  # don't normalize ends for single exon transcripts
         # kept so the padding can be removed from the final isoform, since clamping
         # to the chromosome means it is not always NORM_END_EXTRA_LEN
         isoform.unpadded_ends = max_terminal_exons_ends.furthest_ends(isoform.gene_id, isoform.strand, _exon_bounds(isoform.exons))
@@ -1448,23 +1421,15 @@ def write_first_pass_isoforms(iso_name, normalize_ends, isoform, max_terminal_ex
         seq_fh.write('>' + isoform.name + '\n')
         seq_fh.write(isoform.get_sequence(genome) + '\n')
 
-def write_firstpass(temp_prefix, chrom, firstpass, annots, genome, *,
-                    normalize_ends=False, unique_bound=None):
-
+def write_firstpass(temp_prefix, chrom, firstpass, annots, genome, *, unique_bound=None):
     # generating standardized set of ends for gene
-    if normalize_ends:
-        max_terminal_exons_ends = max_terminal_exons_ends_from_iso_infos(firstpass)
-    else:
-        # FIXME: passing None is move obvious to flow control,
-        # although making write_first_pass_isoforms less monolithic
-        # it does more than writing
-        max_terminal_exons_ends = {}
+    max_terminal_exons_ends = max_terminal_exons_ends_from_iso_infos(firstpass)
 
     with (open(temp_prefix + '.firstpass.bed', 'w') as iso_fh,
           open(temp_prefix + '.firstpass.fa', 'w') as seq_fh,
           open(temp_prefix + '.firstpass.uniquebound.txt', 'w') as unique_fh):
         for iso_name in firstpass:
-            write_first_pass_isoforms(iso_name, normalize_ends, firstpass[iso_name], max_terminal_exons_ends,
+            write_first_pass_isoforms(iso_name, firstpass[iso_name], max_terminal_exons_ends,
                                       unique_bound, unique_fh, iso_fh, seq_fh, genome)
 
 
@@ -1491,61 +1456,53 @@ def single_exon_reads(sj_to_ends):
     "the reads with no junctions after correction"
     return [read for (chrom, juncs), isoform in sj_to_ends.items() if juncs == () for read in isoform.reads]
 
-def _single_exon_read_fits(isoform, read, trust_ends, trust_strand):
-    """Does a single-exon read support a single-exon isoform: overlapping it by more
-    than half of each of their lengths, or with trust_ends, ending within
-    TRUST_ENDS_WINDOW of its ends"""
-    if trust_strand and read.strand != isoform.strand:
-        return False
-    if trust_ends:
-        return abs(read.start - isoform.start) <= TRUST_ENDS_WINDOW and abs(read.end - isoform.end) <= TRUST_ENDS_WINDOW
-    overlap = min(isoform.end, read.end) - max(isoform.start, read.start)
-    return overlap > (isoform.end - isoform.start) / 2 and overlap > (read.end - read.start) / 2
-
-def assign_single_exon_reads(reads, firstpass, ends_fh, *, trust_ends, trust_strand):
-    """Single-exon reads aren't realigned to the first-pass isoforms: aligned with
-    stringent assignment, a spliced isoform never took one, and spliced reads never
-    went to a single-exon isoform.  Each single-exon read goes to the overlapping
-    single-exon isoform it fits with the least distance between their ends, written
-    as count_sam_transcripts writes its ends, so calc_final_iso_support counts them
-    with the realigned reads."""
-    se_isoforms = IntervalIndex()
-    for isoform in firstpass.values():
-        if isoform.juncs == ():
-            se_isoforms.add(isoform.start, isoform.end, isoform)
-    iso_to_reads = {}
-    for read in reads:
-        fits = [iso for iso in se_isoforms.overlap(read.start, read.end)
-                if iso.chrom == read.chrom and _single_exon_read_fits(iso, read, trust_ends, trust_strand)]
-        if len(fits) > 0:
-            best = min(fits, key=lambda iso: (abs(read.start - iso.start) + abs(read.end - iso.end), iso.name))
-            iso_to_reads.setdefault(best.name, (best, []))[1].append(read)
-    for isoform, reads in iso_to_reads.values():
-        for read in reads:
-            # distances from the transcript's ends to the part of it the read covers
-            start_dist, end_dist = max(read.start - isoform.start, 0), max(isoform.end - read.end, 0)
-            if isoform.strand == '-':
-                start_dist, end_dist = end_dist, start_dist
-            ends_fh.write('\t'.join(str(x) for x in (read.name, isoform.name, None, None, start_dist, None, None, end_dist)) + '\n')
-
 def _nearest_end_variant(read, variants):
     return min(variants, key=lambda v: abs(read.start - v.start) + abs(read.end - v.end))
 
-def _final_end_variants(isoform, reads, *, max_ends, end_window, sjc_support, se_support):
-    """The isoforms, with their reads, that a spliced first-pass isoform's assigned
-    reads give: one at the densest read ends, or with max_ends above 1, its kept end
-    groups, each read going to the one whose ends are nearest its own"""
+def _longest_supported_read_ends(reads):
+    """The ends of the longest read whose start and end each have another read's
+    within BEST_END_WINDOW, so a read sticking out past the others doesn't set
+    them.  If no read's both are, the longest read, less any more than twice the
+    length of the next longest."""
+    starts, ends = sorted(read.start for read in reads), sorted(read.end for read in reads)
+
+    def near(positions, pos):
+        return bisect_right(positions, pos + BEST_END_WINDOW) - bisect_left(positions, pos - BEST_END_WINDOW)
+    supported = [read for read in reads if near(starts, read.start) > 1 and near(ends, read.end) > 1]
+    by_length = sorted(supported or reads, key=lambda read: (read.end - read.start, -read.start), reverse=True)
+    if len(supported) == 0:
+        while len(by_length) > 1 and by_length[0].end - by_length[0].start > 2 * (by_length[1].end - by_length[1].start):
+            by_length.pop(0)
+    return by_length[0].start, by_length[0].end
+
+def _one_end_variant(isoform, reads):
+    """The one isoform a junction chain's or single-exon cluster's reads give, with
+    all of them: a spliced one at the densest read starts and ends, a single-exon
+    one, with no junctions between its ends to place them, at the ends of one real
+    read (_longest_supported_read_ends)"""
+    if isoform.juncs == ():
+        start, end = _longest_supported_read_ends(reads)
+    else:
+        start = densest_end([read.start for read in reads], BEST_END_WINDOW, min)
+        end = densest_end([read.end for read in reads], BEST_END_WINDOW, max)
+    return Isoform.regroup(isoform, start, end, reads)
+
+def _end_variants(isoform, reads, *, max_ends, end_window, support):
+    """The isoforms, with their reads, that a junction chain's or single-exon
+    cluster's reads give: one with all of them (_one_end_variant), or with
+    max_ends above 1, the best ranked max_ends of its end groups with at least
+    support reads, each read going to the one whose ends are nearest its own, unless
+    fewer than two groups have the support"""
     if max_ends > 1:
-        variants = filter_ends_by_redundant_and_support(collapse_end_groups(end_window, Isoform.regroup(isoform, newreads=reads)),
-                                                        sjc_support, se_support, max_ends)
+        groups = collapse_end_groups(end_window, Isoform.regroup(isoform, newreads=reads))
+        rank_end_variants(groups)
+        variants = [group for group in groups if group.num_reads >= support][:max_ends]
         if len(variants) > 1:
             variant_reads = {id(v): [] for v in variants}
             for read in reads:
                 variant_reads[id(_nearest_end_variant(read, variants))].append(read)
             return [(Isoform.regroup(isoform, v.start, v.end, variant_reads[id(v)]), variant_reads[id(v)]) for v in variants]
-    start = densest_end([read.start for read in reads], BEST_END_WINDOW, min)
-    end = densest_end([read.end for read in reads], BEST_END_WINDOW, max)
-    return [(Isoform.regroup(isoform, start, end, reads), reads)]
+    return [(_one_end_variant(isoform, reads), reads)]
 
 class _RealignedRead:
     "a read's genomic ends from its alignment in the final realignment"
@@ -1587,18 +1544,31 @@ def _rewrite_ends_and_map(ends_lines, ends_path, map_path):
             for name, names in iso_reads.items():
                 fh.write(name + '\t' + ','.join(names) + '\n')
 
-def _best_supported_variant(variants):
-    "the end variant with the most reads, ties going to the longer"
-    return max(variants, key=lambda v: (len(v[1]), v[0].end - v[0].start))
+def _covers_half(read, isoform):
+    "does a single-exon read cover more than half of a single-exon isoform"
+    return min(isoform.end, read.end) - max(isoform.start, read.start) > (isoform.end - isoform.start) / 2
 
-def assign_final_ends(firstpass, ends_path, map_path, *, max_ends, end_window, sjc_support, se_support, frac_support):
-    """With --normalize_ends, a spliced isoform's reported ends come from the reads
-    assigned to it in the final realignment, each read's ends taken from its
-    alignment there, its normalized and padded transcript being only what reads
-    align to.  With max_ends above 1, a junction chain whose reads pass
-    sjc_support and frac_support, though none of its end variants' do, still has
-    its best supported variant reported, with its own reads.  Rewrites the ends
-    and read map files for the isoforms this gives, and returns them by name."""
+def _variants_all_unsupported(variant_counts, passes_support, isoform):
+    """do several end variants, with variant_counts reads each, all fail support,
+    though together they pass it"""
+    return len(variant_counts) > 1 and passes_support(isoform, sum(variant_counts)) and \
+        not any(passes_support(isoform, n) for n in variant_counts)
+
+def assign_final_ends(firstpass, ends_path, map_path, *, normalize_ends, max_ends, end_window, sjc_support, frac_support):
+    """Each spliced isoform's reported ends come from the reads assigned to it in the
+    final realignment, or directly (direct_assignment), each read's ends taken from
+    its alignment, its normalized and padded transcript being only what reads align
+    to: one isoform at the densest read ends, or with max_ends above 1, its end
+    variants (_end_variants).  With normalize_ends, it keeps instead the ends it
+    shares with its gene's isoforms with similar terminal splice sites, set when the
+    first-pass isoforms were written (write_first_pass_isoforms), with all its reads.
+    A junction chain whose reads pass sjc_support and frac_support, though none of
+    its several end variants' do, gives one isoform with all its reads instead, as
+    with max_ends 1 (_one_end_variant).
+
+    Single-exon first-pass isoforms are returned as they are, in their places, for
+    assign_single_exon_isoforms.  Rewrites the ends and read map files for the
+    spliced isoforms this gives, and returns all of them by name."""
     lines_by_iso = {}
     for line in open(ends_path):
         fields = line.rstrip('\n').split('\t')
@@ -1613,20 +1583,18 @@ def assign_final_ends(firstpass, ends_path, map_path, *, max_ends, end_window, s
     for isoform in firstpass.values():
         lines = lines_by_iso.get(isoform.name, [])
         reads = [] if isoform.juncs == () else [r for r in (_realigned_read(isoform, f) for f in lines) if r is not None]
-        if len(reads) == 0:
+        if len(reads) == 0 or normalize_ends:
             final[isoform.name] = isoform
             out_lines.extend(lines)
             continue
         line_by_read = {f[0]: f for f in lines}
-        variants = _final_end_variants(isoform, reads, max_ends=max_ends, end_window=end_window,
-                                       sjc_support=sjc_support, se_support=se_support)
+        variants = _end_variants(isoform, reads, max_ends=max_ends, end_window=end_window, support=sjc_support)
         # stringent assignments always have both distances; any line without them
-        # goes to the best supported variant
+        # goes to the first variant
         others = {f[0] for f in lines} - {read.name for read in reads}
-        if len(variants) > 1 and passes_support(isoform, len(lines)) and \
-                not any(passes_support(isoform, len(variant_reads) + (len(others) if i == 0 else 0))
-                        for i, (variant, variant_reads) in enumerate(variants)):
-            _best_supported_variant(variants)[0].report_unsupported = True
+        variant_counts = [len(variant_reads) + (len(others) if i == 0 else 0) for i, (variant, variant_reads) in enumerate(variants)]
+        if _variants_all_unsupported(variant_counts, passes_support, isoform):
+            variants = [(_one_end_variant(isoform, reads), reads)]
         for i, (variant, variant_reads) in enumerate(variants):
             variant.unpadded_ends = (variant.start, variant.end)
             final[variant.name] = variant
@@ -1635,7 +1603,56 @@ def assign_final_ends(firstpass, ends_path, map_path, *, max_ends, end_window, s
     _rewrite_ends_and_map(out_lines, ends_path, map_path)
     return final
 
-def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends, no_stringent):
+def assign_single_exon_isoforms(isoforms, iso_to_counts, gene_to_tot, *, se_support, frac_support):
+    """The final single-exon isoforms, by the name of the first-pass isoform each
+    comes from.  Single-exon isoforms aren't realigned to: each keeps the reads it
+    was built from that cover more than half of it.  A cluster whose reads pass
+    support, though none of its several end variants' do, gives one isoform with all
+    its reads instead, as with max_ends 1 (_one_end_variant).  Support is se_support
+    reads and frac_support of the gene's full-length reads: all its spliced ones, as
+    calc_final_iso_support counted them, and its single-exon ones covering their
+    isoforms.  Adds the isoforms' reads to iso_to_counts and gene_to_tot, as
+    calc_final_iso_support counts them."""
+    covering = {isoform.name: [read for read in isoform.reads if _covers_half(read, isoform)] for isoform in isoforms}
+    gene_total = {}
+    for isoform in isoforms:
+        gene_total[isoform.gene_id] = (gene_total.get(isoform.gene_id, gene_to_tot.get(isoform.gene_id, [0, 0, 0])[1])
+                                       + len(covering[isoform.name]))
+
+    def passes_support(isoform, num_reads):
+        total = gene_total[isoform.gene_id]
+        return num_reads >= se_support and total > 0 and num_reads / total >= frac_support
+
+    clusters = {}
+    for isoform in isoforms:
+        clusters.setdefault(isoform.end_variant_cluster or isoform.name, []).append(isoform)
+    final = {}
+    for variants in clusters.values():
+        if _variants_all_unsupported([len(covering[v.name]) for v in variants], passes_support, variants[0]):
+            merged = _one_end_variant(variants[0], [read for variant in variants for read in variant.reads])
+            merged.reads = [read for read in merged.reads if _covers_half(read, merged)]
+            final[variants[0].name] = [merged]
+        else:
+            for variant in variants:
+                variant.reads = covering[variant.name]
+                final[variant.name] = [variant]
+    for isoform in (isoform for variants in final.values() for isoform in variants):
+        if isoform.num_reads > 0:
+            iso_to_counts[isoform.name] = [isoform.num_reads, isoform.num_reads]
+            gene_reads = gene_to_tot.setdefault(isoform.gene_id, [0, 0, 0])
+            gene_reads[1] += isoform.num_reads
+            gene_reads[2] += isoform.num_reads
+    return final
+
+def _with_single_exon_isoforms(final, single_exon):
+    "the final isoforms by name, each single-exon one in the place of the first-pass isoform it comes from"
+    out = {}
+    for name, isoform in final.items():
+        for final_isoform in (single_exon.get(name, []) if isoform.juncs == () else [isoform]):
+            out[final_isoform.name] = final_isoform
+    return out
+
+def calc_final_iso_support(read_ends_file, final_transcript_objs, no_stringent):
     iso_to_counts = {}
     gene_to_tot = {}
     for line in open(read_ends_file):
@@ -1648,29 +1665,18 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends, no
             gene_to_tot[gene] = [0, 0, 0]
         if transcript not in iso_to_counts:
             iso_to_counts[transcript] = [0, 0]
-        if start_sj_index is None:  # single exon transcript
-            if trust_ends:
-                if start_tend_dist <= TRUST_ENDS_WINDOW and end_tend_dist <= TRUST_ENDS_WINDOW:
-                    iso_to_counts[transcript][0] += 1
-                    gene_to_tot[gene][1] += 1
-            else:
-                tlen = final_transcript_objs[transcript].end - final_transcript_objs[transcript].start
-                rlen = tlen - (start_tend_dist + end_tend_dist)
-                if rlen > (tlen / 2):
-                    iso_to_counts[transcript][0] += 1
-                    gene_to_tot[gene][1] += 1
-        else:
-            # either reads are full-length or the user has explicitly specified no_stringent
-            if (start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1) or no_stringent:
-                iso_to_counts[transcript][0] += 1
-                gene_to_tot[gene][0] += 1
-                gene_to_tot[gene][1] += 1
-            else:  # this is only kept to catch bugs in count_sam_transcripts transcript assignment
-                # the FIXME above says count_sam_transcripts no longer emits these, so
-                # reaching this means the two disagree about what ends.tsv holds
-                raise FlairError(f"{read_ends_file}: read '{read}' on transcript '{transcript}' is not "
-                                 f"full length: junctions {start_sj_index} to {end_sj_index} of "
-                                 f"{len(final_transcript_objs[transcript].juncs)}")
+        # only spliced isoforms' reads have ends lines (assign_single_exon_isoforms);
+        # either reads are full-length or the user has explicitly specified no_stringent
+        if (start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1) or no_stringent:
+            iso_to_counts[transcript][0] += 1
+            gene_to_tot[gene][0] += 1
+            gene_to_tot[gene][1] += 1
+        else:  # this is only kept to catch bugs in count_sam_transcripts transcript assignment
+            # the FIXME above says count_sam_transcripts no longer emits these, so
+            # reaching this means the two disagree about what ends.tsv holds
+            raise FlairError(f"{read_ends_file}: read '{read}' on transcript '{transcript}' is not "
+                             f"full length: junctions {start_sj_index} to {end_sj_index} of "
+                             f"{len(final_transcript_objs[transcript].juncs)}")
         iso_to_counts[transcript][1] += 1
         gene_to_tot[gene][2] += 1
     return iso_to_counts, gene_to_tot
@@ -1690,9 +1696,8 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
             # spliced isos checked against spliced total, single exon checked against full-length total
             isoform = final_transcript_objs[tname]
             passes_support, my_frac_support = _iso_passes_support_filter(args, tname, isoform.gene_id, len(isoform.exons), iso_to_counts, gene_to_tot)
-            # a junction chain's best supported end variant, its chain passing support
-            if passes_support or (isoform.report_unsupported and tname in iso_to_counts):
-                if args.normalize_ends and len(isoform.exons) > 1:
+            if passes_support:
+                if len(isoform.exons) > 1:
                     # removing additional length from ends
                     # not entirely sure why I need to reset the exons outside of the isoform object, but it doesn't work otherwise
                     exons = isoform.exons
@@ -1708,7 +1713,9 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
                 seq_fh.write(isoform.get_sequence(genome) + '\n')
                 counts_fh.write(f'{isoform.name}\t{iso_to_counts[tname][0]}\t{iso_to_counts[tname][1]}\n')
                 if generate_map:
-                    map_fh.write(f'{isoform.name}\t{transcript_to_reads[tname]}')
+                    # single-exon isoforms have their reads; spliced ones' are in the read map
+                    reads = ','.join(read.name for read in isoform.reads) + '\n' if isoform.juncs == () else transcript_to_reads[tname]
+                    map_fh.write(f'{isoform.name}\t{reads}')
 
 
 def _run_region(*, partition, gtf_data, junction_corrector, args):
@@ -1787,15 +1794,13 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             # also normalizes transcript ends (temporarily extends ends so that transcript end alignment does not drive transcript assignment during transcriptome alignment)
             # writes out bed and fa files
             logging.info('realigning to firstpass and getting final isoforms')
-            write_firstpass(partition.file_prefix, region.name, firstpass, annots, genome, unique_bound=iso_to_unique_bound,
-                            normalize_ends=args.normalize_ends)
+            write_firstpass(partition.file_prefix, region.name, firstpass, annots, genome, unique_bound=iso_to_unique_bound)
 
             # reads matching a firstpass isoform exactly are assigned without the realignment,
             # and reads it can't assign aren't realigned (see direct_assignment); with
-            # trust_ends, count_sam_transcripts checks the ends, and with fusion_breakpoints,
-            # that reads cover the breakpoint
+            # fusion_breakpoints, count_sam_transcripts checks that reads cover the breakpoint
             direct, unassignable = {}, set()
-            if not (args.trust_ends or args.fusion_breakpoints):
+            if not args.fusion_breakpoints:
                 spliced_reads = [read for (chrom, juncs), isoform in sj_to_ends.items() if juncs != () for read in isoform.reads]
                 direct = direct_assignments(spliced_reads, firstpass.values(),
                                             read_unique_bounds(partition.output_path('firstpass.uniquebound.txt')))
@@ -1820,29 +1825,24 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             else:
                 generate_empty_intermediate_files(partition.file_prefix, ['.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
             with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh:
-                assign_single_exon_reads(se_reads, firstpass, ends_fh,
-                                         trust_ends=args.trust_ends, trust_strand=args.trust_strand)
                 write_direct_assignments(direct, ends_fh)
-            # the read map, for every way reads were assigned, from the ends
-            ends_lines = [line.rstrip('\n').split('\t') for line in open(partition.output_path('isoform.ends.tsv'))]
-            _rewrite_ends_and_map(ends_lines, partition.output_path('isoform.ends.tsv'), read_map_file)
         else:
             logging.info('no firstpass isoforms found')
             generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
 
-        if args.normalize_ends:
-            final_transcript_objs = assign_final_ends(firstpass, partition.output_path('isoform.ends.tsv'),
-                                                      partition.output_path('countsam.read.map.txt') if args.generate_map else None,
-                                                      max_ends=args.max_ends, end_window=args.end_window,
-                                                      sjc_support=args.sjc_support, se_support=args.single_exon_support,
-                                                      frac_support=args.frac_support)
-        else:
-            # FIXME this is messy, shouldn't have to reorganize like this
-            final_transcript_objs = {}
-            for og_key in firstpass:
-                final_transcript_objs[firstpass[og_key].name] = firstpass[og_key]
-
-        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.trust_ends, args.no_stringent)
+        # every spliced isoform's ends, from the reads assigned to it; this also writes
+        # the read map, for every way spliced reads were assigned, from the ends
+        final_transcript_objs = assign_final_ends(firstpass, partition.output_path('isoform.ends.tsv'),
+                                                  partition.output_path('countsam.read.map.txt') if args.generate_map else None,
+                                                  normalize_ends=args.normalize_ends,
+                                                  max_ends=args.max_ends, end_window=args.end_window,
+                                                  sjc_support=args.sjc_support, frac_support=args.frac_support)
+        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.no_stringent)
+        # single-exon isoforms after the spliced reads are counted, which their support is a fraction of
+        single_exon = assign_single_exon_isoforms([isoform for isoform in final_transcript_objs.values() if isoform.juncs == ()],
+                                                  iso_to_counts, gene_to_tot,
+                                                  se_support=args.single_exon_support, frac_support=args.frac_support)
+        final_transcript_objs = _with_single_exon_isoforms(final_transcript_objs, single_exon)
         write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, args.generate_map)
 
 def combine_chunks(args, output, partitions):
@@ -1920,7 +1920,7 @@ def fix_iso_labels(output, generate_map):
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_tab, junction_bed, junction_support, ss_window, end_window,
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand,
-                        trust_junctions, trust_ends, no_stringent, no_check_splice, no_align_to_annot,
+                        trust_junctions, no_stringent, no_check_splice, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
@@ -1930,7 +1930,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              end_window=end_window, sjc_support=sjc_support,
                              single_exon_support=single_exon_support, frac_support=frac_support,
                              directRNA=directRNA, trust_strand=trust_strand or directRNA,
-                             trust_junctions=trust_junctions, trust_ends=trust_ends,
+                             trust_junctions=trust_junctions,
                              no_stringent=no_stringent, no_check_splice=no_check_splice,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,

@@ -416,21 +416,23 @@ class Isoform:
         # (start, end) best supported by the reads, which the subset check uses,
         # set only when the isoform's ends are its furthest read ends
         self.best_ends = None
-        # reported though it fails the support filters, as the best supported end
-        # variant of a junction chain that passes them
-        self.report_unsupported = False
+        # for a single-exon isoform, the overlap cluster of reads whose end variant it is
+        self.end_variant_cluster = None
         self.end5confidence = None
         self.end3confidence = None
 
     @property
     def name(self):
         """An assigned name, otherwise a hash of the junctions before the ends are
-        known and of the exons once they are."""
+        known and of the exons once they are, and for a single-exon isoform its strand,
+        as both strands' reads give single-exon isoforms"""
         # FIXME: ideally would add chromosome and strand to this hash
         if self._name is not None:
             return self._name
         elif self.start is None:
             return str(abs(hash(tuple(self.juncs))))
+        elif self.juncs == ():
+            return str(abs(hash(tuple(self.exons) + (1 if self.strand == '+' else -1,))))
         else:
             return str(abs(hash(tuple(self.exons))))
 

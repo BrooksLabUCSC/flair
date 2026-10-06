@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from flair.isoform_data import Isoform, Junc
-from flair.flair_transcriptome import (BEST_END_WINDOW, densest_end, normalize_chain_ends,
-                                       filter_ends_by_redundant_and_support, subset_check_exons)
+from flair.flair_transcriptome import (BEST_END_WINDOW, _end_variants, densest_end, normalize_chain_ends,
+                                       subset_check_exons)
 
 JUNCS = (Junc(200, 300), Junc(400, 500))
 
@@ -32,11 +32,17 @@ def test_normalize_chain_ends_furthest_and_best_supported():
     assert (exons[0].start, exons[-1].end) == (100, 605)
 
 
-def test_without_normalize_ends_max_ends_still_applies():
-    variants = []
-    for start, end, nreads in ((100, 600, 5), (50, 550, 4)):
-        iso = Isoform('chr1', '+', JUNCS, start, end)
-        iso.reads.extend(SimpleNamespace(start=start, end=end) for _ in range(nreads))
-        variants.append(iso)
-    kept = filter_ends_by_redundant_and_support(variants, sjc_support=2, se_support=3, max_ends=2)
-    assert len(kept) == 2
+def _reads(*groups):
+    return [SimpleNamespace(start=start, end=end) for start, end, nreads in groups for _ in range(nreads)]
+
+
+def test_end_groups_with_support_are_kept_up_to_max_ends():
+    reads = _reads((100, 600, 5), (0, 450, 4), (150, 850, 1))
+    variants = _end_variants(_chain([]), reads, max_ends=2, end_window=20, support=2)
+    assert sorted((v.start, v.end, len(variant_reads)) for v, variant_reads in variants) == [(0, 450, 4), (100, 600, 6)]
+
+
+def test_fewer_than_two_supported_end_groups_give_one_isoform_at_the_densest_ends():
+    reads = _reads((100, 600, 5), (0, 450, 1))
+    ((iso, iso_reads),) = _end_variants(_chain([]), reads, max_ends=2, end_window=20, support=2)
+    assert (iso.start, iso.end, len(iso_reads)) == (100, 600, 6)
