@@ -539,47 +539,33 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
             if rquality < quality:
                 logging.debug(f"read dropped: low quality ({rquality} < {quality}): {readname}")
             elif rquality >= quality:
-                # for transcriptome alignment, always take rightmost side on transcript
-                if remove_internal_priming:
-                    intprim_annot = info.transcript_to_exons if permissive_last_exons else None
-                    not_internal_priming = removeinternalpriming(read.reference_name,
-                                                                 read.reference_start,
-                                                                 read.reference_end, False,
-                                                                 genome, None, intprim_annot,
-                                                                 intprimingthreshold,
-                                                                 intprimingfracAs)
-                else:
-                    not_internal_priming = True
-                if not not_internal_priming:
-                    logging.debug(f"read dropped: internal priming on {transcript}: {readname}")
-                else:
-                    pos = read.reference_start
-                    try:
-                        alignscore = read.get_tag('AS')
-                        mdtag = read.get_tag('MD')
-                    except KeyError as ex:
-                        raise FlairInputDataError(
-                            f"alignment of '{read.query_name}' has no AS or MD tag; align with "
-                            "minimap2 --MD so that these are present") from ex
-                    cigar = read.cigartuples
-                    tlen = samfile.get_reference_length(transcript)
-                    if lastread and readname != lastread:
-                        clipping = readstoclipping[lastread] if lastread in readstoclipping else None
-                        assignedts = get_best_transcript(curr_transcripts, info, clipping,
-                                                         stringent=stringent, check_splice=check_splice,
-                                                         fusion_breakpoints=fusion_breakpoints,
-                                                         allow_UTR_indels=allow_UTR_indels,
-                                                         trimmedreads=trimmedreads,
-                                                         soft_clipping_buffer=soft_clipping_buffer,
-                                                         output_endpos=output_endpos,
-                                                         trust_ends=trust_ends, end_norm_dist=end_norm_dist, rname=lastread)
-                        if not assignedts:
-                            logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
-                        else:
-                            for assignedt, gtstart, gtend in assignedts:
-                                if assignedt not in transcript_to_reads:
-                                    transcript_to_reads[assignedt] = []
-                                transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
+                pos = read.reference_start
+                try:
+                    alignscore = read.get_tag('AS')
+                    mdtag = read.get_tag('MD')
+                except KeyError as ex:
+                    raise FlairInputDataError(
+                        f"alignment of '{read.query_name}' has no AS or MD tag; align with "
+                        "minimap2 --MD so that these are present") from ex
+                cigar = read.cigartuples
+                tlen = samfile.get_reference_length(transcript)
+                if lastread and readname != lastread:
+                    clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+                    assignedts = get_best_transcript(curr_transcripts, info, clipping,
+                                                     stringent=stringent, check_splice=check_splice,
+                                                     fusion_breakpoints=fusion_breakpoints,
+                                                     allow_UTR_indels=allow_UTR_indels,
+                                                     trimmedreads=trimmedreads,
+                                                     soft_clipping_buffer=soft_clipping_buffer,
+                                                     output_endpos=output_endpos,
+                                                     trust_ends=trust_ends, end_norm_dist=end_norm_dist, rname=lastread)
+                    if not assignedts:
+                        logging.debug(f"read dropped: no passing transcript assignment: {lastread}")
+                    else:
+                        for assignedt, gtstart, gtend in assignedts:
+                            if assignedt not in transcript_to_reads:
+                                transcript_to_reads[assignedt] = []
+                            transcript_to_reads[assignedt].append((lastread, gtstart, gtend))
 
                     curr_transcripts = {}
                 curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
