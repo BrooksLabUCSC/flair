@@ -9,7 +9,7 @@ import logging
 import shutil
 import subprocess
 import pipettor
-from flair.pycbio.sys import fileOps, loggingOps
+from flair.pycbio.sys import cli, fileOps, loggingOps
 from flair.pycbio.hgdata.bed import BedReader, Bed
 
 def check_input_files(bed_files, bam_files, gtf_files):
@@ -46,7 +46,6 @@ def parse_args():
     loggingOps.setupFromCmd(args)
     if (len(args.bed_files) + len(args.bam_files) + len(args.gtf_files)) == 0:
         parser.error("No input files specified; must have at least one --bam=, --bed= or --gtf= option")
-    check_input_files(args.bed_files, args.bam_files, args.gtf_files)
     return args
 
 class PartitionCounts:
@@ -200,8 +199,11 @@ def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_p
 
 def main():
     args = parse_args()
-    flair_partition(args.bed_files, args.bam_files, args.gtf_files, args.ranges_bed, args.threads,
-                    args.min_partition_items, args.part_merge_dist)
+    with cli.ErrorHandler():
+        # inside the handler, so a missing input file is reported as one line
+        check_input_files(args.bed_files, args.bam_files, args.gtf_files)
+        flair_partition(args.bed_files, args.bam_files, args.gtf_files, args.ranges_bed, args.threads,
+                        args.min_partition_items, args.part_merge_dist)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 import os
 import os.path as osp
+import sys
 import pipettor
 import logging
 from flair import FlairError, FlairInputDataError
@@ -9,6 +10,9 @@ from flair.counts_matrix import read_sample_info, select_condition_pair, write_s
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
+call_diffsplice_events = osp.join(pkgdir, "call_diffsplice_events.py")
+es_as = osp.join(pkgdir, "es_as.py")
+es_as_inc_excl_to_counts = osp.join(pkgdir, "es_as_inc_excl_to_counts.py")
 
 def add_subparser(subparsers):
     desc = "Call alternative splicing events from isoforms and test them for differential usage"
@@ -95,11 +99,11 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
         raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
     filebase = os.path.join(output, 'diffsplice')
-    pipettor.run(['call_diffsplice_events.py', isoform_bed, filebase, counts_matrix])
+    pipettor.run([sys.executable, call_diffsplice_events, isoform_bed, filebase, counts_matrix])
     with open(filebase + '.es.events.tsv', 'w') as es_fh:
-        pipettor.run(['es_as.py', isoform_bed], stdout=es_fh)
+        pipettor.run([sys.executable, es_as, isoform_bed], stdout=es_fh)
     with open(filebase + '.es.events.quant.tsv', 'w') as quant_fh:
-        pipettor.run(['es_as_inc_excl_to_counts.py', counts_matrix, filebase + '.es.events.tsv'],
+        pipettor.run([sys.executable, es_as_inc_excl_to_counts, counts_matrix, filebase + '.es.events.tsv'],
                      stdout=quant_fh)
     os.unlink(filebase + '.es.events.tsv')
 

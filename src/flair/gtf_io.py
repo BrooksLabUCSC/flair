@@ -5,9 +5,9 @@ import re
 from enum import Enum
 from typing import Optional
 from collections import defaultdict
+from flair.pycbio.hgdata.rangeFinder import RangeFinder
 from flair.pycbio.sys import fileOps
 from flair import SeqRange
-from flair.interval_index import IntervalIndex
 
 StrNone = Optional[str]
 StrSetNone = Optional[set[str]]
@@ -206,15 +206,16 @@ class GtfData:
         self.gtf_file = gtf_file  # saved for error messages
         self.transcripts = []
         self.transcripts_by_id: dict[str, GtfTranscript] = {}
-        # transcripts by chrom then range overlap.
-        self.transcripts_by_range = defaultdict(IntervalIndex)
+        # transcripts indexed by chrom and range; strand is filtered on query, not
+        # indexed, so a query without strand does not have to check both
+        self.transcripts_by_range = RangeFinder()
 
     def add_transcript(self, transcript: GtfTranscript):
         if transcript.transcript_id in self.transcripts_by_id:
             raise GtfParseError(f"adding duplicate transcript id: `{transcript.transcript_id}'")
         self.transcripts.append(transcript)
         self.transcripts_by_id[transcript.transcript_id] = transcript
-        self.transcripts_by_range[transcript.chrom].add(transcript.start, transcript.end, transcript)
+        self.transcripts_by_range.add(transcript.chrom, transcript.start, transcript.end, transcript)
 
     def get_transcript(self, transcript_id):
         """return transcript for id or None if not found"""
@@ -232,17 +233,13 @@ class GtfData:
 
     def get_chroms(self):
         """get a sorted list of the chrom names"""
-        return sorted(self.transcripts_by_range.keys())
+        return sorted(self.transcripts_by_range.getSeqIds())
 
     def iter_overlap_transcripts(self, chrom, start, end, *, strand=None):
         """Generator overlapping transcripts, optionally filtering for strand"""
-        # get, not [chrom]: transcripts_by_range is a defaultdict, so indexing it with
-        # an absent chrom inserted an empty index and get_chroms then reported it
-        index = self.transcripts_by_range.get(chrom)
-        if index is not None:
-            for transcript in index.overlap(start, end):
-                if (strand is None) or (transcript.strand == strand):
-                    yield transcript
+        for transcript in self.transcripts_by_range.overlapping(chrom, start, end):
+            if (strand is None) or (transcript.strand == strand):
+                yield transcript
 
     def iter_overlap_transcripts_sr(self, seq_range):
         """Generator overlapping transcripts given a SeqRange object,

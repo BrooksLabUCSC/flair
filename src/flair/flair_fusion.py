@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import os
+import sys
 import glob
 import pipettor
 import pysam
@@ -270,7 +271,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
 
     logging.info('generating synthetic reference')
 
-    makesynthcommand = ['python3', path + 'make_synthetic_fusion_reference.py', '-a', gtf, '-g', genome,
+    makesynthcommand = [sys.executable, path + 'make_synthetic_fusion_reference.py', '-a', gtf, '-g', genome,
                         '-o', output, '-c', output + '.prelimfusions.bed']
     pipettor.run([makesynthcommand])
     if os.path.getsize(output + '-syntheticFusionGenome.fa') == 0:

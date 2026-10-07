@@ -1,5 +1,6 @@
 import argparse
 from flair.pycbio.sys import fileOps
+from flair.pycbio.sys import cli
 
 
 def build_parser():
@@ -55,8 +56,9 @@ def annotate_input(input_aaseq, ref_seq_to_name, output_name):
 
 def main():
     args = parse_args()
-    ref_seq_to_name = process_reference(args.reference_seq)
-    annotate_input(args.input_aaseq, ref_seq_to_name, args.output)
+    with cli.ErrorHandler():
+        ref_seq_to_name = process_reference(args.reference_seq)
+        annotate_input(args.input_aaseq, ref_seq_to_name, args.output)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,3 @@
-import os
 from collections import namedtuple
 from types import NoneType
 from flair.pycbio import NoStackError
@@ -38,14 +37,6 @@ class FlairNotImplementedError(FlairError, NoStackError):
     make an existing command line fail with an argparse message that does not say the
     feature is missing."""
     pass
-
-def set_unix_path():
-    "add programs in package to PATH."
-
-    # FIXME: 2025-04-02 markd
-    # this should be replaced with converting the exec use an explicit
-    # path to make code more obvious.
-    os.environ["PATH"] = os.path.dirname(os.path.realpath(__file__)) + ':' + os.environ["PATH"]
 
 
 class PosRange(namedtuple("PosRange",

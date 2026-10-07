@@ -6,6 +6,8 @@ import pysam
 import vcfpy
 import shutil
 import multiprocessing as mp
+from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 from flair.io_utils import make_temp_dir
 from flair.pycbio.hgdata.bed import BedReader
 
@@ -52,7 +54,7 @@ def parse_args():
     args.identify_indels = True if args.identify_indels == 'yes' else False
     args.identify_snvs = True if args.identify_snvs == 'yes' else False
     if not (args.identify_indels or args.identify_snvs):
-        raise ValueError('Please tell this caller to identify at least 1 of: indels, snvs')
+        raise FlairInputDataError('specify --identify_indels yes, --identify_snvs yes, or both')
     return args
 
 
@@ -385,5 +387,10 @@ def get_indels():
     shutil.rmtree(temp_dir)
 
 
+def main():
+    with cli.ErrorHandler():
+        get_indels()
+
+
 if __name__ == "__main__":
-    get_indels()
+    main()
