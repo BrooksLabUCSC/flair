@@ -447,6 +447,10 @@ class Isoform:
         self.three_prime_clustered = None
         # for a single-exon isoform, the overlap cluster of reads whose end variant it is
         self.end_variant_cluster = None
+        # is it a single-exon cluster's variant at its longest supported read ends,
+        # beside its clustered ones, which needs only single_exon_support reads in
+        # a gene without spliced reads
+        self.longest_supported = False
         self.end5confidence = None
         self.end3confidence = None
 

@@ -95,7 +95,7 @@
 
 .. option:: --max_ends MAX_ENDS
 
-   maximum number of TSS/TES picked per isoform; make higher for more precise end detection (default: 1)
+   maximum number of TSS/TES picked per spliced junction chain; make higher for more precise end detection. Single-exon isoforms are reported at each of their clustered ends, however many (default: 1)
 
 .. option:: --filter FILTER
 

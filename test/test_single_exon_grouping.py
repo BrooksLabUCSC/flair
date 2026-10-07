@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from flair.isoform_data import Exon, Isoform, Junc
-from flair.flair_transcriptome import (CandidateIsoforms, _longest_supported_read_ends, filter_firstpass_isos,
-                                       group_se_by_overlap, normalize_chain_ends)
+from flair.flair_transcriptome import (CandidateIsoforms, _longest_supported_read_ends, _single_exon_end_variants,
+                                       filter_firstpass_isos, group_se_by_overlap, normalize_chain_ends)
 
 
 def _read(start, end, strand, polyA=(0, 0), intprim=(False, False)):
@@ -135,6 +135,16 @@ def test_an_annotated_3_prime_terminal_exon_makes_a_fragment_on_minus():
     assert sorted(firstpass) == ['other']
 
 
+def test_a_fragment_starting_as_far_past_the_terminal_exon_as_a_read_end_cluster_reaches():
+    # 5' ends 13 and 40 bp past the 3' terminal exon's end at 5000; BEST_END_WINDOW is 25
+    annots = _annots('-', [(1000, 5000), (6000, 7000)])
+    near, past = _se('near', 1500, 5013, '-', 5), _se('past', 1500, 5040, '-', 5)
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([near]), annots, {})
+    assert sorted(firstpass) == []
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([past]), annots, {})
+    assert sorted(firstpass) == ['past']
+
+
 def test_a_single_exon_isoform_matching_an_annotated_single_exon_transcript_is_not_a_fragment():
     annots = _annots('-', [(1000, 5000), (6000, 7000)], single=[(1500, 4000)])
     annotated, fragment = _se('annotated', 1510, 3990, '-', 5), _se('fragment', 3000, 4500, '-', 5)
@@ -172,3 +182,61 @@ def test_total_rna_keeps_internally_primed_reads():
     assert list(group_se_by_overlap('chr1', isoform, 3, True)) == []
     ((_, strand, kept),) = group_se_by_overlap('chr1', isoform, 3, True, total_rna=True)
     assert strand == '+' and len(kept) == 3
+
+
+def _variants(read_ends, support=3, min_frac=0.05):
+    reads = [SimpleNamespace(start=s, end=e) for s, e in read_ends]
+    variants = _single_exon_end_variants(Isoform('chr1', '+', ()), reads, support=support, min_frac=min_frac)
+    return sorted((iso.start, iso.end, len(iso_reads)) for iso, iso_reads in variants)
+
+
+def test_truncated_reads_of_a_long_single_exon_transcript_are_one_isoform():
+    # 4 full-length reads, and 10 truncated at scattered starts: no other start cluster
+    reads = [(1000, 10000)] * 4 + [(2000 + 700 * i, 10000) for i in range(10)]
+    assert _variants(reads) == [(1000, 10000, 14)]
+
+
+def test_single_exon_isoform_at_each_clustered_pair_of_ends():
+    reads = [(1000, 2000)] * 5 + [(1000, 2600)] * 5 + [(1010, 2300)]
+    assert _variants(reads) == [(1000, 2000, 6), (1000, 2600, 5)]
+
+
+def test_without_clustered_ends_one_isoform_at_the_longest_supported_read():
+    reads = [(1000, 2000), (1010, 2010), (1500, 3000), (1800, 2500)]
+    assert _variants(reads) == [(1000, 2000, 4)]
+
+
+def test_a_chance_cluster_at_a_deeply_covered_locus_is_no_end():
+    # 3 reads are a cluster by count, not 5% of 203
+    reads = [(1000, 5000)] * 200 + [(3000, 5000)] * 3
+    assert _variants(reads) == [(1000, 5000, 203)]
+
+
+def test_longest_supported_ends_beside_fragment_clusters():
+    # 5' and 3' fragments cluster; the 3 full-length reads are too few for 5% of 63
+    reads = [(1000, 1500)] * 30 + [(2500, 3000)] * 30 + [(1000, 3000)] * 2 + [(1005, 2995)]
+    assert _variants(reads) == [(1000, 1500, 30), (1000, 3000, 3), (2500, 3000, 30)]
+    variants = _single_exon_end_variants(Isoform('chr1', '+', ()), [SimpleNamespace(start=s, end=e) for s, e in reads],
+                                         support=3, min_frac=0.05)
+    assert [(iso.start, iso.longest_supported) for iso, _ in variants] == [(1000, False), (1000, True), (2500, False)]
+
+
+def _longest_flags(read_ends, support=3):
+    reads = [SimpleNamespace(start=s, end=e) for s, e in read_ends]
+    variants = _single_exon_end_variants(Isoform('chr1', '+', ()), reads, support=support, min_frac=0.05)
+    return [(iso.start, iso.end, iso.longest_supported) for iso, _ in variants]
+
+
+def test_longest_supported_ends_outside_any_cluster_defer_to_the_clustered_pair():
+    # 2 reads overhang the cluster's 5' end by 100 bp: an outlier, not a start
+    reads = [(1000, 2000)] * 5 + [(900, 2010)] * 2
+    assert _variants(reads) == [(1000, 2000, 7)]
+    assert _longest_flags(reads) == [(1000, 2000, True)]
+
+
+def test_clustered_pair_takes_the_longest_supported_ends_in_a_cluster():
+    # the end at 2000 is a cluster of 5, with the 3' fragments, but only 3 reads
+    # have both ends in (1000, 2000), fewer than support 4
+    reads = [(1000, 1900)] * 10 + [(1000, 2000)] * 3 + [(1300, 2000)] * 2
+    assert _variants(reads, support=4) == [(1000, 2000, 15)]
+    assert _longest_flags(reads, support=4) == [(1000, 2000, True)]

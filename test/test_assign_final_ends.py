@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 from flair.isoform_data import Isoform, Junc
-from flair.flair_transcriptome import assign_final_ends, assign_single_exon_isoforms
+from flair.flair_transcriptome import _iso_passes_support_filter, assign_final_ends, assign_single_exon_isoforms
 
 JUNCS = (Junc(1200, 1300), Junc(1400, 1500))
 
@@ -142,3 +142,17 @@ def test_single_exon_support_is_a_fraction_of_all_the_genes_spliced_reads():
     b = _se_isoform('b', 1500, 3000, [(1500, 3000)] * 4, cluster='c')
     final, _, _ = _assign_se([a, b], frac_support=0.3, spliced_reads=10)
     assert len(final) == 1
+
+
+def test_longest_supported_single_exon_variant_needs_only_single_exon_support():
+    args = SimpleNamespace(single_exon_support=3, frac_support=0.05)
+    counts, gene_to_tot = {'se': [3, 3]}, {'g': [0, 63, 63]}
+    assert _iso_passes_support_filter(args, 'se', 'g', 1, counts, gene_to_tot, longest_supported=True)[0]
+    assert not _iso_passes_support_filter(args, 'se', 'g', 1, counts, gene_to_tot)[0]
+    assert not _iso_passes_support_filter(args, 'se', 'g', 1, {'se': [2, 2]}, gene_to_tot, longest_supported=True)[0]
+
+
+def test_longest_supported_single_exon_variant_in_a_spliced_gene_needs_frac_support():
+    # 3 of the gene's 10 spliced and 63 single-exon reads
+    args = SimpleNamespace(single_exon_support=3, frac_support=0.05)
+    assert not _iso_passes_support_filter(args, 'se', 'g', 1, {'se': [3, 3]}, {'g': [10, 73, 73]}, longest_supported=True)[0]

@@ -7,6 +7,7 @@ import shutil
 import pysam
 import hashlib
 import logging
+import math
 from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -181,8 +182,9 @@ def add_subparser(subparsers):
                              "annotation is good")
 
     parser.add_argument('--max_ends', type=int, default=1,
-                        help='maximum number of TSS/TES picked per isoform; make higher for more precise '
-                             'end detection (default: %(default)s)')
+                        help='maximum number of TSS/TES picked per spliced junction chain; make higher for more '
+                             'precise end detection.  Single-exon isoforms are reported at each of their clustered '
+                             'ends, however many (default: %(default)s)')
     parser.add_argument('--filter', default=DEFAULT_FILTER,
                         help='which subset isoforms (a contiguous part of another isoform) to keep. '
                              '<N>X, such as 10X: a subset isoform is kept if it has more than N times the reads '
@@ -280,6 +282,10 @@ TERMINAL_EXON_BOUNDARY_TOLERANCE = 20
 # a spliced junction chain's best supported start and end
 # are the read start and end with the most others within this distance
 BEST_END_WINDOW = 25
+# a single-exon end variant's least share of its cluster's reads: whether a cluster
+# of read ends is an end of the transcript or noise among its own reads, unlike
+# frac_support, an isoform's share of its gene's reads (_single_exon_end_variants)
+SINGLE_EXON_END_MIN_FRAC = 0.05
 
 # margin for single-exon isoform overlap comparisons
 SINGLE_EXON_OVERLAP_MARGIN = 10
@@ -783,11 +789,11 @@ def _generate_candidate_isos(args, isoform, candidates, iso_fh, iso_unfilt_fh):
         support = args.sjc_support
     else:
         # single-exon isoforms aren't realigned to, so a cluster's end variants are
-        # final here, each with its own reads; assign_final_ends gives a cluster none
-        # of whose variants passes support one isoform instead
-        # NOTE: Harrison's TED code will be slotted in here to replace collapse_end_groups
-        these_firstpass = [variant for variant, _ in _end_variants(isoform, isoform.reads, max_ends=args.max_ends,
-                                                                   end_window=args.end_window, support=args.single_exon_support)]
+        # final here, each with its own reads; assign_single_exon_isoforms gives a
+        # cluster none of whose variants passes support one isoform instead
+        # NOTE: Harrison's TED code will be slotted in here to find the end clusters
+        these_firstpass = [variant for variant, _ in _single_exon_end_variants(isoform, isoform.reads, support=args.single_exon_support,
+                                                                               min_frac=SINGLE_EXON_END_MIN_FRAC)]
         cluster = (isoform.chrom, isoform.strand, min(isoform.starts), max(isoform.ends))
         for variant in these_firstpass:
             variant.end_variant_cluster = cluster
@@ -990,9 +996,9 @@ def filter_single_exon_group(args, curr_group, all_isoforms, firstpass, utr_frag
 
 class _ThreePrimeFragments:
     """Which of a strand's single-exon isoforms are 3' UTR fragments of a spliced
-    transcript: starting inside its 3' terminal exon, within
-    SINGLE_EXON_OVERLAP_MARGIN, a fragment of its 3' UTR or of an extension of it,
-    rather than a transcript of their own.
+    transcript: starting inside its 3' terminal exon, within BEST_END_WINDOW, as
+    far as a cluster of read ends reaches, a fragment of its 3' UTR or of an
+    extension of it, rather than a transcript of their own.
 
     The 3' terminal exons are those of the annotated spliced transcripts, which
     catch fragments of a long annotated 3' UTR the sample's spliced isoforms don't
@@ -1027,7 +1033,7 @@ class _ThreePrimeFragments:
 
     def __call__(self, isoform):
         five_prime = isoform.start if isoform.strand == '+' else isoform.end - 1
-        return (len(self.terminal.overlap(five_prime, five_prime + 1, slack=SINGLE_EXON_OVERLAP_MARGIN)) > 0
+        return (len(self.terminal.overlap(five_prime, five_prime + 1, slack=BEST_END_WINDOW)) > 0
                 and not self._matches_annotated_single_exon(isoform))
 
 def filter_all_single_exon(args, sorted_exons, all_isoforms, firstpass, utr_fragment):
@@ -1533,7 +1539,11 @@ def write_firstpass(temp_prefix, chrom, firstpass, annots, genome, *, unique_bou
 # results output
 ####
 
-def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_to_tot):
+def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_to_tot, longest_supported=False):
+    """does an isoform pass support, and its fraction of its gene's reads; a
+    single-exon cluster's longest supported variant (_single_exon_end_variants)
+    needs single_exon_support alone in a gene without spliced reads, where all of
+    the gene's reads, frac_support's denominator, are its own and its fragments'"""
     if iso not in iso_to_counts:
         return False, 0
     else:
@@ -1541,7 +1551,9 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
         if num_exons > 1:
             return (count >= args.sjc_support) and (count / gene_to_tot[gene][0]) >= args.frac_support, (count / gene_to_tot[gene][0])
         else:
-            return (count >= args.single_exon_support) and (count / gene_to_tot[gene][1]) >= args.frac_support, (count / gene_to_tot[gene][1])
+            frac = count / gene_to_tot[gene][1]
+            exempt = longest_supported and gene_to_tot[gene][0] == 0
+            return (count >= args.single_exon_support) and (exempt or frac >= args.frac_support), frac
 
 def generate_empty_intermediate_files(file_prefix, suffixes):
     for s in suffixes:
@@ -1599,6 +1611,77 @@ def _end_variants(isoform, reads, *, max_ends, end_window, support):
                 variant_reads[id(_nearest_end_variant(read, variants))].append(read)
             return [(Isoform.regroup(isoform, v.start, v.end, variant_reads[id(v)]), variant_reads[id(v)]) for v in variants]
     return [(_one_end_variant(isoform, reads), reads)]
+
+def _end_clusters(positions, outer, min_reads):
+    """The clusters of read ends: the densest of the read ends left (densest_end),
+    while at least min_reads read ends are within BEST_END_WINDOW of it, which are
+    then left out"""
+    remaining, clusters = sorted(positions), []
+    while remaining:
+        pos, _ = _densest_end_clustered(remaining, BEST_END_WINDOW, outer)
+        if sum(1 for p in remaining if abs(p - pos) <= BEST_END_WINDOW) < min_reads:
+            break
+        clusters.append(pos)
+        remaining = [p for p in remaining if abs(p - pos) > BEST_END_WINDOW]
+    return clusters
+
+def _nearest_cluster(pos, clusters):
+    "the cluster within BEST_END_WINDOW of a read end, if any"
+    near = [c for c in clusters if abs(c - pos) <= BEST_END_WINDOW]
+    return min(near, key=lambda c: abs(c - pos)) if near else None
+
+def _overlaps_half_of_each(a, b):
+    "do two (start, end) intervals overlap by more than half of each"
+    overlap = min(a[1], b[1]) - max(a[0], b[0])
+    return overlap > (a[1] - a[0]) / 2 and overlap > (b[1] - b[0]) / 2
+
+def _single_exon_end_variants(isoform, reads, *, support, min_frac):
+    """The isoforms, with their reads, that a single-exon cluster's reads give, at
+    its clustered ends, whatever max_ends is: each pair of a start and an end
+    cluster of read ends (_end_clusters) that at least support reads, and min_frac
+    of the cluster's reads, have both their ends in, each read going to the one
+    whose ends are nearest its own.  Reads ending anywhere, as truncated reads of a
+    long transcript do, make no cluster, so a transcript isn't split into pieces;
+    min_frac keeps chance clusters of a deeply covered one out.
+
+    A transcript's full-length reads can be too few for a pair, though each of its
+    ends is a cluster, where most of its reads are fragments ending in clusters of
+    their own, so the longest supported read's ends (_longest_supported_read_ends)
+    give a variant too, kept with support reads alone in a gene without spliced
+    reads (Isoform.longest_supported, _iso_passes_support_filter).
+    If a clustered pair is the same transcript, overlapping more than half of each,
+    the nearest such takes, of the longest supported read's ends, those in a
+    cluster, at the cluster, instead: a read sticking out past the cluster is
+    outlier support, not an end.  Without a clustered pair, one isoform with all
+    the reads (_one_end_variant)."""
+    min_reads = max(support, math.ceil(min_frac * len(reads)))
+    starts = _end_clusters([read.start for read in reads], min, min_reads)
+    ends = _end_clusters([read.end for read in reads], max, min_reads)
+    pairs = Counter()
+    for read in reads:
+        start, end = _nearest_cluster(read.start, starts), _nearest_cluster(read.end, ends)
+        if start is not None and end is not None and start < end:
+            pairs[(start, end)] += 1
+    variants = sorted(pair for pair, n in pairs.items() if n >= min_reads)
+    if len(variants) == 0:
+        return [(_one_end_variant(isoform, reads), reads)]
+    longest = _longest_supported_read_ends(reads)
+    same = [variant for variant in variants if _overlaps_half_of_each(longest, variant)]
+    if same:
+        nearest = min(same, key=lambda v: (abs(longest[0] - v[0]) + abs(longest[1] - v[1]), v))
+        start, end = _nearest_cluster(longest[0], starts), _nearest_cluster(longest[1], ends)
+        longest = (nearest[0] if start is None else start, nearest[1] if end is None else end)
+        variants.remove(nearest)
+    variants = sorted(set(variants) | {longest})
+    variant_reads = {pair: [] for pair in variants}
+    for read in reads:
+        variant_reads[min(variants, key=lambda v: (abs(read.start - v[0]) + abs(read.end - v[1]), v))].append(read)
+    out = []
+    for start, end in variants:
+        variant = Isoform.regroup(isoform, start, end, variant_reads[(start, end)])
+        variant.longest_supported = (start, end) == longest
+        out.append((variant, variant_reads[(start, end)]))
+    return out
 
 class _RealignedRead:
     "a read's genomic ends from its alignment in the final realignment"
@@ -1724,6 +1807,7 @@ def assign_single_exon_isoforms(isoforms, iso_to_counts, gene_to_tot, *, se_supp
         clusters.setdefault(isoform.end_variant_cluster or isoform.name, []).append(isoform)
     final = {}
     for variants in clusters.values():
+        # if they all fail, the one isoform is at the longest supported ends anyway
         if _variants_all_unsupported([len(covering[v.name]) for v in variants], passes_support, variants[0]):
             merged = _one_end_variant(variants[0], [read for variant in variants for read in variant.reads])
             merged.reads = [read for read in merged.reads if _covers_half(read, merged)]
@@ -1791,7 +1875,8 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
         for tname in final_transcript_objs:
             # spliced isos checked against spliced total, single exon checked against full-length total
             isoform = final_transcript_objs[tname]
-            passes_support, my_frac_support = _iso_passes_support_filter(args, tname, isoform.gene_id, len(isoform.exons), iso_to_counts, gene_to_tot)
+            passes_support, my_frac_support = _iso_passes_support_filter(args, tname, isoform.gene_id, len(isoform.exons), iso_to_counts, gene_to_tot,
+                                                                         longest_supported=isoform.longest_supported)
             if passes_support:
                 if len(isoform.exons) > 1:
                     # removing additional length from ends
