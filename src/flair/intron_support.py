@@ -222,9 +222,10 @@ class IntronSupport:
     def _load_star(self, rec, chrom_filter):
         if (chrom_filter is not None) and (rec.chrom != chrom_filter):
             return False
-        strand = (None, '+', '-')[rec.strand]
-        if strand is None:
-            return False
+        # STAR leaves the strand of a non-canonical junction undefined (0): it is
+        # loaded with unknown strand, supporting a read's junction there whose
+        # strand its other junctions give, rather than none at all
+        strand = ('.', '+', '-')[rec.strand]
         return self.add_support(rec.chrom, rec.start - 1, rec.end, strand, rec.uniq_map_cnt)
 
     def load_star(self, sj_file, *, chrom_filter=None):
