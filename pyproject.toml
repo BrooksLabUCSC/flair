@@ -61,6 +61,14 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+# test/output and test/tmp-input are generated.  A transcriptome run writes
+# <out>.isoform.counts.newids.txt there and renames it away moments later, so
+# walking them makes lib-tests collection fail at random when make builds targets
+# in parallel.  The rest of the list is the pytest default, which this replaces.
+norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules",
+                 "venv", "{arch}", "output", "tmp-input"]
+
 ## 
 # poetry specific
 ##
