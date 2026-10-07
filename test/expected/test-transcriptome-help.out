@@ -85,8 +85,10 @@ options:
                         and detect transcripts only from the genomic
                         alignment. Slightly faster but less accurate when the
                         annotation is good
-  --max_ends MAX_ENDS   maximum number of TSS/TES picked per isoform; make
-                        higher for more precise end detection (default: 1)
+  --max_ends MAX_ENDS   maximum number of TSS/TES picked per spliced junction
+                        chain; make higher for more precise end detection.
+                        Single-exon isoforms are reported at each of their
+                        clustered ends, however many (default: 1)
   --filter FILTER       which subset isoforms (a contiguous part of another
                         isoform) to keep. <N>X, such as 10X: a subset isoform
                         is kept if it has more than N times the reads of the
