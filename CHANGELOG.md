@@ -10,6 +10,11 @@
     can no longer drift from what they accept.  flair variantquant, alleles and
     isoalleles are documented for the first time.
   * All subcommands now honor the logging options; previously only flair align did.
+  * Bad input is reported as one line rather than a Python traceback: every
+    installed command now reports errors this way, and the errors for mismatched
+    annotation fasta and isoform names, alignments without AS or MD tags, and the
+    option and input problems in junctions_from_sam and identify_vars say what to
+    do about them.
   * `flair diffexp` gained `--condition_a` and `--condition_b`, matching
     `flair diffsplice`.  `condition_a` is the reference that fold changes are
     measured against.

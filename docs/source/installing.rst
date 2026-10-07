@@ -98,8 +98,8 @@ with these ``R`` packages. Some of these do not work on Apple Silicon.
 - `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__
 - `ggplot2 <https://ggplot2.tidyverse.org>`__
 - `qqman <https://cran.r-project.org/web/packages/qqman/index.html>`__
-- `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
-- `stageR <http://bioconductor.org/packages/release/bioc/html/stageR.html>`__
+- `DRIMSeq <https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
+- `stageR <https://bioconductor.org/packages/release/bioc/html/stageR.html>`__
 
 
 Running from GitHub clone

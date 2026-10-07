@@ -88,7 +88,9 @@ class IntronSupport:
         """get introns were splice junctions overlap each end of this range,
         with a +/-bp window on either of ends of the range. Empty list if no hits"""
         # only return introns that hit both ends.  Bisect on start rather than scanning
-        # the chromosome: this runs once per junction per read
+        # the chromosome: this runs once per junction per read.  Sound because matching
+        # both endpoints bounds interval.start on both sides; a general range overlap
+        # is not bounded below and needs a different index.
         overlaps = []
         if chrom in self.coords_maps:
             keys = self._chrom_sorted_starts(chrom)

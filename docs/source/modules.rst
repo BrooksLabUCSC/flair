@@ -73,7 +73,7 @@ If your input sequences are Oxford nanopore reads, please use `Pychopper <https:
 
 nvrna settings: See `minimap2's manual <https://lh3.github.io/minimap2/minimap2.html>`__ for details.
 
-quality: `More info on MAPQ scores <http://www.acgt.me/blog/2014/12/16/understanding-mapq-scores-in-sam-files-does-37-42>`__ 
+quality: `More info on MAPQ scores <https://www.acgt.me/blog/2014/12/16/understanding-mapq-scores-in-sam-files-does-37-42>`__ 
 
 .. _fusions-label:
 
@@ -215,7 +215,7 @@ makes the control the reference when its name sorts first (eg ctl and test). It 
 by running these R packages:
 
  - `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__ on genes and isoforms. This tests for differential expression.
- - `DRIMSeq <http://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.
+ - `DRIMSeq <https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.
 
 If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`__ standalone script.
 

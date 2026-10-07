@@ -10,6 +10,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mplpatches  # noqa: E402
 from flair import FlairInputDataError  # noqa: E402
+from flair.pycbio.sys import cli  # noqa: E402
 
 def build_parser():
     desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
@@ -331,7 +332,9 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
 
 def main():
-    plot_isoform_usage(build_parser().parse_args())
+    args = build_parser().parse_args()
+    with cli.ErrorHandler():
+        plot_isoform_usage(args)
 
 
 if __name__ == "__main__":

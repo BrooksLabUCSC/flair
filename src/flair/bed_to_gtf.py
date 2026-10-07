@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from flair import FlairInputDataError
+from flair.pycbio.sys import cli
 from flair.gtf_io import gtf_write_row
 from flair.iso_gene_id import split_iso_gene
 from flair.pycbio.hgdata.bed import BedReader, Bed
@@ -22,8 +23,9 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
-    bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
-               useCDS=not args.no_cds, is_flair_bed=args.is_flair_bed)
+    with cli.ErrorHandler():
+        bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
+                   useCDS=not args.no_cds, is_flair_bed=args.is_flair_bed)
 
 def _add_record(records, record):
     """Record a feature, dropping an empty range.  A CDS or UTR piece is empty when the

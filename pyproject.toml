@@ -17,7 +17,6 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "pysam (>=0.23.0,<0.24.0)",
     "pipettor (>=1.1.0,<2.0.0)",
-    "ruranges (>=0.1.4,<0.2.0)",
     "numpy (>=2.2,<3.0)",
     "scipy (>=1.15.1,<2.0.0)",
     "vcfpy (>=0.14.2,<0.15.0)",
@@ -61,6 +60,14 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+# test/output and test/tmp-input are generated.  A transcriptome run writes
+# <out>.isoform.counts.newids.txt there and renames it away moments later, so
+# walking them makes lib-tests collection fail at random when make builds targets
+# in parallel.  The rest of the list is the pytest default, which this replaces.
+norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules",
+                 "venv", "{arch}", "output", "tmp-input"]
 
 ## 
 # poetry specific

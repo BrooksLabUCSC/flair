@@ -9,7 +9,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 import pipettor
 import pysam
-from flair import FlairInputDataError, FlairNotImplementedError
+from flair import FlairError, FlairInputDataError, FlairNotImplementedError
 from flair.pycbio.hgdata.bed import BedReader
 
 
@@ -348,13 +348,15 @@ def check_transcript_in_annot(exondict, tname):
     error if the annotation and FASTA name sets disagree."""
     try:
         exoninfo = exondict[tname]
-    except KeyError:
-        raise Exception(
+    except KeyError as ex:
+        raise FlairInputDataError(
             f"The transcript name ({tname}) in the annotation fasta do not appear to match the ones in the isoforms file."
             " You may be able to fix this by using gtf_to_bed and bedtools getfasta on your annotation gtf"
-            " and using the resulting file as your annotation fasta input to this program")
+            " and using the resulting file as your annotation fasta input to this program") from ex
     except Exception as ex:
-        raise Exception("** check_splice FAILED for %s" % (tname)) from ex
+        # not an input error: reaching here means something other than a missing
+        # transcript went wrong, so the stack is worth keeping
+        raise FlairError(f"check_splice failed for {tname}") from ex
     return exoninfo
 
 
@@ -610,7 +612,9 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                 alignscore = read.get_tag('AS')
                 mdtag = read.get_tag('MD')
             except KeyError as ex:
-                raise Exception(f"Missing AS or MD tag in alignment of '{read.query_name}'") from ex
+                raise FlairInputDataError(
+                    f"alignment of '{read.query_name}' has no AS or MD tag; align with "
+                    "minimap2 --MD so that these are present") from ex
             cigar = read.cigartuples
             tlen = samfile.get_reference_length(transcript)
             if lastread and readname != lastread:

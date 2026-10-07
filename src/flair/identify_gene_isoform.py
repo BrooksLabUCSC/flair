@@ -4,6 +4,7 @@ import os
 import argparse
 from operator import itemgetter
 from flair.gtf_to_bed import get_iso_info
+from flair.pycbio.sys import cli
 from flair.isoform_data import binary_search
 from flair.pycbio.hgdata.bed import BedReader
 
@@ -32,10 +33,11 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
-    identify_gene_isoform(gtf=args.gtf, field_name=args.field_name, outfilename=args.outfilename,
-                          query=args.bed,
-                          proportion_annotated_covered=args.proportion_annotated_covered,
-                          gene_only=args.gene_only, annotation_reliant=args.annotation_reliant)
+    with cli.ErrorHandler():
+        identify_gene_isoform(gtf=args.gtf, field_name=args.field_name, outfilename=args.outfilename,
+                              query=args.bed,
+                              proportion_annotated_covered=args.proportion_annotated_covered,
+                              gene_only=args.gene_only, annotation_reliant=args.annotation_reliant)
 
 
 def get_junctions(line):

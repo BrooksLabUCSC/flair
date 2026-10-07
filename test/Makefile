@@ -413,32 +413,32 @@ update-combine-tests:
 	cp $O/$$tname.combined.isoform.counts.tsv $E/$$tname.combined.isoform.counts.tsv; \
 	done
 
-test-combine: mkdirs
+test-combine: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
-test-combine-files: mkdirs
+test-combine-files: mkdirs ${GENOME_FA}
 	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
-test-combine-nose: mkdirs
+test-combine-nose: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --remove_single_exon
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
-test-combine-10pct: mkdirs
+test-combine-10pct: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --min_percent_usage 10
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
-test-combine-multends: mkdirs
+test-combine-multends: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
 
-test-combine-multends-10pct: mkdirs
+test-combine-multends-10pct: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --min_percent_usage 10
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
@@ -530,7 +530,7 @@ test-bed-to-gtf : mkdirs
 	bed_to_gtf $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
-test-bed-to-gtf-extracols : 
+test-bed-to-gtf-extracols : mkdirs
 	bed_to_gtf --is_flair_bed $(TOME_ISOFORM_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
