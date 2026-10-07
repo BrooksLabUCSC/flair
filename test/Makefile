@@ -530,7 +530,7 @@ test-bed-to-gtf : mkdirs
 	bed_to_gtf $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
-test-bed-to-gtf-extracols : 
+test-bed-to-gtf-extracols : mkdirs
 	bed_to_gtf --is_flair_bed $(TOME_ISOFORM_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
