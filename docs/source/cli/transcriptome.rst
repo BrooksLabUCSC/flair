@@ -12,6 +12,7 @@
                               [--ss_window SS_WINDOW] [--end_window END_WINDOW]
                               [--sjc_support SJC_SUPPORT]
                               [--single_exon_support SINGLE_EXON_SUPPORT]
+                              [--subset_backup_support SUBSET_BACKUP_SUPPORT]
                               [--frac_support FRAC_SUPPORT] [--directRNA]
                               [--trust_strand] [--total_rna] [--trust_junctions]
                               [--no_stringent] [--no_check_splice]
@@ -60,6 +61,10 @@
 .. option:: --single_exon_support SINGLE_EXON_SUPPORT
 
    minimum number of supporting reads for a single exon isoform (default: 3)
+
+.. option:: --subset_backup_support SUBSET_BACKUP_SUPPORT
+
+   a spliced isoform removed as a subset of other isoforms is reported after all, with its reads, if every isoform it is a subset of fails support and it has at least this many reads; 0 never reports it (default: 10)
 
 .. option:: --frac_support FRAC_SUPPORT
 
