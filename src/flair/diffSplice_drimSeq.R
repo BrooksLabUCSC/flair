@@ -4,7 +4,9 @@ library(argparse)
 library(DRIMSeq)
 library(data.table)
 suppressWarnings(library(BiocParallel))
-options(error = function() traceback(2))
+# quit(status=1): an error handler that only prints leaves Rscript exiting 0, so
+# every failure here was invisible to flair and the run looked like it finished
+options(error = function() {traceback(2); quit(status = 1, save = "no")})
 
 # Function to parse command-line arguments
 parse_arguments <- function() {

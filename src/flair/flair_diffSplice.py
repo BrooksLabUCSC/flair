@@ -1,18 +1,23 @@
 #! /usr/bin/env python3
 
+import csv
 import os
 import os.path as osp
 import sys
 import pipettor
 import logging
-from flair import FlairError, FlairInputDataError
-from flair.counts_matrix import read_sample_info, select_condition_pair, write_sample_info
+from flair import FlairError, FlairInputDataError, FlairToolError
+from flair.counts_matrix import (read_feature_ids, read_sample_info, select_condition_pair,
+                                 write_sample_info)
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
 call_diffsplice_events = osp.join(pkgdir, "call_diffsplice_events.py")
 es_as = osp.join(pkgdir, "es_as.py")
 es_as_inc_excl_to_counts = osp.join(pkgdir, "es_as_inc_excl_to_counts.py")
+
+BED_NAME_COLUMN = 3
+FEATURE_ID_COLUMN = 0
 
 def add_subparser(subparsers):
     desc = "Call alternative splicing events from isoforms and test them for differential usage"
@@ -98,13 +103,15 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
     if isoform_bed.endswith('psl'):
         raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
+    check_isoform_names(isoform_bed, counts_matrix)
+
     filebase = os.path.join(output, 'diffsplice')
-    pipettor.run([sys.executable, call_diffsplice_events, isoform_bed, filebase, counts_matrix])
+    call_events(call_diffsplice_events, [isoform_bed, filebase, counts_matrix])
     with open(filebase + '.es.events.tsv', 'w') as es_fh:
-        pipettor.run([sys.executable, es_as, isoform_bed], stdout=es_fh)
+        call_events(es_as, [isoform_bed], stdout=es_fh)
     with open(filebase + '.es.events.quant.tsv', 'w') as quant_fh:
-        pipettor.run([sys.executable, es_as_inc_excl_to_counts, counts_matrix, filebase + '.es.events.tsv'],
-                     stdout=quant_fh)
+        call_events(es_as_inc_excl_to_counts, [counts_matrix, filebase + '.es.events.tsv'],
+                    stdout=quant_fh)
     os.unlink(filebase + '.es.events.tsv')
 
     if test or condition_a:
@@ -134,17 +141,80 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
         # workdir only necessary for drimseq output
         os.rmdir(workdir)
 
+def call_events(program, args, stdout=None):
+    """Run one of the event callers.  Its own message is already on stderr, so an
+    unhandled ProcessException would only add a traceback of the flair code that
+    started it."""
+    try:
+        pipettor.run([sys.executable, program] + args, stdout=stdout)
+    except pipettor.ProcessException as exc:
+        raise FlairToolError(f"{osp.basename(program)} failed, see the error above") from exc
+
+def read_bed_names(isoform_bed):
+    "the name of every BED record, in file order"
+    with open(isoform_bed) as fh:
+        reader = csv.reader(fh, delimiter='\t')
+        return [bed_record_name(linenum, row, isoform_bed)
+                for linenum, row in enumerate(reader, start=1) if row]
+
+def bed_record_name(linenum, row, isoform_bed):
+    if len(row) <= BED_NAME_COLUMN:
+        raise FlairInputDataError(
+            f"{isoform_bed}:{linenum}: found {len(row)} columns, a BED needs at least "
+            f"{BED_NAME_COLUMN + 1}")
+    return row[BED_NAME_COLUMN]
+
+def name_examples(names, count=3):
+    return ', '.join(sorted(set(names))[:count])
+
+def check_isoform_names(isoform_bed, counts_matrix):
+    """The event callers match BED records to counts rows by name and skip the ones
+    that do not match.  A BED and a counts matrix naming isoforms differently then
+    produced empty alt3, alt5 and ir tables and an es table of zeros, with no error."""
+    bed_names = set(read_bed_names(isoform_bed))
+    counts_ids = set(read_feature_ids(counts_matrix))
+    matched = bed_names & counts_ids
+    if not matched:
+        raise FlairInputDataError(
+            f"no isoform in {isoform_bed} is named in the id column of {counts_matrix}; "
+            "the two must come from the same flair run. "
+            f"BED names look like: {name_examples(bed_names)}. "
+            f"Counts ids look like: {name_examples(counts_ids)}")
+    logging.info(f"{len(matched)} of the {len(bed_names)} isoforms in {isoform_bed} "
+                 f"are in {counts_matrix}")
+
+def read_feature_id_column(events_quant_tsv):
+    with open(events_quant_tsv) as fh:
+        reader = csv.reader(fh, delimiter='\t')
+        next(reader)
+        return [row[FEATURE_ID_COLUMN] for row in reader if row]
+
+def duplicate_feature_ids(feature_ids):
+    seen = set()
+    return sorted({fid for fid in feature_ids if fid in seen or seen.add(fid)})
+
+def check_feature_ids_unique(events_quant_tsv):
+    """DRIMSeq requires unique feature ids and reports a duplicate only as a failed
+    stopifnot naming no file.  Catch it here, where the file that holds it is known."""
+    dups = duplicate_feature_ids(read_feature_id_column(events_quant_tsv))
+    if dups:
+        raise FlairError(
+            f"{events_quant_tsv} has {len(dups)} repeated feature_id: "
+            f"{name_examples(dups)}. Each event must appear once; please report this "
+            "with the isoform BED that produced it")
+
 def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr):
     matrixfile = f'{filebase}.{event}.events.quant.tsv'
     if emptyMatrix(matrixfile):
         logging.info(f'{event} event matrix file empty, not running DRIMSeq')
     else:
+        check_feature_ids_unique(matrixfile)
         cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
         try:
             pipettor.run(cur_command, stderr=ds_stderr)
         except pipettor.ProcessException as exc:
-            raise FlairError(f"DRIMSeq failed on `{event}' event. "
-                             f'Check {workdir}/ds.stderr.txt for details') from exc
+            raise FlairToolError(f"DRIMSeq failed on `{event}' event. "
+                                 f'Check {workdir}/ds.stderr.txt for details') from exc
 
 def emptyMatrix(infile):
     '''Returns true if file has only a header line'''

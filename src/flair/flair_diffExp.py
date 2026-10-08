@@ -20,7 +20,7 @@ from collections import Counter
 from statistics import median, mean
 import pipettor
 
-from flair import FlairError, FlairInputDataError
+from flair import FlairInputDataError, FlairToolError
 from flair.counts_matrix import (read_sample_info, condition_column_indexes,
                                  select_condition_pair)
 
@@ -329,7 +329,7 @@ def run_deseq2(prefix, workdir, condition_a, condition_b, matrixFile, outDir, fo
                           "--matrix", matrixFile, "--out_dir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
-        raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
+        raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrixFile, outDir, formulaMatrixFile):
     stderr = f"{workdir}/{prefix}.txt"
@@ -339,7 +339,7 @@ def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrixFile, 
                           "--matrix", matrixFile, "--out_dir", outDir,
                           "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
     except pipettor.ProcessException as exc:
-        raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
+        raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 
 def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expression,  # noqa: C901 - FIXME: reduce complexity
@@ -407,7 +407,7 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
         header = ['sample_id', 'condition', 'batch']
         formulaMatrix = [[x, y, z] for x, y, z in zip(samples, groups, batches)]
     else:
-        header = ['sample_id', ' condition']
+        header = ['sample_id', 'condition']
         formulaMatrix = [[x, y] for x, y in zip(samples, groups)]
 
     formulaMatrixFile = workdir + "/formula_matrix.tsv"

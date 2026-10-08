@@ -76,13 +76,14 @@ test-base:
 	${MAKE} align-tests quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests test-doc-cli
+		spliceevents-tests partition-tests lib-tests test-doc-cli \
+		test-diffsplice-strands
 
 test-no-align:
 	${MAKE} quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests
+		spliceevents-tests partition-tests lib-tests test-diffsplice-strands
 
 test-with-R:
 	${MAKE} diffexp-tests diffsplice-tests
@@ -195,6 +196,8 @@ BASIC_DIFFSPLICE_MATRIX = $I/basic.counts_matrix_diffsplice.tsv
 # isoforms matching BASIC_DIFFSPLICE_MATRIX; test-collapse-annot.isoforms.bed
 # is a different generation of the data and does not match the counts
 BASIC_DIFFSPLICE_BED = $I/basic.isoforms_diffsplice.bed
+STRANDS_DIFFSPLICE_BED = $I/strands.isoforms_diffsplice.bed
+STRANDS_DIFFSPLICE_MATRIX = $I/strands.counts_matrix_diffsplice.tsv
 COLLAPSE_ANNOT_ISOFORMS_BED = $I/test-collapse-annot.isoforms.bed
 
 TOME_OUT_FA = $O/test-transcriptome.isoforms.fa
@@ -498,7 +501,7 @@ test-diffexp-help: mkdirs
 ###
 # FLAIR DIFFSPLICE
 ###
-diffsplice-tests: test-diffsplice test-diffsplice-help
+diffsplice-tests: test-diffsplice test-diffsplice-cond test-diffsplice-strands test-diffsplice-help
 
 # various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
@@ -510,14 +513,29 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
-test-diffsplice-cond: mkdirs
+# naming the two conditions gives what taking them in sorted order gives.  The
+# comparisons used to name test-diffsplice on both sides, so they re-checked that
+# test's output and never looked at this one's
+test-diffsplice-cond: mkdirs test-diffsplice
 	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output --condition_a A --condition_b B
-	$(call cmp_expect_sort,test-diffsplice/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect_sort,test-diffsplice/diffsplice.alt5.events.quant.tsv)
-	$(call cmp_expect,test-diffsplice/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect_sort,test-diffsplice/diffsplice.ir.events.quant.tsv)
-	$(call cmp_expect,test-diffsplice/drimseq_alt3_A_v_B.tsv)
-	$(call cmp_expect,test-diffsplice/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect_sort_as,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@/diffsplice.alt5.events.quant.tsv,test-diffsplice/diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@/diffsplice.ir.events.quant.tsv,test-diffsplice/diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@/drimseq_alt3_A_v_B.tsv,test-diffsplice/drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect_sort_as,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
+
+##
+# events at the same coordinates on both strands.  The strand is part of the event
+# id; without it the two strands produced one feature_id twice and DRIMSeq refused
+# the file.  No --test, so this runs without DRIMSeq installed
+##
+test-diffsplice-strands: mkdirs
+	flair diffsplice --isoform_bed $(STRANDS_DIFFSPLICE_BED) --counts_matrix $(STRANDS_DIFFSPLICE_MATRIX) -o $O/$@ --overwrite_output
+	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
 
 test-diffsplice-help: mkdirs
 	flair diffsplice --help > $O/$@.out

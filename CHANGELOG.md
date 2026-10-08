@@ -18,11 +18,41 @@
   * `flair diffexp` gained `--condition_a` and `--condition_b`, matching
     `flair diffsplice`.  `condition_a` is the reference that fold changes are
     measured against.
+  * `flair diffexp` no longer fails in DESeq2 when a sample column name holds
+    anything but letters, digits, dot and underscore, or starts with a digit.
+    R was renaming those columns, so they stopped matching the formula matrix
+    and SummarizedExperiment rejected the assay (#689).
+  * `flair diffsplice` reports an error when no isoform in the BED is named in
+    the counts matrix. It used to skip every isoform silently, writing empty
+    alt3, alt5 and ir tables and an es table of zeros (#689).
+  * A program flair runs that fails is now reported as one line naming the log
+    that holds its diagnostics, rather than a Python traceback of the flair code
+    that started it.  The diffsplice event callers report their own errors this
+    way too.
+  * `es_as.py` raises when two isoforms of one gene sit on different
+    chromosomes or strands, instead of graphing both loci as one gene and
+    calling skipped exons that are in neither.
+  * A failing R script now fails the flair run.  The DESeq2 and DRIMSeq scripts
+    set an error handler that printed a traceback and let Rscript exit 0, so
+    flair reported success while producing no results (#689).
+  * `flair diffsplice` refuses to run DRIMSeq on an event table holding a
+    repeated feature_id, naming the file and the repeats; DRIMSeq reported this
+    only as a failed stopifnot naming no file.
   * The `diffexp` and `diffsplice` R dependencies are now part of
     `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
     The BioConda package still does not carry them; `installing.rst` gives the
     `conda install` command to add them.
 * Incompatibles
+  * `flair diffsplice` event ids now carry the strand, as
+    `chr1:100-200(+)` and `chr1:35556271(+)`, matching the event names
+    `flair spliceevents` writes. Without it, an event at the same coordinates on
+    both strands produced one feature_id twice and DRIMSeq refused the whole
+    file (#689). This changes the feature_id and coordinate columns of
+    `diffsplice.alt3`, `diffsplice.alt5` and `diffsplice.ir` events.quant.tsv
+    and the drimseq results made from them.  The es event ids gain the strand in
+    the same form; they could not collide, since the two strands order the
+    skipped exon's boundaries differently, but they did not say which strand
+    that ordering meant.
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
   * Remove flair align options that are no longer need without flair correct.

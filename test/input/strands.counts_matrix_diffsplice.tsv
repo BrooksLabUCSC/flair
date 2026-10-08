@@ -1,0 +1,13 @@
+ids	A1_A_b0	A2_A_b0	A3_A_b0	B1_B_b0	B2_B_b0	B3_B_b0
+irExclFwd	10	12	11	20	22	21
+irInclFwd	10	12	11	20	22	21
+irExclRev	10	12	11	20	22	21
+irInclRev	10	12	11	20	22	21
+altShortRev	10	12	11	20	22	21
+altLongRev	10	12	11	20	22	21
+altNearFwd	10	12	11	20	22	21
+altFarFwd	10	12	11	20	22	21
+esInclFwd_GENEA	10	12	11	20	22	21
+esExclFwd_GENEA	10	12	11	20	22	21
+esInclRev_GENEB	10	12	11	20	22	21
+esExclRev_GENEB	10	12	11	20	22	21

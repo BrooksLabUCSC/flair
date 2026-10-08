@@ -2,7 +2,9 @@ library(DESeq2)
 library(ggplot2)
 library(qqman)
 library(argparse)
-options(error = function() traceback(2))
+# quit(status=1): an error handler that only prints leaves Rscript exiting 0, so
+# every failure here was invisible to flair and the run looked like it finished
+options(error = function() {traceback(2); quit(status = 1, save = "no")})
 
 # Function for parsing command line arguments
 parse_arguments <- function() {
@@ -17,6 +19,23 @@ parse_arguments <- function() {
 
   args <- parser$parse_args()
   return(args)
+}
+
+# Function to read a counts matrix without renaming its sample columns
+read_counts <- function(matrixFile) {
+  read.table(matrixFile, header = TRUE, sep = "\t", row.names = 1, check.names = FALSE)
+}
+
+# Function to check that the counts columns and the formula rows name the same samples
+check_sample_names <- function(countData, colData, matrixFile, formulaFile) {
+  if (!identical(colnames(countData), rownames(colData))) {
+    stop(sprintf(paste("sample columns of %s do not match the rows of %s.",
+                       "Counts columns: %s. Formula rows: %s.",
+                       "Both are written by flair diffexp, so this is a bug; please report it."),
+                 matrixFile, formulaFile,
+                 paste(colnames(countData), collapse = ", "),
+                 paste(rownames(colData), collapse = ", ")))
+  }
 }
 
 # Function to run DESeq2 and save results
@@ -38,8 +57,13 @@ run_deseq_analysis <- function(args) {
   resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b))
   cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b))
   
-  countData <- read.table(matrixFile, header = TRUE, sep = "\t", row.names = 1)
-  colData <- read.table(formulaFile, header = TRUE, sep = "\t", row.names = 1)
+  # check.names=FALSE: make.names() rewrites a sample column whose name holds
+  # anything but letters, digits, dot and underscore, or that starts with a digit.
+  # The formula matrix row names are never rewritten, so the two stopped matching
+  # and SummarizedExperiment rejected the assay
+  countData <- read_counts(matrixFile)
+  colData <- read.table(formulaFile, header = TRUE, sep = "\t", row.names = 1, check.names = FALSE)
+  check_sample_names(countData, colData, matrixFile, formulaFile)
   
   design <- if ("batch" %in% colnames(colData)) {
     ~ condition + batch
@@ -85,7 +109,7 @@ plot_results <- function(dds, args) {
          main = sprintf("MA-plot: %s vs %s", condition_b, condition_a))
   plotDispEsts(dds, main = "Dispersion Estimates")
 
-  nsub <- min(nrow(read.table(matrixFile, header = TRUE, sep = "\t", row.names = 1)), 1000)
+  nsub <- min(nrow(read_counts(matrixFile)), 1000)
   vsd <- tryCatch({
     vst(dds, nsub = nsub, blind = FALSE)
   }, error = function(e) {
@@ -93,7 +117,7 @@ plot_results <- function(dds, args) {
     stop('DESeq2 and other QC plots ran OK but the PCA plot failed, probably because the number of input genes is very low')
   })
 
-  colData <- read.table(args$formula, header = TRUE, sep = "\t", row.names = 1)
+  colData <- read.table(args$formula, header = TRUE, sep = "\t", row.names = 1, check.names = FALSE)
   pcaData <- plotPCA(vsd, intgroup = if ("batch" %in% colnames(colData)) c("condition", "batch") else "condition", returnData = TRUE)
   percentVar <- attr(pcaData, "percentVar")
   

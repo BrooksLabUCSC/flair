@@ -4,7 +4,9 @@ retention events from an isoform BED."""
 import argparse
 import csv
 import os
+from flair.diffsplice_event_ids import junction_id, site_id
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import cli
 
 # minimum distance apart for alt SS to be tested
 wiggle = 10
@@ -64,7 +66,7 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                         continue
                     inclusion = tp1
                     exclusion = tp2
-                    strand, chrom_clean = chrom[0], chrom[1:]
+                    strand = chrom[0]
 
                     if (search_threeprime and strand == '+') or (not search_threeprime and strand == '-'):
                         if tp2 > exon_end:  # exon skipping. tp2 does not overlap tp1's exon
@@ -72,8 +74,10 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                     elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor
                         continue
 
-                    feature_suffix = chrom_clean + ':' + str(fiveprime) if n == 0 else chrom_clean + ':' + str(fiveprime) + '-' + str(n)
-                    event = chrom_clean + ':' + str(fiveprime) + '-' + str(inclusion) + '_' + chrom_clean + ':' + str(fiveprime) + '-' + str(exclusion)
+                    anchor = site_id(chrom[1:], strand, fiveprime)
+                    feature_suffix = anchor if n == 0 else anchor + '-' + str(n)
+                    event = (junction_id(chrom[1:], strand, fiveprime, inclusion) + '_' +
+                             junction_id(chrom[1:], strand, fiveprime, exclusion))
 
                     writer.writerow(['inclusion_' + feature_suffix, event] +
                                     alljuncs[chrom][fiveprime][inclusion]['counts'] +
@@ -84,8 +88,13 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                     n += 1
 
 
-def main():  # noqa: C901 - FIXME: reduce complexity
+def main():
     args = parse_args()
+    with cli.ErrorHandler():
+        call_events(args)
+
+
+def call_events(args):  # noqa: C901 - FIXME: reduce complexity
     bedfh = open(args.isoforms_bed)
     outfilenamebase = args.out_prefix
     counts_tsv = open(args.counts_tsv) if args.counts_tsv else ''
@@ -192,8 +201,7 @@ def main():  # noqa: C901 - FIXME: reduce complexity
                 if not sample_names:
                     ir_junctions[chrom][j]['exclusion']['counts'] = ir_junctions[chrom][j]['inclusion']['counts'] = []
 
-                chrom_clean = chrom[1:]
-                event = chrom_clean + ':' + str(j[0]) + '-' + str(j[1])
+                event = junction_id(chrom[1:], chrom[0], j[0], j[1])
                 writer.writerow(['inclusion_' + event, event] +
                                 ir_junctions[chrom][j]['inclusion']['counts'] +
                                 [','.join(sorted(ir_junctions[chrom][j]['inclusion']['isos']))])

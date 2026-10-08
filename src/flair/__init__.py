@@ -31,6 +31,12 @@ class FlairInputDataError(FlairError, NoStackError):
     """Error in FLAIR input data"""
     pass
 
+class FlairToolError(FlairError, NoStackError):
+    """A program flair ran reported an error.  That program's own diagnostics say
+    what went wrong, so the message names the log holding them and a Python
+    traceback of the flair code that started it adds nothing."""
+    pass
+
 class FlairNotImplementedError(FlairError, NoStackError):
     """An option is accepted by the argument parser but does nothing.  Raising is
     better than ignoring it silently, and better than dropping the option, which would

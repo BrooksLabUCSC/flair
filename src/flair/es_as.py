@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import sys
+from flair import FlairInputDataError
+from flair.diffsplice_event_ids import junction_id
 from flair.iso_gene_id import parse_gene_id
+from flair.pycbio.sys import cli
 
 
 class Gene(object):
@@ -92,7 +95,7 @@ class Gene(object):
                     exclusionIsos = exclusionIsos.union(self.knownJuncs[j1[0], j2[-1]])
             inclusionIsos = sorted(list(inclusionIsos))
             exclusionIsos = sorted(list(exclusionIsos))
-            print("%s:%s-%s" % (self.chrom, acceptor.name, donor.name), self.strand, len(inclusionIsos),
+            print(junction_id(self.chrom, self.strand, acceptor.name, donor.name), self.strand, len(inclusionIsos),
                   len(exclusionIsos), ",".join(inclusionIsos), ",".join(exclusionIsos), sep="\t")
             # print(self.chrom, "\t".join(str(x) for x in sorted([acceptor.name,donor.name])), "%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.name, self.strand, sep="\t")
 
@@ -116,6 +119,17 @@ class Exon(object):
         self.inclusionJuncs = set()
 
 
+def check_gene_placement(geneObj, iso, chrom, strand, flairIsoforms):
+    """All isoforms of a gene must sit on the same chromosome and strand.  Skipped
+    exons are found by graphing a gene's isoforms together, and isoforms of two
+    different loci graphed as one gene produce events that are in neither."""
+    if (geneObj.chrom, geneObj.strand) != (chrom, strand):
+        raise FlairInputDataError(
+            f"{flairIsoforms}: isoform {iso} places gene {geneObj.name} on "
+            f"{chrom}{strand}, an earlier isoform placed it on "
+            f"{geneObj.chrom}{geneObj.strand}; give each locus its own gene name")
+
+
 def bed12toExons(start, starts, sizes):
     '''
     Take bed12 entry and convert block/sizes to exon coordinates.
@@ -134,6 +148,11 @@ def bed12toExons(start, starts, sizes):
 
 
 def main():
+    with cli.ErrorHandler():
+        find_skipped_exons()
+
+
+def find_skipped_exons():
 
     flairIsoforms = sys.argv[1]
     genes = dict()
@@ -151,6 +170,7 @@ def main():
             if geneID not in genes:
                 genes[geneID] = Gene(geneID, chrom, strand)
             geneObj = genes[geneID]
+            check_gene_placement(geneObj, iso, chrom, strand, flairIsoforms)
             geneObj.isoforms[iso] = exons
 
     for gobj in genes.values():

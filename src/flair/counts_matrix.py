@@ -82,6 +82,13 @@ def read_sample_columns(counts_matrix_tsv):
     with open(counts_matrix_tsv) as fh:
         return fh.readline().split()[1:]
 
+def read_feature_ids(counts_matrix_tsv):
+    "the id column of every counts row, in file order"
+    with open(counts_matrix_tsv) as fh:
+        reader = csv.reader(fh, delimiter='\t')
+        next(reader)
+        return [row[0] for row in reader if row]
+
 def parse_sample_fields(sample_columns, counts_matrix_tsv):
     "the condition and the batch of each sample column"
     try:
