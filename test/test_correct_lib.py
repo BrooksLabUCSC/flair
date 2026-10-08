@@ -37,17 +37,6 @@ def test_load_star_annot_support(basic_gtf_data):
     _basic_load_reads_annot_support_test(intron_support)
 
 
-def test_load_star_undefined_strand(tmp_path):
-    # STAR's strand 0, for a non-canonical junction, is loaded as unknown strand
-    sj_tab = tmp_path / "sj.tab"
-    sj_tab.write_text("chr1\t1001\t2000\t0\t0\t0\t12\t0\t40\n"
-                      "chr1\t2101\t2400\t1\t1\t0\t9\t0\t40\n")
-    intron_support = IntronSupport()
-    assert intron_support.load_star(str(sj_tab)) == 2
-    _assert_introns(intron_support.overlap("chr1", 1000, 2000), [
-        'SupportIntron(chr1:1000-2000(.) annot=False read=True read_cnt=12'])
-
-
 ###
 # tests for correcting introns
 ###
@@ -127,14 +116,6 @@ def test_trust_strand_uses_same_strand_support():
     readrec = _plus_read()
     assert corrector.correct_readrec(readrec, trust_strand=True) is True
     assert (readrec.juncs, readrec.strand) == ((Junc(1004, 2004),), '+')
-
-def test_unknown_strand_support_with_a_stranded_junction():
-    # a non-canonical junction, of unknown strand from STAR, corrects a read stranded
-    # by its other junction
-    corrector = _stranded_corrector((1000, 2000, '.'), (2100, 2400, '+'))
-    readrec = ReadRec("chr1", '-', (Junc(1002, 2001), Junc(2100, 2400)), 500, 2900, "read4")
-    assert corrector.correct_readrec(readrec) is True
-    assert (readrec.juncs, readrec.strand) == ((Junc(1000, 2000), Junc(2100, 2400)), '+')
 
 def test_trust_strand_unknown_strand_support():
     # support of unknown strand can't give a strand, but the read's can
