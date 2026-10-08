@@ -197,7 +197,7 @@ class PartitionRunner:
         # minimap2, borrow threads left idle, more for larger partitions
         packed = sorted(((p, w, func, kwargs) for p, w in zip(self.partitions, self.weights)),
                         key=lambda x: x[1], reverse=True)
-        thread_share.init(self.threads, max(self.weights, default=1))
+        thread_share.init(self.threads, len(packed), max(self.weights, default=1))
 
         if self.threads == 1:
             for p in packed:

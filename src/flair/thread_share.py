@@ -7,8 +7,13 @@ any it can borrow from threads left idle, which happens once the pool starts to
 drain.  A task may borrow up to a share of the budget proportional to its
 weight, such as its number of reads, relative to the heaviest task, so large
 tasks get more of the idle threads.  Borrowed threads are returned when the
-program finishes, so running tasks plus borrowed threads never exceed the
+program finishes, so busy workers plus borrowed threads never exceed the
 budget.
+
+Busy workers are counted from the tasks not yet finished, not from the tasks
+started: while there are at least as many unfinished tasks as threads, every
+worker is busy or about to be, even one that has not reached its task yet, so
+nothing is lent at the start of the pool.
 
 init() must be called in the parent before the pool is forked, so the workers
 share the counters.
@@ -18,25 +23,22 @@ from contextlib import contextmanager
 
 _threads = 1
 _max_weight = 1
-_state = None       # shared [running tasks, borrowed threads]
+_state = None       # shared [unfinished tasks, borrowed threads]
 _task_weight = 1    # weight of the task running in this process
 
 
-def init(threads, max_weight=1):
-    "set the thread budget, and the weight of the heaviest task, for the next pool"
+def init(threads, tasks, max_weight=1):
+    "set the thread budget, the number of tasks and the weight of the heaviest task for the next pool"
     global _threads, _max_weight, _state
     _threads = max(1, threads)
     _max_weight = max(1, max_weight)
-    _state = mp.Array('i', [0, 0])
+    _state = mp.Array('i', [tasks, 0])
 
 
 def task_start(weight=1):
-    "record that a task of the given weight has started in this process"
+    "record the weight of the task starting in this process"
     global _task_weight
     _task_weight = weight
-    if _state is not None:
-        with _state.get_lock():
-            _state[0] += 1
 
 
 def task_done():
@@ -55,7 +57,8 @@ def program_threads():
     if _state is not None:
         want = max(1, round(_threads * _task_weight / _max_weight))
         with _state.get_lock():
-            extra = max(0, min(want - 1, _threads - _state[0] - _state[1]))
+            idle = _threads - min(_threads, _state[0]) - _state[1]
+            extra = max(0, min(want - 1, idle))
             _state[1] += extra
     try:
         yield 1 + extra

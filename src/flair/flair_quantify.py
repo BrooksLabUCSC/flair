@@ -241,7 +241,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
         packed.append((temp_dir, gene_id, gene_data[gene_id], sample_data, generate_map, trust_ends, genome, normalize_ends))
 
     # minimap2 borrows threads left idle as the pool drains
-    thread_share.init(threads)
+    thread_share.init(threads, len(packed))
     if threads == 1:
         for p in packed:
             _count_gene_task(p)
