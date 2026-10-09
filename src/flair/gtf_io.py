@@ -5,9 +5,9 @@ import re
 from enum import Enum
 from typing import Optional
 from collections import defaultdict
-from flair.pycbio.hgdata.rangeFinder import RangeFinder
 from flair.pycbio.sys import fileOps
 from flair import SeqRange
+from flair.interval_index import IntervalIndex
 
 StrNone = Optional[str]
 StrSetNone = Optional[set[str]]
@@ -206,16 +206,15 @@ class GtfData:
         self.gtf_file = gtf_file  # saved for error messages
         self.transcripts = []
         self.transcripts_by_id: dict[str, GtfTranscript] = {}
-        # transcripts indexed by chrom and range; strand is filtered on query, not
-        # indexed, so a query without strand does not have to check both
-        self.transcripts_by_range = RangeFinder()
+        # transcripts by chrom then range overlap.
+        self.transcripts_by_range = defaultdict(IntervalIndex)
 
     def add_transcript(self, transcript: GtfTranscript):
         if transcript.transcript_id in self.transcripts_by_id:
             raise GtfParseError(f"adding duplicate transcript id: `{transcript.transcript_id}'")
         self.transcripts.append(transcript)
         self.transcripts_by_id[transcript.transcript_id] = transcript
-        self.transcripts_by_range.add(transcript.chrom, transcript.start, transcript.end, transcript)
+        self.transcripts_by_range[transcript.chrom].add(transcript.start, transcript.end, transcript)
 
     def get_transcript(self, transcript_id):
         """return transcript for id or None if not found"""
@@ -233,19 +232,29 @@ class GtfData:
 
     def get_chroms(self):
         """get a sorted list of the chrom names"""
-        return sorted(self.transcripts_by_range.getSeqIds())
+        return sorted(self.transcripts_by_range.keys())
 
     def iter_overlap_transcripts(self, chrom, start, end, *, strand=None):
         """Generator overlapping transcripts, optionally filtering for strand"""
-        for transcript in self.transcripts_by_range.overlapping(chrom, start, end):
-            if (strand is None) or (transcript.strand == strand):
-                yield transcript
+        # get, not [chrom]: transcripts_by_range is a defaultdict, so indexing it with
+        # an absent chrom inserted an empty index and get_chroms then reported it
+        index = self.transcripts_by_range.get(chrom)
+        if index is not None:
+            for transcript in index.overlap(start, end):
+                if (strand is None) or (transcript.strand == strand):
+                    yield transcript
 
     def iter_overlap_transcripts_sr(self, seq_range):
         """Generator overlapping transcripts given a SeqRange object,
         optionally filtering for strand."""
         yield from self.iter_overlap_transcripts(seq_range.name, seq_range.start, seq_range.end,
                                                  strand=seq_range.strand)
+
+    def build_indexes(self):
+        """build the range indexes now, rather than on first use, so processes forked
+        afterwards share them"""
+        for index in self.transcripts_by_range.values():
+            index.build()
 
     def subset_for_region(self, chrom, start, end):
         """Return a new GtfData with transcripts overlapping [start, end) on chrom.
@@ -399,15 +408,25 @@ def _gtf_record_class(feature):
     else:
         return GtfRecord
 
+
+_ID_WHITESPACE_RE = re.compile(r'\s')
+
+
 def _check_id_whitespace(attrs):
     for key in ('gene_id', 'transcript_id'):
         val = attrs.get(key)
-        if val is not None and re.search(r'\s', val):
+        if val is not None and _ID_WHITESPACE_RE.search(val):
             raise GtfParseError(f"white space not allowed in {key}: {val!r}")
 
 
 def _parse_gtf_line(line: str, include_features: StrSetNone, attrs_parser=_parse_flair_attributes) -> GtfRecord:
     """Parse a single GTF line into a GtfRecord or derived class."""
+    # drop excluded features before stripping and splitting the whole line; in
+    # GENCODE, CDS, UTR, and codon lines are over 40% of the file
+    if include_features is not None:
+        parts = line.split('\t', 3)
+        if len(parts) == 4 and parts[2] not in include_features:
+            return None
     # skip empty and comments
     line = line.rstrip()
     if (len(line) == 0) or line.startswith('#'):

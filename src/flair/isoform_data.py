@@ -18,9 +18,14 @@ COMPBASE = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
 POLYA_MIN_FRAC = 0.6
 POLYA_SEARCH_WINDOW = 5
 POLYA_MIN_LEN = 10
+# internal priming (internally_primed_end): as SQANTI3 calls it, at least
+# INTPRIM_MIN_FRAC A in the INTPRIM_SEARCH_WINDOW bases of genome after a read's 3' end
+# (check_intprim), or at least INTPRIM_ALIGNED_MIN_FRAC A in the last
+# INTPRIM_SEARCH_WINDOW bases the read aligns to.  0.8 of the aligned bases is A at
+# 0.4% of the WTC11 spliced isoforms' 3' ends in polyA peaks, half its single-exon ones'
 INTPRIM_MIN_FRAC = 0.6
-INTPRIM_MIN_AS = 8
-INTPRIM_SEARCH_WINDOW = 50
+INTPRIM_ALIGNED_MIN_FRAC = 0.8
+INTPRIM_SEARCH_WINDOW = 20
 
 ####
 # basic types
@@ -216,14 +221,31 @@ def get_exons(readrec):
 
 
 def check_intprim(end_seq):
-    i = 10
-    while i < len(end_seq) and end_seq[:i].count('A') / i >= INTPRIM_MIN_FRAC:
-        i += 1
-    j = end_seq[:i].count('A')
-    if j < INTPRIM_MIN_AS or j / i < INTPRIM_MIN_FRAC:
+    """The number of A in end_seq, the INTPRIM_SEARCH_WINDOW bases of genome after a
+    read end in the read's orientation, if they are at least INTPRIM_MIN_FRAC of it,
+    which oligo-dT priming on those genomic A gives, otherwise 0.  The rule is
+    adapted from SQANTI3's internal priming check (its perc_A_downstream_TTS, and the
+    intra-priming filter at 60% A in the 20 bases after the TTS): Pardo-Palacios et
+    al., SQANTI3: curation of long-read transcriptomes for accurate identification of
+    known and novel isoforms, Nature Methods 2024, https://github.com/ConesaLab/SQANTI3"""
+    if len(end_seq) < INTPRIM_SEARCH_WINDOW:
         return 0
-    else:
-        return j
+    num_a = end_seq[:INTPRIM_SEARCH_WINDOW].count('A')
+    return num_a if num_a >= INTPRIM_MIN_FRAC * INTPRIM_SEARCH_WINDOW else 0
+
+def internally_primed_end(after_seq, aligned_seq, tail):
+    """Is a read end internally primed, oligo-dT having primed on genomic A rather
+    than on the transcript's poly(A) tail.  The sequences are in the read's
+    orientation from that end: after_seq the genome after it, aligned_seq the last
+    INTPRIM_SEARCH_WINDOW bases it aligns to; tail is the poly(A) tail clipped there.
+    It is primed if the genome after it is A-rich (check_intprim) with no tail
+    clipped, as a real tail is sequenced past genomic A and clipped, or if its last
+    aligned bases are nearly all A (INTPRIM_ALIGNED_MIN_FRAC): the read aligned
+    through a genomic A run and ends with it, and A clipped after it are the rest of
+    the primer, not a tail."""
+    if aligned_seq.count('A') >= INTPRIM_ALIGNED_MIN_FRAC * INTPRIM_SEARCH_WINDOW:
+        return True
+    return tail == 0 and check_intprim(after_seq) > 0
 
 def _check_polyA(end_seq):
     """Check for a poly-base run using a rolling window."""
@@ -262,7 +284,7 @@ class ReadRec:
         finished with; chains are only shared within a region anyway."""
         cls._juncs_cache.clear()
 
-    def __init__(self, chrom, strand, juncs, start, end, name, *, score=None, polyA=None, intprim=None):
+    def __init__(self, chrom, strand, juncs, start, end, name, *, score=None, polyA=None, intprim=None, clipping=(0, 0)):
         self.chrom = chrom
         self.strand = strand
         self.juncs = self._intern_juncs(juncs)
@@ -271,7 +293,17 @@ class ReadRec:
         self.name = name
         self.score = score
         self.polyA = polyA  # (left int, right int)
-        self.intprim = intprim  # (left int, right int)
+        self.intprim = intprim  # (left, right): is each end internally primed (internally_primed_end)
+        self.clipping = clipping  # bases soft or hard clipped from the alignment's (left, right)
+        # set by junction correction: whether the junctions came from an annotation
+        # match, whether correction changed them from the alignment's introns, and
+        # its first or last one by more than the correction window, and, when none
+        # changed, whether the alignment is clean around them
+        # (annotation_precheck.splice_sites_cleanly_aligned); None when not checked
+        self.junctions_from_annotation = False
+        self.junctions_moved = False
+        self.terminal_junctions_moved = False
+        self.clean_splice_sites = None
 
     @property
     def exons(self):
@@ -290,14 +322,19 @@ class ReadRec:
         self.strand = strand
         self.juncs = tuple(juncs)
 
-    def _get_both_intprim(read, genome):
-        left_intprim, right_intprim = 0, 0
-        if read.reference_start > INTPRIM_SEARCH_WINDOW:
-            end_seq = get_reverse_complement(genome.fetch(read.reference_name, read.reference_start - INTPRIM_SEARCH_WINDOW, read.reference_start))
-            left_intprim = check_intprim(end_seq)
-        if read.reference_end + INTPRIM_SEARCH_WINDOW < genome.get_reference_length(read.reference_name):
-            end_seq = genome.fetch(read.reference_name, read.reference_end, read.reference_end + INTPRIM_SEARCH_WINDOW).upper()
-            right_intprim = check_intprim(end_seq)
+    def _get_both_intprim(read, genome, poly_tails):
+        """whether each end, (left, right), is internally primed (internally_primed_end),
+        the left end as the 3' end of a - strand read and the right of a + strand one"""
+        chrom, start, end, window = read.reference_name, read.reference_start, read.reference_end, INTPRIM_SEARCH_WINDOW
+        left_intprim, right_intprim = False, False
+        if start >= window:
+            left_intprim = internally_primed_end(get_reverse_complement(genome.fetch(chrom, start - window, start)),
+                                                 get_reverse_complement(genome.fetch(chrom, start, min(end, start + window))),
+                                                 poly_tails[0])
+        if end + window <= genome.get_reference_length(chrom):
+            right_intprim = internally_primed_end(genome.fetch(chrom, end, end + window).upper(),
+                                                  genome.fetch(chrom, max(start, end - window), end).upper(),
+                                                  poly_tails[1])
         return left_intprim, right_intprim
 
     def _detect_poly_tails(read):
@@ -345,11 +382,14 @@ class ReadRec:
             junc_direction = "-" if read.is_reverse else "+"
         juncs = tuple(Junc(blk[0], blk[1]) for blk in intron_blocks)
         left_polyA, right_polyA = cls._detect_poly_tails(read)
-        left_intprim, right_intprim = 0, 0
+        left_intprim, right_intprim = False, False
         if genome is not None:
-            left_intprim, right_intprim = cls._get_both_intprim(read, genome)
+            left_intprim, right_intprim = cls._get_both_intprim(read, genome, (left_polyA, right_polyA))
 
-        return cls(read.reference_name, junc_direction, juncs, align_start, ref_pos, read.query_name, polyA=(left_polyA, right_polyA), intprim=(left_intprim, right_intprim))
+        clips = [length if op in (pysam.CIGAR_OPS.CSOFT_CLIP, pysam.CIGAR_OPS.CHARD_CLIP) else 0
+                 for op, length in (read.cigartuples[0], read.cigartuples[-1])]
+        return cls(read.reference_name, junc_direction, juncs, align_start, ref_pos, read.query_name, polyA=(left_polyA, right_polyA),
+                   intprim=(left_intprim, right_intprim), clipping=tuple(clips))
 
 
 class Gene:
@@ -398,18 +438,37 @@ class Isoform:
         self.gene = gene
         self.gene_id = gene_id
         self.ref_transcript_id = ref_transcript_id
+        # (start, end) before end normalization padding, set only when normalized
+        self.unpadded_ends = None
+        # (start, end) best supported by the reads, which the subset check uses,
+        # set only when the isoform's ends are its furthest read ends
+        self.best_ends = None
+        # is its 3' best supported end a cluster of read ends, set with best_ends
+        self.three_prime_clustered = None
+        # for a single-exon isoform, the overlap cluster of reads whose end variant it is
+        self.end_variant_cluster = None
+        # is it a spliced isoform the subset filter removed, reported after all as
+        # every isoform it is a subset of failed support (promote_backup_subsets)
+        self.backup_subset = False
+        # is it a single-exon cluster's variant at its longest supported read ends,
+        # beside its clustered ones, which needs only single_exon_support reads in
+        # a gene without spliced reads
+        self.longest_supported = False
         self.end5confidence = None
         self.end3confidence = None
 
     @property
     def name(self):
         """An assigned name, otherwise a hash of the junctions before the ends are
-        known and of the exons once they are."""
+        known and of the exons once they are, and for a single-exon isoform its strand,
+        as both strands' reads give single-exon isoforms"""
         # FIXME: ideally would add chromosome and strand to this hash
         if self._name is not None:
             return self._name
         elif self.start is None:
             return str(abs(hash(tuple(self.juncs))))
+        elif self.juncs == ():
+            return str(abs(hash(tuple(self.exons) + (1 if self.strand == '+' else -1,))))
         else:
             return str(abs(hash(tuple(self.exons))))
 

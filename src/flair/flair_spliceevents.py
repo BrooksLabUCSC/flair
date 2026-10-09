@@ -11,6 +11,7 @@ import logging
 import scipy.stats as sps
 from flair.partition_runner import PartitionRunner, combine_temp_files_by_suffix
 from flair import SeqRange
+from flair import thread_share
 from statistics import median
 from flair.junction_correct import junction_corrector_factory
 from flair.isoform_data import ReadRec
@@ -1037,20 +1038,20 @@ def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region
         pipettor.run([('samtools', 'view', '-h', bamfile_name, f'{region.name}:{region.start}-{region.end}'),
                       ('samtools', 'fasta', '-')],
                      stdout=temp_prefix + '.reads.fasta')
-        mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD',
-                   region_annot_fa, temp_prefix + '.reads.fasta']
+        mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', region_annot_fa, temp_prefix + '.reads.fasta']
         # 1 thread because already multithreaded here
-        run_count_sam_transcripts(
-            mm2_cmd=mm2_cmd,
-            output=temp_prefix + '.matchannot.counts.tsv',
-            threads=1,
-            quality=0,
-            check_splice=True,
-            isoforms=region_annot,
-            trimmedreads=clipping_file,
-            allow_UTR_indels=True,
-            soft_clipping_buffer=10,
-            output_endpos=temp_prefix + '.readtoends.txt')
+        # minimap2 borrows threads left idle in the thread budget while it runs
+        with thread_share.program_threads() as mm2_threads:
+            run_count_sam_transcripts(
+                mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
+                output=temp_prefix + '.matchannot.counts.tsv',
+                threads=1,
+                check_splice=True,
+                isoforms=region_annot,
+                trimmedreads=clipping_file,
+                allow_UTR_indels=True,
+                soft_clipping_buffer=10,
+                output_endpos=temp_prefix + '.readtoends.txt')
         return temp_prefix + '.readtoends.txt'  # temp_prefix + '.matchannot.read.map.txt'
     else:
         return None

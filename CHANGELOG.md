@@ -42,6 +42,37 @@
     `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
     The BioConda package still does not carry them; `installing.rst` gives the
     `conda install` command to add them.
+* flair transcriptome
+  * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
+    went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before
+    the partitions run is under 2 minutes (was 11); minimap2 threads stay within
+    `--threads`, and the largest partitions run first.  Reads that match a
+    first-pass isoform exactly are assigned without the final realignment, and
+    reads no isoform can take are not realigned, which cuts the final
+    realignment's minimap2 time 6-fold.  Reads are aligned to the annotation only
+    when it can change their correction.
+  * Isoform ends come from the reads assigned to each isoform in the final
+    realignment, against transcripts padded so that reads running past an
+    isoform's end are no longer rejected: more reads are assigned to isoforms.
+    The densest cluster of read ends gives its mode.
+  * Single-exon isoforms are reported at each clustered pair of read ends,
+    whatever `--max_ends` is; single-exon isoforms that are 3' UTR fragments of a
+    spliced transcript, and internally primed single-exon reads (an A-rich aligned
+    end, or SQANTI3's 60% A after an untailed end), are removed.
+  * A spliced isoform removed as a subset is reported after all when every
+    isoform it is a subset of fails support and it has at least
+    `--subset_backup_support` reads (default 10).
+  * Isoforms are assigned to genes by junctions and splice sites, and novel genes
+    are grouped by shared splicing.
+  * Semi-canonical junction motifs (GC-AG, AT-AC) are weak strand evidence:
+    without an annotation, the strand of a read whose junctions all have them
+    comes from gene identification.  `--trust_junctions` trusts every input
+    junction's strand instead.
+  * `--trust_strand` applies to spliced reads too; `--directRNA` declares direct
+    RNA input (it implies `--trust_strand` and allows no large UTR deletions);
+    `--total_rna` keeps single-exon reads that end at genomic A runs and needs no
+    poly(A) tails (it requires `--trust_strand`).
+  * Temporary files go in `--temp_dir`, by default $TMPDIR.
 * Incompatibles
   * `flair diffsplice` event ids now carry the strand, as
     `chr1:100-200(+)` and `chr1:35556271(+)`, matching the event names
@@ -116,6 +147,17 @@
     batch fields of the quantify manifest may now contain underscores.
   * `flair quantify --sample_id_only` is gone; the counts columns always name the
     sample alone, which is what it asked for.
+  * `flair transcriptome --trust_ends` is removed: ends now come from the reads
+    assigned to each isoform.
+  * `flair transcriptome --filter bysupport` is replaced by `--filter <N>X`, which
+    keeps a subset isoform with more than N times its supersets' reads;
+    `bysupport` was `1.2X`.  The default is still `nosubset`.
+  * `flair transcriptome --normalize_ends` now reports, for each spliced isoform,
+    the ends it shares with the isoforms of its gene whose terminal splice sites
+    are near its own.
+  * `flair transcriptome --ss_window` defaults to 10 (was 15).
+  * `count_sam_transcripts` no longer takes `--quality`, `--fusion_dist` or
+    `--end_norm_dist`.
     
 ## [v3.0.0] 2025-11-31
 * General

@@ -12,16 +12,17 @@
                               [--ss_window SS_WINDOW] [--end_window END_WINDOW]
                               [--sjc_support SJC_SUPPORT]
                               [--single_exon_support SINGLE_EXON_SUPPORT]
-                              [--frac_support FRAC_SUPPORT] [--trust_strand]
-                              [--trust_ends] [--no_stringent] [--no_check_splice]
+                              [--subset_backup_support SUBSET_BACKUP_SUPPORT]
+                              [--frac_support FRAC_SUPPORT] [--directRNA]
+                              [--trust_strand] [--total_rna] [--trust_junctions]
+                              [--no_stringent] [--no_check_splice]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
-                              [--filter {nosubset,bysupport,comprehensive,ginormous}]
-                              [--keep_supplementary] [--quality QUALITY]
-                              [--allow_paralogs] [-t THREADS]
+                              [--filter FILTER] [--keep_supplementary]
+                              [--quality QUALITY] [--allow_paralogs] [-t THREADS]
                               [--parallel_mode PARALLEL_MODE]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
-                              [--keep_intermediate] [--normalize_ends]
-                              [--generate_map]
+                              [--temp_dir TEMP_DIR] [--keep_intermediate]
+                              [--normalize_ends] [--generate_map]
 
 .. rubric:: options
 
@@ -47,7 +48,7 @@
 
 .. option:: --ss_window SS_WINDOW
 
-   window size for correcting splice sites (default: 15)
+   window size for correcting splice sites (default: 10)
 
 .. option:: --end_window END_WINDOW
 
@@ -61,17 +62,29 @@
 
    minimum number of supporting reads for a single exon isoform (default: 3)
 
+.. option:: --subset_backup_support SUBSET_BACKUP_SUPPORT
+
+   a spliced isoform removed as a subset of other isoforms is reported after all, with its reads, if every isoform it is a subset of fails support and it has at least this many reads; 0 never reports it (default: 10)
+
 .. option:: --frac_support FRAC_SUPPORT
 
    minimum fraction of gene locus support for isoform to be called; only isoforms that make up more than this fraction of the gene locus are reported. Set to 0 for max recall (default: 0.05)
 
+.. option:: --directRNA
+
+   input is directRNA - this sets trust_strand to True, also doesn't allow large deletions in UTRs (an artifact of cDNA amplification)
+
 .. option:: --trust_strand
 
-   trust the stranding of the input reads and do not attempt strand correction
+   trust the stranding of the input reads and do not attempt strand correction: reads keep the strand of their alignment, and spliced reads are corrected only with splice junctions on that strand, and are only assigned to transcripts on that strand
 
-.. option:: --trust_ends
+.. option:: --total_rna
 
-   trust the ends of the input reads: a more stringent way of requiring read ends to match the ends of transcript models
+   the library is total RNA rather than poly(A) selected: single-exon reads ending in or before genomic A runs are kept, rather than removed as internally primed, and no poly(A) tails are needed. Requires --trust_strand
+
+.. option:: --trust_junctions
+
+   trust the strand of every input splice junction for read correction, without checking splice motifs. By default, an unannotated junction without a GT-AG motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded only by such junctions gets its strand from gene identification, or is dropped
 
 .. option:: --no_stringent
 
@@ -87,11 +100,11 @@
 
 .. option:: --max_ends MAX_ENDS
 
-   maximum number of TSS/TES picked per isoform; make higher for more precise end detection (default: 1)
+   maximum number of TSS/TES picked per spliced junction chain; make higher for more precise end detection. Single-exon isoforms are reported at each of their clustered ends, however many (default: 1)
 
-.. option:: --filter {nosubset,bysupport,comprehensive,ginormous}
+.. option:: --filter FILTER
 
-   nosubset: any isoforms that are a proper set of another isoform are removed; bysupport: subset isoforms are removed based on support; comprehensive: default set plus all subset isoforms; ginormous: comprehensive set plus single exon subset isoforms (default: nosubset)
+   which subset isoforms (a contiguous part of another isoform) to keep. <N>X, such as 10X: a subset isoform is kept if it has more than N times the reads of the isoforms it is a subset of; nosubset: all subset isoforms are removed; comprehensive: all spliced subset isoforms are kept; ginormous: comprehensive, plus single exon subset isoforms (default: nosubset)
 
 .. option:: --keep_supplementary
 
@@ -117,13 +130,17 @@
 
    for fusion detection only: bed file containing locations of fusion breakpoints on the synthetic genome
 
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it. Many small files are written and removed, so a local disk is much faster than network storage (default: $TMPDIR or the system temporary directory)
+
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging. Intermediate files include the promoter-supported reads file and read assignments to firstpass isoforms
+   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given. Intermediate files include the promoter-supported reads file and read assignments to firstpass isoforms
 
 .. option:: --normalize_ends
 
-   normalize transcript ends with similar terminal splice sites; only recommended when --max_ends is 1
+   report each spliced isoform with the ends it shares with the isoforms of its gene whose terminal exons have splice sites near its own: the furthest of their read ends, rather than the ends of the reads assigned to it. Each spliced junction chain gives a single isoform, overriding --max_ends
 
 .. option:: --generate_map
 
