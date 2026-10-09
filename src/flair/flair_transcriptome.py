@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from statistics import median
 from collections import Counter
-from flair import FlairError, FlairInputDataError, FlairNotImplementedError
+from flair import FlairError, FlairInputDataError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
 from flair.annotation_precheck import reads_skipping_annotation_alignment
@@ -204,9 +204,6 @@ def add_subparser(subparsers):
     parser.add_argument('--quality', default=1, type=int,
                         help='minimum mapping quality threshold to consider genomic alignments for '
                              'defining transcripts (default: %(default)s)')
-    parser.add_argument('--allow_paralogs', action='store_true',
-                        help='NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent '
-                             'alignment. Specifying this is an error rather than a no-op')
 
     parser.add_argument('-t', '--threads', type=int, default=12,
                         help='number of threads to run with, related to --parallel_mode (default: %(default)s)')
@@ -241,10 +238,6 @@ def add_subparser(subparsers):
 
 def transcriptome_cmd(args):
     parse_filter(args.filter)
-    if args.allow_paralogs:
-        raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
-                                       "good alignment to several paralogs is assigned to one of "
-                                       "them, and nothing downstream does otherwise")
     if args.trust_ends:
         raise FlairInputDataError("--trust_ends has been removed: each isoform's ends come from the ends "
                                   "of the reads assigned to it")

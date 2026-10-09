@@ -9,7 +9,7 @@ import logging
 from flair.gtf_to_bed import gtf_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref
 from flair.identify_prelim_fusions import id_chimeras
-from flair import FlairInputDataError, FlairNotImplementedError
+from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.read_processing import get_sequence_from_bed
 from flair.pycbio.hgdata.bed import Bed, BedReader
@@ -47,16 +47,9 @@ def add_subparser(subparsers):
                              'strand; removes read-through transcripts (default: %(default)s)')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging purposes')
-    parser.add_argument('--allow_paralogs', action='store_true',
-                        help='NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent '
-                             'alignment. Specifying this is an error rather than a no-op')
     parser.set_defaults(entry=fusion_cmd)
 
 def fusion_cmd(args):
-    if args.allow_paralogs:
-        raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
-                                       "good alignment to several paralogs is assigned to one of "
-                                       "them, and nothing downstream does otherwise")
     for what, path in (('genome fasta', args.genome), ('GTF annotation', args.gtf)):
         if not os.path.exists(path):
             raise FlairInputDataError(f'{what} file does not exist: {path}')

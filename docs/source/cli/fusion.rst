@@ -10,7 +10,7 @@
                        [--min_support MIN_SUPPORT] [--max_loci MAX_LOCI]
                        [--max_dist_to_tss MAX_DIST_TO_TSS]
                        [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
-                       [--keep_intermediate] [--allow_paralogs]
+                       [--keep_intermediate]
 
 .. rubric:: options
 
@@ -45,10 +45,6 @@
 .. option:: --keep_intermediate
 
    keep intermediate and temporary files for debugging purposes
-
-.. option:: --allow_paralogs
-
-   NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent alignment. Specifying this is an error rather than a no-op
 
 .. rubric:: required named arguments
 

@@ -9,7 +9,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 import pipettor
 import pysam
-from flair import FlairError, FlairInputDataError, FlairNotImplementedError
+from flair import FlairError, FlairInputDataError
 from flair.pycbio.hgdata.bed import BedReader
 
 
@@ -42,9 +42,6 @@ def parse_args():
                         help='text file with boundaries of unique sequence in isoforms that are a subset of other isoforms')
     parser.add_argument('--fusion_breakpoints',
                         help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
-    parser.add_argument('--allow_paralogs', default=False, action='store_true',
-                        help='NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent '
-                             'alignment. Specifying this is an error rather than a no-op')
     parser.add_argument('--allow_UTR_indels', default=False, action='store_true',
                         help='specify if want to allow reads to include indels in UTRs (more permissive for population variation + A to I editing)')
     parser.add_argument('--trimmedreads',
@@ -65,10 +62,6 @@ def parse_args():
 
 
 def check_args(args):
-    if args.allow_paralogs:
-        raise FlairNotImplementedError("--allow_paralogs is not implemented: reads with an equally "
-                                       "good alignment to several paralogs are assigned to one of "
-                                       "them, and nothing in this program does otherwise")
     if not os.path.exists(args.isoforms):
         raise FlairInputDataError(f"isoforms bed file from -i does not exist: {args.isoforms}")
     return args
@@ -466,8 +459,10 @@ def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_
                 passes_end_qual.append(t)
             else:
                 logging.debug(f"{rname} transcript alignment dropped: excess soft-clipping: {t[-3]}")
-        # sort by end distance, for each end is distance to transcript end plus soft clipping
-        passes_end_qual.sort(key=lambda x: _end_dist(x[-2]) + x[-2][3] + _end_dist(x[-1]) + x[-1][3])
+        # sort by end distance, for each end is distance to transcript end plus soft
+        # clipping, then by transcript name, so of tied transcripts, such as paralogs,
+        # the same one is chosen for every read, whatever order minimap2 reported them in
+        passes_end_qual.sort(key=lambda x: (_end_dist(x[-2]) + x[-2][3] + _end_dist(x[-1]) + x[-1][3], x[6]))
 
         return [passes_end_qual[0][-3:], ]
     else:
@@ -521,8 +516,9 @@ def get_best_transcript(tinfo, info, genomicclipping,
                         trust_ends, rname, no_extra_clipping=False):
     """Given all transcript alignments for a single read, apply the filtering
     checks and return the single best assignment (or None if none qualify).  Of
-    alignments tied on every ranking criterion, the one minimap2 reported first
-    is returned."""
+    alignments tied on every ranking criterion, the one to the transcript whose
+    name sorts first is returned, so tied reads, as of paralogs, all go to the same
+    transcript."""
     # parse CIGAR + MD tag to ID transcript pos covered by alignment
     # get start + end of transcript on read, alignment block positions
     # also save soft/hard clipping at ends of read
@@ -564,6 +560,7 @@ def get_best_transcript(tinfo, info, genomicclipping,
         # selection.  Without the check, an alignment to a transcript with an extra
         # short exon the read lacks would win on junctions covered.
         if not stringent:
+            # x[6], the transcript name, is last, so ties don't depend on the SAM order
             if check_splice:
                 passing_transcripts.sort(key=lambda x: (x[3], x[0], x[1], x[2], x[4], x[5], x[6]))
             else:
@@ -688,7 +685,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     trust_ends=False, generate_map=None,
                                     soft_clipping_buffer=50,
                                     unique_bound=None,
-                                    fusion_breakpoints=None, allow_paralogs=False,
+                                    fusion_breakpoints=None,
                                     allow_UTR_indels=False, trimmedreads=None,
                                     output_endpos=None, stranded=False, no_extra_clipping=False):
     """Build count_sam_transcripts.py argv."""
@@ -712,8 +709,6 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
         cmd += ['--unique_bound', str(unique_bound)]
     if fusion_breakpoints:
         cmd += ['--fusion_breakpoints', str(fusion_breakpoints)]
-    if allow_paralogs:
-        cmd.append('--allow_paralogs')
     if allow_UTR_indels:
         cmd.append('--allow_UTR_indels')
     if trimmedreads:
@@ -732,7 +727,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
                               trust_ends=False, generate_map=None,
                               soft_clipping_buffer=50,
                               unique_bound=None,
-                              fusion_breakpoints=None, allow_paralogs=False,
+                              fusion_breakpoints=None,
                               allow_UTR_indels=False, trimmedreads=None,
                               output_endpos=None, stranded=False, no_extra_clipping=False):
     """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
@@ -742,7 +737,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
         trust_ends=trust_ends, generate_map=generate_map,
         soft_clipping_buffer=soft_clipping_buffer,
         unique_bound=unique_bound,
-        fusion_breakpoints=fusion_breakpoints, allow_paralogs=allow_paralogs,
+        fusion_breakpoints=fusion_breakpoints,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
         output_endpos=output_endpos, stranded=stranded, no_extra_clipping=no_extra_clipping)
     pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]

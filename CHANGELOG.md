@@ -89,6 +89,12 @@
     reads, -t threads, -g the genome, -f the annotation and -o the output.
   * Removed options that were accepted and never used: flair align --quiet and
     flair quantify --quality.
+  * Removed `--allow_paralogs` from flair transcriptome and fusion, which only
+    reported that it was not implemented.  A read aligning equally well to
+    several transcripts, as to identical paralogs, is assigned to one of them, now
+    the same one for every such read (by transcript name) rather than whichever
+    minimap2 reported first, which could split a paralog pair's reads between
+    them.
   * flair align now requires exactly one of --genome and --mm_index, rather than
     failing later when neither was given.
   * junctions_from_sam, fasta_seq_lengths, mark_intron_retention,

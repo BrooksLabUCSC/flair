@@ -18,7 +18,7 @@
                               [--no_stringent] [--no_check_splice]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
                               [--filter FILTER] [--keep_supplementary]
-                              [--quality QUALITY] [--allow_paralogs] [-t THREADS]
+                              [--quality QUALITY] [-t THREADS]
                               [--parallel_mode PARALLEL_MODE]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
@@ -113,10 +113,6 @@
 .. option:: --quality QUALITY
 
    minimum mapping quality threshold to consider genomic alignments for defining transcripts (default: 1)
-
-.. option:: --allow_paralogs
-
-   NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent alignment. Specifying this is an error rather than a no-op
 
 .. option:: -t THREADS, --threads THREADS
 
