@@ -24,7 +24,7 @@ def _is_kept(others, annots=ANNOTS):
         for j in iso.juncs:
             junc_to_names.setdefault(j, set()).add(iso.name)
     kept, _ = filter_spliced_iso('nosubset', 1, cand.juncs, cand.exons, 'cand', cand.num_reads, annots,
-                                 junc_to_names, isos, {}, '+', end_window=100, ss_window=10)
+                                 junc_to_names, isos, '+', end_window=100, ss_window=10)
     return kept
 
 
@@ -43,7 +43,7 @@ def test_the_supersets_making_a_subset_are_recorded():
         for j in iso.juncs:
             junc_to_names.setdefault(j, set()).add(iso.name)
     supersets = []
-    kept, _ = filter_spliced_iso('nosubset', 1, JUNCS, isos['cand'].exons, 'cand', 10, ANNOTS, junc_to_names, isos, {}, '+',
+    kept, _ = filter_spliced_iso('nosubset', 1, JUNCS, isos['cand'].exons, 'cand', 10, ANNOTS, junc_to_names, isos, '+',
                                  end_window=100, ss_window=10, supersets=supersets)
     assert not kept and supersets == ['both']
 

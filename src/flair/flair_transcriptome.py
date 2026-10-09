@@ -280,7 +280,6 @@ def transcriptome_cmd(args):
 ####
 # basic types
 ####
-# (Junc, Exon, exons_to_juncs, ISO_SRC_ANNOT, ISO_SRC_NOVEL, IsoIdSrc imported from flair.isoform_data)
 
 # tolerance for terminal exon boundary comparisons
 TERMINAL_EXON_BOUNDARY_TOLERANCE = 20
@@ -424,14 +423,12 @@ def collapse_end_groups(end_window, isoform):
     return iso_end_groups
 
 
-def get_isos_with_similar_juncs(juncs, junc_to_names, junc_to_gene):
+def get_isos_with_similar_juncs(juncs, junc_to_names):
     """Find isoforms sharing junctions with the given junction set."""
     novel_isos = set()
     for j in juncs:
         if junc_to_names and j in junc_to_names:
             novel_isos.update(junc_to_names[j])
-        # if j in junc_to_gene:
-        #     annot_isos.update(junc_to_gene[j])
     return novel_isos
 
 def _is_junction_subset(juncs, otheriso_juncs):
@@ -533,13 +530,13 @@ def _matches_annotated_ends(annots, strand, exons, truncated, end_window, ss_win
 
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
-                       sup_annot_transcript_to_juncs, strand, end_window=0, ss_window=0, supersets=None):
+                       strand, end_window=0, ss_window=0, supersets=None):
     """Is a spliced candidate kept by the subset filter, and its unique sequence
     boundaries.  The names of the isoforms it is a subset of are added to supersets,
     if given."""
     assert isinstance(exons[0], Exon)  # FIXME: debugging
 
-    novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names, annots.junc_to_gene)
+    novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names)
     first_exon, last_exon = exons[0], exons[-1]
     superset_support = []  # of the isoforms this is a subset of
     truncated = [False, False]  # its first or last exon is inside a superset's internal exon
@@ -670,7 +667,6 @@ def _write_reads_subset(in_fasta, out_fasta, skip):
 
 def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_file):
     # FIXME: refactor
-    # good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs = [], set(), {}
     chrom = region.name
     read_to_transcript = {}
     if not args.no_align_to_annot and len(annots.transcripts) > 0:
@@ -682,7 +678,6 @@ def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_
         logging.info(f'aligning {nreads} reads to the annotated transcripts; {len(skip)} need no alignment')
         if nreads == 0:
             return read_to_transcript
-        # logging.info('generating transcriptome reference')
         # this part generates the fasta file for the annotation
         transcript_to_strand, transcript_to_new_exons = \
             generate_transcriptome_reference(temp_prefix, annots, chrom, genome)
@@ -704,8 +699,6 @@ def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_
             # comparison with the string 'None' was always true
             if start_sj_index is not None and end_sj_index is not None:  # not a single exon transcript
                 read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
-    # good_align_to_annot = set(good_align_to_annot)
-    # return good_align_to_annot, firstpass_SE, sup_annot_transcript_to_juncs
     return read_to_transcript
 
 
@@ -1076,7 +1069,7 @@ def subset_check_exons(isoform):
         exons[-1] = Exon(exons[-1].start, isoform.best_ends[1])
     return exons
 
-def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_juncs, removed_subsets=None):
+def filter_firstpass_isos(args, candidates, annots, removed_subsets=None):
     """Filter candidate isoforms by subset/support criteria.
     Returns (firstpass dict, iso_to_unique_bound dict).  Each spliced candidate removed
     as a subset is added to removed_subsets, if given, by name, with the names of the
@@ -1097,7 +1090,7 @@ def filter_firstpass_isos(args, candidates, annots, sup_annot_transcript_to_junc
                     is_not_subset, unique_seq = filter_spliced_iso(args.filter, args.sjc_support, isoform.juncs, subset_check_exons(isoform),
                                                                    iso_name, isoform.num_reads, annots,
                                                                    candidates.junc_to_names, candidates.isoforms,
-                                                                   sup_annot_transcript_to_juncs, isoform.strand,
+                                                                   isoform.strand,
                                                                    end_window=args.end_window, ss_window=args.ss_window,
                                                                    supersets=supersets)
                     if not is_not_subset:
@@ -1521,9 +1514,6 @@ def write_first_pass_isoforms(iso_name, isoform, max_terminal_exons_ends, unique
         exons = normalize_gene_terminal_exons(max_terminal_exons_ends, isoform.gene_id, isoform.strand, isoform.exons,
                                               genome.get_reference_length(isoform.chrom))
         isoform.reset_from_exons(exons)
-    # if isoform.transcript_id is None:
-    #     isoform.transcript_id = isoform.name
-    # isoform.name = isoform.transcript_id + '_' + isoform.gene_id
 
     if unique_bound and iso_name in unique_bound:
         # against the transcript's exons as built, without the normalization padding
@@ -2011,14 +2001,12 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
         # in order to check whether transcriptome alignment is comparable to or better than genomic alignment,
         # which can be considered to support isoform.
 
-        # logging.info('generating genomic clipping reference')
         # never zero reads here: _run_region only calls this when samtools fasta found
         # reads, and both skip secondary and supplementary alignments
         _, clipping_file = generate_genomic_alignment_read_to_clipping_file(partition.file_prefix, bam_file, region.name, region.start, region.end)
 
         # aligning to reference transcriptome, then identifying reads that match well to reference transcripts
         # with filter_transcriptome_align
-        # logging.info('identifying good match to annot')
         if not args.no_align_to_annot:
             logging.info('aligning to transcriptome reference')
         read_to_annot_transcript = identify_good_match_to_annot(args, partition.file_prefix, region, annots, genome, bam_file)
@@ -2047,10 +2035,9 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
 
         # filter isoforms: remove subsets, generate unique boundary sequences
         removed_subsets = {}
-        firstpass, iso_to_unique_bound = filter_firstpass_isos(args, candidates, annots, {}, removed_subsets=removed_subsets)
+        firstpass, iso_to_unique_bound = filter_firstpass_isos(args, candidates, annots, removed_subsets=removed_subsets)
 
         if len(firstpass.keys()) > 0:
-            # logging.info('getting gene names and writing firstpass')
             # this section identifies annotated gene and isoform names (primarily based on splice junction matching, secondarily by exon overlap)
             # also adjusts isoform strand, determines novel isoform and gene names
             # also normalizes transcript ends (temporarily extends ends so that transcript end alignment does not drive transcript assignment during transcriptome alignment)

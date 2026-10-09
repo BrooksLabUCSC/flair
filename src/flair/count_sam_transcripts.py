@@ -520,8 +520,9 @@ def get_best_transcript(tinfo, info, genomicclipping,
                         trimmedreads, soft_clipping_buffer, output_endpos,
                         trust_ends, rname, no_extra_clipping=False):
     """Given all transcript alignments for a single read, apply the filtering
-    checks and return the single best assignment (or None if none qualify or
-    the top two tie)."""
+    checks and return the single best assignment (or None if none qualify).  Of
+    alignments tied on every ranking criterion, the one minimap2 reported first
+    is returned."""
     # parse CIGAR + MD tag to ID transcript pos covered by alignment
     # get start + end of transcript on read, alignment block positions
     # also save soft/hard clipping at ends of read
@@ -749,8 +750,6 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
 
 
 if __name__ == '__main__':
-    # logger = logging.getLogger(__name__)
-    # logging.basicConfig(level=logging.DEBUG)
     args = parse_args()
     args = check_args(args)
     info = read_isoforms_bed(isoforms=args.isoforms, fusion_breakpoints=args.fusion_breakpoints,

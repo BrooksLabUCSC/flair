@@ -13,15 +13,6 @@
 ########################################################################
 
 
-# import pipettor
-# import os
-# import argparse
-# from flair import FlairInputDataError
-# from flair.gtf_io import gtf_record_parser, GtfAttrsSet
-# from flair.pycbio.hgdata.bed import Bed, BedReader
-# from flair.pycbio.sys import fileOps
-# from flair.bed_to_gtf import bed_to_gtf
-# from flair.flair_bed import FlairBed
 import logging
 from flair.isoform_data import get_reverse_complement, translate as translate_seq
 
@@ -132,7 +123,6 @@ def translate_from_bed(bed_transcript, genome):
                 seq_to_translate += genome.fetch(bed_transcript.chrom, e.start, bed_transcript.thickEnd)
         if bed_transcript.strand == '-':
             seq_to_translate = get_reverse_complement(seq_to_translate)
-        # print(seq_to_translate[-10:], translate(seq_to_translate)[-10:])
         return translate(seq_to_translate)
     return None
 

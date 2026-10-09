@@ -7,12 +7,12 @@ import pipettor
 from flair.isoform_data import Isoform
 
 
-def should_process_read(read, region, min_quality, keep_sup, allow_secondary, allow_outside_range=False):
+def should_process_read(read, region, min_quality, keep_sup, allow_outside_range=False):
     """Check if read passes filtering criteria for processing"""
     if read.mapping_quality < min_quality:
         logging.debug(f"read dropped: low quality ({read.mapping_quality} < {min_quality}): {read.query_name}")
         return False
-    if read.is_secondary and not allow_secondary:
+    if read.is_secondary:
         logging.debug(f"read dropped: secondary alignment: {read.query_name}")
         return False
     if read.is_supplementary and not keep_sup:
