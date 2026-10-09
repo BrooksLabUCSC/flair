@@ -28,7 +28,7 @@ from flair.read_correction import filter_correct_group_reads
 from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import BedReader
-from flair.predictProductivity import predict_prod_temp
+from flair.predictProductivity import predict_productivity
 from flair.flair_bed import FlairBed
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
@@ -1924,6 +1924,24 @@ def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_
             gene_reads[i] += len(reads)
         passing.add((promoted.strand, promoted.juncs))
 
+def unpadded_exons(exons, unpadded_ends, name=None):
+    """A spliced isoform's exons with the realignment padding taken off its first and
+    last exons, back to unpadded_ends.  An end at or past its exon's other edge is
+    left where it is, as it would make the exon empty, or reversed, which Exon refuses
+    with an assertion that stopped the run."""
+    exons = list(exons)
+    start, end = unpadded_ends
+    if start < exons[0].end:
+        exons[0] = Exon(start, exons[0].end)
+    else:
+        logging.debug(f"unpadded start {start} not before the first exon's end {exons[0].end}, kept at {exons[0].start}: {name}")
+    if end > exons[-1].start:
+        exons[-1] = Exon(exons[-1].start, end)
+    else:
+        logging.debug(f"unpadded end {end} not after the last exon's start {exons[-1].start}, kept at {exons[-1].end}: {name}")
+    return exons
+
+
 def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, generate_map):
     transcript_to_reads = {}
     if generate_map:
@@ -1942,15 +1960,11 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
                                                                          longest_supported=isoform.longest_supported)
             if passes_support:
                 if len(isoform.exons) > 1:
-                    # removing additional length from ends
-                    # not entirely sure why I need to reset the exons outside of the isoform object, but it doesn't work otherwise
-                    exons = isoform.exons
-                    exons[0] = Exon(isoform.unpadded_ends[0], exons[0].end)
-                    exons[-1] = Exon(exons[-1].start, isoform.unpadded_ends[1])
-                    isoform.reset_from_exons(exons)
+                    # removing the padding the realignment needed from the ends
+                    isoform.reset_from_exons(unpadded_exons(isoform.exons, isoform.unpadded_ends, isoform.name))
 
-                thickStart, thickEnd, productivity, aaseq = predict_prod_temp(isoform, annots.start_codon_count,
-                                                                              annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
+                thickStart, thickEnd, productivity, aaseq = predict_productivity(isoform, annots.start_codon_count,
+                                                                                 annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
                 convert_to_flair_bed(isoform, thickStart=thickStart, thickEnd=thickEnd, read_support=iso_to_counts[tname][0],
                                      frac_support=my_frac_support, productivity=productivity, samples=(args.sample_name,), aaseq_id=aaseq).write(iso_fh)
                 seq_fh.write('>' + isoform.name + '\n')

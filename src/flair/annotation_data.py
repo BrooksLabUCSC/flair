@@ -57,6 +57,8 @@ class AnnotData(object):
         # used by spliceevents for simple junction-to-gene lookup
         self.junc_to_gene_id = {}
 
+        # gene_id -> strand -> set of CDS start positions (start codon start on +,
+        # end on -), by the strand of the transcripts they come from
         self.gene_to_cds_starts = {}
 
         self.transcript_to_nmd_except = {}
@@ -130,14 +132,12 @@ def _process_transcript(annots, region, region_map, trans):
                            trans.attrs['tag'], trans.start_codon)
 
 def _save_cds_starts(gene_id, start_codon, strand, annots):
-    if gene_id not in annots.gene_to_cds_starts:
-        annots.gene_to_cds_starts[gene_id] = set()
+    """a transcript's CDS start, by gene and the transcript's strand, so an isoform
+    only takes start codons on its own strand (get_annot_start_codons)"""
+    starts_by_strand = annots.gene_to_cds_starts.setdefault(gene_id, {})
     if start_codon is not None:
         annots.start_codon_count += 1
-        if strand == '+':
-            annots.gene_to_cds_starts[gene_id].add(start_codon.start)
-        else:
-            annots.gene_to_cds_starts[gene_id].add(start_codon.end)
+        starts_by_strand.setdefault(strand, set()).add(start_codon.start if strand == '+' else start_codon.end)
 
 def _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand, annots):
     if gene_id not in annots.spliced_exons[strand]:
