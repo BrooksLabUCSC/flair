@@ -24,8 +24,8 @@ rna-seq reads
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
-                        output file name base for FLAIR isoforms, defaults to
-                        --sample_name
+                        prefix for the output file names; defaults to the
+                        required --sample_name
   -f ANNOT_GTF, --gtf ANNOT_GTF
                         GTF annotation file, used for identifying annotated
                         isoforms

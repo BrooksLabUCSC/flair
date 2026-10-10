@@ -16,7 +16,7 @@
 
 .. option:: -o OUTPUT, --output OUTPUT
 
-   output file name base for FLAIR isoforms, defaults to --sample_name
+   prefix for the output file names; defaults to the required --sample_name
 
 .. option:: -t THREADS, --threads THREADS
 

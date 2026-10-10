@@ -11,8 +11,8 @@ Identify gene fusions and generate a fusion transcriptome
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
-                        output file name base for FLAIR isoforms, defaults to
-                        --sample_name
+                        prefix for the output file names; defaults to the
+                        required --sample_name
   -t THREADS, --threads THREADS
                         minimap2 number of threads (default: 4)
   --min_fragment_size MIN_FRAGMENT_SIZE

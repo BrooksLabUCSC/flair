@@ -91,7 +91,8 @@ def add_subparser(subparsers):
     required.add_argument('--sample_name', required=True,
                           help='name of sample - this will be added as metadata to your output files')
     parser.add_argument('-o', '--output',
-                        help='output file name base for FLAIR isoforms, defaults to --sample_name')
+                        help='prefix for the output file names; defaults to the '
+                             'required --sample_name')
 
     parser.add_argument('-f', '--gtf', dest="annot_gtf", default=None,
                         help='GTF annotation file, used for identifying annotated isoforms')

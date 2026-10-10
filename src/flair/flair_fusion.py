@@ -30,7 +30,8 @@ def add_subparser(subparsers):
     required.add_argument('--sample_name', required=True,
                           help='name of sample, will be added as metadata to output files')
     parser.add_argument('-o', '--output',
-                        help='output file name base for FLAIR isoforms, defaults to --sample_name')
+                        help='prefix for the output file names; defaults to the '
+                             'required --sample_name')
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (default: %(default)s)')
     parser.add_argument('--min_fragment_size', type=int, default=40,
