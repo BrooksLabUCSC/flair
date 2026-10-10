@@ -5,6 +5,9 @@ library(DRIMSeq)
 library(data.table)
 suppressWarnings(library(BiocParallel))
 options(error = function() traceback(2))
+source(file.path(dirname(sub("^--file=", "",
+                            grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))),
+                 "tsv_io.R"))
 
 # Function to parse command-line arguments
 parse_arguments <- function() {
@@ -21,6 +24,7 @@ parse_arguments <- function() {
   parser$add_argument("--threads", type="integer", default=4, help="Number of threads for running DRIM-Seq.")
   parser$add_argument('--batch', action='store_true', default=FALSE, help="If specified, batch correction will be performed.")
   parser$add_argument('--condition_a', required=TRUE, help="Reference condition; the comparison is condition_b against this.")
+  parser$add_argument("--compress", default="none", choices=tsvCompressChoices, help="Compress the output tables with this, none by default.")
   parser$add_argument('--condition_b', required=TRUE, help="Condition compared against condition_a.")
   parser$add_argument("--formula", required=TRUE, help="TSV of sample_id, condition and batch, one row per matrix sample column.")
   return(parser$parse_args())
@@ -91,16 +95,16 @@ run_DRIMSeq <- function(args) {
 
   # Capture results
   res <- merge(proportions(d), results(d, level = "feature"), by=c("feature_id", "gene_id"))
-  res_out_path <- file.path(workdir, sprintf("%s_%s_v_%s_drimseq_results.tsv", args$prefix, args$condition_a, args$condition_b))
-  write.table(res, file=res_out_path, quote=FALSE, sep='\t', row.names=FALSE)
+  res_out_path <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_drimseq_results.tsv", args$prefix, args$condition_a, args$condition_b)), args$compress)
+  tsvWriteTable(res, res_out_path, row.names=FALSE)
 
   # Finalize and write cleaned results
-  clean_out_path <- file.path(args$out_dir, sprintf("drimseq_%s_%s_v_%s.tsv", args$prefix, args$condition_a, args$condition_b))
+  clean_out_path <- tsvCompressedPath(file.path(args$out_dir, sprintf("drimseq_%s_%s_v_%s.tsv", args$prefix, args$condition_a, args$condition_b)), args$compress)
   res <- res[order(res$adj_pvalue),]
   res <- subset(res, adj_pvalue <= 0.05)
   final_idx <- ncol(res) - 4
   outdf <- data.frame(res[,1:2], round(res[,3:final_idx], 3), lr = round(res[["lr"]], 2), adj_pvalue = signif(res[["adj_pvalue"]], 3))
-  write.table(outdf, file=clean_out_path, quote=FALSE, sep='\t', row.names=FALSE)
+  tsvWriteTable(outdf, clean_out_path, row.names=FALSE)
 
   return(clean_out_path)
 }
