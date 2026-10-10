@@ -27,7 +27,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   genome fasta, required to generate an isoform fasta file and/or a bigbed file
+   genome FASTA, required to generate an isoform FASTA file and/or a bigBed file
 
 .. option:: -o OUTPUT, --output OUTPUT
 

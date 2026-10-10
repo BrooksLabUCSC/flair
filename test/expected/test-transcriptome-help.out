@@ -116,7 +116,7 @@ required named arguments:
   -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
                         Sorted and indexed bam file aligned to the genome
   -g GENOME, --genome GENOME
-                        FastA of reference genome, can be minimap2 indexed
+                        FASTA of reference genome, can be minimap2 indexed
   --sample_name SAMPLE_NAME
                         name of sample - this will be added as metadata to
                         your output files

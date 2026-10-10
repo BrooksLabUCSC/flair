@@ -32,7 +32,7 @@ def add_subparser(subparsers):
     parser.add_argument('--normal_vcf', type=str,
                         help="normal vcf file, optional even when providing a normal bam")
     parser.add_argument('-g', '--genome', type=str, required=True,
-                        help='FastA of reference genome')
+                        help='FASTA of reference genome')
     parser.add_argument('-o', '--output', default='flair',
                         help="prefix for output files (default: %(default)s)")
     parser.add_argument('-f', '--gtf', type=str,

@@ -32,7 +32,7 @@ def add_subparser(subparsers):
                           help='Tab delimited file containing sample id, condition, batch, and the path to '
                                "that sample's reads aligned to the genome as a sorted, indexed BAM")
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FastA of genome')
+                          help='FASTA of genome')
     required.add_argument('--isoform_bed', type=str, required=True,
                           help='isoform .bed file')
     parser.add_argument('-o', '--output', type=str, default='flair.quantify',

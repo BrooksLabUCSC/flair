@@ -24,7 +24,7 @@ def add_subparser(subparsers):
     mutexc.add_argument('--isoform_beds', type=str,
                         help="comma separated list of paths to flair bed files to combine")
     parser.add_argument('-g', '--genome', required=True,
-                        help='genome fasta, required to generate an isoform fasta file and/or a bigbed file')
+                        help='genome FASTA, required to generate an isoform FASTA file and/or a bigBed file')
     parser.add_argument('-o', '--output', default='flair.combined.isoforms',
                         help="prefix for output file (default: %(default)s)")
     parser.add_argument('--end_window', type=int, default=200,

@@ -57,7 +57,7 @@ def get_args():
     parser.add_argument('-m', '--manifest', required=True,
                         help='manifest tsv with sample name and path to bam file aligned to genome')
     parser.add_argument('-g', '--genome', required=True, type=str,
-                        help='FastA of reference genome, can be minimap2 indexed')
+                        help='FASTA of reference genome, can be minimap2 indexed')
     parser.add_argument('-o', '--output', default='flair',
                         help='output file name base for FLAIR isoforms (default: flair)')
     parser.add_argument('-t', '--threads', type=int, default=4,

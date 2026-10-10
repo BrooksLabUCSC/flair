@@ -87,7 +87,7 @@ def add_subparser(subparsers):
     required.add_argument('-b', '--genome_aligned_bam', required=True,
                           help='Sorted and indexed bam file aligned to the genome')
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FastA of reference genome, can be minimap2 indexed')
+                          help='FASTA of reference genome, can be minimap2 indexed')
     required.add_argument('--sample_name', required=True,
                           help='name of sample - this will be added as metadata to your output files')
     parser.add_argument('-o', '--output',

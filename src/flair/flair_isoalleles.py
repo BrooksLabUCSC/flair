@@ -25,7 +25,7 @@ def add_subparser(subparsers):
     parser.add_argument('--allele_read_map_normal', type=str,
                         help="optional normal read map file from flair alleles")
     parser.add_argument('-g', '--genome', type=str, required=True,
-                        help='genome fasta file (used for making big bed)')
+                        help='genome FASTA file (used for making bigBed)')
     parser.add_argument('-o', '--output', default='flair',
                         help="prefix for output files (default: %(default)s)")
     parser.add_argument('--isoform_bed', type=str, required=True,

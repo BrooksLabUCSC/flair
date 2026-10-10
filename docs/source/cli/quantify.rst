@@ -42,7 +42,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of genome
+   FASTA of genome
 
 .. option:: --isoform_bed ISOFORM_BED
 

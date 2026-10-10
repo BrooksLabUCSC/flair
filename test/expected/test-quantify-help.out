@@ -26,6 +26,6 @@ required named arguments:
                         batch, and the path to that sample's reads aligned to
                         the genome as a sorted, indexed BAM
   -g GENOME, --genome GENOME
-                        FastA of genome
+                        FASTA of genome
   --isoform_bed ISOFORM_BED
                         isoform .bed file

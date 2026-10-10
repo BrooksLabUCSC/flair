@@ -22,7 +22,7 @@ def add_subparser(subparsers):
     parser = subparsers.add_parser('fusion', help="Identify gene fusions", description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FastA of reference genome')
+                          help='FASTA of reference genome')
     required.add_argument('-f', '--gtf', type=str, required=True,
                           help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
     required.add_argument('-b', '--genome_aligned_bam', type=str, required=True,

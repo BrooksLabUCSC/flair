@@ -142,7 +142,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of reference genome, can be minimap2 indexed
+   FASTA of reference genome, can be minimap2 indexed
 
 .. option:: --sample_name SAMPLE_NAME
 

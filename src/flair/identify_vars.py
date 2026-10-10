@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument('-o', '--output', default='flair',
                         help="output prefix. default: 'flair'")
     parser.add_argument('-g', '--genome',
-                        type=str, required=True, help='FastA of reference genome')
+                        type=str, required=True, help='FASTA of reference genome')
     parser.add_argument('-t', '--threads', type=int,
                         action='store', default=4, help='minimap2 number of threads (4)')
 
