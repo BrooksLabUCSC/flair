@@ -17,8 +17,8 @@ parse_arguments <- function() {
   parser$add_argument("--out_dir", required = TRUE, help = "Write to specified output directory.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
   parser$add_argument("--formula", required = TRUE, help = "Formula design matrix.")
-  parser$add_argument("--compress", default = "none", choices = tsvCompressChoices,
-                      help = "Compress the output tables with this, none by default.")
+  parser$add_argument("--compress", action = "store_true", default = FALSE,
+                      help = "Compress the output tables with gzip.")
 
   args <- parser$parse_args()
   return(args)

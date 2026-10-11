@@ -24,7 +24,7 @@ parse_args <- function() {
   parser$add_argument('--min_samps_feature_expr', type="integer", default=3, help='Minimum number of samples expressing a feature (3).')
   parser$add_argument('--min_gene_expr', type="integer", default=15, help='Minimum number of reads covering a gene (15).')
   parser$add_argument('--min_feature_expr', type="integer", default=5, help='Minimum number of reads covering a feature (5).')
-  parser$add_argument("--compress", default="none", choices=tsvCompressChoices, help='Compress the output tables with this, none by default.')
+  parser$add_argument("--compress", action="store_true", default=FALSE, help='Compress the output tables with gzip.')
   
   args <- parser$parse_args()
   return(args)

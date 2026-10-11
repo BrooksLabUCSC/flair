@@ -11,15 +11,16 @@
 # uncompressed file wearing a .gz name.  The connection has to be opened here
 # instead.
 
-# what --compress accepts, and what each appends to an output file name
-tsvCompressChoices <- c("none", "gz", "bz2")
+# what --compress appends; gzip is the one flair writes, though the writer below
+# honours whatever a path it is handed already ends in
+tsvCompressSuffix <- ".gz"
 
 tsvCompressedPath <- function(path, compress) {
-    # the output name a run writes, given what the caller asked to compress with
-    if (is.null(compress) || compress == "none") {
-        path
+    # the output name a run writes, given whether --compress was asked for
+    if (isTRUE(compress)) {
+        paste0(path, tsvCompressSuffix)
     } else {
-        paste0(path, ".", compress)
+        path
     }
 }
 

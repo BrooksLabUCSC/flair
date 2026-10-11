@@ -24,7 +24,7 @@ parse_arguments <- function() {
   parser$add_argument("--threads", type="integer", default=4, help="Number of threads for running DRIM-Seq.")
   parser$add_argument('--batch', action='store_true', default=FALSE, help="If specified, batch correction will be performed.")
   parser$add_argument('--condition_a', required=TRUE, help="Reference condition; the comparison is condition_b against this.")
-  parser$add_argument("--compress", default="none", choices=tsvCompressChoices, help="Compress the output tables with this, none by default.")
+  parser$add_argument("--compress", action="store_true", default=FALSE, help="Compress the output tables with gzip.")
   parser$add_argument('--condition_b', required=TRUE, help="Condition compared against condition_a.")
   parser$add_argument("--formula", required=TRUE, help="TSV of sample_id, condition and batch, one row per matrix sample column.")
   return(parser$parse_args())
