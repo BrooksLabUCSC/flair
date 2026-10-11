@@ -4,6 +4,7 @@ import pysam
 import argparse
 from collections import Counter
 from statistics import median
+from flair import FlairInputDataError
 from flair.convert_synthetic_to_genome_bed import identify_fusion_problems
 
 
@@ -156,8 +157,19 @@ def group_nongenic_loci(nongenicloci):
     return ognongenic_to_genes
 
 
+def _target_gene(transcript_to_gene, transcript_id, bam):
+    """Gene of a transcriptome alignment target, which is named by the transcript."""
+    gene_id = transcript_to_gene.get(transcript_id)
+    if gene_id is None:
+        raise FlairInputDataError(
+            f"alignment target {transcript_id} in {bam} is not a transcript in the "
+            "annotation; the BAM was built against a different GTF, delete it and rerun")
+    return gene_id
+
+
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
-                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None):
+                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None,
+                intronToGenome=None, transcript_to_gene=None):
     isrevtosign = {True: '-', False: '+'}
     withsup = pysam.AlignmentFile(bam, "rb")
     readToAligns = {}
@@ -186,7 +198,8 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                 else:
                     readToAligns[rname].append([(readlen - qend, refend), (readlen - qstart, refstart), genename, readdir, refchr])
             else:
-                tname, genename = read.reference_name.split('|')
+                tname = read.reference_name
+                genename = _target_gene(transcript_to_gene, tname, bam)
                 refchr, genedir = genetoinfo[genename][0], genetoinfo[genename][3]  # can do this because already required the read to be forward strand
                 refstart = getGenomicPreciseLoc(tname, refstart, genedir, intronLocs, intronToGenome)
                 refend = getGenomicPreciseLoc(tname, refend, genedir, intronLocs, intronToGenome)

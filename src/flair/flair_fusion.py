@@ -93,6 +93,17 @@ def align_to_synth_genome(genome, reads, output, additional_options):
     pipettor.run([samtools_index_cmd])
 
 
+def _record_transcript_gene(transcript_to_gene, transcript_id, gene_id):
+    """Map the transcript to its gene, which is how the gene of an alignment
+    target is recovered, since the target is named by the transcript alone."""
+    prev_gene = transcript_to_gene.get(transcript_id)
+    if (prev_gene is not None) and (prev_gene != gene_id):
+        raise FlairInputDataError(
+            f"transcript {transcript_id} is in two genes, {prev_gene} and {gene_id}; "
+            "transcript ids must be unique across genes, since alignment targets are "
+            "named by them")
+    transcript_to_gene[transcript_id] = gene_id
+
 def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,  # noqa: C901 - FIXME: reduce complexity
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
                   min_dist_between_breakpoints, keep_intermediate):
@@ -119,7 +130,9 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     if not os.path.exists(transcriptchimbam):
         logging.info('aligning to transcriptome and getting chimeric reads')
         annotated_bed = output + '.annotated_transcripts.bed'
-        gtf_to_bed(annotated_bed, gtf, include_gene=True, name_sep='|')
+        # the FASTA records are named by the transcript alone, so the gene comes
+        # from transcript_to_gene below, not from the record name
+        gtf_to_bed(annotated_bed, gtf)
         annotated_fa = output + '.annotated_transcripts.fa'
         get_sequence_from_bed(genome, output + '.annotated_transcripts.bed', annotated_fa)
 
@@ -135,6 +148,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
 
     logging.info('reading gtf')
     genetoinfo, genetoexons, genetoname = {}, {}, {}
+    transcript_to_gene = {}
     chrom_to_gene_pos = {}
     gene_to_all_exons, juncs_to_gene = {}, {}
     for rec in gtf_record_parser(gtf, include_features={'gene', 'exon', 'transcript'}, attrs=GtfAttrsSet.ALL):
@@ -148,6 +162,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             chrom_to_gene_pos[rec.chrom].append((rec.start, rec.end, rec.strand, gene_id))
 
         elif rec.feature == 'exon':
+            _record_transcript_gene(transcript_to_gene, rec.transcript_id, gene_id)
             if gene_id not in genetoexons:
                 genetoexons[gene_id] = {}
             if rec.transcript_id not in genetoexons[gene_id]:
@@ -212,7 +227,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
                         gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
                         min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
-                        maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome)
+                        maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome,
+                        transcript_to_gene=transcript_to_gene)
     logging.info('loading genomic chimeras')
 
     combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=4)
