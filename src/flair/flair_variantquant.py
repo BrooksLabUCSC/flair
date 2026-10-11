@@ -13,6 +13,7 @@ from flair.vargroup_counts_tsv import vargroup_counts_writer
 from flair.io_utils import make_clean_temp_dir
 from flair import FlairInputDataError
 from flair.pycbio.sys import fileOps
+from flair.output_compress import compressed_path
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
@@ -209,8 +210,8 @@ def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
 def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata, threshold, output_all):  # noqa: C901 - FIXME: reduce complexity
     samplenames = [x[0] for x in sampledata]
 
-    with var_counts_writer(f'{outprefix}.var.counts.tsv', samplenames) as out, \
-            vargroup_counts_writer(f'{outprefix}.vargroup.counts.tsv') as out2:
+    with var_counts_writer(compressed_path(f'{outprefix}.var.counts.tsv'), samplenames) as out, \
+            vargroup_counts_writer(compressed_path(f'{outprefix}.vargroup.counts.tsv')) as out2:
         vartocounts = {}
         vargroup_to_data = {}
         for tf in tempfilenames:

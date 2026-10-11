@@ -11,6 +11,8 @@ from flair.counts_matrix_tsv import read_isoform_ids, describe_ids
 from flair.event_quant_tsv import EventQuantReader
 from flair.sample_info_tsv import read_sample_info, write_sample_info
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import fileOps
+from flair.output_compress import compressed_path, output_compression
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
@@ -115,13 +117,19 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
         raise FlairInputDataError(f'** Error. Name {output} already exists. Choose another name for out_dir')
 
     filebase = os.path.join(output, 'diffsplice')
-    pipettor.run([sys.executable, call_diffsplice_events, isoform_bed, filebase, counts_matrix])
-    with open(filebase + '.es.events.tsv', 'w') as es_fh:
+    # the event callers are separate processes, so each is told whether to compress;
+    # the exon skipping one writes to stdout, so this process opens that file
+    call_cmd = [sys.executable, call_diffsplice_events, isoform_bed, filebase, counts_matrix]
+    if output_compression():
+        call_cmd.append('--compress')
+    pipettor.run(call_cmd)
+    es_events_tsv = filebase + '.es.events.tsv'
+    with open(es_events_tsv, 'w') as es_fh:
         pipettor.run([sys.executable, es_as, isoform_bed], stdout=es_fh)
-    with open(filebase + '.es.events.quant.tsv', 'w') as quant_fh:
-        pipettor.run([sys.executable, es_as_inc_excl_to_counts, counts_matrix, filebase + '.es.events.tsv'],
+    with fileOps.opengz(compressed_path(filebase + '.es.events.quant.tsv'), 'w') as quant_fh:
+        pipettor.run([sys.executable, es_as_inc_excl_to_counts, counts_matrix, es_events_tsv],
                      stdout=quant_fh)
-    os.unlink(filebase + '.es.events.tsv')
+    os.unlink(es_events_tsv)
 
     if test or condition_a:
         logging.info('DRIMSeq testing for each AS event type')
@@ -141,6 +149,8 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
                       '--min_samps_feature_expr', min_samps_feature_expr,
                       '--min_gene_expr', min_gene_expr,
                       '--min_feature_expr', min_feature_expr]
+        if output_compression():
+            ds_command.append('--compress')
         if batch:
             ds_command += ['--batch']
         with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:
@@ -151,7 +161,7 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
         os.rmdir(workdir)
 
 def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr):
-    matrixfile = f'{filebase}.{event}.events.quant.tsv'
+    matrixfile = compressed_path(f'{filebase}.{event}.events.quant.tsv')
     if emptyMatrix(matrixfile):
         logging.info(f'{event} event matrix file empty, not running DRIMSeq')
     else:

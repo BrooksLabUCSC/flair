@@ -26,6 +26,7 @@ from flair.deseq2_counts_tsv import write_deseq2_counts
 from flair.drimseq_counts_tsv import drimseq_counts_writer
 from flair.formula_matrix_tsv import FormulaRow, write_formula_matrix
 from flair.iso_usage_change_tsv import iso_usage_change_writer
+from flair.output_compress import compressed_path, output_compression
 from flair.sample_info_tsv import read_sample_info
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -272,6 +273,10 @@ def calc_gene_norm_sig(workdir, counts_rows, sample_columns):
     write_counts_matrix(workdir + '/counts.normbygene.tsv', sample_columns, norm_rows)
     return norm_rows
 
+def r_compress_option():
+    "the R scripts compress their tables when this run does"
+    return ['--compress'] if output_compression() else []
+
 def run_deseq2(prefix, workdir, condition_a, condition_b, matrixFile, outDir, formulaMatrixFile):
     # no --batch: neither R script ever read it, and one arbitrary batch label would
     # not have said anything anyway.  Both take the batch column from the formula matrix
@@ -280,7 +285,8 @@ def run_deseq2(prefix, workdir, condition_a, condition_b, matrixFile, outDir, fo
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_deseq2, "--condition_a", condition_a, "--condition_b", condition_b,
                           "--matrix", matrixFile, "--out_dir", outDir,
-                          "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
+                          "--prefix", prefix, "--formula", formulaMatrixFile] + r_compress_option(),
+                         stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
@@ -290,7 +296,8 @@ def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrixFile, 
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--condition_a", condition_a, "--condition_b", condition_b,
                           "--matrix", matrixFile, "--out_dir", outDir,
-                          "--prefix", prefix, "--formula", formulaMatrixFile], stderr=stderr_fh)
+                          "--prefix", prefix, "--formula", formulaMatrixFile] + r_compress_option(),
+                         stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
@@ -349,7 +356,7 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     # the normalized rows keep the counts matrix column order, so the same column
     # indexes apply to them
     norm_rows = calc_gene_norm_sig(workdir, counts_rows, samples)
-    get_sig_from_norm_by_gene(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv',
+    get_sig_from_norm_by_gene(compressed_path(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
                               norm_rows, a_cols, b_cols)
 
     # Convert count tables to dataframe and update isoform objects.

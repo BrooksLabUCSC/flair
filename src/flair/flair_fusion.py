@@ -17,6 +17,7 @@ from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.io_utils import check_genome_fasta
+from flair.output_compress import compressed_path
 
 def add_subparser(subparsers):
     desc = "Identify gene fusions and generate a fusion transcriptome"
@@ -408,7 +409,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             if good:
                 out.write(line)
 
-    with ReadMapWriter(output + '.fusion.isoform.read.map.txt') as out:
+    with ReadMapWriter(compressed_path(output + '.fusion.isoform.read.map.txt')) as out:
         for row in ReadMapReader(output + '.syntheticAligned.flair.isoform.read.map.txt'):
             if row.name in goodisos:
                 out.writeReads(row.name, row.reads)

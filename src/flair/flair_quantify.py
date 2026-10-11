@@ -11,6 +11,7 @@ from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import check_genome_fasta, make_temp_dir
+from flair.output_compress import compressed_path
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from flair.flair_transcriptome import _check_junction_subset
@@ -164,12 +165,12 @@ def write_combined_counts(sample_data, gene_data, temp_dir, output):
     rows = []
     for gene_id in gene_data:
         rows.extend(gene_counts_rows(sample_data, gene_data, temp_dir, gene_id))
-    write_counts_matrix(output + '.counts.tsv', [x[0] for x in sample_data], rows)
+    write_counts_matrix(compressed_path(output + '.counts.tsv'), [x[0] for x in sample_data], rows)
 
 def write_map_out(sample_data, gene_data, temp_dir, output, generate_map):
     if generate_map:
         for sample, group, batch, bamfile in sample_data:
-            with ReadMapWriter(f'{output}.{sample}.read.map.txt') as writer:
+            with ReadMapWriter(compressed_path(f'{output}.{sample}.read.map.txt')) as writer:
                 for gene_id in gene_data:
                     for row in ReadMapReader(temp_dir + gene_id + '/' + sample + '.isoform.read.map.txt'):
                         writer.writeReads(row.name, row.reads)
@@ -249,13 +250,14 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
 
     logging.info('writing quantify output')
     write_combined_counts(sample_data, gene_data, temp_dir, output)
-    write_sample_info(sample_info_path(output + '.counts.tsv'),
+    counts_matrix_tsv = compressed_path(output + '.counts.tsv')
+    write_sample_info(sample_info_path(counts_matrix_tsv),
                       [SampleInfo(sample, condition, batch)
                        for sample, condition, batch, _ in sample_data])
 
     write_map_out(sample_data, gene_data, temp_dir, output, generate_map)
 
     if tpm:
-        counts_to_tpm(open(output + '.counts.tsv'), output + '.tpm.tsv')
+        counts_to_tpm(fileOps.opengz(counts_matrix_tsv), compressed_path(output + '.tpm.tsv'))
 
     rmtree(temp_dir)

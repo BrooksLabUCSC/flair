@@ -3,6 +3,54 @@ Modules
 
 ``flair`` is a program which implement the follow module sub-commands.
 
+The options below come before the sub-command, as in
+``flair --compress transcriptome -o sample1 ...``.  Giving one after the
+sub-command is an error that says so.
+
+.. include:: cli/flair.rst
+
+.. _compression-label:
+
+Compression
+===========
+
+Every text input FLAIR reads may be gzipped, with no option and in any
+sub-command: counts matrices, BED, GTF, VCF, manifests, read maps, junction
+files and the rest.  FLAIR decides by the file name, so ``reads.fa.gz`` and
+``annotation.gtf.gz`` are read as they are.
+
+The genome is the one exception.  FLAIR needs random access to it, which plain
+gzip does not allow, so a compressed genome must be bgzip compressed and indexed::
+
+   bgzip genome.fa
+   samtools faidx genome.fa.gz
+
+A genome that is plain gzip, or bgzip without its index, is reported before the
+run starts rather than after the alignment.
+
+``--compress``, or ``-z``, controls output only.  With it, the tables FLAIR writes
+gain a ``.gz`` suffix: counts matrices, TPM tables, read maps, isoform and gene
+maps, variant counts, the amino acid sequence tables, the splicing event tables
+and the differential test results.  The sub-commands that call R pass it on, so
+those tables are compressed too.
+
+These are never compressed, with or without the option:
+
+ - BAM and its index, which are compressed already
+ - bigBed, which is a binary index
+ - the PDF plots the R scripts write
+ - the isoform BED, GTF and FASTA, which are read by genome browsers and by
+   bedToBigBed, neither of which takes gzip
+ - the files under ``<output>.intermediate``, which are joined and measured as
+   plain bytes and are deleted when the run ends
+
+The stand-alone scripts, such as ``diff_iso_usage`` and ``bed_to_gtf``, name their
+output file rather than a prefix, so they take no option: end the name in ``.gz``
+and the output is gzipped.
+
+Reading and writing are independent: a run may read gzipped input and write plain
+output, or the reverse.
+
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR transcriptome on all samples together (will generate the most comprehensive transcriptome)
  - Run FLAIR transcriptome on each sample separately (better for large sets of samples) and

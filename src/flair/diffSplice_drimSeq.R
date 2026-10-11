@@ -42,7 +42,7 @@ run_DRIMSeq <- function(args) {
 
   # The condition and batch of each sample come from the formula file rather than
   # from the matrix column names, which carry only the sample id.
-  formulaDF <- fread(args$formula, colClasses="character")
+  formulaDF <- tsvFread(args$formula, colClasses="character")
   formulaDF <- formulaDF[condition %in% c(args$condition_a, args$condition_b)]
 
   if (nrow(formulaDF) == 0) {
@@ -51,7 +51,7 @@ run_DRIMSeq <- function(args) {
   }
 
   # Read counts and prepare the quantification data frame
-  quantDF <- fread(args$matrix)
+  quantDF <- tsvFread(args$matrix)
   # formulaDF$sample_id, not samples: the matrix used to keep every sample column
   # while the pseudocount loop below covered only the selected ones, so the counts
   # handed to dmDSdata were inflated in some columns and not others

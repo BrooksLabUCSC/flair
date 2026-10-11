@@ -329,6 +329,20 @@ define cmp_expect_sort_named
 endef
 
 ##
+# compare a compressed output against the expected file of the plain test, reading
+# it through zcat and leaving it compressed
+##
+define cmp_expect_gz
+	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
+	diff $E/${2} <(zcat $O/${1}.gz)
+endef
+
+define cmp_expect_sort_gz
+	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
+	diff <(sort $E/${2}) <(sort <(zcat $O/${1}.gz))
+endef
+
+##
 # compare an output file against another output file, for tests that must produce
 # the same result as an earlier test from differently arranged input
 ##
@@ -464,8 +478,8 @@ COMBINE_BEDS_GZ = ${TI}/test-transcriptome.isoforms.bed.gz ${TI}/test-transcript
 	${TI}/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed.gz
 
 test-combine-compress: mkdirs ${GENOME_FA} ${COMBINE_BEDS_GZ}
-	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds $(shell echo $(COMBINE_BEDS_GZ) | tr ' ' ',')
-	$(call cmp_expect_named,$@.combined.isoform.counts.tsv,test-combine-files.combined.isoform.counts.tsv)
+	flair -z combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds $(shell echo $(COMBINE_BEDS_GZ) | tr ' ' ',')
+	$(call cmp_expect_gz,$@.combined.isoform.counts.tsv,test-combine-files.combined.isoform.counts.tsv)
 
 test-combine-files: mkdirs ${GENOME_FA}
 	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
@@ -515,11 +529,11 @@ test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_F
 test-quantify-compress: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} \
 		${TI}/test-transcriptome.isoforms.bed.gz ${TI}/basic.reads_manifest_bam.txt.gz
 	rm -rf $O/$@.intermediate
-	flair quantify --manifest ${TI}/basic.reads_manifest_bam.txt.gz --genome ${GENOME_FA} \
+	flair --compress quantify --manifest ${TI}/basic.reads_manifest_bam.txt.gz --genome ${GENOME_FA} \
 	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --generate_map --tpm -o $O/$@
-	$(call cmp_expect_named,$@.counts.tsv,test-quantify.counts.tsv)
-	$(call cmp_expect_named,$@.sample_info.tsv,test-quantify.sample_info.tsv)
-	$(call cmp_expect_named,$@.tpm.tsv,test-quantify.tpm.tsv)
+	$(call cmp_expect_gz,$@.counts.tsv,test-quantify.counts.tsv)
+	$(call cmp_expect_gz,$@.sample_info.tsv,test-quantify.sample_info.tsv)
+	$(call cmp_expect_gz,$@.tpm.tsv,test-quantify.tpm.tsv)
 
 # the genome bgzipped and indexed, every other input plain
 test-quantify-bgzip-genome: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${BGZIP_GENOME_FA}
@@ -551,10 +565,10 @@ test-diffexp : mkdirs
 # the same expected results.  Taking the conditions from the first and last column
 # got this wrong, and with an order like A,B,B,A filtered one condition twice.
 test-diffexp-compress: mkdirs ${TI}/basic.counts_matrix_diffexp.tsv.gz
-	flair diffexp --counts_matrix ${TI}/basic.counts_matrix_diffexp.tsv.gz -o $O/$@ --min_expression 1 \
+	flair -z diffexp --counts_matrix ${TI}/basic.counts_matrix_diffexp.tsv.gz -o $O/$@ --min_expression 1 \
 	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	$(call cmp_expect_sort_named,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_sort_named,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_gz,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_gz,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
 
 test-diffexp-colorder : mkdirs test-diffexp
 	${PYTHON} bin/tsv-condition-interleave $(BASIC_COUNTS_MATRIX) $O/$@.counts_matrix.tsv
@@ -584,11 +598,11 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-compress: mkdirs ${TI}/basic.isoforms_diffsplice.bed.gz ${TI}/basic.counts_matrix_diffsplice.tsv.gz
-	flair diffsplice --isoform_bed ${TI}/basic.isoforms_diffsplice.bed.gz \
+	flair -z diffsplice --isoform_bed ${TI}/basic.isoforms_diffsplice.bed.gz \
 	   --counts_matrix ${TI}/basic.counts_matrix_diffsplice.tsv.gz --test -o $O/$@ --overwrite_output
-	$(call cmp_expect_sort_named,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect_named,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect_named,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect_sort_gz,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_gz,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_gz,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
 
 test-diffsplice-cond: mkdirs
 	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output --condition_a A --condition_b B
@@ -719,10 +733,10 @@ test-transcriptome-mult-ends-trust-ends: mkdirs ${TEST_ALIGN_BAM}
 	$(diff_bed_gtf)
 
 test-transcriptome-compress: mkdirs ${TEST_ALIGN_BAM} ${TI}/basic.annotation.gtf.gz ${TI}/basic.shortread_junctions.tab.gz
-	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${TI}/basic.shortread_junctions.tab.gz \
+	flair -z transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${TI}/basic.shortread_junctions.tab.gz \
 	   -t 4 -f ${TI}/basic.annotation.gtf.gz -o $O/$@ --sample_name test-transcriptome --generate_map
 	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
-	$(call cmp_expect_named,$@.isoform.read.map.txt,test-transcriptome.isoform.read.map.txt)
+	$(call cmp_expect_gz,$@.isoform.read.map.txt,test-transcriptome.isoform.read.map.txt)
 
 test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --parallel_mode byregion
@@ -941,17 +955,17 @@ test-variantquant: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 test-variantquant-compress: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT} \
 		${TI}/test-transcriptome.isoforms.bed.gz
 	gzip -c ${ALIGN_LONGSHOT} > ${TI}/align.longshot.vcf.gz
-	flair variantquant --transcriptome_bam ${TEST_ALIGN_BAM} --vcf ${TI}/align.longshot.vcf.gz \
+	flair -z variantquant --transcriptome_bam ${TEST_ALIGN_BAM} --vcf ${TI}/align.longshot.vcf.gz \
 	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz -o $O/$@
-	$(call cmp_expect_sort_named,$@.var.counts.tsv,test-variantquant.var.counts.tsv)
+	$(call cmp_expect_sort_gz,$@.var.counts.tsv,test-variantquant.var.counts.tsv)
 
 test-alleles-compress: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT} ${TI}/basic.annotation.gtf.gz \
 		${TI}/test-transcriptome.isoforms.bed.gz
 	gzip -c ${ALIGN_LONGSHOT} > ${TI}/align.longshot.vcf.gz
-	flair alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${TI}/align.longshot.vcf.gz -g ${GENOME_FA} \
+	flair -z alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${TI}/align.longshot.vcf.gz -g ${GENOME_FA} \
 	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz -f ${TI}/basic.annotation.gtf.gz \
 	   -o $O/$@ --generate_map --annotate_bams
-	$(call cmp_expect_named,$@.allelegroups.counts.tsv,test-alleles-withbed.allelegroups.counts.tsv)
+	$(call cmp_expect_gz,$@.allelegroups.counts.tsv,test-alleles-withbed.allelegroups.counts.tsv)
 
 test-identifyvars-snvs: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM}
 	python3 ../src/flair/identify_vars.py --genome ${GENOME_FA} --bam ${TEST_ALIGN_BAM} --identify_snvs yes --identify_indels no --output $O/$@

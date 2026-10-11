@@ -15,6 +15,7 @@ import string
 from flair import FlairError, FlairInputDataError
 from flair.pycbio.sys import fileOps
 from flair.io_utils import check_genome_fasta
+from flair.output_compress import compressed_path
 
 # a read mismatch is credited to a known variant this many bases either side, to
 # tolerate a miscalled or misaligned position.  The comment here used to say 1 while
@@ -622,7 +623,7 @@ def write_allele_group_counts_read_map(index_to_allele_group_info, output, gener
     read_support normal reads is called somatic; this is the only place that call is
     reported."""
     with_normal = norm_bam is not None
-    with allele_group_counts_writer(output + '.allelegroups.counts.tsv',
+    with allele_group_counts_writer(compressed_path(output + '.allelegroups.counts.tsv'),
                                     with_normal=with_normal) as writer:
         for (ps, ag), group_info in index_to_allele_group_info.items():
             ol = [str(ps), ag, str(len(group_info['t']))]
@@ -632,10 +633,10 @@ def write_allele_group_counts_read_map(index_to_allele_group_info, output, gener
             writer.writeRow(ol)
     if generate_map:
         write_allele_group_read_map(index_to_allele_group_info,
-                                    output + '.allelegroups.tumor.read.map.txt', 't')
+                                    compressed_path(output + '.allelegroups.tumor.read.map.txt'), 't')
         if with_normal:
             write_allele_group_read_map(index_to_allele_group_info,
-                                        output + '.allelegroups.normal.read.map.txt', 'n')
+                                        compressed_path(output + '.allelegroups.normal.read.map.txt'), 'n')
 
 def write_allele_group_read_map(index_to_allele_group_info, read_map_txt, which):
     "the reads of each allele group in one BAM, tumor or normal"

@@ -18,6 +18,8 @@ def parse_args():
     parser.add_argument('isoforms_bed', help="isoform BED to call events from")
     parser.add_argument('out_prefix', help="prefix for the three events.quant.tsv outputs")
     parser.add_argument('counts_tsv', nargs='?', help="[optional] isoform counts matrix")
+    parser.add_argument('--compress', action='store_true',
+                        help="gzip the event files, as flair --compress asks for")
     return parser.parse_args()
 
 
@@ -29,6 +31,11 @@ class FlankedJunc(namedtuple("FlankedJunc", ("junc", "prev_exon_start", "next_ex
     """A junction with the outer bounds of the exons on either side, which is what
     tells an alternative splice site from a skipped exon."""
     __slots__ = ()
+
+def event_quant_path(args, event):
+    "the file one event type is written to, gzipped when asked for"
+    path = f'{args.out_prefix}.{event}.events.quant.tsv'
+    return path + '.gz' if args.compress else path
 
 def get_junctions_bed(exons):
     "the junctions between an isoform's exons, each with its flanking exon bounds"
@@ -108,7 +115,6 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 
 def main():  # noqa: C901 - FIXME: reduce complexity
     args = parse_args()
-    outfilenamebase = args.out_prefix
 
     iso_counts = {}
     sample_names = []
@@ -166,13 +172,13 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             for c in range(len(sample_names)):
                 ir_junctions[chrom][j]['exclusion']['counts'][c] += iso_counts[name][c]
 
-    with event_quant_writer(outfilenamebase + '.alt3.events.quant.tsv', sample_names) as writer:
+    with event_quant_writer(event_quant_path(args, 'alt3'), sample_names) as writer:
         find_altss(a3_junctions, writer)
 
-    with event_quant_writer(outfilenamebase + '.alt5.events.quant.tsv', sample_names) as writer:
+    with event_quant_writer(event_quant_path(args, 'alt5'), sample_names) as writer:
         find_altss(a5_junctions, writer, search_threeprime=False)
 
-    with event_quant_writer(outfilenamebase + '.ir.events.quant.tsv', sample_names) as writer:
+    with event_quant_writer(event_quant_path(args, 'ir'), sample_names) as writer:
         for chrom in ir_junctions:  # noqa: C901 - FIXME: reduce complexity
             for j in ir_junctions[chrom]:
                 for iname, isoform in isoforms[chrom].items():  # every other isoform, to find IR

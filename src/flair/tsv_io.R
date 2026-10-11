@@ -45,3 +45,16 @@ tsvWriteTable <- function(x, path, ...) {
     on.exit(close(con))
     write.table(x, file = con, sep = "\t", quote = FALSE, ...)
 }
+
+tsvFread <- function(path, ...) {
+    # data.table's fread needs the R.utils package to open a compressed file
+    # itself, so a compressed one is decompressed through a pipe instead, the way
+    # the Python side does it
+    if (grepl("\\.(gz|bgz)$", path)) {
+        data.table::fread(cmd = sprintf("gzip -dc %s", shQuote(path)), ...)
+    } else if (grepl("\\.bz2$", path)) {
+        data.table::fread(cmd = sprintf("bzip2 -dc %s", shQuote(path)), ...)
+    } else {
+        data.table::fread(path, ...)
+    }
+}

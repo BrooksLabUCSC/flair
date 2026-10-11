@@ -27,6 +27,8 @@ from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_counts_tsv import IsoformCountsWriter
 from flair.flair_bed import FlairBed
+from flair.output_compress import compressed_path
+from flair.pycbio.sys import fileOps
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 NORM_END_EXTRA_LEN = 100
@@ -1365,12 +1367,13 @@ def get_new_ids(output):
             if bed_rec.aaseq_id is not None:
                 bed_rec.aaseq_id = aaseq_to_id[bed_rec.aaseq_id]
             bed_rec.write(fh)
-    write_aaseqs(output + '.aaseq.tsv', aaseq_to_id)
+    write_aaseqs(compressed_path(output + '.aaseq.tsv'), aaseq_to_id)
     return iso_hash_to_ID
 
 def fix_ids_txt_file(iso_hash_to_ID, oldfile, newfile):
-    "rename the ids in the first column, keeping the header"
-    with open(oldfile) as in_fh, open(newfile, 'w') as fh:
+    """Rename the ids in the first column, keeping the header.  This is the last
+    thing written to these two files, so it is where they are compressed."""
+    with fileOps.opengz(oldfile) as in_fh, fileOps.AtomicFileOpen(newfile, 'w') as fh:
         fh.write(in_fh.readline())  # header, whose first field is a column name
         for line in in_fh:
             line = line.split('\t', 1)
@@ -1391,16 +1394,22 @@ def fix_ids_fa_file(iso_hash_to_ID, oldfile, newfile):
             if last:
                 fh.write(line)
 
+def rename_ids_into_place(iso_hash_to_ID, joined, final):
+    "rewrite the ids of a joined partition file into its final, maybe compressed, name"
+    fix_ids_txt_file(iso_hash_to_ID, joined, final)
+    if final != joined:
+        os.unlink(joined)
+
 def fix_iso_labels(output, generate_map):
     iso_hash_to_ID = get_new_ids(output)
-    fix_ids_txt_file(iso_hash_to_ID, output + '.isoform.counts.txt', output + '.isoform.counts.newids.txt')
+    rename_ids_into_place(iso_hash_to_ID, output + '.isoform.counts.txt',
+                          compressed_path(output + '.isoform.counts.txt'))
     fix_ids_fa_file(iso_hash_to_ID, output + '.isoforms.fa', output + '.isoforms.newids.fa')
     pipettor.run([('mv', output + '.isoforms.newids.bed', output + '.isoforms.bed')])
-    pipettor.run([('mv', output + '.isoform.counts.newids.txt', output + '.isoform.counts.txt')])
     pipettor.run([('mv', output + '.isoforms.newids.fa', output + '.isoforms.fa')])
     if generate_map:
-        fix_ids_txt_file(iso_hash_to_ID, output + '.isoform.read.map.txt', output + '.isoform.read.map.newids.txt')
-        pipettor.run([('mv', output + '.isoform.read.map.newids.txt', output + '.isoform.read.map.txt')])
+        rename_ids_into_place(iso_hash_to_ID, output + '.isoform.read.map.txt',
+                              compressed_path(output + '.isoform.read.map.txt'))
 
 ####
 # main

@@ -13,6 +13,7 @@ from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_data import make_big_bed, get_reverse_complement, translate_codon, COMPBASE
 from flair import FlairInputDataError
 from flair.io_utils import check_genome_fasta
+from flair.output_compress import compressed_path
 
 
 def add_subparser(subparsers):
@@ -349,7 +350,7 @@ def write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoform
     return aaseq_to_id
 
 def write_aaseq_key(output, aaseq_to_id):
-    write_aaseqs(output + '.aaseq.allelegroups.tsv', aaseq_to_id)
+    write_aaseqs(compressed_path(output + '.aaseq.allelegroups.tsv'), aaseq_to_id)
 
 def load_iso_allele_read_maps(iso_read_map, iso_read_map_norm, allele_read_map, allele_read_map_norm):
     iso_read_maps, allele_read_maps = [('t', iso_read_map)], [('t', allele_read_map)]
@@ -424,13 +425,13 @@ def getvariants(*, allele_vcf, allele_read_map, allele_read_map_normal, genome, 
     with pysam.FastaFile(genome) as genome_fa:
         with open(output + '.isoalleles.bed', 'w') as fh_bed, \
              open(output + '.isoalleles.fa', 'w') as fh_fa, \
-             IsoAlleleCountsWriter(output + '.isoallele.counts.tsv',
+             IsoAlleleCountsWriter(compressed_path(output + '.isoallele.counts.tsv'),
                                    with_normal=iso_read_map_normal is not None) as fh_counts:
             fh_map, fh_map_norm = None, None
             if generate_map:
-                fh_map = ReadMapWriter(output + '.isoallele.tumor.read.map.txt')
+                fh_map = ReadMapWriter(compressed_path(output + '.isoallele.tumor.read.map.txt'))
                 if iso_read_map_normal is not None:
-                    fh_map_norm = ReadMapWriter(output + '.isoallele.normal.read.map.txt')
+                    fh_map_norm = ReadMapWriter(compressed_path(output + '.isoallele.normal.read.map.txt'))
             aaseq_to_id = write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoforms, gene_to_tot_reads, genome_fa,
                                                           fh_bed, fh_fa, fh_counts, fh_map, fh_map_norm)
             if generate_map:

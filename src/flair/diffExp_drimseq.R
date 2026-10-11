@@ -42,11 +42,13 @@ main <- function() {
   threads <- args$threads
   
   rundrimseq(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
-             args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr, args$min_feature_expr)
+             args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr,
+             args$min_feature_expr, args$compress)
 }
 
 rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
-                       min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr) {
+                       min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr,
+                       compress) {
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
   # create output working directory if it doesn't exist
@@ -56,8 +58,8 @@ rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula
     dir.create(workdir, recursive=TRUE)
   }
   
-  resOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b)), args$compress)
-  cleanOut <- tsvCompressedPath(file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b)), args$compress)
+  resOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b)), compress)
+  cleanOut <- tsvCompressedPath(file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b)), compress)
   
   # Import data
   quantDF <- read.table(matrix, header=TRUE, sep='\t', row.names=1, check.names=FALSE)
