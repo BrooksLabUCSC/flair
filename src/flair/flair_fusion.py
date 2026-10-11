@@ -16,6 +16,7 @@ from flair.pycbio.hgdata.bed import Bed, BedReader
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
+from flair.io_utils import check_genome_fasta
 
 def add_subparser(subparsers):
     desc = "Identify gene fusions and generate a fusion transcriptome"
@@ -55,6 +56,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=fusion_cmd)
 
 def fusion_cmd(args):
+    check_genome_fasta(args.genome)
     if args.allow_paralogs:
         raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
                                        "good alignment to several paralogs is assigned to one of "

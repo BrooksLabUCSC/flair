@@ -42,7 +42,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FASTA of genome
+   FASTA of genome; a compressed genome must be bgzip and indexed with samtools faidx
 
 .. option:: --isoform_bed ISOFORM_BED
 

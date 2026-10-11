@@ -2,6 +2,8 @@
 
 import os
 import shutil
+from flair import FlairInputDataError
+from flair.pycbio.sys.fileOps import isCompressed
 
 
 def make_temp_dir(out_prefix):
@@ -25,3 +27,40 @@ def make_clean_temp_dir(out_prefix):
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     return make_temp_dir(out_prefix)
+
+
+# a bgzip file is gzip with an extra field whose two id bytes are BC
+GZIP_MAGIC = b'\x1f\x8b'
+GZIP_FEXTRA = 0x04
+BGZF_EXTRA_ID = b'BC'
+
+def is_bgzip(fasta):
+    "true when a compressed file is bgzip rather than plain gzip"
+    with open(fasta, 'rb') as fh:
+        header = fh.read(14)
+    return ((len(header) == 14) and (header[:2] == GZIP_MAGIC)
+            and bool(header[3] & GZIP_FEXTRA) and (header[12:14] == BGZF_EXTRA_ID))
+
+def check_genome_fasta(genome):
+    """Check a genome FASTA before a run starts, rather than after the setup that
+    precedes the first sequence fetch.  A compressed genome must be bgzip, since the
+    sequence reader cannot index plain gzip, and must carry its index, since the
+    reader can only build one where it may write beside the genome."""
+    if not os.path.exists(genome):
+        raise FlairInputDataError(f'genome FASTA does not exist: {genome}')
+    if not isCompressed(genome):
+        return
+    if not (genome.endswith('.gz') or genome.endswith('.bgz')):
+        raise FlairInputDataError(
+            f'genome FASTA must be plain or bgzip compressed, not {genome}; '
+            'recompress it with bgzip and index it with samtools faidx')
+    if not is_bgzip(genome):
+        raise FlairInputDataError(
+            f'genome FASTA {genome} is plain gzip, which cannot be indexed for random '
+            'access; recompress it with bgzip and index it with samtools faidx')
+    missing = [genome + suffix for suffix in ('.fai', '.gzi')
+               if not os.path.exists(genome + suffix)]
+    if len(missing) > 0:
+        raise FlairInputDataError(
+            f"genome FASTA {genome} is missing {', '.join(missing)}; "
+            f'index it with: samtools faidx {genome}')

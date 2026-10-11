@@ -11,7 +11,9 @@ the downstream pipeline
 options:
   -h, --help            show this help message and exit
   -g GENOME, --genome GENOME
-                        FASTA of reference genome, can be minimap2 indexed
+                        FASTA of reference genome, can be minimap2 indexed; a
+                        compressed genome must be bgzip and indexed with
+                        samtools faidx
   --mm_index MM_INDEX   minimap2 index .mmi file
   -o OUTPUT, --output OUTPUT
                         output file name base (default: flair.aligned)

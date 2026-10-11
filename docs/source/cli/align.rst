@@ -15,7 +15,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FASTA of reference genome, can be minimap2 indexed
+   FASTA of reference genome, can be minimap2 indexed; a compressed genome must be bgzip and indexed with samtools faidx
 
 .. option:: --mm_index MM_INDEX
 

@@ -10,7 +10,7 @@ from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
-from flair.io_utils import make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from flair.flair_transcriptome import _check_junction_subset
@@ -33,7 +33,7 @@ def add_subparser(subparsers):
                           help='Tab delimited file containing sample id, condition, batch, and the path to '
                                "that sample's reads aligned to the genome as a sorted, indexed BAM")
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FASTA of genome')
+                          help='FASTA of genome; a compressed genome must be bgzip and indexed with samtools faidx')
     required.add_argument('--isoform_bed', type=str, required=True,
                           help='isoform .bed file')
     parser.add_argument('-o', '--output', type=str, default='flair.quantify',
@@ -66,10 +66,10 @@ def quantify_cmd(args):
              normalize_ends=args.normalize_ends)
 
 def check_input_files(*, manifest, genome, isoform_bed):
-    for what, path in (('isoform models bed', isoform_bed), ('genome fasta', genome),
-                       ('manifest', manifest)):
+    for what, path in (('isoform models bed', isoform_bed), ('manifest', manifest)):
         if not os.path.exists(path):
             raise FlairInputDataError(f'{what} file does not exist: {path}')
+    check_genome_fasta(genome)
 
 def load_manifest(manifest):
     """the manifest rows.  The id, condition and batch fields may contain anything:

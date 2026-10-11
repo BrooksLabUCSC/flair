@@ -8,7 +8,7 @@ import shutil
 import multiprocessing as mp
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
-from flair.io_utils import make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir
 from flair.pycbio.hgdata.bed import BedReader
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
 
@@ -367,6 +367,7 @@ def write_output_vcf(genome_file, output, regions, temp_dir):
 
 def get_indels():
     args = parse_args()
+    check_genome_fasta(args.genome)
     temp_dir = make_temp_dir(args.output)
     if args.region_bed is not None:
         regions = get_regions_from_bed(args.region_bed)

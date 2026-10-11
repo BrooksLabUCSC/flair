@@ -278,6 +278,17 @@ ${TI}/%.gz: $I/%
 	@mkdir -p ${TI}
 	gzip -c $< > $@
 
+##
+# A bgzip genome, indexed.  The genome is the one input that cannot be plain gzip:
+# the sequence reader needs random access, which only bgzip gives it.
+##
+BGZIP_GENOME_FA = ${TI}/genome.bgz.fa.gz
+
+${BGZIP_GENOME_FA}: ${GENOME_FA}
+	bgzip -c $< > $@.tmp
+	mv -f $@.tmp $@
+	samtools faidx $@
+
 ${TI}/%.gz: $E/%
 	@mkdir -p ${TI}
 	gzip -c $< > $@
@@ -484,7 +495,7 @@ test-combine-multends-10pct: mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-compress test-quantify-normends test-quantify-help
+quantify-tests: test-quantify test-quantify-compress test-quantify-bgzip-genome test-quantify-normends test-quantify-help
 
 test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	rm -rf $O/$@.intermediate
@@ -508,6 +519,14 @@ test-quantify-compress: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_F
 	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --generate_map --tpm -o $O/$@
 	$(call cmp_expect_named,$@.counts.tsv,test-quantify.counts.tsv)
 	$(call cmp_expect_named,$@.sample_info.tsv,test-quantify.sample_info.tsv)
+	$(call cmp_expect_named,$@.tpm.tsv,test-quantify.tpm.tsv)
+
+# the genome bgzipped and indexed, every other input plain
+test-quantify-bgzip-genome: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${BGZIP_GENOME_FA}
+	rm -rf $O/$@.intermediate
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${BGZIP_GENOME_FA} \
+	   --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@
+	$(call cmp_expect_named,$@.counts.tsv,test-quantify.counts.tsv)
 	$(call cmp_expect_named,$@.tpm.tsv,test-quantify.tpm.tsv)
 
 test-quantify-help: mkdirs

@@ -5,6 +5,7 @@ import pipettor
 import pysam
 import logging
 from flair import FlairInputDataError
+from flair.io_utils import check_genome_fasta
 
 FILTER_KEEPSUP = 'keepsup'
 FILTER_REMOVESUP = 'removesup'
@@ -23,7 +24,7 @@ def add_subparser(subparsers):
                        help='FASTA/FASTQ file(s) of raw reads, either space or comma separated')
     genome = parser.add_mutually_exclusive_group(required=True)
     genome.add_argument('-g', '--genome', type=str,
-                        help='FASTA of reference genome, can be minimap2 indexed')
+                        help='FASTA of reference genome, can be minimap2 indexed; a compressed genome must be bgzip and indexed with samtools faidx')
     genome.add_argument('--mm_index', type=str, default='',
                         help='minimap2 index .mmi file')
     parser.add_argument('-o', '--output', default='flair.aligned',
@@ -50,6 +51,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=align_cmd)
 
 def align_cmd(args):
+    check_genome_fasta(args.genome)
     align(reads=split_reads_files(args.reads), genome=args.genome, mm_index=args.mm_index,
           output=args.output, threads=args.threads, junction_bed=args.junction_bed,
           native_rna=args.native_rna, quality=args.quality, filter_type=args.filter_type,

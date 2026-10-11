@@ -14,6 +14,7 @@ from collections import OrderedDict
 import string
 from flair import FlairError, FlairInputDataError
 from flair.pycbio.sys import fileOps
+from flair.io_utils import check_genome_fasta
 
 # a read mismatch is credited to a known variant this many bases either side, to
 # tolerate a miscalled or misaligned position.  The comment here used to say 1 while
@@ -53,6 +54,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=alleles_cmd)
 
 def alleles_cmd(args):
+    check_genome_fasta(args.genome)
     if (args.gtf is None) and (args.isoform_bed is None):
         raise FlairInputDataError('specify at least one of --gtf and --isoform_bed')
     getvariants(tumor_bam=args.tumor_bam, normal_bam=args.normal_bam, vcf=args.vcf,

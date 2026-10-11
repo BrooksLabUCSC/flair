@@ -11,6 +11,7 @@ from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons
 from flair.pycbio.sys import fileOps
+from flair.io_utils import check_genome_fasta
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -44,6 +45,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=combine_cmd)
 
 def combine_cmd(args):
+    check_genome_fasta(args.genome)
     # the option is a percentage, the code compares against fractional usage
     combine(manifest=args.manifest, prefixes=args.prefixes, isoform_beds=args.isoform_beds,
             genome=args.genome, output=args.output, end_window=args.end_window,

@@ -12,7 +12,7 @@ from flair import FlairError, FlairInputDataError, FlairNotImplementedError, res
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
-from flair.io_utils import make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, ReadRec,
                                 get_sequence_for_exons, binary_search, convert_to_bed12, convert_to_flair_bed, make_big_bed)
@@ -87,7 +87,7 @@ def add_subparser(subparsers):
     required.add_argument('-b', '--genome_aligned_bam', required=True,
                           help='Sorted and indexed bam file aligned to the genome')
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FASTA of reference genome, can be minimap2 indexed')
+                          help='FASTA of reference genome, can be minimap2 indexed; a compressed genome must be bgzip and indexed with samtools faidx')
     required.add_argument('--sample_name', required=True,
                           help='name of sample - this will be added as metadata to your output files')
     parser.add_argument('-o', '--output',
@@ -188,9 +188,9 @@ def transcriptome_cmd(args):
         raise FlairNotImplementedError("--allow_paralogs is not implemented: a read with an equally "
                                        "good alignment to several paralogs is assigned to one of "
                                        "them, and nothing downstream does otherwise")
-    for what, path in (('aligned reads bam', args.genome_aligned_bam), ('genome fasta', args.genome)):
-        if not os.path.exists(path):
-            raise FlairInputDataError(f'{what} file does not exist: {path}')
+    if not os.path.exists(args.genome_aligned_bam):
+        raise FlairInputDataError(f'aligned reads bam file does not exist: {args.genome_aligned_bam}')
+    check_genome_fasta(args.genome)
     flair_transcriptome(genome_aligned_bam=args.genome_aligned_bam, genome=args.genome,
                         sample_name=args.sample_name,
                         output=args.output if args.output is not None else args.sample_name,

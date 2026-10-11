@@ -12,6 +12,7 @@ from flair.iso_allele_counts_tsv import IsoAlleleCountsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_data import make_big_bed, get_reverse_complement, translate_codon, COMPBASE
 from flair import FlairInputDataError
+from flair.io_utils import check_genome_fasta
 
 
 def add_subparser(subparsers):
@@ -43,6 +44,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=isoalleles_cmd)
 
 def isoalleles_cmd(args):
+    check_genome_fasta(args.genome)
     if (args.iso_read_map_normal is None) != (args.allele_read_map_normal is None):
         raise FlairInputDataError('for a normal sample, specify both --iso_read_map_normal and --allele_read_map_normal')
     getvariants(allele_vcf=args.allele_vcf, allele_read_map=args.allele_read_map,
