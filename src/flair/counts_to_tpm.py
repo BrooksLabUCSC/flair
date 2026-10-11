@@ -6,10 +6,11 @@ from flair.counts_matrix_tsv import ID_COLUMNS, CountsRow
 from flair.seq_lengths_tsv import SeqLengthsReader
 from flair.tpm_tsv import tpm_writer
 from flair.pycbio.sys import cli
+from flair.pycbio.sys import fileOps
 
 def parse_input():
     try:
-        counts_matrix = open(sys.argv[1])
+        counts_matrix = fileOps.opengz(sys.argv[1])
         outfilename = sys.argv[2]
         sizefile = sys.argv[3] if len(sys.argv) > 3 else None
     except Exception:

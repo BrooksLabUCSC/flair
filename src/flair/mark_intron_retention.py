@@ -21,11 +21,10 @@ def build_parser():
     return parser
 
 def mark_intron_retention(isoform_bed, marked_bed, intron_txt):  # noqa C901
-    bedfh = open(isoform_bed)
     outfilename = marked_bed
     txtout = intron_txt
     isoforms = {}
-    for bed in BedReader(bedfh, fixScores=True):
+    for bed in BedReader(isoform_bed, fixScores=True):
         chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
         blockstarts = [blk.start for blk in bed.blocks]
         blocksizes = [len(blk) for blk in bed.blocks]

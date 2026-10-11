@@ -2,6 +2,7 @@
 
 import sys
 from flair.aaseq_pred_tsv import AaSeqPredWriter
+from flair.pycbio.sys import fileOps
 
 
 def translate(seq):
@@ -58,7 +59,7 @@ outfile = sys.argv[3]
 
 
 transcriptToInfo = {}
-for line in open(referencetranscriptfile):
+for line in fileOps.iterLines(referencetranscriptfile):
     if line[0] != '#':
         line = line.rstrip().split('\t')
         if len(line) == 4:
@@ -73,7 +74,7 @@ for line in open(referencetranscriptfile):
 out = AaSeqPredWriter(outfile)
 
 last = None
-for line in open(modtranscriptsfile):  # noqa: C901 - FIXME: reduce complexity
+for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce complexity
     if line[0] == '>':
         last = line[1:].rstrip().split(' ')
     else:

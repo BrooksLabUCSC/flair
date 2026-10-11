@@ -60,12 +60,27 @@ def sample_info_writer(sample_info_tsv):
         with SampleInfoWriter(tmp_tsv) as writer:
             yield writer
 
+
+# what opengz compresses by, stripped before deriving a sibling name and put back
+# after, so a compressed matrix names a compressed sibling
+COMPRESS_SUFFIXES = ('.gz', '.bgz', '.bz2', '.Z')
+
+def split_compress_suffix(path):
+    "the path without its compression suffix, and that suffix"
+    for suffix in COMPRESS_SUFFIXES:
+        if path.endswith(suffix):
+            return path[:-len(suffix)], suffix
+    return path, ''
+
 def sample_info_path(counts_matrix_tsv):
-    "flair quantify writes <prefix>.counts.tsv beside <prefix>.sample_info.tsv"
+    """flair quantify writes <prefix>.counts.tsv beside <prefix>.sample_info.tsv.  A
+    compressed matrix names a compressed sample info file, since quantify writes the
+    pair the same way."""
+    base, compress = split_compress_suffix(counts_matrix_tsv)
     for suffix in ('.counts.tsv', '.tsv'):
-        if counts_matrix_tsv.endswith(suffix):
-            return counts_matrix_tsv[:-len(suffix)] + '.sample_info.tsv'
-    return counts_matrix_tsv + '.sample_info.tsv'
+        if base.endswith(suffix):
+            return base[:-len(suffix)] + '.sample_info.tsv' + compress
+    return base + '.sample_info.tsv' + compress
 
 def write_sample_info(sample_info_tsv, sample_infos):
     with sample_info_writer(sample_info_tsv) as writer:
@@ -97,13 +112,23 @@ def _check_sample_info(sample_infos, sample_columns, sample_info_tsv, counts_mat
             f"{sample_info_tsv} does not describe the columns of {counts_matrix_tsv}: "
             f"it names {', '.join(named)}, the counts columns are {', '.join(sample_columns)}")
 
+def find_sample_info(counts_matrix_tsv):
+    """The sample info file beside a counts matrix, or None.  The two need not agree
+    about compression: either may have been written or fetched on its own."""
+    derived = sample_info_path(counts_matrix_tsv)
+    base, _ = split_compress_suffix(derived)
+    for path in (derived, base) + tuple(base + suffix for suffix in COMPRESS_SUFFIXES):
+        if os.path.exists(path):
+            return path
+    return None
+
 def read_sample_info(counts_matrix_tsv):
     """The sample of each counts column and how it was grouped, taken from the sample
     info file that flair quantify writes, or from the column names when a counts
     matrix predates that file."""
     sample_columns = read_sample_columns(counts_matrix_tsv)
-    sample_info_tsv = sample_info_path(counts_matrix_tsv)
-    if not os.path.exists(sample_info_tsv):
+    sample_info_tsv = find_sample_info(counts_matrix_tsv)
+    if sample_info_tsv is None:
         return _sample_info_from_columns(sample_columns, counts_matrix_tsv)
     with SampleInfoReader(sample_info_tsv) as reader:
         sample_infos = list(reader)

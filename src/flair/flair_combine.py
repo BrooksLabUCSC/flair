@@ -10,6 +10,7 @@ from flair.combined_map_tsv import CombinedMapWriter
 from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons
+from flair.pycbio.sys import fileOps
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -88,7 +89,7 @@ def parse_input(manifest, prefixes, input_beds):
     # assumes that only one input is not None
     sampledata = []
     if manifest is not None:
-        for line in open(manifest):
+        for line in fileOps.iterLines(manifest):
             sampledata.append(line.rstrip())
     elif prefixes is not None:
         for prefix in prefixes.rstrip(',').split(','):

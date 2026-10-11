@@ -19,6 +19,7 @@ from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.counts_to_tpm import counts_to_tpm
 from flair.isoform_data import get_reverse_complement
 import multiprocessing as mp
+from flair.pycbio.sys import fileOps
 
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -75,8 +76,8 @@ def load_manifest(manifest):
     they are written to the sample info file as their own columns rather than being
     joined into the counts column names."""
     sample_data = []
-    for line in open(manifest):
-        cols = line.rstrip().split('\t')
+    for line in fileOps.iterLines(manifest):
+        cols = line.split('\t')
         if len(cols) < 4:
             raise FlairInputDataError(f'expected 4 tab-separated columns in {manifest}, got {len(cols)}')
 

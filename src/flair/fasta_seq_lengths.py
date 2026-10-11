@@ -2,6 +2,7 @@
 import argparse
 from flair.pycbio.sys import cli
 from flair.seq_lengths_tsv import SeqLengthsWriter, SeqLengthHistogramWriter
+from flair.pycbio.sys import fileOps
 
 def _write_seq_length(writer, length_frequencies, name, seqlen):
     "one sequence's length row, and its contribution to the histogram"
@@ -20,7 +21,7 @@ def build_parser():
     return parser
 
 def fasta_seq_lengths(fasta_file, lengths_tsv, histogram_tsv):
-    fasta = open(fasta_file)
+    fasta = fileOps.opengz(fasta_file)
     outfilename = lengths_tsv
     outfilename2 = histogram_tsv
     length_frequencies = {}

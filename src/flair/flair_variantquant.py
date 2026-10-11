@@ -12,6 +12,7 @@ from flair.var_counts_tsv import var_counts_writer
 from flair.vargroup_counts_tsv import vargroup_counts_writer
 from flair.io_utils import make_clean_temp_dir
 from flair import FlairInputDataError
+from flair.pycbio.sys import fileOps
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
@@ -66,7 +67,7 @@ def quantvarpos_cmd(args):
 
 def extract_sample_data(manifestfile):
     sampledata = []
-    for line in open(manifestfile):
+    for line in fileOps.iterLines(manifestfile):
         line = line.rstrip().split()
         sampledata.append(line)
     return sampledata
@@ -304,7 +305,7 @@ def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, gene
 def combine_vcf_files(vcffilelist):
     vartoalt = {}
     for samplevcf in vcffilelist:
-        for line in open(samplevcf):
+        for line in fileOps.iterLines(samplevcf):
             if line[0] != '#':
                 line = line.rstrip().split('\t')
                 refinfo, alt = tuple(line[:4]), line[4]
@@ -381,7 +382,7 @@ def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_be
         logging.info('done combining vcfs')
         vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
     else:
-        for line in open(pos_ref):
+        for line in fileOps.iterLines(pos_ref):
             line = line.rstrip('\n').split('\t')
             chrom, region, pos, ref, alt, name = line
             region, pos = int(region), int(pos)

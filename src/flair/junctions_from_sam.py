@@ -31,6 +31,7 @@ import logging
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed
+from flair.pycbio.sys import fileOps
 
 ##############
 # CONSTANTS #
@@ -192,7 +193,7 @@ def open_sam_files(sam_file_arg):
     sam_files = []
     for sam_file in sam_file_arg.split(","):
         if sam_file.endswith(".sam"):
-            sam_files.append((open(sam_file), False))
+            sam_files.append((fileOps.opengz(sam_file), False))
         elif sam_file.endswith(".bam"):
             sam_files.append((pysam.Samfile(sam_file, "rb"), True))
         else:
@@ -641,7 +642,7 @@ def getForcedJunctions(forced_junction_file):
     File has chr start end for introns that would like to be kept in analysis.
     set will be "chr_start_end"
     """
-    jcn_file = open(forced_junction_file)
+    jcn_file = fileOps.opengz(forced_junction_file)
     forced_junctions = set([])
 
     for line in jcn_file:

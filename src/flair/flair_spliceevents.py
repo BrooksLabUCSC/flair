@@ -26,6 +26,7 @@ from flair.splicing_events_tsv import SplicingEventsWriter
 from flair.splicing_outliers_tsv import SplicingOutliersWriter
 from flair.pycbio.hgdata.bed import Bed, BedBlock, BedReader
 from flair.count_sam_transcripts import run_count_sam_transcripts
+from flair.pycbio.sys import fileOps
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 gtf_to_bed_prog = osp.join(pkgdir, "gtf_to_bed.py")
@@ -1287,7 +1288,7 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     logging.info(f'input regions: {len(all_regions)}')
 
     allsamples = []
-    for line in open(args.manifest):
+    for line in fileOps.iterLines(args.manifest):
         if line[0] != '#':
             line = line.rstrip().split('\t')
             sample, bamfile = line

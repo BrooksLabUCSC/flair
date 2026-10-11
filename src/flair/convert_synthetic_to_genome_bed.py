@@ -1,10 +1,11 @@
 import logging
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
+from flair.pycbio.sys import fileOps
 
 def get_iso_to_reads(readmapfile):
     isoreadsup = {}
-    for line in open(readmapfile):
+    for line in fileOps.iterLines(readmapfile):
         line = line.rstrip().split('\t')
         reads = line[1].split(',')
         isoreadsup[line[0]] = set(reads)
@@ -20,7 +21,7 @@ def get_paralog_ref(paralogfile):
     grouptogenes = {}
     genetoparalogs = {}
     # 5  244     2       69321074        69338940        1       ENSG00000205572 SERF1B  small EDRK-rich factor 1B (centromeric) [Source:HGNC Symbol;Acc:10756]
-    for line in open(paralogfile):
+    for line in fileOps.iterLines(paralogfile):
         line = line.split('\t')
         group = line[1]
         gname = line[6]
@@ -181,7 +182,7 @@ def write_final_fusion_reads(readsfile, freadsfinal):
     freads = open(''.join(temp), 'w')
 
     if readsfile.split('.')[-1] == 'fasta' or readsfile.split('.')[-1] == 'fa':
-        for line in open(readsfile):
+        for line in fileOps.iterLines(readsfile):
             if line[0] == '>':
                 readname = line[1:].rstrip().split()[0]
                 if readname in freadsfinal:
@@ -192,7 +193,7 @@ def write_final_fusion_reads(readsfile, freadsfinal):
                 freads.write(line)
     else:
         linecount = 0
-        for line in open(readsfile):
+        for line in fileOps.iterLines(readsfile):
             if linecount % 4 == 0:
                 readname = line[1:].rstrip().split()[0]
                 if readname in freadsfinal:

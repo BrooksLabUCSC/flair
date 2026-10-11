@@ -13,6 +13,7 @@ import math
 from collections import OrderedDict
 import string
 from flair import FlairError, FlairInputDataError
+from flair.pycbio.sys import fileOps
 
 # a read mismatch is credited to a known variant this many bases either side, to
 # tolerate a miscalled or misaligned position.  The comment here used to say 1 while
@@ -99,7 +100,7 @@ def combine_vcf_files(vcffilelist):
     vartoalt = {}
     var_to_is_homo = {}
     for samplevcf in vcffilelist:
-        for line in open(samplevcf):
+        for line in fileOps.iterLines(samplevcf):
             if line[0] != '#':
                 fields = line.rstrip('\n').split('\t')
                 if _vcf_variant_passed(fields[6]):

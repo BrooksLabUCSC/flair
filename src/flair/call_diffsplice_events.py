@@ -108,7 +108,6 @@ def find_altss(alljuncs, writer, search_threeprime=True):
 
 def main():  # noqa: C901 - FIXME: reduce complexity
     args = parse_args()
-    bedfh = open(args.isoforms_bed)
     outfilenamebase = args.out_prefix
 
     iso_counts = {}
@@ -122,7 +121,7 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     ir_junctions = {}  # ir detection
     a3_junctions = {}  # alt 3' ss detection
     a5_junctions = {}  # alt 5' ss detection
-    for bed in BedReader(bedfh, fixScores=True):
+    for bed in BedReader(args.isoforms_bed, fixScores=True):
         chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
 
         if iso_counts and name not in iso_counts:

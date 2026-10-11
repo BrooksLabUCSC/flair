@@ -22,7 +22,9 @@ def parse_args():
 
 def parse_fasta(filename):
     last, seq = None, []
-    for line in fileOps.opengz(filename):
+    # iterLines, not opengz: iterating the pipe a compressed file opens drops the
+    # last reference to it, which closes it part way through
+    for line in fileOps.iterLines(filename):
         if line[0] == '>':
             if last:
                 yield last, ''.join(seq)

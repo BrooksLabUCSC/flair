@@ -13,6 +13,7 @@ from flair.read_ends_tsv import ReadEndsWriter
 from flair.read_map_tsv import ReadMapWriter
 from flair.transcript_counts_tsv import TranscriptCountsWriter
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import fileOps
 
 
 _COUNT_SAM_TRANSCRIPTS_SCRIPT = os.path.realpath(__file__)
@@ -133,7 +134,7 @@ def read_isoforms_bed(*, isoforms, stringent=False, check_splice=False,  # noqa:
                     bpindex = (len(blocksizes) - 2) - bpindex
                 info.transcript_to_bp_ss_index[name] = bpindex
         if unique_bound:
-            for line in open(unique_bound):
+            for line in fileOps.iterLines(unique_bound):
                 name, bounds = line.rstrip().split('\t')
                 bounds = [x.split('_') for x in bounds.split(',')]
                 leftbounds = [int(x[1]) for x in bounds if x[0] == '0']
@@ -692,7 +693,7 @@ if __name__ == '__main__':
         output_endpos=args.output_endpos, unique_bound=args.unique_bound)
     readstoclipping = {}
     if args.trimmedreads:
-        for line in open(args.trimmedreads):
+        for line in fileOps.iterLines(args.trimmedreads):
             rname, left_clipping, right_clipping = line.rstrip().split('\t')
             readstoclipping[rname] = [int(left_clipping), int(right_clipping)]
     transcript_to_reads = parse_sam(args.sam, info, readstoclipping,

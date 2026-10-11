@@ -10,7 +10,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mplpatches  # noqa: E402
 from flair import FlairInputDataError  # noqa: E402
-from flair.pycbio.sys import cli  # noqa: E402
+from flair.pycbio.sys import cli, fileOps  # noqa: E402
 from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noqa: E402
 
 def build_parser():
@@ -191,7 +191,7 @@ def _add_counts_row(row, gray_bar, totals, proportions, sample_ids, min_reads):
 def read_color_palette(palette_file):
     """One color per line.  At least six are needed, since four of them also serve as
     the base colors."""
-    colors = [line.strip() for line in open(palette_file) if line.strip() != '']
+    colors = [line.strip() for line in fileOps.iterLines(palette_file) if line.strip() != '']
     if len(colors) < 6:
         raise FlairInputDataError(
             f"{palette_file}: found {len(colors)} colors, at least 6 are needed; "
@@ -303,7 +303,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
     iso_to_variant = {}
     if args.vcf:
-        for line in open(args.vcf):
+        for line in fileOps.iterLines(args.vcf):
             if line.startswith('#'):
                 continue
             line = line.rstrip().split('\t')
