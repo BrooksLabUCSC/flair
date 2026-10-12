@@ -52,7 +52,7 @@ chromSizes = dict(zip(genome.references, genome.lengths))
 # print('loaded genome')
 
 
-def getChromSize(chrom):
+def get_chrom_size(chrom):
     "size of chrom, error if the annotation names a sequence the genome doesn't have"
     size = chromSizes.get(chrom)
     if size is None:
@@ -77,7 +77,7 @@ for rec in gtf_record_parser(args.a, include_features={'gene', 'exon', 'start_co
             # the 500 base padding is held within the sequence; a gene near either end has less room than that
             fgenes[genename] = (rec.chrom,
                                 min([max(0, rec.start - 500), fgenes[genename][1]]),
-                                max([min(getChromSize(rec.chrom), rec.end + 500), fgenes[genename][2]]),
+                                max([min(get_chrom_size(rec.chrom), rec.end + 500), fgenes[genename][2]]),
                                 rec.strand)
         elif rec.feature in ('exon', 'start_codon'):
             tname = rec.transcript_id
@@ -109,7 +109,7 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
         # bound can run past the chromosome.  genome.fetch then returns a short
         # sequence while startLoc advances by the nominal distance, which shifts every
         # later locus and the breakpoint offsets against the FASTA actually written
-        chrom_size = getChromSize(thisChr)
+        chrom_size = get_chrom_size(thisChr)
         leftbound = max(0, min(leftbound, chrom_size))
         rightbound = max(0, min(rightbound, chrom_size))
         if order == 0:  # 5' gene, correct end to 5' end of gene

@@ -72,13 +72,13 @@ def diffsplice_cmd(args):
         # done no testing at all
         raise FlairInputDataError('--condition_a and --condition_b must both be given, '
                                   'or both left out to take the two conditions in sorted order')
-    diffSplice(isoform_bed=args.isoform_bed, counts_matrix=args.counts_matrix,
-               output=args.output, threads=args.threads, test=args.test,
-               min_samps_gene_expr=args.min_samps_gene_expr,
-               min_samps_feature_expr=args.min_samps_feature_expr,
-               min_gene_expr=args.min_gene_expr, min_feature_expr=args.min_feature_expr,
-               batch=args.batch, condition_a=args.condition_a, condition_b=args.condition_b,
-               overwrite_output=args.overwrite_output)
+    diff_splice(isoform_bed=args.isoform_bed, counts_matrix=args.counts_matrix,
+                output=args.output, threads=args.threads, test=args.test,
+                min_samps_gene_expr=args.min_samps_gene_expr,
+                min_samps_feature_expr=args.min_samps_feature_expr,
+                min_gene_expr=args.min_gene_expr, min_feature_expr=args.min_feature_expr,
+                batch=args.batch, condition_a=args.condition_a, condition_b=args.condition_b,
+                overwrite_output=args.overwrite_output)
 
 def check_isoform_ids(isoform_bed, counts_matrix):
     """Every counted isoform must have a BED record, since the events are called from
@@ -93,9 +93,9 @@ def check_isoform_ids(isoform_bed, counts_matrix):
             f"{isoform_bed}: {describe_ids(missing)}; pass the isoform BED that was quantified "
             "to produce this counts matrix")
 
-def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_gene_expr,  # noqa: C901 - FIXME: reduce complexity
-               min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
-               condition_a, condition_b, overwrite_output):
+def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_gene_expr,  # noqa: C901 - FIXME: reduce complexity
+                min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
+                condition_a, condition_b, overwrite_output):
     if not os.path.exists(counts_matrix):
         raise FlairInputDataError('Counts matrix file path does not exist')
     if not os.path.exists(isoform_bed):
@@ -162,7 +162,7 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
 
 def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr):
     matrixfile = compressed_path(f'{filebase}.{event}.events.quant.tsv')
-    if emptyMatrix(matrixfile):
+    if empty_matrix(matrixfile):
         logging.info(f'{event} event matrix file empty, not running DRIMSeq')
     else:
         cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
@@ -172,7 +172,7 @@ def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr):
             raise FlairError(f"DRIMSeq failed on `{event}' event. "
                              f'Check {workdir}/ds.stderr.txt for details') from exc
 
-def emptyMatrix(event_quant_tsv):
+def empty_matrix(event_quant_tsv):
     "true when an event type called no events, leaving a file of only its header"
     with EventQuantReader(event_quant_tsv) as reader:
         return next(iter(reader), None) is None

@@ -8,7 +8,7 @@ from flair import FlairInputDataError
 from flair.convert_synthetic_to_genome_bed import identify_fusion_problems
 
 
-def binarySearch(arr, t):
+def binary_search(arr, t):
     """Nearest value in a sorted list.  The loop used to fall off the end returning
     None when i and j converged without a branch firing, and the caller then indexed
     with it."""
@@ -38,8 +38,8 @@ def binarySearch(arr, t):
     return arr[i]
 
 
-def getGenomicPreciseLoc(tname, bpCoord, genedir, intronLocs, intronToGenome):
-    closestSS = binarySearch(intronLocs[tname], bpCoord)
+def get_genomic_precise_loc(tname, bpCoord, genedir, intronLocs, intronToGenome):
+    closestSS = binary_search(intronLocs[tname], bpCoord)
     bpIntronEnds = intronToGenome[tname][closestSS]
     genomeSS = None
     diffFromSS = bpCoord - closestSS
@@ -101,7 +101,7 @@ def get_exon_intron_blocks(read):
     return intron_blocks, exon_blocks
 
 
-def getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, readblocks, thisdir):  # noqa: C901 - FIXME: reduce complexity
+def get_correct_gene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, readblocks, thisdir):  # noqa: C901 - FIXME: reduce complexity
     intron_blocks, exon_blocks = readblocks
     if chrom not in chrom_to_gene_pos:
         my_gene = (chrom, exon_blocks[0][0], exon_blocks[-1][1])  # chrom + ':' + str(round(exon_blocks[0][0], -4))
@@ -190,7 +190,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
 
             if mode == 'genomic':
                 refchr = read.reference_name
-                genename = getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, refchr, get_exon_intron_blocks(read), readdir)
+                genename = get_correct_gene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, refchr, get_exon_intron_blocks(read), readdir)
                 if type(genename) is tuple:
                     nongenicloci.append(genename)
                 if readdir == '+':
@@ -201,8 +201,8 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                 tname = read.reference_name
                 genename = _target_gene(transcript_to_gene, tname, bam)
                 refchr, genedir = genetoinfo[genename][0], genetoinfo[genename][3]  # can do this because already required the read to be forward strand
-                refstart = getGenomicPreciseLoc(tname, refstart, genedir, intronLocs, intronToGenome)
-                refend = getGenomicPreciseLoc(tname, refend, genedir, intronLocs, intronToGenome)
+                refstart = get_genomic_precise_loc(tname, refstart, genedir, intronLocs, intronToGenome)
+                refend = get_genomic_precise_loc(tname, refend, genedir, intronLocs, intronToGenome)
                 refstart, refend = min(refstart, refend), max(refstart, refend)
                 if genedir == '+':
                     readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])

@@ -12,7 +12,7 @@ internal site.
 from bisect import bisect_left
 
 
-def checkIsNearAnnotEnd(read3endpos, annotends):
+def check_is_near_annot_end(read3endpos, annotends):
     """
     Check if read3endpos is within 200bp of a known annotated transcript end.
     Uses binary search on the sorted annotends list.  Returns True if the read
@@ -25,7 +25,7 @@ def checkIsNearAnnotEnd(read3endpos, annotends):
     return disttoend <= 200
 
 
-def checkInternalPriming(read3endpos, thischr, genome, reqfreq, threshold):
+def check_internal_priming(read3endpos, thischr, genome, reqfreq, threshold):
     """
     Check whether the genomic sequence near the read's 3' end contains an A/T-rich
     stretch that could have caused internal priming.
@@ -92,7 +92,7 @@ def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscr
         # chromosome in the genome, skip the check and keep the read.
         # FIXME: checking for known chromosome should happen much earlier
         if ((refname not in genome.references) or
-                (not checkInternalPriming(read3endpos, refname, genome, fracAs, threshold))):
+                (not check_internal_priming(read3endpos, refname, genome, fracAs, threshold))):
             return True
 
     elif annottranscriptends and refname in annottranscriptends:
@@ -103,7 +103,7 @@ def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscr
         # without checking genomic A-richness — asymmetric with the transcriptomic
         # path above, which does check.  Reads on chromosomes with no annotated
         # ends also fall through to False without any A-richness check.
-        isnearannotend = checkIsNearAnnotEnd(read3endpos, annottranscriptends[refname])
+        isnearannotend = check_is_near_annot_end(read3endpos, annottranscriptends[refname])
         if isnearannotend:
             return True
     return False

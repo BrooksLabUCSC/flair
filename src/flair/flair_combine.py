@@ -69,7 +69,7 @@ def combine_cmd(args):
 #     esizes.append(end - (start + estarts[-1]))
 #     return esizes, estarts
 
-def combineIsos(beds, endwindow):
+def combine_isos(beds, endwindow):
     beds.sort(key=lambda x: [(y.start, y.end) for y in x])
     isoendgroups = []
     last_vals = [(0, 0) for x in beds[0]]  # accounting for fusions, getting start + end of each fragment
@@ -266,7 +266,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
             all_juncs = [x[2] for x in juncchaininfo]
             og_isos = intronchaintoisos[juncchaininfo]
             if not remove_single_exon or (len(all_juncs) > 1 or len(all_juncs[0]) > 0):
-                ends_to_iso_groups = combineIsos(og_isos, end_window)
+                ends_to_iso_groups = combine_isos(og_isos, end_window)
                 max_usage, tot_counts = 0, 0
                 for bed_lists in ends_to_iso_groups:
                     # For transcripts grouped by ends, sort by longest ends

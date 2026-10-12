@@ -106,7 +106,7 @@ class JcnInfo:
         self.intron_start = intron_start
         self.intron_end = intron_end
 
-    def updateJcnInfo(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):  # noqa: C901 - FIXME: reduce complexity
+    def update_jcn_info(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):  # noqa: C901 - FIXME: reduce complexity
         # Check that name, chromosome, strand are the same
         if self.name != name:
             raise FlairInputDataError(f"Not the same name of the junctions: {self.name}, {name}")
@@ -229,7 +229,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
     forced_jcns = None
     if options.forced_junctions:
-        forced_jcns = getForcedJunctions(options.forced_junctions)
+        forced_jcns = get_forced_junctions(options.forced_junctions)
 
     # Creating output files.
     junction_bed_file_name = "%s_junctions.bed" % (name)
@@ -272,7 +272,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
                 # the AlignedRead object back to a SAM line
                 line = convert2SAMLine(sam_file, line)
 
-            line = formatLine(line)
+            line = format_line(line)
 
             # Ignore headers
             if line.startswith("@"):
@@ -302,7 +302,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
             tags = sam_elems[11:]
             if unique_only:
-                isMultiFlag = isMultiMapped(tags)
+                isMultiFlag = is_multi_mapped(tags)
                 if isMultiFlag is None:
                     print("Could not find tag for %s" % q_name)
                     continue
@@ -359,7 +359,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
                 # genome_line = "%s\t%s\t%d\t%d\n" % (q_name, chr, chr_start, chr_end)
                 # if paired_end_exists:
-                #     if isPairedRead(flag):
+                #     if is_paired_read(flag):
                 #         paired_end_genome_file.write(genome_line)
                 #     else:
                 #         genome_file.write(genome_line)
@@ -455,15 +455,15 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
                     # Now add junction to dictionary
                     if jcn_str in jcn2JcnInfo:
-                        jcn2JcnInfo[jcn_str].updateJcnInfo(jcn_str,
-                                                           chr,
-                                                           chromStart, chromEnd,
-                                                           jcn_strand, upstr_len,
-                                                           downstr_len,
-                                                           chr_start + upstr_len,
-                                                           chr_start + upstr_len + intron_len - 1,
-                                                           options.verbose,
-                                                           intron_info[2])
+                        jcn2JcnInfo[jcn_str].update_jcn_info(jcn_str,
+                                                             chr,
+                                                             chromStart, chromEnd,
+                                                             jcn_strand, upstr_len,
+                                                             downstr_len,
+                                                             chr_start + upstr_len,
+                                                             chr_start + upstr_len + intron_len - 1,
+                                                             options.verbose,
+                                                             intron_info[2])
                     else:
                         jcn2JcnInfo[jcn_str] = JcnInfo(jcn_str,
                                                        chr,
@@ -476,7 +476,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
                     # Add read to paired-end dictionary:
                     if paired_end_exists:
-                        if isPairedRead(flag):
+                        if is_paired_read(flag):
                             jcn_str = "%s:%d-%d" % (chr,
                                                     chr_start + upstr_len,
                                                     chr_start + upstr_len + intron_len - 1)
@@ -498,13 +498,13 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
     confident_jcns = set([])
     strandFlag = False
     for jcn_str in jcn2JcnInfo:
-        if isConfidentJunction(jcn2JcnInfo[jcn_str].block_list,
-                               jcn2JcnInfo[jcn_str].multiJcnBlock_list,
-                               confidence_score,
-                               jcn2JcnInfo[jcn_str].chr,
-                               jcn2JcnInfo[jcn_str].intron_start,
-                               jcn2JcnInfo[jcn_str].intron_end,
-                               forced_jcns):
+        if is_confident_junction(jcn2JcnInfo[jcn_str].block_list,
+                                 jcn2JcnInfo[jcn_str].multiJcnBlock_list,
+                                 confidence_score,
+                                 jcn2JcnInfo[jcn_str].chr,
+                                 jcn2JcnInfo[jcn_str].intron_start,
+                                 jcn2JcnInfo[jcn_str].intron_end,
+                                 forced_jcns):
 
             confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr,
                                              jcn2JcnInfo[jcn_str].intron_start,
@@ -631,13 +631,13 @@ def extended_to_simple_cigar(cigar):
     return newcigar
 
 
-def formatLine(line):
+def format_line(line):
     line = line.replace("\r", "")
     line = line.replace("\n", "")
     return line
 
 
-def getForcedJunctions(forced_junction_file):
+def get_forced_junctions(forced_junction_file):
     """
     File has chr start end for introns that would like to be kept in analysis.
     set will be "chr_start_end"
@@ -646,7 +646,7 @@ def getForcedJunctions(forced_junction_file):
     forced_junctions = set([])
 
     for line in jcn_file:
-        line = formatLine(line)
+        line = format_line(line)
 
         lineList = line.split("\t")
 
@@ -661,7 +661,7 @@ def getForcedJunctions(forced_junction_file):
     return forced_junctions
 
 
-def getPos2Count(blocklist):
+def get_pos_to_count(blocklist):
     pos2count = {}
 
     for block in blocklist:
@@ -673,7 +673,7 @@ def getPos2Count(blocklist):
     return pos2count
 
 
-def getShannonIndex(pos2countDict, totalCount):
+def get_shannon_index(pos2countDict, totalCount):
     """
     Calculates a Shannon-Wiener Index for the positions and counts.  It treats
     each position like a unique species.
@@ -698,8 +698,8 @@ def getShannonIndex(pos2countDict, totalCount):
     return -summation
 
 
-def isConfidentJunction(block_list, multiJcnBlockList, confidence_score,
-                        jcn_chr, jcn_start, jcn_end, forced_jcns):
+def is_confident_junction(block_list, multiJcnBlockList, confidence_score,
+                          jcn_chr, jcn_start, jcn_end, forced_jcns):
     """
     Confidence is given as the entropy score associated with each junction.
     """
@@ -713,10 +713,10 @@ def isConfidentJunction(block_list, multiJcnBlockList, confidence_score,
 
     all_blocks = list(block_list)
     all_blocks.extend(multiJcnBlockList)
-    pos2count = getPos2Count(all_blocks)
+    pos2count = get_pos_to_count(all_blocks)
     totalCount = len(all_blocks)
 
-    entropy = getShannonIndex(pos2count, totalCount)
+    entropy = get_shannon_index(pos2count, totalCount)
 
     if entropy >= confidence_score:
         return True
@@ -724,7 +724,7 @@ def isConfidentJunction(block_list, multiJcnBlockList, confidence_score,
         return False
 
 
-def isMultiMapped(tags):
+def is_multi_mapped(tags):
     NHtag_found = False
     for tag in tags:
         if tag.startswith("NH"):
@@ -738,7 +738,7 @@ def isMultiMapped(tags):
     return False
 
 
-def isPairedRead(flag):
+def is_paired_read(flag):
     # If read is first in a pair
     if flag & 64:
         return True

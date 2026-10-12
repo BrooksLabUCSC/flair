@@ -20,7 +20,7 @@ class Gene(object):
         else:
             self.acceptor, self.donor = 1, 0
 
-    def buildGraph(self):  # noqa: C901 - FIXME: reduce complexity
+    def build_graph(self):  # noqa: C901 - FIXME: reduce complexity
         self.exonGraph = dict()
         self.knownJuncs = dict()
         self.spliceSites = dict()
@@ -76,7 +76,7 @@ class Gene(object):
                 self.knownJuncs[j1].add(i)
                 self.knownJuncs[j2].add(i)
 
-    def findSkippedExonsV1(self, writer):
+    def find_skipped_exons(self, writer):
         '''
         '''
 
@@ -138,8 +138,8 @@ def main():
 
     with EsEventsWriter(None, outFh=sys.stdout) as writer:
         for gobj in genes.values():
-            gobj.buildGraph()
-            gobj.findSkippedExonsV1(writer)
+            gobj.build_graph()
+            gobj.find_skipped_exons(writer)
 
 
 if __name__ == "__main__":
