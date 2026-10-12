@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from flair.marked_isoforms_bed import MarkedIsoformsWriter, bed_column_count
+from flair.bed_output import bed_row_sort_key
 from flair.pycbio.sys import cli
 from flair.retained_introns_tsv import RetainedIntronsWriter
 from flair.pycbio.hgdata.bed import BedReader
@@ -62,8 +63,9 @@ def mark_intron_retention(isoform_bed, marked_bed, intron_txt):  # noqa C901
                             introncoords.add((chrom, str(prev5), (start1), isoforms[chrom][iname0]['strand']))
                     prev5 = start1 + size1
 
-    marked = [(isoforms[chrom][name]['entry'], isoforms[chrom][name]['ir'])
-              for chrom in isoforms for name in isoforms[chrom]]
+    marked = sorted([(isoforms[chrom][name]['entry'], isoforms[chrom][name]['ir'])
+                     for chrom in isoforms for name in isoforms[chrom]],
+                    key=lambda entry_ir: bed_row_sort_key(entry_ir[0]))
     with MarkedIsoformsWriter(outfilename, bed_column_count([e for e, _ in marked])) as writer:
         for entry, retains_intron in marked:
             writer.writeIsoform(entry, retains_intron)

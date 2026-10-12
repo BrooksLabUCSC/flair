@@ -16,6 +16,7 @@ from flair import SeqRange, resolve_deprecated_option
 from statistics import median
 from flair.junction_correct import junction_corrector_factory
 from flair.isoform_data import ReadRec
+from flair.bed_output import sort_bed_file
 from flair.io_utils import check_genome_fasta, make_temp_dir
 from flair.read_processing import get_sequence_from_bed, generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
@@ -1324,8 +1325,10 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner],
                                  ['.diffsplice.bed'] + list(EVENT_SUFFIXES),
                                  headers=EVENT_SUFFIXES)
+    sort_bed_file(args.output + '.diffsplice.bed')
     if args.output_read_ends:
         combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.readends.bed'])
+        sort_bed_file(args.output + '.diffsplice.readends.bed')
     if args.check_outliers:
         combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner],
                                      list(OUTLIER_SUFFIXES), headers=OUTLIER_SUFFIXES)

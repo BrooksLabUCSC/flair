@@ -28,6 +28,7 @@ from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_counts_tsv import IsoformCountsWriter
 from flair.flair_bed import FlairBed
 from flair.output_compress import compressed_path
+from flair.bed_output import open_sorted_bed
 from flair.pycbio.sys import fileOps
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
@@ -1348,7 +1349,7 @@ def combine_chunks(args, output, partitions):
 def get_new_ids(output):
     iso_hash_to_ID, gene_hash_to_ID, aaseq_to_id = {}, {}, {}
     iso_count, gene_count, aaseq_count = 1, 1, 1
-    with open(output + '.isoforms.newids.bed', 'w') as fh:
+    with open_sorted_bed(output + '.isoforms.newids.bed') as fh:
         for bed_rec in BedReader(output + '.isoforms.bed', bedClass=FlairBed):
             if bed_rec.name not in iso_hash_to_ID:
                 iso_id = f'FLT{iso_count:08d}'

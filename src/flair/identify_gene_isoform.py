@@ -5,6 +5,7 @@ from flair.gtf_to_bed import get_iso_info
 from flair.pycbio.sys import cli
 from flair.isoform_data import binary_search
 from flair.pycbio.hgdata.bed import BedReader
+from flair.bed_output import open_sorted_bed
 
 # annotated single-exon genes scanned either side of the search index
 SE_SEARCH_WINDOW = 2
@@ -125,7 +126,7 @@ def identify_gene_isoform(gtf, outfilename, query, field_name='gene_id', proport
             all_se[chrom] = sorted(list(all_se[chrom]), key=lambda x: x[0])
 
     name_counts = {}  # to avoid redundant names
-    with open(outfilename, 'wt') as outfile:
+    with open_sorted_bed(outfilename) as outfile:
         for bed in BedReader(query, fixScores=True):
             junctions = get_junctions_bed12(bed)
             chrom, name, start, end = bed.chrom, bed.name, bed.chromStart, bed.chromEnd

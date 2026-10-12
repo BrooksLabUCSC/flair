@@ -1,6 +1,7 @@
 import logging
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
+from flair.bed_output import open_sorted_bed
 from flair.pycbio.sys import fileOps
 
 def get_iso_to_reads(readmapfile):
@@ -219,7 +220,7 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
     synthchrtoinfo = get_synth_info(breakpointfile)
 
     freadsfinal = set()
-    out = open(outname, 'w')
+    out = open_sorted_bed(outname)
     gene_og_to_new = {}
     curr_gene_count = 1
     for bed in BedReader(isoformsbed, fixScores=True, bedClass=FlairBed):

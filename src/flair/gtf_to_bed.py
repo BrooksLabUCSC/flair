@@ -3,6 +3,7 @@ import argparse
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed, BedBlock
+from flair.bed_output import open_sorted_bed
 
 # with --include_gene, the column after the twelve standard ones holds the gene
 GENE_ID_EXTRA_COL = 0
@@ -71,7 +72,7 @@ def get_iso_info(gtf):
 
 def gtf_to_bed(outputfile, gtf, include_gene=False):
 
-    with open(outputfile, 'wt') as outfile:
+    with open_sorted_bed(outputfile) as outfile:
         iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf)
 
         for this_transcript in iso_to_exons:

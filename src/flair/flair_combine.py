@@ -13,6 +13,7 @@ from flair.isoform_data import make_big_bed, get_sequence_for_exons
 from flair.pycbio.sys import fileOps
 from flair.io_utils import check_genome_fasta
 from flair.output_compress import compressed_path
+from flair.bed_output import open_sorted_bed
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -260,7 +261,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     iso_to_gene = {}
     iso_count, gene_count = 1, 1
     genome_fa = pysam.FastaFile(genome)
-    with open(output + '.combined.isoforms.bed', 'w') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
+    with open_sorted_bed(output + '.combined.isoforms.bed') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
         for juncchaininfo in intronchaintoisos:
             all_juncs = [x[2] for x in juncchaininfo]
             og_isos = intronchaintoisos[juncchaininfo]
