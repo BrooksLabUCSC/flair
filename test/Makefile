@@ -37,6 +37,14 @@ endif
 ##
 # all targets
 ##
+
+# A test target says how it ended on stderr, so that the tail of a
+# `make -j ... test -O >&log' says whether the run passed, rather than burying a
+# failure in the middle of the log behind the tests that finished after it.
+define run_tests
+	${MAKE} $(1) && echo "===== TESTS PASSED =====" >&2 || { echo "===== TESTS FAILED =====" >&2; exit 1; }
+endef
+
 default:
 	@echo "====="
 	@echo "===== to see all targets: make help"
@@ -70,22 +78,22 @@ help:
 	@echo "   " make make hub-check huburl=https://public.gi.ucsc.edu/~you/flair/test/hub/hub.txt >&2
 
 test:
-	${MAKE} test-base test-with-R
+	$(call run_tests, test-base test-with-R)
 
 test-base:
-	${MAKE} align-tests quantify-tests bed-to-gtf-tests \
+	$(call run_tests, align-tests quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests test-doc-cli
+		spliceevents-tests partition-tests lib-tests test-doc-cli)
 
 test-no-align:
-	${MAKE} quantify-tests bed-to-gtf-tests \
+	$(call run_tests, quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests
+		spliceevents-tests partition-tests lib-tests)
 
 test-with-R:
-	${MAKE} diffexp-tests diffsplice-tests
+	$(call run_tests, diffexp-tests diffsplice-tests)
 
 test-installed:
 	${MAKE} test use_installed_flair=yes
@@ -94,11 +102,11 @@ test-base-installed:
 	${MAKE} test-base use_installed_flair=yes
 
 test-help:
-	${MAKE} test-main-help test-align-help \
+	$(call run_tests, test-main-help test-align-help \
 		test-quantify-help test-diffexp-help test-diffsplice-help \
 		test-diff-iso-usage-help \
 		test-plot-usage-help test-transcriptome-help test-fusion-help \
-		test-doc-cli
+		test-doc-cli)
 
 # the committed option pages must match what the parsers currently define
 test-doc-cli: mkdirs
@@ -107,9 +115,9 @@ test-doc-cli: mkdirs
 	diff -r ${root}/docs/source/cli $O/cli
 
 test-fast:
-	${MAKE} test-combine-bed-only \
+	$(call run_tests, test-combine-bed-only \
 		test-diff-iso-usage test-plot-usage test-transcriptome \
-		test-fusion
+		test-fusion)
 
 ##
 # Non-python programs FLAIR runs.  test-env-only reruns the tests with only the
