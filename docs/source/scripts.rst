@@ -110,12 +110,11 @@ Assumes the bed has the correct strand information.
 
 **Outputs**
 
- - an extended ``BED`` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively
- - ``txt`` file of intron retentions with format ``isoform name`` ``chromosome`` ``intron 5' coordinate`` ``intron 3' coordinate``.
-
-Note: A bed file with more additional
-columns will not be displayed in the UCSC genome browser, but can be
-displayed in IGV.
+ - the input BED with a ``retains_intron`` column added, 1 when another isoform of the
+   locus has an exon where this one has an intron, 0 otherwise.  A header line names the
+   columns, so the file is a TSV rather than a BED.
+ - a TSV of the retained introns, with columns ``chrom``, ``start``, ``end`` and
+   ``strand``.  An intron appears once however many isoforms retain it.
 
 plot_isoform_usage
 ==================
