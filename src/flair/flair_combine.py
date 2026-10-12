@@ -233,8 +233,8 @@ def write_map_file(combined_map_txt, new_to_og):
             writer.writeSources(new_id, [','.join(x[0]) + ':' + x[1] for x in sources])
 
 def write_map_files(output, new_iso_to_og, new_gene_to_og):
-    write_map_file(compressed_path(output + '.combined.isoform.map.txt'), new_iso_to_og)
-    write_map_file(compressed_path(output + '.combined.gene.map.txt'), new_gene_to_og)
+    write_map_file(compressed_path(output + '.combined.isoform.map.tsv'), new_iso_to_og)
+    write_map_file(compressed_path(output + '.combined.gene.map.tsv'), new_gene_to_og)
 
 def iso_counts_row(new_id, gene_id, allsamples, samples_to_counts):
     counts = [str(samples_to_counts.get(sample, 0)) for sample in allsamples]

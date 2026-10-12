@@ -215,7 +215,7 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
         vartocounts = {}
         vargroup_to_data = {}
         for tf in tempfilenames:
-            with open(tempdir + tf + '.txt', 'r') as mutstringfile:
+            with open(tempdir + tf + '.tsv', 'r') as mutstringfile:
                 for line in mutstringfile:
                     refname, readname, mutstring = line.rstrip('\n').split('\t')
                     # three fields per mut now, whatever the gene count: the gene list
@@ -326,7 +326,7 @@ class TempVarFiles:
     def open(self, refname):
         out = self.by_refname.get(refname)
         if out is None:
-            out = self.stack.enter_context(open(self.tempdir + refname + '.txt', 'w'))
+            out = self.stack.enter_context(open(self.tempdir + refname + '.tsv', 'w'))
             self.by_refname[refname] = out
         return out
 
@@ -358,7 +358,7 @@ def get_genes_from_tempdir(tempdir):
     genenames = set()
     for f in os.listdir(tempdir):
         if f[0] != '.' and 'processed' not in f:
-            genenames.add(f.split('.txt')[0])
+            genenames.add(f.split('.tsv')[0])
     return sorted(genenames)
 
 def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_bed,

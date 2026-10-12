@@ -32,7 +32,7 @@ If you want to run downstream fusion detection with FLAIR fusion, run flair alig
  - ``flair.isoforms.bed``
  - ``flair.isoforms.gtf``
  - ``flair.isoforms.fa``
- - ``flair.read.map.txt``
+ - ``flair.isoform.read.map.tsv``
 
 Options
 -------
@@ -93,7 +93,7 @@ sample.fusions.isoforms.bed
     fusion, and its position in the fusion is given by the ``pos_in_fusion`` column
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.syntheticAligned.isoform.read.map
+sample.fusion.isoform.read.map.tsv
     read map of reads to fusion isoforms
 
 Options

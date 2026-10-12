@@ -297,7 +297,7 @@ def process_var_pos(pos, pos_to_var_filtered, pos_to_var, pos_to_cov, genome, ch
 def process_reads_for_region(args):
     temp_dir, bam_file, region, genome_file, min_cov, min_var_reads, min_vaf, min_read_end_dist, min_sj_dist, num_repeats_for_filtering, identify_indels, identify_snvs, density_dist, density_count = args
     with pysam.FastaFile(genome_file) as genome, \
-            IndelVarsWriter(temp_dir + '-'.join([str(x) for x in region]) + '.txt') as out:
+            IndelVarsWriter(temp_dir + '-'.join([str(x) for x in region]) + '.tsv') as out:
         pos_to_cov, pos_to_var, donor_counts, acceptor_counts = get_indels_from_bam(region, bam_file, genome, min_read_end_dist, min_sj_dist, identify_indels, identify_snvs)
         pos_to_var_filtered = {}
         for pos in pos_to_var:
@@ -351,7 +351,7 @@ def write_output_vcf(genome_file, output, regions, temp_dir):
         with vcfpy.Writer.from_path(output + '.vcf', vcf_header) as writer:
             format_strings = ['GT', 'DP', 'AD']
             for region in regions:
-                for row in IndelVarsReader(temp_dir + '-'.join([str(x) for x in region]) + '.txt'):
+                for row in IndelVarsReader(temp_dir + '-'.join([str(x) for x in region]) + '.tsv'):
                     chrom, start_pos, indel_type = row.chrom, row.pos, row.indel_type
                     ref_seq, alt_seq = row.ref_seq, row.var_seq
                     indel_reads, tot_cov = row.indel_reads, row.tot_cov

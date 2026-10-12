@@ -249,7 +249,7 @@ def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, o
     # FIXME really need to go in and check on how count_sam_transcripts is working
     trimmedreads = clipping_file or None
     generate_map = map_file or None
-    output_endpos = output_name.split('.counts.txt')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
+    output_endpos = output_name.split('.counts.tsv')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
     stringent = (not is_annot) and (not args.no_stringent)
     check_splice = not args.no_check_splice
     # annotated isoform bed file; output_endpos needs it too, for the transcript
@@ -579,7 +579,7 @@ def generate_transcriptome_reference_guts(normalize_ends, annots, chrom, genome,
 def generate_transcriptome_reference(temp_prefix, annots, chrom, genome, normalize_ends=False):
     with (open(temp_prefix + '.annotated_transcripts.bed', 'w') as annot_bed_fh,
           open(temp_prefix + '.annotated_transcripts.fa', 'w') as annot_fa_fh,
-          open(temp_prefix + '.annotated_transcripts_uniquebound.txt', 'w') as annot_uniqueseq_fh):
+          open(temp_prefix + '.annotated_transcripts_uniquebound.tsv', 'w') as annot_uniqueseq_fh):
         return generate_transcriptome_reference_guts(normalize_ends, annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
 
 
@@ -593,14 +593,14 @@ def identify_good_match_to_annot(args, temp_prefix, chrom, annots, genome):
         transcript_to_strand, transcript_to_new_exons = \
             generate_transcriptome_reference(temp_prefix, annots, chrom, genome, normalize_ends=args.normalize_ends)
         # FIXME: make a TSV
-        clipping_file = temp_prefix + '.reads.genomicclipping.txt'
+        clipping_file = temp_prefix + '.reads.genomicclipping.tsv'
         transcriptome_align_and_count(args, temp_prefix + '.reads.fasta',
                                       temp_prefix + '.annotated_transcripts.fa',
                                       temp_prefix + '.annotated_transcripts.bed',
-                                      temp_prefix + '.matchannot.counts.txt',
+                                      temp_prefix + '.matchannot.counts.tsv',
                                       None, True,
                                       clipping_file,
-                                      temp_prefix + '.annotated_transcripts_uniquebound.txt')
+                                      temp_prefix + '.annotated_transcripts_uniquebound.tsv')
         for row in ReadEndsReader(temp_prefix + '.matchannot.ends.tsv'):
             # an empty start position means a single exon transcript, which has no
             # splice junction to measure the read's ends from
@@ -1124,7 +1124,7 @@ def write_firstpass(temp_prefix, chrom, firstpass, annots, genome, *,
 
     with (open(temp_prefix + '.firstpass.bed', 'w') as iso_fh,
           open(temp_prefix + '.firstpass.fa', 'w') as seq_fh,
-          open(temp_prefix + '.firstpass.uniquebound.txt', 'w') as unique_fh):
+          open(temp_prefix + '.firstpass.uniquebound.tsv', 'w') as unique_fh):
         for iso_name in firstpass:
             write_first_pass_isoforms(iso_name, normalize_ends, firstpass[iso_name], max_terminal_exons_ends,
                                       unique_bound, unique_fh, iso_fh, seq_fh, genome)
@@ -1147,9 +1147,9 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
 
 # the empty intermediates that are TSVs: an empty TSV is still its header, since
 # the next stage reads it with the format's reader
-EMPTY_TSV_WRITERS = {'.isoform.counts.txt': IsoformCountsWriter,
-                     '.isoform.read.map.txt': ReadMapWriter,
-                     '.countsam.read.map.txt': ReadMapWriter,
+EMPTY_TSV_WRITERS = {'.isoform.counts.tsv': IsoformCountsWriter,
+                     '.isoform.read.map.tsv': ReadMapWriter,
+                     '.countsam.read.map.tsv': ReadMapWriter,
                      '.isoform.ends.tsv': ReadEndsWriter}
 
 def generate_empty_intermediate_files(file_prefix, suffixes):
@@ -1203,13 +1203,13 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, trust_ends):
 def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, generate_map):
     transcript_to_reads = {}
     if generate_map:
-        for row in ReadMapReader(partition.output_path('countsam.read.map.txt')):
+        for row in ReadMapReader(partition.output_path('countsam.read.map.tsv')):
             transcript_to_reads[row.name] = row.reads
 
     with open(partition.output_path('isoforms.bed'), 'w') as iso_fh, \
          open(partition.output_path('isoforms.fa'), 'w') as seq_fh, \
-         IsoformCountsWriter(partition.output_path('isoform.counts.txt')) as counts_fh, \
-         ReadMapWriter(partition.output_path('isoform.read.map.txt')) as map_fh:
+         IsoformCountsWriter(partition.output_path('isoform.counts.tsv')) as counts_fh, \
+         ReadMapWriter(partition.output_path('isoform.read.map.tsv')) as map_fh:
         for tname in final_transcript_objs:
             # spliced isos checked against spliced total, single exon checked against full-length total
             isoform = final_transcript_objs[tname]
@@ -1250,7 +1250,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
         _run_region_reads(partition=partition, region=region, gtf_data=gtf_data,
                           junction_corrector=junction_corrector, args=args)
     else:
-        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.bed', '.isoform.counts.txt', '.isoform.read.map.txt', '.isoforms.bed', '.isoforms.fa', '.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed'])
+        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.bed', '.isoform.counts.tsv', '.isoform.read.map.tsv', '.isoforms.bed', '.isoforms.fa', '.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed'])
 
 
 def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
@@ -1312,17 +1312,17 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             write_firstpass(partition.file_prefix, region.name, firstpass, annots, genome, unique_bound=iso_to_unique_bound, normalize_ends=args.normalize_ends)
 
             # aligns to firstpass transcriptome, identifies best read -> isoform alignment for each read, then gets read counts per isoform
-            read_map_file = partition.output_path('countsam.read.map.txt') if args.generate_map else None
+            read_map_file = partition.output_path('countsam.read.map.tsv') if args.generate_map else None
             transcriptome_align_and_count(args, partition.output_path('reads.fasta'),
                                           partition.output_path('firstpass.fa'),
                                           partition.output_path('firstpass.bed'),
-                                          partition.output_path('isoform.counts.txt'),
+                                          partition.output_path('isoform.counts.tsv'),
                                           read_map_file, False,  # say is not annot, requires stringent, returns different end values
-                                          partition.output_path('reads.genomicclipping.txt'),
-                                          partition.output_path('firstpass.uniquebound.txt'))
+                                          partition.output_path('reads.genomicclipping.tsv'),
+                                          partition.output_path('firstpass.uniquebound.tsv'))
         else:
             logging.info('no firstpass isoforms found')
-            generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
+            generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.tsv', '.countsam.read.map.tsv', '.isoform.ends.tsv'])
 
         # FIXME this is messy, shouldn't have to reorganize like this
         final_transcript_objs = {}
@@ -1334,12 +1334,12 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
 
 
 # the joined files that are TSVs with a header, as against BED and FASTA
-TSV_SUFFIXES = ('.isoform.counts.txt', '.isoform.read.map.txt')
+TSV_SUFFIXES = ('.isoform.counts.tsv', '.isoform.read.map.tsv')
 
 def combine_chunks(args, output, partitions):
-    files_to_combine = ['.isoforms.bed', '.isoforms.fa', '.isoform.counts.txt']
+    files_to_combine = ['.isoforms.bed', '.isoforms.fa', '.isoform.counts.tsv']
     if args.generate_map:
-        files_to_combine.append('.isoform.read.map.txt')
+        files_to_combine.append('.isoform.read.map.tsv')
     if args.keep_intermediate:
         files_to_combine.extend(['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed'])
     combine_temp_files_by_suffix(output, [p.file_prefix for p in partitions], files_to_combine,
@@ -1411,14 +1411,14 @@ def move_into_place(renamed, joined):
 
 def fix_iso_labels(output, generate_map):
     iso_hash_to_ID = get_new_ids(output)
-    rename_ids_into_place(iso_hash_to_ID, output + '.isoform.counts.txt',
-                          compressed_path(output + '.isoform.counts.txt'))
+    rename_ids_into_place(iso_hash_to_ID, output + '.isoform.counts.tsv',
+                          compressed_path(output + '.isoform.counts.tsv'))
     fix_ids_fa_file(iso_hash_to_ID, output + '.isoforms.fa', output + '.isoforms.newids.fa')
     move_into_place(output + '.isoforms.newids.bed', output + '.isoforms.bed')
     move_into_place(output + '.isoforms.newids.fa', output + '.isoforms.fa')
     if generate_map:
-        rename_ids_into_place(iso_hash_to_ID, output + '.isoform.read.map.txt',
-                              compressed_path(output + '.isoform.read.map.txt'))
+        rename_ids_into_place(iso_hash_to_ID, output + '.isoform.read.map.tsv',
+                              compressed_path(output + '.isoform.read.map.tsv'))
 
 ####
 # main

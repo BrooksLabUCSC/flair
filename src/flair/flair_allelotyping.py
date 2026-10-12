@@ -633,10 +633,10 @@ def write_allele_group_counts_read_map(index_to_allele_group_info, output, gener
             writer.writeRow(ol)
     if generate_map:
         write_allele_group_read_map(index_to_allele_group_info,
-                                    compressed_path(output + '.allelegroups.tumor.read.map.txt'), 't')
+                                    compressed_path(output + '.allelegroups.tumor.read.map.tsv'), 't')
         if with_normal:
             write_allele_group_read_map(index_to_allele_group_info,
-                                        compressed_path(output + '.allelegroups.normal.read.map.txt'), 'n')
+                                        compressed_path(output + '.allelegroups.normal.read.map.tsv'), 'n')
 
 def write_allele_group_read_map(index_to_allele_group_info, read_map_txt, which):
     "the reads of each allele group in one BAM, tumor or normal"

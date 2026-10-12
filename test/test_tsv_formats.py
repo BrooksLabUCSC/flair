@@ -52,7 +52,7 @@ def written(writer_class, path, rows, **kwargs):
     return path
 
 def test_read_map_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'reads.txt')
+    path = tsv_path(tmp_path, 'reads.tsv')
     with ReadMapWriter(path) as writer:
         writer.writeReads('iso1', ['readA', 'readB'])
         writer.writeReads('iso2', [])
@@ -97,7 +97,7 @@ def test_iso_allele_counts_round_trip(tmp_path):
         assert [r.aaseq_id for r in reader] == ['FLP00000001']
 
 def test_combined_map_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'map.txt')
+    path = tsv_path(tmp_path, 'map.tsv')
     with CombinedMapWriter(path) as writer:
         writer.writeSources('FLT00000001', ['s1,s2:FLT00000003', 's3:FLT00000009'])
     rows = list(CombinedMapReader(path))
@@ -169,7 +169,7 @@ def test_diffsplice_fishers_round_trip(tmp_path):
         assert [r.isoform_ids for r in reader] == [['isoA', 'isoB']]
 
 def test_gene_juncs_round_trip(tmp_path):
-    path = written(GeneJuncsWriter, tsv_path(tmp_path, 'gj.txt'),
+    path = written(GeneJuncsWriter, tsv_path(tmp_path, 'gj.tsv'),
                    [('gene1', (Junc(100, 200), Junc(300, 400)), 50, 500, '+', 'readA')])
     rows = list(GeneJuncsReader(path))
     assert rows[0].juncs == (Junc(100, 200), Junc(300, 400))
@@ -177,7 +177,7 @@ def test_gene_juncs_round_trip(tmp_path):
     assert len(rows[0].juncs[0]) == 100
 
 def test_gene_juncs_bad_junction(tmp_path):
-    path = tsv_path(tmp_path, 'gj.txt')
+    path = tsv_path(tmp_path, 'gj.tsv')
     with open(path, 'w') as fh:
         fh.write('gene\tjuncs\tstart\tend\tstrand\tread\n')
         fh.write('gene1\t100.200\t50\t500\t+\treadA\n')
@@ -187,12 +187,12 @@ def test_gene_juncs_bad_junction(tmp_path):
     assert "is not start-end" in chained_messages(caught.value)
 
 def test_indel_vars_round_trip(tmp_path):
-    path = written(IndelVarsWriter, tsv_path(tmp_path, 'indels.txt'),
+    path = written(IndelVarsWriter, tsv_path(tmp_path, 'indels.tsv'),
                    [('chr1', 100, 'insertion', 'A', 'AT', 3, 10, ['dn'])])
     assert [r.filters for r in IndelVarsReader(path)] == [['dn']]
 
 def test_region_vars_round_trip(tmp_path):
-    path = written(RegionVarsWriter, tsv_path(tmp_path, 'vars.txt'),
+    path = written(RegionVarsWriter, tsv_path(tmp_path, 'vars.tsv'),
                    [('chr1', 'r1', 100, 'A', ['T', 'G'], 'rs1')])
     assert [r.alts for r in RegionVarsReader(path)] == [['T', 'G']]
 
@@ -231,7 +231,7 @@ def test_read_ends_round_trip(tmp_path):
     assert rows[1].end_tend_dist == 4
 
 def test_retained_introns_round_trip(tmp_path):
-    path = written(RetainedIntronsWriter, tsv_path(tmp_path, 'introns.txt'),
+    path = written(RetainedIntronsWriter, tsv_path(tmp_path, 'introns.tsv'),
                    [('chr1', 100, 200, '+')])
     assert [(r.start, r.end) for r in RetainedIntronsReader(path)] == [(100, 200)]
 
@@ -268,7 +268,7 @@ def test_splicing_outliers_round_trip(tmp_path):
     assert rows[0]['event_reads;total_locus_reads'] == [7, 20]
 
 def test_transcript_counts_round_trip(tmp_path):
-    path = written(TranscriptCountsWriter, tsv_path(tmp_path, 'counts.txt'),
+    path = written(TranscriptCountsWriter, tsv_path(tmp_path, 'counts.tsv'),
                    [('iso1', 5), ('iso2', 0)])
     assert [(r.transcript, r.count) for r in TranscriptCountsReader(path)] == [('iso1', 5),
                                                                                ('iso2', 0)]

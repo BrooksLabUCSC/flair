@@ -7,10 +7,10 @@ Columns, in order:
                       judged on
   total_reads         every read assigned to it, full length or not
 
-Written per partition as <prefix>.isoform.counts.txt and joined into one file,
+Written per partition as <prefix>.isoform.counts.tsv and joined into one file,
 whose isoform ids are then renamed to their FLT ids.
 
-Not the same file as the per-sample isoform.counts.txt that count_sam_transcripts
+Not the same file as the per-sample isoform.counts.tsv that count_sam_transcripts
 writes, which is one count per isoform; see transcript_counts_tsv.
 """
 from flair.pycbio.tsv import TsvReader, TsvWriter

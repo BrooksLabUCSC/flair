@@ -1099,8 +1099,8 @@ def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region
             trimmedreads=clipping_file,
             allow_UTR_indels=True,
             soft_clipping_buffer=10,
-            output_endpos=temp_prefix + '.readtoends.txt')
-        return temp_prefix + '.readtoends.txt'  # temp_prefix + '.matchannot.read.map.txt'
+            output_endpos=temp_prefix + '.readtoends.tsv')
+        return temp_prefix + '.readtoends.tsv'  # temp_prefix + '.matchannot.read.map.tsv'
     else:
         return None
 
@@ -1124,10 +1124,10 @@ def read_annot_alignments(good_annot_aligns):
 def remove_region_temp_files(temp_prefix, aligned_to_annot):
     """Drop the per-region intermediates.  The annotation-alignment ones only exist
     when that step ran."""
-    temp_files = [f'{temp_prefix}.reads.genomicclipping.txt']
+    temp_files = [f'{temp_prefix}.reads.genomicclipping.tsv']
     if aligned_to_annot:
         temp_files += [f'{temp_prefix}.matchannot.counts.tsv',
-                       f'{temp_prefix}.readtoends.txt',
+                       f'{temp_prefix}.readtoends.tsv',
                        f'{temp_prefix}.reads.fasta']
     pipettor.run([tuple(['rm'] + temp_files)])
 
@@ -1159,7 +1159,7 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
     genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sj_to_ends, annots.sjc_to_gene, annots.junc_to_gene_id, annots.gene_to_exons, annots.gene_to_annot_juncs)
 
     c = 0
-    with GeneJuncsWriter(temp_prefix + '_gene_to_juncs.txt') as out:
+    with GeneJuncsWriter(temp_prefix + '_gene_to_juncs.tsv') as out:
         for gene in genetojuncs:
             for juncs in genetojuncs[gene]:
                 for read_info in genetojuncs[gene][juncs].reads:
@@ -1224,13 +1224,13 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  
         # load splice junctions for chrom
 
         for sample, bamfile in allsamples:
-            if not os.path.exists(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
+            if not os.path.exists(partition.file_prefix + '_' + sample + '_gene_to_juncs.tsv'):
                 get_juncs_single_sample(args, partition.region, partition.file_prefix, sample, bamfile, region_annot, region_annot_fa, junction_corrector, annots)
 
         all_genes_to_juncs = []
         for sample, bamfile in allsamples:
             gene_to_juncs = {}
-            for row in GeneJuncsReader(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
+            for row in GeneJuncsReader(partition.file_prefix + '_' + sample + '_gene_to_juncs.tsv'):
                 juncs = row.juncs
                 if row.gene not in gene_to_juncs:
                     gene_to_juncs[row.gene] = {}
@@ -1248,7 +1248,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  
 
         if not args.keep_intermediate:
             for sample, bamfile in allsamples:
-                pipettor.run([('rm', partition.file_prefix + '_' + sample + '_gene_to_juncs.txt')])
+                pipettor.run([('rm', partition.file_prefix + '_' + sample + '_gene_to_juncs.tsv')])
 
 
 def combine_regions(regions, buffersize=0):

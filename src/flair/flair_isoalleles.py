@@ -429,9 +429,9 @@ def getvariants(*, allele_vcf, allele_read_map, allele_read_map_normal, genome, 
                                    with_normal=iso_read_map_normal is not None) as fh_counts:
             fh_map, fh_map_norm = None, None
             if generate_map:
-                fh_map = ReadMapWriter(compressed_path(output + '.isoallele.tumor.read.map.txt'))
+                fh_map = ReadMapWriter(compressed_path(output + '.isoallele.tumor.read.map.tsv'))
                 if iso_read_map_normal is not None:
-                    fh_map_norm = ReadMapWriter(compressed_path(output + '.isoallele.normal.read.map.txt'))
+                    fh_map_norm = ReadMapWriter(compressed_path(output + '.isoallele.normal.read.map.tsv'))
             aaseq_to_id = write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoforms, gene_to_tot_reads, genome_fa,
                                                           fh_bed, fh_fa, fh_counts, fh_map, fh_map_norm)
             if generate_map:

@@ -136,7 +136,7 @@ def write_unique_bound(fh, isoform, unique_seq_bound):
         fh.write(isoform.name + '\t' + ','.join(unique_seq_bound) + '\n')
 
 def load_unique_bound(temp_prefix, gene_info):
-    with open(temp_prefix + 'isoforms.uniquebound.txt', 'w') as fh:
+    with open(temp_prefix + 'isoforms.uniquebound.tsv', 'w') as fh:
         for isoform in gene_info.isoform_beds:
             if len(isoform.blocks) > 1:
                 unique_seq_bound = []
@@ -155,7 +155,7 @@ def gene_counts_rows(sample_data, gene_data, temp_dir, gene_id):
     gene_info = gene_data[gene_id]
     iso_to_counts = {x.name: [0] * len(sample_data) for x in gene_info.isoform_beds}
     for i, (sample, group, batch, bamfile) in enumerate(sample_data):
-        for row in TranscriptCountsReader(temp_dir + gene_id + '/' + sample + '.isoform.counts.txt'):
+        for row in TranscriptCountsReader(temp_dir + gene_id + '/' + sample + '.isoform.counts.tsv'):
             iso_to_counts[row.transcript][i] = row.count
     return [CountsRow(gene_id, iso, counts) for iso, counts in iso_to_counts.items()]
 
@@ -170,9 +170,9 @@ def write_combined_counts(sample_data, gene_data, temp_dir, output):
 def write_map_out(sample_data, gene_data, temp_dir, output, generate_map):
     if generate_map:
         for sample, group, batch, bamfile in sample_data:
-            with ReadMapWriter(compressed_path(f'{output}.{sample}.read.map.txt')) as writer:
+            with ReadMapWriter(compressed_path(f'{output}.{sample}.read.map.tsv')) as writer:
                 for gene_id in gene_data:
-                    for row in ReadMapReader(temp_dir + gene_id + '/' + sample + '.isoform.read.map.txt'):
+                    for row in ReadMapReader(temp_dir + gene_id + '/' + sample + '.isoform.read.map.tsv'):
                         writer.writeReads(row.name, row.reads)
 
 def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends):
@@ -184,12 +184,12 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
     # grew without bound in a worker handling many genes
     with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
         generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
-    read_map_file = temp_prefix_sample + '.isoform.read.map.txt' if generate_map else None
+    read_map_file = temp_prefix_sample + '.isoform.read.map.tsv' if generate_map else None
     mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
     run_count_sam_transcripts(
         mm2_cmd=mm2_cmd,
-        output=temp_prefix_sample + '.isoform.counts.txt',
-        trimmedreads=temp_prefix_sample + '.reads.genomicclipping.txt',
+        output=temp_prefix_sample + '.isoform.counts.tsv',
+        trimmedreads=temp_prefix_sample + '.reads.genomicclipping.tsv',
         generate_map=read_map_file,
         end_norm_dist=0,
         stringent=True,
@@ -197,7 +197,7 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
         check_splice=True,
         isoforms=temp_prefix + 'isoforms.bed',
         trust_ends=trust_ends,
-        unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
+        unique_bound=temp_prefix + 'isoforms.uniquebound.tsv',
     )
 
 def get_counts_for_gene(input):

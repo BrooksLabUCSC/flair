@@ -25,7 +25,7 @@ def parse_args():
             for each read is used''')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-s', '--sam', type=argparse.FileType('r'), help='sam file or - for STDIN')
-    required.add_argument('-o', '--output', default='counts.txt', help='output file name')
+    required.add_argument('-o', '--output', default='counts.tsv', help='output file name')
     parser.add_argument('-i', '--isoforms',
                         help='specify isoforms.bed file if --stringent and/or --check_splice is specified')
     parser.add_argument('--stringent', action='store_true',

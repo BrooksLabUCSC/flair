@@ -271,7 +271,7 @@ QUANTIFY_MANIFEST = $I/basic.reads_manifest_bam.txt
 SPLICEEVENTS_MANIFEST = $I/spliceevents.manifest.tsv
 
 TOME_ISOFORM_BED = $E/test-transcriptome.isoforms.bed
-TOME_READ_MAP = $E/test-transcriptome.isoform.read.map.txt
+TOME_READ_MAP = $E/test-transcriptome.isoform.read.map.tsv
 
 # The help test results vary on screen width.  This forces them to be consistent.
 # It might seem weird to see if help works, but some it did break in the past.
@@ -466,7 +466,7 @@ endef
 
 # resulting read map differs between run (see #443)
 # just check if it exists for now
-# should do: $(call cmp_expect_sort,$@.isoform.read.map.txt)
+# should do: $(call cmp_expect_sort,$@.isoform.read.map.tsv)
 define diff_bed_gtf_sort_read_map
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 endef
@@ -722,7 +722,7 @@ test-transcriptome: mkdirs ${TEST_ALIGN_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoforms.fa)
-	$(call cmp_expect,$@.isoform.read.map.txt)
+	$(call cmp_expect,$@.isoform.read.map.tsv)
 
 test-transcriptome-normends: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate --generate_map --normalize_ends
@@ -767,7 +767,7 @@ test-transcriptome-compress: mkdirs ${TEST_ALIGN_BAM} ${TI}/basic.annotation.gtf
 	$(call cmp_expect_gz,$@.isoforms.bed,test-transcriptome.isoforms.bed)
 	$(call cmp_expect_gz,$@.isoforms.gtf,test-transcriptome.isoforms.gtf)
 	$(call cmp_expect_gz,$@.isoforms.fa,test-transcriptome.isoforms.fa)
-	$(call cmp_expect_gz,$@.isoform.read.map.txt,test-transcriptome.isoform.read.map.txt)
+	$(call cmp_expect_gz,$@.isoform.read.map.tsv,test-transcriptome.isoform.read.map.tsv)
 	$(call check_fasta_indexable,$@.isoforms.fa)
 
 test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
@@ -886,7 +886,7 @@ test-transcriptome-no-firstpass: mkdirs ${ONECHR20_ALIGN_BAM}
 	flair transcriptome -b ${ONECHR20_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --sjc_support 2
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
-	$(call cmp_expect,$@.isoform.read.map.txt)
+	$(call cmp_expect,$@.isoform.read.map.tsv)
 
 # test-transcriptome-noannot with all loci on one chromosome, so KRAS and DDX5 (both
 # minus strand) are separate novel genes on the same strand of one partition
@@ -963,7 +963,7 @@ test-alleles-withbed: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 	flair alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
 	$(call cmp_expect,$@.allelegroups.counts.tsv)
 	$(call cmp_expect,$@.allelegroups.vcf)
-	$(call cmp_expect,$@.allelegroups.tumor.read.map.txt)
+	$(call cmp_expect,$@.allelegroups.tumor.read.map.tsv)
 
 test-alleles-bedonly: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 	flair alleles --tumor_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@ --generate_map --annotate_bams
@@ -974,14 +974,14 @@ test-alleles-bedonly: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 # 	$(call cmp_expect,$@.isoforms.allelegroups.bed)
 
 test-isoalleles: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
-	flair isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.txt --genome ${GENOME_FA} \
+	flair isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.tsv --genome ${GENOME_FA} \
 	                 --isoform_bed $(TOME_ISOFORM_BED) --iso_read_map $(TOME_READ_MAP) -o $O/$@ --tumor_bam ${TEST_ALIGN_BAM} --generate_map
 	$(call cmp_expect,$@.isoalleles.bed)
 	$(call cmp_expect,$@.isoallele.counts.tsv)
 
 
 test-isoalleles-compress: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT} ${TI}/test-transcriptome.isoforms.bed.gz
-	flair -z isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.txt --genome ${GENOME_FA} \
+	flair -z isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.tsv --genome ${GENOME_FA} \
 	                 --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --iso_read_map $(TOME_READ_MAP) -o $O/$@ --tumor_bam ${TEST_ALIGN_BAM} --generate_map
 	$(call cmp_expect_gz,$@.isoalleles.bed,test-isoalleles.isoalleles.bed)
 	$(call cmp_expect_gz,$@.isoallele.counts.tsv,test-isoalleles.isoallele.counts.tsv)

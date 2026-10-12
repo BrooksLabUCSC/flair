@@ -409,7 +409,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
 
     logging.info('converting coordinates from synthetic to genomic')
     convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed',
-                           output + '.syntheticAligned.flair.isoform.read.map.txt', freadsname,
+                           output + '.syntheticAligned.flair.isoform.read.map.tsv', freadsname,
                            output + '-syntheticBreakpointLoc.bed',
                            compressed_path(output + '.fusions.isoforms.bed'), min_dist_between_breakpoints)
 
@@ -429,8 +429,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             if good:
                 out.write(line)
 
-    with ReadMapWriter(compressed_path(output + '.fusion.isoform.read.map.txt')) as out:
-        for row in ReadMapReader(output + '.syntheticAligned.flair.isoform.read.map.txt'):
+    with ReadMapWriter(compressed_path(output + '.fusion.isoform.read.map.tsv')) as out:
+        for row in ReadMapReader(output + '.syntheticAligned.flair.isoform.read.map.tsv'):
             if row.name in goodisos:
                 out.writeReads(row.name, row.reads)
 
