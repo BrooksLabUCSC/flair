@@ -368,6 +368,14 @@ define check_fasta_indexable
 endef
 
 ##
+# a compressed VCF carries a tabix index, which this checks by fetching through it
+##
+define check_vcf_indexed
+	@test -e $O/${1}.gz.tbi || (echo Error: tabix index missing: $O/${1}.gz.tbi; exit 1)
+	tabix $O/${1}.gz ${2} > /dev/null
+endef
+
+##
 # compare an output file against another output file, for tests that must produce
 # the same result as an earlier test from differently arranged input
 ##
@@ -1005,6 +1013,8 @@ test-alleles-compress: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT} $
 	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz -f ${TI}/basic.annotation.gtf.gz \
 	   -o $O/$@ --generate_map --annotate_bams
 	$(call cmp_expect_gz,$@.allelegroups.counts.tsv,test-alleles-withbed.allelegroups.counts.tsv)
+	$(call cmp_expect_gz,$@.allelegroups.vcf,test-alleles-withbed.allelegroups.vcf)
+	$(call check_vcf_indexed,$@.allelegroups.vcf,chr12)
 
 test-identifyvars-snvs: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM}
 	python3 ../src/flair/identify_vars.py --genome ${GENOME_FA} --bam ${TEST_ALIGN_BAM} --identify_snvs yes --identify_indels no --output $O/$@

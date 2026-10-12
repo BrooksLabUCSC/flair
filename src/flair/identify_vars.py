@@ -8,7 +8,7 @@ import shutil
 import multiprocessing as mp
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
-from flair.io_utils import check_genome_fasta, make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir, write_sorted_vcf
 from flair.pycbio.hgdata.bed import BedReader
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
 
@@ -348,22 +348,22 @@ def generate_new_vcf_header(genome):
 def write_output_vcf(genome_file, output, regions, temp_dir):
     with pysam.FastaFile(genome_file) as genome:
         vcf_header = generate_new_vcf_header(genome)
-        with vcfpy.Writer.from_path(output + '.vcf', vcf_header) as writer:
-            format_strings = ['GT', 'DP', 'AD']
-            for region in regions:
-                for row in IndelVarsReader(temp_dir + '-'.join([str(x) for x in region]) + '.tsv'):
-                    chrom, start_pos, indel_type = row.chrom, row.pos, row.indel_type
-                    ref_seq, alt_seq = row.ref_seq, row.var_seq
-                    indel_reads, tot_cov = row.indel_reads, row.tot_cov
-                    filters = list(row.filters)
-                    if len(filters) == 0:
-                        filters.append('PASS')
-                    alt_desc = vcfpy.Substitution(indel_type, alt_seq)
-                    indel_vaf = round(indel_reads / tot_cov, 3)
-                    gt = '0/1' if indel_vaf < 0.95 else '1/1'
-                    these_calls = [vcfpy.Call('SAMPLE', {'GT': gt, 'DP': tot_cov, 'AD': [tot_cov - indel_reads, indel_reads]})]
-                    new_record = vcfpy.Record(chrom, int(start_pos), [], ref_seq, [alt_desc], 100, filters, {}, format_strings, these_calls)
-                    writer.write_record(new_record)
+        records = []
+        format_strings = ['GT', 'DP', 'AD']
+        for region in regions:
+            for row in IndelVarsReader(temp_dir + '-'.join([str(x) for x in region]) + '.tsv'):
+                chrom, start_pos, indel_type = row.chrom, row.pos, row.indel_type
+                ref_seq, alt_seq = row.ref_seq, row.var_seq
+                indel_reads, tot_cov = row.indel_reads, row.tot_cov
+                filters = list(row.filters)
+                if len(filters) == 0:
+                    filters.append('PASS')
+                alt_desc = vcfpy.Substitution(indel_type, alt_seq)
+                indel_vaf = round(indel_reads / tot_cov, 3)
+                gt = '0/1' if indel_vaf < 0.95 else '1/1'
+                these_calls = [vcfpy.Call('SAMPLE', {'GT': gt, 'DP': tot_cov, 'AD': [tot_cov - indel_reads, indel_reads]})]
+                records.append(vcfpy.Record(chrom, int(start_pos), [], ref_seq, [alt_desc], 100, filters, {}, format_strings, these_calls))
+        write_sorted_vcf(output + '.vcf', vcf_header, records)
 
 def get_indels():
     args = parse_args()

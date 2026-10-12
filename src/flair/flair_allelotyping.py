@@ -14,7 +14,7 @@ from collections import OrderedDict
 import string
 from flair import FlairError, FlairInputDataError
 from flair.pycbio.sys import fileOps
-from flair.io_utils import check_genome_fasta
+from flair.io_utils import check_genome_fasta, write_sorted_vcf
 from flair.output_compress import compressed_path
 
 # a read mismatch is credited to a known variant this many bases either side, to
@@ -586,36 +586,36 @@ def write_vcf_file(output, new_header, variant_to_allele_group_counts_info, norm
     for ps in phaseset_to_allele_groups:
         for ag in phaseset_to_allele_groups[ps]:
             allele_group_to_final_vars[(ps, ag)] = set()
-    with vcfpy.Writer.from_path(output + '.allelegroups.vcf', new_header) as writer:
-        format_strings = ['GT', 'PS', 'DP', 'AD']
-        for (chrom, pos, ref, alt), var_data in variant_to_allele_group_counts_info.items():
-            tot_cov = var_data['t_cov'] + var_data['n_cov']
-            tot_var = var_data['t_var'] + var_data['n_var']
-            # NEW: reporting homozygous variants + variants in all allele groups - more important for downstream vars
-            if tot_var != 0 and len(var_data['ag']) != 0:
-                my_ps = list(set([x[0] for x in var_data['ag']]))
-                if len(my_ps) > 1:
-                    # this can happen with overlapping genes/readthrough - I've decided right now that I don't want to try to combine phase sets originating from different genes
-                    logging.debug(f'WARNING:multiple phase sets for one variant {chrom} {pos} {ref} {alt} {my_ps}')
+    records = []
+    format_strings = ['GT', 'PS', 'DP', 'AD']
+    for (chrom, pos, ref, alt), var_data in variant_to_allele_group_counts_info.items():
+        tot_cov = var_data['t_cov'] + var_data['n_cov']
+        tot_var = var_data['t_var'] + var_data['n_var']
+        # NEW: reporting homozygous variants + variants in all allele groups - more important for downstream vars
+        if tot_var != 0 and len(var_data['ag']) != 0:
+            my_ps = list(set([x[0] for x in var_data['ag']]))
+            if len(my_ps) > 1:
+                # this can happen with overlapping genes/readthrough - I've decided right now that I don't want to try to combine phase sets originating from different genes
+                logging.debug(f'WARNING:multiple phase sets for one variant {chrom} {pos} {ref} {alt} {my_ps}')
 
-                # FIXME allow other types of alts
-                alt_type = 'SNV'
-                alt_desc = vcfpy.Substitution(alt_type, alt)
+            # FIXME allow other types of alts
+            alt_type = 'SNV'
+            alt_desc = vcfpy.Substitution(alt_type, alt)
 
-                for ps in my_ps:
-                    my_ag = sorted([x[1] for x in var_data['ag'] if x[0] == ps])
-                    gt = get_gt(tot_var, tot_cov, my_ag, phaseset_to_allele_groups[ps])
+            for ps in my_ps:
+                my_ag = sorted([x[1] for x in var_data['ag'] if x[0] == ps])
+                gt = get_gt(tot_var, tot_cov, my_ag, phaseset_to_allele_groups[ps])
 
-                    these_calls = [vcfpy.Call('tumor', {'GT': gt, 'PS': ps, 'DP': var_data['t_cov'], 'AD': [var_data['t_cov'] - var_data['t_var'], var_data['t_var']]})]
-                    if norm_bam is not None:
-                        these_calls.append(vcfpy.Call('normal', {'GT': gt, 'PS': ps, 'DP': var_data['n_cov'], 'AD': [var_data['n_cov'] - var_data['n_var'], var_data['n_var']]}))
-                    new_record = vcfpy.Record(chrom, int(pos) + 1, [], ref, [alt_desc], 100, ['PASS'], OrderedDict([('PS', ps), ('AG', my_ag)]), format_strings, these_calls)
-                    writer.write_record(new_record)
+                these_calls = [vcfpy.Call('tumor', {'GT': gt, 'PS': ps, 'DP': var_data['t_cov'], 'AD': [var_data['t_cov'] - var_data['t_var'], var_data['t_var']]})]
+                if norm_bam is not None:
+                    these_calls.append(vcfpy.Call('normal', {'GT': gt, 'PS': ps, 'DP': var_data['n_cov'], 'AD': [var_data['n_cov'] - var_data['n_var'], var_data['n_var']]}))
+                records.append(vcfpy.Record(chrom, int(pos) + 1, [], ref, [alt_desc], 100, ['PASS'], OrderedDict([('PS', ps), ('AG', my_ag)]), format_strings, these_calls))
 
-                for allele_group in var_data['ag']:
-                    # if allele_group not in allele_group_to_final_vars:
-                    #     allele_group_to_final_vars[allele_group] = set()
-                    allele_group_to_final_vars[allele_group].add((chrom, int(pos), ref, alt))
+            for allele_group in var_data['ag']:
+                # if allele_group not in allele_group_to_final_vars:
+                #     allele_group_to_final_vars[allele_group] = set()
+                allele_group_to_final_vars[allele_group].add((chrom, int(pos), ref, alt))
+    write_sorted_vcf(output + '.allelegroups.vcf', new_header, records)
     return allele_group_to_final_vars
 
 def write_allele_group_counts_read_map(index_to_allele_group_info, output, generate_map, norm_bam, read_support):

@@ -22,8 +22,8 @@ bgzip compressed and indexed::
    samtools faidx genome.fa.gz
 
 With ``--compress``, or ``-z``, the files FLAIR writes gain a ``.gz`` suffix: the
-TSVs, the isoform BED, the GTF and the FASTA.  The FASTA is bgzip, so
-``samtools faidx`` can index it.
+TSVs, the isoform BED, the GTF, the FASTA and the VCF.  The FASTA is bgzip, so
+``samtools faidx`` can index it, and the VCF is bgzip with a ``.tbi`` beside it.
 
 Reading and writing are independent: a run may read gzipped input and write plain
 output, or the reverse.

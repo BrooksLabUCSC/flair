@@ -3,7 +3,9 @@
 import os
 import shutil
 import pipettor
+import pysam
 from flair import FlairInputDataError
+from flair.output_compress import compressed_path
 from flair.pycbio.sys import fileOps
 
 # chrom and start, which is Bed.genome_sort_key, kept stable so that rows at one
@@ -115,3 +117,19 @@ def sort_bed_file(path):
         stdin = path
     with fileOps.AtomicFileCreate(path) as tmp_path:
         pipettor.run(cmds, stdin=stdin, stdout=tmp_path)
+
+
+def write_sorted_vcf(path, header, records):
+    """Write VCF records in position order, under the name compressed_path gives, with
+    a tabix index beside a compressed one.  The callers build their records per variant
+    rather than per position, and tabix needs the file sorted, so it is sorted here."""
+    # imported here rather than at module scope, so that a FLAIR install missing
+    # this package still runs every other subcommand
+    import vcfpy
+    out_path = compressed_path(path)
+    with vcfpy.Writer.from_path(out_path, header) as writer:
+        for record in sorted(records, key=lambda rec: (rec.CHROM, rec.POS)):
+            writer.write_record(record)
+    if fileOps.isCompressed(out_path):
+        pysam.tabix_index(out_path, preset='vcf', force=True)
+    return out_path
