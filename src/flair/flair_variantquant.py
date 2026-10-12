@@ -84,14 +84,14 @@ def get_potential_genes(chrom, gpos, chr_region_to_genes):
     gene's start, and a gene containing gpos starts at or before it, so the bin that
     matters beside gpos's own is the one before, not the one after.  A gene longer
     than the bin is still missed; the longest human gene is a fifth of one."""
-    this_bin = math.floor(gpos / GENE_BIN_SIZE) * GENE_BIN_SIZE
+    gene_bin = math.floor(gpos / GENE_BIN_SIZE) * GENE_BIN_SIZE
     potgenes = set()
-    for bin_start in (this_bin - GENE_BIN_SIZE, this_bin):
+    for bin_start in (gene_bin - GENE_BIN_SIZE, gene_bin):
         potgenes.update(chr_region_to_genes.get((chrom, bin_start), ()))
     return potgenes
 
 def process_bedline(bed):
-    thischr, iso, dir, start, end = bed.chrom, bed.name, bed.strand, bed.chromStart, bed.chromEnd
+    chrom, iso, dir, start, end = bed.chrom, bed.name, bed.strand, bed.chromStart, bed.chromEnd
     gene = bed.gene_id
     esizes = [len(blk) for blk in bed.blocks]
     estarts = [blk.start - start for blk in bed.blocks]
@@ -101,16 +101,16 @@ def process_bedline(bed):
         estarts = estarts[::-1]
     currtstart = 0
     for i in range(len(esizes)):
-        exonblocks.append((currtstart, estarts[i] + start, esizes[i], thischr, dir))
+        exonblocks.append((currtstart, estarts[i] + start, esizes[i], chrom, dir))
         currtstart += esizes[i]
     exonblocks.sort()
 
-    return thischr, iso, dir, start, esizes, estarts, end, exonblocks, currtstart, gene
+    return chrom, iso, dir, start, esizes, estarts, end, exonblocks, currtstart, gene
 
 
-def add_gene_to_boundaries(genes_to_boundaries, gene, thischr, dir, start, end):
+def add_gene_to_boundaries(genes_to_boundaries, gene, chrom, dir, start, end):
     if gene not in genes_to_boundaries:
-        genes_to_boundaries[gene] = [thischr, dir, start, end]
+        genes_to_boundaries[gene] = [chrom, dir, start, end]
     else:
         if start < genes_to_boundaries[gene][2]:
             genes_to_boundaries[gene][2] = start
@@ -132,7 +132,7 @@ def get_bedisoform_info(bedisofile):
     gene_to_iso = {}
     chr_region_to_genes, genes_to_boundaries = {}, {}
     for bed in BedReader(bedisofile, bedClass=FlairBed):
-        thischr, iso, dir, start, esizes, estarts, end, exonblocks, currtstart, gene = process_bedline(bed)
+        chrom, iso, dir, start, esizes, estarts, end, exonblocks, currtstart, gene = process_bedline(bed)
 
         iso_to_blocks = add_iso_to_blocks(iso_to_blocks, iso, exonblocks)
 
@@ -140,12 +140,12 @@ def get_bedisoform_info(bedisofile):
             gene_to_iso[gene] = set()
         gene_to_iso[gene].add(iso)
 
-        chromregion = (thischr, math.floor(start / GENE_BIN_SIZE) * GENE_BIN_SIZE)
+        chromregion = (chrom, math.floor(start / GENE_BIN_SIZE) * GENE_BIN_SIZE)
         if chromregion not in chr_region_to_genes:
             chr_region_to_genes[chromregion] = set()
         chr_region_to_genes[chromregion].add(gene)
 
-        genes_to_boundaries = add_gene_to_boundaries(genes_to_boundaries, gene, thischr, dir, start, end)
+        genes_to_boundaries = add_gene_to_boundaries(genes_to_boundaries, gene, chrom, dir, start, end)
     return iso_to_blocks, gene_to_iso, chr_region_to_genes, genes_to_boundaries
 
 # this is called by extract_vcf_vars
@@ -275,7 +275,7 @@ def retrieve_good_iso_pos(potgenes, genes_to_boundaries, gpos, gene_to_iso, iso_
             for iso2 in gene_to_iso[gene]:
                 blocks = iso_to_blocks[iso2]
                 tpos2 = None
-                for tstart, gstart, bsize, thischr, dir in blocks:
+                for tstart, gstart, bsize, chrom, dir in blocks:
                     if gstart <= gpos < gstart + bsize:
                         if dir == '+':
                             tpos2 = tstart + (gpos - gstart)

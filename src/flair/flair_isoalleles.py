@@ -167,7 +167,7 @@ def adjust_seq_with_vars(block, strand, block_vars, block_new_seq_complex, cds_s
     return block_new_seq_complex, new_cds_start, new_nmd_pos
 
 def get_iso_seq_with_vars(isoform, allele_group_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos):
-    this_iso_vars = []
+    iso_vars = []
     new_seq_complex = []
     for block in isoform.blocks:
         block_vars = get_vars_overlapping_block(block, allele_group_vars)
@@ -176,14 +176,14 @@ def get_iso_seq_with_vars(isoform, allele_group_vars, genome, cds_start_genomic,
 
         block_new_seq_complex, new_cds_start, new_nmd_pos = adjust_seq_with_vars(block, isoform.strand, block_vars, block_new_seq_complex, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
 
-        this_iso_vars.extend(block_vars)
+        iso_vars.extend(block_vars)
         new_seq_complex.extend(block_new_seq_complex)
     if isoform.strand == '-':
         new_seq_complex = new_seq_complex[::-1]
         for i in range(len(new_seq_complex)):
             new_seq_complex[i][0] = COMPBASE[new_seq_complex[i][0]]
 
-    return this_iso_vars, new_seq_complex, new_cds_start, new_nmd_pos
+    return iso_vars, new_seq_complex, new_cds_start, new_nmd_pos
 
 def identify_aaseq_with_vars(new_seq_complex, new_cds_start):
     aaseq = ''
@@ -193,18 +193,18 @@ def identify_aaseq_with_vars(new_seq_complex, new_cds_start):
         # often the stop, which the old bound dropped
         if i + 3 > len(new_seq_complex):
             break
-        this_codon = ''.join([x[0] for x in new_seq_complex[i:i + 3]])
+        codon = ''.join([x[0] for x in new_seq_complex[i:i + 3]])
         # i == new_cds_start, not i == 0: i is 0 only for a transcript with no 5' UTR,
         # so every other transcript skipped the start codon requirement
-        if i == new_cds_start and this_codon != 'ATG':
+        if i == new_cds_start and codon != 'ATG':
             break
-        this_aa = translate_codon(this_codon)
-        if this_aa == '_':
+        aa = translate_codon(codon)
+        if aa == '_':
             stop_index = i + 2
             break
-        aaseq += this_aa
+        aaseq += aa
         for j in range(i, i + 3):
-            new_seq_complex[j][2] = this_aa
+            new_seq_complex[j][2] = aa
     return aaseq, stop_index
 
 def update_isoform_productivity_aaseq(new_isoform, aaseq, new_seq_complex, stop_index, new_nmd_pos, aaseq_to_id, aaseq_count):
@@ -332,7 +332,7 @@ def write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoform
                     allele_vars = allele_to_vars[allele]
                     cds_start_genomic, new_cds_start = identify_cds_pos(isoform)
                     nmd_pos_genomic, new_nmd_pos = identify_nmd_pos(isoform)
-                    this_iso_vars, new_seq_complex, new_cds_start, new_nmd_pos = get_iso_seq_with_vars(isoform, allele_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
+                    iso_vars, new_seq_complex, new_cds_start, new_nmd_pos = get_iso_seq_with_vars(isoform, allele_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
                     # a non-coding isoform has no ORF; '' makes it NGO below rather
                     # than leaving the previous isoform's protein in scope
                     aaseq, stop_index = '', None

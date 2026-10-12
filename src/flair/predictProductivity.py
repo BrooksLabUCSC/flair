@@ -81,13 +81,13 @@ def calc_genomic_end_pos(my_exons, exon_sizes, orf_end_pos, strand):
 
 def identify_prod_from_start(orfs, annot_start, rel_start, my_exons, exon_sizes, my_seq, strand, ref_transcript_id,
                              transcript_to_nmd_except):
-    five_UTR, seq_from_start = my_seq[:rel_start], my_seq[rel_start:].upper()
+    five_utr, seq_from_start = my_seq[:rel_start], my_seq[rel_start:].upper()
     stop_reached, stop_codon_pos = calc_stop_codon_pos(seq_from_start)
     if not stop_reached:
         transcript_end = my_exons[-1].end if strand == "+" else my_exons[0].start
-        orfs.append(["NST", annot_start, transcript_end, len(five_UTR) + stop_codon_pos - rel_start, rel_start, None])
+        orfs.append(["NST", annot_start, transcript_end, len(five_utr) + stop_codon_pos - rel_start, rel_start, None])
     else:
-        orf_end_pos = len(five_UTR) + stop_codon_pos + 3
+        orf_end_pos = len(five_utr) + stop_codon_pos + 3
         # order exon sizes from 5' to 3'
         if strand == '-':
             exon_sizes = exon_sizes[::-1]

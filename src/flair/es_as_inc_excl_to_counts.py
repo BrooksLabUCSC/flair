@@ -8,14 +8,14 @@ from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noq
 from flair.es_events_tsv import EsEventsReader  # noqa: E402
 from flair.event_quant_tsv import EventQuantWriter  # noqa: E402
 
-def side_counts(data, nSamps, isos):
+def side_counts(data, n_samps, isos):
     "the counts of one side of an event, summed over its isoforms"
-    vals = np.asarray([data.get(iso, np.zeros(nSamps)) for iso in isos])
+    vals = np.asarray([data.get(iso, np.zeros(n_samps)) for iso in isos])
     return np.sum(vals, axis=0)
 
 def write_es_events(counts_matrix_tsv, es_events_tsv):
     sample_names = read_sample_columns(counts_matrix_tsv)
-    nSamps = len(sample_names)
+    n_samps = len(sample_names)
     data = {row.isoform_id: np.asarray(row.counts, dtype=np.float32)
             for row in read_counts_rows(counts_matrix_tsv)}
 
@@ -24,10 +24,10 @@ def write_es_events(counts_matrix_tsv, es_events_tsv):
             # an exon that no isoform skips is not an event
             if row.num_exclusion > 0:
                 writer.writeSide('inclusion', row.exon, row.exon,
-                                 side_counts(data, nSamps, row.inclusion_isos),
+                                 side_counts(data, n_samps, row.inclusion_isos),
                                  row.inclusion_isos)
                 writer.writeSide('exclusion', row.exon, row.exon,
-                                 side_counts(data, nSamps, row.exclusion_isos),
+                                 side_counts(data, n_samps, row.exclusion_isos),
                                  row.exclusion_isos)
 
 

@@ -75,7 +75,7 @@ class JcnInfo:
     This object holds all information necessary for junction information
     The junctions will be in BED format
     """
-    def __init__(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, multiJcnBlock=None):
+    def __init__(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, multi_jcn_block=None):
 
         self.name = name
 
@@ -98,15 +98,15 @@ class JcnInfo:
         self.block_list = [first_block]
 
         # Used for calculating entropy when reads span multiple jcns.
-        if multiJcnBlock:
-            self.multiJcnBlock_list = [multiJcnBlock]
+        if multi_jcn_block:
+            self.multi_jcn_block_list = [multi_jcn_block]
         else:
-            self.multiJcnBlock_list = []
+            self.multi_jcn_block_list = []
 
         self.intron_start = intron_start
         self.intron_end = intron_end
 
-    def update_jcn_info(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multiJcnBlock=None):  # noqa: C901 - FIXME: reduce complexity
+    def update_jcn_info(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multi_jcn_block=None):  # noqa: C901 - FIXME: reduce complexity
         # Check that name, chromosome, strand are the same
         if self.name != name:
             raise FlairInputDataError(f"Not the same name of the junctions: {self.name}, {name}")
@@ -147,8 +147,8 @@ class JcnInfo:
 
         self.block_list.append(first_block)
 
-        if multiJcnBlock:
-            self.multiJcnBlock_list.append(multiJcnBlock)
+        if multi_jcn_block:
+            self.multi_jcn_block_list.append(multi_jcn_block)
 
 
 ###############
@@ -252,14 +252,14 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 #   ie_read_count_filename = "%s%s_intron_exon_junction_counts.txt" % (out_dir, name)
 
     # Dictionary to find JcnInfo to update as junction reads are encountered
-    jcn2JcnInfo = {}
+    jcn_to_jcn_info = {}
 
-    jcn2pairedReads = {}
+    jcn_to_paired_reads = {}
 
-    deletionFlag = False
-    insertionFlag = False
-    softclipFlag = False
-    hardclipFlag = False
+    deletion_flag = False
+    insertion_flag = False
+    softclip_flag = False
+    hardclip_flag = False
 
     truncation_warn = False
 
@@ -270,7 +270,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
                 # I realize this is bad style, but the original code was written
                 # for parsing SAM files. So less updating is necessary if I convert
                 # the AlignedRead object back to a SAM line
-                line = convert2SAMLine(sam_file, line)
+                line = convert_to_sam_line(sam_file, line)
 
             line = format_line(line)
 
@@ -302,42 +302,42 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
             tags = sam_elems[11:]
             if unique_only:
-                isMultiFlag = is_multi_mapped(tags)
-                if isMultiFlag is None:
+                is_multi_flag = is_multi_mapped(tags)
+                if is_multi_flag is None:
                     print("Could not find tag for %s" % q_name)
                     continue
 
-                if isMultiFlag:
+                if is_multi_flag:
                     continue
 
             m_count = cigar.count("M")
 
             i_count = cigar.count("I")
             if i_count > 0:
-                if not insertionFlag:
+                if not insertion_flag:
                     print("Not supporting insertions, yet e.g., %s" % cigar)
-                insertionFlag = True
+                insertion_flag = True
                 continue
 
             d_count = cigar.count("D")
             if d_count > 0:
-                if not deletionFlag:
+                if not deletion_flag:
                     print("Not supporting deletions, yet e.g., %s" % cigar)
-                deletionFlag = True
+                deletion_flag = True
                 continue
 
             s_count = cigar.count("S")
             if s_count > 0:
-                if not softclipFlag:
+                if not softclip_flag:
                     print("Not supporting softclipping, yet e.g., %s" % cigar)
-                softclipFlag = True
+                softclip_flag = True
                 continue
 
             h_count = cigar.count("H")
             if h_count > 0:
-                if not hardclipFlag:
+                if not hardclip_flag:
                     print("Not supporting hardclipping, yet e.g., %s" % cigar)
-                hardclipFlag = True
+                hardclip_flag = True
                 continue
 
             if '=' in cigar:
@@ -347,15 +347,15 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
             # Check if it is a genome read
             if m_count == 1:  # A GENOME READ
                 pass
-                this_read_len = int(cigar.rstrip("M"))
+                cigar_read_len = int(cigar.rstrip("M"))
 
                 if read_len:
-                    if this_read_len != read_len:
+                    if cigar_read_len != read_len:
                         raise FlairInputDataError(
-                            f"read of length {this_read_len} where --read_length says {read_len}; "
+                            f"read of length {cigar_read_len} where --read_length says {read_len}; "
                             "leave --read_length out when the reads vary in length")
 
-                # chr_end = chr_start + this_read_len - 1
+                # chr_end = chr_start + cigar_read_len - 1
 
                 # genome_line = "%s\t%s\t%d\t%d\n" % (q_name, chr, chr_start, chr_end)
                 # if paired_end_exists:
@@ -454,25 +454,25 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
                     chromEnd = chromStart + total_len
 
                     # Now add junction to dictionary
-                    if jcn_str in jcn2JcnInfo:
-                        jcn2JcnInfo[jcn_str].update_jcn_info(jcn_str,
-                                                             chr,
-                                                             chromStart, chromEnd,
-                                                             jcn_strand, upstr_len,
-                                                             downstr_len,
-                                                             chr_start + upstr_len,
-                                                             chr_start + upstr_len + intron_len - 1,
-                                                             options.verbose,
-                                                             intron_info[2])
+                    if jcn_str in jcn_to_jcn_info:
+                        jcn_to_jcn_info[jcn_str].update_jcn_info(jcn_str,
+                                                                 chr,
+                                                                 chromStart, chromEnd,
+                                                                 jcn_strand, upstr_len,
+                                                                 downstr_len,
+                                                                 chr_start + upstr_len,
+                                                                 chr_start + upstr_len + intron_len - 1,
+                                                                 options.verbose,
+                                                                 intron_info[2])
                     else:
-                        jcn2JcnInfo[jcn_str] = JcnInfo(jcn_str,
-                                                       chr,
-                                                       chromStart, chromEnd,
-                                                       jcn_strand, upstr_len,
-                                                       downstr_len,
-                                                       chr_start + upstr_len,
-                                                       chr_start + upstr_len + intron_len - 1,
-                                                       intron_info[2])
+                        jcn_to_jcn_info[jcn_str] = JcnInfo(jcn_str,
+                                                           chr,
+                                                           chromStart, chromEnd,
+                                                           jcn_strand, upstr_len,
+                                                           downstr_len,
+                                                           chr_start + upstr_len,
+                                                           chr_start + upstr_len + intron_len - 1,
+                                                           intron_info[2])
 
                     # Add read to paired-end dictionary:
                     if paired_end_exists:
@@ -481,10 +481,10 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
                                                     chr_start + upstr_len,
                                                     chr_start + upstr_len + intron_len - 1)
 
-                            if jcn_str in jcn2pairedReads:
-                                jcn2pairedReads[jcn_str].append(q_name)
+                            if jcn_str in jcn_to_paired_reads:
+                                jcn_to_paired_reads[jcn_str].append(q_name)
                             else:
-                                jcn2pairedReads[jcn_str] = [q_name]
+                                jcn_to_paired_reads[jcn_str] = [q_name]
 
     # Close the genome file:
     # genome_file.close()
@@ -496,44 +496,44 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 #    bed_header = "track name=\"%s_jcn_counts\" itemRgb=\"On\" useScore=1\n" % name
 #    junction_bed_file.write(bed_header)
     confident_jcns = set([])
-    strandFlag = False
-    for jcn_str in jcn2JcnInfo:
-        if is_confident_junction(jcn2JcnInfo[jcn_str].block_list,
-                                 jcn2JcnInfo[jcn_str].multiJcnBlock_list,
+    strand_flag = False
+    for jcn_str in jcn_to_jcn_info:
+        if is_confident_junction(jcn_to_jcn_info[jcn_str].block_list,
+                                 jcn_to_jcn_info[jcn_str].multi_jcn_block_list,
                                  confidence_score,
-                                 jcn2JcnInfo[jcn_str].chr,
-                                 jcn2JcnInfo[jcn_str].intron_start,
-                                 jcn2JcnInfo[jcn_str].intron_end,
+                                 jcn_to_jcn_info[jcn_str].chr,
+                                 jcn_to_jcn_info[jcn_str].intron_start,
+                                 jcn_to_jcn_info[jcn_str].intron_end,
                                  forced_jcns):
 
-            confident_jcns.add("%s:%d-%d" % (jcn2JcnInfo[jcn_str].chr,
-                                             jcn2JcnInfo[jcn_str].intron_start,
-                                             jcn2JcnInfo[jcn_str].intron_end))
-            if jcn2JcnInfo[jcn_str].strand in {'+', '-'}:
-                strandFlag = True
-                jcn_strand = jcn2JcnInfo[jcn_str].strand
+            confident_jcns.add("%s:%d-%d" % (jcn_to_jcn_info[jcn_str].chr,
+                                             jcn_to_jcn_info[jcn_str].intron_start,
+                                             jcn_to_jcn_info[jcn_str].intron_end))
+            if jcn_to_jcn_info[jcn_str].strand in {'+', '-'}:
+                strand_flag = True
+                jcn_strand = jcn_to_jcn_info[jcn_str].strand
             else:
                 jcn_strand = '.'
-            num_blocks = min(1000, len(jcn2JcnInfo[jcn_str].block_list))
+            num_blocks = min(1000, len(jcn_to_jcn_info[jcn_str].block_list))
             # intron_start and intron_end off the record, not re-parsed out of the key:
             # the key may carry a Y0 tag before a '|', and a contig name containing '-'
             # broke the find('-'), so the parse could pick the wrong numbers.  They are
             # the 1-based inclusive intron bounds
-            bed = Bed(jcn2JcnInfo[jcn_str].chr,
-                      jcn2JcnInfo[jcn_str].intron_start - 1, jcn2JcnInfo[jcn_str].intron_end,
+            bed = Bed(jcn_to_jcn_info[jcn_str].chr,
+                      jcn_to_jcn_info[jcn_str].intron_start - 1, jcn_to_jcn_info[jcn_str].intron_end,
                       name='.', score=num_blocks, strand=jcn_strand)
             bed.write(junction_bed_file)
 
     junction_bed_file.close()
     # Print out junction to read file for paired end reads
     # if paired_end_exists:
-    #     for jcn_str in jcn2pairedReads:
+    #     for jcn_str in jcn_to_paired_reads:
     #         if jcn_str in confident_jcns:
-    #             outline = "%s\t%s\n" % (jcn_str, ",".join(jcn2pairedReads[jcn_str]))
+    #             outline = "%s\t%s\n" % (jcn_str, ",".join(jcn_to_paired_reads[jcn_str]))
     #             jcn2qname_file.write(outline)
     #     jcn2qname_file.close()
 
-    if strandFlag is False:
+    if strand_flag is False:
         logging.info('WARNING, no stranded junctions were found.')
 
 
@@ -546,7 +546,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 #############
 
 
-def convert2CIGAR(cigar_tuple):
+def convert_to_cigar(cigar_tuple):
     cigar_str = ""
     for tup in cigar_tuple:
         cigar_str += "%d%s" % (tup[1],
@@ -554,7 +554,7 @@ def convert2CIGAR(cigar_tuple):
     return cigar_str
 
 
-def convert2SAMLine(bam_file, read_obj):
+def convert_to_sam_line(bam_file, read_obj):
     # Checks due to depracation of variables in pysam
     try:
         rnext = read_obj.rnext
@@ -575,7 +575,7 @@ def convert2SAMLine(bam_file, read_obj):
                                                               rname if rname else "*",
                                                               read_obj.pos + 1,
                                                               read_obj.mapq,
-                                                              convert2CIGAR(read_obj.cigar) if read_obj.cigar else "*",
+                                                              convert_to_cigar(read_obj.cigar) if read_obj.cigar else "*",
                                                               rnext if rnext else "*",
                                                               pnext + 1 if pnext else 0,
                                                               tlen if tlen else 0,
@@ -586,14 +586,14 @@ def convert2SAMLine(bam_file, read_obj):
         if read_obj.tags == []:
             return samline + "\n"
 
-        tags = convert2Tags(read_obj.tags)
+        tags = convert_to_tags(read_obj.tags)
         if tags != "":
             samline += "\t%s" % tags
 
     return samline + "\n"
 
 
-def convert2Tags(tag_tuples):
+def convert_to_tags(tag_tuples):
     tag_list = []
     for tag_tup in tag_tuples:
         if tag_tup[0] == "Y0":
@@ -648,13 +648,13 @@ def get_forced_junctions(forced_junction_file):
     for line in jcn_file:
         line = format_line(line)
 
-        lineList = line.split("\t")
+        line_list = line.split("\t")
 
         # Slicing list in case strand is included in the file
-        if len(lineList) < 3:
+        if len(line_list) < 3:
             raise FlairInputDataError("Problem with forced junction file. Needs to be tab-delimited: chr start end")
 
-        forced_junctions.add("_".join(lineList[0:3]))
+        forced_junctions.add("_".join(line_list[0:3]))
 
     jcn_file.close()
 
@@ -673,19 +673,19 @@ def get_pos_to_count(blocklist):
     return pos2count
 
 
-def get_shannon_index(pos2countDict, totalCount):
+def get_shannon_index(pos_to_count, total_count):
     """
     Calculates a Shannon-Wiener Index for the positions and counts.  It treats
     each position like a unique species.
     """
 
-    if totalCount == 0:
+    if total_count == 0:
         return 0
 
     summation = 0
 
-    for pos in pos2countDict:
-        p = float(pos2countDict[pos]) / totalCount
+    for pos in pos_to_count:
+        p = float(pos_to_count[pos]) / total_count
 
         if p == 0.0:
             continue
@@ -698,7 +698,7 @@ def get_shannon_index(pos2countDict, totalCount):
     return -summation
 
 
-def is_confident_junction(block_list, multiJcnBlockList, confidence_score,
+def is_confident_junction(block_list, multi_jcn_block_list, confidence_score,
                           jcn_chr, jcn_start, jcn_end, forced_jcns):
     """
     Confidence is given as the entropy score associated with each junction.
@@ -712,11 +712,11 @@ def is_confident_junction(block_list, multiJcnBlockList, confidence_score,
             return True
 
     all_blocks = list(block_list)
-    all_blocks.extend(multiJcnBlockList)
+    all_blocks.extend(multi_jcn_block_list)
     pos2count = get_pos_to_count(all_blocks)
-    totalCount = len(all_blocks)
+    total_count = len(all_blocks)
 
-    entropy = get_shannon_index(pos2count, totalCount)
+    entropy = get_shannon_index(pos2count, total_count)
 
     if entropy >= confidence_score:
         return True

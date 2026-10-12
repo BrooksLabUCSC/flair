@@ -79,13 +79,13 @@ def multipletests(pvals, alpha=0.05):
     pvals = np.take(pvals, sortind)
 
     ntests = len(pvals)
-    alphacSidak = 1 - np.power((1. - alphaf), 1. / ntests)
-    alphacBonf = alphaf / float(ntests)
+    alphac_sidak = 1 - np.power((1. - alphaf), 1. / ntests)
+    alphac_bonf = alphaf / float(ntests)
 
-    alphacSidak_all = 1 - np.power((1. - alphaf),
-                                   1. / np.arange(ntests, 0, -1))
-    notreject = pvals > alphacSidak_all
-    del alphacSidak_all
+    alphac_sidak_all = 1 - np.power((1. - alphaf),
+                                    1. / np.arange(ntests, 0, -1))
+    notreject = pvals > alphac_sidak_all
+    del alphac_sidak_all
 
     nr_index = np.nonzero(notreject)[0]
     if nr_index.size == 0:
@@ -109,7 +109,7 @@ def multipletests(pvals, alpha=0.05):
     del pvals_corrected
     reject_ = np.empty_like(reject)
     reject_[sortind] = reject
-    return reject_, pvals_corrected_, alphacSidak, alphacBonf
+    return reject_, pvals_corrected_, alphac_sidak, alphac_bonf
 
 
 def get_gene_to_counts(rows):
@@ -186,60 +186,60 @@ def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols):
                                  delta_usage=round(alldeltas[i], 3),
                                  adj_pval=corrpval[i])
 
-def add_counts_row(genes, isoforms, row, duplicateID):
+def add_counts_row(genes, isoforms, row, duplicate_id):
     "add one counts row to its gene and to the isoform table"
     counts = np.asarray(row.counts, dtype=float)
     if row.gene_id not in genes:
         genes[row.gene_id] = Gene(row.gene_id, np.zeros(len(counts)))
-    geneObj = genes[row.gene_id]
-    geneObj.exp += counts
+    gene_obj = genes[row.gene_id]
+    gene_obj.exp += counts
 
     iso = row.isoform_id
     if iso in isoforms:
-        duplicateID += 1
-        iso = iso + "-" + str(duplicateID)
-    isoforms[iso] = Isoform(iso, geneObj, counts)
-    return duplicateID
+        duplicate_id += 1
+        iso = iso + "-" + str(duplicate_id)
+    isoforms[iso] = Isoform(iso, gene_obj, counts)
+    return duplicate_id
 
-def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, outDir):
+def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, out_dir):
     genes, isoforms = dict(), dict()
-    duplicateID = 1
+    duplicate_id = 1
 
     for row in counts_rows:
-        duplicateID = add_counts_row(genes, isoforms, row, duplicateID)
+        duplicate_id = add_counts_row(genes, isoforms, row, duplicate_id)
 
     # the two conditions' column indexes are chosen by name in calculate_sig; taking
     # them from the first and last column made the filter depend on column order, and
     # with an order like A,B,B,A it tested one condition twice
-    g1Ind = np.asarray(a_cols)
-    g2Ind = np.asarray(b_cols)
+    g1_ind = np.asarray(a_cols)
+    g2_ind = np.asarray(b_cols)
 
     # make gene table first
-    geneIDs = np.asarray(list(genes.keys()))
-    vals = np.asarray([genes[x].exp for x in geneIDs])
-    if len(geneIDs) == 0:
+    gene_ids = np.asarray(list(genes.keys()))
+    vals = np.asarray([genes[x].exp for x in gene_ids])
+    if len(gene_ids) == 0:
         raise FlairInputDataError("no genes parsed from the counts matrix")
 
     # genes must be expressed in all samples of at least one group
-    filteredRows = (np.min(vals[:, g1Ind], axis=1) > thresh) | (np.min(vals[:, g2Ind], axis=1) > thresh)
-    filteredGeneVals = vals[filteredRows]
-    filteredGeneIDs = geneIDs[filteredRows]
-    write_deseq2_counts(outDir + "/filtered_gene_counts_ds2.tsv", samples,
-                        filteredGeneIDs, filteredGeneVals)
+    filtered_rows = (np.min(vals[:, g1_ind], axis=1) > thresh) | (np.min(vals[:, g2_ind], axis=1) > thresh)
+    filtered_gene_vals = vals[filtered_rows]
+    filtered_gene_ids = gene_ids[filtered_rows]
+    write_deseq2_counts(out_dir + "/filtered_gene_counts_ds2.tsv", samples,
+                        filtered_gene_ids, filtered_gene_vals)
 
     # now do isoforms
-    isoformIDs = np.asarray(list(isoforms.keys()))
-    vals = np.asarray([isoforms[x].exp for x in isoformIDs])
-    filteredRows = (np.min(vals[:, g1Ind], axis=1) > thresh) | (np.min(vals[:, g2Ind], axis=1) > thresh)
-    filteredIsoVals = vals[filteredRows]
-    filteredIsoIDs = isoformIDs[filteredRows]
+    isoform_ids = np.asarray(list(isoforms.keys()))
+    vals = np.asarray([isoforms[x].exp for x in isoform_ids])
+    filtered_rows = (np.min(vals[:, g1_ind], axis=1) > thresh) | (np.min(vals[:, g2_ind], axis=1) > thresh)
+    filtered_iso_vals = vals[filtered_rows]
+    filtered_iso_ids = isoform_ids[filtered_rows]
 
-    write_deseq2_counts(outDir + "/filtered_iso_counts_ds2.tsv", samples,
-                        filteredIsoIDs, filteredIsoVals)
+    write_deseq2_counts(out_dir + "/filtered_iso_counts_ds2.tsv", samples,
+                        filtered_iso_ids, filtered_iso_vals)
 
     # the DRIMSeq table is every isoform, filtered or not; its serial irow column
     # keeps the index unique, which a repeated isoform id would not
-    with drimseq_counts_writer(outDir + "/filtered_iso_counts_drim.tsv", samples) as writer:
+    with drimseq_counts_writer(out_dir + "/filtered_iso_counts_drim.tsv", samples) as writer:
         for iso, isoform in isoforms.items():
             writer.writeIsoform(isoform.parent.name, iso, isoform.exp)
     return genes, isoforms
@@ -277,26 +277,26 @@ def r_compress_option():
     "the R scripts compress their tables when this run does"
     return ['--compress'] if output_compression() else []
 
-def run_deseq2(prefix, workdir, condition_a, condition_b, matrixFile, outDir, formulaMatrixFile):
+def run_deseq2(prefix, workdir, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
     # no --batch: neither R script ever read it, and one arbitrary batch label would
     # not have said anything anyway.  Both take the batch column from the formula matrix
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_deseq2, "--condition_a", condition_a, "--condition_b", condition_b,
-                          "--matrix", matrixFile, "--out_dir", outDir,
-                          "--prefix", prefix, "--formula", formulaMatrixFile] + r_compress_option(),
+                          "--matrix", matrix_file, "--out_dir", out_dir,
+                          "--prefix", prefix, "--formula", formula_matrix_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
 
-def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrixFile, outDir, formulaMatrixFile):
+def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--condition_a", condition_a, "--condition_b", condition_b,
-                          "--matrix", matrixFile, "--out_dir", outDir,
-                          "--prefix", prefix, "--formula", formulaMatrixFile] + r_compress_option(),
+                          "--matrix", matrix_file, "--out_dir", out_dir,
+                          "--prefix", prefix, "--formula", formula_matrix_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
@@ -304,9 +304,9 @@ def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrixFile, 
 
 def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expression,  # noqa: C901 - FIXME: reduce complexity
                   threads, overwrite_output):
-    outDir = output
+    out_dir = output
     quant_table_tsv = counts_matrix
-    sFilter = min_expression
+    s_filter = min_expression
     force_dir = overwrite_output
 
     counts_rows = read_counts_rows(quant_table_tsv)
@@ -327,10 +327,10 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     a_cols = condition_column_indexes(groups, condition_a)
     b_cols = condition_column_indexes(groups, condition_b)
 
-    groupCounts = Counter(groups)
-    if len(list(groupCounts.keys())) != 2:
+    group_counts = Counter(groups)
+    if len(list(group_counts.keys())) != 2:
         raise FlairInputDataError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
-    elif min(list(groupCounts.values())) < 3:
+    elif min(list(group_counts.values())) < 3:
         raise FlairInputDataError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
     elif set(groups).intersection(set(batches)):
         raise FlairInputDataError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
@@ -338,29 +338,29 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
         raise FlairInputDataError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
 
     # Create output directory including a working directory for intermediate files.
-    workdir = os.path.join(outDir, 'workdir')
+    workdir = os.path.join(out_dir, 'workdir')
 
     if force_dir:
         if not os.path.exists(workdir):
             os.makedirs(workdir)
         pass
-    elif not os.path.exists(outDir):
+    elif not os.path.exists(out_dir):
         try:
             os.makedirs(workdir, 0o700)
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
     else:
-        raise FlairInputDataError(f"** Error. Name {outDir} already exists. Choose another name for out_dir")
+        raise FlairInputDataError(f"** Error. Name {out_dir} already exists. Choose another name for out_dir")
 
     # the normalized rows keep the counts matrix column order, so the same column
     # indexes apply to them
     norm_rows = calc_gene_norm_sig(workdir, counts_rows, samples)
-    get_sig_from_norm_by_gene(compressed_path(outDir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
+    get_sig_from_norm_by_gene(compressed_path(out_dir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
                               norm_rows, a_cols, b_cols)
 
     # Convert count tables to dataframe and update isoform objects.
-    genes, isoforms = separate_tables(counts_rows, sFilter, samples, a_cols, b_cols, workdir)
+    genes, isoforms = separate_tables(counts_rows, s_filter, samples, a_cols, b_cols, workdir)
 
     # DESeq2 models batch when the formula matrix has a batch column, so it is
     # written only when batch varies and is not a linear combination of condition.
@@ -370,19 +370,19 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     formula_rows = [FormulaRow(sample, group, batch)
                     for sample, group, batch in zip(samples, groups, batches)]
 
-    formulaMatrixFile = workdir + "/formula_matrix.tsv"
-    write_formula_matrix(formulaMatrixFile, formula_rows, with_batch=with_batch)
+    formula_matrix_file = workdir + "/formula_matrix.tsv"
+    write_formula_matrix(formula_matrix_file, formula_rows, with_batch=with_batch)
 
-    isoMatrixFile = workdir + "/filtered_iso_counts_ds2.tsv"
-    geneMatrixFile = workdir + "/filtered_gene_counts_ds2.tsv"
-    drimMatrixFile = workdir + "/filtered_iso_counts_drim.tsv"
+    iso_matrix_file = workdir + "/filtered_iso_counts_ds2.tsv"
+    gene_matrix_file = workdir + "/filtered_gene_counts_ds2.tsv"
+    drim_matrix_file = workdir + "/filtered_iso_counts_drim.tsv"
 
     # DESeq2 genes & isoforms
-    run_deseq2("genes_deseq2", workdir, condition_a, condition_b, geneMatrixFile, outDir, formulaMatrixFile)
-    run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, isoMatrixFile, outDir, formulaMatrixFile)
+    run_deseq2("genes_deseq2", workdir, condition_a, condition_b, gene_matrix_file, out_dir, formula_matrix_file)
+    run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, iso_matrix_file, out_dir, formula_matrix_file)
 
     # DIRMSeq
-    run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drimMatrixFile, outDir, formulaMatrixFile)
+    run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir, formula_matrix_file)
 
 def add_subparser(subparsers):
     desc = "Differential expression and differential usage analysis"

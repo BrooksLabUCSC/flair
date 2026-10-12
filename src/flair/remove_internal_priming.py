@@ -25,7 +25,7 @@ def check_is_near_annot_end(read3endpos, annotends):
     return dist_to_end <= 200
 
 
-def check_internal_priming(read3endpos, thischr, genome, reqfreq, threshold):
+def check_internal_priming(read3endpos, chrom, genome, reqfreq, threshold):
     """
     Check whether the genomic sequence near the read's 3' end contains an A/T-rich
     stretch that could have caused internal priming.
@@ -35,7 +35,7 @@ def check_internal_priming(read3endpos, thischr, genome, reqfreq, threshold):
     Returns True if any window of length >= threshold has A/T frequency >= reqfreq,
     indicating a genomic polyA/polyT stretch that could cause internal priming.
     """
-    genomeseqnearend = genome.fetch(thischr, max(read3endpos - 30, 0), min(read3endpos + 30, genome.get_reference_length(thischr))).upper()
+    genomeseqnearend = genome.fetch(chrom, max(read3endpos - 30, 0), min(read3endpos + 30, genome.get_reference_length(chrom))).upper()
     maxlen = 0
     if len(genomeseqnearend) > threshold * 2:
         halfseqlen = int(len(genomeseqnearend) / 2)
@@ -44,18 +44,18 @@ def check_internal_priming(read3endpos, thischr, genome, reqfreq, threshold):
         # of center; positive i values extend right.  The min/max swap ensures
         # the slice is always [lower:upper] regardless of sign.
         for i in list(range(-1 * halfseqlen, -1 * threshold)) + list(range(threshold, halfseqlen)):
-            thisseq = genomeseqnearend[min(i + halfseqlen, halfseqlen): max(i + halfseqlen, halfseqlen)]
+            seq = genomeseqnearend[min(i + halfseqlen, halfseqlen): max(i + halfseqlen, halfseqlen)]
             # count whichever of A or T is more frequent (handles both strands)
-            thiscount = max(thisseq.count('A'), thisseq.count('T'))
-            thisfreq = thiscount / len(thisseq) if len(thisseq) > 0 else 0
-            if thisfreq >= reqfreq and len(thisseq) > maxlen:
-                maxlen = len(thisseq)
+            count = max(seq.count('A'), seq.count('T'))
+            freq = count / len(seq) if len(seq) > 0 else 0
+            if freq >= reqfreq and len(seq) > maxlen:
+                maxlen = len(seq)
     return maxlen >= threshold
 
 # FIXME: misleading name — returns True when read should be KEPT (no internal
 # priming detected), not when internal priming is removed.  A name like
 # passesInternalPrimingFilter would be clearer.
-def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscriptends, annotexons, threshold, fracAs):
+def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscriptends, annotexons, threshold, frac_as):
     """
     Determine if a read should be kept (True) or discarded as internally primed (False).
 
@@ -92,7 +92,7 @@ def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscr
         # chromosome in the genome, skip the check and keep the read.
         # FIXME: checking for known chromosome should happen much earlier
         if ((refname not in genome.references) or
-                (not check_internal_priming(read3endpos, refname, genome, fracAs, threshold))):
+                (not check_internal_priming(read3endpos, refname, genome, frac_as, threshold))):
             return True
 
     elif annottranscriptends and refname in annottranscriptends:

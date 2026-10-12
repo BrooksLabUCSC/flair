@@ -956,11 +956,11 @@ def get_genes_with_shared_juncs(juncs, annots):
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
     gene_hits = {}
     exon = iso_readrec.exons[0]
-    index = binary_search(exon, annots.all_annot_SE[strand])
-    # FIXME: how does this ever work? all_annot_SE is [(start, end, strand, gene_id), ...]
+    index = binary_search(exon, annots.all_annot_se[strand])
+    # FIXME: how does this ever work? all_annot_se is [(start, end, strand, gene_id), ...]
     # max(0, ...): a negative slice start would be read as an offset from the end of
     # the list, which for a long list gives an empty window
-    for annot_exon_info in annots.all_annot_SE[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
+    for annot_exon_info in annots.all_annot_se[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
         # FIXME: make overlap a function
         overlap = min(exon.end, annot_exon_info.end) - max(exon.start, annot_exon_info.start)
         if overlap > 0:
@@ -1346,57 +1346,57 @@ def combine_chunks(args, output, partitions):
                                  headers=TSV_SUFFIXES)
 
 def get_new_ids(output):
-    iso_hash_to_ID, gene_hash_to_ID, aaseq_to_id = {}, {}, {}
+    iso_hash_to_id, gene_hash_to_id, aaseq_to_id = {}, {}, {}
     iso_count, gene_count, aaseq_count = 1, 1, 1
     with open_sorted_bed(compressed_path(output + '.isoforms.newids.bed')) as fh:
         for bed_rec in BedReader(output + '.isoforms.bed', bedClass=FlairBed):
-            if bed_rec.name not in iso_hash_to_ID:
+            if bed_rec.name not in iso_hash_to_id:
                 iso_id = f'FLT{iso_count:08d}'
-                iso_hash_to_ID[bed_rec.name] = iso_id
+                iso_hash_to_id[bed_rec.name] = iso_id
                 iso_count += 1
-            if bed_rec.gene_id not in gene_hash_to_ID:
+            if bed_rec.gene_id not in gene_hash_to_id:
                 gene_id = f'FLG{gene_count:08d}'
-                gene_hash_to_ID[bed_rec.gene_id] = gene_id
+                gene_hash_to_id[bed_rec.gene_id] = gene_id
                 gene_count += 1
             if bed_rec.aaseq_id is not None and bed_rec.aaseq_id not in aaseq_to_id:
                 aaseq_id = f'FLP{aaseq_count:08d}'
                 aaseq_to_id[bed_rec.aaseq_id] = aaseq_id
                 aaseq_count += 1
-            bed_rec.name = iso_hash_to_ID[bed_rec.name]
-            bed_rec.gene_id = gene_hash_to_ID[bed_rec.gene_id]
+            bed_rec.name = iso_hash_to_id[bed_rec.name]
+            bed_rec.gene_id = gene_hash_to_id[bed_rec.gene_id]
             if bed_rec.aaseq_id is not None:
                 bed_rec.aaseq_id = aaseq_to_id[bed_rec.aaseq_id]
             bed_rec.write(fh)
     write_aaseqs(compressed_path(output + '.aaseq.tsv'), aaseq_to_id)
-    return iso_hash_to_ID
+    return iso_hash_to_id
 
-def fix_ids_txt_file(iso_hash_to_ID, oldfile, newfile):
+def fix_ids_txt_file(iso_hash_to_id, oldfile, newfile):
     """Rename the ids in the first column, keeping the header.  This is the last
     thing written to these two files, so it is where they are compressed."""
     with fileOps.opengz(oldfile) as in_fh, fileOps.AtomicFileOpen(newfile, 'w') as fh:
         fh.write(in_fh.readline())  # header, whose first field is a column name
         for line in in_fh:
             line = line.split('\t', 1)
-            if line[0] in iso_hash_to_ID:  # had to add this check due to having isoforms in this file that were not in bed due to not passing final filters
-                line[0] = iso_hash_to_ID[line[0]]
+            if line[0] in iso_hash_to_id:  # had to add this check due to having isoforms in this file that were not in bed due to not passing final filters
+                line[0] = iso_hash_to_id[line[0]]
                 fh.write('\t'.join(line))
 
-def fix_ids_fa_file(iso_hash_to_ID, oldfile, newfile):
+def fix_ids_fa_file(iso_hash_to_id, oldfile, newfile):
     with open_fasta_output(newfile) as fh:
         last = False
         for line in open(oldfile):
             if line[0] == '>':
-                if line[1:].rstrip('\n') in iso_hash_to_ID:
-                    line = '>' + iso_hash_to_ID[line[1:].rstrip('\n')] + '\n'
+                if line[1:].rstrip('\n') in iso_hash_to_id:
+                    line = '>' + iso_hash_to_id[line[1:].rstrip('\n')] + '\n'
                     last = True
                 else:
                     last = False
             if last:
                 fh.write(line)
 
-def rename_ids_into_place(iso_hash_to_ID, joined, final):
+def rename_ids_into_place(iso_hash_to_id, joined, final):
     "rewrite the ids of a joined partition file into its final, maybe compressed, name"
-    fix_ids_txt_file(iso_hash_to_ID, joined, final)
+    fix_ids_txt_file(iso_hash_to_id, joined, final)
     if final != joined:
         os.unlink(joined)
 
@@ -1410,14 +1410,14 @@ def move_into_place(renamed, joined):
         os.unlink(joined)
 
 def fix_iso_labels(output, generate_map):
-    iso_hash_to_ID = get_new_ids(output)
-    rename_ids_into_place(iso_hash_to_ID, output + '.isoform.counts.tsv',
+    iso_hash_to_id = get_new_ids(output)
+    rename_ids_into_place(iso_hash_to_id, output + '.isoform.counts.tsv',
                           compressed_path(output + '.isoform.counts.tsv'))
-    fix_ids_fa_file(iso_hash_to_ID, output + '.isoforms.fa', output + '.isoforms.newids.fa')
+    fix_ids_fa_file(iso_hash_to_id, output + '.isoforms.fa', output + '.isoforms.newids.fa')
     move_into_place(output + '.isoforms.newids.bed', output + '.isoforms.bed')
     move_into_place(output + '.isoforms.newids.fa', output + '.isoforms.fa')
     if generate_map:
-        rename_ids_into_place(iso_hash_to_ID, output + '.isoform.read.map.tsv',
+        rename_ids_into_place(iso_hash_to_id, output + '.isoform.read.map.tsv',
                               compressed_path(output + '.isoform.read.map.tsv'))
 
 ####

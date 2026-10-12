@@ -109,25 +109,25 @@ def get_locus_bounds(synthinfo):
 def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, thickStart, thickEnd):
     starts = [None for x in range(numloci)]
     exonindexes = [[] for x in range(numloci)]
-    thickEdges = [[None, None] for x in range(numloci)]
+    thick_edges = [[None, None] for x in range(numloci)]
     for order in range(numloci):
         if locusbounds[order][0] < thickStart < locusbounds[order][1]:
-            thickEdges[order][0] = thickStart
+            thick_edges[order][0] = thickStart
         if locusbounds[order][0] < thickEnd < locusbounds[order][1]:
-            thickEdges[order][1] = thickEnd
+            thick_edges[order][1] = thickEnd
     for i in range(len(esizes)):
-        thisstart, thisend = start + estarts[i], start + estarts[i] + esizes[i]
+        exon_start, exon_end = start + estarts[i], start + estarts[i] + esizes[i]
         for order in range(numloci):
             # <= on both edges: with a strict test on the left an exon starting
             # exactly on a boundary matched no locus, failing its own locus's left
             # test and the previous locus's right test, and locus 0 starts at 0
-            if locusbounds[order][0] <= thisstart and thisend <= locusbounds[order][1]:
+            if locusbounds[order][0] <= exon_start and exon_end <= locusbounds[order][1]:
                 if starts[order] is None:
-                    starts[order] = estarts[i]  # thisstart #- locusbounds[order][0]
+                    starts[order] = estarts[i]  # exon_start #- locusbounds[order][0]
                 exonindexes[order].append(i)
-    return starts, exonindexes, thickEdges
+    return starts, exonindexes, thick_edges
 
-def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, hasThickEdges, thickEdges):
+def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, has_thick_edges, thick_edges):
     genomicbounds = []
     bedinfo = []
     for order in range(numloci):
@@ -146,18 +146,18 @@ def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusboun
             locusestarts = temp
             locusesizes = locusesizes[::-1]
             chromStart = leftbound - (((start + starts[order]) - locusbounds[order][0]) + totlen)
-            if thickEdges[order][0] is not None:
-                thickEnd = leftbound - (thickEdges[order][0] - locusbounds[order][0])
-            if thickEdges[order][1] is not None:
-                thickStart = leftbound - (thickEdges[order][1] - locusbounds[order][0])
+            if thick_edges[order][0] is not None:
+                thickEnd = leftbound - (thick_edges[order][0] - locusbounds[order][0])
+            if thick_edges[order][1] is not None:
+                thickStart = leftbound - (thick_edges[order][1] - locusbounds[order][0])
         else:
             chromStart = leftbound + ((start + starts[order]) - locusbounds[order][0])
-            if thickEdges[order][0] is not None:
-                thickStart = leftbound + (thickEdges[order][0] - locusbounds[order][0])
-            if thickEdges[order][1] is not None:
-                thickEnd = leftbound + (thickEdges[order][1] - locusbounds[order][0])
+            if thick_edges[order][0] is not None:
+                thickStart = leftbound + (thick_edges[order][0] - locusbounds[order][0])
+            if thick_edges[order][1] is not None:
+                thickEnd = leftbound + (thick_edges[order][1] - locusbounds[order][0])
         chromEnd = chromStart + totlen
-        if hasThickEdges:
+        if has_thick_edges:
             thickStart = chromStart if thickStart is None else thickStart
             thickEnd = chromEnd if thickEnd is None else thickEnd
 
@@ -235,8 +235,8 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
             numloci = len(synthinfo)
 
             # FIXME add handling of existing thickStart and thickEnd values from synthetic aligned bed,
-            hasThickEdges = bed.thickStart != bed.thickEnd
-            starts, exonindexes, thickEdges = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, bed.thickStart, bed.thickEnd)
+            has_thick_edges = bed.thickStart != bed.thickEnd
+            starts, exonindexes, thick_edges = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, bed.thickStart, bed.thickEnd)
 
             assigned_exons = sorted(i for indexes in exonindexes for i in indexes)
             if assigned_exons != list(range(len(esizes))):
@@ -244,7 +244,7 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
                 continue
 
             if None not in starts:
-                genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, hasThickEdges, thickEdges)
+                genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, has_thick_edges, thick_edges)
                 if not check_too_close(numloci, genomicbounds, min_dist):
                     for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
                         curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, bed.chrom, curr_gene_count)

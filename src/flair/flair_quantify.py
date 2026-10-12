@@ -82,11 +82,11 @@ def load_manifest(manifest):
         if len(cols) < 4:
             raise FlairInputDataError(f'expected 4 tab-separated columns in {manifest}, got {len(cols)}')
 
-        sample, group, batch, readFile = cols
-        if not os.path.exists(readFile):
-            raise FlairInputDataError(f'reads file does not exist: {readFile}')
+        sample, group, batch, read_file = cols
+        if not os.path.exists(read_file):
+            raise FlairInputDataError(f'reads file does not exist: {read_file}')
 
-        sample_data.append((sample, group, batch, readFile))
+        sample_data.append((sample, group, batch, read_file))
     return sample_data
 
 class GeneData():

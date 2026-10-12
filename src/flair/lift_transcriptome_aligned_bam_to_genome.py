@@ -95,14 +95,14 @@ outchroms = outfile.references
 # CURRENTLY NONE OF THIS WORKS FOR NEGATIVE STRAND READS
 for s in samfile:
     if s.is_mapped:
-        thisisoinfo = iso_to_info[s.reference_name]
-        newrefid = outchroms.index(thisisoinfo['chrom'])
-        newrefstart = convert_start_pos(thisisoinfo, s.reference_start)
-        newcigart = convert_cigar(thisisoinfo, s.cigartuples, s.reference_start)
-        if thisisoinfo['strand'] == '+':
+        iso_info = iso_to_info[s.reference_name]
+        newrefid = outchroms.index(iso_info['chrom'])
+        newrefstart = convert_start_pos(iso_info, s.reference_start)
+        newcigart = convert_cigar(iso_info, s.cigartuples, s.reference_start)
+        if iso_info['strand'] == '+':
             a = generate_new_segment(s, newrefid=newrefid, newrefstart=newrefstart, newcigart=newcigart)
         else:
-            newcigart = convert_cigar(thisisoinfo, s.cigartuples, s.reference_start)
+            newcigart = convert_cigar(iso_info, s.cigartuples, s.reference_start)
             totalaligneddist = sum([x[1] for x in newcigart if x[0] not in {1, 4, 5}])
             newrefstart = newrefstart - totalaligneddist  # was read end, correct to read start
             newflag = s.flag - 16 if s.is_reverse else s.flag + 16

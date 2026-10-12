@@ -205,8 +205,8 @@ def load_bam_read_vars(a, bam_label, my_vars, genome, insertions, deletions):
     add_indels_to_vars(insertions, deletions, a.reference_name, a.query_sequence, genome, my_vars)
     get_coverage_snvs_from_read(a, my_vars)
     if check_any_var_is_covered(my_vars):
-        posinfo, thisreadinfo = simplify_gene_vars(my_vars)
-        return (bam_label, a.query_name), thisreadinfo
+        posinfo, read_info = simplify_gene_vars(my_vars)
+        return (bam_label, a.query_name), read_info
     return None, None
 
 def create_gene_vars_dict(gene_vars):
@@ -225,11 +225,11 @@ def simplify_gene_vars(my_vars):
             info.append((pos, ref, alt, cov, var))
     info.sort()
     posinfo = [f'{x[0]};{x[1]};{x[2]}' for x in info]
-    thisreadinfo = []
+    read_info = []
     for index, (pos, ref, alt, cov, var) in enumerate(info):
         if cov == 1:
-            thisreadinfo.append((index, var))
-    return posinfo, tuple(thisreadinfo)
+            read_info.append((index, var))
+    return posinfo, tuple(read_info)
 
 def add_nodes(graph, readvarinfo_to_reads):
     tot_gene_reads = 0
@@ -251,15 +251,15 @@ def simplify_remove_nodes_with_single_parent(graph, readvarinfo_to_reads):
     moved_nodes = {}
     for node in graph:
         if len(list(graph.out_edges(node))) == 1:
-            thisnode, nextnode = list(graph.out_edges(node))[0]
+            from_node, nextnode = list(graph.out_edges(node))[0]
             while nextnode in moved_nodes:
                 nextnode = moved_nodes[nextnode]
             # update edges upstream
             for prev, this in list(graph.in_edges(node)):
                 g2.add_edge(prev, nextnode)
-            readvarinfo_to_reads[nextnode].update(readvarinfo_to_reads[thisnode])
-            readvarinfo_to_reads[thisnode] = set()
-            moved_nodes[thisnode] = nextnode
+            readvarinfo_to_reads[nextnode].update(readvarinfo_to_reads[from_node])
+            readvarinfo_to_reads[from_node] = set()
+            moved_nodes[from_node] = nextnode
             g2.remove_node(node)
     return g2
 
@@ -277,7 +277,7 @@ def remove_low_support_terminal_nodes(graph, readvarinfo_to_reads, tot_gene_read
 
 def get_terminal_node(graph, node, terminal_nodes):
     if len(list(graph.out_edges(node))) > 0:
-        for thisnode, nextnode in graph.out_edges(node):
+        for from_node, nextnode in graph.out_edges(node):
             terminal_nodes.update(get_terminal_node(graph, nextnode, terminal_nodes))
     else:
         terminal_nodes.add(node)
@@ -465,18 +465,18 @@ def split_when_node_paired_to_diff_alleles_same_ps(ps_graph, ps_ag_graph, edge_t
     for node in ps_ag_graph:
         if len(list(ps_ag_graph.edges(node))) > 1:
             seen_to_counts = {}
-            for thisnode, nextnode in list(ps_ag_graph.edges(node)):
+            for from_node, nextnode in list(ps_ag_graph.edges(node)):
                 if nextnode[0] not in seen_to_counts:
                     seen_to_counts[nextnode[0]] = 0
                 seen_to_counts[nextnode[0]] += 1
-            for thisnode, nextnode in list(ps_ag_graph.edges(node)):
+            for from_node, nextnode in list(ps_ag_graph.edges(node)):
                 if seen_to_counts[nextnode[0]] > 1:
-                    check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, thisnode, nextnode, moved_edge_nodes)
+                    check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, from_node, nextnode, moved_edge_nodes)
 
 def identify_connected_alleles(ps, ps_allele_groups, ps_ag_graph):
     all_connected_ps = {}
     for ag in ps_allele_groups:
-        for thisnode, nextnode in list(ps_ag_graph.edges((ps, ag))):
+        for from_node, nextnode in list(ps_ag_graph.edges((ps, ag))):
             if nextnode[0] not in all_connected_ps:
                 all_connected_ps[nextnode[0]] = 0
             all_connected_ps[nextnode[0]] += 1
@@ -492,9 +492,9 @@ def split_if_all_alleles_dont_connect_ps(ps_graph, ps_ag_graph, edge_to_reads, p
                 if ps_graph.has_edge(ps, ps2):
                     ps_graph.remove_edge(ps, ps2)
             for ag in phaseset_to_allele_groups[ps]:
-                for thisnode, nextnode in list(ps_ag_graph.edges((ps, ag))):
+                for from_node, nextnode in list(ps_ag_graph.edges((ps, ag))):
                     if nextnode[0] in bad_ps_conn:
-                        check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, nextnode, thisnode, moved_edge_nodes)
+                        check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, nextnode, from_node, moved_edge_nodes)
 
 def combine_allele_groups_between_ps(ps_count, ag_count, ps_ag_set, all_reads_in_ps_ag, old_to_new, new_phaseset_to_allele_groups, new_index_to_allele_group_info, new_file_to_read_to_allele_group):
     new_ag = format_allele_group(ag_count)

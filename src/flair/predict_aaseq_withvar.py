@@ -58,7 +58,7 @@ modtranscriptsfile = sys.argv[2]
 outfile = sys.argv[3]
 
 
-transcriptToInfo = {}
+transcript_to_info = {}
 for line in fileOps.iterLines(referencetranscriptfile):
     if line[0] != '#':
         line = line.rstrip().split('\t')
@@ -69,7 +69,7 @@ for line in fileOps.iterLines(referencetranscriptfile):
         tinfo, propred, orfstart, orfstop, ptcpoint, seq = line
         tinfo = tinfo.split('_')
         tname, gname = '_'.join(tinfo[:-1]), tinfo[-1]
-        transcriptToInfo[(tname, gname)] = TranscriptInfo(seq, int(orfstart), int(orfstop), propred, ptcpoint)
+        transcript_to_info[(tname, gname)] = TranscriptInfo(seq, int(orfstart), int(orfstop), propred, ptcpoint)
 
 out = AaSeqPredWriter(outfile)
 
@@ -78,7 +78,7 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
     if line[0] == '>':
         last = line[1:].rstrip().split(' ')
     else:
-        predProd = None
+        pred_prod = None
         modseq = line.rstrip()
         # tinfo, genomevars, seqvars, support = last
         if len(last) == 2:
@@ -90,14 +90,14 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
         temp = '-'.join(tinfo.split('-')[1:])
         tname = '_'.join(temp.split('_')[:-1])
         gname = temp.split('_')[-1]
-        if (tname, gname) not in transcriptToInfo:
+        if (tname, gname) not in transcript_to_info:
             continue
-        thist = transcriptToInfo[(tname, gname)]
-        newpredseq = thist.aaseq
+        transcript_info = transcript_to_info[(tname, gname)]
+        newpredseq = transcript_info.aaseq
         has5utrvars, has3utrvars = False, False
         # print(tname)
         if len(seqvars) == 0:  # no change from original isoform
-            predProd = thist.origpro
+            pred_prod = transcript_info.origpro
         else:
             # chr2..-..65312507..2862..S..A
             # chr2..-..65312507..2862..S..A,chr2..-..65313771..1598..S..C
@@ -107,23 +107,23 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
                 seqvars[i] = [int(seqvars[i][3]), seqvars[i][4], seqvars[i][5]]
             seqvars.sort()
 
-            if thist.origstart == thist.origstop:
-                thist.origstart = len(modseq)
-                thist.origstop = len(modseq)
-            if thist.ptcpoint == '':
-                thist.ptcpoint = 0
+            if transcript_info.origstart == transcript_info.origstop:
+                transcript_info.origstart = len(modseq)
+                transcript_info.origstop = len(modseq)
+            if transcript_info.ptcpoint == '':
+                transcript_info.ptcpoint = 0
             else:
-                thist.ptcpoint = int(thist.ptcpoint)
+                transcript_info.ptcpoint = int(transcript_info.ptcpoint)
 
-            posToVar = {}
+            pos_to_var = {}
             for pos, ref, alt in seqvars:
                 if ref == 'I' or ref == 'D':
-                    posToVar[pos] = (ref, alt)
+                    pos_to_var[pos] = (ref, alt)
             refseq_pos_to_modseq_pos = {}
             modseqpos, refseqpos = 0, 0
             while modseqpos <= len(modseq):
-                if modseqpos in posToVar:
-                    ref, alt = posToVar[modseqpos]
+                if modseqpos in pos_to_var:
+                    ref, alt = pos_to_var[modseqpos]
                     if ref == 'I':
                         modseqpos += len(alt)
                     elif ref == 'D':
@@ -135,12 +135,12 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
                 refseqpos += 1
             # get: a PTC point past the end of the modified sequence, which a deletion
             # can produce, was a KeyError
-            newptcpoint = refseq_pos_to_modseq_pos.get(thist.ptcpoint, modseqpos)
+            newptcpoint = refseq_pos_to_modseq_pos.get(transcript_info.ptcpoint, modseqpos)
             # Is there a base change before the predicted start?
-            prestartvars = [x for x in seqvars if x[0] < thist.origstart]
+            prestartvars = [x for x in seqvars if x[0] < transcript_info.origstart]
             hasnovelstart = False
             startposchange = 0   # FIXME: never used.
-            newstart, newend = thist.origstart, thist.origstop
+            newstart, newend = transcript_info.origstart, transcript_info.origstop
 
             if len(prestartvars) > 0:
                 for pos, ref, alt in prestartvars:
@@ -159,36 +159,36 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
                         # an empty translation has no last base; the other call site
                         # already checks the length before indexing
                         if len(newpredseq) == 0 or newpredseq[-1] != '_':
-                            predProd = 'NST'
+                            pred_prod = 'NST'
                         else:
                             newend = newstart + ((len(newpredseq)) * 3)
                             if newend < newptcpoint:
-                                predProd = 'PTC'
+                                pred_prod = 'PTC'
                             else:  # same length or longer
-                                predProd = 'PRO'
+                                pred_prod = 'PRO'
                         continue
                         # Add code to get new end and AA sequence and predict productivity
                         # decide if want to look at all potential novel starts or just the first one
             if len([x for x in seqvars if x[0] < newstart]) > 0 and newstart != len(modseq):
                 has5utrvars = True  # only if there is actually a start
-            if not hasnovelstart and thist.origstart == len(modseq):
-                predProd = 'NGO'
-            elif not hasnovelstart and thist.origstart != len(modseq):  # do not execute if there was no original AA sequence
-                poststartvars = [x for x in seqvars if x[0] >= thist.origstart]
+            if not hasnovelstart and transcript_info.origstart == len(modseq):
+                pred_prod = 'NGO'
+            elif not hasnovelstart and transcript_info.origstart != len(modseq):  # do not execute if there was no original AA sequence
+                poststartvars = [x for x in seqvars if x[0] >= transcript_info.origstart]
                 if len(poststartvars) > 0:
-                    newpredseq = translate(modseq[refseq_pos_to_modseq_pos[thist.origstart]:refseq_pos_to_modseq_pos[thist.origstop]])
+                    newpredseq = translate(modseq[refseq_pos_to_modseq_pos[transcript_info.origstart]:refseq_pos_to_modseq_pos[transcript_info.origstop]])
                     if len(newpredseq) == 0:
-                        predProd = 'NGO'
+                        pred_prod = 'NGO'
                     elif newpredseq[-1] != '_':
-                        predProd = 'NST'
+                        pred_prod = 'NST'
                     else:
                         newend = newstart + ((len(newpredseq)) * 3)
                         if newend < newptcpoint:
-                            predProd = 'PTC'  # Do we care about how early the stop is? Maybe as long as protein is still 50% of original length?
+                            pred_prod = 'PTC'  # Do we care about how early the stop is? Maybe as long as protein is still 50% of original length?
                         else:
-                            predProd = 'PRO'
+                            pred_prod = 'PRO'
                 else:
-                    predProd = thist.origpro
+                    pred_prod = transcript_info.origpro
             if len([x for x in seqvars if x[0] >= newend]) > 0 and newend != len(modseq):
                 has3utrvars = True
         utrvars = []
@@ -196,6 +196,6 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
             utrvars.append('5utr')
         if has3utrvars:
             utrvars.append('3utr')
-        out.writeRow((tinfo, predProd, ','.join(utrvars), newpredseq))
+        out.writeRow((tinfo, pred_prod, ','.join(utrvars), newpredseq))
 
 out.close()

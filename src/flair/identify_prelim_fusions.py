@@ -38,36 +38,36 @@ def binary_search(arr, t):
     return arr[i]
 
 
-def get_genomic_precise_loc(tname, bpCoord, genedir, intronLocs, intronToGenome):
-    closestSS = binary_search(intronLocs[tname], bpCoord)
-    bpIntronEnds = intronToGenome[tname][closestSS]
-    genomeSS = None
-    diffFromSS = bpCoord - closestSS
-    if closestSS == 0:  # start of gene
+def get_genomic_precise_loc(tname, bp_coord, genedir, intron_locs, intron_to_genome):
+    closest_ss = binary_search(intron_locs[tname], bp_coord)
+    bp_intron_ends = intron_to_genome[tname][closest_ss]
+    genome_ss = None
+    diff_from_ss = bp_coord - closest_ss
+    if closest_ss == 0:  # start of gene
         if genedir == '+':
-            genomeSS = bpIntronEnds[1]
+            genome_ss = bp_intron_ends[1]
         else:
-            genomeSS = bpIntronEnds[0]
-    elif closestSS == max(intronLocs[tname]):  # end of gene
+            genome_ss = bp_intron_ends[0]
+    elif closest_ss == max(intron_locs[tname]):  # end of gene
         if genedir == '+':
-            genomeSS = bpIntronEnds[0]
+            genome_ss = bp_intron_ends[0]
         else:
-            genomeSS = bpIntronEnds[1]
+            genome_ss = bp_intron_ends[1]
     elif genedir == '+':
-        if bpCoord >= closestSS:
-            genomeSS = bpIntronEnds[1]
+        if bp_coord >= closest_ss:
+            genome_ss = bp_intron_ends[1]
         else:
-            genomeSS = bpIntronEnds[0]
+            genome_ss = bp_intron_ends[0]
     else:
-        if bpCoord >= closestSS:
-            genomeSS = bpIntronEnds[0]
+        if bp_coord >= closest_ss:
+            genome_ss = bp_intron_ends[0]
         else:
-            genomeSS = bpIntronEnds[1]
+            genome_ss = bp_intron_ends[1]
     genomepos = None
     if genedir == '+':
-        genomepos = genomeSS + diffFromSS
+        genomepos = genome_ss + diff_from_ss
     else:
-        genomepos = genomeSS - diffFromSS
+        genomepos = genome_ss - diff_from_ss
     return genomepos
 
 
@@ -101,7 +101,7 @@ def get_exon_intron_blocks(read):
     return intron_blocks, exon_blocks
 
 
-def get_correct_gene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, readblocks, thisdir):  # noqa: C901 - FIXME: reduce complexity
+def get_correct_gene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, readblocks, read_strand):  # noqa: C901 - FIXME: reduce complexity
     intron_blocks, exon_blocks = readblocks
     if chrom not in chrom_to_gene_pos:
         my_gene = (chrom, exon_blocks[0][0], exon_blocks[-1][1])  # chrom + ':' + str(round(exon_blocks[0][0], -4))
@@ -118,7 +118,7 @@ def get_correct_gene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom,
             for start, end, strand, gene in chrom_to_gene_pos[chrom]:
                 if start > e:  # assumes sorted
                     break
-                if strand == thisdir and min(e, end) > max(start, s):  # require strand match
+                if strand == read_strand and min(e, end) > max(start, s):  # require strand match
                     totoverlap = 0
                     for es, ee in gene_to_all_exons[gene]:
                         overlap = min(e, ee) - max(es, s)
@@ -168,17 +168,17 @@ def _target_gene(transcript_to_gene, transcript_id, bam):
 
 
 def id_chimeras(mode, bam, gene_to_info, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
-                gene_to_name, minsup, maxloci=10, req_dist_to_start=None, maxpromiscuity=4, intronLocs=None,
-                intronToGenome=None, transcript_to_gene=None):
+                gene_to_name, minsup, maxloci=10, req_dist_to_start=None, maxpromiscuity=4, intron_locs=None,
+                intron_to_genome=None, transcript_to_gene=None):
     is_rev_to_sign = {True: '-', False: '+'}
     withsup = pysam.AlignmentFile(bam, "rb")
-    readToAligns = {}
+    read_to_aligns = {}
     nongenicloci = []
     for read in withsup:
         if read.is_mapped and not read.is_secondary and read.has_tag('SA') and (mode == 'genomic' or not read.is_reverse):  # if aligned to transcriptome, must match strand of transcript
             rname = read.query_name
-            if rname not in readToAligns:
-                readToAligns[rname] = []
+            if rname not in read_to_aligns:
+                read_to_aligns[rname] = []
 
             refstart, refend, readdir = read.reference_start, read.reference_end, is_rev_to_sign[read.is_reverse]
             qstart, qend = read.query_alignment_start, read.query_alignment_end
@@ -194,28 +194,28 @@ def id_chimeras(mode, bam, gene_to_info, chrom_to_gene_pos, gene_to_all_exons, j
                 if type(genename) is tuple:
                     nongenicloci.append(genename)
                 if readdir == '+':
-                    readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
+                    read_to_aligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
                 else:
-                    readToAligns[rname].append([(readlen - qend, refend), (readlen - qstart, refstart), genename, readdir, refchr])
+                    read_to_aligns[rname].append([(readlen - qend, refend), (readlen - qstart, refstart), genename, readdir, refchr])
             else:
                 tname = read.reference_name
                 genename = _target_gene(transcript_to_gene, tname, bam)
                 refchr, genedir = gene_to_info[genename][0], gene_to_info[genename][3]  # can do this because already required the read to be forward strand
-                refstart = get_genomic_precise_loc(tname, refstart, genedir, intronLocs, intronToGenome)
-                refend = get_genomic_precise_loc(tname, refend, genedir, intronLocs, intronToGenome)
+                refstart = get_genomic_precise_loc(tname, refstart, genedir, intron_locs, intron_to_genome)
+                refend = get_genomic_precise_loc(tname, refend, genedir, intron_locs, intron_to_genome)
                 refstart, refend = min(refstart, refend), max(refstart, refend)
                 if genedir == '+':
-                    readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
+                    read_to_aligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
                 else:
-                    readToAligns[rname].append([(qstart, refend), (qend, refstart), genename, genedir, refchr])
+                    read_to_aligns[rname].append([(qstart, refend), (qend, refstart), genename, genedir, refchr])
     withsup.close()
 
     nongenicloci.sort()
     ognongenic_to_genes = group_nongenic_loci(nongenicloci)
 
     interestingloci = {}
-    for read in readToAligns:
-        alignedloci = sorted(readToAligns[read])
+    for read in read_to_aligns:
+        alignedloci = sorted(read_to_aligns[read])
 
         readgenes = [x[2] for x in alignedloci]
         if 2 <= len(set(readgenes)) <= maxloci:
@@ -250,8 +250,8 @@ def id_chimeras(mode, bam, gene_to_info, chrom_to_gene_pos, gene_to_all_exons, j
             alignblocks = [[[], []] for x in range(numloci)]
             goodreads = []
             for r in interestingloci[fgenes]:
-                if len(readToAligns[r]) == numloci:
-                    alignedloci = sorted(readToAligns[r])
+                if len(read_to_aligns[r]) == numloci:
+                    alignedloci = sorted(read_to_aligns[r])
                     goodreads.append(r)
                     for i in range(numloci - 1):
                         qdist[i].append(alignedloci[i][1][0] - alignedloci[i + 1][0][0])

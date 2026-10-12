@@ -75,13 +75,13 @@ def gtf_to_bed(outputfile, gtf, include_gene=False):
     with open_sorted_bed(outputfile) as outfile:
         iso_to_info, iso_to_exons, iso_to_cds = get_iso_info(gtf)
 
-        for this_transcript in iso_to_exons:
-            chrom, strand, gene = iso_to_info[this_transcript]
-            exons = sorted(iso_to_exons[this_transcript])
+        for transcript in iso_to_exons:
+            chrom, strand, gene = iso_to_info[transcript]
+            exons = sorted(iso_to_exons[transcript])
             blockstarts = [x[0] for x in exons]
             blocksizes = [x[1] - x[0] for x in exons]
 
-            write_bed_row(include_gene, iso_to_cds, this_transcript, blockstarts, blocksizes, gene, chrom, strand, outfile)
+            write_bed_row(include_gene, iso_to_cds, transcript, blockstarts, blocksizes, gene, chrom, strand, outfile)
 
 
 if __name__ == "__main__":

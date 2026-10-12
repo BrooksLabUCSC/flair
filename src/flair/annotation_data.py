@@ -31,7 +31,7 @@ class AnnotData(object):
         # single-exon annotations by strand: {'+': [], '-': []}
         # each entry is Exon(start, end, gene_id), sorted for binary search
         # FIXME: rename once it is figured out how this works in get_single_exon_gene_overlaps
-        self.all_annot_SE = {'+': [], '-': []}
+        self.all_annot_se = {'+': [], '-': []}
 
         # map of strand -> gene_id -> set of Exon
         # FIXME: why is strand needed here
@@ -80,7 +80,7 @@ def annot_data_from_gtf(gtf_data, region):
     # once, not once per transcript, which made annotation loading quadratic.  The
     # binary search over these needs them sorted
     for se_strand in ('+', '-'):
-        annots.all_annot_SE[se_strand] = sorted(annots.all_annot_SE[se_strand])
+        annots.all_annot_se[se_strand] = sorted(annots.all_annot_se[se_strand])
     return annots
 
 def _process_transcript(annots, region, region_map, trans):
@@ -147,6 +147,6 @@ def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, 
     else:
         annots.gene_to_exons[gene_id].update(exon_coords)
     if len(juncs) == 0:
-        annots.all_annot_SE[strand].append(Exon(t_start, t_end, gene_id))
+        annots.all_annot_se[strand].append(Exon(t_start, t_end, gene_id))
     else:
         _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand, annots)

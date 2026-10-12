@@ -25,7 +25,7 @@ def main():
     args = build_parser().parse_args()
     with cli.ErrorHandler():
         bed_to_gtf(query=args.inputfile, force=args.force, outputfile='/dev/stdout',
-                   useCDS=not args.no_cds, is_flair_bed=args.is_flair_bed)
+                   use_cds=not args.no_cds, is_flair_bed=args.is_flair_bed)
 
 def _add_record(records, record):
     """Record a feature, dropping an empty range.  A CDS or UTR piece is empty when the
@@ -62,14 +62,14 @@ def _make_attrs(gene_id, transcript_id, bed, is_flair_bed, exon_number=None):
             attrs[name] = val
     return attrs
 
-def bed_to_gtf(query, outputfile, force=False, useCDS=True, is_flair_bed=False):
+def bed_to_gtf(query, outputfile, force=False, use_cds=True, is_flair_bed=False):
     "convert a BED to a GTF, gzipping it when the output name ends in .gz"
-    gene_to_records = _collect_gene_records(query, force, useCDS, is_flair_bed)
+    gene_to_records = _collect_gene_records(query, force, use_cds, is_flair_bed)
     with fileOps.opengz(outputfile, 'w') as outfile:
         for gene_id, records in gene_to_records.items():
             _write_gene_records(outfile, gene_id, records)
 
-def _collect_gene_records(query, force, useCDS, is_flair_bed):  # noqa: C901 - FIXME: reduce complexity
+def _collect_gene_records(query, force, use_cds, is_flair_bed):  # noqa: C901 - FIXME: reduce complexity
     gene_to_records = {}
     my_bed_class = FlairBed if is_flair_bed else Bed
     for bed in BedReader(query, bedClass=my_bed_class):
@@ -100,7 +100,7 @@ def _collect_gene_records(query, force, useCDS, is_flair_bed):  # noqa: C901 - F
         for b, blk in enumerate(bed.blocks):
             exon_attrs = _make_attrs(gene_id, transcript_id, bed, is_flair_bed, exon_number=b)
             _add_record(gene_to_records[gene_id], ('exon', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
-            if bed.thickStart != bed.thickEnd and (bed.thickStart != bed.chromStart or bed.thickEnd != bed.chromEnd) and useCDS:
+            if bed.thickStart != bed.thickEnd and (bed.thickStart != bed.chromStart or bed.thickEnd != bed.chromEnd) and use_cds:
                 if bed.thickStart < blk.start and blk.end < bed.thickEnd:  # in CDS
                     _add_record(gene_to_records[gene_id], ('CDS', bed.chrom, blk.start, blk.end, bed.strand, exon_attrs))
                 elif blk.end < bed.thickStart:  # fully left of CDS

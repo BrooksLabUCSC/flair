@@ -31,16 +31,16 @@ def sample_column_index(sample_columns, colname, counts_matrix_tsv):
             f"{' '.join(sample_columns)}")
     return sample_columns.index(colname)
 
-def iso_psi(this_counts, other_counts):
+def iso_psi(iso_counts, other_counts):
     "each sample's PSI for one isoform, and the change, NA where it cannot be taken"
-    s1PSI, s2PSI, deltaPSI = 'NA', 'NA', 'NA'
-    if other_counts[0] + this_counts[0] > 0:
-        s1PSI = round(this_counts[0] / (other_counts[0] + this_counts[0]), 3)
-    if other_counts[1] + this_counts[1] > 0:
-        s2PSI = round(this_counts[1] / (other_counts[1] + this_counts[1]), 3)
-    if s1PSI != 'NA' and s2PSI != 'NA':
-        deltaPSI = round(s2PSI - s1PSI, 3)
-    return [s1PSI, s2PSI, deltaPSI]
+    s1_psi, s2_psi, delta_psi = 'NA', 'NA', 'NA'
+    if other_counts[0] + iso_counts[0] > 0:
+        s1_psi = round(iso_counts[0] / (other_counts[0] + iso_counts[0]), 3)
+    if other_counts[1] + iso_counts[1] > 0:
+        s2_psi = round(iso_counts[1] / (other_counts[1] + iso_counts[1]), 3)
+    if s1_psi != 'NA' and s2_psi != 'NA':
+        delta_psi = round(s2_psi - s1_psi, 3)
+    return [s1_psi, s2_psi, delta_psi]
 
 def other_isoform_counts(gene_counts, iso):
     "the gene's counts without this isoform"
@@ -55,16 +55,16 @@ def gene_usage_rows(gene, gene_counts, colname1, colname2):
     "one row per isoform of a gene"
     import scipy.stats as sps
     rows = []
-    for iso, this_counts in gene_counts.items():
+    for iso, iso_counts in gene_counts.items():
         other_counts = other_isoform_counts(gene_counts, iso)
-        ctable = [this_counts, other_counts]
+        ctable = [iso_counts, other_counts]
         # an isoform with no expression of its gene in one sample cannot be tested
-        if (this_counts[0] + other_counts[0] == 0 or this_counts[1] + other_counts[1] == 0
-                or sum(this_counts) == 0 or sum(other_counts) == 0):
-            rows.append([gene, iso, 'NA'] + this_counts + other_counts + ['NA', 'NA', 'NA'])
+        if (iso_counts[0] + other_counts[0] == 0 or iso_counts[1] + other_counts[1] == 0
+                or sum(iso_counts) == 0 or sum(other_counts) == 0):
+            rows.append([gene, iso, 'NA'] + iso_counts + other_counts + ['NA', 'NA', 'NA'])
         else:
-            rows.append([gene, iso, sps.fisher_exact(ctable)[1]] + this_counts +
-                        other_counts + iso_psi(this_counts, other_counts))
+            rows.append([gene, iso, sps.fisher_exact(ctable)[1]] + iso_counts +
+                        other_counts + iso_psi(iso_counts, other_counts))
     return rows
 
 def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):  # noqa: C901 - FIXME: reduce complexity

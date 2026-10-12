@@ -24,7 +24,7 @@ prefix = args.output  # '.'.join(args.chimbp.split('.')[:-2])
 
 # check if any reads map to wrong orientation of fusion loci
 
-allBP = {}
+all_bp = {}
 fgenes = {}
 transcripts = {}
 # ['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'breakpointCoord', 'outerEdgeCoord', 'readSupport']
@@ -33,12 +33,12 @@ for bed in BedReader(args.chimbp, numStdCols=6, fixScores=True):
     start, end = max(0, bed.chromStart), max(0, bed.chromEnd)
     gene, fusion = name.split('__')
     fusion = tuple(fusion.split('--'))
-    if fusion not in allBP:
-        allBP[fusion] = []
+    if fusion not in all_bp:
+        all_bp[fusion] = []
     if strand == '+':
-        allBP[fusion].append((gene, chrom, start, end))
+        all_bp[fusion].append((gene, chrom, start, end))
     else:
-        allBP[fusion].append((gene, chrom, end, start))
+        all_bp[fusion].append((gene, chrom, end, start))
     if gene not in transcripts:
         transcripts[gene] = {}
     if gene not in fgenes:
@@ -48,13 +48,13 @@ for bed in BedReader(args.chimbp, numStdCols=6, fixScores=True):
         fgenes[gene][2] = max(end, fgenes[gene][2])
 
 genome = pysam.FastaFile(args.g)
-chromSizes = dict(zip(genome.references, genome.lengths))
+chrom_sizes = dict(zip(genome.references, genome.lengths))
 # print('loaded genome')
 
 
 def get_chrom_size(chrom):
     "size of chrom, error if the annotation names a sequence the genome doesn't have"
-    size = chromSizes.get(chrom)
+    size = chrom_sizes.get(chrom)
     if size is None:
         raise FlairInputDataError(f"sequence '{chrom}' in annotation {args.a} is not in genome {args.g}; "
                                   "supply an annotation and genome from the same assembly, using the same sequence names")
@@ -91,25 +91,25 @@ for rec in gtf_record_parser(args.a, include_features={'gene', 'exon', 'start_co
 # print('loaded transcripts')
 
 out = open(prefix + '-syntheticFusionGenome.fa', 'w')  # 'syntheticFusionGenomeAttempt4.fa', 'w')
-annoOut = open(prefix + '-syntheticReferenceAnno.gtf', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
+anno_out = open(prefix + '-syntheticReferenceAnno.gtf', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
 # sjOut = open(prefix + '-syntheticReferenceSJ.bed', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
-bpOut = open(prefix + '-syntheticBreakpointLoc.bed', 'w')  # 'syntheticFusionBreakpointLoc.bed', 'w')
+bp_out = open(prefix + '-syntheticBreakpointLoc.bed', 'w')  # 'syntheticFusionBreakpointLoc.bed', 'w')
 c = 0
 isocount = 1
-for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
+for fusion in all_bp:  # noqa: C901 - FIXME: reduce complexity
     # print(fusion)
     allisochunks = []
     labels, sequence = [], []
     allstartloc = []
-    startLoc = 0
+    start_loc = 0
     for order in range(len(fusion)):
         isochunks = {}
-        gene, thisChr, leftbound, rightbound = allBP[fusion][order]
+        gene, gene_chrom, leftbound, rightbound = all_bp[fusion][order]
         # the breakpoint BED is padded by 1000 and clamped only at the low end, so a
         # bound can run past the chromosome.  genome.fetch then returns a short
-        # sequence while startLoc advances by the nominal distance, which shifts every
+        # sequence while start_loc advances by the nominal distance, which shifts every
         # later locus and the breakpoint offsets against the FASTA actually written
-        chrom_size = get_chrom_size(thisChr)
+        chrom_size = get_chrom_size(gene_chrom)
         leftbound = max(0, min(leftbound, chrom_size))
         rightbound = max(0, min(rightbound, chrom_size))
         if order == 0:  # 5' gene, correct end to 5' end of gene
@@ -124,15 +124,15 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
                 rightbound = fgenes[gene][1]
 
         if leftbound < rightbound:
-            sequence.append(genome.fetch(thisChr, leftbound, rightbound))  # genome[thisChr][leftbound:rightbound])
+            sequence.append(genome.fetch(gene_chrom, leftbound, rightbound))  # genome[gene_chrom][leftbound:rightbound])
         else:
-            sequence.append(get_reverse_complement(genome.fetch(thisChr, rightbound, leftbound)))  # genome[thisChr][rightbound:leftbound]))
-        labels.append('..'.join([str(x) for x in [gene, thisChr, leftbound, rightbound]]))
+            sequence.append(get_reverse_complement(genome.fetch(gene_chrom, rightbound, leftbound)))  # genome[gene_chrom][rightbound:leftbound]))
+        labels.append('..'.join([str(x) for x in [gene, gene_chrom, leftbound, rightbound]]))
 
         # Add a justends isoform here
         chunksize = abs(leftbound - rightbound)
         percentchange = int(chunksize * 0.1)
-        isochunks['justends-' + str(c)] = [(percentchange + startLoc, (chunksize - percentchange) + startLoc, 'exon'),]
+        isochunks['justends-' + str(c)] = [(percentchange + start_loc, (chunksize - percentchange) + start_loc, 'exon'),]
         c += 1
 
         for tname in transcripts[gene]:
@@ -142,7 +142,7 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
                     synthexon = None
                     # check if exon is within bounds of fusion
                     if exon[0] >= leftbound and exon[1] <= rightbound and (order == 0 or exon[2] == 'exon'):
-                        synthexon = [(exon[0] - leftbound) + startLoc, (exon[1] - leftbound) + startLoc, exon[2]]
+                        synthexon = [(exon[0] - leftbound) + start_loc, (exon[1] - leftbound) + start_loc, exon[2]]
                     if synthexon:
                         isochunks[tname].append(tuple(synthexon))
             else:  # negative strand transcript
@@ -150,11 +150,11 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
                     synthexon = None
                     # check if exon is within bounds of fusion
                     if exon[0] >= rightbound and exon[1] <= leftbound and (order == 0 or exon[2] == 'exon'):
-                        synthexon = [(leftbound - exon[1]) + startLoc, (leftbound - exon[0]) + startLoc, exon[2]]
+                        synthexon = [(leftbound - exon[1]) + start_loc, (leftbound - exon[0]) + start_loc, exon[2]]
                     if synthexon:
                         isochunks[tname].append(tuple(synthexon))
-        allstartloc.append(startLoc)
-        startLoc = startLoc + abs(rightbound - leftbound)
+        allstartloc.append(start_loc)
+        start_loc = start_loc + abs(rightbound - leftbound)
         allisochunks.append(isochunks)
     # finalisochunks = [[] for x in range(len(fusion))]
     finalisochunks = []
@@ -173,8 +173,8 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
     out.write(''.join(sequence) + '\n')
     for s in range(1, len(fusion)):
         Bed(fusionchrname, allstartloc[s], allstartloc[s],
-            name='breakpoint-' + str(s) + '--' + fusionname).write(bpOut)
-    gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', 'gene', 0, len(''.join(sequence)), None, '+', None,
+            name='breakpoint-' + str(s) + '--' + fusionname).write(bp_out)
+    gtf_write_row(anno_out, fusionchrname, 'SYNTHFUSION', 'gene', 0, len(''.join(sequence)), None, '+', None,
                   gene_id=geneid)
 
     seen = set()
@@ -183,13 +183,13 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
         transcriptid = str(isocount) + '-' + isocomb[0]
         isocount += 1
         seen.add(transcriptid)
-        gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', 'transcript', isoexons[0][0], isoexons[-1][1], None, '+', None,
+        gtf_write_row(anno_out, fusionchrname, 'SYNTHFUSION', 'transcript', isoexons[0][0], isoexons[-1][1], None, '+', None,
                       gene_id=geneid, transcript_id=transcriptid)
         for exon in isoexons:
-            gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', exon[2], exon[0], exon[1], None, '+', None,
+            gtf_write_row(anno_out, fusionchrname, 'SYNTHFUSION', exon[2], exon[0], exon[1], None, '+', None,
                           gene_id=geneid, transcript_id=transcriptid)
 
 
 out.close()
-annoOut.close()
-bpOut.close()
+anno_out.close()
+bp_out.close()

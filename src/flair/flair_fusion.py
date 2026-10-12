@@ -207,7 +207,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             newexons.append((laststart, lastend))
         gene_to_all_exons[gene] = newexons
 
-    intronLocs, intronToGenome = {}, {}
+    intron_locs, intron_to_genome = {}, {}
     for g in gene_to_exons:
         chrom, start, end, strand, _ = gene_to_info[g]
         for t in gene_to_exons[g]:
@@ -221,8 +221,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             mylocs.append([runningtot, myexons[-1][1], myexons[-1][1] + 500])
             if strand == '-':
                 mylocs = [[runningtot - mylocs[x][0], mylocs[x][1], mylocs[x][2]] for x in range(len(mylocs))]
-            intronLocs[t] = sorted([x[0] for x in mylocs])
-            intronToGenome[t] = {x[0]: (x[1], x[2]) for x in mylocs}
+            intron_locs[t] = sorted([x[0] for x in mylocs])
+            intron_to_genome[t] = {x[0]: (x[1], x[2]) for x in mylocs}
 
     gene_to_paralogs = get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv')
 
@@ -230,7 +230,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     tchim = id_chimeras('transcriptomic', transcriptchimbam, gene_to_info, chrom_to_gene_pos,
                         gene_to_all_exons, juncs_to_gene, gene_to_paralogs, gene_to_name,
                         min_support, maxloci=max_loci, req_dist_to_start=max_dist_to_tss,
-                        maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome,
+                        maxpromiscuity=4, intron_locs=intron_locs, intron_to_genome=intron_to_genome,
                         transcript_to_gene=transcript_to_gene)
     logging.info('loading genomic chimeras')
 
