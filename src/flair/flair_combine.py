@@ -104,33 +104,33 @@ def parse_input(manifest, prefixes, input_beds):
 
 
 def load_isos_by_id(bedfile):
-    isotoinfo = {}
+    iso_to_info = {}
     mysamples = set()
     for bed in BedReader(bedfile, bedClass=FlairBed):
         juncchaininfo = (bed.pos_in_fusion, bed.chrom, bed.getGaps())
-        if bed.name not in isotoinfo:
-            isotoinfo[bed.name] = []
-        isotoinfo[bed.name].append((juncchaininfo, bed))
+        if bed.name not in iso_to_info:
+            iso_to_info[bed.name] = []
+        iso_to_info[bed.name].append((juncchaininfo, bed))
         mysamples.update(set(bed.samples))
-    return isotoinfo, mysamples
+    return iso_to_info, mysamples
 
-def organize_isos_by_junc_chain(isotoinfo, intronchaintoisos):
-    for iso_id, bed_records in isotoinfo.items():
+def organize_isos_by_junc_chain(iso_to_info, intron_chain_to_isos):
+    for iso_id, bed_records in iso_to_info.items():
         bed_records.sort()  # organize fusion partners in order if necessary
         juncchaininfo = tuple([x[0] for x in bed_records])
         beds = tuple([x[1] for x in bed_records])
-        if juncchaininfo not in intronchaintoisos:
-            intronchaintoisos[juncchaininfo] = []
-        intronchaintoisos[juncchaininfo].append(beds)
+        if juncchaininfo not in intron_chain_to_isos:
+            intron_chain_to_isos[juncchaininfo] = []
+        intron_chain_to_isos[juncchaininfo].append(beds)
 
 def load_isoforms_by_junc_chain(sampledata):
-    intronchaintoisos = {}
-    allsamples = set()
+    intron_chain_to_isos = {}
+    all_samples = set()
     for bed_path in sampledata:
-        isotoinfo, mysamples = load_isos_by_id(bed_path)
-        allsamples.update(mysamples)
-        organize_isos_by_junc_chain(isotoinfo, intronchaintoisos)
-    return intronchaintoisos, sorted(list(allsamples))
+        iso_to_info, mysamples = load_isos_by_id(bed_path)
+        all_samples.update(mysamples)
+        organize_isos_by_junc_chain(iso_to_info, intron_chain_to_isos)
+    return intron_chain_to_isos, sorted(list(all_samples))
 
 def filter_groups(ends_to_iso_groups, max_ends, minpercentusage, min_reads):
     if max_ends == 1:
@@ -236,14 +236,14 @@ def write_map_files(output, new_iso_to_og, new_gene_to_og):
     write_map_file(compressed_path(output + '.combined.isoform.map.tsv'), new_iso_to_og)
     write_map_file(compressed_path(output + '.combined.gene.map.tsv'), new_gene_to_og)
 
-def iso_counts_row(new_id, gene_id, allsamples, samples_to_counts):
-    counts = [str(samples_to_counts.get(sample, 0)) for sample in allsamples]
+def iso_counts_row(new_id, gene_id, all_samples, samples_to_counts):
+    counts = [str(samples_to_counts.get(sample, 0)) for sample in all_samples]
     return CountsRow(gene_id, new_id, counts)
 
-def write_counts_file(output, allsamples, iso_to_samples_to_counts, iso_to_gene):
-    rows = [iso_counts_row(new_id, iso_to_gene[new_id], allsamples, samples_to_counts)
+def write_counts_file(output, all_samples, iso_to_samples_to_counts, iso_to_gene):
+    rows = [iso_counts_row(new_id, iso_to_gene[new_id], all_samples, samples_to_counts)
             for new_id, samples_to_counts in iso_to_samples_to_counts.items()]
-    write_counts_matrix(compressed_path(output + '.combined.isoform.counts.tsv'), allsamples, rows)
+    write_counts_matrix(compressed_path(output + '.combined.isoform.counts.tsv'), all_samples, rows)
 
 def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
             min_frac_usage, remove_single_exon, max_ends, min_reads):
@@ -251,7 +251,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     sampledata = parse_input(manifest, prefixes, isoform_beds)
 
     logging.info('loading isoforms from individual samples')
-    intronchaintoisos, allsamples = load_isoforms_by_junc_chain(sampledata)
+    intron_chain_to_isos, all_samples = load_isoforms_by_junc_chain(sampledata)
 
     logging.info('combining isoforms')
 
@@ -262,9 +262,9 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     genome_fa = pysam.FastaFile(genome)
     with open_sorted_bed(compressed_path(output + '.combined.isoforms.bed')) as bed_fh, \
          open_fasta_output(output + '.combined.isoforms.fa') as fa_fh:
-        for juncchaininfo in intronchaintoisos:
+        for juncchaininfo in intron_chain_to_isos:
             all_juncs = [x[2] for x in juncchaininfo]
-            og_isos = intronchaintoisos[juncchaininfo]
+            og_isos = intron_chain_to_isos[juncchaininfo]
             if not remove_single_exon or (len(all_juncs) > 1 or len(all_juncs[0]) > 0):
                 ends_to_iso_groups = combine_isos(og_isos, end_window)
                 max_usage, tot_counts = 0, 0
@@ -287,7 +287,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
 
     write_map_files(output, new_iso_to_og, new_gene_to_og)
 
-    write_counts_file(output, allsamples, iso_to_samples_to_counts, iso_to_gene)
+    write_counts_file(output, all_samples, iso_to_samples_to_counts, iso_to_gene)
 
     bed_to_gtf(compressed_path(output + '.combined.isoforms.bed'),
                compressed_path(output + '.combined.isoforms.gtf'), is_flair_bed=True)

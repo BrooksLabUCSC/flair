@@ -79,15 +79,15 @@ def extract_varinfo(refinfo, alt):
     gpos = int(gpos)
     return chrom, gpos, ref, alt
 
-def get_potential_genes(chrom, gpos, chrregiontogenes):
-    """Genes that might contain gpos.  chrregiontogenes is keyed by the bin of each
+def get_potential_genes(chrom, gpos, chr_region_to_genes):
+    """Genes that might contain gpos.  chr_region_to_genes is keyed by the bin of each
     gene's start, and a gene containing gpos starts at or before it, so the bin that
     matters beside gpos's own is the one before, not the one after.  A gene longer
     than the bin is still missed; the longest human gene is a fifth of one."""
     this_bin = math.floor(gpos / GENE_BIN_SIZE) * GENE_BIN_SIZE
     potgenes = set()
     for bin_start in (this_bin - GENE_BIN_SIZE, this_bin):
-        potgenes.update(chrregiontogenes.get((chrom, bin_start), ()))
+        potgenes.update(chr_region_to_genes.get((chrom, bin_start), ()))
     return potgenes
 
 def process_bedline(bed):
@@ -108,45 +108,45 @@ def process_bedline(bed):
     return thischr, iso, dir, start, esizes, estarts, end, exonblocks, currtstart, gene
 
 
-def add_gene_to_boundaries(genestoboundaries, gene, thischr, dir, start, end):
-    if gene not in genestoboundaries:
-        genestoboundaries[gene] = [thischr, dir, start, end]
+def add_gene_to_boundaries(genes_to_boundaries, gene, thischr, dir, start, end):
+    if gene not in genes_to_boundaries:
+        genes_to_boundaries[gene] = [thischr, dir, start, end]
     else:
-        if start < genestoboundaries[gene][2]:
-            genestoboundaries[gene][2] = start
-        if end > genestoboundaries[gene][3]:
-            genestoboundaries[gene][3] = end
-    return genestoboundaries
+        if start < genes_to_boundaries[gene][2]:
+            genes_to_boundaries[gene][2] = start
+        if end > genes_to_boundaries[gene][3]:
+            genes_to_boundaries[gene][3] = end
+    return genes_to_boundaries
 
-def add_iso_to_blocks(isotoblocks, iso, exonblocks):
-    if iso not in isotoblocks:
-        isotoblocks[iso] = exonblocks
+def add_iso_to_blocks(iso_to_blocks, iso, exonblocks):
+    if iso not in iso_to_blocks:
+        iso_to_blocks[iso] = exonblocks
     else:
-        tstartadj = isotoblocks[iso][-1][0] + isotoblocks[iso][-1][2]
+        tstartadj = iso_to_blocks[iso][-1][0] + iso_to_blocks[iso][-1][2]
         exonblocks = [(x[0] + tstartadj,) + x[1:] for x in exonblocks]
-        isotoblocks[iso].extend(exonblocks)
-    return isotoblocks
+        iso_to_blocks[iso].extend(exonblocks)
+    return iso_to_blocks
 
 def get_bedisoform_info(bedisofile):
-    isotoblocks = {}
-    genetoiso = {}
-    chrregiontogenes, genestoboundaries = {}, {}
+    iso_to_blocks = {}
+    gene_to_iso = {}
+    chr_region_to_genes, genes_to_boundaries = {}, {}
     for bed in BedReader(bedisofile, bedClass=FlairBed):
         thischr, iso, dir, start, esizes, estarts, end, exonblocks, currtstart, gene = process_bedline(bed)
 
-        isotoblocks = add_iso_to_blocks(isotoblocks, iso, exonblocks)
+        iso_to_blocks = add_iso_to_blocks(iso_to_blocks, iso, exonblocks)
 
-        if gene not in genetoiso:
-            genetoiso[gene] = set()
-        genetoiso[gene].add(iso)
+        if gene not in gene_to_iso:
+            gene_to_iso[gene] = set()
+        gene_to_iso[gene].add(iso)
 
         chromregion = (thischr, math.floor(start / GENE_BIN_SIZE) * GENE_BIN_SIZE)
-        if chromregion not in chrregiontogenes:
-            chrregiontogenes[chromregion] = set()
-        chrregiontogenes[chromregion].add(gene)
+        if chromregion not in chr_region_to_genes:
+            chr_region_to_genes[chromregion] = set()
+        chr_region_to_genes[chromregion].add(gene)
 
-        genestoboundaries = add_gene_to_boundaries(genestoboundaries, gene, thischr, dir, start, end)
-    return isotoblocks, genetoiso, chrregiontogenes, genestoboundaries
+        genes_to_boundaries = add_gene_to_boundaries(genes_to_boundaries, gene, thischr, dir, start, end)
+    return iso_to_blocks, gene_to_iso, chr_region_to_genes, genes_to_boundaries
 
 # this is called by extract_vcf_vars
 def add_vcf_var(vcfvars, chrom, ref, alts, tpos2, name):
@@ -212,7 +212,7 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
 
     with var_counts_writer(compressed_path(f'{outprefix}.var.counts.tsv'), samplenames) as out, \
             vargroup_counts_writer(compressed_path(f'{outprefix}.vargroup.counts.tsv')) as out2:
-        vartocounts = {}
+        var_to_counts = {}
         vargroup_to_data = {}
         for tf in tempfilenames:
             with open(tempdir + tf + '.tsv', 'r') as mutstringfile:
@@ -248,9 +248,9 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
                         gene = m[1].split(GENE_LIST_SEP)[0]
                         transcript = ''
                         var = (varpos, gene, transcript)
-                        if var not in vartocounts:
-                            vartocounts[var] = [[0, 0] for x in range(len(samplenames))]  # [unmod counts, mod counts]
-                        vartocounts[var][sampleindex][int(m[-1])] += 1
+                        if var not in var_to_counts:
+                            var_to_counts[var] = [[0, 0] for x in range(len(samplenames))]  # [unmod counts, mod counts]
+                        var_to_counts[var][sampleindex][int(m[-1])] += 1
 
         for chrom, gene, varpos in vargroup_to_data:
             readinfo = vargroup_to_data[(chrom, gene, varpos)]
@@ -262,18 +262,18 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
             out2.writeRow((chrom, gene, len(outmods), totpos, outmods,
                            varpos.split(',')))
 
-        for var in vartocounts:
-            if any([x[0] + x[1] >= threshold for x in vartocounts[var]]) and (any([x[1] > 0 for x in vartocounts[var]]) or output_all):  # any modified reads in any sample
-                varcounts = [[x[0], x[1]] for x in vartocounts[var]]
+        for var in var_to_counts:
+            if any([x[0] + x[1] >= threshold for x in var_to_counts[var]]) and (any([x[1] > 0 for x in var_to_counts[var]]) or output_all):  # any modified reads in any sample
+                varcounts = [[x[0], x[1]] for x in var_to_counts[var]]
                 outline = list(var) + varcounts
                 out.writeRow(outline)
 
-def retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
+def retrieve_good_iso_pos(potgenes, genes_to_boundaries, gpos, gene_to_iso, iso_to_blocks):
     for gene in potgenes:
-        genechr, genedir, genestart, geneend = genestoboundaries[gene]
+        genechr, genedir, genestart, geneend = genes_to_boundaries[gene]
         if genestart <= gpos < geneend:
-            for iso2 in genetoiso[gene]:
-                blocks = isotoblocks[iso2]
+            for iso2 in gene_to_iso[gene]:
+                blocks = iso_to_blocks[iso2]
                 tpos2 = None
                 for tstart, gstart, bsize, thischr, dir in blocks:
                     if gstart <= gpos < gstart + bsize:
@@ -287,16 +287,16 @@ def retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblo
                 if tpos2 is not None:
                     yield gene, iso2, tpos2
 
-def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks):
+def group_annotated_ref_vars(var_to_alt, chr_region_to_genes, genes_to_boundaries, gene_to_iso, iso_to_blocks):
     vcfvars = {}
-    for refinfo in vartoalt:
-        chrom, gpos, ref, alts = extract_varinfo(refinfo, vartoalt[refinfo])
+    for refinfo in var_to_alt:
+        chrom, gpos, ref, alts = extract_varinfo(refinfo, var_to_alt[refinfo])
 
-        potgenes = get_potential_genes(chrom, gpos, chrregiontogenes)
+        potgenes = get_potential_genes(chrom, gpos, chr_region_to_genes)
 
         overlapgenes = set()
         # THIS MAY BE THE BOTTLENECK
-        for gene, _, _ in retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
+        for gene, _, _ in retrieve_good_iso_pos(potgenes, genes_to_boundaries, gpos, gene_to_iso, iso_to_blocks):
             overlapgenes.add(gene)
         # sorted: overlapgenes is a set, so the order, and therefore which gene the
         # counts are attributed to below, varied between runs
@@ -304,16 +304,16 @@ def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, gene
     return vcfvars
 
 def combine_vcf_files(vcffilelist):
-    vartoalt = {}
+    var_to_alt = {}
     for samplevcf in vcffilelist:
         for line in fileOps.iterLines(samplevcf):
             if line[0] != '#':
                 line = line.rstrip().split('\t')
                 refinfo, alt = tuple(line[:4]), line[4]
-                if refinfo not in vartoalt:
-                    vartoalt[refinfo] = set()
-                vartoalt[refinfo].add(alt)
-    return vartoalt
+                if refinfo not in var_to_alt:
+                    var_to_alt[refinfo] = set()
+                var_to_alt[refinfo].add(alt)
+    return var_to_alt
 
 class TempVarFiles:
     """Write handles for the per-reference temp files, opened once each.  The write
@@ -378,10 +378,10 @@ def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_be
 
     vcfvars = {}
     if manifest or vcf:
-        isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = get_bedisoform_info(isoform_bed)
-        vartoalt = combine_vcf_files([x[2] for x in sampledata if len(x) > 2])
+        iso_to_blocks, gene_to_iso, chr_region_to_genes, genes_to_boundaries = get_bedisoform_info(isoform_bed)
+        var_to_alt = combine_vcf_files([x[2] for x in sampledata if len(x) > 2])
         logging.info('done combining vcfs')
-        vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
+        vcfvars = group_annotated_ref_vars(var_to_alt, chr_region_to_genes, genes_to_boundaries, gene_to_iso, iso_to_blocks)
     else:
         for line in fileOps.iterLines(pos_ref):
             line = line.rstrip('\n').split('\t')

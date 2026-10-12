@@ -119,7 +119,7 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
             for pos, ref, alt in seqvars:
                 if ref == 'I' or ref == 'D':
                     posToVar[pos] = (ref, alt)
-            refseqpostomodseqpos = {}
+            refseq_pos_to_modseq_pos = {}
             modseqpos, refseqpos = 0, 0
             while modseqpos <= len(modseq):
                 if modseqpos in posToVar:
@@ -128,14 +128,14 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
                         modseqpos += len(alt)
                     elif ref == 'D':
                         for i in range(int(alt)):
-                            refseqpostomodseqpos[refseqpos + i] = modseqpos
+                            refseq_pos_to_modseq_pos[refseqpos + i] = modseqpos
                         refseqpos += int(alt)
-                refseqpostomodseqpos[refseqpos] = modseqpos
+                refseq_pos_to_modseq_pos[refseqpos] = modseqpos
                 modseqpos += 1
                 refseqpos += 1
             # get: a PTC point past the end of the modified sequence, which a deletion
             # can produce, was a KeyError
-            newptcpoint = refseqpostomodseqpos.get(thist.ptcpoint, modseqpos)
+            newptcpoint = refseq_pos_to_modseq_pos.get(thist.ptcpoint, modseqpos)
             # Is there a base change before the predicted start?
             prestartvars = [x for x in seqvars if x[0] < thist.origstart]
             hasnovelstart = False
@@ -176,7 +176,7 @@ for line in fileOps.iterLines(modtranscriptsfile):  # noqa: C901 - FIXME: reduce
             elif not hasnovelstart and thist.origstart != len(modseq):  # do not execute if there was no original AA sequence
                 poststartvars = [x for x in seqvars if x[0] >= thist.origstart]
                 if len(poststartvars) > 0:
-                    newpredseq = translate(modseq[refseqpostomodseqpos[thist.origstart]:refseqpostomodseqpos[thist.origstop]])
+                    newpredseq = translate(modseq[refseq_pos_to_modseq_pos[thist.origstart]:refseq_pos_to_modseq_pos[thist.origstop]])
                     if len(newpredseq) == 0:
                         predProd = 'NGO'
                     elif newpredseq[-1] != '_':

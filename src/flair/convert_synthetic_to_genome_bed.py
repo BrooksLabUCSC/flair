@@ -13,64 +13,64 @@ def get_iso_to_reads(readmapfile):
     return isoreadsup
 
 def get_synth_info(breakpointfile):
-    synthchrtoinfo = {}
+    synth_chr_to_info = {}
     for bed in BedReader(breakpointfile, numStdCols=4):
-        synthchrtoinfo[bed.chrom] = '--'.join(bed.name.split('--')[1:])
-    return synthchrtoinfo
+        synth_chr_to_info[bed.chrom] = '--'.join(bed.name.split('--')[1:])
+    return synth_chr_to_info
 
 def get_paralog_ref(paralogfile):
-    grouptogenes = {}
-    genetoparalogs = {}
+    group_to_genes = {}
+    gene_to_paralogs = {}
     # 5  244     2       69321074        69338940        1       ENSG00000205572 SERF1B  small EDRK-rich factor 1B (centromeric) [Source:HGNC Symbol;Acc:10756]
     for line in fileOps.iterLines(paralogfile):
         line = line.split('\t')
         group = line[1]
         gname = line[6]
-        if group not in grouptogenes:
-            grouptogenes[group] = set()
-        grouptogenes[group].add(gname)
+        if group not in group_to_genes:
+            group_to_genes[group] = set()
+        group_to_genes[group].add(gname)
 
-    for group in grouptogenes:
-        gset = grouptogenes[group]
+    for group in group_to_genes:
+        gset = group_to_genes[group]
         for g in gset:
-            genetoparalogs[g] = group
-    return genetoparalogs
+            gene_to_paralogs[g] = group
+    return gene_to_paralogs
 
 def get_gene_name_conv(annotgtf):
     from flair.gtf_io import gtf_record_parser, GtfAttrsSet
-    genetoname = {}
+    gene_to_name = {}
     for rec in gtf_record_parser(annotgtf, include_features={'gene'}, attrs=GtfAttrsSet.ALL):
         geneid = rec.gene_id
         genename = rec.gene_name if rec.gene_name else geneid
-        genetoname[geneid.split('.')[0]] = genename
-    return genetoname
+        gene_to_name[geneid.split('.')[0]] = genename
+    return gene_to_name
 
-def identify_promiscuous_genes(isoformsbed, genetoparalogs):
+def identify_promiscuous_genes(isoformsbed, gene_to_paralogs):
     from flair.pycbio.hgdata.bed import BedReader
-    locustopartners = {}
+    locus_to_partners = {}
     for bed in BedReader(isoformsbed, fixScores=True):
         fnames = set(bed.chrom.split('--'))
         fnames = {x.split('.')[0] if x[:3] != 'chr' else x.split('-')[0] + '-' + str(round(int(x.split('-')[1]), -6))
                   for x in fnames}
         for i in fnames:
             other = fnames - {i, }
-            newother = frozenset([genetoparalogs[g] if g in genetoparalogs else g for g in other])
-            if i not in locustopartners:
-                locustopartners[i] = set()
-            locustopartners[i].add(newother)
-    return locustopartners
+            newother = frozenset([gene_to_paralogs[g] if g in gene_to_paralogs else g for g in other])
+            if i not in locus_to_partners:
+                locus_to_partners[i] = set()
+            locus_to_partners[i].add(newother)
+    return locus_to_partners
 
 
-def identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname, genetoparalogs, genomic_chroms, isosup):
+def identify_fusion_problems(fgenes, locus_to_partners, maxpromiscuity, gene_to_name, gene_to_paralogs, genomic_chroms, isosup):
 
     ispromiscuous, areparalogs, areig, allnames, gcount = False, [], [], set(), []
     for g in fgenes:
         gcount.append(list(fgenes).count(g))
-        if len(locustopartners[g]) > maxpromiscuity:
+        if len(locus_to_partners[g]) > maxpromiscuity:
             ispromiscuous = True
-        if g in genetoname:
-            allnames.add(genetoname[g][:4])
-            if genetoname[g][:3] in {'IGK', 'IGH', 'IGL', 'IGF'}:
+        if g in gene_to_name:
+            allnames.add(gene_to_name[g][:4])
+            if gene_to_name[g][:3] in {'IGK', 'IGH', 'IGL', 'IGF'}:
                 areig.append(True)
             else:
                 areig.append(False)
@@ -80,10 +80,10 @@ def identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname
             #     areig.append(True)
             # else:
             areig.append(False)
-        if g in genetoparalogs:
+        if g in gene_to_paralogs:
             other = set(fgenes) - {g, }
-            other = {genetoparalogs[g2] if g2 in genetoparalogs else g2 for g2 in other}
-            if genetoparalogs[g] in other or len(other) == 0:
+            other = {gene_to_paralogs[g2] if g2 in gene_to_paralogs else g2 for g2 in other}
+            if gene_to_paralogs[g] in other or len(other) == 0:
                 areparalogs.append(True)
             else:
                 areparalogs.append(False)
@@ -217,7 +217,7 @@ def get_gene_id(gene_og_to_new, gene_og, curr_gene_count):
 
 def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, outname, min_dist):
     isoreadsup = get_iso_to_reads(readmapfile)
-    synthchrtoinfo = get_synth_info(breakpointfile)
+    synth_chr_to_info = get_synth_info(breakpointfile)
 
     freadsfinal = set()
     out = open_sorted_bed(outname)
@@ -227,7 +227,7 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
         iso, start = bed.name, bed.chromStart
         esizes = [len(blk) for blk in bed.blocks]
         estarts = [blk.start - start for blk in bed.blocks]
-        synthinfo = [x.split('..') for x in synthchrtoinfo[bed.chrom].split('--')]
+        synthinfo = [x.split('..') for x in synth_chr_to_info[bed.chrom].split('--')]
         synthinfo = [[y[0], y[1], int(y[2]), int(y[3])] for y in synthinfo]
 
         locusbounds = get_locus_bounds(synthinfo)

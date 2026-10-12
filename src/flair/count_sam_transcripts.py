@@ -157,7 +157,7 @@ def check_singleexon(read_start, read_end, tlen, end_norm_dist):
         return False
 
 
-def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttoblock, unique_bound):
+def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, dist_to_block, unique_bound):
     """Decide whether a read's alignment extends far enough into a terminal
     exon, honoring trust_ends and unique-bound relaxations."""
     if trust_ends:
@@ -165,11 +165,11 @@ def check_exonenddist(blocksize, read_edge, transcript_edge, trust_ends, disttob
     elif unique_bound:
         # NOTE: I originally had this so that read ends needed to be closer to the end of the transcript than the exon edge, but found that was too stringent, especially after normalizing ends
         if transcript_edge < unique_bound:  # left end of transcript
-            return unique_bound - read_edge >= REQ_BP_ALIGNED_IN_EDGE_EXONS  # and disttoblock > abs(transcript_edge - read_edge)
+            return unique_bound - read_edge >= REQ_BP_ALIGNED_IN_EDGE_EXONS  # and dist_to_block > abs(transcript_edge - read_edge)
         else:
-            return read_edge - unique_bound >= REQ_BP_ALIGNED_IN_EDGE_EXONS  # and disttoblock > abs(transcript_edge - read_edge)
+            return read_edge - unique_bound >= REQ_BP_ALIGNED_IN_EDGE_EXONS  # and dist_to_block > abs(transcript_edge - read_edge)
     else:
-        return disttoblock >= REQ_BP_ALIGNED_IN_EDGE_EXONS
+        return dist_to_block >= REQ_BP_ALIGNED_IN_EDGE_EXONS
 
 
 def check_firstlastexon(first_blocksize, last_blocksize, read_start, read_end, tlen, trust_ends, unique_bound_left, unique_bound_right):
@@ -520,7 +520,7 @@ class IsoAln(object):
         self.md = md
 
 
-def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexity
+def parse_sam(sam, info, reads_to_clipping,  # noqa: C901 - FIXME: reduce complexity
               *, quality, stringent, check_splice, fusion_breakpoints, allow_UTR_indels,
               trimmedreads, soft_clipping_buffer, output_endpos,
               trust_ends, end_norm_dist):
@@ -552,7 +552,7 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                 cigar = read.cigartuples
                 tlen = samfile.get_reference_length(transcript)
                 if lastread and readname != lastread:
-                    clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+                    clipping = reads_to_clipping[lastread] if lastread in reads_to_clipping else None
                     assignedts = get_best_transcript(curr_transcripts, info, clipping,
                                                      stringent=stringent, check_splice=check_splice,
                                                      fusion_breakpoints=fusion_breakpoints,
@@ -573,7 +573,7 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
                 curr_transcripts[transcript] = IsoAln(transcript, pos, cigar, tlen, alignscore, mdtag)
                 lastread = readname
     if lastread:
-        clipping = readstoclipping[lastread] if lastread in readstoclipping else None
+        clipping = reads_to_clipping[lastread] if lastread in reads_to_clipping else None
         assignedts = get_best_transcript(curr_transcripts, info, clipping,
                                          stringent=stringent, check_splice=check_splice,
                                          fusion_breakpoints=fusion_breakpoints,
@@ -593,17 +593,17 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
     return transcript_to_reads
 
 
-def _write_transcript_counts(transcripttoreads, countout, mapout, endout):
-    for t in transcripttoreads:
-        countout.writeRow((t, len(transcripttoreads[t])))
+def _write_transcript_counts(transcript_to_reads, countout, mapout, endout):
+    for t in transcript_to_reads:
+        countout.writeRow((t, len(transcript_to_reads[t])))
         if mapout is not None:
-            mapout.writeReads(t, [x[0] for x in transcripttoreads[t]])
+            mapout.writeReads(t, [x[0] for x in transcript_to_reads[t]])
         if endout is not None:
-            for r, s, e in transcripttoreads[t]:
+            for r, s, e in transcript_to_reads[t]:
                 endout.writeRow((r, t, s[0], s[1], s[2], e[0], e[1], e[2]))
 
 
-def write_output(args, transcripttoreads):
+def write_output(args, transcript_to_reads):
     """The counts file is the primary output; all three handles are closed here rather
     than left to interpreter shutdown, where an exception in the loop left a partial
     file behind with no error."""
@@ -611,7 +611,7 @@ def write_output(args, transcripttoreads):
         countout = stack.enter_context(TranscriptCountsWriter(args.output))
         mapout = stack.enter_context(ReadMapWriter(args.generate_map)) if args.generate_map else None
         endout = stack.enter_context(ReadEndsWriter(args.output_endpos)) if args.output_endpos else None
-        _write_transcript_counts(transcripttoreads, countout, mapout, endout)
+        _write_transcript_counts(transcript_to_reads, countout, mapout, endout)
 
 
 def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4, quality=0,   # noqa: C901 - linear function okay
@@ -691,12 +691,12 @@ if __name__ == '__main__':
         isoforms=args.isoforms, stringent=args.stringent, check_splice=args.check_splice,
         fusion_dist=args.fusion_dist, fusion_breakpoints=args.fusion_breakpoints,
         output_endpos=args.output_endpos, unique_bound=args.unique_bound)
-    readstoclipping = {}
+    reads_to_clipping = {}
     if args.trimmedreads:
         for line in fileOps.iterLines(args.trimmedreads):
             rname, left_clipping, right_clipping = line.rstrip().split('\t')
-            readstoclipping[rname] = [int(left_clipping), int(right_clipping)]
-    transcript_to_reads = parse_sam(args.sam, info, readstoclipping,
+            reads_to_clipping[rname] = [int(left_clipping), int(right_clipping)]
+    transcript_to_reads = parse_sam(args.sam, info, reads_to_clipping,
                                     quality=args.quality,
                                     stringent=args.stringent, check_splice=args.check_splice,
                                     fusion_breakpoints=args.fusion_breakpoints,

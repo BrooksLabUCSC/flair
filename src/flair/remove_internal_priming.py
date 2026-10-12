@@ -21,8 +21,8 @@ def check_is_near_annot_end(read3endpos, annotends):
     pos1 = bisect_left(annotends, read3endpos)
     if pos1 == len(annotends):
         return abs(annotends[pos1 - 1] - read3endpos) <= 200
-    disttoend = min(abs(annotends[pos1 - 1] - read3endpos), abs(annotends[pos1] - read3endpos))
-    return disttoend <= 200
+    dist_to_end = min(abs(annotends[pos1 - 1] - read3endpos), abs(annotends[pos1] - read3endpos))
+    return dist_to_end <= 200
 
 
 def check_internal_priming(read3endpos, thischr, genome, reqfreq, threshold):

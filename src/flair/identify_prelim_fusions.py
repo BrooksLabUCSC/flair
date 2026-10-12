@@ -167,10 +167,10 @@ def _target_gene(transcript_to_gene, transcript_id, bam):
     return gene_id
 
 
-def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
-                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None,
+def id_chimeras(mode, bam, gene_to_info, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
+                gene_to_name, minsup, maxloci=10, req_dist_to_start=None, maxpromiscuity=4, intronLocs=None,
                 intronToGenome=None, transcript_to_gene=None):
-    isrevtosign = {True: '-', False: '+'}
+    is_rev_to_sign = {True: '-', False: '+'}
     withsup = pysam.AlignmentFile(bam, "rb")
     readToAligns = {}
     nongenicloci = []
@@ -180,7 +180,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
             if rname not in readToAligns:
                 readToAligns[rname] = []
 
-            refstart, refend, readdir = read.reference_start, read.reference_end, isrevtosign[read.is_reverse]
+            refstart, refend, readdir = read.reference_start, read.reference_end, is_rev_to_sign[read.is_reverse]
             qstart, qend = read.query_alignment_start, read.query_alignment_end
             readlen = read.infer_read_length()
             cigar = read.cigartuples
@@ -200,7 +200,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
             else:
                 tname = read.reference_name
                 genename = _target_gene(transcript_to_gene, tname, bam)
-                refchr, genedir = genetoinfo[genename][0], genetoinfo[genename][3]  # can do this because already required the read to be forward strand
+                refchr, genedir = gene_to_info[genename][0], gene_to_info[genename][3]  # can do this because already required the read to be forward strand
                 refstart = get_genomic_precise_loc(tname, refstart, genedir, intronLocs, intronToGenome)
                 refend = get_genomic_precise_loc(tname, refend, genedir, intronLocs, intronToGenome)
                 refstart, refend = min(refstart, refend), max(refstart, refend)
@@ -231,19 +231,19 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
         if len(interestingloci[l]) >= minsup:
             goodcov.append(l)
 
-    locustopartners = {}
+    locus_to_partners = {}
     for fgenes in goodcov:
         for i in fgenes:
             other = set(fgenes) - {i, }
             newother = frozenset([gene_to_paralogs[g] if g in gene_to_paralogs else g for g in other])
-            if i not in locustopartners:
-                locustopartners[i] = set()
-            locustopartners[i].add(newother)
+            if i not in locus_to_partners:
+                locus_to_partners[i] = set()
+            locus_to_partners[i].add(newother)
 
-    fusiontoinfo = {}
+    fusion_to_info = {}
     for fgenes in goodcov:
-        genomic_chroms = [genetoinfo[g][0] if g in genetoinfo else g.split(':')[0] for g in fgenes]
-        is_good_fusion = identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname, gene_to_paralogs, genomic_chroms, len(interestingloci[fgenes]))
+        genomic_chroms = [gene_to_info[g][0] if g in gene_to_info else g.split(':')[0] for g in fgenes]
+        is_good_fusion = identify_fusion_problems(fgenes, locus_to_partners, maxpromiscuity, gene_to_name, gene_to_paralogs, genomic_chroms, len(interestingloci[fgenes]))
         if is_good_fusion:
             numloci = len(fgenes)
             qdist = [[] for x in range(numloci - 1)]
@@ -287,19 +287,19 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                     alignblocks[i][j] = outpos
 
             # check that 5' gene is in the forward direction, implies plausible promoter
-            if fgenes[0] in genetoinfo:
-                firstgenedir = genetoinfo[fgenes[0]][3]
-                firstgenetstarts = genetoinfo[fgenes[0]][-1]
+            if fgenes[0] in gene_to_info:
+                firstgenedir = gene_to_info[fgenes[0]][3]
+                firstgenetstarts = gene_to_info[fgenes[0]][-1]
                 end5 = alignblocks[0][0]  # if firstgenedir == '+' else alignblocks[0][1]
                 if alignblocks[0][0] > alignblocks[0][1]:
                     end5 -= 1000
                 else:
                     end5 += 1000
-                mindisttostart = min([abs(end5 - x) for x in firstgenetstarts])
+                min_dist_to_start = min([abs(end5 - x) for x in firstgenetstarts])
 
                 if ((firstgenedir == '+' and alignblocks[0][0] < alignblocks[0][1])
                         or (firstgenedir == '-' and alignblocks[0][0] > alignblocks[0][1]))\
-                        and (reqdisttostart is None or mindisttostart <= reqdisttostart):
+                        and (req_dist_to_start is None or min_dist_to_start <= req_dist_to_start):
                     simscores = []
                     for qdistlist in qdist:
                         simscore = []
@@ -312,11 +312,11 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                     if max([abs(median(x)) for x in qdist]) <= 10 \
                             or (max([abs(min(x)) for x in qdist]) <= 10 and max(simscores) <= 3):  # alignments have to either have few gaps or be very consistent
                         fname = '__'.join(fgenes)
-                        fusiontoinfo[fname] = {'reads': set(goodreads), 'disttostart': [mindisttostart], 'qdist': qdist}
+                        fusion_to_info[fname] = {'reads': set(goodreads), 'dist_to_start': [min_dist_to_start], 'qdist': qdist}
                         for i in range(numloci):
-                            fusiontoinfo[fname][fgenes[i]] = [genomic_chroms[i], alignblocks[i][0], alignblocks[i][1]]
+                            fusion_to_info[fname][fgenes[i]] = [genomic_chroms[i], alignblocks[i][0], alignblocks[i][1]]
 
-    return fusiontoinfo
+    return fusion_to_info
 
 
 if __name__ == '__main__':
@@ -329,4 +329,4 @@ if __name__ == '__main__':
                         help='output file name')
     args = parser.parse_args()
 
-    # annot, geneannot, genetoinfo = gchimparsegtf(args.gtf)
+    # annot, geneannot, gene_to_info = gchimparsegtf(args.gtf)

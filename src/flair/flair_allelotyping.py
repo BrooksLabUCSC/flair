@@ -88,32 +88,32 @@ def _vcf_genotype(fields):
     return fields[9].split(':')[0] if len(fields) > 9 else None
 
 
-def _add_vcf_variant(fields, vartoalt, var_to_is_homo):
+def _add_vcf_variant(fields, var_to_alt, var_to_is_homo):
     "record the SNV alts of one VCF record; indels are not considered"
     ref, pos = fields[3], int(fields[1]) - 1
     if len(ref) == 1:
         genotype = _vcf_genotype(fields)
         for alt in fields[4].split(','):
             if len(alt) == 1:
-                vartoalt.setdefault((fields[0], pos), set()).add((ref, alt))
+                var_to_alt.setdefault((fields[0], pos), set()).add((ref, alt))
                 var_to_is_homo[(fields[0], pos, ref, alt)] = genotype
 
 
 def combine_vcf_files(vcffilelist):
-    vartoalt = {}
+    var_to_alt = {}
     var_to_is_homo = {}
     for samplevcf in vcffilelist:
         for line in fileOps.iterLines(samplevcf):
             if line[0] != '#':
                 fields = line.rstrip('\n').split('\t')
                 if _vcf_variant_passed(fields[6]):
-                    _add_vcf_variant(fields, vartoalt, var_to_is_homo)
-    return vartoalt, var_to_is_homo
+                    _add_vcf_variant(fields, var_to_alt, var_to_is_homo)
+    return var_to_alt, var_to_is_homo
 
-def reorganize_vars(vartoalt):
+def reorganize_vars(var_to_alt):
     chrom_to_region_to_vars = {}
-    for chrom, pos in vartoalt:
-        vars = tuple(vartoalt[(chrom, pos)])
+    for chrom, pos in var_to_alt:
+        vars = tuple(var_to_alt[(chrom, pos)])
         region = math.floor(pos / (10 ** 5))
         if chrom not in chrom_to_region_to_vars:
             chrom_to_region_to_vars[chrom] = {}
@@ -817,8 +817,8 @@ def getvariants(*, tumor_bam, normal_bam, vcf, normal_vcf, genome, output, gtf,
     logging.info('loading genes and variants')
     genome_fa = pysam.FastaFile(genome)
     my_vcfs = [vcf, normal_vcf] if normal_vcf is not None else [vcf]
-    vartoalt, var_to_is_homo = combine_vcf_files(my_vcfs)
-    chrom_to_region_to_vars = reorganize_vars(vartoalt)
+    var_to_alt, var_to_is_homo = combine_vcf_files(my_vcfs)
+    chrom_to_region_to_vars = reorganize_vars(var_to_alt)
     gene_to_all_exons, gene_to_all_juncs = load_isoform_data(gtf, isoform_bed)
 
     gene_to_all_exons, gene_to_all_juncs = combine_gene_region_subsets(gene_to_all_exons, gene_to_all_juncs)

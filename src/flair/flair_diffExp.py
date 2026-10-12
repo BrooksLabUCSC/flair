@@ -113,13 +113,13 @@ def multipletests(pvals, alpha=0.05):
 
 
 def get_gene_to_counts(rows):
-    genetototcounts = {}
+    gene_to_tot_counts = {}
     for row in rows:
         counts = [int(x) for x in row.counts]
-        if row.gene_id not in genetototcounts:
-            genetototcounts[row.gene_id] = [0 for x in range(len(counts))]
-        genetototcounts[row.gene_id] = [genetototcounts[row.gene_id][x] + counts[x] for x in range(len(counts))]
-    return genetototcounts
+        if row.gene_id not in gene_to_tot_counts:
+            gene_to_tot_counts[row.gene_id] = [0 for x in range(len(counts))]
+        gene_to_tot_counts[row.gene_id] = [gene_to_tot_counts[row.gene_id][x] + counts[x] for x in range(len(counts))]
+    return gene_to_tot_counts
 
 
 def row_ttest(ttest_ind, row, genetot, ref_cols, test_cols):
@@ -144,13 +144,13 @@ def row_ttest(ttest_ind, row, genetot, ref_cols, test_cols):
     # ranksums() wast too strict for small replicates
     return deltausage, ttest_ind(wtcounts, varcounts).pvalue
 
-def do_mtc_ttest(rows, genetototcounts, ref_cols, test_cols):
+def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols):
     # imported here rather than at module scope; scipy takes 0.7s to import and
     # this is the only use of it, which would be paid by every flair command
     from scipy.stats import ttest_ind
     allids, allpval, alldeltas = [], [], []
     for row in rows:
-        tested = row_ttest(ttest_ind, row, genetototcounts[row.gene_id], ref_cols, test_cols)
+        tested = row_ttest(ttest_ind, row, gene_to_tot_counts[row.gene_id], ref_cols, test_cols)
         if tested is not None:
             deltausage, pval = tested
             allids.append((row.gene_id, row.isoform_id))
@@ -175,8 +175,8 @@ def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols):
     This is better for detecting novel transcripts than DRIM-seq
     """
 
-    genetototcounts = get_gene_to_counts(norm_rows)
-    allids, alldeltas, corrpval = do_mtc_ttest(norm_rows, genetototcounts, ref_cols, test_cols)
+    gene_to_tot_counts = get_gene_to_counts(norm_rows)
+    allids, alldeltas, corrpval = do_mtc_ttest(norm_rows, gene_to_tot_counts, ref_cols, test_cols)
 
     with iso_usage_change_writer(outname) as out:
         for i in range(len(allids)):
@@ -247,14 +247,14 @@ def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, outDir):
 
 def gene_sample_totals(counts_rows):
     "total counts of each gene in each sample"
-    genetosampletotot = {}
+    gene_to_sample_to_tot = {}
     for row in counts_rows:
         counts = [float(x) for x in row.counts]
-        if row.gene_id not in genetosampletotot:
-            genetosampletotot[row.gene_id] = [0 for x in range(len(counts))]
-        genetosampletotot[row.gene_id] = [genetosampletotot[row.gene_id][x] + counts[x]
-                                          for x in range(len(counts))]
-    return genetosampletotot
+        if row.gene_id not in gene_to_sample_to_tot:
+            gene_to_sample_to_tot[row.gene_id] = [0 for x in range(len(counts))]
+        gene_to_sample_to_tot[row.gene_id] = [gene_to_sample_to_tot[row.gene_id][x] + counts[x]
+                                              for x in range(len(counts))]
+    return gene_to_sample_to_tot
 
 def norm_row_by_gene(row, genetot):
     "one isoform's counts scaled so that its gene totals the same in every sample"
@@ -268,8 +268,8 @@ def calc_gene_norm_sig(workdir, counts_rows, sample_columns):
     Counts normalized by gene, written for the record and returned for the t-test.
     This is not a standard normalization method, only used for downstream stats.
     """
-    genetosampletotot = gene_sample_totals(counts_rows)
-    norm_rows = [norm_row_by_gene(row, genetosampletotot[row.gene_id]) for row in counts_rows]
+    gene_to_sample_to_tot = gene_sample_totals(counts_rows)
+    norm_rows = [norm_row_by_gene(row, gene_to_sample_to_tot[row.gene_id]) for row in counts_rows]
     write_counts_matrix(workdir + '/counts.normbygene.tsv', sample_columns, norm_rows)
     return norm_rows
 

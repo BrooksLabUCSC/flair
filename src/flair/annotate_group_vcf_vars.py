@@ -21,11 +21,11 @@ def main():
     args = parse_args()
 
     print('retrieving gene info')
-    isotoblocks, genetoiso, chrregiontogenes, genestoboundaries = get_bedisoform_info(args.bed_isoforms)
+    iso_to_blocks, gene_to_iso, chr_region_to_genes, genes_to_boundaries = get_bedisoform_info(args.bed_isoforms)
     print('parsing vcf')
-    vartoalt = combine_vcf_files([args.vcf, ])
+    var_to_alt = combine_vcf_files([args.vcf, ])
     print('annotating and grouping variants')
-    vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
+    vcfvars = group_annotated_ref_vars(var_to_alt, chr_region_to_genes, genes_to_boundaries, gene_to_iso, iso_to_blocks)
     print('outputting annotated variants')
     with RegionVarsWriter(args.output) as out:
         for chrom, region in vcfvars:

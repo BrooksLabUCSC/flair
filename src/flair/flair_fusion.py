@@ -150,15 +150,15 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         pysam.index(transcriptchimbam)
 
     logging.info('reading gtf')
-    genetoinfo, genetoexons, genetoname = {}, {}, {}
+    gene_to_info, gene_to_exons, gene_to_name = {}, {}, {}
     transcript_to_gene = {}
     chrom_to_gene_pos = {}
     gene_to_all_exons, juncs_to_gene = {}, {}
     for rec in gtf_record_parser(gtf, include_features={'gene', 'exon', 'transcript'}, attrs=GtfAttrsSet.ALL):
         gene_id = rec.gene_id
         if rec.feature == 'gene':
-            genetoinfo[gene_id] = [rec.chrom, rec.start, rec.end, rec.strand, []]
-            genetoname[gene_id] = rec.gene_name if rec.gene_name else gene_id
+            gene_to_info[gene_id] = [rec.chrom, rec.start, rec.end, rec.strand, []]
+            gene_to_name[gene_id] = rec.gene_name if rec.gene_name else gene_id
             if rec.chrom not in chrom_to_gene_pos:
                 chrom_to_gene_pos[rec.chrom] = []
                 juncs_to_gene[rec.chrom] = {}
@@ -166,26 +166,26 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
 
         elif rec.feature == 'exon':
             _record_transcript_gene(transcript_to_gene, rec.transcript_id, gene_id)
-            if gene_id not in genetoexons:
-                genetoexons[gene_id] = {}
-            if rec.transcript_id not in genetoexons[gene_id]:
-                genetoexons[gene_id][rec.transcript_id] = []
-            genetoexons[gene_id][rec.transcript_id].append((rec.start, rec.end))
+            if gene_id not in gene_to_exons:
+                gene_to_exons[gene_id] = {}
+            if rec.transcript_id not in gene_to_exons[gene_id]:
+                gene_to_exons[gene_id][rec.transcript_id] = []
+            gene_to_exons[gene_id][rec.transcript_id].append((rec.start, rec.end))
 
         elif rec.feature == 'transcript':
             end5 = rec.start if rec.strand == '+' else rec.end
-            genetoinfo[gene_id][-1].append(end5)
+            gene_to_info[gene_id][-1].append(end5)
 
     logging.info('continuing to parse annot')
     # FOR JUNCS TO GENE, DO BY CHROM AS WELL
     for chrom in chrom_to_gene_pos:
         chrom_to_gene_pos[chrom] = sorted(chrom_to_gene_pos[chrom])
 
-    for gene in genetoexons:
+    for gene in gene_to_exons:
         gene_to_all_exons[gene] = set()
-        chrom = genetoinfo[gene][0]
-        for t in genetoexons[gene]:
-            exons = sorted(list(genetoexons[gene][t]))
+        chrom = gene_to_info[gene][0]
+        for t in gene_to_exons[gene]:
+            exons = sorted(list(gene_to_exons[gene][t]))
             gene_to_all_exons[gene].update(set(exons))
             if len(exons) > 1:
                 juncs = [(exons[x][1], exons[x + 1][0]) for x in range(len(exons) - 1)]
@@ -208,10 +208,10 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         gene_to_all_exons[gene] = newexons
 
     intronLocs, intronToGenome = {}, {}
-    for g in genetoexons:
-        chrom, start, end, strand, _ = genetoinfo[g]
-        for t in genetoexons[g]:
-            myexons = sorted(genetoexons[g][t])
+    for g in gene_to_exons:
+        chrom, start, end, strand, _ = gene_to_info[g]
+        for t in gene_to_exons[g]:
+            myexons = sorted(gene_to_exons[g][t])
             mylocs = [[0, myexons[0][0] - 500, myexons[0][0]]]  # add start of transcript
             runningtot = 0
             for i in range(len(myexons) - 1):
@@ -227,14 +227,14 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     gene_to_paralogs = get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv')
 
     logging.info('loading transcriptomic chimeras')
-    tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
-                        gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
-                        min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
+    tchim = id_chimeras('transcriptomic', transcriptchimbam, gene_to_info, chrom_to_gene_pos,
+                        gene_to_all_exons, juncs_to_gene, gene_to_paralogs, gene_to_name,
+                        min_support, maxloci=max_loci, req_dist_to_start=max_dist_to_tss,
                         maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome,
                         transcript_to_gene=transcript_to_gene)
     logging.info('loading genomic chimeras')
 
-    combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=4)
+    combchim = id_chimeras('genomic', genomechimbam, gene_to_info, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, gene_to_name, min_support, maxloci=max_loci, req_dist_to_start=max_dist_to_tss, maxpromiscuity=4)
 
     logging.info('combining genomic and transcriptomic')
     #
@@ -243,7 +243,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             combchim[f] = tchim[f]
         else:
             combchim[f]['reads'] = combchim[f]['reads'] | tchim[f]['reads']
-            combchim[f]['disttostart'].extend(tchim[f]['disttostart'])
+            combchim[f]['dist_to_start'].extend(tchim[f]['dist_to_start'])
             combchim[f]['qdist'].extend(tchim[f]['qdist'])
             genes = f.split('__')
             for g in genes:
@@ -261,7 +261,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         fusionreads.update(combchim[f]['reads'])
         genes = f.split('__')
         for g in genes:
-            startdiststr = ','.join([str(x) for x in combchim[f]['disttostart']])
+            startdiststr = ','.join([str(x) for x in combchim[f]['dist_to_start']])
             bedname = g + '__' + '--'.join(genes)
             strand = '+' if combchim[f][g][1] < combchim[f][g][2] else '-'
             positions = sorted(combchim[f][g][1:])
