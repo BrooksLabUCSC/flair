@@ -1126,10 +1126,10 @@ HUB_OUT_DIR = $O/hg38
 
 HG38_CHROMS = https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chromAlias.bb
 
-TEST_TRANSCRIPOME_MUTANT_SPLICE_BB = output/test-transcripome-mutant-splice.isoforms.bb
+TEST_TRANSCRIPTOME_MUTANT_SPLICE_BB = output/test-transcriptome-mutant-splice.isoforms.bb
 TEST_TRANSCRIPTOME_SEG1_BB =  output/test-transcriptome-seg1.isoforms.bb
 
-test-hub:  ${KRAS_MUT_SPLICE_BB} ${KRAS_MUT_SPLICE_SJ_BB} ${TEST_TRANSCRIPOME_MUTANT_SPLICE_BB} \
+test-hub:  ${KRAS_MUT_SPLICE_BB} ${KRAS_MUT_SPLICE_SJ_BB} ${TEST_TRANSCRIPTOME_MUTANT_SPLICE_BB} \
 	${TEST_TRANSCRIPTOME_SEG1_BB}
 
 $O/%.bb: $O/%.bed
