@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from flair import FlairInputDataError
-from flair.pycbio.sys import cli
+from flair.pycbio.sys import cli, fileOps
 from flair.gtf_io import gtf_write_row
 from flair.iso_gene_id import split_iso_gene
 from flair.pycbio.hgdata.bed import BedReader, Bed
@@ -62,10 +62,15 @@ def _make_attrs(gene_id, transcript_id, bed, is_flair_bed, exon_number=None):
             attrs[name] = val
     return attrs
 
-def bed_to_gtf(query, outputfile, force=False, useCDS=True, is_flair_bed=False):  # noqa: C901 - FIXME: reduce complexity
-    outfile = open(outputfile, 'w')
+def bed_to_gtf(query, outputfile, force=False, useCDS=True, is_flair_bed=False):
+    "convert a BED to a GTF, gzipping it when the output name ends in .gz"
+    gene_to_records = _collect_gene_records(query, force, useCDS, is_flair_bed)
+    with fileOps.opengz(outputfile, 'w') as outfile:
+        for gene_id, records in gene_to_records.items():
+            _write_gene_records(outfile, gene_id, records)
+
+def _collect_gene_records(query, force, useCDS, is_flair_bed):  # noqa: C901 - FIXME: reduce complexity
     gene_to_records = {}
-    gene_to_chrom_strand = {}
     my_bed_class = FlairBed if is_flair_bed else Bed
     for bed in BedReader(query, bedClass=my_bed_class):
         name = bed.name
@@ -88,7 +93,6 @@ def bed_to_gtf(query, outputfile, force=False, useCDS=True, is_flair_bed=False):
 
         if gene_id not in gene_to_records:
             gene_to_records[gene_id] = []
-            gene_to_chrom_strand[gene_id] = (bed.chrom, bed.strand)
 
         attrs = _make_attrs(gene_id, transcript_id, bed, is_flair_bed)
         _add_record(gene_to_records[gene_id], ('transcript', bed.chrom, bed.chromStart, bed.chromEnd, bed.strand, attrs))
@@ -126,9 +130,7 @@ def bed_to_gtf(query, outputfile, force=False, useCDS=True, is_flair_bed=False):
                         _add_record(gene_to_records[gene_id], ('start_codon', bed.chrom, max(bed.thickEnd - 3, blk.start), bed.thickEnd, bed.strand, attrs))
                         _add_record(gene_to_records[gene_id], ('5UTR', bed.chrom, bed.thickEnd, blk.end, bed.strand, exon_attrs))
 
-    for gene_id, records in gene_to_records.items():
-        _write_gene_records(outfile, gene_id, records)
-    outfile.close()
+    return gene_to_records
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from operator import attrgetter
 from flair import PosRange, FlairInputDataError
 from flair.pycbio.hgdata.bed import Bed
 from flair.flair_bed import FlairBed, get_strand_rgb
+from flair.output_compress import compressed_path
 from statistics import median
 import pysam
 import pipettor
@@ -166,7 +167,11 @@ def make_big_bed(genome, chrom_sizes_file_name, output_prefix):
     with open(chrom_sizes_file_name, 'w') as fh:
         for chrom in genome.references:
             fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
-    pipettor.run([('bedToBigBed', f'-as={osp.dirname(__file__)}/flair_bed.as', '-type=bed12+', f'{output_prefix}.bed', chrom_sizes_file_name, f'{output_prefix}.bb', '-sort', '-tab')])
+    # no -sort: the BED is written in position order already, so sorting it again
+    # only costs a pass over it
+    pipettor.run([('bedToBigBed', f'-as={osp.dirname(__file__)}/flair_bed.as', '-type=bed12+',
+                   compressed_path(f'{output_prefix}.bed'), chrom_sizes_file_name,
+                   f'{output_prefix}.bb', '-tab')])
     pipettor.run([('rm', chrom_sizes_file_name)])
 
 def add_blocks_from_readrec(bed, readrec):

@@ -3,7 +3,7 @@ import argparse
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed, BedBlock
-from flair.bed_output import open_sorted_bed
+from flair.io_utils import open_sorted_bed
 
 # with --include_gene, the column after the twelve standard ones holds the gene
 GENE_ID_EXTRA_COL = 0

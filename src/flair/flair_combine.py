@@ -11,9 +11,8 @@ from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons
 from flair.pycbio.sys import fileOps
-from flair.io_utils import check_genome_fasta
-from flair.output_compress import compressed_path
-from flair.bed_output import open_sorted_bed
+from flair.io_utils import check_genome_fasta, open_sorted_bed
+from flair.output_compress import compressed_path, open_fasta_output, resolved_input_path
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -97,7 +96,7 @@ def parse_input(manifest, prefixes, input_beds):
             sampledata.append(line.rstrip())
     elif prefixes is not None:
         for prefix in prefixes.rstrip(',').split(','):
-            sampledata.append(prefix + '.isoforms.bed')
+            sampledata.append(resolved_input_path(prefix + '.isoforms.bed'))
     elif input_beds is not None:
         for bed_path in input_beds.rstrip(',').split(','):
             sampledata.append(bed_path)
@@ -261,7 +260,8 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     iso_to_gene = {}
     iso_count, gene_count = 1, 1
     genome_fa = pysam.FastaFile(genome)
-    with open_sorted_bed(output + '.combined.isoforms.bed') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
+    with open_sorted_bed(compressed_path(output + '.combined.isoforms.bed')) as bed_fh, \
+         open_fasta_output(output + '.combined.isoforms.fa') as fa_fh:
         for juncchaininfo in intronchaintoisos:
             all_juncs = [x[2] for x in juncchaininfo]
             og_isos = intronchaintoisos[juncchaininfo]
@@ -289,7 +289,8 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
 
     write_counts_file(output, allsamples, iso_to_samples_to_counts, iso_to_gene)
 
-    bed_to_gtf(output + '.combined.isoforms.bed', output + '.combined.isoforms.gtf', is_flair_bed=True)
+    bed_to_gtf(compressed_path(output + '.combined.isoforms.bed'),
+               compressed_path(output + '.combined.isoforms.gtf'), is_flair_bed=True)
 
     make_big_bed(genome_fa, output + '.chrom.sizes', output + '.combined.isoforms')
     genome_fa.close()

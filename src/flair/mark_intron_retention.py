@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from flair.marked_isoforms_bed import MarkedIsoformsWriter, bed_column_count
-from flair.bed_output import bed_row_sort_key
+from flair.io_utils import bed_row_sort_key
 from flair.pycbio.sys import cli
 from flair.retained_introns_tsv import RetainedIntronsWriter
 from flair.pycbio.hgdata.bed import BedReader

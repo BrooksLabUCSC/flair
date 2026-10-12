@@ -17,7 +17,7 @@ from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.io_utils import check_genome_fasta
-from flair.output_compress import compressed_path
+from flair.output_compress import compressed_path, open_output, open_fasta_output
 
 def add_subparser(subparsers):
     desc = "Identify gene fusions and generate a fusion transcriptome"
@@ -80,9 +80,12 @@ def def_value():
 
 def report_nofusions(outputprefix):
     logging.info('no fusions detected. Exiting')
-    for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa']:
-        f = open(file, 'w')
-        f.close()
+    # written through the openers, so that a compressed run gets an empty gzip
+    # file rather than an empty file wearing a .gz name
+    with open_output(outputprefix + '.fusions.isoforms.bed'):
+        pass
+    with open_fasta_output(outputprefix + '.fusions.isoforms.fa'):
+        pass
 
 def align_to_synth_genome(genome, reads, output, additional_options):
     mm2_cmd = ['minimap2', '-ax', 'splice'] + additional_options + [genome, reads]
@@ -407,13 +410,14 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     logging.info('converting coordinates from synthetic to genomic')
     convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed',
                            output + '.syntheticAligned.flair.isoform.read.map.txt', freadsname,
-                           output + '-syntheticBreakpointLoc.bed', output + '.fusions.isoforms.bed', min_dist_between_breakpoints)
+                           output + '-syntheticBreakpointLoc.bed',
+                           compressed_path(output + '.fusions.isoforms.bed'), min_dist_between_breakpoints)
 
     goodisos = set()
-    for bed in BedReader(output + '.fusions.isoforms.bed', fixScores=True):
+    for bed in BedReader(compressed_path(output + '.fusions.isoforms.bed'), fixScores=True):
         goodisos.add(bed.name)
 
-    with open(output + '.fusions.isoforms.fa', 'w') as out:
+    with open_fasta_output(output + '.fusions.isoforms.fa') as out:
         good = False
         for line in open(output + '.syntheticAligned.flair.isoforms.fa'):
             if line[0] == '>':
@@ -430,7 +434,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             if row.name in goodisos:
                 out.writeReads(row.name, row.reads)
 
-    bed_to_gtf(output + '.fusions.isoforms.bed', output + '.fusions.isoforms.gtf', is_flair_bed=True)
+    bed_to_gtf(compressed_path(output + '.fusions.isoforms.bed'),
+               compressed_path(output + '.fusions.isoforms.gtf'), is_flair_bed=True)
 
     with pysam.FastaFile(genome) as genome_fa:
         make_big_bed(genome_fa, output + '.syntheticAligned.flair.chrom.sizes', output + '.fusions.isoforms')

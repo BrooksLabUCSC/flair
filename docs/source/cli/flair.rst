@@ -16,7 +16,7 @@
 
 .. option:: -z, --compress
 
-   gzip the text files this run writes, adding .gz to their names. BAM, bigBed and PDFs are not gzipped, nor are intermediate files. Compressed input is read with or without this option, detected by file extension
+   gzip the text files this run writes, adding .gz to their names, FASTA with bgzip so it can be indexed. BAM, bigBed and PDFs are not gzipped, nor are intermediate files. Compressed input is read with or without this option, detected by file extension
 
 .. option:: --log-stderr
 

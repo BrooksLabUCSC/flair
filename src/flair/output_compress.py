@@ -4,9 +4,12 @@ A flair run compresses all of its text outputs or none of them, so this is one
 setting for the run rather than an argument threaded through every function that
 writes a file.  flair --compress sets it once, before any subcommand starts.
 
-What it covers is narrow on purpose:
+What it covers:
 
-- the text files flair itself writes, which gain a .gz suffix
+- the text files flair itself writes, which gain a .gz suffix: the tables, the
+  isoform BED, the GTF and the FASTA
+- FASTA is bgzip rather than plain gzip, so that samtools faidx and pysam can
+  index what flair wrote
 - not BAM, which is compressed already, nor bigBed, nor the PDFs the R scripts
   write, none of which flair can gzip
 - not the intermediates under <output>.intermediate, which are joined and
@@ -15,6 +18,9 @@ What it covers is narrow on purpose:
 Reading needs no option at all: every text input flair reads may be compressed,
 whether or not this run writes compressed output.
 """
+import os.path as osp
+from flair import FlairInputDataError
+from flair.pycbio.sys import fileOps
 
 COMPRESS_SUFFIX = '.gz'
 
@@ -35,3 +41,23 @@ def compressed_path(path):
     the compression suffix when the run asked for compression.  Pass only final
     outputs; intermediates stay plain."""
     return path + COMPRESS_SUFFIX if _compress_output else path
+
+def open_output(path):
+    "writable text file under the name compressed_path gives it"
+    return fileOps.opengz(compressed_path(path), 'w')
+
+def open_fasta_output(path):
+    """Writable FASTA under the name compressed_path gives it, bgzip compressed
+    rather than gzip when the run asked for compression."""
+    return fileOps.opengz(compressed_path(path), 'w', bgzip=True)
+
+def resolved_input_path(path):
+    """The file a derived input path names, when flair builds the name rather than
+    being given it: the path itself, or its compressed form when only that exists.
+    A prefix from a compressed run has .gz on every text file it wrote."""
+    compressed = path + COMPRESS_SUFFIX
+    have, have_compressed = osp.exists(path), osp.exists(compressed)
+    if have and have_compressed:
+        raise FlairInputDataError(f"both {path} and {compressed} exist; remove the one that is "
+                                  "stale, or name the file to use rather than its prefix")
+    return compressed if have_compressed else path

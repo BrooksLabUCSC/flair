@@ -1,8 +1,8 @@
 """
-Tests for bed_output module.
+Tests for the sorted BED output of the io_utils module.
 """
 import gzip
-from flair.bed_output import open_sorted_bed, sort_bed_file
+from flair.io_utils import open_sorted_bed, sort_bed_file
 from flair.pycbio.hgdata.bed import Bed, BedReader
 
 # out of order on chrom, on start, and two rows at one position

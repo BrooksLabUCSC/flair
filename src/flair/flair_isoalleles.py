@@ -12,9 +12,8 @@ from flair.iso_allele_counts_tsv import IsoAlleleCountsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_data import make_big_bed, get_reverse_complement, translate_codon, COMPBASE
 from flair import FlairInputDataError
-from flair.io_utils import check_genome_fasta
-from flair.output_compress import compressed_path
-from flair.bed_output import open_sorted_bed
+from flair.io_utils import check_genome_fasta, open_sorted_bed
+from flair.output_compress import compressed_path, open_fasta_output
 
 
 def add_subparser(subparsers):
@@ -424,8 +423,8 @@ def getvariants(*, allele_vcf, allele_read_map, allele_read_map_normal, genome, 
 
     logging.info('grouping alleles by isoform and getting protein predictions')
     with pysam.FastaFile(genome) as genome_fa:
-        with open_sorted_bed(output + '.isoalleles.bed') as fh_bed, \
-             open(output + '.isoalleles.fa', 'w') as fh_fa, \
+        with open_sorted_bed(compressed_path(output + '.isoalleles.bed')) as fh_bed, \
+             open_fasta_output(output + '.isoalleles.fa') as fh_fa, \
              IsoAlleleCountsWriter(compressed_path(output + '.isoallele.counts.tsv'),
                                    with_normal=iso_read_map_normal is not None) as fh_counts:
             fh_map, fh_map_norm = None, None

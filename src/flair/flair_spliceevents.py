@@ -16,8 +16,7 @@ from flair import SeqRange, resolve_deprecated_option
 from statistics import median
 from flair.junction_correct import junction_corrector_factory
 from flair.isoform_data import ReadRec
-from flair.bed_output import sort_bed_file
-from flair.io_utils import check_genome_fasta, make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir, sort_bed_file
 from flair.read_processing import get_sequence_from_bed, generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES

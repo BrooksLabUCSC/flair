@@ -5,7 +5,7 @@ from flair.gtf_to_bed import get_iso_info
 from flair.pycbio.sys import cli
 from flair.isoform_data import binary_search
 from flair.pycbio.hgdata.bed import BedReader
-from flair.bed_output import open_sorted_bed
+from flair.io_utils import open_sorted_bed
 
 # annotated single-exon genes scanned either side of the search index
 SE_SEARCH_WINDOW = 2

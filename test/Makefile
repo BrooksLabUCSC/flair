@@ -351,6 +351,23 @@ define cmp_expect_sort_gz
 endef
 
 ##
+# a compressed output that has no expected file of its own: it must be there and
+# must decompress
+##
+define check_gz
+	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
+	zcat $O/${1}.gz > /dev/null
+endef
+
+##
+# a compressed FASTA is bgzip rather than plain gzip so that it can be indexed,
+# which is what this checks; samtools faidx refuses a plain gzip file
+##
+define check_fasta_indexable
+	samtools faidx $O/${1}.gz
+endef
+
+##
 # compare an output file against another output file, for tests that must produce
 # the same result as an earlier test from differently arranged input
 ##
@@ -488,6 +505,10 @@ COMBINE_BEDS_GZ = ${TI}/test-transcriptome.isoforms.bed.gz ${TI}/test-transcript
 test-combine-compress: mkdirs ${GENOME_FA} ${COMBINE_BEDS_GZ}
 	flair -z combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds $(shell echo $(COMBINE_BEDS_GZ) | tr ' ' ',')
 	$(call cmp_expect_gz,$@.combined.isoform.counts.tsv,test-combine-files.combined.isoform.counts.tsv)
+	$(call cmp_expect_gz,$@.combined.isoforms.bed,test-combine-files.combined.isoforms.bed)
+	$(call check_gz,$@.combined.isoforms.gtf)
+	$(call check_gz,$@.combined.isoforms.fa)
+	$(call check_fasta_indexable,$@.combined.isoforms.fa)
 
 test-combine-files: mkdirs ${GENOME_FA}
 	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
@@ -743,8 +764,11 @@ test-transcriptome-mult-ends-trust-ends: mkdirs ${TEST_ALIGN_BAM}
 test-transcriptome-compress: mkdirs ${TEST_ALIGN_BAM} ${TI}/basic.annotation.gtf.gz ${TI}/basic.shortread_junctions.tab.gz
 	flair -z transcriptome -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${TI}/basic.shortread_junctions.tab.gz \
 	   -t 4 -f ${TI}/basic.annotation.gtf.gz -o $O/$@ --sample_name test-transcriptome --generate_map
-	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_gz,$@.isoforms.bed,test-transcriptome.isoforms.bed)
+	$(call cmp_expect_gz,$@.isoforms.gtf,test-transcriptome.isoforms.gtf)
+	$(call cmp_expect_gz,$@.isoforms.fa,test-transcriptome.isoforms.fa)
 	$(call cmp_expect_gz,$@.isoform.read.map.txt,test-transcriptome.isoform.read.map.txt)
+	$(call check_fasta_indexable,$@.isoforms.fa)
 
 test-transcriptome-partition: mkdirs ${TEST_ALIGN_BAM}
 	flair transcriptome  -b ${TEST_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --parallel_mode byregion
@@ -921,7 +945,7 @@ ${ALIGN_LONGSHOT}: ${GENOME_FA} ${TEST_ALIGN_BAM}
 # it are skipped with a warning rather than failing
 have_longshot := $(shell which longshot >/dev/null 2>&1 && echo yes || echo no)
 longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant \
-	test-alleles-compress test-variantquant-compress
+	test-alleles-compress test-isoalleles-compress test-variantquant-compress
 
 ifeq (${have_longshot},yes)
 variants-tests: ${longshot_tests}
@@ -955,6 +979,13 @@ test-isoalleles: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 	$(call cmp_expect,$@.isoalleles.bed)
 	$(call cmp_expect,$@.isoallele.counts.tsv)
 
+
+test-isoalleles-compress: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT} ${TI}/test-transcriptome.isoforms.bed.gz
+	flair -z isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.txt --genome ${GENOME_FA} \
+	                 --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --iso_read_map $(TOME_READ_MAP) -o $O/$@ --tumor_bam ${TEST_ALIGN_BAM} --generate_map
+	$(call cmp_expect_gz,$@.isoalleles.bed,test-isoalleles.isoalleles.bed)
+	$(call cmp_expect_gz,$@.isoallele.counts.tsv,test-isoalleles.isoallele.counts.tsv)
+	$(call check_fasta_indexable,$@.isoalleles.fa)
 
 test-variantquant: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM} ${ALIGN_LONGSHOT}
 	flair variantquant --transcriptome_bam ${TEST_ALIGN_BAM} --vcf ${ALIGN_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
@@ -994,7 +1025,7 @@ ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
 FUSION_TEST_SHARED_OUT = $O/fusion_tests
 FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
 
-fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-help
+fusion-tests: test-fusion test-fusion-compress test-fusion-pary test-fusion-nongenic test-fusion-help
 
 update-fusion-tests:
 	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic"; \
@@ -1009,6 +1040,14 @@ test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 # 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
+
+# the sample name is the one test-fusion used, since it is written into the BED
+test-fusion-compress: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM} ${TI}/basic.annotation.gtf.gz
+	flair -z fusion -g ${GENOME_FA} -f ${TI}/basic.annotation.gtf.gz -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name test-fusion --min_support 2
+	$(call cmp_expect_sort_gz,$@.fusions.isoforms.bed,test-fusion.fusions.isoforms.bed)
+	$(call cmp_expect_sort_gz,$@.fusions.isoforms.fa,test-fusion.fusions.isoforms.fa)
+	$(call check_gz,$@.fusions.isoforms.gtf)
+	$(call check_fasta_indexable,$@.fusions.isoforms.fa)
 
 test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2

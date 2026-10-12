@@ -12,7 +12,7 @@ from flair import FlairError, FlairInputDataError, FlairNotImplementedError, res
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
 from flair.partition_runner import parallel_mode_parse, partition_runner_factory, combine_temp_files_by_suffix
-from flair.io_utils import check_genome_fasta, make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir, open_sorted_bed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Gene, Isoform, ReadRec,
                                 get_sequence_for_exons, binary_search, convert_to_bed12, convert_to_flair_bed, make_big_bed)
@@ -27,8 +27,7 @@ from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_counts_tsv import IsoformCountsWriter
 from flair.flair_bed import FlairBed
-from flair.output_compress import compressed_path
-from flair.bed_output import open_sorted_bed
+from flair.output_compress import compressed_path, open_fasta_output
 from flair.pycbio.sys import fileOps
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
@@ -1349,7 +1348,7 @@ def combine_chunks(args, output, partitions):
 def get_new_ids(output):
     iso_hash_to_ID, gene_hash_to_ID, aaseq_to_id = {}, {}, {}
     iso_count, gene_count, aaseq_count = 1, 1, 1
-    with open_sorted_bed(output + '.isoforms.newids.bed') as fh:
+    with open_sorted_bed(compressed_path(output + '.isoforms.newids.bed')) as fh:
         for bed_rec in BedReader(output + '.isoforms.bed', bedClass=FlairBed):
             if bed_rec.name not in iso_hash_to_ID:
                 iso_id = f'FLT{iso_count:08d}'
@@ -1383,7 +1382,7 @@ def fix_ids_txt_file(iso_hash_to_ID, oldfile, newfile):
                 fh.write('\t'.join(line))
 
 def fix_ids_fa_file(iso_hash_to_ID, oldfile, newfile):
-    with open(newfile, 'w') as fh:
+    with open_fasta_output(newfile) as fh:
         last = False
         for line in open(oldfile):
             if line[0] == '>':
@@ -1401,13 +1400,22 @@ def rename_ids_into_place(iso_hash_to_ID, joined, final):
     if final != joined:
         os.unlink(joined)
 
+def move_into_place(renamed, joined):
+    """Put the file written with the final ids where the joined partition output was.
+    Both names follow the run's compression, so the joined file is only left behind,
+    to be removed here, when compression gave the final file a different name."""
+    final = compressed_path(joined)
+    os.rename(compressed_path(renamed), final)
+    if final != joined:
+        os.unlink(joined)
+
 def fix_iso_labels(output, generate_map):
     iso_hash_to_ID = get_new_ids(output)
     rename_ids_into_place(iso_hash_to_ID, output + '.isoform.counts.txt',
                           compressed_path(output + '.isoform.counts.txt'))
     fix_ids_fa_file(iso_hash_to_ID, output + '.isoforms.fa', output + '.isoforms.newids.fa')
-    pipettor.run([('mv', output + '.isoforms.newids.bed', output + '.isoforms.bed')])
-    pipettor.run([('mv', output + '.isoforms.newids.fa', output + '.isoforms.fa')])
+    move_into_place(output + '.isoforms.newids.bed', output + '.isoforms.bed')
+    move_into_place(output + '.isoforms.newids.fa', output + '.isoforms.fa')
     if generate_map:
         rename_ids_into_place(iso_hash_to_ID, output + '.isoform.read.map.txt',
                               compressed_path(output + '.isoform.read.map.txt'))
@@ -1468,7 +1476,8 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
     fix_iso_labels(args.output, args.generate_map)
 
     # index of column with gene id in extracols, then additional column indexes + names
-    bed_to_gtf(args.output + '.isoforms.bed', args.output + '.isoforms.gtf', is_flair_bed=True)
+    bed_to_gtf(compressed_path(args.output + '.isoforms.bed'),
+               compressed_path(args.output + '.isoforms.gtf'), is_flair_bed=True)
 
     make_big_bed(genome_fa, temp_dir + 'chrom.sizes', args.output + '.isoforms')
 

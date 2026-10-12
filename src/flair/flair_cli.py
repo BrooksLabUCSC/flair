@@ -62,9 +62,10 @@ def build_parser():
                         help="print FLAIR version")
     parser.add_argument('-z', '--compress', action='store_true',
                         help="gzip the text files this run writes, adding .gz to their "
-                             "names.  BAM, bigBed and PDFs are not gzipped, nor are "
-                             "intermediate files.  Compressed input is read with or "
-                             "without this option, detected by file extension")
+                             "names, FASTA with bgzip so it can be indexed.  BAM, bigBed "
+                             "and PDFs are not gzipped, nor are intermediate files.  "
+                             "Compressed input is read with or without this option, "
+                             "detected by file extension")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARNING)
     subparsers = parser.add_subparsers(title="subcommands", dest="subcommand",
                                        metavar="<subcommand>", required=True)

@@ -1,7 +1,7 @@
 import logging
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
-from flair.bed_output import open_sorted_bed
+from flair.io_utils import open_sorted_bed
 from flair.pycbio.sys import fileOps
 
 def get_iso_to_reads(readmapfile):

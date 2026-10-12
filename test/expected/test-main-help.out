@@ -9,9 +9,10 @@ options:
   -h, --help            show this help message and exit
   --version             print FLAIR version
   -z, --compress        gzip the text files this run writes, adding .gz to
-                        their names. BAM, bigBed and PDFs are not gzipped, nor
-                        are intermediate files. Compressed input is read with
-                        or without this option, detected by file extension
+                        their names, FASTA with bgzip so it can be indexed.
+                        BAM, bigBed and PDFs are not gzipped, nor are
+                        intermediate files. Compressed input is read with or
+                        without this option, detected by file extension
   --log-stderr          also log to stderr, even when logging to syslog
   --log-level LOG_LEVEL
                         Set level to integer or case-insensitive symbolic
