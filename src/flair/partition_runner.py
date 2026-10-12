@@ -97,8 +97,7 @@ class Partition:
     @property
     def file_prefix(self):
         """Base path prefix for output files inside temp_dir."""
-        r = self.region
-        return self.temp_path(f"{r.name}-{r.start}-{r.end}")
+        return self.temp_path(region_file_name(self.region))
 
     def output_path(self, name):
         """Return the path for a named output file inside temp_dir.
@@ -203,8 +202,13 @@ class PartitionRunner:
                 pool.map(_call_partition_func, packed)
 
 
+def region_file_name(region):
+    "the name a region's directory, and the files inside it, are built from"
+    return f"{region.name}-{region.start}-{region.end}"
+
+
 def _region_temp_dir(work_dir, region):
-    return os.path.join(work_dir, f"{region.name}-{region.start}-{region.end}")
+    return os.path.join(work_dir, region_file_name(region))
 
 
 def partition_runner_factory(parallel_mode, genome, genome_aligned_bam, work_dir, annot_gtf, threads, *,
