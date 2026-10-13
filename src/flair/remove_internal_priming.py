@@ -52,10 +52,8 @@ def check_internal_priming(read3endpos, chrom, genome, reqfreq, threshold):
                 maxlen = len(seq)
     return maxlen >= threshold
 
-# FIXME: misleading name — returns True when read should be KEPT (no internal
-# priming detected), not when internal priming is removed.  A name like
-# passesInternalPrimingFilter would be clearer.
-def removeinternalpriming(refname, refstart, refend, isrev, genome, annottranscriptends, annotexons, threshold, frac_as):
+
+def passes_internal_priming_filter(refname, refstart, refend, isrev, genome, annottranscriptends, annotexons, threshold, frac_as):
     """
     Determine if a read should be kept (True) or discarded as internally primed (False).
 
