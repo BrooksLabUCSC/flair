@@ -4,7 +4,7 @@ one it was assigned, so a readthrough annotation gives way to the gene it contai
 The layout follows 9p21 in MCF7: a readthrough lncRNA starting with MTAP's exons and
 running into CDKN2B-AS1, so reads of the MTAP--CDKN2B-AS1 fusion went to either.
 """
-from flair.identify_prelim_fusions import exonic_overlap, exon_sharing_genes, prefer_shorter_gene
+from flair.identify_prelim_fusions import exonic_overlap, exon_sharing_genes, prefer_shorter_gene, is_foldback
 
 GENES = {  # gene -> (chrom, start, end, strand), as genetoinfo without the TSS list
     'MTAP': ('chr9', 1000, 16000, '+'),
@@ -56,3 +56,26 @@ def test_readthrough_kept_where_only_it_has_the_exons():
     piece = [(15800, 16000), (30500, 30600)]
     assert prefer_shorter_gene('READTHROUGH', piece, _sharing(), GENES, EXONS) == 'READTHROUGH'
 
+
+def _piece(qstart, qend, start, end, strand, chrom='chr16'):
+    "an id_chimeras piece: read and genome positions in the read's direction"
+    if strand == '+':
+        return [(qstart, start), (qend, end), 'gene', strand, chrom]
+    return [(qstart, end), (qend, start), 'gene', strand, chrom]
+
+
+def test_foldback_reads_are_detected():
+    "SLC7A5 in MCF7: a short piece folded back over the read's main piece"
+    overlapping = [_piece(0, 91, 87831293, 87831384, '+'), _piece(85, 1473, 87830016, 87831404, '-')]
+    nearby = [_piece(0, 268, 96330704, 96330974, '-'), _piece(244, 1069, 96331069, 96331905, '+')]
+    assert is_foldback(overlapping)
+    assert is_foldback(nearby)
+
+
+def test_fusions_are_not_foldbacks():
+    same_strand_neighbours = [_piece(0, 500, 1000, 1500, '+'), _piece(500, 1000, 1700, 2200, '+')]
+    distant_inversion = [_piece(0, 500, 1000, 1500, '+'), _piece(500, 1000, 50000, 50500, '-')]
+    other_chrom = [_piece(0, 500, 1000, 1500, '+'), _piece(500, 1000, 1000, 1500, '-', chrom='chr17')]
+    assert not is_foldback(same_strand_neighbours)
+    assert not is_foldback(distant_inversion)
+    assert not is_foldback(other_chrom)

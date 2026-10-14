@@ -34,6 +34,10 @@
     contains.  Reads of the MCF7 fusion MTAP--CDKN2B-AS1 were split between MTAP
     and a readthrough lncRNA starting with MTAP's exons, and the fusion was
     reported twice with part of its support each time.
+  * `flair fusion` leaves out fold-back reads, chimeric reads with pieces on
+    opposite strands within 1 kb of each other: cDNA folded back on itself, not
+    a fusion.  They made fusions of genes with their antisense or neighbouring
+    opposite-strand genes, as SLC7A5--SLC7A5-AS1 and EXOC7--ZACN in MCF7.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

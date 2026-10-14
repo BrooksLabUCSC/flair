@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import pysam
 import argparse
 from collections import Counter, defaultdict
@@ -207,12 +208,30 @@ def prefer_shorter_gene(gene, blocks, sharing, genetoinfo, gene_to_all_exons):
     return best
 
 
+# chimeric pieces on opposite strands this close are a fold-back, not a fusion
+FOLDBACK_MAX_DIST = 1000
+
+
+def is_foldback(aligns):
+    """Is a chimeric read a fold-back: two of its pieces on opposite strands of one
+    chromosome overlapping or within FOLDBACK_MAX_DIST.  cDNA that folds back on
+    itself gives a read of a region joined to its own reverse complement, and the
+    piece on the other strand would be assigned to an antisense gene there, as
+    SLC7A5--SLC7A5-AS1 in MCF7.  aligns are id_chimeras' pieces, [(qstart, refpos),
+    (qend, refpos), gene, strand, chrom]."""
+    spans = [(a[4], a[3], min(a[0][1], a[1][1]), max(a[0][1], a[1][1])) for a in aligns]
+    for i, (chrom, strand, start, end) in enumerate(spans):
+        for chrom2, strand2, start2, end2 in spans[i + 1:]:
+            if chrom2 == chrom and strand2 != strand and max(start, start2) - min(end, end2) <= FOLDBACK_MAX_DIST:
+                return True
+    return False
+
+
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
                 genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None):
     isrevtosign = {True: '-', False: '+'}
     withsup = pysam.AlignmentFile(bam, "rb")
     readToAligns = {}
-    nongenicloci = []
     sharing = exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons)
     for read in withsup:
         if read.is_mapped and not read.is_secondary and read.has_tag('SA') and (mode == 'genomic' or not read.is_reverse):  # if aligned to transcriptome, must match strand of transcript
@@ -232,9 +251,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                 refchr = read.reference_name
                 readblocks = get_exon_intron_blocks(read)
                 genename = getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, refchr, readblocks, readdir)
-                if type(genename) is tuple:
-                    nongenicloci.append(genename)
-                else:
+                if type(genename) is not tuple:  # tuples are non-genic loci
                     genename = prefer_shorter_gene(genename, readblocks[1], sharing, genetoinfo, gene_to_all_exons)
                 if readdir == '+':
                     readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
@@ -253,6 +270,11 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                     readToAligns[rname].append([(qstart, refend), (qend, refstart), genename, genedir, refchr])
     withsup.close()
 
+    foldbacks = [r for r, aligns in readToAligns.items() if is_foldback(aligns)]
+    for r in foldbacks:
+        del readToAligns[r]
+    logging.info(f'{mode} chimeras: {len(foldbacks)} fold-back reads of {len(readToAligns) + len(foldbacks)} left out')
+    nongenicloci = [a[2] for aligns in readToAligns.values() for a in aligns if type(a[2]) is tuple]
     nongenicloci.sort()
     ognongenic_to_genes = group_nongenic_loci(nongenicloci)
 
