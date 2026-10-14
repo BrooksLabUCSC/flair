@@ -29,6 +29,11 @@
     first 4 letters, which threw out unrelated genes with a common stem, as the
     known MCF7 fusion BCAS4--BCAS3.  Genes of one name, as a gene's X and Y
     copies, are still rejected, and paralogs by the paralog table.
+  * `flair fusion` gives each chimeric read piece the shortest gene sharing exons
+    with the one it matched, so a readthrough annotation gives way to the gene it
+    contains.  Reads of the MCF7 fusion MTAP--CDKN2B-AS1 were split between MTAP
+    and a readthrough lncRNA starting with MTAP's exons, and the fusion was
+    reported twice with part of its support each time.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

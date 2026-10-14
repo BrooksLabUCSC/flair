@@ -2,7 +2,7 @@
 
 import pysam
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 from statistics import median
 from flair.convert_synthetic_to_genome_bed import identify_fusion_problems
 
@@ -156,12 +156,64 @@ def group_nongenic_loci(nongenicloci):
     return ognongenic_to_genes
 
 
+def exonic_overlap(blocks, exons):
+    """Bases of the sorted blocks that fall in the sorted, merged exons."""
+    total, i = 0, 0
+    for s, e in blocks:
+        while i < len(exons) and exons[i][1] <= s:
+            i += 1
+        j = i
+        while j < len(exons) and exons[j][0] < e:
+            total += min(e, exons[j][1]) - max(s, exons[j][0])
+            j += 1
+    return total
+
+
+def exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons):
+    """gene -> the genes on its strand sharing exon sequence with it, as a gene and a
+    readthrough annotation containing it.  chrom_to_gene_pos is chrom -> sorted
+    (start, end, strand, gene), gene_to_all_exons gene -> sorted merged exons."""
+    sharing = defaultdict(set)
+    for genes in chrom_to_gene_pos.values():
+        active = []
+        for start, end, strand, gene in genes:
+            active = [a for a in active if a[1] > start]
+            for _, _, strand2, gene2 in active:
+                if strand2 == strand and exonic_overlap(gene_to_all_exons.get(gene, ()), gene_to_all_exons.get(gene2, ())) > 0:
+                    sharing[gene].add(gene2)
+                    sharing[gene2].add(gene)
+            active.append((start, end, strand, gene))
+    return sharing
+
+
+# a shorter gene is taken if its exons hold this much of what the assigned gene's do
+SHORTER_GENE_MIN_COVER = 0.95
+
+
+def prefer_shorter_gene(gene, blocks, sharing, genetoinfo, gene_to_all_exons):
+    """The gene for a read piece aligned to blocks (sorted genomic intervals): of gene
+    and the genes sharing exons with it, the shortest whose exons cover the blocks
+    about as well as gene's, so a readthrough or other long annotation gives way to
+    the gene it contains.  Otherwise a fusion's reads are split between the two,
+    each needing min_support on its own, and both are reported."""
+    if gene not in sharing:
+        return gene
+    cover = exonic_overlap(blocks, gene_to_all_exons[gene])
+    best, best_len = gene, genetoinfo[gene][2] - genetoinfo[gene][1]
+    for other in sorted(sharing[gene]):
+        other_len = genetoinfo[other][2] - genetoinfo[other][1]
+        if other_len < best_len and exonic_overlap(blocks, gene_to_all_exons[other]) >= SHORTER_GENE_MIN_COVER * cover:
+            best, best_len = other, other_len
+    return best
+
+
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
                 genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None):
     isrevtosign = {True: '-', False: '+'}
     withsup = pysam.AlignmentFile(bam, "rb")
     readToAligns = {}
     nongenicloci = []
+    sharing = exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons)
     for read in withsup:
         if read.is_mapped and not read.is_secondary and read.has_tag('SA') and (mode == 'genomic' or not read.is_reverse):  # if aligned to transcriptome, must match strand of transcript
             rname = read.query_name
@@ -178,9 +230,12 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
 
             if mode == 'genomic':
                 refchr = read.reference_name
-                genename = getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, refchr, get_exon_intron_blocks(read), readdir)
+                readblocks = get_exon_intron_blocks(read)
+                genename = getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, refchr, readblocks, readdir)
                 if type(genename) is tuple:
                     nongenicloci.append(genename)
+                else:
+                    genename = prefer_shorter_gene(genename, readblocks[1], sharing, genetoinfo, gene_to_all_exons)
                 if readdir == '+':
                     readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
                 else:
@@ -191,6 +246,7 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                 refstart = getGenomicPreciseLoc(tname, refstart, genedir, intronLocs, intronToGenome)
                 refend = getGenomicPreciseLoc(tname, refend, genedir, intronLocs, intronToGenome)
                 refstart, refend = min(refstart, refend), max(refstart, refend)
+                genename = prefer_shorter_gene(genename, [(refstart, refend)], sharing, genetoinfo, gene_to_all_exons)
                 if genedir == '+':
                     readToAligns[rname].append([(qstart, refstart), (qend, refend), genename, readdir, refchr])
                 else:
