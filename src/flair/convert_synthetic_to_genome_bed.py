@@ -34,6 +34,14 @@ def get_paralog_ref(paralogfile):
             genetoparalogs[g] = group
     return genetoparalogs
 
+def paralog_groups_for_genes(genetoparalogs, gene_ids):
+    """Key the paralog groups by the annotation's gene ids.  The paralog table
+    has unversioned Ensembl ids, while GENCODE ids carry a version
+    (ENSG00000215915.10), so looking them up as written never matched and no
+    fusion was rejected as between paralogs."""
+    return {g: genetoparalogs[g.split('.')[0]] for g in gene_ids
+            if g.split('.')[0] in genetoparalogs}
+
 def get_gene_name_conv(annotgtf):
     from flair.gtf_io import gtf_record_parser, GtfAttrsSet
     genetoname = {}
@@ -67,7 +75,10 @@ def identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname
         if len(locustopartners[g]) > maxpromiscuity:
             ispromiscuous = True
         if g in genetoname:
-            allnames.add(genetoname[g][:4])
+            # the whole name: genes of one name, as a gene's X and Y copies, are rejected,
+            # paralogs by the paralog table.  The first 4 letters used to be compared,
+            # which rejected unrelated genes sharing a stem, as BCAS4--BCAS3 in MCF7
+            allnames.add(genetoname[g])
             if genetoname[g][:3] in {'IGK', 'IGH', 'IGL', 'IGF'}:
                 areig.append(True)
             else:

@@ -22,6 +22,13 @@
     `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
     The BioConda package still does not carry them; `installing.rst` gives the
     `conda install` command to add them.
+  * `flair fusion` rejects fusions between paralogs with a GENCODE annotation.
+    The bundled paralog table has unversioned Ensembl gene ids, so the
+    versioned GENCODE ids never matched it and the check did nothing.
+  * `flair fusion` no longer rejects fusions of genes whose names share their
+    first 4 letters, which threw out unrelated genes with a common stem, as the
+    known MCF7 fusion BCAS4--BCAS3.  Genes of one name, as a gene's X and Y
+    copies, are still rejected, and paralogs by the paralog table.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

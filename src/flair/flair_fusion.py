@@ -7,7 +7,7 @@ import pipettor
 import pysam
 import logging
 from flair.gtf_to_bed import gtf_to_bed
-from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref
+from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref, paralog_groups_for_genes
 from flair.identify_prelim_fusions import id_chimeras
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
@@ -194,7 +194,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             intronLocs[t] = sorted([x[0] for x in mylocs])
             intronToGenome[t] = {x[0]: (x[1], x[2]) for x in mylocs}
 
-    gene_to_paralogs = get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv')
+    gene_to_paralogs = paralog_groups_for_genes(
+        get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv'), genetoinfo)
 
     logging.info('loading transcriptomic chimeras')
     tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
