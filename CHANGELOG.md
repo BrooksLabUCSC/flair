@@ -43,6 +43,10 @@
     junction with 2 reads used to do, so a few reads that happened to agree among
     many scattered ones made a fusion isoform, as TAOK3--RPS2 in MCF7 (3 of 21
     reads).  Canonical breakpoint junctions are unchanged.
+  * `flair fusion --frac_support` sets the minimum fraction of a fusion's reads for
+    a fusion isoform to be reported (default 0.05, as before).  A fusion with one
+    dominant isoform hid its minor ones: in MCF7, BCAS4--BCAS3 has isoforms with
+    a BCAS3 exon upstream of the usual junction exon, with 2% of its reads.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

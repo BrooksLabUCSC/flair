@@ -48,6 +48,10 @@ def add_subparser(subparsers):
     parser.add_argument('--min_dist_between_breakpoints', type=int, default=100000,
                         help='minimum allowed distance between breakpoints when they are on the same '
                              'strand; removes read-through transcripts (default: %(default)s)')
+    parser.add_argument('--frac_support', type=float, default=0.05,
+                        help='minimum fraction of a fusion\'s reads for a fusion isoform to be reported; '
+                             'a fusion with one dominant isoform hides its minor ones below this. Set to 0 '
+                             'for max recall (default: %(default)s)')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging purposes')
     parser.set_defaults(entry=fusion_cmd)
@@ -64,7 +68,7 @@ def fusion_cmd(args):
                   # -1 turns the TSS distance check off
                   max_dist_to_tss=None if args.max_dist_to_tss == -1 else args.max_dist_to_tss,
                   min_dist_between_breakpoints=args.min_dist_between_breakpoints,
-                  keep_intermediate=args.keep_intermediate)
+                  frac_support=args.frac_support, keep_intermediate=args.keep_intermediate)
 
 def def_value():
     return set()
@@ -129,7 +133,7 @@ def select_junctions(junctions, fusiontobp, crossing):
 
 def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,  # noqa: C901 - FIXME: reduce complexity
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
-                  min_dist_between_breakpoints, keep_intermediate):
+                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05):
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
 
     # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
@@ -390,6 +394,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                              '--quality', '0',
                              '--sjc_support', '2',
                              '--end_window', '300',
+                             '--frac_support', str(frac_support),
                              # '--no_check_splice',
                              # '--no_stringent',
                              '--no_align_to_annot',

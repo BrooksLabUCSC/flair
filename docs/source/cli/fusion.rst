@@ -10,7 +10,7 @@
                        [--min_support MIN_SUPPORT] [--max_loci MAX_LOCI]
                        [--max_dist_to_tss MAX_DIST_TO_TSS]
                        [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
-                       [--keep_intermediate]
+                       [--frac_support FRAC_SUPPORT] [--keep_intermediate]
 
 .. rubric:: options
 
@@ -41,6 +41,10 @@
 .. option:: --min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS
 
    minimum allowed distance between breakpoints when they are on the same strand; removes read-through transcripts (default: 100000)
+
+.. option:: --frac_support FRAC_SUPPORT
+
+   minimum fraction of a fusion's reads for a fusion isoform to be reported; a fusion with one dominant isoform hides its minor ones below this. Set to 0 for max recall (default: 0.05)
 
 .. option:: --keep_intermediate
 
