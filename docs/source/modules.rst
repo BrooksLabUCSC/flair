@@ -84,6 +84,12 @@ This identifies gene fusions and generates a fusion transcriptome.
 To incorporate this fusion transcriptome in downstream analysis, 
 use flair combine to merge it with normal isoforms. 
 
+flair fusion requires stranded reads, each oriented 5' to 3' as its RNA.
+The 5' and 3' genes of a fusion come from the order of a read's pieces, so a
+reversed read gives the fusion backwards, which is then rejected as having its
+5' gene in antisense.  Data that is poorly stranded, as some older PacBio
+data, will miss fusions.
+
 **Output**
 
 sample.fusions.isoforms.bed

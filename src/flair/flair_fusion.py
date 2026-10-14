@@ -17,7 +17,10 @@ from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 
 def add_subparser(subparsers):
-    desc = "Identify gene fusions and generate a fusion transcriptome"
+    desc = ("Identify gene fusions and generate a fusion transcriptome.  Reads must be stranded, each "
+            "oriented 5' to 3' as its RNA: the 5' and 3' genes of a fusion come from the order of a read's "
+            "pieces, so a reversed read gives the fusion backwards, which is then rejected, and poorly "
+            "stranded data will miss fusions.")
     parser = subparsers.add_parser('fusion', help="Identify gene fusions", description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-g', '--genome', type=str, required=True,
@@ -86,7 +89,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                   min_dist_between_breakpoints, keep_intermediate):
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
 
-    # NEED TO REMEMBER THAT FUSION DETECTION RELIES ON HAVING PROPERLY STRANDED READS - need to add stranding step and/or better documentation on this
+    # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
+    # are ordered 5' to 3' by their position in the read
 
     # Processing the gtf file so many times is really inefficient, how can we resolve this??
     genomechimbam = output + '.genomealigned.chim.bam'

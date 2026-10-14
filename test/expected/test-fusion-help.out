@@ -6,7 +6,10 @@ usage: flair fusion [-h] -g GENOME -f GTF -b GENOME_ALIGNED_BAM --sample_name
                     [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
                     [--keep_intermediate]
 
-Identify gene fusions and generate a fusion transcriptome
+Identify gene fusions and generate a fusion transcriptome. Reads must be
+stranded, each oriented 5' to 3' as its RNA: the 5' and 3' genes of a fusion
+come from the order of a read's pieces, so a reversed read gives the fusion
+backwards, which is then rejected, and poorly stranded data will miss fusions.
 
 options:
   -h, --help            show this help message and exit
