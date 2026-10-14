@@ -38,6 +38,11 @@
     opposite strands within 1 kb of each other: cDNA folded back on itself, not
     a fusion.  They made fusions of genes with their antisense or neighbouring
     opposite-strand genes, as SLC7A5--SLC7A5-AS1 and EXOC7--ZACN in MCF7.
+  * `flair fusion` accepts a non-canonical junction across a fusion breakpoint
+    only if it carries at least half the reads crossing the breakpoint.  Any such
+    junction with 2 reads used to do, so a few reads that happened to agree among
+    many scattered ones made a fusion isoform, as TAOK3--RPS2 in MCF7 (3 of 21
+    reads).  Canonical breakpoint junctions are unchanged.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

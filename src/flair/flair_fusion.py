@@ -84,6 +84,49 @@ def align_to_synth_genome(genome, reads, output, additional_options):
     pipettor.run([samtools_index_cmd])
 
 
+CANONICAL_MOTIFS = {"GT/AG", "GC/AG", "AT/AC"}
+# a non-canonical breakpoint junction must carry this share of the reads crossing the breakpoint
+NONCANONICAL_MIN_SHARE = 0.5
+
+
+def count_breakpoint_reads(bam, fusiontobp):
+    """fusion contig -> the number of reads aligned across its breakpoint"""
+    crossing = {f: 0 for f in fusiontobp}
+    with pysam.AlignmentFile(bam, 'rb') as aligns:
+        for a in aligns:
+            if a.is_mapped and not a.is_secondary and not a.is_supplementary:
+                breakpoint = fusiontobp.get(a.reference_name)
+                if breakpoint is not None and a.reference_start < breakpoint < a.reference_end:
+                    crossing[a.reference_name] += 1
+    return crossing
+
+
+def select_junctions(junctions, fusiontobp, crossing):
+    """The rows of the junctions (intron-prospector BED6 records on the synthetic
+    genome) to pass flair transcriptome: canonical ones with 2 or more reads, and for
+    a fusion with no such junction across its breakpoint, the junctions across it with
+    2 or more reads that carry NONCANONICAL_MIN_SHARE of the reads crossing it.  A
+    breakpoint inside an exon has no splice site, so its junction needn't be
+    canonical, but the reads should agree on it: in MCF7, TAOK3--RPS2's 21 reads
+    crossed its breakpoint at a dozen non-canonical junctions, and 3 that happened to
+    agree made a fusion isoform."""
+    junctions = [bed for bed in junctions if bed.score >= 2]
+    good_sj, has_canonical_bp = [], set()
+    for bed in junctions:
+        # for synthetic alignment, all junctions should be '+'
+        if bed.name.split('_')[-1] in CANONICAL_MOTIFS and bed.strand == '+':
+            good_sj.append(bed.toRow())
+            breakpoint = fusiontobp.get(bed.chrom)
+            if breakpoint is not None and bed.chromStart < breakpoint < bed.chromEnd:
+                has_canonical_bp.add(bed.chrom)
+    for bed in junctions:
+        breakpoint = fusiontobp.get(bed.chrom)
+        if breakpoint is not None and bed.chrom not in has_canonical_bp and bed.chromStart < breakpoint < bed.chromEnd \
+                and bed.score >= NONCANONICAL_MIN_SHARE * crossing.get(bed.chrom, 0):
+            good_sj.append(bed.toRow())
+    return good_sj
+
+
 def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,  # noqa: C901 - FIXME: reduce complexity
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
                   min_dist_between_breakpoints, keep_intermediate):
@@ -325,33 +368,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     for bed in BedReader(f'{output}-syntheticBreakpointLoc.bed', numStdCols=3):
         fusiontobp[bed.chrom] = bed.chromStart
 
-    fusion_to_bp_sj = {f: False for f in fusiontobp}
-    good_sj = []
-
-    for bed in BedReader(f'{output}.syntheticAligned.IPSJ.bed', numStdCols=6):
-        fusion = bed.chrom
-        start, end = bed.chromStart, bed.chromEnd
-        readsup = bed.score
-        sjmotif = bed.name.split('_')[-1]
-        strand = bed.strand
-        if readsup >= 2:
-            if sjmotif in {"GT/AG", "GC/AG", "AT/AC"} and strand == '+':  # for synthetic alignment, all junctions should be '+'
-                good_sj.append(bed.toRow())
-                # get: fusiontobp holds only the contigs named in the breakpoint BED,
-                # so a junction on any other contig used to raise KeyError
-                breakpoint = fusiontobp.get(fusion)
-                if (breakpoint is not None) and (start < breakpoint < end):
-                    fusion_to_bp_sj[fusion] = True
-
-    for bed in BedReader(f'{output}.syntheticAligned.IPSJ.bed', numStdCols=6):
-        fusion = bed.chrom
-        start, end = bed.chromStart, bed.chromEnd
-        readsup = bed.score
-        strand = bed.strand
-        breakpoint = fusiontobp.get(fusion)
-        if readsup >= 2 and (breakpoint is not None) and fusion_to_bp_sj.get(fusion) is False \
-                and start < breakpoint < end:  # no good breakpoint junctions yet
-            good_sj.append(bed.toRow())
+    crossing = count_breakpoint_reads(f'{output}.syntheticAligned.bam', fusiontobp)
+    good_sj = select_junctions(BedReader(f'{output}.syntheticAligned.IPSJ.bed', numStdCols=6), fusiontobp, crossing)
 
     out = open(f'{output}.syntheticAligned.SJ.bed', 'w')
     for line in good_sj:
