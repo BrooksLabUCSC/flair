@@ -67,7 +67,7 @@ group transcriptome_tests
 type bam
 shortLabel single exon test BAM
 longLabel single exon test BAM
-bigDataUrl ../../output/test-align-seg1.bam
+bigDataUrl ../../output/seg1-reads.bam
 visibility hide
 html ../empty.html
 priority 100

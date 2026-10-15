@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""
+One line per alignment in a BAM, sorted: read name, flag, chrom, 1-based start, end,
+MAPQ and a short hash of the CIGAR (* for unmapped reads).  Compared with an expected
+summary, it shows which reads a different minimap2 aligns differently: a moved read
+changes its position, ends or MAPQ, and a changed junction or indel changes its CIGAR
+hash.
+"""
+import argparse
+import hashlib
+import pysam
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('bam', help='BAM file')
+    return parser.parse_args()
+
+
+def alignment_row(aln):
+    if aln.is_unmapped:
+        return (aln.query_name, str(aln.flag), '*', '0', '0', '0', '*')
+    return (aln.query_name, str(aln.flag), aln.reference_name, str(aln.reference_start + 1),
+            str(aln.reference_end), str(aln.mapping_quality),
+            hashlib.md5(aln.cigarstring.encode()).hexdigest()[:8])
+
+
+def main():
+    args = parse_args()
+    with pysam.AlignmentFile(args.bam) as bam:
+        rows = sorted(alignment_row(aln) for aln in bam.fetch(until_eof=True))
+    for row in rows:
+        print('\t'.join(row))
+
+
+main()

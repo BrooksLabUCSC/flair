@@ -43,7 +43,7 @@ alignment SAM and BED, and the introns for the region are check in.  When the
 genome is release, this can be turned into a full test case.
 
 ## Others
-* tiny.sam - A few records from test-align.bam output
+* tiny.sam - A few records from the basic reads aligned to the test genome (output/basic-reads.bam, once called test-align.bam)
 
 ## KRAS simulated genomic mutation splicing
 
