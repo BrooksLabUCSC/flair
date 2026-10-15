@@ -113,18 +113,18 @@ def getCorrectGene(chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, chrom, r
         if len(found_genes) > 0:
             my_gene = Counter(found_genes).most_common()[0][0]
         else:
+            # a gene on the piece's strand that its aligned blocks overlap the exons of
+            # by the most bases.  A piece in a gene's introns, or spliced across its exons
+            # without aligning to them, is not the gene's: it's a non-genic locus
             s, e = exon_blocks[0][0], exon_blocks[-1][1]
             gene_overlaps = []
             for start, end, strand, gene in chrom_to_gene_pos[chrom]:
                 if start > e:  # assumes sorted
                     break
                 if strand == thisdir and min(e, end) > max(start, s):  # require strand match
-                    totoverlap = 0
-                    for es, ee in gene_to_all_exons[gene]:
-                        overlap = min(e, ee) - max(es, s)
-                        if overlap > 0:
-                            totoverlap += overlap
-                    gene_overlaps.append((totoverlap, gene))
+                    totoverlap = exonic_overlap(exon_blocks, gene_to_all_exons.get(gene, ()))
+                    if totoverlap > 0:
+                        gene_overlaps.append((totoverlap, gene))
             if len(gene_overlaps) > 0:
                 gene_overlaps.sort(reverse=True)
                 my_gene = gene_overlaps[0][1]
@@ -200,6 +200,8 @@ def prefer_shorter_gene(gene, blocks, sharing, genetoinfo, gene_to_all_exons):
     if gene not in sharing:
         return gene
     cover = exonic_overlap(blocks, gene_to_all_exons[gene])
+    if cover == 0:  # nothing to compare: a gene covering none of it is no better
+        return gene
     best, best_len = gene, genetoinfo[gene][2] - genetoinfo[gene][1]
     for other in sorted(sharing[gene]):
         other_len = genetoinfo[other][2] - genetoinfo[other][1]

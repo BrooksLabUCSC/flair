@@ -4,7 +4,7 @@ one it was assigned, so a readthrough annotation gives way to the gene it contai
 The layout follows 9p21 in MCF7: a readthrough lncRNA starting with MTAP's exons and
 running into CDKN2B-AS1, so reads of the MTAP--CDKN2B-AS1 fusion went to either.
 """
-from flair.identify_prelim_fusions import exonic_overlap, exon_sharing_genes, prefer_shorter_gene, is_foldback
+from flair.identify_prelim_fusions import exonic_overlap, exon_sharing_genes, prefer_shorter_gene, is_foldback, getCorrectGene
 
 GENES = {  # gene -> (chrom, start, end, strand), as genetoinfo without the TSS list
     'MTAP': ('chr9', 1000, 16000, '+'),
@@ -79,3 +79,28 @@ def test_fusions_are_not_foldbacks():
     assert not is_foldback(same_strand_neighbours)
     assert not is_foldback(distant_inversion)
     assert not is_foldback(other_chrom)
+
+
+def _gene_for(blocks, strand='+', juncs=()):
+    "getCorrectGene for a piece aligned to blocks, with GENES and EXONS as the annotation"
+    chrom_to_gene_pos = {'chr9': sorted((s, e, st, g) for g, (_, s, e, st) in GENES.items())}
+    return getCorrectGene(chrom_to_gene_pos, EXONS, {'chr9': {}}, 'chr9', (list(juncs), blocks), strand)
+
+
+def test_piece_on_exons_gets_the_gene():
+    assert _gene_for([(5020, 5100), (9000, 9100)], juncs=[(5100, 9000)]) in ('MTAP', 'READTHROUGH')
+
+
+def test_intronic_piece_is_not_genic():
+    "RPS29 in MCF7: chimeric pieces inside its introns made it a hub with 26 partners"
+    assert _gene_for([(2000, 2500)]) == ('chr9', 2000, 2500)
+
+
+def test_piece_spliced_across_an_exon_without_aligning_to_it_is_not_genic():
+    "the piece's span holds MTAP's exon 5000-5100, but none of its aligned bases do"
+    assert _gene_for([(3000, 3200), (6000, 6200)], juncs=[(3200, 6000)]) == ('chr9', 3000, 6200)
+
+
+def test_shorter_gene_not_taken_for_a_piece_off_the_genes_exons():
+    "a piece covering none of the assigned gene's exons isn't moved to a nested shorter gene"
+    assert prefer_shorter_gene('READTHROUGH', [(20000, 20500)], _sharing(), GENES, EXONS) == 'READTHROUGH'

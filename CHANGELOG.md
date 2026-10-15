@@ -55,6 +55,10 @@
     strand pieces from the far end of one to the far end of the other, so
     readthrough on the minus strand got through when the two pieces' lengths took
     it past the minimum, as TMEM64--LINC01030 in MCF7 (90 kb apart).
+  * `flair fusion` assigns a chimeric read piece to a gene only when its aligned
+    bases overlap the gene's exons.  A piece inside a gene's introns, or spliced
+    across its exons without aligning to them, is now a non-genic locus: in MCF7,
+    pieces inside RPS29's introns made it a hub with 26 partners.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before
