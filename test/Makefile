@@ -927,11 +927,15 @@ test-identifyvars-snvsindels: mkdirs ${GENOME_FA} ${TEST_ALIGN_BAM}
 ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
 FUSION_TEST_SHARED_OUT = $O/fusion_tests
 FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
+# a 3-gene fusion, ERGIC3 (chr20 +) -- DDX5 (chr17 -) -- KRAS (chr12 -), joined at
+# annotated exon boundaries and simulated with badread at 30x, reads oriented 5' to 3'
+FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
+FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
 
-fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-help
+fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-3gene test-fusion-help
 
 update-fusion-tests:
-	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic"; \
+	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-3gene"; \
 	do \
 	cp $O/$$tname.fusions.isoforms.bed $E/$$tname.fusions.isoforms.bed; \
 	cp $O/$$tname.fusions.isoforms.fa $E/$$tname.fusions.isoforms.fa; \
@@ -953,6 +957,17 @@ test-fusion-nongenic: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST
 	flair fusion -g ${GENOME_FA} -f $I/basic.annotation.ERGIC3only.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+
+test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
+	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
+	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+
+${FUSION3_TEST_BAM}: ${GENOME_FA}
+	@mkdir -p $O
+	flair align -r $I/ERGIC3_DDX5_KRAS_sim_fusion.badread30x.stranded.fastq \
+	   --genome ${GENOME_FA} -t 4 -o ${FUSION3_TEST_SHARED_OUT} \
+	   --min_fragment_size 40 --max_intron_len 350k
 
 ${FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
 	@mkdir -p $O
