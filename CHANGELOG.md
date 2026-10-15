@@ -82,9 +82,24 @@
     reads is the one near the promoter, and now also the median one.  In MCF7,
     ESR1--CCDC170's reads mostly start at an annotated ESR1 TSS, but 3 start 14 kb
     upstream, 19 kb from the nearest annotated start upstream of them.
+  * `flair fusion --no_transcriptome_alignment` finds fusions from the chimeric
+    reads of the genome alignment only, without aligning reads to annotated
+    transcripts: about 5 minutes on MCF7 and SeraCare against 24 and 37, at a
+    third of the memory, but it misses partner pieces the genome alignment leaves
+    clipped, often short 5' exons (MYO6--SENP6 in MCF7 falls from 16 reads to 2).
+    With the changes below it still finds all 19 MCF7 reference fusions.
+  * `flair fusion --max_partners` (default 1000) sets the number of partners a
+    gene can have in one role, 5' gene, 3' gene or between them, before its
+    fusions are rejected as promiscuous.  It was fixed at 4, counted over all
+    roles, which in MCF7 rejected SULF2, in the 20q13 amplicon, with all its
+    partners: ARFGEF2--SULF2 (336 reads) and SULF2--PRICKLE2 were found only
+    through the alignment to annotated transcripts, where SULF2 had fewer.  The
+    help suggests lowering it for genomes without rearrangements.
   * `flair fusion` failed with an invalid GTF record on an annotation sorted by
     position: minus strand exons were put in genomic order by reversing their
     order in the file, which only works for GENCODE's transcript order.
+  * The `-b` and `-o` help of `flair fusion` say that the chimeric read bams of an
+    earlier run with the same `-o` are reused, whatever `-b` is.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

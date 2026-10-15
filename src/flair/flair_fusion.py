@@ -30,11 +30,16 @@ def add_subparser(subparsers):
     required.add_argument('-b', '--genome_aligned_bam', type=str, required=True,
                           help='bam file of reads aligned to the genome with minimap2 -ax splice.  All reads, '
                                'not only the chimeric ones: reads are also aligned to annotated transcripts, which '
-                               'finds partner pieces the genome alignment leaves clipped')
+                               'finds partner pieces the genome alignment leaves clipped.  The chimeric reads taken '
+                               'from it are kept as OUTPUT.genomealigned.chim.bam and '
+                               'OUTPUT.transcriptomealigned.chim.bam, and reused if they exist: with a different '
+                               'bam, use a new -o or remove them first')
     required.add_argument('--sample_name', required=True,
                           help='name of sample, will be added as metadata to output files')
     parser.add_argument('-o', '--output',
-                        help='output file name base for FLAIR isoforms, defaults to --sample_name')
+                        help='output file name base for FLAIR isoforms, defaults to --sample_name.  The chimeric '
+                             'reads bams OUTPUT.genomealigned.chim.bam and OUTPUT.transcriptomealigned.chim.bam '
+                             'from an earlier run with this -o are reused, whatever -b and --min_fragment_size are')
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='minimap2 number of threads (default: %(default)s)')
     parser.add_argument('--min_fragment_size', type=int, default=40,
@@ -55,6 +60,14 @@ def add_subparser(subparsers):
                              'closer than the maximum intron length of the genome alignment (minimap2 -G) aligns '
                              'as one spliced read and is not found: to find fusions between close genes, align '
                              'with a smaller minimap2 -G and lower this to match (default: %(default)s)')
+    parser.add_argument('--max_partners', type=int, default=1000,
+                        help='maximum number of fusion partners of a gene in one role (5\' gene, 3\' gene or '
+                             'between them) before its fusions are rejected as promiscuous.  A gene with many '
+                             'partners can be an alignment or library artifact, but in highly rearranged genomes, '
+                             'such as cancer cell lines with amplified regions, genes have many real partners: in '
+                             'MCF7, SULF2 is the 5\' gene of 5 fusions and the 3\' gene of ARFGEF2--SULF2.  The '
+                             'high default keeps them; lower it for genomes without substantially rearranged genomes '
+                             '(default: %(default)s)')
     parser.add_argument('--quality', type=int, default=10,
                         help='minimum MAPQ of every piece of a chimeric read in the genome alignment for the '
                              'read to count toward a fusion. Applies to the genome alignments only, not to the '
@@ -64,6 +77,11 @@ def add_subparser(subparsers):
                         help='minimum fraction of a fusion\'s reads for a fusion isoform to be reported; '
                              'a fusion with one dominant isoform hides its minor ones below this. Set to 0 '
                              'for max recall (default: %(default)s)')
+    parser.add_argument('--no_transcriptome_alignment', action='store_true',
+                        help='find fusions from the chimeric reads of the genome alignment only, without '
+                             'aligning reads to annotated transcripts.  Substantially faster, and -b can then '
+                             'hold only the chimeric reads, but loses fusion reads whose partner piece the '
+                             'genome alignment leaves clipped, particularly short 5\' exons')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging purposes')
     parser.set_defaults(entry=fusion_cmd)
@@ -80,7 +98,8 @@ def fusion_cmd(args):
                   # -1 turns the TSS distance check off
                   max_dist_to_tss=None if args.max_dist_to_tss == -1 else args.max_dist_to_tss,
                   min_dist_between_breakpoints=args.min_dist_between_breakpoints,
-                  frac_support=args.frac_support, quality=args.quality, keep_intermediate=args.keep_intermediate)
+                  frac_support=args.frac_support, quality=args.quality, max_partners=args.max_partners,
+                  transcriptome_alignment=not args.no_transcriptome_alignment, keep_intermediate=args.keep_intermediate)
 
 def def_value():
     return set()
@@ -145,7 +164,8 @@ def select_junctions(junctions, fusiontobp, crossing):
 
 def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,  # noqa: C901 - FIXME: reduce complexity
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
-                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, quality=10):
+                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, quality=10,
+                  transcriptome_alignment=True, max_partners=1000):
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
 
     # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
@@ -167,7 +187,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         outfile.close()
         pysam.index(genomechimbam)
 
-    if not os.path.exists(transcriptchimbam):
+    if transcriptome_alignment and not os.path.exists(transcriptchimbam):
         logging.info('aligning to transcriptome and getting chimeric reads')
         annotated_bed = output + '.annotated_transcripts.bed'
         gtf_to_bed(annotated_bed, gtf, include_gene=True, name_sep='|')
@@ -260,20 +280,22 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     gene_to_paralogs = paralog_groups_for_genes(
         get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv'), genetoinfo)
 
-    logging.info('loading transcriptomic chimeras')
-    # reads chimeric aligned to transcripts but whole in the genome alignment.  A fusion
-    # from a deletion between genes closer than the genome aligner's maximum intron
-    # length aligns to the genome as one spliced read, so is left out too
-    unsplit = genome_unsplit_reads(genome_aligned_bam, chimeric_read_names(transcriptchimbam), min_fragment_size)
-    logging.info(f'transcriptomic chimeras: {len(unsplit)} reads aligned to the genome in one piece left out')
-    tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
-                        gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
-                        min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
-                        maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome,
-                        skip_reads=unsplit)
+    tchim = {}
+    if transcriptome_alignment:
+        logging.info('loading transcriptomic chimeras')
+        # reads chimeric aligned to transcripts but whole in the genome alignment.  A fusion
+        # from a deletion between genes closer than the genome aligner's maximum intron
+        # length aligns to the genome as one spliced read, so is left out too
+        unsplit = genome_unsplit_reads(genome_aligned_bam, chimeric_read_names(transcriptchimbam), min_fragment_size)
+        logging.info(f'transcriptomic chimeras: {len(unsplit)} reads aligned to the genome in one piece left out')
+        tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
+                            gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
+                            min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
+                            maxpromiscuity=max_partners, intronLocs=intronLocs, intronToGenome=intronToGenome,
+                            skip_reads=unsplit)
     logging.info('loading genomic chimeras')
 
-    combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=4,
+    combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=max_partners,
                             min_mapq=quality)
 
     logging.info('combining genomic and transcriptomic')
@@ -326,11 +348,12 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
             out_fa.write('>' + a.query_name + '\n' + a.get_forward_sequence() + '\n')
             seenreads.add(a.query_name)
     bamfile.close()
-    bamfile = pysam.AlignmentFile(transcriptchimbam, 'rb')
-    for a in bamfile:
-        if not a.is_secondary and not a.is_supplementary and a.query_name in fusionreads and a.query_name not in seenreads:
-            out_fa.write('>' + a.query_name + '\n' + a.get_forward_sequence() + '\n')
-    bamfile.close()
+    if transcriptome_alignment:
+        bamfile = pysam.AlignmentFile(transcriptchimbam, 'rb')
+        for a in bamfile:
+            if not a.is_secondary and not a.is_supplementary and a.query_name in fusionreads and a.query_name not in seenreads:
+                out_fa.write('>' + a.query_name + '\n' + a.get_forward_sequence() + '\n')
+        bamfile.close()
     out_fa.close()
 
     logging.info('generating synthetic reference')

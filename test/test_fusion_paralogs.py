@@ -5,7 +5,7 @@ has unversioned Ensembl gene ids, whatever the annotation's id style.
 import os
 import flair
 from flair.convert_synthetic_to_genome_bed import (get_paralog_ref, paralog_groups_for_genes,
-                                                   identify_fusion_problems)
+                                                   identify_fusion_problems, fusion_role)
 
 PARALOG_TABLE = os.path.join(os.path.dirname(flair.__file__), 'dgd_Hsa_all_v71.tsv')
 
@@ -16,7 +16,7 @@ NAMES = {'RHD': RHD, 'RHCE': RHCE, 'ACTB': ACTB}
 
 def _is_good_fusion(gene_a, gene_b, gene_to_paralogs, genetoname):
     fgenes = (gene_a, gene_b)
-    locustopartners = {g: {frozenset([o])} for g in fgenes for o in fgenes if o != g}
+    locustopartners = {(g, fusion_role(i, 2)): {frozenset([o])} for i, g in enumerate(fgenes) for o in fgenes if o != g}
     return identify_fusion_problems(fgenes, locustopartners, 4, genetoname, gene_to_paralogs,
                                     ['chr1', 'chr1'], 5)
 

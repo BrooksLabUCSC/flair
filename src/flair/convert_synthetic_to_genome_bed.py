@@ -67,12 +67,21 @@ def identify_promiscuous_genes(isoformsbed, genetoparalogs):
     return locustopartners
 
 
-def identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname, genetoparalogs, genomic_chroms, isosup):
+def fusion_role(i, numgenes):
+    "a gene's role in a fusion by its position: 5' end, 3' end or between them"
+    return '5p' if i == 0 else '3p' if i == numgenes - 1 else 'mid'
 
+
+def identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname, genetoparalogs, genomic_chroms, isosup):
+    """locustopartners is (gene, fusion_role) -> its partner sets: a gene is promiscuous
+    with more than maxpromiscuity partners in the same role.  Counted over all roles, a
+    gene of an amplicon was rejected as the 3' partner of a well supported fusion for
+    partners it had as a 5' one: SULF2 in MCF7, 3' of ARFGEF2 (492 reads) and 5' of
+    PRICKLE2, FTH1, GNAS, KRT8 and an intergenic locus."""
     ispromiscuous, areparalogs, areig, allnames, gcount = False, [], [], set(), []
-    for g in fgenes:
+    for i, g in enumerate(fgenes):
         gcount.append(list(fgenes).count(g))
-        if len(locustopartners[g]) > maxpromiscuity:
+        if len(locustopartners[(g, fusion_role(i, len(fgenes)))]) > maxpromiscuity:
             ispromiscuous = True
         if g in genetoname:
             # the whole name: genes of one name, as a gene's X and Y copies, are rejected,

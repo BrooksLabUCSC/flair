@@ -932,10 +932,10 @@ FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
 FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
 FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
 
-fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-3gene test-fusion-sorted-gtf test-fusion-help
+fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf test-fusion-help
 
 update-fusion-tests:
-	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-3gene"; \
+	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene"; \
 	do \
 	cp $O/$$tname.fusions.isoforms.bed $E/$$tname.fusions.isoforms.bed; \
 	cp $O/$$tname.fusions.isoforms.fa $E/$$tname.fusions.isoforms.fa; \
@@ -976,6 +976,12 @@ test-fusion-sorted-gtf: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TE
 	flair fusion -g ${GENOME_FA} -f $O/$@.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name test-fusion --min_support 2
 	diff <(sort $E/test-fusion.fusions.isoforms.bed) <(sort $O/$@.fusions.isoforms.bed)
 	diff <(sort $E/test-fusion.fusions.isoforms.fa) <(sort $O/$@.fusions.isoforms.fa)
+
+# genome chimeras only: no transcriptome alignment
+test-fusion-no-tome: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2 --no_transcriptome_alignment
+	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
+	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 
 ${FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
 	@mkdir -p $O

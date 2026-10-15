@@ -5,7 +5,7 @@ import pysam
 import argparse
 from collections import Counter, defaultdict
 from statistics import median
-from flair.convert_synthetic_to_genome_bed import identify_fusion_problems
+from flair.convert_synthetic_to_genome_bed import identify_fusion_problems, fusion_role
 
 
 def binarySearch(arr, t):
@@ -373,14 +373,12 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
         if len(interestingloci[l]) >= minsup:
             goodcov.append(l)
 
-    locustopartners = {}
+    locustopartners = defaultdict(set)  # (gene, role in the fusion) -> partner sets
     for fgenes in goodcov:
-        for i in fgenes:
+        for pos, i in enumerate(fgenes):
             other = set(fgenes) - {i, }
             newother = frozenset([gene_to_paralogs[g] if g in gene_to_paralogs else g for g in other])
-            if i not in locustopartners:
-                locustopartners[i] = set()
-            locustopartners[i].add(newother)
+            locustopartners[(i, fusion_role(pos, len(fgenes)))].add(newother)
 
     fusiontoinfo = {}
     for fgenes in goodcov:
