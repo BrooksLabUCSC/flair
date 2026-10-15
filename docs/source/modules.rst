@@ -22,7 +22,7 @@ flair transcriptome
 This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
 To get aligned reads, you can use FLAIR align or just run the following command to generate the bam file to use as input.
 minimap2 -ax splice -s 80 -G 200k -t 20 --secondary=no genome.fa sample.fastq | samtools view -hb - | samtools sort - > sample.genomealigned.bam; samtools index sample.genomealigned.bam
-If you want to run downstream fusion detection with FLAIR fusion, run flair align with --filter_type separate to generate a separate file of chimeric alignments.
+The same bam, of all reads, is the input of FLAIR fusion.
 
 
 **Outputs**
@@ -92,13 +92,30 @@ data, will miss fusions.
 
 **Output**
 
+sample.fusions.tsv
+    Table of the fusions, most final reads first: the genes 5' to 3', the reads of the
+    preliminary fusion and of its final isoforms, the number of isoforms, the best
+    supported breakpoint and isoform, and their reads.  A breakpoint is each junction
+    between consecutive loci, in fusion order and comma-separated, as the last base of
+    the 5' locus and the first base of the 3' one, 1-based, chrom:pos(strand)--chrom:pos(strand)
 sample.fusions.isoforms.bed
-    Bed file of fusion transcriptome (each fusion has a line for each locus in the fusion, 
-    and position in the fusion is specified by the fusiongeneX prefix in the name field
+    Bed file of fusion transcriptome, with a line for each locus of a fusion isoform and
+    its position in the fusion in the pos_in_fusion column
+sample.fusions.isoforms.gtf, sample.fusions.isoforms.bb
+    The fusion transcriptome as GTF and bigBed
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.syntheticAligned.isoform.read.map
+sample.fusion.isoform.read.map.txt
     read map of reads to fusion isoforms
+sample.prelimfusions.bed
+    The preliminary fusions' loci, with their reads and distances to a TSS
+sample.genomealigned.chim.bam, sample.transcriptomealigned.chim.bam
+    The chimeric reads of the genome alignment and of the alignment to annotated
+    transcripts, reused by a later run with the same output name
+
+With ``--keep_intermediate``, the synthetic fusion genome (sample-syntheticFusionGenome.fa),
+its annotation, the reads aligned to it (sample.syntheticAligned.bam) and the other
+intermediate files are kept as well, for viewing fusion isoforms on the synthetic genome.
 
 Options
 -------
