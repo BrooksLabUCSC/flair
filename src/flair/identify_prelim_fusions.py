@@ -243,6 +243,24 @@ def low_quality_reads(bam, min_mapq):
     return low
 
 
+# an annotated transcript start this far downstream of a read's 5' end still counts as
+# its start, for reads running a little past the annotated TSS
+TSS_DOWNSTREAM_BUFFER = 500
+
+
+def dist_to_upstream_tss(end5, strand, tstarts, buffer=TSS_DOWNSTREAM_BUFFER):
+    """Distance from a 5' gene's read 5' end to the nearest of the gene's transcript
+    starts upstream of it on the gene's strand, or None if there is none.  A start
+    downstream of the read's 5' end can't be its promoter: for reads beginning in ETV6
+    exon 5 (SeraCare ETV6--NTRK3), the nearest start was an alternative one 16 kb
+    downstream.  Starts up to buffer downstream count, at distance 0."""
+    if strand == '+':
+        dists = [end5 - t for t in tstarts if t <= end5 + buffer]
+    else:
+        dists = [t - end5 for t in tstarts if t >= end5 - buffer]
+    return max(0, min(dists)) if dists else None
+
+
 def chimeric_read_names(bam):
     "names of the reads with a supplementary alignment in bam"
     with pysam.AlignmentFile(bam, 'rb') as aligns:
@@ -412,11 +430,13 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                     end5 -= 1000
                 else:
                     end5 += 1000
-                mindisttostart = min([abs(end5 - x) for x in firstgenetstarts])
+                mindisttostart = dist_to_upstream_tss(end5, firstgenedir, firstgenetstarts)
 
                 if ((firstgenedir == '+' and alignblocks[0][0] < alignblocks[0][1])
                         or (firstgenedir == '-' and alignblocks[0][0] > alignblocks[0][1]))\
-                        and (reqdisttostart is None or mindisttostart <= reqdisttostart):
+                        and (reqdisttostart is None or (mindisttostart is not None and mindisttostart <= reqdisttostart)):
+                    if mindisttostart is None:  # no upstream start, with the check off
+                        mindisttostart = -1
                     simscores = []
                     for qdistlist in qdist:
                         simscore = []

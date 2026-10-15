@@ -69,6 +69,14 @@
     now asks for all reads aligned with minimap2, and the
     `--min_dist_between_breakpoints` help explains finding fusions between
     close genes with a smaller minimap2 `-G`.
+  * `flair fusion --max_dist_to_tss` now measures to the 5' gene's transcript
+    starts upstream of a fusion's 5' end (or up to 500 bp downstream), not to any
+    start: one downstream of the reads can't be their promoter.  The MCF7 calls are
+    unchanged.  In SeraCare, whose reads are 1 kb fragments of longer spike-in RNAs,
+    EGFR--SEPTIN14 had passed only through an EGFR start 1 kb downstream of its
+    reads and is now rejected.  The help suggests a very high value or -1 for
+    fragmented or 5' truncated reads: with -1, SeraCare finds all 16 spike-in
+    fusions, ETV6--NTRK3 and EGFR--SEPTIN14 included.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

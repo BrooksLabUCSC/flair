@@ -45,8 +45,10 @@ def add_subparser(subparsers):
     parser.add_argument('--max_loci', type=int, default=2,
                         help='max loci detected in fusion. Set higher for detection of 3-gene+ fusions (default: %(default)s)')
     parser.add_argument('--max_dist_to_tss', type=int, default=15000,
-                        help="maximum allowed distance of 5' alignment to TSS of annotated transcript; "
-                             "-1 does not check this (default: %(default)s)")
+                        help="maximum allowed distance of a fusion's 5' end to an annotated transcript start "
+                             "of its 5' gene upstream of it.  With fragmented or 5' truncated reads, which start "
+                             "far from any TSS, set this very high or to -1, which does not check this "
+                             "(default: %(default)s)")
     parser.add_argument('--min_dist_between_breakpoints', type=int, default=100000,
                         help='minimum allowed distance between breakpoints when they are on the same '
                              'strand; removes read-through transcripts.  A fusion from a deletion between genes '

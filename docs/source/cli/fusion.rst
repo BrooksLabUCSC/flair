@@ -37,7 +37,7 @@
 
 .. option:: --max_dist_to_tss MAX_DIST_TO_TSS
 
-   maximum allowed distance of 5' alignment to TSS of annotated transcript; -1 does not check this (default: 15000)
+   maximum allowed distance of a fusion's 5' end to an annotated transcript start of its 5' gene upstream of it. With fragmented or 5' truncated reads, which start far from any TSS, set this very high or to -1, which does not check this (default: 15000)
 
 .. option:: --min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS
 
