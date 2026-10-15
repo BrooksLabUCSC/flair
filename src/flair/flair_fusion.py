@@ -6,6 +6,7 @@ import glob
 import pipettor
 import pysam
 import logging
+from collections import namedtuple
 from flair.gtf_to_bed import gtf_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref, paralog_groups_for_genes
 from flair.identify_prelim_fusions import id_chimeras, scan_genome_alignment
@@ -160,23 +161,38 @@ def select_junctions(junctions, fusiontobp, crossing):
     return good_sj
 
 
-def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,  # noqa: C901 - FIXME: reduce complexity
-                  min_fragment_size, min_support, max_loci, max_dist_to_tss,
-                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, quality=10,
-                  transcriptome_alignment=True, max_partners=1000):
-    path = os.path.dirname(os.path.realpath(__file__)) + '/'
+Annotation = namedtuple('Annotation', ['genetoinfo', 'genetoname', 'chrom_to_gene_pos', 'gene_to_all_exons',
+                                       'juncs_to_gene', 'intronLocs', 'intronToGenome', 'gene_to_paralogs'])
 
-    # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
-    # are ordered 5' to 3' by their position in the read
 
-    # Processing the gtf file so many times is really inefficient, how can we resolve this??
-    genomechimbam = output + '.genomealigned.chim.bam'
+def align_reads_to_transcripts(genome, gtf, output, reads_fa, nreads, threads, min_fragment_size):
+    "the chimeric alignments of reads_fa to the annotated transcripts, in OUTPUT.transcriptomealigned.chim.bam"
+    logging.info('aligning to transcriptome and getting chimeric reads')
     transcriptchimbam = output + '.transcriptomealigned.chim.bam'
+    annotated_bed = output + '.annotated_transcripts.bed'
+    gtf_to_bed(annotated_bed, gtf, include_gene=True, name_sep='|')
+    annotated_fa = output + '.annotated_transcripts.fa'
+    get_sequence_from_bed(genome, output + '.annotated_transcripts.bed', annotated_fa)
 
-    # one pass over the genome alignment for its chimeric reads and the reads to align to
-    # annotated transcripts, each unless an earlier run left them
+    logging.info(f'{nreads} reads to align to transcripts')
+    mm2_cmd = ('minimap2', '-a', '-s', str(min_fragment_size), '-t', str(threads), '--secondary=no',
+               annotated_fa, reads_fa)
+
+    filter_cmd = ('samtools', 'view', '-hF', '0x104', '-e', '[SA] != ""')
+    pipettor.run([mm2_cmd, filter_cmd], stdout=transcriptchimbam)
+    os.remove(reads_fa)
+    pipettor.run([('samtools', 'sort', '-o', output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
+    pipettor.run([('mv', output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
+    pysam.index(transcriptchimbam)
+
+
+def make_chimeric_bams(genome, gtf, genome_aligned_bam, output, threads, min_fragment_size, transcriptome_alignment):
+    """The chimeric reads of the genome alignment and of the alignment to annotated
+    transcripts, each unless an earlier run left them, from one pass over the genome
+    alignment.  Returns the names of the reads aligned to transcripts, None if not."""
+    genomechimbam = output + '.genomealigned.chim.bam'
     make_chim = not os.path.exists(genomechimbam)
-    align_to_transcripts = transcriptome_alignment and not os.path.exists(transcriptchimbam)
+    align_to_transcripts = transcriptome_alignment and not os.path.exists(output + '.transcriptomealigned.chim.bam')
     transcriptome_reads_fa = output + '.transcriptome_reads.fa'
     transcriptome_reads = None
     if make_chim or transcriptome_alignment:
@@ -186,101 +202,126 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                                                     reads_fa=transcriptome_reads_fa if align_to_transcripts else None)
         if make_chim:
             pysam.index(genomechimbam)
-
     if align_to_transcripts:
-        logging.info('aligning to transcriptome and getting chimeric reads')
-        annotated_bed = output + '.annotated_transcripts.bed'
-        gtf_to_bed(annotated_bed, gtf, include_gene=True, name_sep='|')
-        annotated_fa = output + '.annotated_transcripts.fa'
-        get_sequence_from_bed(genome, output + '.annotated_transcripts.bed', annotated_fa)
+        align_reads_to_transcripts(genome, gtf, output, transcriptome_reads_fa, len(transcriptome_reads),
+                                   threads, min_fragment_size)
+    return transcriptome_reads
 
-        logging.info(f'{len(transcriptome_reads)} reads to align to transcripts')
-        mm2_cmd = ('minimap2', '-a', '-s', str(min_fragment_size), '-t', str(threads), '--secondary=no',
-                   annotated_fa, transcriptome_reads_fa)
 
-        filter_cmd = ('samtools', 'view', '-hF', '0x104', '-e', '[SA] != ""')
-        pipettor.run([mm2_cmd, filter_cmd], stdout=output + '.transcriptomealigned.chim.bam')
-        os.remove(transcriptome_reads_fa)
-        pipettor.run([('samtools', 'sort', '-o', output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
-        pipettor.run([('mv', output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
-        pysam.index(transcriptchimbam)
-
-    logging.info('reading gtf')
+def parse_gtf(gtf):
+    """gene -> [chrom, start, end, strand, transcript 5' ends], gene -> transcript ->
+    exons, gene -> name, chrom -> genes' (start, end, strand, gene), and chrom -> an empty
+    junction dict"""
     genetoinfo, genetoexons, genetoname = {}, {}, {}
-    chrom_to_gene_pos = {}
-    gene_to_all_exons, juncs_to_gene = {}, {}
+    chrom_to_gene_pos, juncs_to_gene = {}, {}
     for rec in gtf_record_parser(gtf, include_features={'gene', 'exon', 'transcript'}, attrs=GtfAttrsSet.ALL):
         gene_id = rec.gene_id
         if rec.feature == 'gene':
             genetoinfo[gene_id] = [rec.chrom, rec.start, rec.end, rec.strand, []]
             genetoname[gene_id] = rec.gene_name if rec.gene_name else gene_id
-            if rec.chrom not in chrom_to_gene_pos:
-                chrom_to_gene_pos[rec.chrom] = []
-                juncs_to_gene[rec.chrom] = {}
-            chrom_to_gene_pos[rec.chrom].append((rec.start, rec.end, rec.strand, gene_id))
-
+            juncs_to_gene.setdefault(rec.chrom, {})
+            chrom_to_gene_pos.setdefault(rec.chrom, []).append((rec.start, rec.end, rec.strand, gene_id))
         elif rec.feature == 'exon':
-            if gene_id not in genetoexons:
-                genetoexons[gene_id] = {}
-            if rec.transcript_id not in genetoexons[gene_id]:
-                genetoexons[gene_id][rec.transcript_id] = []
-            genetoexons[gene_id][rec.transcript_id].append((rec.start, rec.end))
-
+            genetoexons.setdefault(gene_id, {}).setdefault(rec.transcript_id, []).append((rec.start, rec.end))
         elif rec.feature == 'transcript':
             end5 = rec.start if rec.strand == '+' else rec.end
             genetoinfo[gene_id][-1].append(end5)
-
-    logging.info('continuing to parse annot')
-    # FOR JUNCS TO GENE, DO BY CHROM AS WELL
     for chrom in chrom_to_gene_pos:
         chrom_to_gene_pos[chrom] = sorted(chrom_to_gene_pos[chrom])
+    return genetoinfo, genetoexons, genetoname, chrom_to_gene_pos, juncs_to_gene
 
+
+def merge_exons(exons):
+    "sorted exons merged where they overlap"
+    newexons = []
+    laststart, lastend = -1, -1
+    for s, e in exons:
+        if s > lastend:
+            if laststart != -1:
+                newexons.append((laststart, lastend))
+            laststart, lastend = s, e
+        else:
+            lastend = max(lastend, e)
+    if laststart != -1:
+        newexons.append((laststart, lastend))
+    return newexons
+
+
+def gene_exons_and_junctions(genetoexons, genetoinfo, juncs_to_gene):
+    """gene -> its transcripts' exons merged, and each annotated junction -> its genes,
+    filled into juncs_to_gene by chrom"""
+    gene_to_all_exons = {}
     for gene in genetoexons:
-        gene_to_all_exons[gene] = set()
+        allexons = set()
         chrom = genetoinfo[gene][0]
         for t in genetoexons[gene]:
             exons = sorted(list(genetoexons[gene][t]))
-            gene_to_all_exons[gene].update(set(exons))
-            if len(exons) > 1:
-                juncs = [(exons[x][1], exons[x + 1][0]) for x in range(len(exons) - 1)]
-                for j in juncs:
-                    if j not in juncs_to_gene[chrom]:
-                        juncs_to_gene[chrom][j] = set()
-                    juncs_to_gene[chrom][j].add(gene)
-        allexons = sorted(list(gene_to_all_exons[gene]))
-        newexons = []
-        laststart, lastend = -1, -1
-        for s, e in allexons:
-            if s > lastend:
-                if laststart != -1:
-                    newexons.append((laststart, lastend))
-                laststart, lastend = s, e
-            else:
-                lastend = max(lastend, e)
-        if laststart != -1:
-            newexons.append((laststart, lastend))
-        gene_to_all_exons[gene] = newexons
+            allexons.update(set(exons))
+            for x in range(len(exons) - 1):
+                juncs_to_gene[chrom].setdefault((exons[x][1], exons[x + 1][0]), set()).add(gene)
+        gene_to_all_exons[gene] = merge_exons(sorted(list(allexons)))
+    return gene_to_all_exons
 
+
+def intron_locs(exons, strand):
+    """transcript positions of a transcript's splice sites, with its two ends, each with
+    the genomic interval around it: the intron, or 500 bases past an end"""
+    myexons = sorted(exons)
+    mylocs = [[0, myexons[0][0] - 500, myexons[0][0]]]  # add start of transcript
+    runningtot = 0
+    for i in range(len(myexons) - 1):
+        runningtot += myexons[i][1] - myexons[i][0]  # add size of last exon
+        mylocs.append([runningtot, myexons[i][1], myexons[i + 1][0]])  # add intron
+    runningtot += myexons[-1][1] - myexons[-1][0]
+    mylocs.append([runningtot, myexons[-1][1], myexons[-1][1] + 500])
+    if strand == '-':
+        mylocs = [[runningtot - mylocs[x][0], mylocs[x][1], mylocs[x][2]] for x in range(len(mylocs))]
+    return sorted([x[0] for x in mylocs]), {x[0]: (x[1], x[2]) for x in mylocs}
+
+
+def read_annotation(gtf):
+    "the annotation as id_chimeras uses it"
+    logging.info('reading gtf')
+    genetoinfo, genetoexons, genetoname, chrom_to_gene_pos, juncs_to_gene = parse_gtf(gtf)
+    logging.info('continuing to parse annot')
+    gene_to_all_exons = gene_exons_and_junctions(genetoexons, genetoinfo, juncs_to_gene)
     intronLocs, intronToGenome = {}, {}
     for g in genetoexons:
-        chrom, start, end, strand, _ = genetoinfo[g]
+        strand = genetoinfo[g][3]
         for t in genetoexons[g]:
-            myexons = sorted(genetoexons[g][t])
-            mylocs = [[0, myexons[0][0] - 500, myexons[0][0]]]  # add start of transcript
-            runningtot = 0
-            for i in range(len(myexons) - 1):
-                runningtot += myexons[i][1] - myexons[i][0]  # add size of last exon
-                mylocs.append([runningtot, myexons[i][1], myexons[i + 1][0]])  # add intron
-            runningtot += myexons[-1][1] - myexons[-1][0]
-            mylocs.append([runningtot, myexons[-1][1], myexons[-1][1] + 500])
-            if strand == '-':
-                mylocs = [[runningtot - mylocs[x][0], mylocs[x][1], mylocs[x][2]] for x in range(len(mylocs))]
-            intronLocs[t] = sorted([x[0] for x in mylocs])
-            intronToGenome[t] = {x[0]: (x[1], x[2]) for x in mylocs}
-
+            intronLocs[t], intronToGenome[t] = intron_locs(genetoexons[g][t], strand)
     gene_to_paralogs = paralog_groups_for_genes(
         get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv'), genetoinfo)
+    return Annotation(genetoinfo, genetoname, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene,
+                      intronLocs, intronToGenome, gene_to_paralogs)
 
+
+def combine_chimeras(combchim, tchim):
+    "add the transcriptomic chimeras tchim to the genomic ones combchim"
+    for f in tchim:
+        if f not in combchim:
+            combchim[f] = tchim[f]
+            continue
+        combchim[f]['reads'] = combchim[f]['reads'] | tchim[f]['reads']
+        combchim[f]['disttostart'].extend(tchim[f]['disttostart'])
+        combchim[f]['qdist'].extend(tchim[f]['qdist'])
+        for g in f.split('__'):
+            gends, tends = combchim[f][g][1:], tchim[f][g][1:]
+            if gends[0] < gends[1]:
+                combchim[f][g][1] = min(gends[0], tends[0])
+                combchim[f][g][2] = max(gends[1], tends[1])
+            else:
+                combchim[f][g][1] = max(gends[0], tends[0])
+                combchim[f][g][2] = min(gends[1], tends[1])
+    return combchim
+
+
+def find_prelim_fusions(annot, output, transcriptome_reads, transcriptome_alignment, min_support, max_loci,
+                        max_dist_to_tss, max_partners, quality):
+    "preliminary fusions from the genome alignment and the alignment to annotated transcripts"
+    common = dict(maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=max_partners)
+    annot_args = (annot.genetoinfo, annot.chrom_to_gene_pos, annot.gene_to_all_exons, annot.juncs_to_gene,
+                  annot.gene_to_paralogs, annot.genetoname, min_support)
     tchim = {}
     if transcriptome_alignment:
         logging.info('loading transcriptomic chimeras')
@@ -288,124 +329,108 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         # run may hold others.  A read aligned to the genome in one piece is left out, and
         # with it a fusion from a deletion between genes closer than the genome aligner's
         # maximum intron length, which aligns to the genome as one spliced read
-        tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
-                            gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
-                            min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
-                            maxpromiscuity=max_partners, intronLocs=intronLocs, intronToGenome=intronToGenome,
-                            only_reads=transcriptome_reads)
+        tchim = id_chimeras('transcriptomic', output + '.transcriptomealigned.chim.bam', *annot_args,
+                            intronLocs=annot.intronLocs, intronToGenome=annot.intronToGenome,
+                            only_reads=transcriptome_reads, **common)
     logging.info('loading genomic chimeras')
-
-    combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=max_partners,
-                            min_mapq=quality)
-
+    combchim = id_chimeras('genomic', output + '.genomealigned.chim.bam', *annot_args, min_mapq=quality, **common)
     logging.info('combining genomic and transcriptomic')
-    #
-    for f in tchim:
-        if f not in combchim:
-            combchim[f] = tchim[f]
-        else:
-            combchim[f]['reads'] = combchim[f]['reads'] | tchim[f]['reads']
-            combchim[f]['disttostart'].extend(tchim[f]['disttostart'])
-            combchim[f]['qdist'].extend(tchim[f]['qdist'])
-            genes = f.split('__')
-            for g in genes:
-                gends, tends = combchim[f][g][1:], tchim[f][g][1:]
-                if gends[0] < gends[1]:
-                    combchim[f][g][1] = min(gends[0], tends[0])
-                    combchim[f][g][2] = max(gends[1], tends[1])
-                else:
-                    combchim[f][g][1] = max(gends[0], tends[0])
-                    combchim[f][g][2] = min(gends[1], tends[1])
+    return combine_chimeras(combchim, tchim)
 
-    bedout = open(output + '.prelimfusions.bed', 'w')
+
+def write_prelim_fusions(combchim, bedfile):
+    "write the preliminary fusions' loci to bedfile, and return their reads"
     fusionreads = set()
-    for f in combchim:
-        fusionreads.update(combchim[f]['reads'])
-        genes = f.split('__')
-        for g in genes:
+    with open(bedfile, 'w') as bedout:
+        for f in combchim:
+            fusionreads.update(combchim[f]['reads'])
+            genes = f.split('__')
             startdiststr = ','.join([str(x) for x in combchim[f]['disttostart']])
-            bedname = g + '__' + '--'.join(genes)
-            strand = '+' if combchim[f][g][1] < combchim[f][g][2] else '-'
-            positions = sorted(combchim[f][g][1:])
-            Bed(combchim[f][g][0], positions[0], positions[1],
-                name=bedname, score=len(combchim[f]['reads']), strand=strand,
-                extraCols=[startdiststr]).write(bedout)
+            for g in genes:
+                strand = '+' if combchim[f][g][1] < combchim[f][g][2] else '-'
+                positions = sorted(combchim[f][g][1:])
+                Bed(combchim[f][g][0], positions[0], positions[1],
+                    name=g + '__' + '--'.join(genes), score=len(combchim[f]['reads']), strand=strand,
+                    extraCols=[startdiststr]).write(bedout)
+    return fusionreads
 
-    bedout.close()
 
-    if os.path.getsize(output + '.prelimfusions.bed') == 0:
-        report_nofusions(output)
-        return
-
-    logging.info('obtaining fusion reads')
-
+def write_fusion_reads(fusionreads, bams, fasta):
+    "the sequences of fusionreads, from the first of the chimeric read bams holding each, to fasta"
     seenreads = set()
-    freadsname = output + '.fusionreads.prelim.fa'
-    out_fa = open(freadsname, 'w')
-    bamfile = pysam.AlignmentFile(genomechimbam, 'rb')
-    for a in bamfile:
-        if not a.is_secondary and not a.is_supplementary and a.query_name in fusionreads:
-            out_fa.write('>' + a.query_name + '\n' + a.get_forward_sequence() + '\n')
-            seenreads.add(a.query_name)
-    bamfile.close()
-    if transcriptome_alignment:
-        bamfile = pysam.AlignmentFile(transcriptchimbam, 'rb')
-        for a in bamfile:
-            if not a.is_secondary and not a.is_supplementary and a.query_name in fusionreads and a.query_name not in seenreads:
-                out_fa.write('>' + a.query_name + '\n' + a.get_forward_sequence() + '\n')
-        bamfile.close()
-    out_fa.close()
+    with open(fasta, 'w') as out_fa:
+        for bam in bams:
+            with pysam.AlignmentFile(bam, 'rb') as bamfile:
+                for a in bamfile:
+                    if not a.is_secondary and not a.is_supplementary and a.query_name in fusionreads \
+                            and a.query_name not in seenreads:
+                        out_fa.write('>' + a.query_name + '\n' + a.get_forward_sequence() + '\n')
+                        seenreads.add(a.query_name)
 
+
+def make_synthetic_genome(gtf, genome, output):
+    "the synthetic fusion genome and its annotation; False if it holds no fusion"
     logging.info('generating synthetic reference')
-
+    path = os.path.dirname(os.path.realpath(__file__)) + '/'
     makesynthcommand = [sys.executable, path + 'make_synthetic_fusion_reference.py', '-a', gtf, '-g', genome,
                         '-o', output, '-c', output + '.prelimfusions.bed']
     pipettor.run([makesynthcommand])
     if os.path.getsize(output + '-syntheticFusionGenome.fa') == 0:
-        report_nofusions(output)
-        return
-
+        return False
     # FIXME: pipettor by default captures stderr to include in an error message, this hides logging from
     # lower level.  Maybe don't capture when running flair subtools
-    faidxcommand = ['samtools', 'faidx', output + '-syntheticFusionGenome.fa']
-    pipettor.run([faidxcommand])
+    pipettor.run([['samtools', 'faidx', output + '-syntheticFusionGenome.fa']])
+    return True
 
-    logging.info('aligning to synthetic fusion genome')
-    align_to_synth_genome(output + '-syntheticFusionGenome.fa', freadsname, output + '.syntheticAligned.nosplice.bam',
-                          ['-s', str(min_fragment_size), '-t', str(threads), '-un', '--secondary=no', '-G', '1000k'])
-    align_to_synth_genome(output + '-syntheticFusionGenome.fa', freadsname, output + '.syntheticAligned.withsplice.bam',
-                          ['-s', str(min_fragment_size), '-t', str(threads), '--secondary=no', '-G', '1000k'])
 
+def is_primary(a):
+    return a.is_mapped and not a.is_secondary and not a.is_supplementary
+
+
+def choose_synthetic_alignments(withsplice_bam, nosplice_bam):
+    """read -> its alignment to the synthetic genome: with splicing, or without when that
+    matches more bases with fewer insertions"""
     rname_to_read = {}
-    with pysam.AlignmentFile(output + '.syntheticAligned.withsplice.bam', 'rb') as bamfile:
+    with pysam.AlignmentFile(withsplice_bam, 'rb') as bamfile:
         for a in bamfile:
-            if a.is_mapped and not a.is_secondary and not a.is_supplementary:
+            if is_primary(a):
                 rname_to_read[a.query_name] = a
-    with pysam.AlignmentFile(output + '.syntheticAligned.nosplice.bam', 'rb') as bamfile:
+    with pysam.AlignmentFile(nosplice_bam, 'rb') as bamfile:
         for a in bamfile:
-            if a.is_mapped and not a.is_secondary and not a.is_supplementary:
-                if a.query_name not in rname_to_read:
-                    rname_to_read[a.query_name] = a
-                else:
-                    nosplice_match = a.get_cigar_stats()[0][0]
-                    nosplice_insert = a.get_cigar_stats()[0][1]
-                    withsplice_match = rname_to_read[a.query_name].get_cigar_stats()[0][0]
-                    withsplice_insert = rname_to_read[a.query_name].get_cigar_stats()[0][1]
-                    if nosplice_match > withsplice_match and nosplice_insert < withsplice_insert:
-                        rname_to_read[a.query_name] = a
-    template = pysam.AlignmentFile(output + '.syntheticAligned.withsplice.bam', 'rb')
-    outbam = pysam.AlignmentFile(output + '.syntheticAligned.unsorted.bam', 'wb', template=template)
-    for a in rname_to_read:
-        outbam.write(rname_to_read[a])
-    template.close()
-    outbam.close()
+            if not is_primary(a):
+                continue
+            if a.query_name not in rname_to_read:
+                rname_to_read[a.query_name] = a
+                continue
+            nosplice_match, nosplice_insert = a.get_cigar_stats()[0][0], a.get_cigar_stats()[0][1]
+            withsplice_stats = rname_to_read[a.query_name].get_cigar_stats()[0]
+            if nosplice_match > withsplice_stats[0] and nosplice_insert < withsplice_stats[1]:
+                rname_to_read[a.query_name] = a
+    return rname_to_read
 
+
+def align_to_synthetic_genome(output, freadsname, min_fragment_size, threads):
+    "OUTPUT.syntheticAligned.bam: each fusion read's better alignment to the synthetic genome"
+    logging.info('aligning to synthetic fusion genome')
+    synth_fa = output + '-syntheticFusionGenome.fa'
+    withsplice, nosplice = output + '.syntheticAligned.withsplice.bam', output + '.syntheticAligned.nosplice.bam'
+    align_to_synth_genome(synth_fa, freadsname, nosplice,
+                          ['-s', str(min_fragment_size), '-t', str(threads), '-un', '--secondary=no', '-G', '1000k'])
+    align_to_synth_genome(synth_fa, freadsname, withsplice,
+                          ['-s', str(min_fragment_size), '-t', str(threads), '--secondary=no', '-G', '1000k'])
+    rname_to_read = choose_synthetic_alignments(withsplice, nosplice)
+    with pysam.AlignmentFile(withsplice, 'rb') as template, \
+            pysam.AlignmentFile(output + '.syntheticAligned.unsorted.bam', 'wb', template=template) as outbam:
+        for a in rname_to_read:
+            outbam.write(rname_to_read[a])
     pipettor.run([('samtools', 'sort', '-o', output + '.syntheticAligned.bam', output + '.syntheticAligned.unsorted.bam')])
     pipettor.run([('samtools', 'index', output + '.syntheticAligned.bam')])
-    pipettor.run([('rm', output + '.syntheticAligned.withsplice.bam', output + '.syntheticAligned.withsplice.bam.bai',
-                   output + '.syntheticAligned.nosplice.bam', output + '.syntheticAligned.nosplice.bam.bai',
+    pipettor.run([('rm', withsplice, withsplice + '.bai', nosplice, nosplice + '.bai',
                    output + '.syntheticAligned.unsorted.bam')])
 
+
+def write_synthetic_junctions(output):
+    "OUTPUT.syntheticAligned.SJ.bed: the junctions of the synthetic alignments to pass flair transcriptome"
     logging.info('getting ss')
     ipcmd = ('intron-prospector', f'--genome-fasta={output}-syntheticFusionGenome.fa', f'--intron-bed6={output}.syntheticAligned.IPSJ.bed', '-C', '0.0', '--sj-filter=all', f'{output}.syntheticAligned.bam')
     pipettor.run([ipcmd])
@@ -417,11 +442,13 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     crossing = count_breakpoint_reads(f'{output}.syntheticAligned.bam', fusiontobp)
     good_sj = select_junctions(BedReader(f'{output}.syntheticAligned.IPSJ.bed', numStdCols=6), fusiontobp, crossing)
 
-    out = open(f'{output}.syntheticAligned.SJ.bed', 'w')
-    for line in good_sj:
-        out.write('\t'.join(line) + '\n')
-    out.close()
+    with open(f'{output}.syntheticAligned.SJ.bed', 'w') as out:
+        for line in good_sj:
+            out.write('\t'.join(line) + '\n')
 
+
+def run_synthetic_transcriptome(output, sample_name, threads, frac_support):
+    "flair transcriptome on the reads aligned to the synthetic fusion genome"
     # NOTE: only the chimeric reads supporting a fusion (fusionreads above) are
     # aligned to the synthetic genome, and this transcriptome call would throw out
     # any non-chimeric read anyway: with --fusion_breakpoints, count_sam_transcripts
@@ -453,31 +480,31 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     logging.info(' '.join(transcriptome_command))
     pipettor.run(transcriptome_command)
 
+
+def filter_fasta(in_fa, out_fa, names):
+    "the records of in_fa named in names, to out_fa"
+    with open(out_fa, 'w') as out:
+        good = False
+        for line in open(in_fa):
+            if line[0] == '>':
+                good = line[1:].rstrip() in names
+            if good:
+                out.write(line)
+
+
+def write_final_fusions(output, genome, freadsname, min_dist_between_breakpoints, keep_intermediate):
+    "the fusion isoforms in genome coordinates, their sequences, reads, GTF and bigBed"
     logging.info('converting coordinates from synthetic to genomic')
     convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed',
                            output + '.syntheticAligned.flair.isoform.read.map.txt', freadsname,
                            output + '-syntheticBreakpointLoc.bed', output + '.fusions.isoforms.bed', min_dist_between_breakpoints)
 
-    goodisos = set()
-    for bed in BedReader(output + '.fusions.isoforms.bed', fixScores=True):
-        goodisos.add(bed.name)
-
-    with open(output + '.fusions.isoforms.fa', 'w') as out:
-        good = False
-        for line in open(output + '.syntheticAligned.flair.isoforms.fa'):
-            if line[0] == '>':
-                name = line[1:].rstrip()
-                if name in goodisos:
-                    good = True
-                else:
-                    good = False
-            if good:
-                out.write(line)
+    goodisos = {bed.name for bed in BedReader(output + '.fusions.isoforms.bed', fixScores=True)}
+    filter_fasta(output + '.syntheticAligned.flair.isoforms.fa', output + '.fusions.isoforms.fa', goodisos)
 
     with open(output + '.fusion.isoform.read.map.txt', 'w') as out:
         for line in open(output + '.syntheticAligned.flair.isoform.read.map.txt'):
-            name = line.split('\t', 1)[0]
-            if name in goodisos:
+            if line.split('\t', 1)[0] in goodisos:
                 out.write(line)
 
     bed_to_gtf(output + '.fusions.isoforms.bed', output + '.fusions.isoforms.gtf', is_flair_bed=True)
@@ -489,3 +516,35 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     if not keep_intermediate:
         for filename in glob.glob(output + '.syntheticAligned.flair*'):
             os.remove(filename)
+
+
+def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,
+                  min_fragment_size, min_support, max_loci, max_dist_to_tss,
+                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, quality=10,
+                  transcriptome_alignment=True, max_partners=1000):
+    # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
+    # are ordered 5' to 3' by their position in the read
+    transcriptome_reads = make_chimeric_bams(genome, gtf, genome_aligned_bam, output, threads, min_fragment_size,
+                                             transcriptome_alignment)
+    annot = read_annotation(gtf)
+    combchim = find_prelim_fusions(annot, output, transcriptome_reads, transcriptome_alignment, min_support,
+                                   max_loci, max_dist_to_tss, max_partners, quality)
+    fusionreads = write_prelim_fusions(combchim, output + '.prelimfusions.bed')
+    if os.path.getsize(output + '.prelimfusions.bed') == 0:
+        report_nofusions(output)
+        return
+
+    logging.info('obtaining fusion reads')
+    freadsname = output + '.fusionreads.prelim.fa'
+    chim_bams = [output + '.genomealigned.chim.bam']
+    if transcriptome_alignment:
+        chim_bams.append(output + '.transcriptomealigned.chim.bam')
+    write_fusion_reads(fusionreads, chim_bams, freadsname)
+
+    if not make_synthetic_genome(gtf, genome, output):
+        report_nofusions(output)
+        return
+    align_to_synthetic_genome(output, freadsname, min_fragment_size, threads)
+    write_synthetic_junctions(output)
+    run_synthetic_transcriptome(output, sample_name, threads, frac_support)
+    write_final_fusions(output, genome, freadsname, min_dist_between_breakpoints, keep_intermediate)
