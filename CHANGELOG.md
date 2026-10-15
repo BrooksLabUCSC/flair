@@ -84,7 +84,7 @@
     upstream, 19 kb from the nearest annotated start upstream of them.
   * `flair fusion --no_transcriptome_alignment` finds fusions from the chimeric
     reads of the genome alignment only, without aligning reads to annotated
-    transcripts: about 5 minutes on MCF7 and SeraCare against 24 and 37, at a
+    transcripts: about 5 minutes on MCF7 and SeraCare against 10 and 9, at a
     third of the memory, but it misses partner pieces the genome alignment leaves
     clipped, often short 5' exons (MYO6--SENP6 in MCF7 falls from 16 reads to 2).
     With the changes below it still finds all 19 MCF7 reference fusions.
@@ -102,6 +102,12 @@
     earlier run with the same `-o` are reused, whatever `-b` is.
   * `flair fusion -t` is passed on to flair transcriptome on the synthetic fusion
     genome, which used its own default of 12 threads whatever `-t` was.
+  * `flair fusion` aligns to annotated transcripts only the reads that can show a
+    fusion the genome alignment misses: unmapped, chimeric, or with
+    `--min_fragment_size` or more clipped at an end: 11% of the reads in MCF7 and
+    1.5% in SeraCare, where all were aligned.  The calls are identical, and the runs
+    take 10 and 9 minutes against 24 and 37.  The genome bam is read once, for the
+    chimeric reads and these together, where it was read three times.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

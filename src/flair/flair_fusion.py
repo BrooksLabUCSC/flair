@@ -8,7 +8,7 @@ import pysam
 import logging
 from flair.gtf_to_bed import gtf_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref, paralog_groups_for_genes
-from flair.identify_prelim_fusions import id_chimeras, chimeric_read_names, genome_unsplit_reads
+from flair.identify_prelim_fusions import id_chimeras, scan_genome_alignment
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.read_processing import get_sequence_from_bed
@@ -80,9 +80,9 @@ def add_subparser(subparsers):
                              'for max recall (default: %(default)s)')
     parser.add_argument('--no_transcriptome_alignment', action='store_true',
                         help='find fusions from the chimeric reads of the genome alignment only, without '
-                             'aligning reads to annotated transcripts.  Substantially faster, and -b can then '
-                             'hold only the chimeric reads, but loses fusion reads whose partner piece the '
-                             'genome alignment leaves clipped, particularly short 5\' exons')
+                             'aligning reads to annotated transcripts.  About half the time and a third of the '
+                             'memory, and -b can then hold only the chimeric reads, but loses fusion reads whose '
+                             'partner piece the genome alignment leaves clipped, particularly short 5\' exons')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging purposes')
     parser.set_defaults(entry=fusion_cmd)
@@ -176,31 +176,34 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     genomechimbam = output + '.genomealigned.chim.bam'
     transcriptchimbam = output + '.transcriptomealigned.chim.bam'
 
-    if not os.path.exists(genomechimbam):
+    # one pass over the genome alignment for its chimeric reads and the reads to align to
+    # annotated transcripts, each unless an earlier run left them
+    make_chim = not os.path.exists(genomechimbam)
+    align_to_transcripts = transcriptome_alignment and not os.path.exists(transcriptchimbam)
+    transcriptome_reads_fa = output + '.transcriptome_reads.fa'
+    transcriptome_reads = None
+    if make_chim or transcriptome_alignment:
         logging.info('getting chimeric reads from genome')
-        infile = pysam.AlignmentFile(genome_aligned_bam, 'rb')
-        outfile = pysam.AlignmentFile(genomechimbam, 'wb', template=infile)
-        for align in infile:
-            if align.is_mapped and not align.is_secondary:
-                if align.has_tag('SA'):
-                    outfile.write(align)
-        infile.close()
-        outfile.close()
-        pysam.index(genomechimbam)
+        transcriptome_reads = scan_genome_alignment(genome_aligned_bam, min_fragment_size,
+                                                    chim_bam=genomechimbam if make_chim else None,
+                                                    reads_fa=transcriptome_reads_fa if align_to_transcripts else None)
+        if make_chim:
+            pysam.index(genomechimbam)
 
-    if transcriptome_alignment and not os.path.exists(transcriptchimbam):
+    if align_to_transcripts:
         logging.info('aligning to transcriptome and getting chimeric reads')
         annotated_bed = output + '.annotated_transcripts.bed'
         gtf_to_bed(annotated_bed, gtf, include_gene=True, name_sep='|')
         annotated_fa = output + '.annotated_transcripts.fa'
         get_sequence_from_bed(genome, output + '.annotated_transcripts.bed', annotated_fa)
 
-        fa_cmd = ('samtools', 'fasta', genome_aligned_bam)
+        logging.info(f'{len(transcriptome_reads)} reads to align to transcripts')
         mm2_cmd = ('minimap2', '-a', '-s', str(min_fragment_size), '-t', str(threads), '--secondary=no',
-                   annotated_fa, '-')
+                   annotated_fa, transcriptome_reads_fa)
 
         filter_cmd = ('samtools', 'view', '-hF', '0x104', '-e', '[SA] != ""')
-        pipettor.run([fa_cmd, mm2_cmd, filter_cmd], stdout=output + '.transcriptomealigned.chim.bam')
+        pipettor.run([mm2_cmd, filter_cmd], stdout=output + '.transcriptomealigned.chim.bam')
+        os.remove(transcriptome_reads_fa)
         pipettor.run([('samtools', 'sort', '-o', output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
         pipettor.run([('mv', output + '.transcriptomealigned.chim.sorted.bam', transcriptchimbam)])
         pysam.index(transcriptchimbam)
@@ -284,16 +287,15 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     tchim = {}
     if transcriptome_alignment:
         logging.info('loading transcriptomic chimeras')
-        # reads chimeric aligned to transcripts but whole in the genome alignment.  A fusion
-        # from a deletion between genes closer than the genome aligner's maximum intron
-        # length aligns to the genome as one spliced read, so is left out too
-        unsplit = genome_unsplit_reads(genome_aligned_bam, chimeric_read_names(transcriptchimbam), min_fragment_size)
-        logging.info(f'transcriptomic chimeras: {len(unsplit)} reads aligned to the genome in one piece left out')
+        # only the reads that needed aligning to transcripts, as a bam left by an earlier
+        # run may hold others.  A read aligned to the genome in one piece is left out, and
+        # with it a fusion from a deletion between genes closer than the genome aligner's
+        # maximum intron length, which aligns to the genome as one spliced read
         tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
                             gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
                             min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
                             maxpromiscuity=max_partners, intronLocs=intronLocs, intronToGenome=intronToGenome,
-                            skip_reads=unsplit)
+                            only_reads=transcriptome_reads)
     logging.info('loading genomic chimeras')
 
     combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=max_partners,

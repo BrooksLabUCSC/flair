@@ -58,7 +58,7 @@
 
 .. option:: --no_transcriptome_alignment
 
-   find fusions from the chimeric reads of the genome alignment only, without aligning reads to annotated transcripts. Substantially faster, and -b can then hold only the chimeric reads, but loses fusion reads whose partner piece the genome alignment leaves clipped, particularly short 5' exons
+   find fusions from the chimeric reads of the genome alignment only, without aligning reads to annotated transcripts. About half the time and a third of the memory, and -b can then hold only the chimeric reads, but loses fusion reads whose partner piece the genome alignment leaves clipped, particularly short 5' exons
 
 .. option:: --keep_intermediate
 

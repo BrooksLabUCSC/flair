@@ -229,18 +229,11 @@ def is_foldback(aligns):
     return False
 
 
-def low_quality_reads(bam, min_mapq):
-    """Names of the chimeric reads in bam with a piece below min_mapq: a piece that
-    aligns about as well elsewhere places a partner the read may not have, as the
-    multi-copy subtelomeric DDX11L genes, or TAOK3--RPS2 in MCF7 at MAPQ 1 to 15."""
-    low = set()
-    if min_mapq <= 0:
-        return low
-    with pysam.AlignmentFile(bam, 'rb') as aligns:
-        for read in aligns:
-            if read.is_mapped and not read.is_secondary and read.mapping_quality < min_mapq:
-                low.add(read.query_name)
-    return low
+def is_low_quality(read, min_mapq):
+    """Is this piece of a chimeric read below min_mapq: a piece that aligns about as well
+    elsewhere places a partner the read may not have, as the multi-copy subtelomeric
+    DDX11L genes, or TAOK3--RPS2 in MCF7 at MAPQ 1 to 15."""
+    return min_mapq > 0 and read.is_mapped and not read.is_secondary and read.mapping_quality < min_mapq
 
 
 # an annotated transcript start this far downstream of a read's 5' end still counts as
@@ -268,50 +261,64 @@ def fusion_tss_distance(ends5, strand, tstarts):
     return min(dists) if dists else None
 
 
-def chimeric_read_names(bam):
-    "names of the reads with a supplementary alignment in bam"
-    with pysam.AlignmentFile(bam, 'rb') as aligns:
-        return {read.query_name for read in aligns if read.is_mapped and read.has_tag('SA')}
+def needs_transcriptome(read, min_clip):
+    """Can aligning this read to annotated transcripts find a fusion the genome alignment
+    doesn't: it is unmapped, chimeric, or leaves min_clip or more unaligned at an end.  A
+    read aligned to the genome in one piece, chimeric in the transcript alignment, is the
+    transcript alignment putting consecutive sequence on two annotated genes, as
+    overlapping or nested genes (MACC1--MACC1-OT1 in SeraCare) or segmental duplications
+    (UPK3B in MCF7).  A clipped end can be a short partner piece minimap2 didn't align
+    as supplementary (MYO6--SENP6 in MCF7)."""
+    if read.is_unmapped or read.has_tag('SA'):
+        return True
+    cigar = read.cigartuples
+    clip5 = cigar[0][1] if cigar[0][0] in (4, 5) else 0
+    clip3 = cigar[-1][1] if cigar[-1][0] in (4, 5) else 0
+    return clip5 >= min_clip or clip3 >= min_clip
 
 
-def genome_unsplit_reads(genome_bam, names, min_clip):
-    """Of names, the reads aligned to the genome in one piece: a primary alignment with
-    no supplementary and less than min_clip unaligned at either end.  A read chimeric
-    in the transcriptome alignment but whole in the genome is a transcriptome alignment
-    putting consecutive sequence on two annotated genes, as overlapping or nested genes
-    (MACC1--MACC1-OT1 in SeraCare) or segmental duplications (UPK3B in MCF7).  A
-    transcriptome piece the genome alignment left clipped is kept: minimap2 can clip a
-    short partner piece rather than align it as supplementary (MYO6--SENP6 in MCF7)."""
-    unsplit = set()
+def scan_genome_alignment(genome_bam, min_clip, chim_bam=None, reads_fa=None):
+    """One pass over the genome alignment: writes the alignments of its chimeric reads to
+    chim_bam, and the reads that need_transcriptome to reads_fa, each skipped when None,
+    and returns the names of the latter.  Only those reads are aligned to annotated
+    transcripts, a small share of them: 11% in MCF7, 1.5% in SeraCare."""
+    needed = set()
     with pysam.AlignmentFile(genome_bam, 'rb') as aligns:
+        chim_out = pysam.AlignmentFile(chim_bam, 'wb', template=aligns) if chim_bam else None
+        fa_out = open(reads_fa, 'w') if reads_fa else None
         for read in aligns.fetch(until_eof=True):
-            if read.query_name not in names or not read.is_mapped or read.is_secondary or read.is_supplementary \
-                    or read.has_tag('SA'):
+            if read.is_secondary:
                 continue
-            cigar = read.cigartuples
-            clip5 = cigar[0][1] if cigar[0][0] in (4, 5) else 0
-            clip3 = cigar[-1][1] if cigar[-1][0] in (4, 5) else 0
-            if clip5 < min_clip and clip3 < min_clip:
-                unsplit.add(read.query_name)
-    return unsplit
+            if chim_out is not None and read.is_mapped and read.has_tag('SA'):
+                chim_out.write(read)
+            if read.is_supplementary or not needs_transcriptome(read, min_clip):
+                continue
+            needed.add(read.query_name)
+            if fa_out is not None and read.query_sequence:
+                fa_out.write('>' + read.query_name + '\n' + read.get_forward_sequence() + '\n')
+        if chim_out is not None:
+            chim_out.close()
+        if fa_out is not None:
+            fa_out.close()
+    return needed
 
 
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
                 genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None,
-                min_mapq=0, skip_reads=frozenset()):
+                min_mapq=0, only_reads=None):
     isrevtosign = {True: '-', False: '+'}
     # mapping quality is only used for genome alignments: aligned to transcripts, a
-    # read of a gene with several overlapping isoforms has a low one regardless
-    low_quality = low_quality_reads(bam, min_mapq) if mode == 'genomic' else set()
-    if low_quality:
-        logging.info(f'{mode} chimeras: {len(low_quality)} reads with a piece below MAPQ {min_mapq} left out')
-    skip = low_quality | skip_reads
+    # read of a gene with several overlapping isoforms has a low one regardless.  Reads
+    # with a low piece are left out after the pass, as the piece can come after the others
+    low_quality = set()
     withsup = pysam.AlignmentFile(bam, "rb")
     readToAligns = {}
     sharing = exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons)
     for read in withsup:
+        if mode == 'genomic' and is_low_quality(read, min_mapq):
+            low_quality.add(read.query_name)
         if read.is_mapped and not read.is_secondary and read.has_tag('SA') and (mode == 'genomic' or not read.is_reverse) \
-                and read.query_name not in skip:  # if aligned to transcriptome, must match strand of transcript
+                and (only_reads is None or read.query_name in only_reads):  # if aligned to transcriptome, must match strand of transcript
             rname = read.query_name
             if rname not in readToAligns:
                 readToAligns[rname] = []
@@ -346,6 +353,10 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                 else:
                     readToAligns[rname].append([(qstart, refend), (qend, refstart), genename, genedir, refchr])
     withsup.close()
+    for r in low_quality:
+        readToAligns.pop(r, None)
+    if low_quality:
+        logging.info(f'{mode} chimeras: {len(low_quality)} reads with a piece below MAPQ {min_mapq} left out')
 
     foldbacks = [r for r, aligns in readToAligns.items() if is_foldback(aligns)]
     for r in foldbacks:
@@ -467,7 +478,6 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                             fusiontoinfo[fname][fgenes[i]] = [genomic_chroms[i], alignblocks[i][0], alignblocks[i][1]]
 
     return fusiontoinfo
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='''for identifying chimeras from genomic alignment''')
