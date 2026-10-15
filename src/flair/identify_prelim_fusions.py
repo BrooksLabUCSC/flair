@@ -261,6 +261,13 @@ def dist_to_upstream_tss(end5, strand, tstarts, buffer=TSS_DOWNSTREAM_BUFFER):
     return max(0, min(dists)) if dists else None
 
 
+def fusion_tss_distance(ends5, strand, tstarts):
+    """The smallest distance from any of a fusion's 5' ends (the most upstream one and
+    the median one) to an upstream transcript start of its 5' gene, or None."""
+    dists = [d for d in (dist_to_upstream_tss(e, strand, tstarts) for e in ends5) if d is not None]
+    return min(dists) if dists else None
+
+
 def chimeric_read_names(bam):
     "names of the reads with a supplementary alignment in bam"
     with pysam.AlignmentFile(bam, 'rb') as aligns:
@@ -394,6 +401,12 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                         alignblocks[i][0].append(alignedloci[i][0][1])
                         alignblocks[i][1].append(alignedloci[i][1][1])
 
+            # the typical 5' end of the reads, for the TSS distance with the most upstream one
+            # below.  A few reads starting further upstream than the rest set that one: in
+            # MCF7, ESR1--CCDC170's reads mostly start at an annotated ESR1 TSS, but 3 start
+            # 14 kb upstream, 19 kb from the nearest annotated start upstream of them
+            median5 = median(alignblocks[0][0])
+
             # check that gene orders for all reads are consistent
             # to start, no clustering, take simple min/max
             for i in range(numloci):
@@ -425,12 +438,14 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
             if fgenes[0] in genetoinfo:
                 firstgenedir = genetoinfo[fgenes[0]][3]
                 firstgenetstarts = genetoinfo[fgenes[0]][-1]
-                end5 = alignblocks[0][0]  # if firstgenedir == '+' else alignblocks[0][1]
+                # the most upstream 5' end, held by 2 or more reads, which with 5' truncated
+                # reads is the one near the promoter, or the median one: either counts
+                end5 = alignblocks[0][0]
                 if alignblocks[0][0] > alignblocks[0][1]:
                     end5 -= 1000
                 else:
                     end5 += 1000
-                mindisttostart = dist_to_upstream_tss(end5, firstgenedir, firstgenetstarts)
+                mindisttostart = fusion_tss_distance((end5, median5), firstgenedir, firstgenetstarts)
 
                 if ((firstgenedir == '+' and alignblocks[0][0] < alignblocks[0][1])
                         or (firstgenedir == '-' and alignblocks[0][0] > alignblocks[0][1]))\

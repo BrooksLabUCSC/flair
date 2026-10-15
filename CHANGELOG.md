@@ -77,6 +77,11 @@
     reads and is now rejected.  The help suggests a very high value or -1 for
     fragmented or 5' truncated reads: with -1, SeraCare finds all 16 spike-in
     fusions, ETV6--NTRK3 and EGFR--SEPTIN14 included.
+  * `flair fusion --max_dist_to_tss` takes the nearer of two 5' ends of a fusion's
+    reads: the most upstream one held by 2 or more reads, which with 5' truncated
+    reads is the one near the promoter, and now also the median one.  In MCF7,
+    ESR1--CCDC170's reads mostly start at an annotated ESR1 TSS, but 3 start 14 kb
+    upstream, 19 kb from the nearest annotated start upstream of them.
   * `flair fusion` failed with an invalid GTF record on an annotation sorted by
     position: minus strand exons were put in genomic order by reversing their
     order in the file, which only works for GENCODE's transcript order.
