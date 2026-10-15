@@ -2,7 +2,6 @@
 
 import logging
 import pysam
-import argparse
 from collections import Counter, defaultdict
 from statistics import median
 from flair.convert_synthetic_to_genome_bed import identify_fusion_problems, fusion_role
@@ -70,9 +69,6 @@ def getGenomicPreciseLoc(tname, bpCoord, genedir, intronLocs, intronToGenome):
         genomepos = genomeSS - diffFromSS
     return genomepos
 
-
-def def_value():
-    return set()
 
 def get_exon_intron_blocks(read):
     align_start = read.reference_start
@@ -478,15 +474,3 @@ def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, jun
                             fusiontoinfo[fname][fgenes[i]] = [genomic_chroms[i], alignblocks[i][0], alignblocks[i][1]]
 
     return fusiontoinfo
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='''for identifying chimeras from genomic alignment''')
-    parser.add_argument('-f', '--gtf',
-                        help='specify isoforms.gtf')
-    parser.add_argument('-b', '--bam',
-                        help='filtered bam file from alignment to genome')
-    parser.add_argument('-o', '--output',
-                        help='output file name')
-    args = parser.parse_args()
-
-    # annot, geneannot, genetoinfo = gchimparsegtf(args.gtf)

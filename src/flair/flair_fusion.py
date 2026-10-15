@@ -102,9 +102,6 @@ def fusion_cmd(args):
                   frac_support=args.frac_support, quality=args.quality, max_partners=args.max_partners,
                   transcriptome_alignment=not args.no_transcriptome_alignment, keep_intermediate=args.keep_intermediate)
 
-def def_value():
-    return set()
-
 def report_nofusions(outputprefix):
     logging.info('no fusions detected. Exiting')
     for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa']:

@@ -97,7 +97,6 @@ out = open(prefix + '-syntheticFusionGenome.fa', 'w')  # 'syntheticFusionGenomeA
 annoOut = open(prefix + '-syntheticReferenceAnno.gtf', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
 # sjOut = open(prefix + '-syntheticReferenceSJ.bed', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
 bpOut = open(prefix + '-syntheticBreakpointLoc.bed', 'w')  # 'syntheticFusionBreakpointLoc.bed', 'w')
-c = 0
 isocount = 1
 for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
     # print(fusion)
@@ -131,12 +130,6 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
         else:
             sequence.append(get_reverse_complement(genome.fetch(thisChr, rightbound, leftbound)))  # genome[thisChr][rightbound:leftbound]))
         labels.append('..'.join([str(x) for x in [gene, thisChr, leftbound, rightbound]]))
-
-        # Add a justends isoform here
-        chunksize = abs(leftbound - rightbound)
-        percentchange = int(chunksize * 0.1)
-        isochunks['justends-' + str(c)] = [(percentchange + startLoc, (chunksize - percentchange) + startLoc, 'exon'),]
-        c += 1
 
         for tname in transcripts[gene]:
             isochunks[tname] = []

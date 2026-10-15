@@ -42,31 +42,6 @@ def paralog_groups_for_genes(genetoparalogs, gene_ids):
     return {g: genetoparalogs[g.split('.')[0]] for g in gene_ids
             if g.split('.')[0] in genetoparalogs}
 
-def get_gene_name_conv(annotgtf):
-    from flair.gtf_io import gtf_record_parser, GtfAttrsSet
-    genetoname = {}
-    for rec in gtf_record_parser(annotgtf, include_features={'gene'}, attrs=GtfAttrsSet.ALL):
-        geneid = rec.gene_id
-        genename = rec.gene_name if rec.gene_name else geneid
-        genetoname[geneid.split('.')[0]] = genename
-    return genetoname
-
-def identify_promiscuous_genes(isoformsbed, genetoparalogs):
-    from flair.pycbio.hgdata.bed import BedReader
-    locustopartners = {}
-    for bed in BedReader(isoformsbed, fixScores=True):
-        fnames = set(bed.chrom.split('--'))
-        fnames = {x.split('.')[0] if x[:3] != 'chr' else x.split('-')[0] + '-' + str(round(int(x.split('-')[1]), -6))
-                  for x in fnames}
-        for i in fnames:
-            other = fnames - {i, }
-            newother = frozenset([genetoparalogs[g] if g in genetoparalogs else g for g in other])
-            if i not in locustopartners:
-                locustopartners[i] = set()
-            locustopartners[i].add(newother)
-    return locustopartners
-
-
 def fusion_role(i, numgenes):
     "a gene's role in a fusion by its position: 5' end, 3' end or between them"
     return '5p' if i == 0 else '3p' if i == numgenes - 1 else 'mid'
