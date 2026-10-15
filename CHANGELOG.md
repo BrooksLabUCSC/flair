@@ -100,6 +100,8 @@
     order in the file, which only works for GENCODE's transcript order.
   * The `-b` and `-o` help of `flair fusion` say that the chimeric read bams of an
     earlier run with the same `-o` are reused, whatever `-b` is.
+  * `flair fusion -t` is passed on to flair transcriptome on the synthetic fusion
+    genome, which used its own default of 12 threads whatever `-t` was.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

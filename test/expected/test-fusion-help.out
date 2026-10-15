@@ -23,7 +23,9 @@ options:
                         run with this -o are reused, whatever -b and
                         --min_fragment_size are
   -t THREADS, --threads THREADS
-                        minimap2 number of threads (default: 4)
+                        number of threads for minimap2 and for flair
+                        transcriptome on the synthetic fusion genome (default:
+                        4)
   --min_fragment_size MIN_FRAGMENT_SIZE
                         minimum size of alignment kept, used in minimap -s.
                         More important when doing downstream fusion detection

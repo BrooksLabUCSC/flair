@@ -41,7 +41,8 @@ def add_subparser(subparsers):
                              'reads bams OUTPUT.genomealigned.chim.bam and OUTPUT.transcriptomealigned.chim.bam '
                              'from an earlier run with this -o are reused, whatever -b and --min_fragment_size are')
     parser.add_argument('-t', '--threads', type=int, default=4,
-                        help='minimap2 number of threads (default: %(default)s)')
+                        help='number of threads for minimap2 and for flair transcriptome on the synthetic '
+                             'fusion genome (default: %(default)s)')
     parser.add_argument('--min_fragment_size', type=int, default=40,
                         help='minimum size of alignment kept, used in minimap -s. More important '
                              'when doing downstream fusion detection (default: %(default)s)')
@@ -442,7 +443,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                              '--no_align_to_annot',
                              '--fusion_breakpoints', output + '-syntheticBreakpointLoc.bed',
                              '--sample_name', sample_name,
-                             '--output', output + '.syntheticAligned.flair',]
+                             '--output', output + '.syntheticAligned.flair',
+                             '--threads', str(threads)]
     # only include junction if any where found
     junc_bed = output + '.syntheticAligned.SJ.bed'
     if os.path.exists(junc_bed) and (os.path.getsize(junc_bed) > 0):
