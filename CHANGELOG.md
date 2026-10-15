@@ -122,6 +122,12 @@
     isoforms, the number of isoforms, and the best supported breakpoint and isoform
     with their reads.  A breakpoint is each junction between consecutive loci, as
     chrom:pos(strand)--chrom:pos(strand), comma-separated for 3 or more loci.
+  * `flair fusion` found no fusions with a RefSeq or Ensembl reference: it took only
+    chromosomes named chr... as nuclear, to leave out unplaced scaffolds, so rejected
+    every fusion on NC_000012.12 or 12.  Chromosomes are now recognised as UCSC,
+    GENCODE, RefSeq and Ensembl name them, still leaving out mitochondria and unplaced
+    scaffolds, and non-genic loci by their chrom:start-end form rather than a chr
+    prefix.  The docs say flair fusion is configured for human genomes.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

@@ -177,6 +177,8 @@ TI = tmp-input
 GENOME_FA = ${TI}/genome.fa
 # the test genome with all chromosomes concatenated into one, chr12_17_20
 ONECHROM_GENOME_FA = ${TI}/genome.onechrom.fa
+# the test genome with RefSeq's sequence names, for the RefSeq annotation test
+REFSEQ_GENOME_FA = ${TI}/genome.refSeq.fa
 
 ##
 # basic: general tests that programs seem to work
@@ -931,11 +933,15 @@ FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
 # annotated exon boundaries and simulated with badread at 30x, reads oriented 5' to 3'
 FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
 FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
+# the fusion test reads aligned to the test genome with RefSeq's sequence names
+REFSEQ_FUSION_TEST_SHARED_OUT = $O/fusion_tests.refSeq
+REFSEQ_FUSION_TEST_BAM = ${REFSEQ_FUSION_TEST_SHARED_OUT}.bam
 
-fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf test-fusion-help
+fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf \
+	test-fusion-refseq test-fusion-help
 
 update-fusion-tests:
-	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene"; \
+	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene" "test-fusion-refseq"; \
 	do \
 	cp $O/$$tname.fusions.isoforms.bed $E/$$tname.fusions.isoforms.bed; \
 	cp $O/$$tname.fusions.isoforms.fa $E/$$tname.fusions.isoforms.fa; \
@@ -983,6 +989,20 @@ test-fusion-sorted-gtf: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TE
 	diff <(sort $E/test-fusion.fusions.isoforms.fa) <(sort $O/$@.fusions.isoforms.fa)
 	diff $E/test-fusion.fusions.tsv $O/$@.fusions.tsv
 
+# a RefSeq annotation: RefSeq sequence names, gene symbols as gene ids and no
+# gene_name attribute, BestRefSeq and Gnomon transcripts
+test-fusion-refseq: mkdirs ${REFSEQ_GENOME_FA} ${REFSEQ_FUSION_TEST_BAM}
+	flair fusion -g ${REFSEQ_GENOME_FA} -f $I/refSeq.test.annotation.gtf -b ${REFSEQ_FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
+	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
+	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.tsv)
+
+${REFSEQ_FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${REFSEQ_GENOME_FA}
+	@mkdir -p $O
+	flair align -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq \
+	   --genome ${REFSEQ_GENOME_FA} -t 4 -o ${REFSEQ_FUSION_TEST_SHARED_OUT} \
+	   --min_fragment_size 40 --max_intron_len 350k
+
 # genome chimeras only: no transcriptome alignment
 test-fusion-no-tome: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2 --no_transcriptome_alignment
@@ -1016,10 +1036,6 @@ test-spliceevents: mkdirs ${TEST_ALIGN_BAM}
 test-spliceevents-extraannot: mkdirs ${TEST_ALIGN_BAM}
 	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --annot_basic $(BASIC_ANNOTATION) -o $O/$@
 
-# FIXME: orphan, this does not work and is not referenced; is this still needed
-# the annotation file is there
-test-refseq: mkdirs
-	flair fusion -g genome.refSeq.fa -f $I/refSeq.test.annotation.gtf -r $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq -b $O/$@_chimeric.bam --max_loci 4 -o $O/$@ --min_support 2
 
 ##
 # flair_partition command
@@ -1071,6 +1087,11 @@ ${GENOME_FA}:
 	samtools faidx $@
 
 # one sequence, re-wrapped at 50 bases so it can be indexed
+${REFSEQ_GENOME_FA}: ${GENOME_FA}
+	sed -e 's/^>chr12$$/>NC_000012.12/' -e 's/^>chr17$$/>NC_000017.11/' -e 's/^>chr20$$/>NC_000020.11/' ${GENOME_FA} > $@.tmp
+	mv -f $@.tmp $@
+	samtools faidx $@
+
 ${ONECHROM_GENOME_FA}: ${GENOME_FA}
 	awk 'BEGIN {print ">chr12_17_20"} /^>/ {next} {buf = buf $$0; while (length(buf) >= 50) {print substr(buf, 1, 50); buf = substr(buf, 51)}} END {if (buf != "") print buf}' ${GENOME_FA} > $@.tmp
 	mv -f $@.tmp $@

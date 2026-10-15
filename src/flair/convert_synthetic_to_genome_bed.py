@@ -1,4 +1,5 @@
 import logging
+import re
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
 
@@ -33,6 +34,28 @@ def paralog_groups_for_genes(genetoparalogs, gene_ids):
     fusion was rejected as between paralogs."""
     return {g: genetoparalogs[g.split('.')[0]] for g in gene_ids
             if g.split('.')[0] in genetoparalogs}
+
+
+# mitochondrial sequence names in UCSC, GENCODE, Ensembl and RefSeq genomes
+MITOCHONDRIA = {'chrM', 'chrMT', 'M', 'MT', 'NC_012920.1'}
+
+
+def is_reference_chromosome(chrom):
+    """Is chrom a nuclear chromosome, named as UCSC and GENCODE (chr12), RefSeq
+    (NC_000012.12) or Ensembl (12, X) do: not mitochondria, nor an unplaced scaffold
+    (GL000009.2, KI270706.1, RefSeq's NT_ and NW_)"""
+    if chrom in MITOCHONDRIA:
+        return False
+    return chrom.startswith('chr') or chrom.startswith('NC_') or chrom.isdigit() or chrom in ('X', 'Y')
+
+
+NONGENIC_LOCUS = re.compile(r'.+:\d+-\d+$')
+
+
+def is_nongenic_locus(name):
+    "is name a non-genic locus, chrom:start-end, rather than a gene id"
+    return NONGENIC_LOCUS.match(name) is not None
+
 
 def fusion_role(i, numgenes):
     "a gene's role in a fusion by its position: 5' end, 3' end or between them"
@@ -76,10 +99,7 @@ def identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname
             areparalogs.append(False)
     overall = (all([x == 1 for x in gcount]) and isosup >= 1 and not ispromiscuous
                and any(x is False for x in areparalogs) and all(x is False for x in areig)
-               and len(allnames) > 1 and 'chrM' not in genomic_chroms
-               and all([x[:3] == 'chr' for x in genomic_chroms]))
-    # if overall:
-    #     print(fgenes, 'prom', ispromiscuous, 'para', areparalogs, 'ig', areig, 'uniquenames', allnames, 'goodchroms', 'chrM' not in genomic_chroms and all([x[:3] == 'chr' for x in genomic_chroms]), 'gcount', gcount)
+               and len(allnames) > 1 and all(is_reference_chromosome(x) for x in genomic_chroms))
     return overall
 
 def get_locus_bounds(synthinfo):
@@ -208,7 +228,7 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
                             curr_gene_count, gene_id, ref_gene_ids = get_gene_id(gene_og_to_new, gene, curr_gene_count)
                             flair_genes.append(gene_id)
                         # convert reference genes that are chromosome regions to none in the ref_gene_mappings field
-                        ref_gene_info = tuple([x if x[:3] != 'chr' else None for x in ref_gene_info])
+                        ref_gene_info = tuple([None if is_nongenic_locus(x) else x for x in ref_gene_info])
                         outbed = FlairBed(genomicchr, chromStart, chromEnd, name=bed.name, score=bed.score, strand=locusdir, blocks=blocks,
                                           gene_id=fusion_id, ref_gene_mappings=ref_gene_info, thickStart=thickStart, thickEnd=thickEnd,
                                           read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',

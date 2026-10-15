@@ -90,6 +90,12 @@ reversed read gives the fusion backwards, which is then rejected as having its
 5' gene in antisense.  Data that is poorly stranded, as some older PacBio
 data, will miss fusions.
 
+flair fusion is configured for human genomes: its paralog table and its filters of
+immunoglobulin genes and mitochondrial fusions are human.  It has been tested with
+GENCODE, RefSeq and Ensembl references, and recognises chromosomes as UCSC and GENCODE
+(chr12), RefSeq (NC_000012.12) and Ensembl (12) name them, leaving out mitochondria and
+unplaced scaffolds.
+
 **Output**
 
 sample.fusions.tsv
