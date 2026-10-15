@@ -117,6 +117,11 @@
     genome with its annotation, breakpoints and alignments.  It keeps the fusion
     isoforms, their read map, OUTPUT.prelimfusions.bed and the chimeric read bams,
     which a later run with the same `-o` reuses.
+  * `flair fusion` writes OUTPUT.fusions.tsv, a table of the fusions, most final
+    reads first: the genes, the reads of the preliminary fusion and of its final
+    isoforms, the number of isoforms, and the best supported breakpoint and isoform
+    with their reads.  A breakpoint is each junction between consecutive loci, as
+    chrom:pos(strand)--chrom:pos(strand), comma-separated for 3 or more loci.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before
