@@ -85,7 +85,10 @@ def add_subparser(subparsers):
                              'memory, and -b can then hold only the chimeric reads, but loses fusion reads whose '
                              'partner piece the genome alignment leaves clipped, particularly short 5\' exons')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help='keep intermediate and temporary files for debugging purposes')
+                        help='keep the intermediate files: the annotated transcripts, the preliminary fusion '
+                             'reads, and the synthetic fusion genome with its annotation, breakpoints, '
+                             'alignments and flair transcriptome output, where the fusion isoforms can be '
+                             'viewed.  The chimeric reads bams and OUTPUT.prelimfusions.bed are always kept')
     parser.set_defaults(entry=fusion_cmd)
 
 def fusion_cmd(args):
@@ -492,12 +495,11 @@ def filter_fasta(in_fa, out_fa, names):
                 out.write(line)
 
 
-def write_final_fusions(output, genome, freadsname, min_dist_between_breakpoints, keep_intermediate):
+def write_final_fusions(output, genome, min_dist_between_breakpoints):
     "the fusion isoforms in genome coordinates, their sequences, reads, GTF and bigBed"
     logging.info('converting coordinates from synthetic to genomic')
-    convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed',
-                           output + '.syntheticAligned.flair.isoform.read.map.txt', freadsname,
-                           output + '-syntheticBreakpointLoc.bed', output + '.fusions.isoforms.bed', min_dist_between_breakpoints)
+    convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed', output + '-syntheticBreakpointLoc.bed',
+                           output + '.fusions.isoforms.bed', min_dist_between_breakpoints)
 
     goodisos = {bed.name for bed in BedReader(output + '.fusions.isoforms.bed', fixScores=True)}
     filter_fasta(output + '.syntheticAligned.flair.isoforms.fa', output + '.fusions.isoforms.fa', goodisos)
@@ -512,9 +514,18 @@ def write_final_fusions(output, genome, freadsname, min_dist_between_breakpoints
     with pysam.FastaFile(genome) as genome_fa:
         make_big_bed(genome_fa, output + '.syntheticAligned.flair.chrom.sizes', output + '.fusions.isoforms')
 
-    # removing extra FLAIR files
-    if not keep_intermediate:
-        for filename in glob.glob(output + '.syntheticAligned.flair*'):
+
+INTERMEDIATE_SUFFIXES = ('.annotated_transcripts.bed', '.annotated_transcripts.fa', '.fusionreads.prelim.fa',
+                         '-syntheticFusionGenome.fa', '-syntheticFusionGenome.fa.fai', '-syntheticReferenceAnno.gtf',
+                         '-syntheticBreakpointLoc.bed', '.syntheticAligned.bam', '.syntheticAligned.bam.bai',
+                         '.syntheticAligned.IPSJ.bed', '.syntheticAligned.SJ.bed')
+
+
+def remove_intermediates(output):
+    "remove the files --keep_intermediate keeps"
+    for filename in [output + suffix for suffix in INTERMEDIATE_SUFFIXES] \
+            + glob.glob(glob.escape(output) + '.syntheticAligned.flair*'):
+        if os.path.exists(filename):
             os.remove(filename)
 
 
@@ -530,10 +541,18 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     combchim = find_prelim_fusions(annot, output, transcriptome_reads, transcriptome_alignment, min_support,
                                    max_loci, max_dist_to_tss, max_partners, quality)
     fusionreads = write_prelim_fusions(combchim, output + '.prelimfusions.bed')
-    if os.path.getsize(output + '.prelimfusions.bed') == 0:
+    if os.path.getsize(output + '.prelimfusions.bed') > 0:
+        find_fusion_isoforms(fusionreads, gtf, genome, output, sample_name, threads, min_fragment_size,
+                             min_dist_between_breakpoints, frac_support, transcriptome_alignment)
+    else:
         report_nofusions(output)
-        return
+    if not keep_intermediate:
+        remove_intermediates(output)
 
+
+def find_fusion_isoforms(fusionreads, gtf, genome, output, sample_name, threads, min_fragment_size,
+                         min_dist_between_breakpoints, frac_support, transcriptome_alignment):
+    "the fusion isoforms of the preliminary fusions' reads, from the synthetic fusion genome"
     logging.info('obtaining fusion reads')
     freadsname = output + '.fusionreads.prelim.fa'
     chim_bams = [output + '.genomealigned.chim.bam']
@@ -547,4 +566,4 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     align_to_synthetic_genome(output, freadsname, min_fragment_size, threads)
     write_synthetic_junctions(output)
     run_synthetic_transcriptome(output, sample_name, threads, frac_support)
-    write_final_fusions(output, genome, freadsname, min_dist_between_breakpoints, keep_intermediate)
+    write_final_fusions(output, genome, min_dist_between_breakpoints)

@@ -108,6 +108,15 @@
     1.5% in SeraCare, where all were aligned.  The calls are identical, and the runs
     take 10 and 9 minutes against 24 and 37.  The genome bam is read once, for the
     chimeric reads and these together, where it was read three times.
+  * `flair fusion` no longer writes OUTPUT.fusionreads.fa, the sequences of the
+    final isoforms' reads: OUTPUT.fusion.isoform.read.map.txt names them, and
+    OUTPUT.fusionreads.prelim.fa holds the sequences of every preliminary fusion read.
+  * Without `--keep_intermediate`, `flair fusion` removes its intermediate files,
+    where it removed only those of flair transcriptome: the annotated transcripts
+    (1 GB with GENCODE), the preliminary fusion reads, and the synthetic fusion
+    genome with its annotation, breakpoints and alignments.  It keeps the fusion
+    isoforms, their read map, OUTPUT.prelimfusions.bed and the chimeric read bams,
+    which a later run with the same `-o` reuses.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

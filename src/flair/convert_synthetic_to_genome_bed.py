@@ -2,14 +2,6 @@ import logging
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
 
-def get_iso_to_reads(readmapfile):
-    isoreadsup = {}
-    for line in open(readmapfile):
-        line = line.rstrip().split('\t')
-        reads = line[1].split(',')
-        isoreadsup[line[0]] = set(reads)
-    return isoreadsup
-
 def get_synth_info(breakpointfile):
     synthchrtoinfo = {}
     for bed in BedReader(breakpointfile, numStdCols=4):
@@ -171,35 +163,6 @@ def check_too_close(numloci, genomicbounds, min_dist):
                 return True
     return False
 
-def write_final_fusion_reads(readsfile, freadsfinal):
-    last = False
-    temp = readsfile.split('.prelim')
-    freads = open(''.join(temp), 'w')
-
-    if readsfile.split('.')[-1] == 'fasta' or readsfile.split('.')[-1] == 'fa':
-        for line in open(readsfile):
-            if line[0] == '>':
-                readname = line[1:].rstrip().split()[0]
-                if readname in freadsfinal:
-                    last = True
-                else:
-                    last = False
-            if last:
-                freads.write(line)
-    else:
-        linecount = 0
-        for line in open(readsfile):
-            if linecount % 4 == 0:
-                readname = line[1:].rstrip().split()[0]
-                if readname in freadsfinal:
-                    last = True
-                else:
-                    last = False
-            if last:
-                freads.write(line)
-            linecount += 1
-    freads.close()
-
 def get_gene_id(gene_og_to_new, gene_og, curr_gene_count):
     if gene_og not in gene_og_to_new:
         gene_id = f'FLG{curr_gene_count:08d}'
@@ -209,11 +172,9 @@ def get_gene_id(gene_og_to_new, gene_og, curr_gene_count):
     gene_id, gene_info = gene_og_to_new[gene_og]
     return curr_gene_count, gene_id, gene_info
 
-def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, outname, min_dist):
-    isoreadsup = get_iso_to_reads(readmapfile)
+def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
     synthchrtoinfo = get_synth_info(breakpointfile)
 
-    freadsfinal = set()
     out = open(outname, 'w')
     gene_og_to_new = {}
     curr_gene_count = 1
@@ -253,6 +214,4 @@ def convert_synthetic_isos(isoformsbed, readmapfile, readsfile, breakpointfile, 
                                           read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',
                                           fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples)
                         outbed.write(out)
-                    freadsfinal.update(isoreadsup[iso])
     out.close()
-    write_final_fusion_reads(readsfile, freadsfinal)

@@ -62,7 +62,7 @@
 
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging purposes
+   keep the intermediate files: the annotated transcripts, the preliminary fusion reads, and the synthetic fusion genome with its annotation, breakpoints, alignments and flair transcriptome output, where the fusion isoforms can be viewed. The chimeric reads bams and OUTPUT.prelimfusions.bed are always kept
 
 .. rubric:: required named arguments
 

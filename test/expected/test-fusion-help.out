@@ -79,8 +79,13 @@ options:
                         memory, and -b can then hold only the chimeric reads,
                         but loses fusion reads whose partner piece the genome
                         alignment leaves clipped, particularly short 5' exons
-  --keep_intermediate   keep intermediate and temporary files for debugging
-                        purposes
+  --keep_intermediate   keep the intermediate files: the annotated
+                        transcripts, the preliminary fusion reads, and the
+                        synthetic fusion genome with its annotation,
+                        breakpoints, alignments and flair transcriptome
+                        output, where the fusion isoforms can be viewed. The
+                        chimeric reads bams and OUTPUT.prelimfusions.bed are
+                        always kept
 
 required named arguments:
   -g GENOME, --genome GENOME
