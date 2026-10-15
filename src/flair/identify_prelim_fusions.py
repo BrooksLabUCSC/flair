@@ -227,14 +227,35 @@ def is_foldback(aligns):
     return False
 
 
+def low_quality_reads(bam, min_mapq):
+    """Names of the chimeric reads in bam with a piece below min_mapq: a piece that
+    aligns about as well elsewhere places a partner the read may not have, as the
+    multi-copy subtelomeric DDX11L genes, or TAOK3--RPS2 in MCF7 at MAPQ 1 to 15."""
+    low = set()
+    if min_mapq <= 0:
+        return low
+    with pysam.AlignmentFile(bam, 'rb') as aligns:
+        for read in aligns:
+            if read.is_mapped and not read.is_secondary and read.mapping_quality < min_mapq:
+                low.add(read.query_name)
+    return low
+
+
 def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,  # noqa: C901 - FIXME: reduce complexity
-                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None):
+                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None,
+                min_mapq=0):
     isrevtosign = {True: '-', False: '+'}
+    # mapping quality is only used for genome alignments: aligned to transcripts, a
+    # read of a gene with several overlapping isoforms has a low one regardless
+    low_quality = low_quality_reads(bam, min_mapq) if mode == 'genomic' else set()
+    if low_quality:
+        logging.info(f'{mode} chimeras: {len(low_quality)} reads with a piece below MAPQ {min_mapq} left out')
     withsup = pysam.AlignmentFile(bam, "rb")
     readToAligns = {}
     sharing = exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons)
     for read in withsup:
-        if read.is_mapped and not read.is_secondary and read.has_tag('SA') and (mode == 'genomic' or not read.is_reverse):  # if aligned to transcriptome, must match strand of transcript
+        if read.is_mapped and not read.is_secondary and read.has_tag('SA') and (mode == 'genomic' or not read.is_reverse) \
+                and read.query_name not in low_quality:  # if aligned to transcriptome, must match strand of transcript
             rname = read.query_name
             if rname not in readToAligns:
                 readToAligns[rname] = []

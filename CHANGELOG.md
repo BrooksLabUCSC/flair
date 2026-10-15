@@ -47,6 +47,10 @@
     a fusion isoform to be reported (default 0.05, as before).  A fusion with one
     dominant isoform hid its minor ones: in MCF7, BCAS4--BCAS3 has isoforms with
     a BCAS3 exon upstream of the usual junction exon, with 2% of its reads.
+  * `flair fusion --quality` (default 10) leaves out chimeric reads with a piece
+    below that MAPQ in the genome alignment, whose partner could as well be
+    elsewhere, as the multi-copy subtelomeric DDX11L genes in MCF7.  It applies to
+    the genome alignments only, not to reads aligned to annotated transcripts.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

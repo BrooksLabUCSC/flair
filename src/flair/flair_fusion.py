@@ -48,6 +48,11 @@ def add_subparser(subparsers):
     parser.add_argument('--min_dist_between_breakpoints', type=int, default=100000,
                         help='minimum allowed distance between breakpoints when they are on the same '
                              'strand; removes read-through transcripts (default: %(default)s)')
+    parser.add_argument('--quality', type=int, default=10,
+                        help='minimum MAPQ of every piece of a chimeric read in the genome alignment for the '
+                             'read to count toward a fusion. Applies to the genome alignments only, not to the '
+                             'alignment of reads to annotated transcripts, where a read of a gene with several '
+                             'overlapping isoforms has a low MAPQ regardless (default: %(default)s)')
     parser.add_argument('--frac_support', type=float, default=0.05,
                         help='minimum fraction of a fusion\'s reads for a fusion isoform to be reported; '
                              'a fusion with one dominant isoform hides its minor ones below this. Set to 0 '
@@ -68,7 +73,7 @@ def fusion_cmd(args):
                   # -1 turns the TSS distance check off
                   max_dist_to_tss=None if args.max_dist_to_tss == -1 else args.max_dist_to_tss,
                   min_dist_between_breakpoints=args.min_dist_between_breakpoints,
-                  frac_support=args.frac_support, keep_intermediate=args.keep_intermediate)
+                  frac_support=args.frac_support, quality=args.quality, keep_intermediate=args.keep_intermediate)
 
 def def_value():
     return set()
@@ -133,7 +138,7 @@ def select_junctions(junctions, fusiontobp, crossing):
 
 def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,  # noqa: C901 - FIXME: reduce complexity
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
-                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05):
+                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, quality=10):
     path = os.path.dirname(os.path.realpath(__file__)) + '/'
 
     # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
@@ -255,7 +260,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                         maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome)
     logging.info('loading genomic chimeras')
 
-    combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=4)
+    combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=4,
+                            min_mapq=quality)
 
     logging.info('combining genomic and transcriptomic')
     #

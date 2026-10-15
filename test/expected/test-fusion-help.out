@@ -4,7 +4,8 @@ usage: flair fusion [-h] -g GENOME -f GTF -b GENOME_ALIGNED_BAM --sample_name
                     [--min_support MIN_SUPPORT] [--max_loci MAX_LOCI]
                     [--max_dist_to_tss MAX_DIST_TO_TSS]
                     [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
-                    [--frac_support FRAC_SUPPORT] [--keep_intermediate]
+                    [--quality QUALITY] [--frac_support FRAC_SUPPORT]
+                    [--keep_intermediate]
 
 Identify gene fusions and generate a fusion transcriptome. Reads must be
 stranded, each oriented 5' to 3' as its RNA: the 5' and 3' genes of a fusion
@@ -35,6 +36,12 @@ options:
                         minimum allowed distance between breakpoints when they
                         are on the same strand; removes read-through
                         transcripts (default: 100000)
+  --quality QUALITY     minimum MAPQ of every piece of a chimeric read in the
+                        genome alignment for the read to count toward a
+                        fusion. Applies to the genome alignments only, not to
+                        the alignment of reads to annotated transcripts, where
+                        a read of a gene with several overlapping isoforms has
+                        a low MAPQ regardless (default: 10)
   --frac_support FRAC_SUPPORT
                         minimum fraction of a fusion's reads for a fusion
                         isoform to be reported; a fusion with one dominant

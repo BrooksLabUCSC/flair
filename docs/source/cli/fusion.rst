@@ -10,7 +10,8 @@
                        [--min_support MIN_SUPPORT] [--max_loci MAX_LOCI]
                        [--max_dist_to_tss MAX_DIST_TO_TSS]
                        [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
-                       [--frac_support FRAC_SUPPORT] [--keep_intermediate]
+                       [--quality QUALITY] [--frac_support FRAC_SUPPORT]
+                       [--keep_intermediate]
 
 .. rubric:: options
 
@@ -41,6 +42,10 @@
 .. option:: --min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS
 
    minimum allowed distance between breakpoints when they are on the same strand; removes read-through transcripts (default: 100000)
+
+.. option:: --quality QUALITY
+
+   minimum MAPQ of every piece of a chimeric read in the genome alignment for the read to count toward a fusion. Applies to the genome alignments only, not to the alignment of reads to annotated transcripts, where a read of a gene with several overlapping isoforms has a low MAPQ regardless (default: 10)
 
 .. option:: --frac_support FRAC_SUPPORT
 
