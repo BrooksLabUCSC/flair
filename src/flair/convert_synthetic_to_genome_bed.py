@@ -181,8 +181,9 @@ def check_too_close(numloci, genomicbounds, min_dist):
         if genomicbounds[i][0] == genomicbounds[i + 1][0] and genomicbounds[i][3] == genomicbounds[i + 1][3]:  # chrom and strand are same
             if genomicbounds[i][3] == '+' and 0 < genomicbounds[i + 1][1] - genomicbounds[i][2] < min_dist:
                 return True
-            # when in negative direction, bounds are flipped
-            elif genomicbounds[i][3] == '-' and 0 < genomicbounds[i][2] - genomicbounds[i + 1][1] < min_dist:
+            # bounds are start < end on either strand: on -, the gap runs from the
+            # downstream piece's end up to the upstream piece's start
+            elif genomicbounds[i][3] == '-' and 0 < genomicbounds[i][1] - genomicbounds[i + 1][2] < min_dist:
                 return True
     return False
 

@@ -51,6 +51,10 @@
     below that MAPQ in the genome alignment, whose partner could as well be
     elsewhere, as the multi-copy subtelomeric DDX11L genes in MCF7.  It applies to
     the genome alignments only, not to reads aligned to annotated transcripts.
+  * `flair fusion --min_dist_between_breakpoints` measured the gap between minus
+    strand pieces from the far end of one to the far end of the other, so
+    readthrough on the minus strand got through when the two pieces' lengths took
+    it past the minimum, as TMEM64--LINC01030 in MCF7 (90 kb apart).
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before
