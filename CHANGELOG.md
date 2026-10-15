@@ -128,6 +128,14 @@
     GENCODE, RefSeq and Ensembl name them, still leaving out mitochondria and unplaced
     scaffolds, and non-genic loci by their chrom:start-end form rather than a chr
     prefix.  The docs say flair fusion is configured for human genomes.
+* `flair align` is removed.  It ran minimap2 and filtered its output, which no
+  other module uses: flair transcriptome and flair fusion take a bam of all reads
+  aligned to the genome.  Align with minimap2 as the docs show,
+  `minimap2 -ax splice -s 40 -G 350k --MD --secondary=no`, with the options
+  explained in the new docs section on aligning reads.  The tests align their
+  reads with minimap2 directly, and
+  `make test-alignments` checks their alignments, so a minimap2 that aligns them
+  differently shows there first.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

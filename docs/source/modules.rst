@@ -14,15 +14,64 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 .. figure:: img/flair_workflow_compartmentalized.svg
 
 
+.. _alignment-label:
+
+Aligning reads to the genome
+============================
+
+FLAIR's modules take reads aligned to the genome as a sorted, indexed bam.  
+
+Please see the protocols page with more details on pros and cons of different alignment options, but here is an explanation of minimap options if you chose to use minimap and want to customize your run.
+
+The simplest protocol is to align with `minimap2 <https://github.com/lh3/minimap2>`__ and sort with samtools, in one line:
+
+.. code:: sh
+
+   minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no genome.fa sample.fastq | samtools sort -o sample.genomealigned.bam - && samtools index sample.genomealigned.bam
+
+The reads can be FASTA or FASTQ, gzipped or not. We recommend input with stranded reads without polyA tails trimmed, but unstranded and trimmed reads will work as well.
+
+Options to consider:
+
+``-ax splice``
+    Spliced alignment of long reads, with SAM output. You can also use splice:hq with high-quality reads, although FLAIR has been tested with splice (optimized for lower-quality long-reads).
+``-s 40``
+    The minimum score of an alignment, roughly its length in matching bases: shorter
+    pieces of a read are left unaligned.  For fusion detection, ``-s 40`` keeps shorter
+    partner pieces, as a short 5' exon, and matches flair fusion's
+    ``--min_fragment_size`` default.
+``-G 350k``
+    The longest intron.  Longer allows novel isoforms with long introns.  A fusion from
+    a deletion between genes closer than this aligns as one spliced read, which flair
+    fusion does not report: to find those, align with a smaller ``-G`` and lower flair
+    fusion's ``--min_dist_between_breakpoints`` to match.
+``--MD``
+    Adds the MD tags that flair alleles and flair variantquant need to find the reads'
+    mismatches.
+``--secondary=no``
+    Leaves out secondary alignments.  FLAIR uses each read's primary alignment, and
+    flair fusion its supplementary ones.
+``-t 20``
+    Threads.
+``-uf``
+    For stranded reads, oriented 5' to 3' as their RNA: splice junctions are taken on
+    the read's strand.  flair fusion needs stranded reads.
+``--junc-bed annotation.bed``
+    We do not recommend this option, as minimap2 tends to overcorrect to the submitted junctions
+
+If you're using human sequences, the best reference genome is
+`GCA_000001405.15_GRCh38_no_alt_analysis_set <ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz>`__ as described in this
+`helpful blog post by Heng Li <https://lh3.github.io/2017/11/13/which-human-reference-genome-to-use>`__.
+If your input sequences are Oxford nanopore reads, please use `Pychopper <https://github.com/epi2me-labs/pychopper>`__ before aligning them.
+
+
 .. _transcriptome-label:
 
 flair transcriptome
 ===================
 
-This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
-To get aligned reads, you can use FLAIR align or just run the following command to generate the bam file to use as input.
-minimap2 -ax splice -s 80 -G 200k -t 20 --secondary=no genome.fa sample.fastq | samtools view -hb - | samtools sort - > sample.genomealigned.bam; samtools index sample.genomealigned.bam
-The same bam, of all reads, is the input of FLAIR fusion.
+This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of
+reads aligned to the genome, as :ref:`aligning reads to the genome <alignment-label>` describes.
 
 
 **Outputs**
@@ -38,43 +87,6 @@ Options
 .. include:: cli/transcriptome.rst
 
 
-.. _align-label:
-
-flair align
-===========
-
-Use of this modules is deprecated, as ``FLAIR transcriptome`` operates on a BAM, and other output of ``flair align`` is no longer used.
-
-This module aligns reads to the genome using `minimap2 <https://github.com/lh3/minimap2>`__, 
-and converts the `SAM <https://en.wikipedia.org/wiki/SAM_(file_format)>`__ output to `BED12 <https://genome.ucsc.edu/FAQ/FAQformat.html#format14>`__.
-Aligned reads in BED12 format can be visualized in `IGV <https://igv.org/>`__ or the 
-`UCSC Genome browser <https://genome.ucsc.edu/cgi-bin/hgGateway>`__. 
-
-
-**Outputs**
-
- - ``flair.aligned.bam``
- - ``flair.aligned.bam.bai``
- - ``flair.aligned.bed``
-
-Options
--------
-
-.. include:: cli/align.rst
-
-
-Notes
------
-If you're using human sequences, the best reference genome is 
-`GCA_000001405.15_GRCh38_no_alt_analysis_set <ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz>`__ as described in this 
-`helpful blog post by Heng Li <https://lh3.github.io/2017/11/13/which-human-reference-genome-to-use>`__
-
-If your input sequences are Oxford nanopore reads, please use `Pychopper <https://github.com/epi2me-labs/pychopper>`__ before running Flair.
-
-nvrna settings: See `minimap2's manual <https://lh3.github.io/minimap2/minimap2.html>`__ for details.
-
-quality: `More info on MAPQ scores <https://www.acgt.me/blog/2014/12/16/understanding-mapq-scores-in-sam-files-does-37-42>`__ 
-
 .. _fusions-label:
 
 flair fusion
@@ -83,6 +95,9 @@ flair fusion
 This identifies gene fusions and generates a fusion transcriptome. 
 To incorporate this fusion transcriptome in downstream analysis, 
 use flair combine to merge it with normal isoforms. 
+
+Its input is a bam of all the reads aligned to the genome, as :ref:`aligning reads to the
+genome <alignment-label>` describes, with ``-s 40`` to keep short partner pieces.
 
 flair fusion requires stranded reads, each oriented 5' to 3' as its RNA.
 The 5' and 3' genes of a fusion come from the order of a read's pieces, so a
