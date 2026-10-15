@@ -82,10 +82,14 @@ for rec in gtf_record_parser(args.a, include_features={'gene', 'exon', 'start_co
             tname = rec.transcript_id
             if tname not in transcripts[genename]:
                 transcripts[genename][tname] = []
-            if rec.strand == '+':
-                transcripts[genename][tname].append((rec.start, rec.end, rec.feature))
-            else:
-                transcripts[genename][tname].insert(0, (rec.start, rec.end, rec.feature))
+            transcripts[genename][tname].append((rec.start, rec.end, rec.feature))
+# in genomic order whatever the order of the GTF: minus strand exons were put in
+# genomic order by reversing their file order, which only works for an annotation
+# listing them in transcript order, as GENCODE does.  A position-sorted GTF gave
+# transcripts ending before they started, and flair transcriptome failed on them
+for genename in transcripts:
+    for tname in transcripts[genename]:
+        transcripts[genename][tname].sort()
 # print(transcripts)
 # print('loaded transcripts')
 

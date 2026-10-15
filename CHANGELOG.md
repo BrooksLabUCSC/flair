@@ -77,6 +77,9 @@
     reads and is now rejected.  The help suggests a very high value or -1 for
     fragmented or 5' truncated reads: with -1, SeraCare finds all 16 spike-in
     fusions, ETV6--NTRK3 and EGFR--SEPTIN14 included.
+  * `flair fusion` failed with an invalid GTF record on an annotation sorted by
+    position: minus strand exons were put in genomic order by reversing their
+    order in the file, which only works for GENCODE's transcript order.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before
