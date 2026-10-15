@@ -59,6 +59,16 @@
     bases overlap the gene's exons.  A piece inside a gene's introns, or spliced
     across its exons without aligning to them, is now a non-genic locus: in MCF7,
     pieces inside RPS29's introns made it a hub with 26 partners.
+  * `flair fusion` leaves out reads chimeric in the alignment to annotated
+    transcripts but aligned to the genome in one piece, where the transcript
+    alignment puts consecutive sequence on two overlapping or duplicated genes.
+    Given all reads rather than only the chimeric ones, this removed the 14
+    false fusions that the transcript alignment added in SeraCare and UPK3B,
+    ANAPC1P2 and NPEPPSP1--TBC1D3L in MCF7.  A partner piece the genome
+    alignment leaves clipped still counts (MYO6--SENP6 in MCF7).  The `-b` help
+    now asks for all reads aligned with minimap2, and the
+    `--min_dist_between_breakpoints` help explains finding fusions between
+    close genes with a smaller minimap2 `-G`.
 * flair transcriptome
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before

@@ -41,7 +41,7 @@
 
 .. option:: --min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS
 
-   minimum allowed distance between breakpoints when they are on the same strand; removes read-through transcripts (default: 100000)
+   minimum allowed distance between breakpoints when they are on the same strand; removes read-through transcripts. A fusion from a deletion between genes closer than the maximum intron length of the genome alignment (minimap2 -G) aligns as one spliced read and is not found: to find fusions between close genes, align with a smaller minimap2 -G and lower this to match (default: 100000)
 
 .. option:: --quality QUALITY
 
@@ -67,7 +67,7 @@
 
 .. option:: -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
 
-   bam file of chimeric reads from genomic alignment from flair align
+   bam file of reads aligned to the genome with minimap2 -ax splice. All reads, not only the chimeric ones: reads are also aligned to annotated transcripts, which finds partner pieces the genome alignment leaves clipped
 
 .. option:: --sample_name SAMPLE_NAME
 

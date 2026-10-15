@@ -8,7 +8,7 @@ import pysam
 import logging
 from flair.gtf_to_bed import gtf_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref, paralog_groups_for_genes
-from flair.identify_prelim_fusions import id_chimeras
+from flair.identify_prelim_fusions import id_chimeras, chimeric_read_names, genome_unsplit_reads
 from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.read_processing import get_sequence_from_bed
@@ -28,7 +28,9 @@ def add_subparser(subparsers):
     required.add_argument('-f', '--gtf', type=str, required=True,
                           help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
     required.add_argument('-b', '--genome_aligned_bam', type=str, required=True,
-                          help='bam file of chimeric reads from genomic alignment from flair align')
+                          help='bam file of reads aligned to the genome with minimap2 -ax splice.  All reads, '
+                               'not only the chimeric ones: reads are also aligned to annotated transcripts, which '
+                               'finds partner pieces the genome alignment leaves clipped')
     required.add_argument('--sample_name', required=True,
                           help='name of sample, will be added as metadata to output files')
     parser.add_argument('-o', '--output',
@@ -47,7 +49,10 @@ def add_subparser(subparsers):
                              "-1 does not check this (default: %(default)s)")
     parser.add_argument('--min_dist_between_breakpoints', type=int, default=100000,
                         help='minimum allowed distance between breakpoints when they are on the same '
-                             'strand; removes read-through transcripts (default: %(default)s)')
+                             'strand; removes read-through transcripts.  A fusion from a deletion between genes '
+                             'closer than the maximum intron length of the genome alignment (minimap2 -G) aligns '
+                             'as one spliced read and is not found: to find fusions between close genes, align '
+                             'with a smaller minimap2 -G and lower this to match (default: %(default)s)')
     parser.add_argument('--quality', type=int, default=10,
                         help='minimum MAPQ of every piece of a chimeric read in the genome alignment for the '
                              'read to count toward a fusion. Applies to the genome alignments only, not to the '
@@ -254,10 +259,16 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         get_paralog_ref(os.path.realpath(__file__).split('flair_fusion')[0] + 'dgd_Hsa_all_v71.tsv'), genetoinfo)
 
     logging.info('loading transcriptomic chimeras')
+    # reads chimeric aligned to transcripts but whole in the genome alignment.  A fusion
+    # from a deletion between genes closer than the genome aligner's maximum intron
+    # length aligns to the genome as one spliced read, so is left out too
+    unsplit = genome_unsplit_reads(genome_aligned_bam, chimeric_read_names(transcriptchimbam), min_fragment_size)
+    logging.info(f'transcriptomic chimeras: {len(unsplit)} reads aligned to the genome in one piece left out')
     tchim = id_chimeras('transcriptomic', transcriptchimbam, genetoinfo, chrom_to_gene_pos,
                         gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname,
                         min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss,
-                        maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome)
+                        maxpromiscuity=4, intronLocs=intronLocs, intronToGenome=intronToGenome,
+                        skip_reads=unsplit)
     logging.info('loading genomic chimeras')
 
     combchim = id_chimeras('genomic', genomechimbam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs, genetoname, min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=4,
