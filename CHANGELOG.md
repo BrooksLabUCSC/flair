@@ -137,6 +137,11 @@
   `make test-alignments` checks their alignments, so a minimap2 that aligns them
   differently shows there first.
 * flair transcriptome
+  * Isoforms of the same coordinates on different sequences got the same isoform
+    id: an isoform's name, by which ids are given, hashed its exons but not its
+    chromosome.  In LRGASP WTC11 with spike-ins, single-exon ERCCs starting at 1
+    shared ids (5 duplicated in PacBio, 4 in ONT).  The name now includes the
+    chromosome, hashed so that names stay the same between runs.
   * About 3x faster: full WTC11 PacBio (3 million reads, GENCODE, 24 threads)
     went from 75 to 23 minutes and from 1,490 to 500 CPU minutes.  Setup before
     the partitions run is under 2 minutes (was 11); minimap2 threads stay within

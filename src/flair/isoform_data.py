@@ -1,5 +1,7 @@
 """Read/exon structures and junction utilities, shared across FLAIR modules."""
 
+import functools
+import hashlib
 from bisect import bisect_right
 from collections import namedtuple
 from operator import attrgetter
@@ -388,6 +390,14 @@ class Gene:
         isoform.gene_id = self.gene_id
 
 
+@functools.lru_cache(maxsize=None)
+def chrom_hash(chrom):
+    """A chromosome name as a number for isoform name hashes.  Python's hash of a
+    string changes from run to run, while hashes of numbers don't, so names stay the
+    same between runs and between the processes of a parallel run."""
+    return int(hashlib.md5(str(chrom).encode('utf-8')).hexdigest()[:15], 16)
+
+
 class Isoform:
     # keep on one copy of junction chain
     _juncs_cache = {}
@@ -436,18 +446,20 @@ class Isoform:
 
     @property
     def name(self):
-        """An assigned name, otherwise a hash of the junctions before the ends are
-        known and of the exons once they are, and for a single-exon isoform its strand,
-        as both strands' reads give single-exon isoforms"""
-        # FIXME: ideally would add chromosome and strand to this hash
+        """An assigned name, otherwise a hash of the chromosome and of the junctions
+        before the ends are known and the exons once they are, and for a single-exon
+        isoform its strand, as both strands' reads give single-exon isoforms.  Without
+        the chromosome, isoforms of the same coordinates on different chromosomes had
+        one name, and so one isoform id, as single-exon spike-ins starting at 1"""
         if self._name is not None:
             return self._name
-        elif self.start is None:
-            return str(abs(hash(tuple(self.juncs))))
+        chrom = (chrom_hash(self.chrom),)
+        if self.start is None:
+            return str(abs(hash(tuple(self.juncs) + chrom)))
         elif self.juncs == ():
-            return str(abs(hash(tuple(self.exons) + (1 if self.strand == '+' else -1,))))
+            return str(abs(hash(tuple(self.exons) + (1 if self.strand == '+' else -1,) + chrom)))
         else:
-            return str(abs(hash(tuple(self.exons))))
+            return str(abs(hash(tuple(self.exons) + chrom)))
 
     @name.setter
     def name(self, new_name):
