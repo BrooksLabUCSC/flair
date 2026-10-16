@@ -226,6 +226,11 @@
     order of the samples.
   * Isoforms of alleles, from flair isoalleles, are combined without their allele
     information, with a warning.
+  * Fusion isoforms are combined only if they share their fusion junctions too,
+    not only each piece's own junctions: two fusions of one 5' piece with 3'
+    partners spliced at different acceptors, as ATP1A1 with ZFP64 and with a
+    non-genic chr20 locus in MCF7, were taken for one isoform with two sets of
+    genes, an error.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

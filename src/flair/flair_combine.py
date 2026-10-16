@@ -142,10 +142,31 @@ def load_isos_by_id(bedfile):
                         f"than its isoform: set --min_percent_usage lower for them")
     return isotoinfo, mysamples
 
+def _fusion_junction_sites(bed, order, numpieces):
+    """A fusion piece's splice sites at its fusion junctions, its 3' edge unless it is
+    the last piece and its 5' edge unless it is the first: consecutive pieces' give
+    the fusion junction between them"""
+    sites = []
+    if order < numpieces - 1:
+        sites.append(bed.end if bed.strand == '+' else bed.start)
+    if order > 0:
+        sites.append(bed.start if bed.strand == '+' else bed.end)
+    return tuple(sites)
+
+
 def organize_isos_by_junc_chain(isotoinfo, intronchaintoisos):
+    """isotoinfo's isoforms by junction chain: each piece's (position in fusion,
+    chrom, strand, junctions), with a fusion piece's splice sites at its fusion
+    junctions, so fusions sharing a piece but not the junction to their partner,
+    as two 3' partners spliced to one 5' piece at different acceptors, are not
+    taken for one isoform"""
     for iso_id, bed_records in isotoinfo.items():
         bed_records.sort()  # organize fusion partners in order if necessary
-        juncchaininfo = tuple([x[0] for x in bed_records])
+        if len(bed_records) > 1:
+            juncchaininfo = tuple(x[0] + (_fusion_junction_sites(x[1], order, len(bed_records)),)
+                                  for order, x in enumerate(bed_records))
+        else:
+            juncchaininfo = tuple([x[0] for x in bed_records])
         beds = tuple([x[1] for x in bed_records])
         if juncchaininfo not in intronchaintoisos:
             intronchaintoisos[juncchaininfo] = []
