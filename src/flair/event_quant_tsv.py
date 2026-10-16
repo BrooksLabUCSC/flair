@@ -10,6 +10,10 @@ Columns, in order:
   isoform_ids  ids of the isoforms on this side, comma separated in the file
                and a list on the row
 
+Both end in the strand, chr12:25215436-25215560:+, because the same coordinates
+on the two strands are two events: without it they share a feature_id, which
+DRIMSeq refuses, and a coordinate, which would pool the strands into one test.
+
 Coordinates are zero based and half open, as they come from a BED: a
 junction start is the end of the exon before it, a junction end the start of
 the exon after.

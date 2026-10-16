@@ -101,8 +101,10 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                     elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor
                         continue
 
-                    feature_suffix = chrom_clean + ':' + str(fiveprime) if n == 0 else chrom_clean + ':' + str(fiveprime) + '-' + str(n)
-                    event = chrom_clean + ':' + str(fiveprime) + '-' + str(inclusion) + '_' + chrom_clean + ':' + str(fiveprime) + '-' + str(exclusion)
+                    anchor = f'{chrom_clean}:{fiveprime}' if n == 0 else f'{chrom_clean}:{fiveprime}-{n}'
+                    feature_suffix = f'{anchor}:{strand}'
+                    event = (f'{chrom_clean}:{fiveprime}-{inclusion}_'
+                             f'{chrom_clean}:{fiveprime}-{exclusion}:{strand}')
 
                     writer.writeSide('inclusion', feature_suffix, event,
                                      alljuncs[chrom][fiveprime][inclusion]['counts'],
@@ -195,8 +197,8 @@ def main():  # noqa: C901 - FIXME: reduce complexity
                 if not sample_names:
                     ir_junctions[chrom][j]['exclusion']['counts'] = ir_junctions[chrom][j]['inclusion']['counts'] = []
 
-                chrom_clean = chrom[1:]
-                event = chrom_clean + ':' + str(j.start) + '-' + str(j.end)
+                strand, chrom_clean = chrom[0], chrom[1:]
+                event = f'{chrom_clean}:{j.start}-{j.end}:{strand}'
                 writer.writeSide('inclusion', event, event,
                                  ir_junctions[chrom][j]['inclusion']['counts'],
                                  sorted(ir_junctions[chrom][j]['inclusion']['isos']))

@@ -23,10 +23,13 @@ def write_es_events(counts_matrix_tsv, es_events_tsv):
         for row in EsEventsReader(es_events_tsv):
             # an exon that no isoform skips is not an event
             if row.num_exclusion > 0:
-                writer.writeSide('inclusion', row.exon, row.exon,
+                # the strand is part of the name: the same exon coordinates on the
+                # two strands are two events, and DRIMSeq groups by this name
+                event = f'{row.exon}:{row.strand}'
+                writer.writeSide('inclusion', event, event,
                                  side_counts(data, n_samps, row.inclusion_isos),
                                  row.inclusion_isos)
-                writer.writeSide('exclusion', row.exon, row.exon,
+                writer.writeSide('exclusion', event, event,
                                  side_counts(data, n_samps, row.exclusion_isos),
                                  row.exclusion_isos)
 
