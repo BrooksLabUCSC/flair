@@ -310,6 +310,9 @@ If DRIMSeq was run, where ``A`` is ``--condition_a`` and ``B`` is ``--condition_
  - ``drimseq_ir_A_v_B.tsv``
  - ``workdir`` Temporary files including unfiltered output files.
 
+All four are written whichever events were called: an event type that called nothing, or
+whose events DRIMSeq found nothing significant in, leaves a file of only its header.
+
 Options
 -------
 

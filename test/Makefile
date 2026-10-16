@@ -631,7 +631,9 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
 	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
 	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect,$@/drimseq_alt5_A_v_B.tsv)
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect,$@/drimseq_ir_A_v_B.tsv)
 
 test-diffsplice-compress: mkdirs ${TI}/basic.isoforms_diffsplice.bed.gz ${TI}/basic.counts_matrix_diffsplice.tsv.gz
 	flair -z diffsplice --isoform_bed ${TI}/basic.isoforms_diffsplice.bed.gz \
@@ -639,6 +641,7 @@ test-diffsplice-compress: mkdirs ${TI}/basic.isoforms_diffsplice.bed.gz ${TI}/ba
 	$(call cmp_expect_sort_gz,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect_gz,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
 	$(call cmp_expect_gz,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect_gz,$@/drimseq_ir_A_v_B.tsv,test-diffsplice/drimseq_ir_A_v_B.tsv)
 
 test-diffsplice-cond: mkdirs
 	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output --condition_a A --condition_b B

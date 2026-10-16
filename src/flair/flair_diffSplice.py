@@ -12,6 +12,7 @@ from flair.event_quant_tsv import EventQuantReader
 from flair.sample_info_tsv import read_sample_info, write_sample_info
 from flair.pycbio.hgdata.bed import BedReader
 from flair.pycbio.sys import fileOps
+from flair.pycbio.tsv import TsvWriter
 from flair.output_compress import compressed_path, output_compression
 
 pkgdir = osp.dirname(osp.realpath(__file__))
@@ -155,15 +156,34 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
             ds_command += ['--batch']
         with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:
             for event in ('es', 'alt5', 'alt3', 'ir'):
-                run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr)
+                run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr,
+                                  output, condition_a, condition_b, sample_infos)
     else:
         # workdir only necessary for drimseq output
         os.rmdir(workdir)
 
-def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr):
+def drimseq_result_path(output, event, condition_a, condition_b):
+    "the result file for one event type, as diffSplice_drimSeq.R names it"
+    return compressed_path(osp.join(output, f'drimseq_{event}_{condition_a}_v_{condition_b}.tsv'))
+
+def write_empty_drimseq_result(output, event, condition_a, condition_b, sample_infos):
+    """The file DRIMSeq would have written had the event type called anything, so that
+    a run always writes the four results it declares.  The columns are the ones
+    diffSplice_drimSeq.R ends with: the two ids, the samples of this comparison in
+    formula order, then lr and adj_pvalue."""
+    samples = [si.sample_id for si in sample_infos
+               if si.condition in (condition_a, condition_b)]
+    columns = ['feature_id', 'gene_id'] + samples + ['lr', 'adj_pvalue']
+    with TsvWriter(drimseq_result_path(output, event, condition_a, condition_b),
+                   columns=columns, defaultColType=str):
+        pass
+
+def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr,
+                      output, condition_a, condition_b, sample_infos):
     matrixfile = compressed_path(f'{filebase}.{event}.events.quant.tsv')
     if empty_matrix(matrixfile):
         logging.info(f'{event} event matrix file empty, not running DRIMSeq')
+        write_empty_drimseq_result(output, event, condition_a, condition_b, sample_infos)
     else:
         cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
         try:
