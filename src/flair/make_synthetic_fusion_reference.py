@@ -2,7 +2,7 @@ import argparse
 import pysam
 from flair import FlairInputDataError
 from flair.isoform_data import get_reverse_complement
-from flair.gtf_io import gtf_record_parser, gtf_write_row, GtfAttrsSet
+from flair.gtf_io import gtf_data_parser, gtf_write_row, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.pycbio.hgdata.bed import BedReader
 
 # Makes a synthetic genome of fusion contigs, each the loci of a preliminary fusion
@@ -48,29 +48,27 @@ class ChromSizes:
         return size
 
 
-def read_transcripts(anno, fgenes, transcripts, chrom_sizes):
-    """Fill in the fusion genes' extents from the annotation, padded by 500 bases, and their
-    transcripts' exons and start codons, in genomic order"""
-    for rec in gtf_record_parser(anno, include_features={'gene', 'exon', 'start_codon'}, attrs=GtfAttrsSet.ALL):
-        genename = rec.gene_id
+def read_transcripts(gtf_data, fgenes, transcripts, chrom_sizes):
+    """Fill in the fusion genes' extents from the annotation (GtfData), their
+    transcripts' span padded by 500 bases, and their transcripts' exons and 5' start
+    codons, in genomic order"""
+    for transcript in gtf_data.transcripts:
+        genename = transcript.gene_id
         if genename not in fgenes:
             continue
-        if rec.feature == 'gene':
-            # learned that can't assume that transcript appears in anno only once - two diff ENSG can have same hugo name
-            # the 500 base padding is held within the sequence; a gene near either end has less room than that
-            fgenes[genename] = (rec.chrom,
-                                min([max(0, rec.start - 500), fgenes[genename][1]]),
-                                max([min(chrom_sizes.get(rec.chrom), rec.end + 500), fgenes[genename][2]]),
-                                rec.strand)
-        elif rec.feature in ('exon', 'start_codon'):
-            transcripts[genename].setdefault(rec.transcript_id, []).append((rec.start, rec.end, rec.feature))
-    # in genomic order whatever the order of the GTF: minus strand exons were put in
-    # genomic order by reversing their file order, which only works for an annotation
-    # listing them in transcript order, as GENCODE does.  A position-sorted GTF gave
-    # transcripts ending before they started, and flair transcriptome failed on them
-    for genename in transcripts:
-        for tname in transcripts[genename]:
-            transcripts[genename][tname].sort()
+        # the 500 base padding is held within the sequence; a gene near either end has less room than that
+        fgenes[genename] = (transcript.chrom,
+                            min([max(0, transcript.start - 500), fgenes[genename][1]]),
+                            max([min(chrom_sizes.get(transcript.chrom), transcript.end + 500), fgenes[genename][2]]),
+                            transcript.strand)
+        features = [(exon.start, exon.end, 'exon') for exon in transcript.exons]
+        if transcript.start_codon is not None:
+            features.append((transcript.start_codon.start, transcript.start_codon.end, 'start_codon'))
+        # in genomic order whatever the order of the GTF: minus strand exons were put in
+        # genomic order by reversing their file order, which only works for an annotation
+        # listing them in transcript order, as GENCODE does.  A position-sorted GTF gave
+        # transcripts ending before they started, and flair transcriptome failed on them
+        transcripts[genename][transcript.transcript_id] = sorted(features)
 
 
 def locus_bounds(order, numloci, gene, leftbound, rightbound, fgenes, chrom_size):
@@ -159,19 +157,15 @@ def write_fusion(outs, fusion, labels, sequence, allstartloc, finalisochunks, is
     return isocount
 
 
-def main():
-    parser = argparse.ArgumentParser(description='make synthetic fusion reference')
-    parser.add_argument('-c', '--chimbp', action='store', help='bed file of fusion breakpoints')
-    parser.add_argument('-g', '--genome', action='store', dest='g', help='path to genome')
-    parser.add_argument('-a', '--anno', action='store', dest='a', help='path to anno.gtf')
-    parser.add_argument('-o', '--output', action='store', help='output file prefix')
-    args = parser.parse_args()
-    prefix = args.output
-
-    allBP, fgenes, transcripts = read_breakpoints(args.chimbp)
-    genome = pysam.FastaFile(args.g)
-    chrom_sizes = ChromSizes(genome, args.g, args.a)
-    read_transcripts(args.a, fgenes, transcripts, chrom_sizes)
+def make_synthetic_reference(gtf_data, anno_path, genome_path, chimbp, prefix):
+    """The synthetic fusion genome of the preliminary fusions in chimbp, its
+    annotation from gtf_data (a GtfData, parsed from anno_path) and its breakpoints,
+    as prefix-syntheticFusionGenome.fa, -syntheticReferenceAnno.gtf and
+    -syntheticBreakpointLoc.bed"""
+    allBP, fgenes, transcripts = read_breakpoints(chimbp)
+    genome = pysam.FastaFile(genome_path)
+    chrom_sizes = ChromSizes(genome, genome_path, anno_path)
+    read_transcripts(gtf_data, fgenes, transcripts, chrom_sizes)
 
     with open(prefix + '-syntheticFusionGenome.fa', 'w') as out, \
             open(prefix + '-syntheticReferenceAnno.gtf', 'w') as annoOut, \
@@ -181,6 +175,17 @@ def main():
             labels, sequence, allstartloc, allisochunks = build_fusion(allBP[fusion], fgenes, transcripts, genome, chrom_sizes)
             isocount = write_fusion((out, annoOut, bpOut), fusion, labels, sequence, allstartloc,
                                     multi_exon_isoforms(allisochunks), isocount)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='make synthetic fusion reference')
+    parser.add_argument('-c', '--chimbp', action='store', help='bed file of fusion breakpoints')
+    parser.add_argument('-g', '--genome', action='store', dest='g', help='path to genome')
+    parser.add_argument('-a', '--anno', action='store', dest='a', help='path to anno.gtf')
+    parser.add_argument('-o', '--output', action='store', help='output file prefix')
+    args = parser.parse_args()
+    gtf_data = gtf_data_parser(args.a, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    make_synthetic_reference(gtf_data, args.a, args.g, args.chimbp, args.output)
 
 
 if __name__ == '__main__':

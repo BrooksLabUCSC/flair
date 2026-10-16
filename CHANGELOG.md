@@ -138,6 +138,18 @@
     coding, in the bed, GTF and bigBed: the 3' piece of an isoform whose stop
     codon is in its 5' piece, as 5 PTC isoforms in MCF7.
     Such a piece now has no coding region.
+  * `flair fusion` gives each piece of a final fusion isoform its gene as flair
+    transcriptome gives an isoform its gene, by the junctions and splice sites it
+    shares with annotated genes, counting its splice sites at the fusion junctions,
+    rather than taking the preliminary fusion's, which depended on where reads ended.
+    A piece of only a first exon has its donor; a piece with no annotated junction or
+    splice site keeps the preliminary gene.  An isoform two of whose pieces are then
+    of one gene is left out, as a rearrangement within a gene, which flair fusion
+    doesn't call: a BPTF--BPTF call in SeraCare.  OUTPUT.fusions.tsv names fusions
+    by their final isoforms' genes.
+  * `flair fusion` reads its GTF once, rather than four times, which takes 1 to 1.5
+    minutes off a GENCODE run, but holds it in memory: 6 GB at its peak for SeraCare,
+    from 3 GB.
 * `flair align` is removed.  It ran minimap2 and filtered its output, which no
   other module uses: flair transcriptome and flair fusion take a bam of all reads
   aligned to the genome.  Align with minimap2 as the docs show,

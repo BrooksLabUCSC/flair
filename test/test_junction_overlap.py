@@ -105,5 +105,4 @@ def test_shared_junctions_go_to_the_gene_not_its_readthrough():
         gene_to_strand={'GENE': '+', 'RT': '+'},
         gene_to_annot_juncs={'GENE': {j, Junc(8000, 9000)}, 'RT': {rt_first, j}},
         gene_to_num_transcripts={'GENE': 3, 'RT': 1})
-    exons = [Exon(900, 1000), Exon(2000, 2300)]
-    assert get_genes_with_shared_juncs((j,), exons, '+', annots) == ('GENE',)
+    assert get_genes_with_shared_juncs((j,), '+', annots) == ('GENE',)

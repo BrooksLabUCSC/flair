@@ -1,17 +1,18 @@
 #! /usr/bin/env python3
 
 import os
-import sys
 import glob
 import pipettor
 import pysam
 import logging
 from collections import namedtuple
-from flair.gtf_to_bed import gtf_to_bed
+from flair.gtf_to_bed import gtf_data_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref, paralog_groups_for_genes
 from flair.identify_prelim_fusions import id_chimeras, scan_genome_alignment
 from flair import FlairInputDataError
-from flair.gtf_io import gtf_record_parser, GtfAttrsSet
+from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
+from flair.annotation_data import AnnotsByChrom
+from flair.make_synthetic_fusion_reference import make_synthetic_reference
 from flair.read_processing import get_sequence_from_bed
 from flair.pycbio.hgdata.bed import Bed, BedReader
 from flair.flair_bed import FlairBed
@@ -174,12 +175,12 @@ Annotation = namedtuple('Annotation', ['genetoinfo', 'genetoname', 'chrom_to_gen
                                        'juncs_to_gene', 'intronLocs', 'intronToGenome', 'gene_to_paralogs'])
 
 
-def align_reads_to_transcripts(genome, gtf, output, reads_fa, nreads, threads, min_fragment_size):
+def align_reads_to_transcripts(genome, gtf_data, output, reads_fa, nreads, threads, min_fragment_size):
     "the chimeric alignments of reads_fa to the annotated transcripts, in OUTPUT.transcriptomealigned.chim.bam"
     logging.info('aligning to transcriptome and getting chimeric reads')
     transcriptchimbam = output + '.transcriptomealigned.chim.bam'
     annotated_bed = output + '.annotated_transcripts.bed'
-    gtf_to_bed(annotated_bed, gtf, include_gene=True, name_sep='|')
+    gtf_data_to_bed(annotated_bed, gtf_data, include_gene=True, name_sep='|')
     annotated_fa = output + '.annotated_transcripts.fa'
     get_sequence_from_bed(genome, output + '.annotated_transcripts.bed', annotated_fa)
 
@@ -195,7 +196,7 @@ def align_reads_to_transcripts(genome, gtf, output, reads_fa, nreads, threads, m
     pysam.index(transcriptchimbam)
 
 
-def make_chimeric_bams(genome, gtf, genome_aligned_bam, output, threads, min_fragment_size, transcriptome_alignment):
+def make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size, transcriptome_alignment):
     """The chimeric reads of the genome alignment and of the alignment to annotated
     transcripts, each unless an earlier run left them, from one pass over the genome
     alignment.  Returns the names of the reads aligned to transcripts, None if not."""
@@ -212,29 +213,33 @@ def make_chimeric_bams(genome, gtf, genome_aligned_bam, output, threads, min_fra
         if make_chim:
             pysam.index(genomechimbam)
     if align_to_transcripts:
-        align_reads_to_transcripts(genome, gtf, output, transcriptome_reads_fa, len(transcriptome_reads),
+        align_reads_to_transcripts(genome, gtf_data, output, transcriptome_reads_fa, len(transcriptome_reads),
                                    threads, min_fragment_size)
     return transcriptome_reads
 
 
-def parse_gtf(gtf):
-    """gene -> [chrom, start, end, strand, transcript 5' ends], gene -> transcript ->
-    exons, gene -> name, chrom -> genes' (start, end, strand, gene), and chrom -> an empty
-    junction dict"""
+def parse_gtf(gtf_data):
+    """From the parsed annotation (GtfData): gene -> [chrom, start, end, strand,
+    transcript 5' ends], gene -> transcript -> exons, gene -> name, chrom -> genes'
+    (start, end, strand, gene), and chrom -> an empty junction dict.  A gene spans its
+    transcripts on the chromosome of its first one"""
     genetoinfo, genetoexons, genetoname = {}, {}, {}
     chrom_to_gene_pos, juncs_to_gene = {}, {}
-    for rec in gtf_record_parser(gtf, include_features={'gene', 'exon', 'transcript'}, attrs=GtfAttrsSet.ALL):
-        gene_id = rec.gene_id
-        if rec.feature == 'gene':
-            genetoinfo[gene_id] = [rec.chrom, rec.start, rec.end, rec.strand, []]
-            genetoname[gene_id] = rec.gene_name if rec.gene_name else gene_id
-            juncs_to_gene.setdefault(rec.chrom, {})
-            chrom_to_gene_pos.setdefault(rec.chrom, []).append((rec.start, rec.end, rec.strand, gene_id))
-        elif rec.feature == 'exon':
-            genetoexons.setdefault(gene_id, {}).setdefault(rec.transcript_id, []).append((rec.start, rec.end))
-        elif rec.feature == 'transcript':
-            end5 = rec.start if rec.strand == '+' else rec.end
-            genetoinfo[gene_id][-1].append(end5)
+    for transcript in gtf_data.transcripts:
+        gene_id = transcript.gene_id
+        if gene_id not in genetoinfo:
+            genetoinfo[gene_id] = [transcript.chrom, transcript.start, transcript.end, transcript.strand, []]
+            genetoname[gene_id] = transcript.gene_name if transcript.gene_name else gene_id
+            juncs_to_gene.setdefault(transcript.chrom, {})
+        info = genetoinfo[gene_id]
+        if transcript.chrom != info[0]:
+            continue
+        info[1], info[2] = min(info[1], transcript.start), max(info[2], transcript.end)
+        info[4].append(transcript.start if transcript.strand == '+' else transcript.end)
+        if len(transcript.exons) > 0:
+            genetoexons.setdefault(gene_id, {})[transcript.transcript_id] = [(e.start, e.end) for e in transcript.exons]
+    for gene_id, (chrom, start, end, strand, _) in genetoinfo.items():
+        chrom_to_gene_pos.setdefault(chrom, []).append((start, end, strand, gene_id))
     for chrom in chrom_to_gene_pos:
         chrom_to_gene_pos[chrom] = sorted(chrom_to_gene_pos[chrom])
     return genetoinfo, genetoexons, genetoname, chrom_to_gene_pos, juncs_to_gene
@@ -288,10 +293,9 @@ def intron_locs(exons, strand):
     return sorted([x[0] for x in mylocs]), {x[0]: (x[1], x[2]) for x in mylocs}
 
 
-def read_annotation(gtf):
-    "the annotation as id_chimeras uses it"
-    logging.info('reading gtf')
-    genetoinfo, genetoexons, genetoname, chrom_to_gene_pos, juncs_to_gene = parse_gtf(gtf)
+def read_annotation(gtf_data):
+    "the annotation (GtfData) as id_chimeras uses it"
+    genetoinfo, genetoexons, genetoname, chrom_to_gene_pos, juncs_to_gene = parse_gtf(gtf_data)
     logging.info('continuing to parse annot')
     gene_to_all_exons = gene_exons_and_junctions(genetoexons, genetoinfo, juncs_to_gene)
     intronLocs, intronToGenome = {}, {}
@@ -377,17 +381,12 @@ def write_fusion_reads(fusionreads, bams, fasta):
                         seenreads.add(a.query_name)
 
 
-def make_synthetic_genome(gtf, genome, output):
+def make_synthetic_genome(gtf, gtf_data, genome, output):
     "the synthetic fusion genome and its annotation; False if it holds no fusion"
     logging.info('generating synthetic reference')
-    path = os.path.dirname(os.path.realpath(__file__)) + '/'
-    makesynthcommand = [sys.executable, path + 'make_synthetic_fusion_reference.py', '-a', gtf, '-g', genome,
-                        '-o', output, '-c', output + '.prelimfusions.bed']
-    pipettor.run([makesynthcommand])
+    make_synthetic_reference(gtf_data, gtf, genome, output + '.prelimfusions.bed', output)
     if os.path.getsize(output + '-syntheticFusionGenome.fa') == 0:
         return False
-    # FIXME: pipettor by default captures stderr to include in an error message, this hides logging from
-    # lower level.  Maybe don't capture when running flair subtools
     pipettor.run([['samtools', 'faidx', output + '-syntheticFusionGenome.fa']])
     return True
 
@@ -509,12 +508,12 @@ def filter_by_first_column(in_tsv, out_tsv, names, header=False):
                 out.write(line)
 
 
-def write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname):
+def write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname, gtf_data):
     """the fusion isoforms in genome coordinates, as flair transcriptome writes its
     isoforms: bed, sequences, counts, reads, proteins, GTF and bigBed"""
     logging.info('converting coordinates from synthetic to genomic')
     convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed', output + '-syntheticBreakpointLoc.bed',
-                           output + '.fusions.isoforms.bed', min_dist_between_breakpoints)
+                           output + '.fusions.isoforms.bed', min_dist_between_breakpoints, AnnotsByChrom(gtf_data))
 
     fusion_beds = list(BedReader(output + '.fusions.isoforms.bed', fixScores=True, bedClass=FlairBed))
     goodisos = {bed.name for bed in fusion_beds}
@@ -554,14 +553,18 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                   transcriptome_alignment=True, max_partners=1000):
     # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
     # are ordered 5' to 3' by their position in the read
-    transcriptome_reads = make_chimeric_bams(genome, gtf, genome_aligned_bam, output, threads, min_fragment_size,
+    # parsed once for everything that needs the annotation.  Without CDS records,
+    # which nothing here uses, it takes a third less memory and time
+    logging.info('reading gtf')
+    gtf_data = gtf_data_parser(gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    transcriptome_reads = make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size,
                                              transcriptome_alignment)
-    annot = read_annotation(gtf)
+    annot = read_annotation(gtf_data)
     combchim = find_prelim_fusions(annot, output, transcriptome_reads, transcriptome_alignment, min_support,
                                    max_loci, max_dist_to_tss, max_partners, quality)
     fusionreads = write_prelim_fusions(combchim, output + '.prelimfusions.bed')
     if os.path.getsize(output + '.prelimfusions.bed') > 0:
-        find_fusion_isoforms(fusionreads, gtf, genome, output, sample_name, threads, min_fragment_size,
+        find_fusion_isoforms(fusionreads, gtf, gtf_data, genome, output, sample_name, threads, min_fragment_size,
                              min_dist_between_breakpoints, frac_support, transcriptome_alignment, annot.genetoname)
     else:
         report_nofusions(output)
@@ -569,7 +572,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
         remove_intermediates(output)
 
 
-def find_fusion_isoforms(fusionreads, gtf, genome, output, sample_name, threads, min_fragment_size,
+def find_fusion_isoforms(fusionreads, gtf, gtf_data, genome, output, sample_name, threads, min_fragment_size,
                          min_dist_between_breakpoints, frac_support, transcriptome_alignment, genetoname):
     "the fusion isoforms of the preliminary fusions' reads, from the synthetic fusion genome"
     logging.info('obtaining fusion reads')
@@ -579,10 +582,10 @@ def find_fusion_isoforms(fusionreads, gtf, genome, output, sample_name, threads,
         chim_bams.append(output + '.transcriptomealigned.chim.bam')
     write_fusion_reads(fusionreads, chim_bams, freadsname)
 
-    if not make_synthetic_genome(gtf, genome, output):
+    if not make_synthetic_genome(gtf, gtf_data, genome, output):
         report_nofusions(output)
         return
     align_to_synthetic_genome(output, freadsname, min_fragment_size, threads)
     write_synthetic_junctions(output)
     run_synthetic_transcriptome(output, sample_name, threads, frac_support)
-    write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname)
+    write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname, gtf_data)

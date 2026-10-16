@@ -105,6 +105,13 @@ reversed read gives the fusion backwards, which is then rejected as having its
 5' gene in antisense.  Data that is poorly stranded, as some older PacBio
 data, will miss fusions.
 
+Each piece of a final fusion isoform gets its gene as flair transcriptome gives an
+isoform its gene: by the annotated junctions and splice sites it shares with genes,
+counting its splice sites at the fusion junctions, so a piece of only a gene's first
+exon has its donor, and never by where reads end.  A piece with neither keeps the gene
+of the preliminary fusion.  An isoform two of whose pieces are of one gene is left
+out: flair fusion does not call rearrangements within a gene.
+
 flair fusion is configured for human genomes: its paralog table and its filters of
 immunoglobulin genes and mitochondrial fusions are human.  It has been tested with
 GENCODE, RefSeq and Ensembl references, and recognises chromosomes as UCSC and GENCODE
@@ -114,8 +121,8 @@ unplaced scaffolds.
 **Output**
 
 sample.fusions.tsv
-    Table of the fusions, most final reads first: the genes 5' to 3', the reads of the
-    preliminary fusion and of its final isoforms, the number of isoforms, the best
+    Table of the fusions, most final reads first: the genes 5' to 3', those of its
+    final isoforms, the reads of the preliminary fusion and of its final isoforms, the number of isoforms, the best
     supported breakpoint and isoform, and their reads.  A breakpoint is each junction
     between consecutive loci, in fusion order and comma-separated, as the last base of
     the 5' locus and the first base of the 3' one, 1-based, chrom:pos(strand)--chrom:pos(strand)

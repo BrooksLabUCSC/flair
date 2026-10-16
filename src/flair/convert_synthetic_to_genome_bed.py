@@ -2,6 +2,8 @@ import logging
 import re
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
+from flair.isoform_data import Junc
+from flair.gene_identification import get_genes_with_shared_juncs
 
 def get_synth_info(breakpointfile):
     synthchrtoinfo = {}
@@ -197,7 +199,43 @@ def get_gene_id(gene_og_to_new, gene_og, curr_gene_count):
     gene_id, gene_info = gene_og_to_new[gene_og]
     return curr_gene_count, gene_id, gene_info
 
-def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
+def breakpoint_sites(blocks, strand, order, numloci):
+    """A fusion piece's splice sites at its fusion junctions: its 3' edge, unless it
+    is the last piece, and its 5' edge, unless it is the first.  They are set by
+    splicing, as its junctions are, while its other ends are where reads ended."""
+    sites = []
+    if order < numloci - 1:
+        sites.append(blocks[-1].end if strand == '+' else blocks[0].start)
+    if order > 0:
+        sites.append(blocks[0].start if strand == '+' else blocks[-1].end)
+    return sites
+
+
+def piece_gene(chrom, strand, blocks, order, numloci, prelim_gene, annots_by_chrom):
+    """The gene of a fusion piece in genome coordinates, as flair transcriptome gives
+    an isoform its gene (get_genes_with_shared_juncs), by its junctions and its
+    splice sites at the fusion junctions (breakpoint_sites), not its ends: a piece
+    of only a first exon has its donor.  The preliminary fusion's gene, which
+    depends on where the reads ended, if the annotation gives none, or if it is
+    one of several genes the piece reads through"""
+    if annots_by_chrom is None:
+        return prelim_gene
+    juncs = tuple(Junc(blocks[i].end, blocks[i + 1].start) for i in range(len(blocks) - 1))
+    genes = get_genes_with_shared_juncs(juncs, strand, annots_by_chrom.get(chrom),
+                                        extra_sites=breakpoint_sites(blocks, strand, order, numloci))
+    if not genes or prelim_gene in genes:
+        return prelim_gene
+    return genes[0]
+
+
+def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist, annots_by_chrom=None):
+    """The fusion isoforms of the synthetic genome's flair transcriptome, in genome
+    coordinates, a bed line for each piece.  Each piece's gene is from its
+    junctions and fusion-junction splice sites (piece_gene), with annots_by_chrom,
+    an AnnotsByChrom, or else the preliminary fusion's gene.  An isoform is left out
+    if it doesn't cross a breakpoint, its pieces are too close (check_too_close) or
+    two pieces are of one gene; every other output of the fusion isoforms is
+    filtered to those of this bed"""
     synthchrtoinfo = get_synth_info(breakpointfile)
 
     out = open(outname, 'w')
@@ -224,8 +262,16 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
             if None not in starts:
                 genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, thickEdges)
                 if not check_too_close(numloci, genomicbounds, min_dist):
+                    prelim_genes = [locus[0] for locus in synthinfo]
+                    genes = [piece_gene(genomicchr, locusdir, blocks, order, numloci, prelim_genes[order], annots_by_chrom)
+                             for order, (genomicchr, _, _, locusdir, _, _, blocks) in enumerate(bedinfos)]
+                    if len(set(genes)) < len(genes):
+                        # pieces of one gene: a rearrangement within a gene, as of a
+                        # segmental duplication, which flair fusion doesn't call
+                        logging.info('skipping %s: pieces of one gene, %s', iso, '--'.join(genes))
+                        continue
                     for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
-                        curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, bed.chrom, curr_gene_count)
+                        curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, '--'.join(genes), curr_gene_count)
                         flair_genes = []
                         for gene in ref_gene_info:
                             curr_gene_count, gene_id, ref_gene_ids = get_gene_id(gene_og_to_new, gene, curr_gene_count)

@@ -79,19 +79,21 @@ def _genes_sharing_splice_sites(sites, strand, annots):
                 gene_to_sites.setdefault(gene_id, set()).add(site)
     return gene_to_sites
 
-def get_genes_with_shared_juncs(juncs, exons, strand, annots):
+def get_genes_with_shared_juncs(juncs, strand, annots, extra_sites=()):
     """Assign a spliced isoform to annotated genes by the junctions and individual
-    splice sites it shares with them.  A gene is dropped if its matches, junctions
-    and splice sites together, are a proper subset of another gene's.  The
-    remaining genes are grouped by genomic overlap of their junction spans: each
-    group of overlapping genes, such as a gene cluster sharing exons or a
-    readthrough gene and its parts, gives one gene, chosen by _pick_group_gene,
-    while genes that do not overlap each other, as for a readthrough isoform
-    without a readthrough annotation, are all returned.  Returns a tuple of gene
-    ids, empty if no gene shares a junction or splice site.  When some gene shares
-    a junction, genes sharing only splice sites compete only within a group with
-    such a gene; they don't make groups of their own, which would report a
-    neighboring gene that shares a splice site as if the isoform read through it."""
+    splice sites it shares with them, with extra_sites, splice sites it has outside
+    its junctions, as a fusion piece's at its fusion junctions.  A gene is dropped
+    if its matches, junctions and splice sites together, are a proper subset of
+    another gene's.  The remaining genes are grouped by genomic overlap of their
+    junction spans: each group of overlapping genes, such as a gene cluster sharing
+    exons or a readthrough gene and its parts, gives one gene, chosen by
+    _pick_group_gene, while genes that do not overlap each other, as for a
+    readthrough isoform without a readthrough annotation, are all returned.
+    Returns a tuple of gene ids, empty if no gene shares a junction or splice site.
+    When some gene shares a junction, genes sharing only splice sites compete only
+    within a group with such a gene; they don't make groups of their own, which
+    would report a neighboring gene that shares a splice site as if the isoform
+    read through it."""
     gene_to_juncs = {}
     for j in juncs:
         if j in annots.junc_to_gene:
@@ -99,7 +101,9 @@ def get_genes_with_shared_juncs(juncs, exons, strand, annots):
                 if gene_id not in gene_to_juncs:
                     gene_to_juncs[gene_id] = set()
                 gene_to_juncs[gene_id].add(j)
-    sites = {site for j in juncs for site in (j.start, j.end)}
+    sites = {site for j in juncs for site in (j.start, j.end)} | set(extra_sites)
+    if not sites:
+        return ()
     gene_to_sites = _genes_sharing_splice_sites(sites, strand, annots)
     # a gene with a matching junction has its splice sites, strand or not
     for gene_id, gene_juncs in gene_to_juncs.items():
@@ -110,8 +114,9 @@ def get_genes_with_shared_juncs(juncs, exons, strand, annots):
     groups = _group_overlapping_genes(genes, annots)
     if gene_to_juncs:
         groups = [group for group in groups if any(g in gene_to_juncs for g in group)]
-    # the isoform's first splice site, at the inner edge of its 5' exon
-    five_prime_ss = exons[-1].start if strand == '-' else exons[0].end
+    # the isoform's first splice site, at the inner edge of its 5' exon for an
+    # isoform with junctions
+    five_prime_ss = max(sites) if strand == '-' else min(sites)
     return tuple(sorted(_pick_group_gene(group, gene_to_juncs, gene_to_sites, five_prime_ss, strand, annots)
                         for group in groups))
 
@@ -201,7 +206,7 @@ def _find_gene_id_by_splicing(iso_readrec, annots):
     single-exon isoform, the best overlapping single-exon gene, as a tuple of gene
     ids, or None"""
     if iso_readrec.juncs != ():
-        gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, iso_readrec.exons, iso_readrec.strand, annots)
+        gene_hits = get_genes_with_shared_juncs(iso_readrec.juncs, iso_readrec.strand, annots)
         if gene_hits:
             return gene_hits
     else:

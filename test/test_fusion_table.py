@@ -2,7 +2,7 @@
 OUTPUT.fusions.tsv: per final fusion, its preliminary and final reads, isoforms, and best
 supported breakpoint and isoform, most final reads first.
 """
-from flair.fusion_table import breakpoint, isoform_breakpoints, fusion_rows, write_table, FUSION_TABLE_COLUMNS
+from flair.fusion_table import breakpoint, isoform_breakpoints, isoform_genes, fusion_rows, write_table, FUSION_TABLE_COLUMNS
 
 # pieces are (position in fusion, chrom, start, end, strand) in 0-based half-open coordinates
 ERGIC3 = (0, 'chr20', 35542078, 35548865, '+')
@@ -37,7 +37,8 @@ def test_rows_top_isoform_and_breakpoint_and_order():
     iso_reads = {'iso1': 17, 'iso2': 11, 'iso3': 5, 'iso4': 3, 'iso5': 3}
     prelim = {'G1--G2': 32, 'G3--chr2:800-900': 12}
     names = {'G1': 'ERGIC3', 'G2': 'KRAS', 'G3': 'GENE3'}
-    rows = fusion_rows(prelim, iso_contig, iso_reads, iso_pieces, names)
+    iso_genes = {iso: tuple(contig.split('--')) for iso, contig in iso_contig.items()}
+    rows = fusion_rows(prelim, iso_contig, iso_genes, iso_reads, iso_pieces, names)
     assert rows == [
         ['ERGIC3--KRAS', 'G1--G2', 32, 28, 2, 'chr20:35548865(+)--chr12:25227412(-)', 28, 'iso1', 17],
         # iso4 and iso5 share a breakpoint with 6 reads, more than iso3's 5
@@ -48,3 +49,20 @@ def test_empty_table_has_the_header(tmp_path):
     tsv = tmp_path / 'f.fusions.tsv'
     write_table([], str(tsv))
     assert tsv.read_text() == '\t'.join(FUSION_TABLE_COLUMNS) + '\n'
+
+
+def test_rows_are_by_final_genes_with_their_contigs_prelim_reads():
+    "isoforms of two contigs given the same genes are one fusion, with both contigs' reads"
+    iso_pieces = {'iso1': [ERGIC3, KRAS], 'iso2': [ERGIC3, KRAS]}
+    iso_contig = {'iso1': 'G1--G2', 'iso2': 'G1b--G2'}
+    iso_genes = {'iso1': ('G1', 'G2'), 'iso2': ('G1', 'G2')}
+    rows = fusion_rows({'G1--G2': 20, 'G1b--G2': 10}, iso_contig, iso_genes, {'iso1': 17, 'iso2': 11}, iso_pieces,
+                       {'G1': 'ERGIC3', 'G2': 'KRAS'})
+    assert [row[:5] for row in rows] == [['ERGIC3--KRAS', 'G1--G2', 30, 28, 2]]
+
+
+def test_isoform_genes_from_the_bed_with_non_genic_loci_from_the_contig(tmp_path):
+    bed = tmp_path / 'f.fusions.isoforms.bed'
+    row = ['chr1', '100', '200', 'iso1', '5', '+', '100', '100', '0', '1', '100,', '0,', 'FLG1', '']
+    bed.write_text('\t'.join(row + ['G1,,', '5', '1.0', '', 'fusion', 'FLG2,FLG3,', '0', 's,', '', '', '']) + '\n')
+    assert isoform_genes(str(bed), {'iso1': 'G0--chr2:800-900'}) == {'iso1': ('G1', 'chr2:800-900')}

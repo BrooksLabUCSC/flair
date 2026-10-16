@@ -45,6 +45,18 @@ def isoform_pieces(fusion_isoforms_bed):
     return pieces
 
 
+def isoform_genes(fusion_isoforms_bed, iso_contig):
+    """isoform -> its genes in fusion order, as the final isoforms' bed gives them
+    (ref_gene_mappings), which can differ from its synthetic contig's: a non-genic
+    locus, which the bed leaves empty, by its contig's name for it"""
+    genes = {}
+    for line in open(fusion_isoforms_bed):
+        f = line.rstrip('\n').split('\t')
+        mapped = f[14].split(',')
+        genes[f[3]] = tuple(mapped[pos] or locus for pos, locus in enumerate(iso_contig[f[3]].split('--')))
+    return genes
+
+
 def breakpoint(piece5, piece3):
     """the junction of a 5' piece and the 3' piece after it, as chrom:pos(strand) of the
     5' piece's last base and of the 3' piece's first base, 1-based, joined by --"""
@@ -61,25 +73,27 @@ def isoform_breakpoints(pieces):
     return ','.join(breakpoint(pieces[k], pieces[k + 1]) for k in range(len(pieces) - 1))
 
 
-def fusion_row(contig, isos, prelim_reads, iso_reads, iso_pieces, genetoname):
-    "a fusion's row of the table, from its final isoforms"
-    genes = contig.split('--')
+def fusion_row(genes, isos, prelim_reads, iso_contig, iso_reads, iso_pieces, genetoname):
+    """a fusion's row of the table, from its final isoforms, with the preliminary
+    reads of the synthetic contigs they are on"""
     bp_reads = defaultdict(int)
     for iso in isos:
         bp_reads[isoform_breakpoints(iso_pieces[iso])] += iso_reads[iso]
     top_iso = min(isos, key=lambda iso: (-iso_reads[iso], iso))
     top_bp = min(bp_reads, key=lambda bp: (-bp_reads[bp], bp))
-    return ['--'.join(genetoname.get(g, g) for g in genes), contig, prelim_reads.get(contig, 0),
+    contigs = {iso_contig[iso] for iso in isos}
+    return ['--'.join(genetoname.get(g, g) for g in genes), '--'.join(genes),
+            sum(prelim_reads.get(contig, 0) for contig in contigs),
             sum(iso_reads[iso] for iso in isos), len(isos), top_bp, bp_reads[top_bp], top_iso, iso_reads[top_iso]]
 
 
-def fusion_rows(prelim_reads, iso_contig, iso_reads, iso_pieces, genetoname):
-    "the table's rows, most final reads first"
-    by_contig = defaultdict(list)
+def fusion_rows(prelim_reads, iso_contig, iso_genes, iso_reads, iso_pieces, genetoname):
+    "the table's rows, a fusion for each set of final genes, most final reads first"
+    by_genes = defaultdict(list)
     for iso in iso_pieces:
-        by_contig[iso_contig[iso]].append(iso)
-    rows = [fusion_row(contig, isos, prelim_reads, iso_reads, iso_pieces, genetoname)
-            for contig, isos in by_contig.items()]
+        by_genes[iso_genes[iso]].append(iso)
+    rows = [fusion_row(genes, isos, prelim_reads, iso_contig, iso_reads, iso_pieces, genetoname)
+            for genes, isos in by_genes.items()]
     return sorted(rows, key=lambda row: (-row[3], row[0]))
 
 
@@ -92,8 +106,9 @@ def write_table(rows, tsv):
 
 def write_fusion_table(output, genetoname):
     "OUTPUT.fusions.tsv, from the run's preliminary fusions and final isoforms"
+    iso_contig = isoform_contigs(output + '.syntheticAligned.flair.isoforms.bed')
     rows = fusion_rows(prelim_read_counts(output + '.prelimfusions.bed'),
-                       isoform_contigs(output + '.syntheticAligned.flair.isoforms.bed'),
+                       iso_contig, isoform_genes(output + '.fusions.isoforms.bed', iso_contig),
                        isoform_read_counts(output + '.fusions.isoform.read.map.txt'),
                        isoform_pieces(output + '.fusions.isoforms.bed'),
                        genetoname)
