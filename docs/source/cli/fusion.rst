@@ -10,17 +10,19 @@
                        [--min_support MIN_SUPPORT] [--max_loci MAX_LOCI]
                        [--max_dist_to_tss MAX_DIST_TO_TSS]
                        [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
-                       [--keep_intermediate] [--allow_paralogs]
+                       [--max_partners MAX_PARTNERS] [--quality QUALITY]
+                       [--frac_support FRAC_SUPPORT]
+                       [--no_transcriptome_alignment] [--keep_intermediate]
 
 .. rubric:: options
 
 .. option:: -o OUTPUT, --output OUTPUT
 
-   output file name base for FLAIR isoforms, defaults to --sample_name
+   output file name base for FLAIR isoforms, defaults to --sample_name. The chimeric reads bams OUTPUT.genomealigned.chim.bam and OUTPUT.transcriptomealigned.chim.bam from an earlier run with this -o are reused, whatever -b and --min_fragment_size are
 
 .. option:: -t THREADS, --threads THREADS
 
-   minimap2 number of threads (default: 4)
+   number of threads for minimap2 and for flair transcriptome on the synthetic fusion genome (default: 4)
 
 .. option:: --min_fragment_size MIN_FRAGMENT_SIZE
 
@@ -36,19 +38,31 @@
 
 .. option:: --max_dist_to_tss MAX_DIST_TO_TSS
 
-   maximum allowed distance of 5' alignment to TSS of annotated transcript; -1 does not check this (default: 15000)
+   maximum allowed distance of a fusion's 5' end to an annotated transcript start of its 5' gene upstream of it. With fragmented or 5' truncated reads, which start far from any TSS, set this very high or to -1, which does not check this (default: 15000)
 
 .. option:: --min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS
 
-   minimum allowed distance between breakpoints when they are on the same strand; removes read-through transcripts (default: 100000)
+   minimum allowed distance between breakpoints when they are on the same strand; removes read-through transcripts. A fusion from a deletion between genes closer than the maximum intron length of the genome alignment (minimap2 -G) aligns as one spliced read and is not found: to find fusions between close genes, align with a smaller minimap2 -G and lower this to match (default: 100000)
+
+.. option:: --max_partners MAX_PARTNERS
+
+   maximum number of fusion partners of a gene in one role (5' gene, 3' gene or between them) before its fusions are rejected as promiscuous. A gene with many partners can be an alignment or library artifact, but in highly rearranged genomes, such as cancer cell lines with amplified regions, genes have many real partners: in MCF7, SULF2 is the 5' gene of 5 fusions and the 3' gene of ARFGEF2--SULF2. The high default keeps them; lower it for genomes without substantially rearranged genomes (default: 1000)
+
+.. option:: --quality QUALITY
+
+   minimum MAPQ of every piece of a chimeric read in the genome alignment for the read to count toward a fusion. Applies to the genome alignments only, not to the alignment of reads to annotated transcripts, where a read of a gene with several overlapping isoforms has a low MAPQ regardless (default: 10)
+
+.. option:: --frac_support FRAC_SUPPORT
+
+   minimum fraction of a fusion's reads for a fusion isoform to be reported; a fusion with one dominant isoform hides its minor ones below this. Set to 0 for max recall (default: 0.05)
+
+.. option:: --no_transcriptome_alignment
+
+   find fusions from the chimeric reads of the genome alignment only, without aligning reads to annotated transcripts. About half the time and a third of the memory, and -b can then hold only the chimeric reads, but loses fusion reads whose partner piece the genome alignment leaves clipped, particularly short 5' exons
 
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging purposes
-
-.. option:: --allow_paralogs
-
-   NOT IMPLEMENTED: assign reads to multiple paralogs with equivalent alignment. Specifying this is an error rather than a no-op
+   keep the intermediate files: the annotated transcripts, the preliminary fusion reads, and the synthetic fusion genome with its annotation, breakpoints, alignments and flair transcriptome output, where the fusion isoforms can be viewed. The chimeric reads bams and OUTPUT.prelimfusions.bed are always kept
 
 .. rubric:: required named arguments
 
@@ -62,7 +76,7 @@
 
 .. option:: -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM
 
-   bam file of chimeric reads from genomic alignment from flair align
+   bam file of reads aligned to the genome with minimap2 -ax splice. All reads, not only the chimeric ones: reads are also aligned to annotated transcripts, which finds partner pieces the genome alignment leaves clipped. The chimeric reads taken from it are kept as OUTPUT.genomealigned.chim.bam and OUTPUT.transcriptomealigned.chim.bam, and reused if they exist: with a different bam, use a new -o or remove them first
 
 .. option:: --sample_name SAMPLE_NAME
 

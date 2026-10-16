@@ -4,12 +4,17 @@ channels:
   - bioconda
   - conda
 
+# python as pyproject.toml requires (>=3.12,<3.13), or pip install -e . fails
 dependencies:
-  - python >=3.12,<3.15
+  - python =3.12
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1
   - pysam >=0.23.0,<0.24.0
+  # bedToBigBed writes transcriptome's .bb output; intron-prospector is used by
+  # flair fusion and the junction tests; make test-base runs both
+  - ucsc-bedtobigbed
+  - intron-prospector >=1.5
   - pip
   - pip:
       - matplotlib>=3.10.0,<4.0.0

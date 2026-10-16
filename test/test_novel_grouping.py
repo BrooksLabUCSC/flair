@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 from flair.isoform_data import Junc, Exon
-from flair.flair_transcriptome import _group_novel_by_splicing, _group_by_read_span
+from flair.gene_identification import _group_novel_by_splicing, _group_by_read_span
 
 
 def _iso(start, end, juncs=()):

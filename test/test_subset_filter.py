@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from flair.isoform_data import Exon, Isoform, Junc
+from flair.isoform_data import Exon, Gene, Isoform, Junc
 from flair.flair_transcriptome import filter_spliced_iso, promote_backup_subsets
 from flair.annotation_data import AnnotData, _save_transcript_ends
 
@@ -24,7 +24,7 @@ def _is_kept(others, annots=ANNOTS):
         for j in iso.juncs:
             junc_to_names.setdefault(j, set()).add(iso.name)
     kept, _ = filter_spliced_iso('nosubset', 1, cand.juncs, cand.exons, 'cand', cand.num_reads, annots,
-                                 junc_to_names, isos, {}, '+', end_window=100, ss_window=10)
+                                 junc_to_names, isos, '+', end_window=100, ss_window=10)
     return kept
 
 
@@ -43,9 +43,38 @@ def test_the_supersets_making_a_subset_are_recorded():
         for j in iso.juncs:
             junc_to_names.setdefault(j, set()).add(iso.name)
     supersets = []
-    kept, _ = filter_spliced_iso('nosubset', 1, JUNCS, isos['cand'].exons, 'cand', 10, ANNOTS, junc_to_names, isos, {}, '+',
+    kept, _ = filter_spliced_iso('nosubset', 1, JUNCS, isos['cand'].exons, 'cand', 10, ANNOTS, junc_to_names, isos, '+',
                                  end_window=100, ss_window=10, supersets=supersets)
     assert not kept and supersets == ['both']
+
+
+def _is_kept_under_other_gene(gene_juncs):
+    """is the candidate, of gene 'g' with gene_juncs annotated, kept with an
+    isoform of another gene containing it"""
+    cand = _iso('cand', JUNCS, 1000, 1700, 10)
+    Gene('g', ('g',), 'chr1', '+').add_isoform(cand)
+    both = _iso('both', (Junc(900, 950),) + JUNCS + (Junc(1750, 1800),), 800, 1900, 50)
+    Gene('rt', ('rt',), 'chr1', '+').add_isoform(both)
+    isos = {iso.name: iso for iso in (cand, both)}
+    junc_to_names = {}
+    for iso in isos.values():
+        for j in iso.juncs:
+            junc_to_names.setdefault(j, set()).add(iso.name)
+    annots = SimpleNamespace(**vars(ANNOTS), gene_to_annot_juncs={'g': set(gene_juncs)})
+    kept, _ = filter_spliced_iso('nosubset', 1, cand.juncs, cand.exons, 'cand', cand.num_reads, annots,
+                                 junc_to_names, isos, '+', end_window=100, ss_window=10)
+    return kept
+
+
+def test_not_a_subset_of_another_genes_isoform_within_its_gene():
+    # as an annotated transcript inside a readthrough gene's longer one
+    assert _is_kept_under_other_gene(JUNCS)
+
+
+def test_a_subset_of_another_genes_isoform_reaching_past_its_gene():
+    # as a fragment spanning a readthrough junction: its last junction is past
+    # its gene's
+    assert not _is_kept_under_other_gene(JUNCS[:1])
 
 
 def test_not_a_subset_of_two_isoforms_each_containing_one_side():
@@ -106,26 +135,27 @@ def _read(name, start, end):
     return SimpleNamespace(name=name, start=start, end=end)
 
 
-def _backup_case(superset_reads, subset_reads=12, assigned=()):
+def _backup_case(superset_reads, subset_reads=12, assigned=(), unique_seq=()):
     """a kept isoform 'big' (100 reads) of gene g, the superset 'sup' with
-    superset_reads reads, and the removed subset with subset_reads reads; the
-    ends file lists the assigned reads"""
+    superset_reads reads, and the removed subset with subset_reads reads and
+    unique sequence boundaries unique_seq; the ends file lists the assigned reads"""
     big = _iso('big', (Junc(5000, 5100),), 4900, 5300, 0)
     sup = _iso('sup', (Junc(900, 950),) + JUNCS, 800, 1700, 0)
     for iso in (big, sup):
         iso.gene_id, iso.unpadded_ends = 'g', (iso.start, iso.end)
     subset = _iso('cand', JUNCS, 1000, 1700, 0)
+    subset.gene_id, subset.ref_transcript_id = 'g', 'ENST1'
     subset.reads[:] = [_read(f'r{i}', 1000 + i, 1700 - i) for i in range(subset_reads)]
     final = {'big': big, 'sup': sup}
     counts = {'big': [100, 100], 'sup': [superset_reads, superset_reads]}
     gene_to_tot = {'g': [100 + superset_reads] * 3}
-    return final, counts, gene_to_tot, {'cand': (subset, [sup])}
+    return final, counts, gene_to_tot, {'cand': (subset, [sup], list(unique_seq))}
 
 
 def _promote(tmp_path, final, counts, gene_to_tot, removed, assigned=()):
     ends = tmp_path / 'ends.tsv'
     ends.write_text(''.join(f'{name}\tsup\n' for name in assigned))
-    promote_backup_subsets(BACKUP_ARGS, removed, final, counts, gene_to_tot, str(ends), None)
+    promote_backup_subsets(BACKUP_ARGS, removed, final, counts, gene_to_tot, str(ends))
     return [iso for iso in final.values() if iso.backup_subset]
 
 
@@ -135,6 +165,13 @@ def test_subset_promoted_when_its_superset_fails_support(tmp_path):
     (promoted,) = _promote(tmp_path, final, counts, gene_to_tot, removed)
     assert promoted.juncs == JUNCS and promoted.gene_id == 'g' and counts[promoted.name] == [12, 12]
     assert gene_to_tot['g'] == [114] * 3 and promoted.unpadded_ends == (promoted.start, promoted.end)
+
+
+def test_promoted_subset_keeps_its_own_gene_and_reference_transcript(tmp_path):
+    final, counts, gene_to_tot, removed = _backup_case(2)
+    removed['cand'][1][0].ref_transcript_id = 'ENST2'
+    (promoted,) = _promote(tmp_path, final, counts, gene_to_tot, removed)
+    assert (promoted.gene_id, promoted.ref_transcript_id) == ('g', 'ENST1')
 
 
 def test_subset_not_promoted_when_its_superset_passes(tmp_path):
@@ -152,7 +189,26 @@ def test_a_fragment_of_a_promoted_subset_is_not_promoted(tmp_path):
     final, counts, gene_to_tot, removed = _backup_case(2)
     cand, sup = removed['cand'][0], removed['cand'][1][0]
     frag = _iso('frag', JUNCS[1:], 1350, 1700, 0)
+    frag.gene_id = 'g'
     frag.reads[:] = [_read(f'f{i}', 1350, 1700) for i in range(12)]
-    removed = {'frag': (frag, [cand, sup]), 'cand': removed['cand']}
+    removed = {'frag': (frag, [cand, sup], []), 'cand': removed['cand']}
     (promoted,) = _promote(tmp_path, final, counts, gene_to_tot, removed)
     assert promoted.juncs == JUNCS
+
+
+def test_promoted_subset_gets_only_reads_covering_its_unique_sequence(tmp_path):
+    # a superset's exon ends 50 bases into the subset's last exon, 1500-1700: only
+    # reads reaching past it, with SPLICE_SITE_FLANK, cover the subset's own sequence
+    final, counts, gene_to_tot, removed = _backup_case(2, unique_seq=[(1, 50)])
+    subset = removed['cand'][0]
+    subset.reads[:] = ([_read(f'r{i}', 1000, 1700) for i in range(12)]
+                       + [_read(f't{i}', 1000, 1540) for i in range(8)])
+    (promoted,) = _promote(tmp_path, final, counts, gene_to_tot, removed)
+    assert counts[promoted.name] == [12, 12] and {r.name for r in promoted.reads} == {f'r{i}' for i in range(12)}
+
+
+def test_subset_not_promoted_without_subset_backup_support_reads_covering_its_unique_sequence(tmp_path):
+    final, counts, gene_to_tot, removed = _backup_case(2, unique_seq=[(1, 50)])
+    removed['cand'][0].reads[:] = ([_read(f'r{i}', 1000, 1700) for i in range(4)]
+                                   + [_read(f't{i}', 1000, 1540) for i in range(8)])
+    assert _promote(tmp_path, final, counts, gene_to_tot, removed) == []

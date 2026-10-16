@@ -61,3 +61,21 @@ def test_no_extra_clipping_rejects_alignments_clipped_at_a_transcript_end():
     assert return_best_transcript_stringent(clipped, [0, 0], 50, 'r', no_extra_clipping=True) is None
     both = [_passing('t1', 0, 30), _passing('t2', 0, 0)]
     assert return_best_transcript_stringent(both, [0, 0], 50, 'r', no_extra_clipping=True)[0][0] == 't2'
+
+
+def test_tied_transcripts_chosen_by_name_not_sam_order():
+    # two transcripts tied on every ranking criterion, as identical paralogs are: the
+    # same one is chosen whatever order minimap2 reported them in, so a paralog pair's
+    # tied reads all go to one copy rather than being split between them
+    from flair.count_sam_transcripts import return_best_transcript_stringent
+    a, b = _passing('paralogB', 0, 0), _passing('paralogA', 0, 0)
+    assert return_best_transcript_stringent([a, b], [0, 0], 50, 'r')[0][0] == 'paralogA'
+    assert return_best_transcript_stringent([b, a], [0, 0], 50, 'r')[0][0] == 'paralogA'
+
+
+def test_name_only_breaks_ties():
+    # a better end still wins over a name that sorts first
+    from flair.count_sam_transcripts import return_best_transcript_stringent
+    better = _passing('zzz', 0, 0)
+    worse = [0, -1000, -900, -2, 0, 1500, 'aaa', (0, 100, 40, 0), (1, 100, 5, 0)]
+    assert return_best_transcript_stringent([worse, better], [0, 0], 50, 'r')[0][0] == 'zzz'

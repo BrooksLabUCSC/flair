@@ -1,5 +1,7 @@
 """Read/exon structures and junction utilities, shared across FLAIR modules."""
 
+import functools
+import hashlib
 from bisect import bisect_right
 from collections import namedtuple
 from operator import attrgetter
@@ -35,20 +37,6 @@ class Junc(PosRange):
     pass
 
 
-class JuncChain(namedtuple("JuncChain", ("chrom", "strand", "juncs"))):
-    """A chain of splice junctions on a single chromosome and strand."""
-
-    def __new__(cls, chrom, strand, juncs):
-        return super().__new__(cls, chrom, strand, tuple(juncs))
-
-    @classmethod
-    def from_exons(cls, chrom, strand, exons):
-        """Create a JuncChain from a list of exons."""
-        juncs = tuple(Junc(exons[i].end, exons[i + 1].start)
-                      for i in range(len(exons) - 1))
-        return cls(chrom, strand, juncs)
-
-
 class Exon(namedtuple("Exon", ("start", "end", "name"))):
     def __new__(cls, start, end, name=None):
         assert start <= end
@@ -60,18 +48,10 @@ class Exon(namedtuple("Exon", ("start", "end", "name"))):
         return self.end - self.start
 
 
-ISO_SRC_ANNOT = 'annot'
-ISO_SRC_NOVEL = 'novel'
-
 def exons_to_juncs(exons):
     """Convert exon ranges to junctions"""
     return [Junc(exons[i].end, exons[i + 1].start)
             for i in range(len(exons) - 1)]
-
-
-def bed_to_junctions(bed):
-    return [Junc(bed.blocks[i - 1].end, bed.blocks[i].start)
-            for i in range(1, bed.blockCount)]
 
 
 def get_bed_exons_from_juncs(juncs, start, end):
@@ -196,13 +176,13 @@ def convert_to_bed12(readrec):
     add_blocks_from_readrec(bed, readrec)
     return bed
 
-def convert_to_flair_bed(readrec, thickStart=None, thickEnd=None, itemRgb=None,
+def convert_to_flair_bed(readrec, thickStart=None, thickEnd=None,
                          read_support=None, frac_support=None, productivity=None, samples=None, aaseq_id=None):
     if read_support is not None:
         readrec.score = read_support
     transcript_class = 'basic' if len(readrec.gene.gene_desc) <= 1 else 'readthrough'
     bed = FlairBed(readrec.chrom, readrec.start, readrec.end, readrec.name, score=readrec.score, strand=readrec.strand,
-                   thickStart=thickStart, thickEnd=thickEnd, itemRgb=itemRgb,
+                   thickStart=thickStart, thickEnd=thickEnd,
                    gene_id=readrec.gene_id, ref_transcript_id=readrec.ref_transcript_id, ref_gene_mappings=readrec.gene.gene_desc,
                    read_support=read_support, frac_support=frac_support, productivity=productivity,
                    transcript_class=transcript_class, samples=samples, aaseq_id=aaseq_id)
@@ -358,7 +338,7 @@ class ReadRec:
         return left_polyA, right_polyA
 
     @classmethod
-    def from_read(cls, read, junc_direction=None, *, genome=None):
+    def from_read(cls, read, *, genome=None):
         """Create a ReadRec from a pysam aligned read."""
         # FIXME switch to pycbio.hgdata.cigar
         align_start = read.reference_start
@@ -378,8 +358,7 @@ class ReadRec:
                 ref_pos += block[1]
                 if block[0] in (pysam.CIGAR_OPS.CMATCH, pysam.CIGAR_OPS.CEQUAL, pysam.CIGAR_OPS.CDIFF):
                     has_match = True
-        if junc_direction not in {'+', '-'}:
-            junc_direction = "-" if read.is_reverse else "+"
+        junc_direction = "-" if read.is_reverse else "+"
         juncs = tuple(Junc(blk[0], blk[1]) for blk in intron_blocks)
         left_polyA, right_polyA = cls._detect_poly_tails(read)
         left_intprim, right_intprim = False, False
@@ -409,6 +388,14 @@ class Gene:
         self.isoforms.append(isoform)
         isoform.gene = self
         isoform.gene_id = self.gene_id
+
+
+@functools.lru_cache(maxsize=None)
+def chrom_hash(chrom):
+    """A chromosome name as a number for isoform name hashes.  Python's hash of a
+    string changes from run to run, while hashes of numbers don't, so names stay the
+    same between runs and between the processes of a parallel run."""
+    return int(hashlib.md5(str(chrom).encode('utf-8')).hexdigest()[:15], 16)
 
 
 class Isoform:
@@ -459,18 +446,20 @@ class Isoform:
 
     @property
     def name(self):
-        """An assigned name, otherwise a hash of the junctions before the ends are
-        known and of the exons once they are, and for a single-exon isoform its strand,
-        as both strands' reads give single-exon isoforms"""
-        # FIXME: ideally would add chromosome and strand to this hash
+        """An assigned name, otherwise a hash of the chromosome and of the junctions
+        before the ends are known and the exons once they are, and for a single-exon
+        isoform its strand, as both strands' reads give single-exon isoforms.  Without
+        the chromosome, isoforms of the same coordinates on different chromosomes had
+        one name, and so one isoform id, as single-exon spike-ins starting at 1"""
         if self._name is not None:
             return self._name
-        elif self.start is None:
-            return str(abs(hash(tuple(self.juncs))))
+        chrom = (chrom_hash(self.chrom),)
+        if self.start is None:
+            return str(abs(hash(tuple(self.juncs) + chrom)))
         elif self.juncs == ():
-            return str(abs(hash(tuple(self.exons) + (1 if self.strand == '+' else -1,))))
+            return str(abs(hash(tuple(self.exons) + (1 if self.strand == '+' else -1,) + chrom)))
         else:
-            return str(abs(hash(tuple(self.exons))))
+            return str(abs(hash(tuple(self.exons) + chrom)))
 
     @name.setter
     def name(self, new_name):

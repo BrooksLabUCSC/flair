@@ -51,17 +51,17 @@ def test_single_exon_filter_only_compares_isoforms_on_its_strand():
     # each inside the spliced isoform's first exon, and inside the other's span
     sense, antisense = _se('sense', 1100, 1900, '+', 5), _se('antisense', 1100, 1900, '-', 5)
     args = SimpleNamespace(filter='comprehensive', sjc_support=1, end_window=100, ss_window=10)
-    firstpass, _ = filter_firstpass_isos(args, _candidates([spliced, sense, antisense]), None, {})
+    firstpass, _ = filter_firstpass_isos(args, _candidates([spliced, sense, antisense]), None)
     assert sorted(firstpass) == ['antisense', 'spliced']
 
 
 def test_end_variants_of_one_cluster_are_not_compared():
     args = SimpleNamespace(filter='nosubset', sjc_support=1, end_window=100, ss_window=10)
     same = [_se('long', 1000, 3000, '+', 5, cluster='c'), _se('short', 1100, 1900, '+', 5, cluster='c')]
-    firstpass, _ = filter_firstpass_isos(args, _candidates(same), None, {})
+    firstpass, _ = filter_firstpass_isos(args, _candidates(same), None)
     assert sorted(firstpass) == ['long', 'short']
     other = [_se('long', 1000, 3000, '+', 5, cluster='c'), _se('short', 1100, 1900, '+', 5, cluster='d')]
-    firstpass, _ = filter_firstpass_isos(args, _candidates(other), None, {})
+    firstpass, _ = filter_firstpass_isos(args, _candidates(other), None)
     assert sorted(firstpass) == ['long']
 
 
@@ -116,14 +116,14 @@ def test_single_exon_isoform_starting_in_a_3_prime_terminal_exon_is_a_utr_fragme
     # starting in the spliced isoform's last exon and running past its end
     spliced = _spliced('spliced', '+', [(1000, 2000), (3000, 4000)])
     fragment, intronic = _se('fragment', 3500, 6000, '+', 5), _se('intronic', 2200, 2800, '+', 5)
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([spliced, fragment, intronic]), None, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([spliced, fragment, intronic]), None)
     assert sorted(firstpass) == ['intronic', 'spliced']
 
 
 def test_the_5_prime_terminal_exon_does_not_make_a_fragment():
     spliced = _spliced('spliced', '+', [(1000, 2000), (3000, 4000)])
     upstream = _se('upstream', 1500, 2500, '+', 5)  # starts in the first exon, runs into the intron
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([spliced, upstream]), None, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([spliced, upstream]), None)
     assert sorted(firstpass) == ['spliced', 'upstream']
 
 
@@ -131,7 +131,7 @@ def test_an_annotated_3_prime_terminal_exon_makes_a_fragment_on_minus():
     # on -, the 3' terminal exon is the first in genomic order, and the 5' end the right end
     annots = _annots('-', [(1000, 5000), (6000, 7000)])
     fragment, other = _se('fragment', 1500, 4000, '-', 5), _se('other', 500, 900, '-', 5)
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([fragment, other]), annots, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([fragment, other]), annots)
     assert sorted(firstpass) == ['other']
 
 
@@ -139,16 +139,16 @@ def test_a_fragment_starting_as_far_past_the_terminal_exon_as_a_read_end_cluster
     # 5' ends 13 and 40 bp past the 3' terminal exon's end at 5000; BEST_END_WINDOW is 25
     annots = _annots('-', [(1000, 5000), (6000, 7000)])
     near, past = _se('near', 1500, 5013, '-', 5), _se('past', 1500, 5040, '-', 5)
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([near]), annots, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([near]), annots)
     assert sorted(firstpass) == []
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([past]), annots, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([past]), annots)
     assert sorted(firstpass) == ['past']
 
 
 def test_a_single_exon_isoform_matching_an_annotated_single_exon_transcript_is_not_a_fragment():
     annots = _annots('-', [(1000, 5000), (6000, 7000)], single=[(1500, 4000)])
     annotated, fragment = _se('annotated', 1510, 3990, '-', 5), _se('fragment', 3000, 4500, '-', 5)
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([annotated, fragment]), annots, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([annotated, fragment]), annots)
     assert sorted(firstpass) == ['annotated']
 
 
@@ -156,7 +156,7 @@ def test_a_spliced_isoform_whose_3_prime_end_is_not_a_cluster_makes_no_fragment(
     # two reads of the chain, their 3' ends far apart: the outer one, 5000, is its end
     scattered = _spliced('scattered', '+', [(1000, 2000), (3000, 5000)], read_ends=[(1000, 5000), (1000, 3500)])
     single = _se('single', 4000, 6000, '+', 5)
-    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([scattered, single]), None, {})
+    firstpass, _ = filter_firstpass_isos(COMPREHENSIVE, _candidates([scattered, single]), None)
     assert sorted(firstpass) == ['scattered', 'single']
 
 

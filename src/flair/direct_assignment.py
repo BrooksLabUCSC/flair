@@ -38,11 +38,18 @@ def read_unique_bounds(path):
     bounds = {}
     for line in open(path):
         name, sides = line.rstrip('\n').split('\t')
-        iso_bounds = bounds.setdefault(name, {})
-        for side_dist in sides.split(','):
-            side, dist = (int(x) for x in side_dist.split('_'))
-            iso_bounds[side] = max(iso_bounds.get(side, 0), dist)
+        parse_unique_bounds(sides.split(','), bounds.setdefault(name, {}))
     return bounds
+
+
+def parse_unique_bounds(side_dists, iso_bounds=None):
+    """'<side>_<distance>' boundaries as {side: distance}, added to iso_bounds if
+    given, with the largest distance when a side has several"""
+    iso_bounds = {} if iso_bounds is None else iso_bounds
+    for side_dist in side_dists:
+        side, dist = (int(x) for x in side_dist.split('_'))
+        iso_bounds[side] = max(iso_bounds.get(side, 0), dist)
+    return iso_bounds
 
 
 def covers_unique_bounds(isoform, iso_bounds, start, end):

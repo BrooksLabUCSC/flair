@@ -1,0 +1,2 @@
+fusion	gene_ids	prelim_reads	final_reads	isoforms	top_breakpoint	top_breakpoint_reads	top_isoform	top_isoform_reads
+ERGIC3--DDX5--KRAS	ENSG00000125991.19--ENSG00000108654.15--ENSG00000133703.12	31	23	1	chr20:35542941(+)--chr17:64503571(-),chr17:64502926(-)--chr12:25245395(-)	23	FLT00000001	23

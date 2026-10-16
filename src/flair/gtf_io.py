@@ -551,7 +551,21 @@ def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_
         elif isinstance(rec, GtfCDS):
             transcript_id_to_cds_recs[rec.transcript_id].append(rec)
         elif isinstance(rec, GtfStartCodon):
-            transcript_id_to_start_codons[rec.transcript_id] = rec
+            transcript_id_to_start_codons[rec.transcript_id] = _five_prime_start_codon(
+                transcript_id_to_start_codons[rec.transcript_id], rec)
+
+
+def _five_prime_start_codon(kept, rec):
+    """Of a transcript's start codon records, the 5' one.  A start codon split across
+    an intron has a record for each piece; the CDS begins at the 5' piece (the lower
+    start on +, the higher end on -), which is the first in GENCODE's order.  Keeping
+    the last record put the CDS start one or two bases into the codon, in the
+    downstream exon, and the ORF in the wrong frame."""
+    if kept is None:
+        return rec
+    if rec.strand == '-':
+        return rec if rec.end > kept.end else kept
+    return rec if rec.start < kept.start else kept
 
 def _add_children(transcript, exons, cds_recs, start_codon):
     if exons is not None:

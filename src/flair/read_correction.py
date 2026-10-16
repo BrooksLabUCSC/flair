@@ -96,13 +96,12 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
 def filter_correct_group_reads(*, bam_file, region, read_to_annot_transcript,
                                annots, junction_corrector, genome,
                                quality, keep_sup, sj_to_ends,
-                               allow_secondary=False, allow_outside_range=False,
+                               allow_outside_range=False,
                                keep_single_exon=True, trust_strand=False, check_motifs=True):
     """Filter reads, correct splice junctions, and group by junction chain.
     sj_to_ends is mutated in place."""
     for read in bam_file.fetch(region.name, region.start, region.end):
-        if should_process_read(read, region, quality, keep_sup,
-                               allow_secondary, allow_outside_range):
+        if should_process_read(read, region, quality, keep_sup, allow_outside_range):
             _correct_and_group_read(read,
                                     read_to_annot_transcript=read_to_annot_transcript,
                                     annots=annots,

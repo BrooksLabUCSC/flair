@@ -14,15 +14,64 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 .. figure:: img/flair_workflow_compartmentalized.svg
 
 
+.. _alignment-label:
+
+Aligning reads to the genome
+============================
+
+FLAIR's modules take reads aligned to the genome as a sorted, indexed bam.  
+
+Please see the protocols page with more details on pros and cons of different alignment options, but here is an explanation of minimap options if you chose to use minimap and want to customize your run.
+
+The simplest protocol is to align with `minimap2 <https://github.com/lh3/minimap2>`__ and sort with samtools, in one line:
+
+.. code:: sh
+
+   minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no genome.fa sample.fastq | samtools sort -o sample.genomealigned.bam - && samtools index sample.genomealigned.bam
+
+The reads can be FASTA or FASTQ, gzipped or not. We recommend input with stranded reads without polyA tails trimmed, but unstranded and trimmed reads will work as well.
+
+Options to consider:
+
+``-ax splice``
+    Spliced alignment of long reads, with SAM output. You can also use splice:hq with high-quality reads, although FLAIR has been tested with splice (optimized for lower-quality long-reads).
+``-s 40``
+    The minimum score of an alignment, roughly its length in matching bases: shorter
+    pieces of a read are left unaligned.  For fusion detection, ``-s 40`` keeps shorter
+    partner pieces, as a short 5' exon, and matches flair fusion's
+    ``--min_fragment_size`` default.
+``-G 350k``
+    The longest intron.  Longer allows novel isoforms with long introns.  A fusion from
+    a deletion between genes closer than this aligns as one spliced read, which flair
+    fusion does not report: to find those, align with a smaller ``-G`` and lower flair
+    fusion's ``--min_dist_between_breakpoints`` to match.
+``--MD``
+    Adds the MD tags that flair alleles and flair variantquant need to find the reads'
+    mismatches.
+``--secondary=no``
+    Leaves out secondary alignments.  FLAIR uses each read's primary alignment, and
+    flair fusion its supplementary ones.
+``-t 20``
+    Threads.
+``-uf``
+    For stranded reads, oriented 5' to 3' as their RNA: splice junctions are taken on
+    the read's strand.  flair fusion needs stranded reads.
+``--junc-bed annotation.bed``
+    We do not recommend this option, as minimap2 tends to overcorrect to the submitted junctions
+
+If you're using human sequences, the best reference genome is
+`GCA_000001405.15_GRCh38_no_alt_analysis_set <ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz>`__ as described in this
+`helpful blog post by Heng Li <https://lh3.github.io/2017/11/13/which-human-reference-genome-to-use>`__.
+If your input sequences are Oxford nanopore reads, please use `Pychopper <https://github.com/epi2me-labs/pychopper>`__ before aligning them.
+
+
 .. _transcriptome-label:
 
 flair transcriptome
 ===================
 
-This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of aligned reads.
-To get aligned reads, you can use FLAIR align or just run the following command to generate the bam file to use as input.
-minimap2 -ax splice -s 80 -G 200k -t 20 --secondary=no genome.fa sample.fastq | samtools view -hb - | samtools sort - > sample.genomealigned.bam; samtools index sample.genomealigned.bam
-If you want to run downstream fusion detection with FLAIR fusion, run flair align with --filter_type separate to generate a separate file of chimeric alignments.
+This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of
+reads aligned to the genome, as :ref:`aligning reads to the genome <alignment-label>` describes.
 
 
 **Outputs**
@@ -38,43 +87,6 @@ Options
 .. include:: cli/transcriptome.rst
 
 
-.. _align-label:
-
-flair align
-===========
-
-Use of this modules is deprecated, as ``FLAIR transcriptome`` operates on a BAM, and other output of ``flair align`` is no longer used.
-
-This module aligns reads to the genome using `minimap2 <https://github.com/lh3/minimap2>`__, 
-and converts the `SAM <https://en.wikipedia.org/wiki/SAM_(file_format)>`__ output to `BED12 <https://genome.ucsc.edu/FAQ/FAQformat.html#format14>`__.
-Aligned reads in BED12 format can be visualized in `IGV <https://igv.org/>`__ or the 
-`UCSC Genome browser <https://genome.ucsc.edu/cgi-bin/hgGateway>`__. 
-
-
-**Outputs**
-
- - ``flair.aligned.bam``
- - ``flair.aligned.bam.bai``
- - ``flair.aligned.bed``
-
-Options
--------
-
-.. include:: cli/align.rst
-
-
-Notes
------
-If you're using human sequences, the best reference genome is 
-`GCA_000001405.15_GRCh38_no_alt_analysis_set <ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz>`__ as described in this 
-`helpful blog post by Heng Li <https://lh3.github.io/2017/11/13/which-human-reference-genome-to-use>`__
-
-If your input sequences are Oxford nanopore reads, please use `Pychopper <https://github.com/epi2me-labs/pychopper>`__ before running Flair.
-
-nvrna settings: See `minimap2's manual <https://lh3.github.io/minimap2/minimap2.html>`__ for details.
-
-quality: `More info on MAPQ scores <https://www.acgt.me/blog/2014/12/16/understanding-mapq-scores-in-sam-files-does-37-42>`__ 
-
 .. _fusions-label:
 
 flair fusion
@@ -84,15 +96,58 @@ This identifies gene fusions and generates a fusion transcriptome.
 To incorporate this fusion transcriptome in downstream analysis, 
 use flair combine to merge it with normal isoforms. 
 
+Its input is a bam of all the reads aligned to the genome, as :ref:`aligning reads to the
+genome <alignment-label>` describes, with ``-s 40`` to keep short partner pieces.
+
+flair fusion requires stranded reads, each oriented 5' to 3' as its RNA.
+The 5' and 3' genes of a fusion come from the order of a read's pieces, so a
+reversed read gives the fusion backwards, which is then rejected as having its
+5' gene in antisense.  Data that is poorly stranded, as some older PacBio
+data, will miss fusions.
+
+Each piece of a final fusion isoform gets its gene as flair transcriptome gives an
+isoform its gene: by the annotated junctions and splice sites it shares with genes,
+counting its splice sites at the fusion junctions, so a piece of only a gene's first
+exon has its donor, and never by where reads end.  A piece with neither keeps the gene
+of the preliminary fusion.  An isoform two of whose pieces are of one gene is left
+out: flair fusion does not call rearrangements within a gene.
+
+flair fusion is configured for human genomes: its paralog table and its filters of
+immunoglobulin genes and mitochondrial fusions are human.  It has been tested with
+GENCODE, RefSeq and Ensembl references, and recognises chromosomes as UCSC and GENCODE
+(chr12), RefSeq (NC_000012.12) and Ensembl (12) name them, leaving out mitochondria and
+unplaced scaffolds.
+
 **Output**
 
+sample.fusions.tsv
+    Table of the fusions, most final reads first: the genes 5' to 3', those of its
+    final isoforms, the reads of the preliminary fusion and of its final isoforms, the number of isoforms, the best
+    supported breakpoint and isoform, and their reads.  A breakpoint is each junction
+    between consecutive loci, in fusion order and comma-separated, as the last base of
+    the 5' locus and the first base of the 3' one, 1-based, chrom:pos(strand)--chrom:pos(strand)
 sample.fusions.isoforms.bed
-    Bed file of fusion transcriptome (each fusion has a line for each locus in the fusion, 
-    and position in the fusion is specified by the fusiongeneX prefix in the name field
+    Bed file of fusion transcriptome, with a line for each locus of a fusion isoform and
+    its position in the fusion in the pos_in_fusion column
+sample.fusions.isoforms.gtf, sample.fusions.isoforms.bb
+    The fusion transcriptome as GTF and bigBed
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.syntheticAligned.isoform.read.map
+sample.fusions.isoform.counts.txt
+    Read counts of the fusion isoforms, as flair transcriptome's isoform.counts.txt
+sample.fusions.isoform.read.map.txt
     read map of reads to fusion isoforms
+sample.fusions.aaseq.tsv
+    Protein sequences of the productive fusion isoforms, by the aaseq_id of the bed
+sample.prelimfusions.bed
+    The preliminary fusions' loci, with their reads and distances to a TSS
+sample.genomealigned.chim.bam, sample.transcriptomealigned.chim.bam
+    The chimeric reads of the genome alignment and of the alignment to annotated
+    transcripts, reused by a later run with the same output name
+
+With ``--keep_intermediate``, the synthetic fusion genome (sample-syntheticFusionGenome.fa),
+its annotation, the reads aligned to it (sample.syntheticAligned.bam) and the other
+intermediate files are kept as well, for viewing fusion isoforms on the synthetic genome.
 
 Options
 -------
@@ -123,7 +178,25 @@ point to your files though):
 To combine FLAIR transcriptomes with annotated transcripts, convert the annotation gtf
 to a bed file with gtf_to_bed (see Additional Programs) and name that bed here.
 
-Flair combine will generate a counts file, but for the most accurate quantification, we recommend 
+Isoforms of the same splice junctions and strand from different samples are combined
+into one.  We recommend giving flair combine an annotation GTF (``-f``).  Each combined
+isoform then gets its gene, reference transcript, CDS and productivity from that
+annotation, as flair transcriptome would give them, whatever annotation or FLAIR version
+the samples were run with.  This lets samples run with different annotations be
+combined.  The proteins are numbered anew, in ``combined.aaseq.tsv``.  Fusion isoforms
+keep the samples' genes.  Without ``-f``, the samples' genes, CDS and productivity are
+used, an isoform that samples gave different genes or reference transcripts is an
+error, and isoforms have no protein ids, as each sample numbers its own.
+
+Isoforms of alleles, from flair isoalleles, can be combined, but without their allele
+information: the alleles of an isoform are combined into one isoform, with a warning.
+Their support is per allele, so each allele is a smaller fraction of its gene's reads
+than its isoform is, and ``--min_percent_usage`` should be set lower for them.  Either way, isoforms without an
+annotated gene are grouped into novel genes as flair transcriptome groups them, and
+isoform and gene ids are numbered in genome order, so they don't depend on the order
+of the samples.
+
+Flair combine will generate a counts file, but for the most accurate quantification, we recommend
 running FLAIR quantify using all samples against the combined transcriptome
 
 Options

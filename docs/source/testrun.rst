@@ -18,7 +18,6 @@ and store them as test_input/genome.fa.
 ``make test`` tests every FLAIR subcommand and the helper programs. Tests that need ``R`` are
 run by ``make test-with-R``; ``make test-base`` runs the rest. You can also run one group at a time:
 
- - ``make align-tests``
  - ``make transcriptome-tests``
  - ``make quantify-tests``
  - ``make combine-tests``

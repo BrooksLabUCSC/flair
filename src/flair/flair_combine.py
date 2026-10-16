@@ -4,10 +4,15 @@ import logging
 import pysam
 from flair import FlairError
 from flair.bed_to_gtf import bed_to_gtf
-from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from statistics import median
-from flair.isoform_data import make_big_bed, get_sequence_for_exons
+from flair.isoform_data import make_big_bed, get_sequence_for_exons, Gene, Isoform, Junc
+from flair.predictProductivity import predict_productivity, translate
+from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
+from flair.annotation_data import AnnotsByChrom
+from flair.gene_identification import get_gene_name_firstpass, _group_novel_by_splicing
+from flair.convert_synthetic_to_genome_bed import piece_gene
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -23,6 +28,13 @@ def add_subparser(subparsers):
                         help="comma separated list of paths to flair bed files to combine")
     parser.add_argument('-g', '--genome', required=True,
                         help='genome fasta, required to generate an isoform fasta file and/or a bigbed file')
+    parser.add_argument('-f', '--gtf', default=None,
+                        help='an annotation GTF.  With it, each combined isoform is given its gene, reference transcript, '
+                        'CDS, productivity and protein from this annotation, as flair transcriptome gives them, whatever '
+                        'annotation the samples were run with, so samples run with different annotations or FLAIR versions '
+                        'can be combined, and the proteins are written to combined.aaseq.tsv.  Fusion isoforms keep the '
+                        'samples\' genes.  Without it, the samples\' genes, CDS and productivity are used, isoforms from '
+                        'different samples with different genes are an error, and isoforms have no protein ids')
     parser.add_argument('-o', '--output', default='flair.combined.isoforms',
                         help="prefix for output file (default: %(default)s)")
     parser.add_argument('--end_window', type=int, default=200,
@@ -43,7 +55,7 @@ def add_subparser(subparsers):
 def combine_cmd(args):
     # the option is a percentage, the code compares against fractional usage
     combine(manifest=args.manifest, prefixes=args.prefixes, isoform_beds=args.isoform_beds,
-            genome=args.genome, output=args.output, end_window=args.end_window,
+            genome=args.genome, annotation=args.gtf, output=args.output, end_window=args.end_window,
             min_frac_usage=args.min_percent_usage / 100.0,
             remove_single_exon=args.remove_single_exon, max_ends=args.max_ends,
             min_reads=args.min_reads)
@@ -63,8 +75,16 @@ def combine_cmd(args):
 #     esizes.append(end - (start + estarts[-1]))
 #     return esizes, estarts
 
+def _longest_first(bed_list):
+    """a sort key, reversed, for a sample's isoform: longest, then one without an
+    allele's variants (flair isoalleles), whose CDS and productivity are the
+    reference's, then most reads, then by sample"""
+    bed = bed_list[0]
+    return (bed.end - bed.start, bed.transcript_class != 'with_vars', bed.read_support, bed.samples, bed.start)
+
+
 def combineIsos(beds, endwindow):
-    beds.sort(key=lambda x: [(y.start, y.end) for y in x])
+    beds.sort(key=lambda x: ([(y.start, y.end) for y in x], x[0].samples))
     isoendgroups = []
     last_vals = [(0, 0) for x in beds[0]]  # accounting for fusions, getting start + end of each fragment
     currgroup = []
@@ -97,21 +117,62 @@ def parse_input(manifest, prefixes, input_beds):
     return sampledata
 
 
+def _has_allele_info(bed):
+    "is this an isoform of an allele, from flair isoalleles"
+    return bed.transcript_class == 'with_vars' or bed.allele_group is not None or bed.source_isoform is not None
+
+
 def load_isos_by_id(bedfile):
     isotoinfo = {}
     mysamples = set()
+    num_alleles = 0
     for bed in BedReader(bedfile, bedClass=FlairBed):
-        juncchaininfo = (bed.pos_in_fusion, bed.chrom, bed.getGaps())
-        if bed.name not in isotoinfo:
-            isotoinfo[bed.name] = []
-        isotoinfo[bed.name].append((juncchaininfo, bed))
+        num_alleles += _has_allele_info(bed)
+        # by strand too: a single-exon isoform and one antisense to it, with
+        # similar ends, aren't the same isoform
+        juncchaininfo = (bed.pos_in_fusion, bed.chrom, bed.strand, bed.getGaps())
+        # a fusion isoform's pieces share its name.  Other isoforms of one name on
+        # different chromosomes are different isoforms: flair transcriptome before
+        # 10fe17f gave isoforms of the same coordinates on chrX and chrY's
+        # pseudoautosomal region one name, and they were taken for a fusion
+        iso_key = bed.name if bed.pos_in_fusion is not None else (bed.name, bed.chrom)
+        if iso_key not in isotoinfo:
+            isotoinfo[iso_key] = []
+        isotoinfo[iso_key].append((juncchaininfo, bed))
         mysamples.update(set(bed.samples))
+    if num_alleles > 0:
+        logging.warning(f"{bedfile}: {num_alleles} isoforms of alleles, from flair isoalleles.  flair combine drops "
+                        f"the allele information, combining the alleles of an isoform into one isoform, with the CDS and "
+                        f"productivity of an allele without variants where there is one (give -f to recompute them from "
+                        f"the reference).  Their support is per allele, so each is a smaller fraction of its gene's reads "
+                        f"than its isoform: set --min_percent_usage lower for them")
     return isotoinfo, mysamples
 
+def _fusion_junction_sites(bed, order, numpieces):
+    """A fusion piece's splice sites at its fusion junctions, its 3' edge unless it is
+    the last piece and its 5' edge unless it is the first: consecutive pieces' give
+    the fusion junction between them"""
+    sites = []
+    if order < numpieces - 1:
+        sites.append(bed.end if bed.strand == '+' else bed.start)
+    if order > 0:
+        sites.append(bed.start if bed.strand == '+' else bed.end)
+    return tuple(sites)
+
+
 def organize_isos_by_junc_chain(isotoinfo, intronchaintoisos):
+    """isotoinfo's isoforms by junction chain: each piece's (position in fusion,
+    chrom, strand, junctions), with a fusion piece's splice sites at its fusion
+    junctions, so fusions sharing a piece but not the junction to their partner,
+    as two 3' partners spliced to one 5' piece at different acceptors, are not
+    taken for one isoform"""
     for iso_id, bed_records in isotoinfo.items():
         bed_records.sort()  # organize fusion partners in order if necessary
-        juncchaininfo = tuple([x[0] for x in bed_records])
+        if len(bed_records) > 1:
+            juncchaininfo = tuple(x[0] + (_fusion_junction_sites(x[1], order, len(bed_records)),)
+                                  for order, x in enumerate(bed_records))
+        else:
+            juncchaininfo = tuple([x[0] for x in bed_records])
         beds = tuple([x[1] for x in bed_records])
         if juncchaininfo not in intronchaintoisos:
             intronchaintoisos[juncchaininfo] = []
@@ -137,45 +198,206 @@ def filter_groups(ends_to_iso_groups, max_ends, minpercentusage, min_reads):
             groups_after_end_filtering = [ends_to_iso_groups[0], ]
     return groups_after_end_filtering
 
-def get_gene_id(ref_gene_ids, curr_gene_ids, ref_gene_to_new, new_gene_to_og, gene_count, og_flair_gene_to_new):
-    if len(ref_gene_ids) > 0:  # has annotated gene name
-        if ref_gene_ids[0] in ref_gene_to_new:
-            new_gene_id = ref_gene_to_new[ref_gene_ids[0]]
-        else:
-            new_gene_id = f'FLG{gene_count:08d}'
-            gene_count += 1
-            ref_gene_to_new[ref_gene_ids[0]] = new_gene_id
-            new_gene_to_og[new_gene_id] = set()
-    else:
-        new_gene_id = None
-        for g in curr_gene_ids:
-            if g in og_flair_gene_to_new:
-                new_gene_id = og_flair_gene_to_new[g]
-                break
-        if new_gene_id is None:
-            new_gene_id = f'FLG{gene_count:08d}'
-            gene_count += 1
-            new_gene_to_og[new_gene_id] = set()
-    new_gene_to_og[new_gene_id].update(set(curr_gene_ids))
-    for g in curr_gene_ids:
-        og_flair_gene_to_new[g] = new_gene_id
-    return new_gene_id, gene_count
+def _is_fusion(bed_list):
+    return len(bed_list) > 1 or bed_list[0].pos_in_fusion is not None
 
-def get_new_gene_ids(bed_list_group, ref_gene_to_new, new_gene_to_og, og_flair_gene_to_new, gene_count):
-    curr_gene_ids = [(x[0].samples, x[0].gene_id) for x in bed_list_group]
-    ref_gene_ids = list(set([x[0].ref_gene_mappings for x in bed_list_group if x[0].ref_gene_mappings != ()]))
+
+def _combined_sort_key(bed_list_group):
+    "a combined isoform's place in the output: by the coordinates of its isoform, the group's first"
+    return tuple((bed.chrom, bed.start, bed.end, bed.strand, tuple((blk.start, blk.end) for blk in bed.blocks))
+                 for bed in bed_list_group[0])
+
+
+def _genes_str(ref_gene_mappings):
+    "genes for a message, a fusion partner without a gene as 'none'"
+    return ','.join(g or 'none' for g in ref_gene_mappings) or 'novel'
+
+
+def _ref_genes(bed_list_group):
+    """the annotated genes the samples gave a combined isoform, () for none, an
+    error if they gave different ones"""
+    ref_gene_ids = {tuple(x[0].ref_gene_mappings) for x in bed_list_group if len(x[0].ref_gene_mappings) > 0}
     if len(ref_gene_ids) > 1:
-        raise FlairError("Matching isoforms from different samples have different genes - did you use consistent annotation files for all samples?")
-    new_gene_id, gene_count = get_gene_id(ref_gene_ids, curr_gene_ids, ref_gene_to_new, new_gene_to_og, gene_count, og_flair_gene_to_new)
+        primary = bed_list_group[0][0]
+        samples_genes = '; '.join(sorted(f"{','.join(x[0].samples)}: {_genes_str(x[0].ref_gene_mappings)}"
+                                         for x in bed_list_group))
+        if _is_fusion(bed_list_group[0]):
+            advice = "These are fusion isoforms, whose genes flair fusion chose, which flair combine can't reconcile."
+        else:
+            advice = ("Give flair combine an annotation (-f) to give each isoform the gene flair transcriptome would, "
+                      "or check that all samples were run with the same annotation.")
+        raise FlairError(f"isoforms of the same splice junctions have different genes, at {primary.chrom}:{primary.start}-"
+                         f"{primary.end} ({primary.strand}): {samples_genes}.  {advice}")
+    return ref_gene_ids.pop() if ref_gene_ids else ()
 
-    curr_fused_genes = [(x[0].samples, x[0].fused_genes) for x in bed_list_group]
-    new_fused_genes = [None for x in range(len(curr_fused_genes[0][1]))]
-    for i in range(len(curr_fused_genes[0][1])):
-        og_fused_genes = [(x[0], x[1][i]) for x in curr_fused_genes]
-        fused_ref_gene = list(set([(x[i],) for x in ref_gene_ids if x[i] is not None]))
-        new_fused_gene_id, gene_count = get_gene_id(fused_ref_gene, og_fused_genes, ref_gene_to_new, new_gene_to_og, gene_count, og_flair_gene_to_new)
-        new_fused_genes[i] = new_fused_gene_id
-    return new_gene_id, new_fused_genes, gene_count
+
+def _check_ref_transcripts(bed_list_group):
+    "an error if the samples gave a combined isoform different reference transcripts"
+    transcripts = {x[0].ref_transcript_id for x in bed_list_group if x[0].ref_transcript_id is not None}
+    if len(transcripts) > 1:
+        primary = bed_list_group[0][0]
+        samples_transcripts = '; '.join(sorted(f"{','.join(x[0].samples)}: {x[0].ref_transcript_id or 'none'}"
+                                               for x in bed_list_group))
+        raise FlairError(f"isoforms of the same splice junctions have different reference transcripts, at "
+                         f"{primary.chrom}:{primary.start}-{primary.end} ({primary.strand}): {samples_transcripts}.  "
+                         f"Give flair combine an annotation (-f) to give each isoform the reference transcript flair "
+                         f"transcriptome would, or check that all samples were run with the same annotation and FLAIR version.")
+
+
+def _novel_gene_keys(combined, novel):
+    """gene keys for the combined isoforms without an annotated gene, by their
+    indexes in combined: grouped into novel genes as flair transcriptome groups
+    them (_group_novel_by_splicing), on each chromosome and strand"""
+    by_chrom_strand = {}
+    for i in novel:
+        bed = combined[i][0][0]
+        by_chrom_strand.setdefault((bed.chrom, bed.strand), {})[i] = \
+            Isoform(bed.chrom, bed.strand, tuple(Junc(gap.start, gap.end) for gap in bed.getGaps()), bed.start, bed.end)
+    keys = {}
+    for (chrom, strand), isoforms in by_chrom_strand.items():
+        for group in _group_novel_by_splicing(sorted(isoforms), isoforms):
+            key = ('novel', min(group))
+            for i in group:
+                keys[i] = key
+    return keys
+
+
+def assign_gene_keys(combined):
+    """The gene of each combined isoform, and of each partner of a fusion, as keys
+    standing for combined genes, which depend only on the combined isoforms, not on
+    the order of the samples.  An isoform with annotated genes is in the gene of
+    them, and the others are grouped into novel genes as flair transcriptome
+    groups them.  A fusion partner without an annotated gene is in the combined
+    gene of its sample genes' other isoforms, the first of them if more than one.
+    Returns a list of (gene key, partner gene keys), and a map of gene key -> set
+    of (samples, sample gene id)"""
+    gene_keys = [None] * len(combined)
+    novel = []
+    for i, bed_list_group in enumerate(combined):
+        ref_genes = _ref_genes(bed_list_group)
+        _check_ref_transcripts(bed_list_group)
+        if any(ref_genes):  # not a fusion of only non-genic loci, (None, None)
+            gene_keys[i] = ('ref', ref_genes)
+        elif not _is_fusion(bed_list_group[0]):
+            novel.append(i)
+    for i, key in _novel_gene_keys(combined, novel).items():
+        gene_keys[i] = key
+
+    # sample genes -> the combined genes of their isoforms, the first by output order
+    og_to_key = {}
+    for i, bed_list_group in enumerate(combined):
+        if not _is_fusion(bed_list_group[0]):
+            for x in bed_list_group:
+                og_to_key.setdefault((x[0].samples, x[0].gene_id), gene_keys[i])
+
+    key_to_og = {}
+    result = []
+    for i, bed_list_group in enumerate(combined):
+        og_genes = sorted((x[0].samples, x[0].gene_id) for x in bed_list_group)
+        if gene_keys[i] is None:  # a fusion without annotated genes
+            gene_keys[i] = _from_sample_genes(og_to_key, og_genes, ('fusion', i))
+        key_to_og.setdefault(gene_keys[i], set()).update(og_genes)
+        result.append((gene_keys[i], _partner_gene_keys(i, bed_list_group, og_to_key, key_to_og)))
+    return result, key_to_og
+
+
+def _from_sample_genes(og_to_key, og_genes, default):
+    "the combined gene of the first of the sample genes with one"
+    return next((og_to_key[g] for g in og_genes if g in og_to_key), default)
+
+
+def _partner_gene_keys(i, bed_list_group, og_to_key, key_to_og):
+    """gene keys of the partners of fusion isoform i: its annotated gene, or the
+    combined gene of its sample genes"""
+    ref_genes = _ref_genes(bed_list_group)
+    partner_keys = []
+    for p in range(len(bed_list_group[0][0].fused_genes)):
+        og_partner = sorted((x[0].samples, x[0].fused_genes[p]) for x in bed_list_group)
+        if p < len(ref_genes) and ref_genes[p] is not None:
+            partner_key = ('ref', (ref_genes[p],))
+        else:
+            partner_key = _from_sample_genes(og_to_key, og_partner, ('fusion', i, p))
+        key_to_og.setdefault(partner_key, set()).update(og_partner)
+        partner_keys.append(partner_key)
+    return partner_keys
+
+
+def fusion_genes(beds, annots_by_chrom):
+    """The genes of a fusion isoform's pieces, beds, in fusion order, as flair fusion
+    gives them (piece_gene): by the pieces' junctions and fusion-junction splice
+    sites, then their exons, None for a non-genic piece, so samples' isoforms of the
+    same pieces get the same genes"""
+    beds = sorted(beds, key=lambda bed: bed.pos_in_fusion)
+    return tuple(piece_gene(bed.chrom, bed.strand, bed.blocks, bed.pos_in_fusion, len(beds), annots_by_chrom)
+                 for bed in beds)
+
+
+def fusion_aaseq(beds, genome):
+    """The protein of a fusion isoform, beds its pieces, if productive (PRO): each
+    piece's part of the CDS (its thickStart to thickEnd), in fusion order, joined and
+    translated, as flair fusion translated it on the pieces joined in its synthetic
+    genome.  As flair transcriptome, None for any other productivity"""
+    if beds[0].productivity != 'PRO':
+        return None
+    cds = ''
+    for bed in sorted(beds, key=lambda bed: bed.pos_in_fusion):
+        coding = [BedBlock(max(blk.start, bed.thickStart), min(blk.end, bed.thickEnd)) for blk in bed.blocks
+                  if blk.start < bed.thickEnd and bed.thickStart < blk.end]
+        cds += get_sequence_for_exons(genome, bed.chrom, bed.strand, coding)
+    return translate(cds)
+
+
+def set_genes_from_annotation(bed_list_group, annots_by_chrom, genome):
+    """Give the isoforms of a combined isoform the gene, reference transcript, CDS
+    and productivity flair transcriptome gives an isoform of its splice junctions,
+    strand and ends (those of the combined isoform, the group's first), whatever
+    the samples gave them, with its protein sequence as aaseq_id, for
+    write_combined to number.  A fusion isoform's pieces get their genes as flair
+    fusion gives them (fusion_genes), and keep the CDS and productivity flair fusion
+    gave them, with their protein translated from that CDS (fusion_aaseq).  Returns
+    whether a sample's genes differed"""
+    primary = bed_list_group[0]
+    if _is_fusion(primary):
+        genes = fusion_genes(primary, annots_by_chrom)
+        aaseq = fusion_aaseq(primary, genome)
+        for bed in primary:
+            bed.aaseq_id = aaseq
+        return _set_sample_genes(bed_list_group, genes)
+    bed = primary[0]
+    annots = annots_by_chrom.get(bed.chrom)
+    isoform = Isoform(bed.chrom, bed.strand, tuple(Junc(gap.start, gap.end) for gap in bed.getGaps()), bed.start, bed.end)
+    gene_ids, transcript_id = get_gene_name_firstpass(isoform, annots)
+    genes = tuple(gene_ids) if gene_ids else ()
+    Gene(None, genes, bed.chrom, bed.strand).add_isoform(isoform)
+    isoform.ref_transcript_id = transcript_id
+    thick_start, thick_end, productivity, aaseq = predict_productivity(
+        isoform, annots.start_codon_count, annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
+    differing = _set_sample_genes(bed_list_group, genes)
+    for bed_list in bed_list_group:
+        sample_bed = bed_list[0]
+        sample_bed.ref_transcript_id = transcript_id
+        if sample_bed.transcript_class in ('basic', 'readthrough'):
+            sample_bed.transcript_class = 'basic' if len(genes) <= 1 else 'readthrough'
+    # as flair transcriptome writes them (convert_to_flair_bed), on the combined isoform
+    bed.thickStart, bed.thickEnd, bed.productivity, bed.aaseq_id = thick_start, thick_end, productivity, aaseq
+    return differing
+
+
+def _set_sample_genes(bed_list_group, genes):
+    """give every sample's isoform of a combined isoform, each of its pieces, genes
+    as its ref_gene_mappings, logging the samples that gave others.  Returns
+    whether any did"""
+    differing = sorted({_genes_str(x[0].ref_gene_mappings) for x in bed_list_group
+                        if tuple(x[0].ref_gene_mappings) != genes})
+    if differing:
+        bed = bed_list_group[0][0]
+        logging.debug(f"combined isoform at {bed.chrom}:{bed.start}-{bed.end} ({bed.strand}) given gene "
+                      f"{_genes_str(genes)}, samples gave {'; '.join(differing)}")
+    for bed_list in bed_list_group:
+        for sample_bed in bed_list:
+            sample_bed.ref_gene_mappings = genes
+    return len(differing) > 0
+
 
 def get_iso_counts_per_sample(bed_list_group, new_iso_id, iso_to_samples_to_counts):
     for bed_list in bed_list_group:
@@ -184,24 +406,19 @@ def get_iso_counts_per_sample(bed_list_group, new_iso_id, iso_to_samples_to_coun
                 iso_to_samples_to_counts[new_iso_id][sample] = 0
             iso_to_samples_to_counts[new_iso_id][sample] += bed_list[0].read_support
 
-def correct_bed_fields_write_out(bed_list_group, new_iso_to_og, ref_gene_to_new, new_gene_to_og, og_flair_gene_to_new,
-                                 genome, bed_fh, fa_fh, iso_count, gene_count, iso_to_samples_to_counts):
+def correct_bed_fields_write_out(bed_list_group, new_iso_id, new_gene_id, new_fused_genes, new_iso_to_og,
+                                 genome, bed_fh, fa_fh, iso_to_samples_to_counts):
     # need to adjust: new FLAIR isoform ID, new FLAIR gene ID, sum read support, median frac support, samples,
     # also need to adjust fused_gene_ids if relevant
-    # keep dictionary of new isos to OG isos (with sample), new genes to OG genes (with sample)
+    # keep dictionary of new isos to OG isos (with sample)
 
     tot_read_sup = sum([x[0].read_support for x in bed_list_group])
     med_usage = median([x[0].frac_support for x in bed_list_group])
     all_samples = [x[0].samples for x in bed_list_group]
     all_samples = tuple(sorted(list(set([x for xs in all_samples for x in xs]))))
 
-    new_iso_id = f'FLT{iso_count:08d}'
-    iso_count += 1
     new_iso_to_og[new_iso_id] = set([(x[0].samples, x[0].name) for x in bed_list_group])
     iso_to_samples_to_counts[new_iso_id] = {}
-
-    new_gene_id, new_fused_genes, gene_count = get_new_gene_ids(bed_list_group, ref_gene_to_new, new_gene_to_og, og_flair_gene_to_new, gene_count)
-
     get_iso_counts_per_sample(bed_list_group, new_iso_id, iso_to_samples_to_counts)
 
     primary_bed_list = bed_list_group[0]
@@ -214,19 +431,63 @@ def correct_bed_fields_write_out(bed_list_group, new_iso_to_og, ref_gene_to_new,
         bed.name = new_iso_id
         bed.gene_id = new_gene_id
         bed.fused_genes = tuple(new_fused_genes)
+        # a sample's own isoform name and allele, from flair isoalleles, which don't
+        # carry over to the combined isoform
+        bed.source_isoform = bed.allele_group = None
+        if bed.transcript_class == 'with_vars':
+            bed.transcript_class = 'readthrough' if len([g for g in bed.ref_gene_mappings if g]) > 1 else 'basic'
         my_sequence += get_sequence_for_exons(genome, bed.chrom, bed.strand, bed.blocks)
         bed.write(bed_fh)
     fa_fh.write('>' + new_iso_id + '\n' + my_sequence + '\n')
-    return iso_count, gene_count
+
+
+def write_combined(combined, genome, output, number_aaseqs=False):
+    """Write the combined isoforms, numbered in coordinate order, as are their
+    genes, so the ids don't depend on the order of the samples.  With
+    number_aaseqs, their aaseq_ids are protein sequences (set_genes_from_annotation),
+    numbered in the same order and written to the aaseq file; otherwise they have
+    none.  Returns the maps of new isoform and gene ids to the samples' ones, and
+    the counts by sample"""
+    combined.sort(key=_combined_sort_key)
+    gene_keys, key_to_og = assign_gene_keys(combined)
+    key_to_new = {}
+
+    def new_gene(key):
+        if key not in key_to_new:
+            key_to_new[key] = f'FLG{len(key_to_new) + 1:08d}'
+        return key_to_new[key]
+
+    new_iso_to_og, iso_to_samples_to_counts, aaseq_to_id = {}, {}, {}
+    with open(output + '.combined.isoforms.bed', 'w') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
+        for i, (bed_list_group, (gene_key, partner_keys)) in enumerate(zip(combined, gene_keys)):
+            new_gene_id = new_gene(gene_key)
+            new_fused_genes = [new_gene(key) for key in partner_keys]
+            for bed in bed_list_group[0]:
+                if number_aaseqs and bed.aaseq_id is not None:
+                    bed.aaseq_id = aaseq_to_id.setdefault(bed.aaseq_id, f'FLP{len(aaseq_to_id) + 1:08d}')
+                else:
+                    # a sample's protein id: each sample numbers its own, so they
+                    # don't name the same protein across samples
+                    bed.aaseq_id = None
+            correct_bed_fields_write_out(bed_list_group, f'FLT{i + 1:08d}', new_gene_id, new_fused_genes, new_iso_to_og,
+                                         genome, bed_fh, fa_fh, iso_to_samples_to_counts)
+    if number_aaseqs:
+        with open(output + '.combined.aaseq.tsv', 'w') as fh:
+            fh.write('aaseq_id\taaseq\n')
+            for aaseq, aaseq_id in aaseq_to_id.items():
+                fh.write(f'{aaseq_id}\t{aaseq}\n')
+    new_gene_to_og = {new_id: key_to_og.get(key, set()) for key, new_id in key_to_new.items()}
+    return new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts
+
 
 def write_map_files(output, new_iso_to_og, new_gene_to_og):
     with open(output + '.combined.isoform.map.txt', 'w') as fh:
         for new_id in new_iso_to_og:
-            og_names = [','.join(x[0]) + ':' + x[1] for x in new_iso_to_og[new_id]]
+            og_names = sorted(','.join(x[0]) + ':' + x[1] for x in new_iso_to_og[new_id])
             fh.write(new_id + '\t' + '; '.join(og_names) + '\n')
     with open(output + '.combined.gene.map.txt', 'w') as fh:
         for new_id in new_gene_to_og:
-            og_names = [','.join(x[0]) + ':' + x[1] for x in new_gene_to_og[new_id]]
+            og_names = sorted(','.join(x[0]) + ':' + x[1] for x in new_gene_to_og[new_id])
             fh.write(new_id + '\t' + '; '.join(og_names) + '\n')
 
 def write_counts_file(output, allsamples, iso_to_samples_to_counts):
@@ -242,42 +503,62 @@ def write_counts_file(output, allsamples, iso_to_samples_to_counts):
             fh.write('\t'.join(outline) + '\n')
 
 def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
-            min_frac_usage, remove_single_exon, max_ends, min_reads):
+            min_frac_usage, remove_single_exon, max_ends, min_reads, annotation=None):
     logging.info('parsing manifest')
     sampledata = parse_input(manifest, prefixes, isoform_beds)
+    annots_by_chrom = None
+    if annotation is not None:
+        logging.info('loading annotation GTF')
+        annots_by_chrom = AnnotsByChrom(gtf_data_parser(annotation, attrs=GtfAttrsSet.FLAIR,
+                                                        include_features=TRANSCRIPT_EXON_FEATURES))
+    num_regened = 0
 
     logging.info('loading isoforms from individual samples')
     intronchaintoisos, allsamples = load_isoforms_by_junc_chain(sampledata)
 
     logging.info('combining isoforms')
 
-    new_iso_to_og, new_gene_to_og, ref_gene_to_new, og_flair_gene_to_new = {}, {}, {}, {}
-    iso_to_samples_to_counts = {}
-    iso_count, gene_count = 1, 1
     genome_fa = pysam.FastaFile(genome)
-    with open(output + '.combined.isoforms.bed', 'w') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
-        for juncchaininfo in intronchaintoisos:
-            all_juncs = [x[2] for x in juncchaininfo]
-            og_isos = intronchaintoisos[juncchaininfo]
-            if not remove_single_exon or (len(all_juncs) > 1 or len(all_juncs[0]) > 0):
-                ends_to_iso_groups = combineIsos(og_isos, end_window)
-                max_usage, tot_counts = 0, 0
-                for bed_lists in ends_to_iso_groups:
-                    # For transcripts grouped by ends, sort by longest ends
-                    bed_lists.sort(key=lambda x: (x[0].end - x[0].start, x[0].read_support), reverse=True)
-                    max_usage = max((max_usage, max([x[0].frac_support for x in bed_lists])))
-                    tot_counts += sum([x[0].read_support for x in bed_lists])
-                # sort all ends groups with longest ends first
-                ends_to_iso_groups.sort(key=lambda x: (x[0][0].end - x[0][0].start, x[0][0].read_support), reverse=True)
+    combined = []
+    for juncchaininfo in intronchaintoisos:
+        all_juncs = [x[3] for x in juncchaininfo]
+        og_isos = intronchaintoisos[juncchaininfo]
+        if not remove_single_exon or (len(all_juncs) > 1 or len(all_juncs[0]) > 0):
+            ends_to_iso_groups = combineIsos(og_isos, end_window)
+            max_usage, tot_counts = 0, 0
+            for bed_lists in ends_to_iso_groups:
+                # For transcripts grouped by ends, sort by longest ends, ties by
+                # support then sample, not by the order of the samples
+                bed_lists.sort(key=_longest_first, reverse=True)
+                max_usage = max((max_usage, max([x[0].frac_support for x in bed_lists])))
+                tot_counts += sum([x[0].read_support for x in bed_lists])
+            # sort all ends groups with longest ends first
+            ends_to_iso_groups.sort(key=lambda x: _longest_first(x[0]), reverse=True)
 
-                if max_usage > min_frac_usage and tot_counts >= min_reads:
-                    # sum all reads from all files, but do median usage from original usages
-                    # that way high counts files don't throw off the usage estimates
-                    groups_after_end_filtering = filter_groups(ends_to_iso_groups, max_ends, min_frac_usage, min_reads)
-                    for bed_list_group in groups_after_end_filtering:
-                        iso_count, gene_count = correct_bed_fields_write_out(bed_list_group, new_iso_to_og, ref_gene_to_new, new_gene_to_og,
-                                                                             og_flair_gene_to_new, genome_fa, bed_fh, fa_fh, iso_count, gene_count, iso_to_samples_to_counts)
+            if all(len(juncs) == 0 for juncs in all_juncs):
+                # single-exon isoforms all have the same, empty, junction chain: each
+                # group of them with similar ends is an isoform of its own, which
+                # max_ends mustn't merge, filtered on its own
+                groups_after_end_filtering = [group for group in ends_to_iso_groups
+                                              if max(x[0].frac_support for x in group) > min_frac_usage
+                                              and sum(x[0].read_support for x in group) >= min_reads]
+            elif max_usage > min_frac_usage and tot_counts >= min_reads:
+                # sum all reads from all files, but do median usage from original usages
+                # that way high counts files don't throw off the usage estimates
+                groups_after_end_filtering = filter_groups(ends_to_iso_groups, max_ends, min_frac_usage, min_reads)
+            else:
+                groups_after_end_filtering = []
+            for bed_list_group in groups_after_end_filtering:
+                if annots_by_chrom is not None:
+                    num_regened += set_genes_from_annotation(bed_list_group, annots_by_chrom, genome_fa)
+                combined.append(bed_list_group)
 
+    new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts = write_combined(
+        combined, genome_fa, output, number_aaseqs=annots_by_chrom is not None)
+
+    if annots_by_chrom is not None:
+        logging.info(f'{num_regened} combined isoforms given a gene from the annotation different from '
+                     f'one or more samples\' (listed with flair --log-level DEBUG)')
     write_map_files(output, new_iso_to_og, new_gene_to_og)
 
     write_counts_file(output, allsamples, iso_to_samples_to_counts)

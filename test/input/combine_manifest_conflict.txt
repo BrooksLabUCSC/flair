@@ -1,0 +1,2 @@
+expected/test-transcriptome.isoforms.bed
+input/test-combine-conflict.isoforms.bed

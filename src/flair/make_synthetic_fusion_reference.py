@@ -2,169 +2,141 @@ import argparse
 import pysam
 from flair import FlairInputDataError
 from flair.isoform_data import get_reverse_complement
-from flair.gtf_io import gtf_record_parser, gtf_write_row, GtfAttrsSet
+from flair.gtf_io import gtf_data_parser, gtf_write_row, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.pycbio.hgdata.bed import BedReader
 
-parser = argparse.ArgumentParser(description='make synthetic fusion reference')
-parser.add_argument('-c', '--chimbp', action='store', help='bed file of fusion breakpoints')
-parser.add_argument('-g', '--genome', action='store', dest='g', help='path to genome')
-parser.add_argument('-a', '--anno', action='store', dest='a', help='path to anno.gtf')
-parser.add_argument('-o', '--output', action='store', help='output file prefix')
-args = parser.parse_args()
-
-prefix = args.output  # '.'.join(args.chimbp.split('.')[:-2])
+# Makes a synthetic genome of fusion contigs, each the loci of a preliminary fusion
+# joined in fusion order, with an annotation of the fusion genes' transcripts on them
+# and the breakpoint positions between the loci.
 
 
-# DONE Load in transcriptome and genome breakpoints and process them into one list of breakpoint locations
-# DONE Go through transcript reference and load in gene start/end locations
-# DONE     figure out if any predicted breakpoints are in the same intron node and collapse them
-# DONE Cut genes at all predicted breakpoints, label with gene names and cut locations, make synthetic fasta
-# DONE make synthetic annotation for these sequences
-
-# check if any reads map to wrong orientation of fusion loci
-
-allBP = {}
-fgenes = {}
-transcripts = {}
-# ['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'breakpointCoord', 'outerEdgeCoord', 'readSupport']
-for bed in BedReader(args.chimbp, numStdCols=6, fixScores=True):
-    chrom, name, score, strand = bed.chrom, bed.name, bed.score, bed.strand
-    start, end = max(0, bed.chromStart), max(0, bed.chromEnd)
-    gene, fusion = name.split('__')
-    fusion = tuple(fusion.split('--'))
-    if fusion not in allBP:
-        allBP[fusion] = []
-    if strand == '+':
-        allBP[fusion].append((gene, chrom, start, end))
-    else:
-        allBP[fusion].append((gene, chrom, end, start))
-    if gene not in transcripts:
-        transcripts[gene] = {}
-    if gene not in fgenes:
-        fgenes[gene] = [chrom, start, end, strand]
-    else:
-        fgenes[gene][1] = min(start, fgenes[gene][1])
-        fgenes[gene][2] = max(end, fgenes[gene][2])
-
-genome = pysam.FastaFile(args.g)
-chromSizes = dict(zip(genome.references, genome.lengths))
-# print('loaded genome')
-
-
-def getChromSize(chrom):
-    "size of chrom, error if the annotation names a sequence the genome doesn't have"
-    size = chromSizes.get(chrom)
-    if size is None:
-        raise FlairInputDataError(f"sequence '{chrom}' in annotation {args.a} is not in genome {args.g}; "
-                                  "supply an annotation and genome from the same assembly, using the same sequence names")
-    return size
-
-
-# To make synthetic transcriptome:
-# DONE Get transcript/exon annotation for fusion genes
-#     all annotation is recorded in plain left-right direction
-# Filter this annotation to 5'/3' ends based on each breakpoint
-#     Convert annotation values to be 0-based depending on start of gene (5' end) or breakpoint location (3' end)
-#         Make sure to flip - strand values accordingly
-# When making synthetic references, simulatneously make gtf annotation file - make sure to convert 3' side values based on
-
-for rec in gtf_record_parser(args.a, include_features={'gene', 'exon', 'start_codon'}, attrs=GtfAttrsSet.ALL):
-    genename = rec.gene_id
-    if genename in fgenes:
-        if rec.feature == 'gene':
-            # learned that can't assume that transcript appears in anno only once - two diff ENSG can have same hugo name
-            # the 500 base padding is held within the sequence; a gene near either end has less room than that
-            fgenes[genename] = (rec.chrom,
-                                min([max(0, rec.start - 500), fgenes[genename][1]]),
-                                max([min(getChromSize(rec.chrom), rec.end + 500), fgenes[genename][2]]),
-                                rec.strand)
-        elif rec.feature in ('exon', 'start_codon'):
-            tname = rec.transcript_id
-            if tname not in transcripts[genename]:
-                transcripts[genename][tname] = []
-            if rec.strand == '+':
-                transcripts[genename][tname].append((rec.start, rec.end, rec.feature))
-            else:
-                transcripts[genename][tname].insert(0, (rec.start, rec.end, rec.feature))
-# print(transcripts)
-# print('loaded transcripts')
-
-out = open(prefix + '-syntheticFusionGenome.fa', 'w')  # 'syntheticFusionGenomeAttempt4.fa', 'w')
-annoOut = open(prefix + '-syntheticReferenceAnno.gtf', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
-# sjOut = open(prefix + '-syntheticReferenceSJ.bed', 'w')  # 'syntheticReferenceAnnoAttempt1.gtf', 'w')
-bpOut = open(prefix + '-syntheticBreakpointLoc.bed', 'w')  # 'syntheticFusionBreakpointLoc.bed', 'w')
-c = 0
-isocount = 1
-for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
-    # print(fusion)
-    allisochunks = []
-    labels, sequence = [], []
-    allstartloc = []
-    startLoc = 0
-    for order in range(len(fusion)):
-        isochunks = {}
-        gene, thisChr, leftbound, rightbound = allBP[fusion][order]
-        # the breakpoint BED is padded by 1000 and clamped only at the low end, so a
-        # bound can run past the chromosome.  genome.fetch then returns a short
-        # sequence while startLoc advances by the nominal distance, which shifts every
-        # later locus and the breakpoint offsets against the FASTA actually written
-        chrom_size = getChromSize(thisChr)
-        leftbound = max(0, min(leftbound, chrom_size))
-        rightbound = max(0, min(rightbound, chrom_size))
-        if order == 0:  # 5' gene, correct end to 5' end of gene
-            if leftbound < rightbound:
-                leftbound = fgenes[gene][1]
-            else:
-                leftbound = fgenes[gene][2]
-        elif order == len(fusion) - 1:
-            if leftbound < rightbound:
-                rightbound = fgenes[gene][2]
-            else:
-                rightbound = fgenes[gene][1]
-
-        if leftbound < rightbound:
-            sequence.append(genome.fetch(thisChr, leftbound, rightbound))  # genome[thisChr][leftbound:rightbound])
+def read_breakpoints(chimbp):
+    """From the preliminary fusions bed: fusion -> its loci (gene, chrom, 5' bound, 3' bound)
+    in order, gene -> [chrom, start, end, strand] over all its loci, and gene -> an empty
+    transcript dict"""
+    allBP, fgenes, transcripts = {}, {}, {}
+    # ['fusionName', 'geneName', 'orderInFusion', 'geneChr', 'breakpointCoord', 'outerEdgeCoord', 'readSupport']
+    for bed in BedReader(chimbp, numStdCols=6, fixScores=True):
+        chrom, name, strand = bed.chrom, bed.name, bed.strand
+        start, end = max(0, bed.chromStart), max(0, bed.chromEnd)
+        gene, fusion = name.split('__')
+        fusion = tuple(fusion.split('--'))
+        if strand == '+':
+            allBP.setdefault(fusion, []).append((gene, chrom, start, end))
         else:
-            sequence.append(get_reverse_complement(genome.fetch(thisChr, rightbound, leftbound)))  # genome[thisChr][rightbound:leftbound]))
+            allBP.setdefault(fusion, []).append((gene, chrom, end, start))
+        transcripts.setdefault(gene, {})
+        if gene not in fgenes:
+            fgenes[gene] = [chrom, start, end, strand]
+        else:
+            fgenes[gene][1] = min(start, fgenes[gene][1])
+            fgenes[gene][2] = max(end, fgenes[gene][2])
+    return allBP, fgenes, transcripts
+
+
+class ChromSizes:
+    "chrom sizes of the genome, an error for a sequence the genome doesn't have"
+    def __init__(self, genome, genome_path, anno_path):
+        self.sizes = dict(zip(genome.references, genome.lengths))
+        self.genome_path, self.anno_path = genome_path, anno_path
+
+    def get(self, chrom):
+        size = self.sizes.get(chrom)
+        if size is None:
+            raise FlairInputDataError(f"sequence '{chrom}' in annotation {self.anno_path} is not in genome {self.genome_path}; "
+                                      "supply an annotation and genome from the same assembly, using the same sequence names")
+        return size
+
+
+def read_transcripts(gtf_data, fgenes, transcripts, chrom_sizes):
+    """Fill in the fusion genes' extents from the annotation (GtfData), their
+    transcripts' span padded by 500 bases, and their transcripts' exons and 5' start
+    codons, in genomic order"""
+    for transcript in gtf_data.transcripts:
+        genename = transcript.gene_id
+        if genename not in fgenes:
+            continue
+        # the 500 base padding is held within the sequence; a gene near either end has less room than that
+        fgenes[genename] = (transcript.chrom,
+                            min([max(0, transcript.start - 500), fgenes[genename][1]]),
+                            max([min(chrom_sizes.get(transcript.chrom), transcript.end + 500), fgenes[genename][2]]),
+                            transcript.strand)
+        features = [(exon.start, exon.end, 'exon') for exon in transcript.exons]
+        if transcript.start_codon is not None:
+            features.append((transcript.start_codon.start, transcript.start_codon.end, 'start_codon'))
+        # in genomic order whatever the order of the GTF: minus strand exons were put in
+        # genomic order by reversing their file order, which only works for an annotation
+        # listing them in transcript order, as GENCODE does.  A position-sorted GTF gave
+        # transcripts ending before they started, and flair transcriptome failed on them
+        transcripts[genename][transcript.transcript_id] = sorted(features)
+
+
+def locus_bounds(order, numloci, gene, leftbound, rightbound, fgenes, chrom_size):
+    """A locus's 5' and 3' bounds on its chromosome, the 5' gene's taken to the gene's 5'
+    end and the 3' gene's to its 3' end"""
+    # the breakpoint BED is padded by 1000 and clamped only at the low end, so a
+    # bound can run past the chromosome.  genome.fetch then returns a short
+    # sequence while startLoc advances by the nominal distance, which shifts every
+    # later locus and the breakpoint offsets against the FASTA actually written
+    leftbound = max(0, min(leftbound, chrom_size))
+    rightbound = max(0, min(rightbound, chrom_size))
+    if order == 0:  # 5' gene, correct end to 5' end of gene
+        leftbound = fgenes[gene][1] if leftbound < rightbound else fgenes[gene][2]
+    elif order == numloci - 1:
+        rightbound = fgenes[gene][2] if leftbound < rightbound else fgenes[gene][1]
+    return leftbound, rightbound
+
+
+def synthetic_exons(exons, order, leftbound, rightbound, startLoc):
+    """A transcript's exons in a locus, in fusion contig coordinates; start codons only for
+    the 5' gene"""
+    chunk = []
+    if leftbound < rightbound:  # positive strand transcript
+        for start, end, feature in exons:
+            if start >= leftbound and end <= rightbound and (order == 0 or feature == 'exon'):
+                chunk.append(((start - leftbound) + startLoc, (end - leftbound) + startLoc, feature))
+    else:  # negative strand transcript
+        for start, end, feature in reversed(exons):
+            if start >= rightbound and end <= leftbound and (order == 0 or feature == 'exon'):
+                chunk.append(((leftbound - end) + startLoc, (leftbound - start) + startLoc, feature))
+    return chunk
+
+
+def build_fusion(loci, fgenes, transcripts, genome, chrom_sizes):
+    """A fusion contig's locus labels, sequences, start positions and, per locus, transcript
+    -> its exons there"""
+    labels, sequence, allstartloc, allisochunks = [], [], [], []
+    startLoc = 0
+    for order, (gene, thisChr, leftbound, rightbound) in enumerate(loci):
+        leftbound, rightbound = locus_bounds(order, len(loci), gene, leftbound, rightbound, fgenes,
+                                             chrom_sizes.get(thisChr))
+        if leftbound < rightbound:
+            sequence.append(genome.fetch(thisChr, leftbound, rightbound))
+        else:
+            sequence.append(get_reverse_complement(genome.fetch(thisChr, rightbound, leftbound)))
         labels.append('..'.join([str(x) for x in [gene, thisChr, leftbound, rightbound]]))
-
-        # Add a justends isoform here
-        chunksize = abs(leftbound - rightbound)
-        percentchange = int(chunksize * 0.1)
-        isochunks['justends-' + str(c)] = [(percentchange + startLoc, (chunksize - percentchange) + startLoc, 'exon'),]
-        c += 1
-
-        for tname in transcripts[gene]:
-            isochunks[tname] = []
-            if leftbound < rightbound:  # positive strand transcript
-                for exon in transcripts[gene][tname]:
-                    synthexon = None
-                    # check if exon is within bounds of fusion
-                    if exon[0] >= leftbound and exon[1] <= rightbound and (order == 0 or exon[2] == 'exon'):
-                        synthexon = [(exon[0] - leftbound) + startLoc, (exon[1] - leftbound) + startLoc, exon[2]]
-                    if synthexon:
-                        isochunks[tname].append(tuple(synthexon))
-            else:  # negative strand transcript
-                for exon in reversed(transcripts[gene][tname]):
-                    synthexon = None
-                    # check if exon is within bounds of fusion
-                    if exon[0] >= rightbound and exon[1] <= leftbound and (order == 0 or exon[2] == 'exon'):
-                        synthexon = [(leftbound - exon[1]) + startLoc, (leftbound - exon[0]) + startLoc, exon[2]]
-                    if synthexon:
-                        isochunks[tname].append(tuple(synthexon))
+        allisochunks.append({tname: synthetic_exons(exons, order, leftbound, rightbound, startLoc)
+                             for tname, exons in transcripts[gene].items()})
         allstartloc.append(startLoc)
         startLoc = startLoc + abs(rightbound - leftbound)
-        allisochunks.append(isochunks)
-    # finalisochunks = [[] for x in range(len(fusion))]
-    finalisochunks = []
-    for order in range(len(fusion)):
-        seen = []
-        for iso in list(allisochunks[order].keys()):
-            if allisochunks[order][iso] != [] and len([x for x in allisochunks[order][iso] if x[2] == 'exon']) > 1 and allisochunks[order][iso] not in seen:
-                # finalisochunks[order].append([iso, allisochunks[order][iso]])
-                finalisochunks.append([iso, allisochunks[order][iso]])
-                seen.append(allisochunks[order][iso])
+    return labels, sequence, allstartloc, allisochunks
 
+
+def multi_exon_isoforms(allisochunks):
+    "[transcript, exons] of each locus's distinct transcripts with more than one exon there"
+    finalisochunks = []
+    for isochunks in allisochunks:
+        seen = []
+        for iso, chunk in isochunks.items():
+            if chunk != [] and len([x for x in chunk if x[2] == 'exon']) > 1 and chunk not in seen:
+                finalisochunks.append([iso, chunk])
+                seen.append(chunk)
+    return finalisochunks
+
+
+def write_fusion(outs, fusion, labels, sequence, allstartloc, finalisochunks, isocount):
+    "write a fusion contig, its breakpoints and annotation; returns the next transcript number"
+    out, annoOut, bpOut = outs
     fusionname = '--'.join(labels)
     geneid = '--'.join(fusion)
     fusionchrname = '--'.join(['..'.join(x.split('*')) for x in fusion])
@@ -174,20 +146,47 @@ for fusion in allBP:  # noqa: C901 - FIXME: reduce complexity
         bpOut.write('\t'.join([fusionchrname, str(allstartloc[s]), str(allstartloc[s]), 'breakpoint-' + str(s) + '--' + fusionname]) + '\n')
     gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', 'gene', 0, len(''.join(sequence)), None, '+', None,
                   gene_id=geneid)
-
-    seen = set()
-    for isocomb in finalisochunks:
-        isoexons = isocomb[1]
-        transcriptid = str(isocount) + '-' + isocomb[0]
+    for iso, isoexons in finalisochunks:
+        transcriptid = str(isocount) + '-' + iso
         isocount += 1
-        seen.add(transcriptid)
         gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', 'transcript', isoexons[0][0], isoexons[-1][1], None, '+', None,
                       gene_id=geneid, transcript_id=transcriptid)
         for exon in isoexons:
             gtf_write_row(annoOut, fusionchrname, 'SYNTHFUSION', exon[2], exon[0], exon[1], None, '+', None,
                           gene_id=geneid, transcript_id=transcriptid)
+    return isocount
 
 
-out.close()
-annoOut.close()
-bpOut.close()
+def make_synthetic_reference(gtf_data, anno_path, genome_path, chimbp, prefix):
+    """The synthetic fusion genome of the preliminary fusions in chimbp, its
+    annotation from gtf_data (a GtfData, parsed from anno_path) and its breakpoints,
+    as prefix-syntheticFusionGenome.fa, -syntheticReferenceAnno.gtf and
+    -syntheticBreakpointLoc.bed"""
+    allBP, fgenes, transcripts = read_breakpoints(chimbp)
+    genome = pysam.FastaFile(genome_path)
+    chrom_sizes = ChromSizes(genome, genome_path, anno_path)
+    read_transcripts(gtf_data, fgenes, transcripts, chrom_sizes)
+
+    with open(prefix + '-syntheticFusionGenome.fa', 'w') as out, \
+            open(prefix + '-syntheticReferenceAnno.gtf', 'w') as annoOut, \
+            open(prefix + '-syntheticBreakpointLoc.bed', 'w') as bpOut:
+        isocount = 1
+        for fusion in allBP:
+            labels, sequence, allstartloc, allisochunks = build_fusion(allBP[fusion], fgenes, transcripts, genome, chrom_sizes)
+            isocount = write_fusion((out, annoOut, bpOut), fusion, labels, sequence, allstartloc,
+                                    multi_exon_isoforms(allisochunks), isocount)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='make synthetic fusion reference')
+    parser.add_argument('-c', '--chimbp', action='store', help='bed file of fusion breakpoints')
+    parser.add_argument('-g', '--genome', action='store', dest='g', help='path to genome')
+    parser.add_argument('-a', '--anno', action='store', dest='a', help='path to anno.gtf')
+    parser.add_argument('-o', '--output', action='store', help='output file prefix')
+    args = parser.parse_args()
+    gtf_data = gtf_data_parser(args.a, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    make_synthetic_reference(gtf_data, args.a, args.g, args.chimbp, args.output)
+
+
+if __name__ == '__main__':
+    main()

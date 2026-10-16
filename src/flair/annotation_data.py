@@ -18,6 +18,9 @@ class AnnotData(object):
         # list of (transcript_id, gene_id, strand)
         self.transcripts = []
 
+        # map of gene_id -> number of transcripts
+        self.gene_to_num_transcripts = {}
+
         # map of junction chain tuple -> (transcript_id, gene_id)
         self.juncchain_to_transcript = {}
 
@@ -57,6 +60,8 @@ class AnnotData(object):
         # used by spliceevents for simple junction-to-gene lookup
         self.junc_to_gene_id = {}
 
+        # gene_id -> strand -> set of CDS start positions (start codon start on +,
+        # end on -), by the strand of the transcripts they come from
         self.gene_to_cds_starts = {}
 
         self.transcript_to_nmd_except = {}
@@ -120,6 +125,20 @@ def annot_data_from_gtf(gtf_data, region):
         ends.sort()
     return annots
 
+class AnnotsByChrom:
+    """An annotation's AnnotData for each chromosome, from its parsed GTF (GtfData),
+    made when first asked for, as a flair transcriptome partition makes it for its
+    region"""
+    def __init__(self, gtf_data):
+        self.gtf_data = gtf_data
+        self.by_chrom = {}
+
+    def get(self, chrom):
+        if chrom not in self.by_chrom:
+            self.by_chrom[chrom] = annot_data_from_gtf(self.gtf_data.subset_for_region(chrom, 0, 2 ** 62), chrom)
+        return self.by_chrom[chrom]
+
+
 def _process_transcript(annots, region, region_map, trans):
     exons = [Exon(exon.start, exon.end) for exon in trans.exons]
     sorted_exons = sorted(exons)
@@ -130,14 +149,12 @@ def _process_transcript(annots, region, region_map, trans):
                            trans.attrs['tag'], trans.start_codon)
 
 def _save_cds_starts(gene_id, start_codon, strand, annots):
-    if gene_id not in annots.gene_to_cds_starts:
-        annots.gene_to_cds_starts[gene_id] = set()
+    """a transcript's CDS start, by gene and the transcript's strand, so an isoform
+    only takes start codons on its own strand (get_annot_start_codons)"""
+    starts_by_strand = annots.gene_to_cds_starts.setdefault(gene_id, {})
     if start_codon is not None:
         annots.start_codon_count += 1
-        if strand == '+':
-            annots.gene_to_cds_starts[gene_id].add(start_codon.start)
-        else:
-            annots.gene_to_cds_starts[gene_id].add(start_codon.end)
+        starts_by_strand.setdefault(strand, set()).add(start_codon.start if strand == '+' else start_codon.end)
 
 def _save_spliced_transcript_info(gene_id, t_exons, juncs, transcript_id, strand, annots):
     if gene_id not in annots.spliced_exons[strand]:
@@ -197,6 +214,7 @@ def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, 
     annots.transcript_to_exons[(transcript_id, gene_id)] = tuple(t_exons)
     juncs = exons_to_juncs(t_exons)
     annots.transcripts.append((transcript_id, gene_id, strand))
+    annots.gene_to_num_transcripts[gene_id] = annots.gene_to_num_transcripts.get(gene_id, 0) + 1
     if gene_id not in annots.gene_to_strand:
         annots.gene_to_strand[gene_id] = strand
     # accumulate exons per gene (as coordinate tuples for spliceevents compatibility)

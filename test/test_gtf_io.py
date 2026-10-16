@@ -193,3 +193,40 @@ def test_no_whitespace_valid(tmp_path):
     assert len(recs) == 1
     assert recs[0].gene_id == "ENSG1"
     assert recs[0].transcript_id == "ENST1"
+
+
+def _write_split_start_codon_gtf(path, strand, codon_lines):
+    """A two-exon coding transcript whose start codon is split across its intron,
+    as GENCODE writes ENST00000054666 (+) and ENST00000481401 (-), with the start
+    codon records in the given order."""
+    attrs = 'gene_id "ENSG1"; transcript_id "ENST1"; gene_name "FOO";'
+    lines = [f'chr1\tHAVANA\ttranscript\t1000\t3000\t.\t{strand}\t.\t{attrs}',
+             f'chr1\tHAVANA\texon\t1000\t1385\t.\t{strand}\t.\t{attrs}',
+             f'chr1\tHAVANA\texon\t2442\t3000\t.\t{strand}\t.\t{attrs}']
+    lines += [f'chr1\tHAVANA\tstart_codon\t{start}\t{end}\t.\t{strand}\t0\t{attrs}' for start, end in codon_lines]
+    path.write_text('\n'.join(lines) + '\n')
+    return str(path)
+
+
+@pytest.mark.parametrize('order', [1, -1])
+def test_split_start_codon_plus(tmp_path, order):
+    # ATG split 2 + 1 bases: the CDS starts at the first base of the 5' piece
+    pieces = [(1384, 1385), (2442, 2442)][::order]
+    gtf_data = gtf_data_parser(_write_split_start_codon_gtf(tmp_path / 'split.gtf', '+', pieces))
+    start_codon = gtf_data.get_transcript('ENST1').start_codon
+    assert (start_codon.start, start_codon.end) == (1383, 1385)
+
+
+@pytest.mark.parametrize('order', [1, -1])
+def test_split_start_codon_minus(tmp_path, order):
+    # on minus the 5' piece is the higher one; the CDS starts at its end
+    pieces = [(2442, 2442), (1384, 1385)][::order]
+    gtf_data = gtf_data_parser(_write_split_start_codon_gtf(tmp_path / 'split.gtf', '-', pieces))
+    start_codon = gtf_data.get_transcript('ENST1').start_codon
+    assert (start_codon.start, start_codon.end) == (2441, 2442)
+
+
+def test_unsplit_start_codon(tmp_path):
+    gtf_data = gtf_data_parser(_write_split_start_codon_gtf(tmp_path / 'one.gtf', '+', [(1100, 1102)]))
+    start_codon = gtf_data.get_transcript('ENST1').start_codon
+    assert (start_codon.start, start_codon.end) == (1099, 1102)
