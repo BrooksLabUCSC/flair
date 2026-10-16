@@ -125,6 +125,20 @@ def annot_data_from_gtf(gtf_data, region):
         ends.sort()
     return annots
 
+class AnnotsByChrom:
+    """An annotation's AnnotData for each chromosome, from its parsed GTF (GtfData),
+    made when first asked for, as a flair transcriptome partition makes it for its
+    region"""
+    def __init__(self, gtf_data):
+        self.gtf_data = gtf_data
+        self.by_chrom = {}
+
+    def get(self, chrom):
+        if chrom not in self.by_chrom:
+            self.by_chrom[chrom] = annot_data_from_gtf(self.gtf_data.subset_for_region(chrom, 0, 2 ** 62), chrom)
+        return self.by_chrom[chrom]
+
+
 def _process_transcript(annots, region, region_map, trans):
     exons = [Exon(exon.start, exon.end) for exon in trans.exons]
     sorted_exons = sorted(exons)

@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from flair.isoform_data import Junc, Exon, Isoform
 from flair.junction_correct import UNKNOWN_STRAND
-from flair.flair_transcriptome import (fixed_end_exons, get_spliced_exon_overlaps,
+from flair.gene_identification import (fixed_end_exons, get_spliced_exon_overlaps,
                                        get_unspliced_exon_overlaps, get_gene_name_unknown_strand,
                                        get_genes_with_shared_juncs, FALLBACK_TERMINAL_EXON_LEN)
 

@@ -10,8 +10,8 @@ from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons, Gene, Isoform, Junc
 from flair.predictProductivity import predict_productivity
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
-from flair.annotation_data import annot_data_from_gtf
-from flair.flair_transcriptome import get_gene_name_firstpass, _group_novel_by_splicing
+from flair.annotation_data import AnnotsByChrom
+from flair.gene_identification import get_gene_name_firstpass, _group_novel_by_splicing
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -295,20 +295,6 @@ def _partner_gene_keys(i, bed_list_group, og_to_key, key_to_og):
     return partner_keys
 
 
-class AnnotsByChrom:
-    """The annotation's AnnotData for each chromosome, made when first asked for,
-    as a flair transcriptome partition makes it for its region"""
-    def __init__(self, annotation):
-        logging.info('loading annotation GTF')
-        self.gtf_data = gtf_data_parser(annotation, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
-        self.by_chrom = {}
-
-    def get(self, chrom):
-        if chrom not in self.by_chrom:
-            self.by_chrom[chrom] = annot_data_from_gtf(self.gtf_data.subset_for_region(chrom, 0, 2 ** 62), chrom)
-        return self.by_chrom[chrom]
-
-
 def set_genes_from_annotation(bed_list_group, annots_by_chrom, genome):
     """Give the isoforms of a combined isoform the gene, reference transcript, CDS
     and productivity flair transcriptome gives an isoform of its splice junctions,
@@ -450,7 +436,11 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
             min_frac_usage, remove_single_exon, max_ends, min_reads, annotation=None):
     logging.info('parsing manifest')
     sampledata = parse_input(manifest, prefixes, isoform_beds)
-    annots_by_chrom = AnnotsByChrom(annotation) if annotation is not None else None
+    annots_by_chrom = None
+    if annotation is not None:
+        logging.info('loading annotation GTF')
+        annots_by_chrom = AnnotsByChrom(gtf_data_parser(annotation, attrs=GtfAttrsSet.FLAIR,
+                                                        include_features=TRANSCRIPT_EXON_FEATURES))
     num_regened = 0
 
     logging.info('loading isoforms from individual samples')
