@@ -624,7 +624,6 @@ test-diffexp-help: mkdirs
 ###
 diffsplice-tests: test-diffsplice test-diffsplice-compress test-diffsplice-help
 
-# various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
 	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output
 	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
