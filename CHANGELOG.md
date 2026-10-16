@@ -150,6 +150,17 @@
   * `flair fusion` reads its GTF once, rather than four times, which takes 1 to 1.5
     minutes off a GENCODE run, but holds it in memory: 6 GB at its peak for SeraCare,
     from 3 GB.
+  * `flair fusion` groups chimeric reads into preliminary fusions by their loci as
+    well as their genes.  Reads of one fusion whose pieces were given different
+    genes, by where the reads ended, were split into several preliminary fusions,
+    whose synthetic contigs held the same sequence, and realigning divided the reads
+    between them at random: 87 reads at MAPQ 0 in MCF7, now 22.  Preliminary fusions
+    whose loci overlap, padded as their synthetic contigs are, are now one, named by
+    the genes most of its reads were given.  The chimeric reads of the genome
+    alignment and of the alignment to annotated transcripts are taken together,
+    `--min_support` counting both, each read's pieces from one alignment: those of
+    the alignment to transcripts if they find a gene the genome alignment missed, as
+    a 3-gene fusion's short middle exon, and explain as much of the read.
 * `flair align` is removed.  It ran minimap2 and filtered its output, which no
   other module uses: flair transcriptome and flair fusion take a bam of all reads
   aligned to the genome.  Align with minimap2 as the docs show,

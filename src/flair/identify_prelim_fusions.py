@@ -210,6 +210,10 @@ def prefer_shorter_gene(gene, blocks, sharing, genetoinfo, gene_to_all_exons):
 # chimeric pieces on opposite strands this close are a fold-back, not a fusion
 FOLDBACK_MAX_DIST = 1000
 
+# a preliminary fusion's loci, which make its synthetic contig, are padded by this
+# beyond its reads
+LOCUS_PADDING = 1000
+
 
 def is_foldback(aligns):
     """Is a chimeric read a fold-back: two of its pieces on opposite strands of one
@@ -372,18 +376,81 @@ def drop_foldbacks(mode, readToAligns):
     logging.info(f'{mode} chimeras: {len(foldbacks)} fold-back reads of {len(readToAligns) + len(foldbacks)} left out')
 
 
+def consensus_gene(genes):
+    """the gene most of a locus's pieces were given, an annotated gene over a non-genic
+    locus (chrom:start-end) on a tie, then the first by name"""
+    counts = Counter(genes)
+    return min(counts, key=lambda g: (-counts[g], ':' in g, g))
+
+
+def _locus_extents(reads, readToAligns):
+    "per fusion position, the (chrom, strand, start, end) its reads' pieces span"
+    extents = []
+    for i in range(len(readToAligns[reads[0]])):
+        pieces = [sorted(readToAligns[r])[i] for r in reads]
+        extents.append((pieces[0][4], pieces[0][3], min(min(p[0][1], p[1][1]) for p in pieces),
+                        max(max(p[0][1], p[1][1]) for p in pieces)))
+    return extents
+
+
+def _same_loci(extents1, extents2):
+    """do two fusions have their loci in the same places: each position's on one
+    strand, overlapping once padded by LOCUS_PADDING, as their synthetic contigs would
+    be, which would then hold the same sequence"""
+    return len(extents1) == len(extents2) and all(
+        (c1, s1) == (c2, s2) and b1 - LOCUS_PADDING < e2 + LOCUS_PADDING and b2 - LOCUS_PADDING < e1 + LOCUS_PADDING
+        for (c1, s1, b1, e1), (c2, s2, b2, e2) in zip(extents1, extents2))
+
+
+def _merge_same_loci(groups, readToAligns):
+    "groups of reads, those whose loci are in the same places (_same_loci) merged, transitively"
+    extents = [_locus_extents(reads, readToAligns) for reads in groups]
+    parent = list(range(len(groups)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    # only groups with their loci on the same chromosomes and strands can have the same loci
+    by_place = defaultdict(list)
+    for i, ext in enumerate(extents):
+        by_place[tuple((c, s) for c, s, _, _ in ext)].append(i)
+    for members in by_place.values():
+        for x, i in enumerate(members):
+            for j in members[x + 1:]:
+                if _same_loci(extents[i], extents[j]):
+                    parent[root(j)] = root(i)
+    merged = defaultdict(list)
+    for i, reads in enumerate(groups):
+        merged[root(i)].extend(reads)
+    return list(merged.values())
+
+
 def reads_by_genes(readToAligns, gene_to_all_exons, maxloci):
-    """the genes of a read's pieces in read order -> the reads, for reads of 2 to maxloci
-    genes with an annotated 5' gene; overlapping non-genic loci are named as one"""
+    """The genes of a fusion's loci in read order -> its reads.  Reads are grouped by
+    the genes of their pieces, then groups whose loci are in the same places at every
+    position (_same_loci), on one strand and overlapping, are merged: reads of one
+    fusion whose pieces were given different genes, by ending in a gene's exons or
+    short of them, were otherwise split into several fusions, each a synthetic contig
+    of the same sequence its reads were divided between at random.  A merged fusion's
+    genes are its reads' consensus (consensus_gene).  Reads of 2 to maxloci genes, in
+    fusions with an annotated 5' gene; overlapping non-genic loci are named as one."""
     nongenicloci = sorted(a[2] for aligns in readToAligns.values() for a in aligns if type(a[2]) is tuple)
     ognongenic_to_genes = group_nongenic_loci(nongenicloci)
-    interestingloci = {}
+    by_genes = defaultdict(list)
     for read in readToAligns:
-        readgenes = [x[2] for x in sorted(readToAligns[read])]
-        if 2 <= len(set(readgenes)) <= maxloci and readgenes[0] in gene_to_all_exons:  # 5' gene is annotated
-            info = tuple(ognongenic_to_genes.get(x, x) for x in readgenes)
-            interestingloci.setdefault(info, []).append(read)
-    return interestingloci
+        readgenes = tuple(ognongenic_to_genes.get(x[2], x[2]) for x in sorted(readToAligns[read]))
+        if 2 <= len(set(readgenes)) <= maxloci:
+            by_genes[readgenes].append(read)
+    interestingloci = defaultdict(list)
+    for reads in _merge_same_loci(list(by_genes.values()), readToAligns):
+        pieces = [sorted(readToAligns[r]) for r in reads]
+        genes = tuple(consensus_gene([ognongenic_to_genes.get(p[i][2], p[i][2]) for p in pieces])
+                      for i in range(len(pieces[0])))
+        if genes[0] in gene_to_all_exons:  # 5' gene is annotated
+            interestingloci[genes].extend(reads)
+    return dict(interestingloci)
 
 
 def fusion_partners(fusions, gene_to_paralogs):
@@ -418,7 +485,7 @@ def fusion_read_positions(reads, readToAligns, numloci):
 
 def outer_bound(positions, low):
     """the outermost of positions held by 2 or more reads within 300 bases of each other,
-    or the median if further out or none are, padded by 1000: the lowest if low, else the
+    or the median if further out or none are, padded by LOCUS_PADDING: the lowest if low, else the
     highest"""
     poslist = sorted(positions)
     simplemed = median(poslist)
@@ -433,9 +500,9 @@ def outer_bound(positions, low):
     groups.append(g)
     goodpos = [p for g in groups if len(g) > 1 for p in g]
     if low:
-        outpos = int(min(simplemed, min(goodpos))) - 1000 if len(goodpos) > 0 else int(simplemed) - 1000
+        outpos = int(min(simplemed, min(goodpos))) - LOCUS_PADDING if len(goodpos) > 0 else int(simplemed) - LOCUS_PADDING
     else:
-        outpos = int(max(simplemed, max(goodpos))) + 1000 if len(goodpos) > 0 else int(simplemed) + 1000
+        outpos = int(max(simplemed, max(goodpos))) + LOCUS_PADDING if len(goodpos) > 0 else int(simplemed) + LOCUS_PADDING
     return max(0, outpos)
 
 
@@ -455,7 +522,7 @@ def tss_check(gene_info, bounds5, median5, reqdisttostart):
     firstgenedir, firstgenetstarts = gene_info[3], gene_info[-1]
     # the most upstream 5' end, held by 2 or more reads, which with 5' truncated
     # reads is the one near the promoter, or the median one: either counts
-    end5 = bounds5[0] - 1000 if bounds5[0] > bounds5[1] else bounds5[0] + 1000
+    end5 = bounds5[0] - LOCUS_PADDING if bounds5[0] > bounds5[1] else bounds5[0] + LOCUS_PADDING
     mindisttostart = fusion_tss_distance((end5, median5), firstgenedir, firstgenetstarts)
     forward = (firstgenedir == '+' and bounds5[0] < bounds5[1]) or (firstgenedir == '-' and bounds5[0] > bounds5[1])
     if not forward or (reqdisttostart is not None and (mindisttostart is None or mindisttostart > reqdisttostart)):
@@ -497,18 +564,67 @@ def call_fusion(fgenes, reads, readToAligns, genetoinfo, genomic_chroms, reqdist
     return info
 
 
-def id_chimeras(mode, bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,
-                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, intronLocs=None, intronToGenome=None,
-                min_mapq=0, only_reads=None):
+def _num_genes(aligns):
+    "the number of distinct genes or non-genic loci of a read's pieces"
+    return len({a[2] for a in aligns})
+
+
+def _query_span(piece):
+    return min(piece[0][0], piece[1][0]), max(piece[0][0], piece[1][0])
+
+
+def _singly_aligned(aligns):
+    "the number of read bases in exactly one of a read's pieces"
+    edges = sorted(edge for a in aligns for edge in ((_query_span(a)[0], 1), (_query_span(a)[1], -1)))
+    total, depth, prev = 0, 0, 0
+    for pos, step in edges:
+        if depth == 1:
+            total += pos - prev
+        depth += step
+        prev = pos
+    return total
+
+
+def _use_transcript_pieces(transcript_aligns, genome_aligns):
+    """a read's transcript pieces over its genome ones if they give it more genes and
+    explain as much of the read, by bases aligned once, not left unaligned or aligned
+    twice: a 3-gene fusion's short middle exon, which the genome alignment missed or
+    aligned as part of the piece before it, rather than a short alignment to another
+    gene of sequence the genome alignment put in one piece"""
+    return _num_genes(transcript_aligns) > _num_genes(genome_aligns) and \
+        _singly_aligned(transcript_aligns) >= _singly_aligned(genome_aligns)
+
+
+def id_chimeras(genome_bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,
+                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, transcriptome_bam=None,
+                intronLocs=None, intronToGenome=None, min_mapq=0, transcriptome_reads=None):
+    """The preliminary fusions of the chimeric reads of the genome alignment and, if
+    given, of the alignment to annotated transcripts (of transcriptome_reads), as one
+    set of reads: each read's genome pieces, or its transcript ones if they give it
+    more genes and explain as much of the read, as a 3-gene fusion's short middle exon
+    the genome alignment missed (_use_transcript_pieces).
+    The transcript alignment can split a read into more pieces of one gene, aligned to
+    different transcripts, so pieces alone don't decide.  Reads are grouped into
+    fusions by reads_by_genes, and min_support and the filters apply to each fusion's
+    reads from both alignments together."""
     sharing = exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons)
-    if mode == 'genomic':
-        piece_of = partial(genomic_piece, chrom_to_gene_pos=chrom_to_gene_pos, gene_to_all_exons=gene_to_all_exons,
-                           juncs_to_gene=juncs_to_gene, sharing=sharing, genetoinfo=genetoinfo)
-    else:
+    readToAligns = {}
+    if transcriptome_bam is not None:
         piece_of = partial(transcriptomic_piece, genetoinfo=genetoinfo, intronLocs=intronLocs,
                            intronToGenome=intronToGenome, sharing=sharing, gene_to_all_exons=gene_to_all_exons)
-    readToAligns = read_pieces(mode, bam, piece_of, min_mapq, only_reads)
-    drop_foldbacks(mode, readToAligns)
+        transcript_pieces = read_pieces('transcriptomic', transcriptome_bam, piece_of, min_mapq, transcriptome_reads)
+        drop_foldbacks('transcriptomic', transcript_pieces)
+        readToAligns.update(transcript_pieces)
+    piece_of = partial(genomic_piece, chrom_to_gene_pos=chrom_to_gene_pos, gene_to_all_exons=gene_to_all_exons,
+                       juncs_to_gene=juncs_to_gene, sharing=sharing, genetoinfo=genetoinfo)
+    genome_pieces = read_pieces('genomic', genome_bam, piece_of, min_mapq, None)
+    drop_foldbacks('genomic', genome_pieces)
+    for read, aligns in genome_pieces.items():
+        if read not in readToAligns or not _use_transcript_pieces(readToAligns[read], aligns):
+            readToAligns[read] = aligns
+    from_genome = sum(readToAligns[read] is aligns for read, aligns in genome_pieces.items())
+    logging.info(f'chimeric reads: {from_genome} with pieces from the genome alignment, '
+                 f'{len(readToAligns) - from_genome} from the alignment to transcripts')
     interestingloci = reads_by_genes(readToAligns, gene_to_all_exons, maxloci)
     goodcov = [l for l in interestingloci if len(interestingloci[l]) >= minsup]
     locustopartners = fusion_partners(goodcov, gene_to_paralogs)
