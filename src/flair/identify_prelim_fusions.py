@@ -215,14 +215,14 @@ FOLDBACK_MAX_DIST = 1000
 LOCUS_PADDING = 1000
 
 
-def is_foldback(aligns):
+def is_foldback(pieces):
     """Is a chimeric read a fold-back: two of its pieces on opposite strands of one
     chromosome overlapping or within FOLDBACK_MAX_DIST.  cDNA that folds back on
     itself gives a read of a region joined to its own reverse complement, and the
     piece on the other strand would be assigned to an antisense gene there, as
-    SLC7A5--SLC7A5-AS1 in MCF7.  aligns are id_chimeras' pieces, [(qstart, refpos),
+    SLC7A5--SLC7A5-AS1 in MCF7.  pieces are id_chimeras' pieces, [(qstart, refpos),
     (qend, refpos), gene, strand, chrom]."""
-    spans = [(a[4], a[3], min(a[0][1], a[1][1]), max(a[0][1], a[1][1])) for a in aligns]
+    spans = [(piece[4], piece[3], min(piece[0][1], piece[1][1]), max(piece[0][1], piece[1][1])) for piece in pieces]
     for i, (chrom, strand, start, end) in enumerate(spans):
         for chrom2, strand2, start2, end2 in spans[i + 1:]:
             if chrom2 == chrom and strand2 != strand and max(start, start2) - min(end, end2) <= FOLDBACK_MAX_DIST:
@@ -231,7 +231,7 @@ def is_foldback(aligns):
 
 
 def is_low_quality(read, min_mapq):
-    """Is this piece of a chimeric read below min_mapq: a piece that aligns about as well
+    """Is this piece of a chimeric read below min_mapq: a piece that pieces about as well
     elsewhere places a partner the read may not have, as the multi-copy subtelomeric
     DDX11L genes, or TAOK3--RPS2 in MCF7 at MAPQ 1 to 15."""
     return min_mapq > 0 and read.is_mapped and not read.is_secondary and read.mapping_quality < min_mapq
@@ -284,10 +284,10 @@ def scan_genome_alignment(genome_bam, min_clip, chim_bam=None, reads_fa=None):
     and returns the names of the latter.  Only those reads are aligned to annotated
     transcripts, a small share of them: 11% in MCF7, 1.5% in SeraCare."""
     needed = set()
-    with pysam.AlignmentFile(genome_bam, 'rb') as aligns:
-        chim_out = pysam.AlignmentFile(chim_bam, 'wb', template=aligns) if chim_bam else None
+    with pysam.AlignmentFile(genome_bam, 'rb') as pieces:
+        chim_out = pysam.AlignmentFile(chim_bam, 'wb', template=pieces) if chim_bam else None
         fa_out = open(reads_fa, 'w') if reads_fa else None
-        for read in aligns.fetch(until_eof=True):
+        for read in pieces.fetch(until_eof=True):
             if read.is_secondary:
                 continue
             if chim_out is not None and read.is_mapped and read.has_tag('SA'):
@@ -353,27 +353,27 @@ def read_pieces(mode, bam, piece_of, min_mapq, only_reads):
     one regardless.  Reads with a low piece are left out after the pass, as the piece can
     come after the others."""
     low_quality = set()
-    readToAligns = {}
-    with pysam.AlignmentFile(bam, "rb") as withsup:
-        for read in withsup:
+    read_to_pieces = {}
+    with pysam.AlignmentFile(bam, "rb") as bam_file:
+        for read in bam_file:
             if mode == 'genomic' and is_low_quality(read, min_mapq):
                 low_quality.add(read.query_name)
             if read.is_mapped and not read.is_secondary and read.has_tag('SA') \
                     and (mode == 'genomic' or not read.is_reverse) \
                     and (only_reads is None or read.query_name in only_reads):
-                readToAligns.setdefault(read.query_name, []).append(piece_of(read))
-    for r in low_quality:
-        readToAligns.pop(r, None)
+                read_to_pieces.setdefault(read.query_name, []).append(piece_of(read))
+    for read in low_quality:
+        read_to_pieces.pop(read, None)
     if low_quality:
         logging.info(f'{mode} chimeras: {len(low_quality)} reads with a piece below MAPQ {min_mapq} left out')
-    return readToAligns
+    return read_to_pieces
 
 
-def drop_foldbacks(mode, readToAligns):
-    foldbacks = [r for r, aligns in readToAligns.items() if is_foldback(aligns)]
-    for r in foldbacks:
-        del readToAligns[r]
-    logging.info(f'{mode} chimeras: {len(foldbacks)} fold-back reads of {len(readToAligns) + len(foldbacks)} left out')
+def drop_foldbacks(mode, read_to_pieces):
+    foldbacks = [read for read, pieces in read_to_pieces.items() if is_foldback(pieces)]
+    for read in foldbacks:
+        del read_to_pieces[read]
+    logging.info(f'{mode} chimeras: {len(foldbacks)} fold-back reads of {len(read_to_pieces) + len(foldbacks)} left out')
 
 
 def consensus_gene(genes):
@@ -383,11 +383,11 @@ def consensus_gene(genes):
     return min(counts, key=lambda g: (-counts[g], ':' in g, g))
 
 
-def _locus_extents(reads, readToAligns):
+def _locus_extents(reads, read_to_pieces):
     "per fusion position, the (chrom, strand, start, end) its reads' pieces span"
     extents = []
-    for i in range(len(readToAligns[reads[0]])):
-        pieces = [sorted(readToAligns[r])[i] for r in reads]
+    for i in range(len(read_to_pieces[reads[0]])):
+        pieces = [sorted(read_to_pieces[read])[i] for read in reads]
         extents.append((pieces[0][4], pieces[0][3], min(min(p[0][1], p[1][1]) for p in pieces),
                         max(max(p[0][1], p[1][1]) for p in pieces)))
     return extents
@@ -402,9 +402,9 @@ def _same_loci(extents1, extents2):
         for (c1, s1, b1, e1), (c2, s2, b2, e2) in zip(extents1, extents2))
 
 
-def _merge_same_loci(groups, readToAligns):
+def _merge_same_loci(groups, read_to_pieces):
     "groups of reads, those whose loci are in the same places (_same_loci) merged, transitively"
-    extents = [_locus_extents(reads, readToAligns) for reads in groups]
+    extents = [_locus_extents(reads, read_to_pieces) for reads in groups]
     parent = list(range(len(groups)))
 
     def root(i):
@@ -427,60 +427,61 @@ def _merge_same_loci(groups, readToAligns):
     return list(merged.values())
 
 
-def reads_by_genes(readToAligns, gene_to_all_exons, maxloci):
+def reads_by_genes(read_to_pieces, gene_to_all_exons, max_loci):
     """The genes of a fusion's loci in read order -> its reads.  Reads are grouped by
     the genes of their pieces, then groups whose loci are in the same places at every
     position (_same_loci), on one strand and overlapping, are merged: reads of one
     fusion whose pieces were given different genes, by ending in a gene's exons or
     short of them, were otherwise split into several fusions, each a synthetic contig
     of the same sequence its reads were divided between at random.  A merged fusion's
-    genes are its reads' consensus (consensus_gene).  Reads of 2 to maxloci genes, in
+    genes are its reads' consensus (consensus_gene).  Reads of 2 to max_loci genes, in
     fusions with an annotated 5' gene; overlapping non-genic loci are named as one."""
-    nongenicloci = sorted(a[2] for aligns in readToAligns.values() for a in aligns if type(a[2]) is tuple)
-    ognongenic_to_genes = group_nongenic_loci(nongenicloci)
+    nongenic_loci = sorted(piece[2] for pieces in read_to_pieces.values() for piece in pieces if type(piece[2]) is tuple)
+    nongenic_to_locus = group_nongenic_loci(nongenic_loci)
     by_genes = defaultdict(list)
-    for read in readToAligns:
-        readgenes = tuple(ognongenic_to_genes.get(x[2], x[2]) for x in sorted(readToAligns[read]))
-        if 2 <= len(set(readgenes)) <= maxloci:
-            by_genes[readgenes].append(read)
-    interestingloci = defaultdict(list)
-    for reads in _merge_same_loci(list(by_genes.values()), readToAligns):
-        pieces = [sorted(readToAligns[r]) for r in reads]
-        genes = tuple(consensus_gene([ognongenic_to_genes.get(p[i][2], p[i][2]) for p in pieces])
+    for read in read_to_pieces:
+        read_genes = tuple(nongenic_to_locus.get(piece[2], piece[2]) for piece in sorted(read_to_pieces[read]))
+        if 2 <= len(set(read_genes)) <= max_loci:
+            by_genes[read_genes].append(read)
+    genes_to_reads = defaultdict(list)
+    for reads in _merge_same_loci(list(by_genes.values()), read_to_pieces):
+        pieces = [sorted(read_to_pieces[r]) for r in reads]
+        genes = tuple(consensus_gene([nongenic_to_locus.get(p[i][2], p[i][2]) for p in pieces])
                       for i in range(len(pieces[0])))
         if genes[0] in gene_to_all_exons:  # 5' gene is annotated
-            interestingloci[genes].extend(reads)
-    return dict(interestingloci)
+            genes_to_reads[genes].extend(reads)
+    return dict(genes_to_reads)
 
 
 def fusion_partners(fusions, gene_to_paralogs):
     "(gene, role in the fusion) -> the sets of its partners, paralogs as their group"
-    locustopartners = defaultdict(set)
-    for fgenes in fusions:
-        for pos, i in enumerate(fgenes):
-            other = set(fgenes) - {i, }
-            newother = frozenset([gene_to_paralogs[g] if g in gene_to_paralogs else g for g in other])
-            locustopartners[(i, fusion_role(pos, len(fgenes)))].add(newother)
-    return locustopartners
+    gene_to_partners = defaultdict(set)
+    for fusion_genes in fusions:
+        for pos, gene in enumerate(fusion_genes):
+            others = set(fusion_genes) - {gene}
+            other_groups = frozenset(gene_to_paralogs.get(g, g) for g in others)
+            gene_to_partners[(gene, fusion_role(pos, len(fusion_genes)))].add(other_groups)
+    return gene_to_partners
 
 
-def fusion_read_positions(reads, readToAligns, numloci):
+def fusion_read_positions(reads, read_to_pieces, num_loci):
     """of reads with a piece per locus: the reads, the read gaps between consecutive pieces
     per junction, and per locus the reads' positions at the pieces' 5' and 3' ends"""
-    qdist = [[] for x in range(numloci - 1)]
-    alignblocks = [[[], []] for x in range(numloci)]
-    goodreads = []
-    for r in reads:
-        if len(readToAligns[r]) != numloci:
+    read_gaps = [[] for x in range(num_loci - 1)]
+    piece_ends = [[[], []] for x in range(num_loci)]
+    good_reads = []
+    for read in reads:
+        if len(read_to_pieces[read]) != num_loci:
             continue
-        alignedloci = sorted(readToAligns[r])
-        goodreads.append(r)
-        for i in range(numloci - 1):
-            qdist[i].append(alignedloci[i][1][0] - alignedloci[i + 1][0][0])
-        for i in range(numloci):
-            alignblocks[i][0].append(alignedloci[i][0][1])
-            alignblocks[i][1].append(alignedloci[i][1][1])
-    return goodreads, qdist, alignblocks
+        pieces = sorted(read_to_pieces[read])
+        good_reads.append(read)
+        for i in range(num_loci - 1):
+            # positive where the pieces overlap in the read, negative where bases between them are unaligned
+            read_gaps[i].append(pieces[i][1][0] - pieces[i + 1][0][0])
+        for i in range(num_loci):
+            piece_ends[i][0].append(pieces[i][0][1])
+            piece_ends[i][1].append(pieces[i][1][1])
+    return good_reads, read_gaps, piece_ends
 
 
 def outer_bound(positions, low):
@@ -506,76 +507,76 @@ def outer_bound(positions, low):
     return max(0, outpos)
 
 
-def locus_bounds(alignblocks):
+def locus_bounds(piece_ends):
     "per locus, its padded outer 5' and 3' bounds in the direction of its reads"
     bounds = []
-    for starts, ends in alignblocks:
+    for starts, ends in piece_ends:
         strand = '+' if median(ends) > median(starts) else '-'
         bounds.append([outer_bound(starts, strand == '+'), outer_bound(ends, strand == '-')])
     return bounds
 
 
-def tss_check(gene_info, bounds5, median5, reqdisttostart):
+def tss_check(gene_info, bounds5, median5, max_dist_to_tss):
     """Does the 5' gene's locus run in its direction, implying a plausible promoter, with
-    the distance to its TSS in reqdisttostart.  Returns that and the distance, -1 when no
+    the distance to its TSS in max_dist_to_tss.  Returns that and the distance, -1 when no
     start is upstream, with the check off."""
-    firstgenedir, firstgenetstarts = gene_info[3], gene_info[-1]
+    gene_strand, gene_tss = gene_info[3], gene_info[-1]
     # the most upstream 5' end, held by 2 or more reads, which with 5' truncated
     # reads is the one near the promoter, or the median one: either counts
     end5 = bounds5[0] - LOCUS_PADDING if bounds5[0] > bounds5[1] else bounds5[0] + LOCUS_PADDING
-    mindisttostart = fusion_tss_distance((end5, median5), firstgenedir, firstgenetstarts)
-    forward = (firstgenedir == '+' and bounds5[0] < bounds5[1]) or (firstgenedir == '-' and bounds5[0] > bounds5[1])
-    if not forward or (reqdisttostart is not None and (mindisttostart is None or mindisttostart > reqdisttostart)):
+    tss_dist = fusion_tss_distance((end5, median5), gene_strand, gene_tss)
+    forward = (gene_strand == '+' and bounds5[0] < bounds5[1]) or (gene_strand == '-' and bounds5[0] > bounds5[1])
+    if not forward or (max_dist_to_tss is not None and (tss_dist is None or tss_dist > max_dist_to_tss)):
         return False, None
-    return True, -1 if mindisttostart is None else mindisttostart
+    return True, -1 if tss_dist is None else tss_dist
 
 
-def breakpoints_consistent(qdist):
+def breakpoints_consistent(read_gaps):
     "do the reads' pieces have few gaps between them, or very consistent ones"
-    simscores = []
-    for qdistlist in qdist:
-        qdistlist = sorted(qdistlist)
-        simscore = [qdistlist[i] - qdistlist[i - 1] for i in range(1, len(qdistlist))]
+    spacings = []
+    for gaps in read_gaps:
+        gaps = sorted(gaps)
+        spacing = [gaps[i] - gaps[i - 1] for i in range(1, len(gaps))]
         # a single supporting read gives no consecutive differences,
         # and median([]) raises.  One read agrees with itself
-        simscores.append(median(simscore) if len(simscore) > 0 else 0)
-    return max([abs(median(x)) for x in qdist]) <= 10 \
-        or (max([abs(min(x)) for x in qdist]) <= 10 and max(simscores) <= 3)
+        spacings.append(median(spacing) if len(spacing) > 0 else 0)
+    return max([abs(median(x)) for x in read_gaps]) <= 10 \
+        or (max([abs(min(x)) for x in read_gaps]) <= 10 and max(spacings) <= 3)
 
 
-def call_fusion(fgenes, reads, readToAligns, genetoinfo, genomic_chroms, reqdisttostart):
+def call_fusion(fusion_genes, reads, read_to_pieces, genetoinfo, chroms, max_dist_to_tss):
     "the fusion's reads, TSS distance, read gaps and loci, or None if it fails a check"
-    numloci = len(fgenes)
-    goodreads, qdist, alignblocks = fusion_read_positions(reads, readToAligns, numloci)
+    num_loci = len(fusion_genes)
+    good_reads, read_gaps, piece_ends = fusion_read_positions(reads, read_to_pieces, num_loci)
     # the typical 5' end of the reads, for the TSS distance with the most upstream one.
     # A few reads starting further upstream than the rest set that one: in MCF7,
     # ESR1--CCDC170's reads mostly start at an annotated ESR1 TSS, but 3 start 14 kb
     # upstream, 19 kb from the nearest annotated start upstream of them
-    median5 = median(alignblocks[0][0])
-    bounds = locus_bounds(alignblocks)
-    if fgenes[0] not in genetoinfo:
+    median5 = median(piece_ends[0][0])
+    bounds = locus_bounds(piece_ends)
+    if fusion_genes[0] not in genetoinfo:
         return None
-    passes, mindisttostart = tss_check(genetoinfo[fgenes[0]], bounds[0], median5, reqdisttostart)
-    if not passes or not breakpoints_consistent(qdist):
+    passes, tss_dist = tss_check(genetoinfo[fusion_genes[0]], bounds[0], median5, max_dist_to_tss)
+    if not passes or not breakpoints_consistent(read_gaps):
         return None
-    info = {'reads': set(goodreads), 'disttostart': [mindisttostart], 'qdist': qdist}
-    for i in range(numloci):
-        info[fgenes[i]] = [genomic_chroms[i], bounds[i][0], bounds[i][1]]
+    info = {'reads': set(good_reads), 'disttostart': [tss_dist], 'read_gaps': read_gaps}
+    for i in range(num_loci):
+        info[fusion_genes[i]] = [chroms[i], bounds[i][0], bounds[i][1]]
     return info
 
 
-def _num_genes(aligns):
+def _num_genes(pieces):
     "the number of distinct genes or non-genic loci of a read's pieces"
-    return len({a[2] for a in aligns})
+    return len({piece[2] for piece in pieces})
 
 
 def _query_span(piece):
     return min(piece[0][0], piece[1][0]), max(piece[0][0], piece[1][0])
 
 
-def _singly_aligned(aligns):
+def _singly_aligned(pieces):
     "the number of read bases in exactly one of a read's pieces"
-    edges = sorted(edge for a in aligns for edge in ((_query_span(a)[0], 1), (_query_span(a)[1], -1)))
+    edges = sorted(edge for piece in pieces for edge in ((_query_span(piece)[0], 1), (_query_span(piece)[1], -1)))
     total, depth, prev = 0, 0, 0
     for pos, step in edges:
         if depth == 1:
@@ -585,19 +586,18 @@ def _singly_aligned(aligns):
     return total
 
 
-def _use_transcript_pieces(transcript_aligns, genome_aligns):
+def _use_transcript_pieces(transcript_pieces, genome_pieces):
     """a read's transcript pieces over its genome ones if they give it more genes and
     explain as much of the read, by bases aligned once, not left unaligned or aligned
     twice: a 3-gene fusion's short middle exon, which the genome alignment missed or
     aligned as part of the piece before it, rather than a short alignment to another
     gene of sequence the genome alignment put in one piece"""
-    return _num_genes(transcript_aligns) > _num_genes(genome_aligns) and \
-        _singly_aligned(transcript_aligns) >= _singly_aligned(genome_aligns)
+    return _num_genes(transcript_pieces) > _num_genes(genome_pieces) and \
+        _singly_aligned(transcript_pieces) >= _singly_aligned(genome_pieces)
 
 
-def id_chimeras(genome_bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, juncs_to_gene, gene_to_paralogs,
-                genetoname, minsup, maxloci=10, reqdisttostart=None, maxpromiscuity=4, transcriptome_bam=None,
-                intronLocs=None, intronToGenome=None, min_mapq=0, transcriptome_reads=None):
+def id_chimeras(genome_bam, annot, min_support, max_loci=10, max_dist_to_tss=None, max_partners=4,
+                transcriptome_bam=None, min_mapq=0, transcriptome_reads=None):
     """The preliminary fusions of the chimeric reads of the genome alignment and, if
     given, of the alignment to annotated transcripts (of transcriptome_reads), as one
     set of reads: each read's genome pieces, or its transcript ones if they give it
@@ -606,36 +606,45 @@ def id_chimeras(genome_bam, genetoinfo, chrom_to_gene_pos, gene_to_all_exons, ju
     The transcript alignment can split a read into more pieces of one gene, aligned to
     different transcripts, so pieces alone don't decide.  Reads are grouped into
     fusions by reads_by_genes, and min_support and the filters apply to each fusion's
-    reads from both alignments together."""
-    sharing = exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons)
-    readToAligns = {}
-    if transcriptome_bam is not None:
-        piece_of = partial(transcriptomic_piece, genetoinfo=genetoinfo, intronLocs=intronLocs,
-                           intronToGenome=intronToGenome, sharing=sharing, gene_to_all_exons=gene_to_all_exons)
-        transcript_pieces = read_pieces('transcriptomic', transcriptome_bam, piece_of, min_mapq, transcriptome_reads)
-        drop_foldbacks('transcriptomic', transcript_pieces)
-        readToAligns.update(transcript_pieces)
-    piece_of = partial(genomic_piece, chrom_to_gene_pos=chrom_to_gene_pos, gene_to_all_exons=gene_to_all_exons,
-                       juncs_to_gene=juncs_to_gene, sharing=sharing, genetoinfo=genetoinfo)
-    genome_pieces = read_pieces('genomic', genome_bam, piece_of, min_mapq, None)
-    drop_foldbacks('genomic', genome_pieces)
-    for read, aligns in genome_pieces.items():
-        if read not in readToAligns or not _use_transcript_pieces(readToAligns[read], aligns):
-            readToAligns[read] = aligns
-    from_genome = sum(readToAligns[read] is aligns for read, aligns in genome_pieces.items())
-    logging.info(f'chimeric reads: {from_genome} with pieces from the genome alignment, '
-                 f'{len(readToAligns) - from_genome} from the alignment to transcripts')
-    interestingloci = reads_by_genes(readToAligns, gene_to_all_exons, maxloci)
-    goodcov = [l for l in interestingloci if len(interestingloci[l]) >= minsup]
-    locustopartners = fusion_partners(goodcov, gene_to_paralogs)
+    reads from both alignments together.  annot is flair fusion's Annotation.
+    Returns the fusions' genes joined by __ -> their reads, TSS distance, read gaps and
+    loci (call_fusion)."""
+    sharing = exon_sharing_genes(annot.chrom_to_gene_pos, annot.gene_to_all_exons)
 
-    fusiontoinfo = {}
-    for fgenes in goodcov:
-        genomic_chroms = [genetoinfo[g][0] if g in genetoinfo else g.split(':')[0] for g in fgenes]
-        if not identify_fusion_problems(fgenes, locustopartners, maxpromiscuity, genetoname, gene_to_paralogs,
-                                        genomic_chroms, len(interestingloci[fgenes])):
+    # each read's pieces, from the alignment to transcripts, then the genome alignment
+    read_to_pieces = {}
+    if transcriptome_bam is not None:
+        piece_of = partial(transcriptomic_piece, genetoinfo=annot.genetoinfo, intronLocs=annot.intronLocs,
+                           intronToGenome=annot.intronToGenome, sharing=sharing,
+                           gene_to_all_exons=annot.gene_to_all_exons)
+        read_to_pieces = read_pieces('transcriptomic', transcriptome_bam, piece_of, min_mapq, transcriptome_reads)
+        drop_foldbacks('transcriptomic', read_to_pieces)
+    piece_of = partial(genomic_piece, chrom_to_gene_pos=annot.chrom_to_gene_pos,
+                       gene_to_all_exons=annot.gene_to_all_exons, juncs_to_gene=annot.juncs_to_gene,
+                       sharing=sharing, genetoinfo=annot.genetoinfo)
+    read_to_genome_pieces = read_pieces('genomic', genome_bam, piece_of, min_mapq, None)
+    drop_foldbacks('genomic', read_to_genome_pieces)
+
+    # the genome pieces win unless the transcript ones find a gene they missed
+    for read, genome_pieces in read_to_genome_pieces.items():
+        if read not in read_to_pieces or not _use_transcript_pieces(read_to_pieces[read], genome_pieces):
+            read_to_pieces[read] = genome_pieces
+    num_from_genome = sum(read_to_pieces[read] is genome_pieces for read, genome_pieces in read_to_genome_pieces.items())
+    logging.info(f'chimeric reads: {num_from_genome} with pieces from the genome alignment, '
+                 f'{len(read_to_pieces) - num_from_genome} from the alignment to transcripts')
+
+    # reads grouped into fusions by their genes, each fusion then filtered as a whole
+    genes_to_reads = reads_by_genes(read_to_pieces, annot.gene_to_all_exons, max_loci)
+    supported = [genes for genes, reads in genes_to_reads.items() if len(reads) >= min_support]
+    gene_to_partners = fusion_partners(supported, annot.gene_to_paralogs)
+    fusion_to_info = {}
+    for fusion_genes in supported:
+        chroms = [annot.genetoinfo[g][0] if g in annot.genetoinfo else g.split(':')[0] for g in fusion_genes]
+        if not identify_fusion_problems(fusion_genes, gene_to_partners, max_partners, annot.genetoname,
+                                        annot.gene_to_paralogs, chroms, len(genes_to_reads[fusion_genes])):
             continue
-        info = call_fusion(fgenes, interestingloci[fgenes], readToAligns, genetoinfo, genomic_chroms, reqdisttostart)
+        info = call_fusion(fusion_genes, genes_to_reads[fusion_genes], read_to_pieces, annot.genetoinfo, chroms,
+                           max_dist_to_tss)
         if info is not None:
-            fusiontoinfo['__'.join(fgenes)] = info
-    return fusiontoinfo
+            fusion_to_info['__'.join(fusion_genes)] = info
+    return fusion_to_info

@@ -309,22 +309,6 @@ def read_annotation(gtf_data):
                       intronLocs, intronToGenome, gene_to_paralogs)
 
 
-def find_prelim_fusions(annot, output, transcriptome_reads, transcriptome_alignment, min_support, max_loci,
-                        max_dist_to_tss, max_partners, quality):
-    "preliminary fusions from the genome alignment and the alignment to annotated transcripts"
-    logging.info('finding preliminary fusions')
-    # only the reads that needed aligning to transcripts, as a bam left by an earlier
-    # run may hold others.  A read aligned to the genome in one piece is left out, and
-    # with it a fusion from a deletion between genes closer than the genome aligner's
-    # maximum intron length, which aligns to the genome as one spliced read
-    return id_chimeras(output + '.genomealigned.chim.bam', annot.genetoinfo, annot.chrom_to_gene_pos,
-                       annot.gene_to_all_exons, annot.juncs_to_gene, annot.gene_to_paralogs, annot.genetoname,
-                       min_support, maxloci=max_loci, reqdisttostart=max_dist_to_tss, maxpromiscuity=max_partners,
-                       transcriptome_bam=output + '.transcriptomealigned.chim.bam' if transcriptome_alignment else None,
-                       intronLocs=annot.intronLocs, intronToGenome=annot.intronToGenome, min_mapq=quality,
-                       transcriptome_reads=transcriptome_reads)
-
-
 def write_prelim_fusions(combchim, bedfile):
     "write the preliminary fusions' loci to bedfile, and return their reads"
     fusionreads = set()
@@ -534,9 +518,16 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     transcriptome_reads = make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size,
                                              transcriptome_alignment)
     annot = read_annotation(gtf_data)
-    combchim = find_prelim_fusions(annot, output, transcriptome_reads, transcriptome_alignment, min_support,
-                                   max_loci, max_dist_to_tss, max_partners, quality)
-    fusionreads = write_prelim_fusions(combchim, output + '.prelimfusions.bed')
+    logging.info('finding preliminary fusions')
+    # only the reads that needed aligning to transcripts, as a bam left by an earlier
+    # run may hold others.  A read aligned to the genome in one piece is left out, and
+    # with it a fusion from a deletion between genes closer than the genome aligner's
+    # maximum intron length, which aligns to the genome as one spliced read
+    prelim_fusions = id_chimeras(output + '.genomealigned.chim.bam', annot, min_support, max_loci=max_loci,
+                                 max_dist_to_tss=max_dist_to_tss, max_partners=max_partners,
+                                 transcriptome_bam=output + '.transcriptomealigned.chim.bam' if transcriptome_alignment else None,
+                                 min_mapq=quality, transcriptome_reads=transcriptome_reads)
+    fusionreads = write_prelim_fusions(prelim_fusions, output + '.prelimfusions.bed')
     if os.path.getsize(output + '.prelimfusions.bed') > 0:
         find_fusion_isoforms(fusionreads, gtf, gtf_data, genome, output, sample_name, threads, min_fragment_size,
                              min_dist_between_breakpoints, frac_support, transcriptome_alignment, annot.genetoname)
