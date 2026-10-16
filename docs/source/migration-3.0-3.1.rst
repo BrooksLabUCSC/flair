@@ -1,10 +1,10 @@
-.. _migration-label:
+.. _migration-3.0-3.1-label:
 
-Migrating from FLAIR 3.0
-========================
+Migrating from FLAIR 3.0 to 3.1
+===============================
 
-What a command line written for FLAIR 3.0 has to change. Options and outputs that are
-not listed here are unchanged.
+What a command line written for FLAIR 3.0 has to change to run under FLAIR 3.1.
+Options and outputs that are not listed here are unchanged.
 
 Everywhere
 ----------
