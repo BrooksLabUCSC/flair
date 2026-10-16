@@ -2,7 +2,9 @@ library(argparse)
 library(methods)
 library(DRIMSeq)
 library(BiocParallel)
-options(error = function() traceback(2))
+# traceback alone leaves the exit status at zero, so a failed run looks like a
+# successful one to whatever called this script
+options(error = function() {traceback(2); quit(save="no", status=1)})
 source(file.path(dirname(sub("^--file=", "",
                             grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))),
                  "tsv_io.R"))
@@ -66,6 +68,7 @@ rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula
   formulaDF <- read.table(formula, header=TRUE, sep="\t", check.names=FALSE)
   
   samples <- formulaDF
+  tsvCheckUniqueIds(quantDF$feature_id, "feature_id", matrix)
   data <- dmDSdata(counts = quantDF, samples = samples)
   
   # DRIMSEQ part

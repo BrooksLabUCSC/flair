@@ -2,7 +2,9 @@ library(DESeq2)
 library(ggplot2)
 library(qqman)
 library(argparse)
-options(error = function() traceback(2))
+# traceback alone leaves the exit status at zero, so a failed run looks like a
+# successful one to whatever called this script
+options(error = function() {traceback(2); quit(save="no", status=1)})
 source(file.path(dirname(sub("^--file=", "",
                             grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))),
                  "tsv_io.R"))
