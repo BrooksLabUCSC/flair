@@ -257,6 +257,12 @@
     them, so samples that gave a fusion isoform different genes no longer stop
     combine, and their proteins, translated from flair fusion's coding region, are
     written to `combined.aaseq.tsv`, which left them out.
+* flair spliceevents
+  * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
+    were easily taken for flair diffsplice's.  The counts and PSI tables have an
+    `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv
+    has each event's reads and the reads covering its locus per sample, the
+    denominators of PSIjunc and PSItot.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

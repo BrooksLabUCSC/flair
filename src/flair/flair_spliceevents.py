@@ -833,7 +833,7 @@ def get_junc_string(chrom, juncs):
             return ','.join([f'{chrom}:{x[0]}-{x[1]}' for x in juncs])
 
 
-def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot, event_support, outoutlier, outolfilt):  # noqa: C901 - FIXME: reduce complexity
+def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot, outtotals, event_support, outoutlier, outolfilt):  # noqa: C901 - FIXME: reduce complexity
     sig_events = []
     etype_to_sig = {}
     for ename in event_to_info:
@@ -857,7 +857,7 @@ def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_o
                 for jname in event.events:
                     jinfo = event.events[jname]
 
-                    outinfo = [f'{jname}_{ename}', event.eventtype, event.gene, get_junc_string(event.chrom, jinfo.inc_juncs),
+                    outinfo = [f'{jname}_{ename}', ename, event.eventtype, event.gene, get_junc_string(event.chrom, jinfo.inc_juncs),
                                get_junc_string(event.chrom, jinfo.exc_juncs), get_junc_string(event.chrom, jinfo.outer_juncs), get_junc_string(event.chrom, jinfo.inc_exon)]
                     juncpsi = write_counts_psi(outinfo, jinfo.samplecounts, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
 
@@ -882,7 +882,7 @@ def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_o
                                     countsstr = f'{thiscount};{thistot}'
                                     # event_name, gene, median, dev, psi, numsamplesused, thiscount/junctot, absdeltapsi, numberofdev
                                     if (dev == 0 and thispsi != med) or delta > dev * 3:
-                                        outline = outinfo[:3] + [s, round(med, 6), round(dev, 6), round(thispsi, 6), len(vals_for_outlier), countsstr, round(delta, 6), 100000]
+                                        outline = [outinfo[0]] + outinfo[2:4] + [s, round(med, 6), round(dev, 6), round(thispsi, 6), len(vals_for_outlier), countsstr, round(delta, 6), 100000]
                                         if dev != 0:
                                             outline[-1] = round(delta / dev, 6)
                                         sig_events.append(outline)
@@ -893,8 +893,10 @@ def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_o
                                             etype_to_sig[event.eventtype][all_these_juncs] = {}
                                         etype_to_sig[event.eventtype][all_these_juncs][s] = outline
                 if any([event.other[s] > 0 for s in allsamples]):
-                    outinfo = [f'other_{ename}', event.eventtype, event.gene, '', '', '', '']
+                    outinfo = [f'other_{ename}', ename, event.eventtype, event.gene, '', '', '', '']
                     write_counts_psi(outinfo, event.other, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
+                for total, counts in (('event_reads', event.totjunc), ('locus_reads', event.totoverlap)):
+                    outtotals.write('\t'.join([ename, event.eventtype, event.gene, total] + [str(counts[s]) for s in allsamples]) + '\n')
     if outoutlier is not None:
         sig_events.sort(reverse=True, key=lambda x: x[::-1])
         for line in sig_events:
@@ -982,15 +984,16 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
     # outends is just for writing out read ends for Harrison - he can group them more intelligently
     outends = None
     if output_read_ends:
-        outends = open(temp_prefix + '.diffsplice.readends.bed', 'w')
+        outends = open(temp_prefix + '.spliceevents.readends.bed', 'w')
 
     allgenes = set.union(*[set(all_genes_to_juncs[s].keys()) for s in range(len(all_genes_to_juncs))])
     outoutlier, outolfilt = None, None
     if check_outliers:
-        outoutlier = open(temp_prefix + '.diffsplice.outliers.tsv', 'w')
-        outolfilt = open(temp_prefix + '.diffsplice.outliers.filtered.tsv', 'w')
-    with open(temp_prefix + '.diffsplice.bed', 'w') as outbed, open(temp_prefix + '.diffsplice.counts.tsv', 'w') as outcounts, \
-            open(temp_prefix + '.diffsplice.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.diffsplice.PSItot.tsv', 'w') as outpsitot:
+        outoutlier = open(temp_prefix + '.spliceevents.outliers.tsv', 'w')
+        outolfilt = open(temp_prefix + '.spliceevents.outliers.filtered.tsv', 'w')
+    with open(temp_prefix + '.spliceevents.bed', 'w') as outbed, open(temp_prefix + '.spliceevents.counts.tsv', 'w') as outcounts, \
+            open(temp_prefix + '.spliceevents.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.spliceevents.PSItot.tsv', 'w') as outpsitot, \
+            open(temp_prefix + '.spliceevents.totals.tsv', 'w') as outtotals:
 
         for gene in allgenes:
 
@@ -1024,7 +1027,7 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
             # write_ends(t_first_last_sj[1], allsamples, thischrom, strand, gene, 'tts', etypetocolor['tts'], out, outbed, support)
             all_info = (((a3_info | a5_info) | (es_info | ir_info)) | (tts_info | tss_info)) | (afe_info | ale_info)
 
-            get_psi_and_filter(all_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot, event_support, outoutlier, outolfilt)
+            get_psi_and_filter(all_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot, outtotals, event_support, outoutlier, outolfilt)
 
     if check_outliers:
         outoutlier.close()
@@ -1225,6 +1228,24 @@ def combine_regions(regions, buffersize=0):
     return new_regions
 
 
+# the columns of the counts and PSI tables before the samples': a row of an event,
+# its event, and its junctions, and of the totals table
+EVENT_ROW_COLUMNS = ['eventname', 'event', 'eventtype', 'gene', 'junctions_included', 'junctions_excluded',
+                     'outer_junctions', 'exons']
+EVENT_TOTALS_COLUMNS = ['event', 'eventtype', 'gene', 'total']
+OUTLIER_COLUMNS = ['eventname', 'eventtype', 'gene', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
+                   'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
+
+
+def write_with_header(output, prefixes, suffix, header):
+    "the partitions' tables of one suffix, as OUTPUT + suffix under header"
+    with open(output + suffix, 'w') as out:
+        out.write('\t'.join(header) + '\n')
+        for prefix in prefixes:
+            with open(prefix + suffix) as fh:
+                shutil.copyfileobj(fh, out)
+
+
 def main():  # noqa: C901 - FIXME: reduce complexity
     logging.basicConfig(level=logging.INFO)
     args = get_args()
@@ -1254,10 +1275,6 @@ def main():  # noqa: C901 - FIXME: reduce complexity
             sample, bamfile = line
             allsamples.append((sample, bamfile))
 
-    out = open(tempDir + '0000.header.diffsplice.counts.tsv', 'w')
-    out.write('\t'.join(['featureID'] + [x[0] for x in allsamples]) + '\n')
-    out.close()
-
     if args.annot:
         logging.info('loading annotation GTF')
         annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
@@ -1284,30 +1301,18 @@ def main():  # noqa: C901 - FIXME: reduce complexity
                              threads=args.threads)
     runner.run(_run_region, args=args, allsamples=allsamples)
 
-    combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner],
-                                 ['.diffsplice.bed', '.diffsplice.counts.tsv', '.diffsplice.PSIjunc.tsv', '.diffsplice.PSItot.tsv'])
+    prefixes = [p.file_prefix for p in runner]
+    combine_temp_files_by_suffix(args.output, prefixes, ['.spliceevents.bed'])
     if args.output_read_ends:
-        combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.readends.bed'])
+        combine_temp_files_by_suffix(args.output, prefixes, ['.spliceevents.readends.bed'])
+    samples = [x[0] for x in allsamples]
+    write_with_header(args.output, prefixes, '.spliceevents.counts.tsv', EVENT_ROW_COLUMNS + samples)
+    write_with_header(args.output, prefixes, '.spliceevents.PSIjunc.tsv', EVENT_ROW_COLUMNS + samples)
+    write_with_header(args.output, prefixes, '.spliceevents.PSItot.tsv', EVENT_ROW_COLUMNS + samples)
+    write_with_header(args.output, prefixes, '.spliceevents.totals.tsv', EVENT_TOTALS_COLUMNS + samples)
     if args.check_outliers:
-        combine_temp_files_by_suffix(args.output, [p.file_prefix for p in runner], ['.diffsplice.outliers.tsv', '.diffsplice.outliers.filtered.tsv'])
-
-    counts_header = ['eventname', 'eventtype', 'gene', 'junctions_included', 'junctions_excluded', 'outer_junctions', 'exons']
-    for suffix in ['.diffsplice.counts', '.diffsplice.PSIjunc', '.diffsplice.PSItot']:
-        with open(args.output + suffix + '.new.tsv', 'w') as out:
-            out.write('\t'.join(counts_header + [x[0] for x in allsamples]) + '\n')
-            for line in open(args.output + suffix + '.tsv'):
-                out.write(line)
-        # FIXME: use os.rename
-        pipettor.run([('mv', args.output + suffix + '.new.tsv', args.output + suffix + '.tsv')])
-
-    if args.check_outliers:
-        outlier_header = ['eventname', 'eventtype', 'gene', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val', 'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
-        for suffix in ['.diffsplice.outliers', '.diffsplice.outliers.filtered']:
-            with open(args.output + suffix + '.new.tsv', 'w') as out:
-                out.write('\t'.join(outlier_header) + '\n')
-                for line in open(args.output + suffix + '.tsv'):
-                    out.write(line)
-            pipettor.run([('mv', args.output + suffix + '.new.tsv', args.output + suffix + '.tsv')])
+        for suffix in ['.spliceevents.outliers.tsv', '.spliceevents.outliers.filtered.tsv']:
+            write_with_header(args.output, prefixes, suffix, OUTLIER_COLUMNS)
 
     if not args.keep_intermediate:
         shutil.rmtree(tempDir)

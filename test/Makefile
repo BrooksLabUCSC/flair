@@ -263,6 +263,13 @@ KRAS_MUT_SPLICE_BB = $O/KRAS_sim_genomic_mut_driven_splicing.bb
 COMBINE_MANIFEST = $I/combine_manifest_bed-only.txt
 QUANTIFY_MANIFEST = $I/basic.reads_manifest_bam.txt
 SPLICEEVENTS_MANIFEST = $I/spliceevents.manifest.tsv
+# six samples of the basic reads, for outliers: four random 60% samples, one with every
+# read including KRAS's skipped exon (chr12:25215436-25215560) and a third of the
+# rest, one with every read retaining a chr17 intron (64500326-64500548) and a third
+# of the rest
+SPLICEEVENTS_MULTI_MANIFEST = $I/spliceevents.multi.manifest.tsv
+SPLICEEVENTS_MULTI_BAMS = $O/spliceevents-s1.bam $O/spliceevents-s2.bam $O/spliceevents-s3.bam $O/spliceevents-s4.bam \
+	$O/spliceevents-exon-inclusion.bam $O/spliceevents-intron-retention.bam
 
 TOME_ISOFORM_BED = $E/test-transcriptome.isoforms.bed
 TOME_READ_MAP = $E/test-transcriptome.isoform.read.map.txt
@@ -1057,13 +1064,37 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 ###
 # flair spliceevents
 ###
-spliceevents-tests: test-spliceevents test-spliceevents-extraannot
+spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers
+
+define spliceevents_diff
+	$(call cmp_expect_sort,$(1).spliceevents.bed)
+	$(call cmp_expect_sort,$(1).spliceevents.counts.tsv)
+	$(call cmp_expect_sort,$(1).spliceevents.PSIjunc.tsv)
+	$(call cmp_expect_sort,$(1).spliceevents.PSItot.tsv)
+	$(call cmp_expect_sort,$(1).spliceevents.totals.tsv)
+endef
 
 test-spliceevents: mkdirs ${BASIC_ALIGN_BAM}
 	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+	$(call spliceevents_diff,$@)
 
 test-spliceevents-extraannot: mkdirs ${BASIC_ALIGN_BAM}
 	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --annot_basic $(BASIC_ANNOTATION) -o $O/$@
+	$(call spliceevents_diff,$@)
+
+test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
+	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MULTI_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --check_outliers -o $O/$@
+	$(call spliceevents_diff,$@)
+	$(call cmp_expect_sort,$@.spliceevents.outliers.tsv)
+	$(call cmp_expect_sort,$@.spliceevents.outliers.filtered.tsv)
+
+$O/spliceevents-s%.bam: ${BASIC_ALIGN_BAM}
+	samtools view -b -s $*.6 -o $@ $<
+	samtools index $@
+
+$O/spliceevents-%.bam: $I/spliceevents.%.reads.txt ${BASIC_ALIGN_BAM}
+	samtools view -b -N $< -o $@ ${BASIC_ALIGN_BAM}
+	samtools index $@
 
 
 ##
