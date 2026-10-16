@@ -1002,6 +1002,18 @@ def process_bed_line(bed_rec):
     return gene, transcript, exons, junctions, strand
 
 
+def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item):
+    """Correct one sample's reads in a region, for _run_region.  A task of its own,
+    so the samples of a region are corrected in parallel"""
+    sample, bamfile = item
+    if os.path.exists(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
+        return
+    annots = annot_data_from_gtf(gtf_data, partition.region)
+    if len(annots.transcripts) > 0:
+        with pysam.FastaFile(args.genome) as genome:
+            get_juncs_single_sample(args, partition.region, partition.file_prefix, sample, bamfile, genome, junction_corrector, annots)
+
+
 def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports):  # noqa: C901 - FIXME: reduce complexity
     # FIXMEL what are these files being created, just do in memory
     region_bed = partition.output_path('region.bed')
@@ -1029,16 +1041,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
                     annot_afe_ss[gene].add(afe_ss)
                     annot_ale_ss[gene].add(ale_ss)
 
-        # align reads to annot [transcripts +- 1000bp], filter to only good aligns, convert to genomic coords
-        # get reads from that bam file (no need to correct), save junctions - am actually doing correct, could probably remove that
-        # add junctions from other reads that did not match ref transcriptome well after correction
-        # load splice junctions for chrom
-
-        with pysam.FastaFile(args.genome) as genome:
-            for sample, bamfile in allsamples:
-                if not os.path.exists(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
-                    get_juncs_single_sample(args, partition.region, partition.file_prefix, sample, bamfile, genome, junction_corrector, annots)
-
+        # each sample's corrected reads, from _correct_region_sample
         all_genes_to_juncs = []
         for sample, bamfile in allsamples:
             gene_to_juncs = {}
@@ -1219,10 +1222,11 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
             pipettor.run([(sys.executable, gtf_to_bed_prog, args.annot_basic, annot_basic_bed, '--include_gene')])
         args.annot_basic = annot_basic_bed
 
-    logging.info(f'running regions with {args.threads} threads')
+    logging.info(f'correcting reads of {len(allsamples)} samples in {len(all_regions)} regions, then finding events, with {args.threads} threads')
 
     runner = PartitionRunner(all_regions, tempDir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
                              threads=args.threads)
+    runner.run(_correct_region_sample, items=allsamples, args=args)
     runner.run(_run_region, args=args, allsamples=allsamples, region_reports=region_reports)
 
     prefixes = [p.file_prefix for p in runner]

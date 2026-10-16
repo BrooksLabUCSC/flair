@@ -457,7 +457,7 @@ junctions and exons all lie in a region, whose reads all overlap it, and the sta
 end, first and last exon events of genes whose annotated junctions all lie in one, so
 a region around a gene's annotated exons, or only its spliced part, reports them.
 Reads overlapping a region are corrected over their whole length, wherever the region
-ends.
+ends.  The samples of a region are corrected in parallel.
 
 The manifest is a tab-separated file of a sample name and the path to its sorted and
 indexed bam file, a line per sample::

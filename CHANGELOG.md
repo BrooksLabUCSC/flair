@@ -285,6 +285,8 @@
     dropped.
   * A chromosome or region without annotated genes no longer stops the run when the
     regions' tables are combined.
+  * The samples of a region are corrected in parallel, within the `--threads` budget,
+    not one after another: a run on one gene used a single thread.
   * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
     were easily taken for flair diffsplice's.  The counts and PSI tables have an
     `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv

@@ -179,7 +179,7 @@ class PartitionRunner:
     def __len__(self):
         return len(self.partitions)
 
-    def run(self, func, **kwargs):
+    def run(self, func, *, items=None, **kwargs):
         """Run func for each partition, in parallel if threads > 1 (set at construction).
 
         func is called with the following keyword arguments:
@@ -189,13 +189,20 @@ class PartitionRunner:
             junction_corrector -- JunctionCorrector subset for the region, or None
             **kwargs       -- any additional keyword arguments passed to run()
 
+        Given items, such as samples, func runs once for each partition and item,
+        given that one as item, so the items of one partition run in parallel too.
+
         Side effects (e.g. writing files to partition.temp_dir) are the
         expected pattern; return values from func are discarded.
         """
         # largest partitions first, handed out one at a time, so the big ones don't
         # end up running alone at the end; programs run by the partitions, such as
         # minimap2, borrow threads left idle, more for larger partitions
-        packed = sorted(((p, w, func, kwargs) for p, w in zip(self.partitions, self.weights)),
+        if items is None:
+            tasks = [(p, w, kwargs) for p, w in zip(self.partitions, self.weights)]
+        else:
+            tasks = [(p, w, dict(kwargs, item=item)) for p, w in zip(self.partitions, self.weights) for item in items]
+        packed = sorted(((p, w, func, task_kwargs) for p, w, task_kwargs in tasks),
                         key=lambda x: x[1], reverse=True)
         thread_share.init(self.threads, len(packed), max(self.weights, default=1))
 
