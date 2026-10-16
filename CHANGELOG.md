@@ -270,6 +270,21 @@
     `--quality` sets the minimum mapping quality, which was fixed at 0.  Its defaults
     are flair transcriptome's: `--ss_window` 10 (was 15), `--junction_support` 2
     (was 1), `--quality` 1 and `--threads` 12 (was 4).
+  * Corrects reads as flair transcriptome does, with the same code: the alignment to
+    annotated transcripts (with transcriptome's reference, whose terminal exons reach
+    their gene's furthest ends, and without aligning reads it couldn't change), then
+    junction correction using the genome's splice motifs for strand.  It adds
+    transcriptome's `--trust_strand` and `--trust_junctions`.  Single-exon reads are
+    still left out.
+  * With `--region_bed`, only events inside its regions are reported: those whose
+    junctions and exons all lie in a region, and the start, end, first and last exon
+    events of genes whose annotated junctions all lie in one.  A gene the region only
+    clipped got events from only its reads overlapping the region.  Reads overlapping
+    a region are corrected over their whole length: a region's annotation and
+    junctions now cover the reads it fetches, so reads running past its end are not
+    dropped.
+  * A chromosome or region without annotated genes no longer stops the run when the
+    regions' tables are combined.
   * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
     were easily taken for flair diffsplice's.  The counts and PSI tables have an
     `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv

@@ -14,7 +14,8 @@
                              [--event_support EVENT_SUPPORT]
                              [--event_frac_of_tot EVENT_FRAC_OF_TOT]
                              [--junc_frac_of_event JUNC_FRAC_OF_EVENT]
-                             [--quality QUALITY] [--keep_supplementary]
+                             [--quality QUALITY] [--trust_strand]
+                             [--trust_junctions] [--keep_supplementary]
                              [--no_align_to_annot] [--output_read_ends]
                              [--keep_intermediate]
 
@@ -30,7 +31,7 @@
 
 .. option:: --annot_basic ANNOT_BASIC
 
-   GTF annotation file whose transcripts' first and last splice sites mark alternative first and last exons, such as GENCODE basic
+   GTF annotation file of full-length transcripts, such as GENCODE basic, whose first and last splice sites mark alternative first and last exons. A comprehensive annotation includes truncated transcripts, whose ends are not real first and last exons
 
 .. option:: --junction_tab JUNCTION_TAB
 
@@ -50,7 +51,7 @@
 
 .. option:: --region_bed REGION_BED
 
-   bed file with regions to parallelize by; if not specified, all chromosomes are used
+   bed file of the regions to report events in, such as the genes of interest; if not specified, all chromosomes are used. Reads overlapping a region are corrected over their whole length, and the events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions
 
 .. option:: --feature_support FEATURE_SUPPORT
 
@@ -71,6 +72,14 @@
 .. option:: --quality QUALITY
 
    minimum mapping quality of genomic alignments (default: 1)
+
+.. option:: --trust_strand
+
+   trust the stranding of the input reads and do not attempt strand correction: reads keep the strand of their alignment, and spliced reads are corrected only with splice junctions on that strand, and are only assigned to transcripts on that strand
+
+.. option:: --trust_junctions
+
+   trust the strand of every input splice junction for read correction, without checking splice motifs. By default, an unannotated junction without a GT-AG motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded only by such junctions gets its strand from gene identification, or is dropped
 
 .. option:: --keep_supplementary
 

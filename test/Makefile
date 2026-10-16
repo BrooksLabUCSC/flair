@@ -1064,7 +1064,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 ###
 # flair spliceevents
 ###
-spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers
+spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out
@@ -1095,6 +1095,15 @@ test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
 	python3 ../src/flair/spliceevents_outliers.py -i $O/$@ -o $O/$@-psitot --psi tot
 	$(call cmp_expect_sort,$@-psitot.spliceevents.outliers.tsv)
 	$(call cmp_expect_sort,$@-psitot.spliceevents.outliers.filtered.tsv)
+
+# a region cutting KRAS: of its events, only the exon skip lies inside, and its
+# rows are those of the whole-genome run, though many of its reads run past the
+# region's end; KRAS's end events, of all its reads, are left out.  A second region,
+# without genes, adds nothing
+test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM}
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed --output_read_ends -o $O/$@
+	diff <(grep 'es-of-chr12:25215436' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
+	diff <(grep 'es-of-chr12:25215436' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
 
 $O/spliceevents-s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<
