@@ -1,6 +1,8 @@
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos
+from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
+from flair.annotation_data import AnnotsByChrom
 
 # a synthetic fusion of GA (chr1:1000-2000, +) and GB (chr2:4000-5000, -), its loci
 # at 0-1000 and 1000-2000 of the synthetic chromosome; the isoform has exons
@@ -18,8 +20,13 @@ def _convert(tmp_path, thick_start, thick_end, aaseq_id=None):
         FlairBed(SYNTH_CHROM, 100, 1900, 'FLT1', score=10, strand='+', thickStart=thick_start, thickEnd=thick_end,
                  blocks=[BedBlock(s, e) for s, e in EXONS], gene_id='FLG1', ref_gene_mappings=(SYNTH_CHROM,),
                  read_support=10, frac_support=1.0, productivity='PRO', samples=('s',), aaseq_id=aaseq_id).write(fh)
+    # an annotation without genes on the fusion's chromosomes: its pieces are non-genic
+    gtf = tmp_path / 'annotation.gtf'
+    attrs = 'gene_id "GC"; transcript_id "TC"; gene_name "GC";'
+    gtf.write_text(f'chr3\ttest\ttranscript\t101\t300\t.\t+\t.\t{attrs}\nchr3\ttest\texon\t101\t300\t.\t+\t.\t{attrs}\n')
+    annots = AnnotsByChrom(gtf_data_parser(str(gtf), attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES))
     out = tmp_path / 'fusions.bed'
-    convert_synthetic_isos(str(synthetic), str(breakpoints), str(out), 100)
+    convert_synthetic_isos(str(synthetic), str(breakpoints), str(out), 100, annots)
     return sorted(BedReader(str(out), bedClass=FlairBed), key=lambda bed: bed.pos_in_fusion)
 
 

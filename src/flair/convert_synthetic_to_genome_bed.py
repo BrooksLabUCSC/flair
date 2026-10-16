@@ -2,8 +2,9 @@ import logging
 import re
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
 from flair.flair_bed import FlairBed
-from flair.isoform_data import Junc
-from flair.gene_identification import get_genes_with_shared_juncs
+from flair.isoform_data import Exon, Junc
+from flair.gene_identification import (get_genes_with_shared_juncs, genes_sharing_splice_sites,
+                                       get_spliced_exon_overlaps, get_unspliced_exon_overlaps)
 
 def get_synth_info(breakpointfile):
     synthchrtoinfo = {}
@@ -211,36 +212,66 @@ def breakpoint_sites(blocks, strand, order, numloci):
     return sites
 
 
-def piece_gene(chrom, strand, blocks, order, numloci, prelim_gene, annots_by_chrom):
+def piece_gene(chrom, strand, blocks, order, numloci, annots_by_chrom):
     """The gene of a fusion piece in genome coordinates, as flair transcriptome gives
     an isoform its gene (get_genes_with_shared_juncs), by its junctions and its
     splice sites at the fusion junctions (breakpoint_sites), not its ends: a piece
-    of only a first exon has its donor.  The preliminary fusion's gene, which
-    depends on where the reads ended, if the annotation gives none, or if it is
-    one of several genes the piece reads through"""
-    if annots_by_chrom is None:
-        return prelim_gene
+    of only a first exon has its donor.  Of several genes the piece reads through,
+    the one with a splice site at a fusion junction, the gene fused, then the one
+    with more annotated transcripts.  A piece with no annotated junction or splice
+    site gets the gene whose exons cover most of its own, more than half of them (as
+    get_spliced_exon_overlaps, then get_unspliced_exon_overlaps), the one with more
+    annotated transcripts on a tie.  A piece in no gene's exons is None, a non-genic
+    locus name_nongenic_loci names.  The gene depends only on the piece and the
+    annotation, so flair combine gives a combined fusion isoform its genes the same
+    way, whatever the samples' preliminary fusions."""
+    annots = annots_by_chrom.get(chrom)
+    if annots is None:  # no genes on the chromosome
+        return None
     juncs = tuple(Junc(blocks[i].end, blocks[i + 1].start) for i in range(len(blocks) - 1))
-    genes = get_genes_with_shared_juncs(juncs, strand, annots_by_chrom.get(chrom),
-                                        extra_sites=breakpoint_sites(blocks, strand, order, numloci))
-    if not genes or prelim_gene in genes:
-        return prelim_gene
-    return genes[0]
+    sites = breakpoint_sites(blocks, strand, order, numloci)
+    genes = get_genes_with_shared_juncs(juncs, strand, annots, extra_sites=sites)
+    if genes:
+        fused = genes_sharing_splice_sites(sites, strand, annots)
+        return min(genes, key=lambda g: (g not in fused, -annots.gene_to_num_transcripts.get(g, 0), g))
+    exons = [Exon(blk.start, blk.end) for blk in blocks]
+    hits = get_spliced_exon_overlaps(strand, exons, annots) or get_unspliced_exon_overlaps(strand, exons, annots)
+    if hits:
+        return min(hits, key=lambda hit: (-hit[0], -annots.gene_to_num_transcripts.get(hit[1], 0), hit[1]))[1]
+    return None
 
 
-def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist, annots_by_chrom=None):
+def name_nongenic_loci(converted):
+    """Name the pieces piece_gene left in no gene (None) by their synthetic contig's
+    locus: chrom:start-end spanning all such pieces of it, so isoforms of one fusion
+    with different ends there have one non-genic locus.  converted is a list of
+    (bed, bedinfos, genes), and genes are changed in place."""
+    spans = {}
+    for bed, bedinfos, genes in converted:
+        for order, gene in enumerate(genes):
+            if gene is None:
+                chrom, start, end = bedinfos[order][:3]
+                key = (bed.chrom, order)
+                prev = spans.get(key, (chrom, start, end))
+                spans[key] = (chrom, min(start, prev[1]), max(end, prev[2]))
+    for bed, bedinfos, genes in converted:
+        for order, gene in enumerate(genes):
+            if gene is None:
+                genes[order] = '{}:{}-{}'.format(*spans[(bed.chrom, order)])
+
+
+def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist, annots_by_chrom):
     """The fusion isoforms of the synthetic genome's flair transcriptome, in genome
     coordinates, a bed line for each piece.  Each piece's gene is from its
     junctions and fusion-junction splice sites (piece_gene), with annots_by_chrom,
-    an AnnotsByChrom, or else the preliminary fusion's gene.  An isoform is left out
+    an AnnotsByChrom, or its non-genic locus (name_nongenic_loci).  An isoform is left out
     if it doesn't cross a breakpoint, its pieces are too close (check_too_close) or
     two pieces are of one gene; every other output of the fusion isoforms is
-    filtered to those of this bed"""
+    filtered to those of this bed.  Returns isoform -> its pieces' genes, in fusion
+    order, non-genic loci as chrom:start-end (name_nongenic_loci)"""
     synthchrtoinfo = get_synth_info(breakpointfile)
 
-    out = open(outname, 'w')
-    gene_og_to_new = {}
-    curr_gene_count = 1
+    converted = []
     for bed in BedReader(isoformsbed, fixScores=True, bedClass=FlairBed):
         iso, start = bed.name, bed.chromStart
         esizes = [len(blk) for blk in bed.blocks]
@@ -262,26 +293,35 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist, annot
             if None not in starts:
                 genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, thickEdges)
                 if not check_too_close(numloci, genomicbounds, min_dist):
-                    prelim_genes = [locus[0] for locus in synthinfo]
-                    genes = [piece_gene(genomicchr, locusdir, blocks, order, numloci, prelim_genes[order], annots_by_chrom)
+                    genes = [piece_gene(genomicchr, locusdir, blocks, order, numloci, annots_by_chrom)
                              for order, (genomicchr, _, _, locusdir, _, _, blocks) in enumerate(bedinfos)]
-                    if len(set(genes)) < len(genes):
-                        # pieces of one gene: a rearrangement within a gene, as of a
-                        # segmental duplication, which flair fusion doesn't call
-                        logging.info('skipping %s: pieces of one gene, %s', iso, '--'.join(genes))
-                        continue
-                    for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
-                        curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, '--'.join(genes), curr_gene_count)
-                        flair_genes = []
-                        for gene in ref_gene_info:
-                            curr_gene_count, gene_id, ref_gene_ids = get_gene_id(gene_og_to_new, gene, curr_gene_count)
-                            flair_genes.append(gene_id)
-                        # convert reference genes that are chromosome regions to none in the ref_gene_mappings field
-                        ref_gene_info = tuple([None if is_nongenic_locus(x) else x for x in ref_gene_info])
-                        outbed = FlairBed(genomicchr, chromStart, chromEnd, name=bed.name, score=bed.score, strand=locusdir, blocks=blocks,
-                                          gene_id=fusion_id, ref_gene_mappings=ref_gene_info, thickStart=thickStart, thickEnd=thickEnd,
-                                          read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',
-                                          fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples,
-                                          aaseq_id=bed.aaseq_id)
-                        outbed.write(out)
+                    converted.append((bed, bedinfos, genes))
+
+    name_nongenic_loci(converted)
+    out = open(outname, 'w')
+    gene_og_to_new = {}
+    curr_gene_count = 1
+    iso_genes = {}
+    for bed, bedinfos, genes in converted:
+        if len(set(genes)) < len(genes):
+            # pieces of one gene: a rearrangement within a gene, as of a
+            # segmental duplication, which flair fusion doesn't call
+            logging.info('skipping %s: pieces of one gene, %s', bed.name, '--'.join(genes))
+            continue
+        iso_genes[bed.name] = tuple(genes)
+        for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
+            curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, '--'.join(genes), curr_gene_count)
+            flair_genes = []
+            for gene in ref_gene_info:
+                curr_gene_count, gene_id, ref_gene_ids = get_gene_id(gene_og_to_new, gene, curr_gene_count)
+                flair_genes.append(gene_id)
+            # convert reference genes that are chromosome regions to none in the ref_gene_mappings field
+            ref_gene_info = tuple([None if is_nongenic_locus(x) else x for x in ref_gene_info])
+            outbed = FlairBed(genomicchr, chromStart, chromEnd, name=bed.name, score=bed.score, strand=locusdir, blocks=blocks,
+                              gene_id=fusion_id, ref_gene_mappings=ref_gene_info, thickStart=thickStart, thickEnd=thickEnd,
+                              read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',
+                              fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples,
+                              aaseq_id=bed.aaseq_id)
+            outbed.write(out)
     out.close()
+    return iso_genes

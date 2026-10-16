@@ -486,8 +486,8 @@ def write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname
     """the fusion isoforms in genome coordinates, as flair transcriptome writes its
     isoforms: bed, sequences, counts, reads, proteins, GTF and bigBed"""
     logging.info('converting coordinates from synthetic to genomic')
-    convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed', output + '-syntheticBreakpointLoc.bed',
-                           output + '.fusions.isoforms.bed', min_dist_between_breakpoints, AnnotsByChrom(gtf_data))
+    iso_genes = convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed', output + '-syntheticBreakpointLoc.bed',
+                                       output + '.fusions.isoforms.bed', min_dist_between_breakpoints, AnnotsByChrom(gtf_data))
 
     fusion_beds = list(BedReader(output + '.fusions.isoforms.bed', fixScores=True, bedClass=FlairBed))
     goodisos = {bed.name for bed in fusion_beds}
@@ -499,7 +499,7 @@ def write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname
     filter_by_first_column(output + '.syntheticAligned.flair.aaseq.tsv', output + '.fusions.aaseq.tsv',
                            {bed.aaseq_id for bed in fusion_beds if bed.aaseq_id is not None}, header=True)
 
-    write_fusion_table(output, genetoname)
+    write_fusion_table(output, iso_genes, genetoname)
 
     bed_to_gtf(output + '.fusions.isoforms.bed', output + '.fusions.isoforms.gtf', is_flair_bed=True)
 

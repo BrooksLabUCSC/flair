@@ -2,7 +2,7 @@
 OUTPUT.fusions.tsv: per final fusion, its preliminary and final reads, isoforms, and best
 supported breakpoint and isoform, most final reads first.
 """
-from flair.fusion_table import breakpoint, isoform_breakpoints, isoform_genes, fusion_rows, write_table, FUSION_TABLE_COLUMNS
+from flair.fusion_table import breakpoint, isoform_breakpoints, fusion_rows, write_table, FUSION_TABLE_COLUMNS
 
 # pieces are (position in fusion, chrom, start, end, strand) in 0-based half-open coordinates
 ERGIC3 = (0, 'chr20', 35542078, 35548865, '+')
@@ -59,10 +59,3 @@ def test_rows_are_by_final_genes_with_their_contigs_prelim_reads():
     rows = fusion_rows({'G1--G2': 20, 'G1b--G2': 10}, iso_contig, iso_genes, {'iso1': 17, 'iso2': 11}, iso_pieces,
                        {'G1': 'ERGIC3', 'G2': 'KRAS'})
     assert [row[:5] for row in rows] == [['ERGIC3--KRAS', 'G1--G2', 30, 28, 2]]
-
-
-def test_isoform_genes_from_the_bed_with_non_genic_loci_from_the_contig(tmp_path):
-    bed = tmp_path / 'f.fusions.isoforms.bed'
-    row = ['chr1', '100', '200', 'iso1', '5', '+', '100', '100', '0', '1', '100,', '0,', 'FLG1', '']
-    bed.write_text('\t'.join(row + ['G1,,', '5', '1.0', '', 'fusion', 'FLG2,FLG3,', '0', 's,', '', '', '']) + '\n')
-    assert isoform_genes(str(bed), {'iso1': 'G0--chr2:800-900'}) == {'iso1': ('G1', 'chr2:800-900')}

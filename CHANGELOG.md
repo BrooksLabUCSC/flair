@@ -142,11 +142,15 @@
     transcriptome gives an isoform its gene, by the junctions and splice sites it
     shares with annotated genes, counting its splice sites at the fusion junctions,
     rather than taking the preliminary fusion's, which depended on where reads ended.
-    A piece of only a first exon has its donor; a piece with no annotated junction or
-    splice site keeps the preliminary gene.  An isoform two of whose pieces are then
-    of one gene is left out, as a rearrangement within a gene, which flair fusion
-    doesn't call: a BPTF--BPTF call in SeraCare.  OUTPUT.fusions.tsv names fusions
-    by their final isoforms' genes.
+    A piece of only a first exon has its donor, and of genes a piece reads through,
+    it has the one at its fusion junction.  A piece with no annotated junction or
+    splice site gets the gene whose exons cover more than half of its own, and a
+    piece in no gene's exons is a non-genic locus spanning the final pieces there,
+    not the preliminary fusion's locus, which spanned all its reads and could be
+    over 100 kb wider.  An isoform two of whose pieces are then of one gene is left
+    out, as a rearrangement within a gene, which flair fusion doesn't call: a
+    BPTF--BPTF call in SeraCare.  OUTPUT.fusions.tsv names fusions by their final
+    isoforms' genes and non-genic loci.
   * `flair fusion` reads its GTF once, rather than four times, which takes 1 to 1.5
     minutes off a GENCODE run, but holds it in memory: 6 GB at its peak for SeraCare,
     from 3 GB.

@@ -45,18 +45,6 @@ def isoform_pieces(fusion_isoforms_bed):
     return pieces
 
 
-def isoform_genes(fusion_isoforms_bed, iso_contig):
-    """isoform -> its genes in fusion order, as the final isoforms' bed gives them
-    (ref_gene_mappings), which can differ from its synthetic contig's: a non-genic
-    locus, which the bed leaves empty, by its contig's name for it"""
-    genes = {}
-    for line in open(fusion_isoforms_bed):
-        f = line.rstrip('\n').split('\t')
-        mapped = f[14].split(',')
-        genes[f[3]] = tuple(mapped[pos] or locus for pos, locus in enumerate(iso_contig[f[3]].split('--')))
-    return genes
-
-
 def breakpoint(piece5, piece3):
     """the junction of a 5' piece and the 3' piece after it, as chrom:pos(strand) of the
     5' piece's last base and of the 3' piece's first base, 1-based, joined by --"""
@@ -104,11 +92,11 @@ def write_table(rows, tsv):
             out.write('\t'.join(str(x) for x in row) + '\n')
 
 
-def write_fusion_table(output, genetoname):
-    "OUTPUT.fusions.tsv, from the run's preliminary fusions and final isoforms"
-    iso_contig = isoform_contigs(output + '.syntheticAligned.flair.isoforms.bed')
+def write_fusion_table(output, iso_genes, genetoname):
+    """OUTPUT.fusions.tsv, from the run's preliminary fusions and final isoforms, with
+    iso_genes, isoform -> its final genes (convert_synthetic_isos)"""
     rows = fusion_rows(prelim_read_counts(output + '.prelimfusions.bed'),
-                       iso_contig, isoform_genes(output + '.fusions.isoforms.bed', iso_contig),
+                       isoform_contigs(output + '.syntheticAligned.flair.isoforms.bed'), iso_genes,
                        isoform_read_counts(output + '.fusions.isoform.read.map.txt'),
                        isoform_pieces(output + '.fusions.isoforms.bed'),
                        genetoname)

@@ -69,7 +69,7 @@ def _pick_group_gene(group, gene_to_juncs, gene_to_sites, five_prime_ss, strand,
         return end - start
     return min(group, key=lambda g: (-score(g), -annots.gene_to_num_transcripts.get(g, 0), length(g), g))
 
-def _genes_sharing_splice_sites(sites, strand, annots):
+def genes_sharing_splice_sites(sites, strand, annots):
     """map of same-strand gene -> set of the isoform's splice sites it has
     annotated"""
     gene_to_sites = {}
@@ -104,7 +104,7 @@ def get_genes_with_shared_juncs(juncs, strand, annots, extra_sites=()):
     sites = {site for j in juncs for site in (j.start, j.end)} | set(extra_sites)
     if not sites:
         return ()
-    gene_to_sites = _genes_sharing_splice_sites(sites, strand, annots)
+    gene_to_sites = genes_sharing_splice_sites(sites, strand, annots)
     # a gene with a matching junction has its splice sites, strand or not
     for gene_id, gene_juncs in gene_to_juncs.items():
         gene_to_sites.setdefault(gene_id, set()).update(site for j in gene_juncs for site in (j.start, j.end))
