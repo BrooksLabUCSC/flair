@@ -531,8 +531,29 @@ def tss_check(gene_info, bounds5, median5, max_dist_to_tss):
     return True, -1 if tss_dist is None else tss_dist
 
 
+def _largest_cluster_near_zero(gaps):
+    """Is the largest cluster of a junction's read gaps, each within 10 bases of the
+    next, strictly larger than the others and centred within 10 bases of 0: most
+    reads agree on a junction with their pieces abutting, though others overlap
+    more, as SMARCC1--EMCN in MCF7, where 14 of 36 reads' pieces abut and the rest
+    have their SMARCC1 piece run on 125 or 400 bases into the sequence the EMCN
+    piece aligns"""
+    gaps = sorted(gaps)
+    clusters = [[gaps[0]]]
+    for gap in gaps[1:]:
+        if gap - clusters[-1][-1] <= 10:
+            clusters[-1].append(gap)
+        else:
+            clusters.append([gap])
+    clusters.sort(key=len, reverse=True)
+    return abs(median(clusters[0])) <= 10 and (len(clusters) == 1 or len(clusters[0]) > len(clusters[1]))
+
+
 def breakpoints_consistent(read_gaps):
-    "do the reads' pieces have few gaps between them, or very consistent ones"
+    """do the reads' pieces have few gaps between them, or very consistent ones, or
+    does the largest cluster of reads agree on pieces that abut, at every junction
+    (_largest_cluster_near_zero).  Gaps are mostly segmentation artifacts, and
+    overlaps of more than microhomology mostly paralogs and template switching"""
     spacings = []
     for gaps in read_gaps:
         gaps = sorted(gaps)
@@ -541,7 +562,8 @@ def breakpoints_consistent(read_gaps):
         # and median([]) raises.  One read agrees with itself
         spacings.append(median(spacing) if len(spacing) > 0 else 0)
     return max([abs(median(x)) for x in read_gaps]) <= 10 \
-        or (max([abs(min(x)) for x in read_gaps]) <= 10 and max(spacings) <= 3)
+        or (max([abs(min(x)) for x in read_gaps]) <= 10 and max(spacings) <= 3) \
+        or all(_largest_cluster_near_zero(gaps) for gaps in read_gaps)
 
 
 def call_fusion(fusion_genes, reads, read_to_pieces, genetoinfo, chroms, max_dist_to_tss):

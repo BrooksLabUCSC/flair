@@ -3,7 +3,7 @@ flair fusion's preliminary fusions: reads grouped by the genes of their pieces, 
 groups whose loci are in the same places merged, so reads of one fusion given
 different genes aren't split into several fusions.
 """
-from flair.identify_prelim_fusions import consensus_gene, reads_by_genes, _use_transcript_pieces
+from flair.identify_prelim_fusions import breakpoints_consistent, consensus_gene, reads_by_genes, _use_transcript_pieces
 
 
 def _piece(q5, q3, start, end, gene, strand='+', chrom='chr1'):
@@ -82,3 +82,16 @@ def test_transcript_pieces_not_used_for_a_gene_aligned_where_the_genome_alignmen
     transcript = [_piece(0, 259, 1000, 1259, 'PKP2'), _piece(257, 1068, 9000, 9811, 'G2'),
                   _piece(1207, 1556, 500, 849, 'KANK1', chrom='chr9')]
     assert not _use_transcript_pieces(transcript, genome)
+
+
+def test_breakpoints_consistent_when_most_reads_agree_on_abutting_pieces():
+    # SMARCC1--EMCN in MCF7: 14 reads near 0, the rest overlapping by 125 or 400
+    gaps = [-90, -37] + [1, 2] + [3] * 12 + [124, 125] + [125] * 8 + [126, 127, 280] + [400, 402, 402, 403, 404, 405, 405, 420]
+    assert breakpoints_consistent([gaps])
+
+
+def test_breakpoints_not_consistent_when_most_reads_overlap():
+    # KRT8P3--KRT8 in MCF7: a pseudogene, the reads' pieces overlapping by 238
+    assert not breakpoints_consistent([[-42, 212, 238, 239, 240]])
+    # a tie between abutting and overlapping reads isn't a majority
+    assert not breakpoints_consistent([[3, 5, 116, 118, 300, 320]])

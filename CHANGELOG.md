@@ -165,6 +165,13 @@
     `--min_support` counting both, each read's pieces from one alignment: those of
     the alignment to transcripts if they find a gene the genome alignment missed, as
     a 3-gene fusion's short middle exon, and explain as much of the read.
+  * `flair fusion` accepts a preliminary fusion whose reads mostly agree on pieces
+    that abut at the fusion junction, though the rest overlap more: SMARCC1--EMCN
+    in MCF7, where 14 of 36 reads' pieces abut and the others' SMARCC1 piece runs
+    125 or 400 bases into the sequence their EMCN piece aligns.  Overlaps of more
+    than 10 bases otherwise still reject a fusion: in MCF7 and SeraCare those are
+    paralogs and pseudogenes the paralog table misses, template switches and RN7SL
+    artifacts, and no reference fusions.
 * `flair align` is removed.  It ran minimap2 and filtered its output, which no
   other module uses: flair transcriptome and flair fusion take a bam of all reads
   aligned to the genome.  Align with minimap2 as the docs show,
