@@ -160,9 +160,21 @@
     end, or SQANTI3's 60% A after an untailed end), are removed.
   * A spliced isoform removed as a subset is reported after all when every
     isoform it is a subset of fails support and it has at least
-    `--subset_backup_support` reads (default 10).
+    `--subset_backup_support` reads (default 10) covering its own sequence past
+    what those isoforms contain; truncated reads of those isoforms are not its
+    reads.  It keeps its own gene and reference transcript.
+  * An isoform is a subset only of isoforms of its own gene, or of any gene's
+    when its junctions reach past its gene's annotated junctions, as a fragment
+    across a readthrough.  In WTC11, SRSF1's main transcript (1,042 reads) and
+    BTG1-201 (88 reads) were removed as subsets of 1-read isoforms of
+    overlapping readthrough genes, leaving their reads unassigned.
+  * An isoform's unique sequence boundaries, past which its reads must reach,
+    are those its own densest read ends reach past.  Isoforms retaining a
+    terminal intron, whose reads had been discarded, are reported.
   * Isoforms are assigned to genes by junctions and splice sites, and novel genes
-    are grouped by shared splicing.
+    are grouped by shared splicing.  Genes that match an isoform equally go to
+    the one with more annotated transcripts, so a gene wins over a readthrough
+    of it, which is usually annotated with one or two.
   * Semi-canonical junction motifs (GC-AG, AT-AC) are weak strand evidence:
     without an annotation, the strand of a read whose junctions all have them
     comes from gene identification.  `--trust_junctions` trusts every input

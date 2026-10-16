@@ -18,6 +18,9 @@ class AnnotData(object):
         # list of (transcript_id, gene_id, strand)
         self.transcripts = []
 
+        # map of gene_id -> number of transcripts
+        self.gene_to_num_transcripts = {}
+
         # map of junction chain tuple -> (transcript_id, gene_id)
         self.juncchain_to_transcript = {}
 
@@ -197,6 +200,7 @@ def _save_transcript_annot(transcript_id, gene_id, region, region_map, t_start, 
     annots.transcript_to_exons[(transcript_id, gene_id)] = tuple(t_exons)
     juncs = exons_to_juncs(t_exons)
     annots.transcripts.append((transcript_id, gene_id, strand))
+    annots.gene_to_num_transcripts[gene_id] = annots.gene_to_num_transcripts.get(gene_id, 0) + 1
     if gene_id not in annots.gene_to_strand:
         annots.gene_to_strand[gene_id] = strand
     # accumulate exons per gene (as coordinate tuples for spliceevents compatibility)

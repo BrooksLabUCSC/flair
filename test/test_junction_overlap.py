@@ -3,7 +3,7 @@ from flair.isoform_data import Junc, Exon, Isoform
 from flair.junction_correct import UNKNOWN_STRAND
 from flair.flair_transcriptome import (fixed_end_exons, get_spliced_exon_overlaps,
                                        get_unspliced_exon_overlaps, get_gene_name_unknown_strand,
-                                       FALLBACK_TERMINAL_EXON_LEN)
+                                       get_genes_with_shared_juncs, FALLBACK_TERMINAL_EXON_LEN)
 
 # G1: exons 500-1000, 5000-5100 and a long terminal exon 6000-9000
 G1_EXONS = {(500, 1000), (5000, 5100), (6000, 9000)}
@@ -65,6 +65,7 @@ def _two_strand_annots():
     annots.splice_site_to_genes = {6000: ('G2',)}
     annots.gene_to_strand = {'G1': '+', 'G2': '-', 'LNC': '+', 'LNC-MINUS': '-'}
     annots.gene_to_annot_juncs = {'G1': (Junc(1000, 5000), Junc(5100, 6000)), 'G2': (Junc(6000, 8000),)}
+    annots.gene_to_num_transcripts = {'G1': 1, 'G2': 1}
     return annots
 
 def _unknown_iso(juncs, start, end):
@@ -89,3 +90,20 @@ def test_unknown_strand_genes_on_both_strands():
 def test_unknown_strand_no_gene():
     iso = _unknown_iso((Junc(12000, 13000),), 11900, 13100)
     assert get_gene_name_unknown_strand(iso, _two_strand_annots()) == (None, None, None)
+
+
+###
+# a gene and a readthrough of it sharing the isoform's junctions
+###
+def test_shared_junctions_go_to_the_gene_not_its_readthrough():
+    # GENE has three transcripts, two with the junction 1000-2000, and its junctions
+    # span 1000-9000, the readthrough RT has one, spanning only 500-2000, shorter
+    j, rt_first = Junc(1000, 2000), Junc(500, 800)
+    annots = SimpleNamespace(
+        junc_to_gene={j: {('T1', 'GENE'), ('T2', 'GENE'), ('RT1', 'RT')}, rt_first: {('RT1', 'RT')}},
+        splice_site_to_genes={1000: {'GENE', 'RT'}, 2000: {'GENE', 'RT'}},
+        gene_to_strand={'GENE': '+', 'RT': '+'},
+        gene_to_annot_juncs={'GENE': {j, Junc(8000, 9000)}, 'RT': {rt_first, j}},
+        gene_to_num_transcripts={'GENE': 3, 'RT': 1})
+    exons = [Exon(900, 1000), Exon(2000, 2300)]
+    assert get_genes_with_shared_juncs((j,), exons, '+', annots) == ('GENE',)

@@ -17,7 +17,8 @@ from flair import FlairError, FlairInputDataError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory, UNKNOWN_STRAND
 from flair.annotation_precheck import reads_skipping_annotation_alignment
-from flair.direct_assignment import direct_assignments, read_unique_bounds, unassignable_reads, write_direct_assignments
+from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
+                                     unassignable_reads, write_direct_assignments)
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.io_utils import make_run_temp_dir
 from flair.bed_to_gtf import bed_to_gtf
@@ -521,18 +522,36 @@ def _matches_annotated_ends(annots, strand, exons, truncated, end_window, ss_win
             return True
     return annots.has_transcript_ends(strand, exons[0].start, exons[-1].end, end_window)
 
+def _juncs_outside_gene(juncs, gene, annots):
+    """Do the junctions reach outside the span of the gene's annotated junctions
+    (_gene_span), or of its genes' together, for a readthrough.  A novel gene, or
+    one without annotated junctions, has no span to be within."""
+    gene_ids = [g for g in (gene.gene_desc if gene is not None else ())
+                if g in getattr(annots, 'gene_to_annot_juncs', {})]
+    if not gene_ids:
+        return True
+    spans = [_gene_span(g, annots) for g in gene_ids]
+    return juncs[0].start < min(s for s, e in spans) or juncs[-1].end > max(e for s, e in spans)
+
 def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                        junc_to_names, all_isoforms,
                        strand, end_window=0, ss_window=0, supersets=None):
     """Is a spliced candidate kept by the subset filter, and its unique sequence
-    boundaries.  The names of the isoforms it is a subset of are added to supersets,
-    if given."""
+    boundaries.  It is a subset of isoforms of its own gene, and of other genes'
+    only if its junctions reach outside its own gene (_juncs_outside_gene).  An
+    isoform of any gene containing it still decides its unique sequence boundaries,
+    which come from any isoform with its junctions, as for a subset: none if its
+    ends match an annotated transcript's.  The names of the isoforms it is a subset
+    of are added to supersets, if given."""
     assert isinstance(exons[0], Exon)  # FIXME: debugging
+    isoform = all_isoforms[name]
+    any_gene_superset = _juncs_outside_gene(juncs, isoform.gene, annots)
 
     novel_isos = get_isos_with_similar_juncs(juncs, junc_to_names)
     first_exon, last_exon = exons[0], exons[-1]
     superset_support = []  # of the isoforms this is a subset of
-    truncated = [False, False]  # its first or last exon is inside a superset's internal exon
+    contained = False  # in an isoform of any gene
+    truncated = [False, False]  # its first or last exon is inside a containing isoform's internal exon
     unique_seq_bound = []
     for novel_iso_id in novel_isos:
         # only a superset with enough support to be reported itself can make this
@@ -551,32 +570,43 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
                                     [], unique_seq_bound)
             if sum(terminal_exon_is_subset) == 2:
                 otheriso = all_isoforms[novel_iso_id]
-                superset_support.append(otheriso.score)
-                if supersets is not None:
-                    supersets.append(novel_iso_id)
-                # its junctions are a contiguous run of the superset's: a side short
-                # of the superset's first or last junction has an internal exon there
+                contained = True
+                # its junctions are a contiguous run of the other's: a side short
+                # of the other's first or last junction has an internal exon there
                 first = otheriso.juncs.index(juncs[0])
                 truncated[0] |= first > 0
                 truncated[1] |= first + len(juncs) < len(otheriso.juncs)
+                # an isoform within its gene's junctions isn't taken to be a fragment
+                # of another gene's isoform, as of a readthrough or of an overlapping
+                # gene containing it, while one reaching past them, as a fragment
+                # spanning a readthrough junction, is.  A subset kept or promoted
+                # (promote_backup_subsets) keeps the gene it was assigned
+                if any_gene_superset or otheriso.gene_id == isoform.gene_id:
+                    superset_support.append(otheriso.score)
+                    if supersets is not None:
+                        supersets.append(novel_iso_id)
     # the transcript's ends aren't known yet, so these are all the boundaries,
     # for unique_bounds_past to choose from once they are
     unique_seq_bound = sorted(set(unique_seq_bound))
 
-    if len(superset_support) == 0:
+    if not contained:
         return True, unique_seq_bound
     elif _matches_annotated_ends(annots, strand, exons, truncated, end_window, ss_window):
-        # a subset whose ends match an annotated transcript's confirmed ends is a
-        # known isoform, not a fragment of a longer one.  It gets no unique sequence
+        # a contained isoform whose ends match an annotated transcript's confirmed
+        # ends is a known isoform, not a fragment of a longer one.  It gets no unique sequence
         # boundaries: its ends are within TERMINAL_EXON_BOUNDARY_TOLERANCE of the
-        # superset's exons, so its reads needn't cover sequence past them, which its
+        # containing isoform's exons, so its reads needn't cover sequence past them, which its
         # transcript may only have from end normalization
         return True, []
+    elif len(superset_support) == 0:
+        # contained only in other genes' isoforms
+        return True, unique_seq_bound
     else:
         ratio = subset_support_ratio(filter_type)
         if ratio is not None and score >= support and score > max(superset_support) * ratio:
             return True, unique_seq_bound
-    return False, None
+    # a removed subset's boundaries are kept for promote_backup_subsets
+    return False, unique_seq_bound
 
 ####
 # terminal exon normalization
@@ -1065,8 +1095,8 @@ def subset_check_exons(isoform):
 def filter_firstpass_isos(args, candidates, annots, removed_subsets=None):
     """Filter candidate isoforms by subset/support criteria.
     Returns (firstpass dict, iso_to_unique_bound dict).  Each spliced candidate removed
-    as a subset is added to removed_subsets, if given, by name, with the names of the
-    candidates it is a subset of (promote_backup_subsets)."""
+    as a subset is added to removed_subsets, if given, by name, with the candidates
+    it is a subset of and its unique sequence boundaries (promote_backup_subsets)."""
     iso_to_unique_bound = {}
 
     if args.filter == 'ginormous':
@@ -1089,7 +1119,8 @@ def filter_firstpass_isos(args, candidates, annots, removed_subsets=None):
                     if not is_not_subset:
                         logging.debug(f"isoform dropped: subset of another isoform: {iso_name} ({isoform.num_reads} reads)")
                         if removed_subsets is not None:
-                            removed_subsets[iso_name] = (isoform, [candidates.isoforms[name] for name in supersets])
+                            removed_subsets[iso_name] = (isoform, [candidates.isoforms[name] for name in supersets],
+                                                         unique_seq)
                     else:
                         firstpass[iso_name] = isoform
                         if len(unique_seq) > 0:
@@ -1135,7 +1166,9 @@ def _pick_group_gene(group, gene_to_juncs, gene_to_sites, five_prime_ss, strand,
     isoform's junctions the gene has annotated, 1 for each other splice site of
     the isoform it has annotated, and 1 if its matched splice site nearest the
     isoform's 5' end is within FIVE_PRIME_SS_WINDOW of the isoform's 5' splice
-    site.  Ties go to the gene with the shortest junction span, then the gene id."""
+    site.  Ties go to the gene with the most annotated transcripts, so a gene and
+    a readthrough of it, usually annotated with few transcripts, give the gene,
+    then to the gene with the shortest junction span, then the gene id."""
     def score(gene_id):
         juncs = gene_to_juncs.get(gene_id, ())
         junc_sites = {site for j in juncs for site in (j.start, j.end)}
@@ -1148,7 +1181,7 @@ def _pick_group_gene(group, gene_to_juncs, gene_to_sites, five_prime_ss, strand,
     def length(gene_id):
         start, end = _gene_span(gene_id, annots)
         return end - start
-    return min(group, key=lambda g: (-score(g), length(g), g))
+    return min(group, key=lambda g: (-score(g), -annots.gene_to_num_transcripts.get(g, 0), length(g), g))
 
 def _genes_sharing_splice_sites(sites, strand, annots):
     """map of same-strand gene -> set of the isoform's splice sites it has
@@ -1499,6 +1532,9 @@ def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand,
             add_gene_isoform(genes, gene_id, firstpass[k], strand, is_novel=True)
 
 def write_first_pass_isoforms(iso_name, isoform, max_terminal_exons_ends, unique_bound, unique_fh, iso_fh, seq_fh, genome):
+    # the exons the subset check compared, with the isoform's best supported ends,
+    # before normalization moves them to the gene's furthest
+    check_exons = subset_check_exons(isoform)
     # FIXME: do normalization outside of write function
     if len(isoform.exons) > 1:  # don't normalize ends for single exon transcripts
         # kept so the padding can be removed from the final isoform, since clamping
@@ -1509,12 +1545,11 @@ def write_first_pass_isoforms(iso_name, isoform, max_terminal_exons_ends, unique
         isoform.reset_from_exons(exons)
 
     if unique_bound and iso_name in unique_bound:
-        # against the transcript's exons as built, without the normalization padding
-        first_exon, last_exon = isoform.exons[0], isoform.exons[-1]
-        if isoform.unpadded_ends is not None:
-            first_exon = Exon(isoform.unpadded_ends[0], first_exon.end)
-            last_exon = Exon(last_exon.start, isoform.unpadded_ends[1])
-        bounds = unique_bounds_past(unique_bound[iso_name], first_exon, last_exon, isoform.strand)
+        # only boundaries the isoform's own best supported ends reach past, as the
+        # subset check saw them: one past them can only be covered by reads running
+        # on past the isoform's end, as to the gene's furthest end, which isn't its
+        # own, so it would only take the isoform's reads from it
+        bounds = unique_bounds_past(unique_bound[iso_name], check_exons[0], check_exons[-1], isoform.strand)
         if len(bounds) > 0:
             unique_fh.write(isoform.name + '\t' + ','.join(bounds) + '\n')
 
@@ -1861,14 +1896,18 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, no_stringent):
         gene_to_tot[gene][2] += 1
     return iso_to_counts, gene_to_tot
 
-def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_counts, gene_to_tot, ends_path, annots):
+def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_counts, gene_to_tot, ends_path):
     """Report a spliced isoform the subset filter removed after all, when every
     isoform it is a subset of fails support: a fragment of a well-supported isoform
     is still removed, but one of a read through or extra exon too weak to report
     doesn't take a well-supported isoform with it.  It gets the reads it was built
-    from that no other isoform was assigned, at least sjc_support and
-    subset_backup_support of them, its ends from theirs (_one_end_variant), and the
-    gene of an isoform it is a subset of or shares a junction with; its reads count
+    from that no other isoform was assigned and that cover its unique sequence
+    boundaries, as an assigned read must (covers_unique_bounds), at least
+    sjc_support and subset_backup_support of them, and its ends from theirs
+    (_one_end_variant).  It
+    keeps the gene and reference transcript build_genes gave its junction chain, as
+    any isoform does, rather than taking them from an isoform it is a subset of,
+    which could put an annotated transcript in a readthrough gene; its reads count
     toward the gene's, as an assigned read's do.  Adds the promoted isoforms to
     final_transcript_objs, iso_to_counts and gene_to_tot."""
     if args.subset_backup_support <= 0 or not removed_subsets:
@@ -1877,26 +1916,21 @@ def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_
                if isoform.juncs != () and _iso_passes_support_filter(args, name, isoform.gene_id, len(isoform.exons),
                                                                      iso_to_counts, gene_to_tot)[0]}
     assigned = {line.split('\t', 1)[0] for line in open(ends_path)} if os.path.exists(ends_path) else set()
-    gene_by_junc = {}
-    for isoform in final_transcript_objs.values():
-        for junc in isoform.juncs:
-            gene_by_junc.setdefault((isoform.strand, junc), isoform)
     # longest chains first, so an isoform's supersets are decided before it: a fragment
     # of a promoted subset is still a fragment
-    for name, (subset, supersets) in sorted(removed_subsets.items(), key=lambda item: -len(item[1][0].juncs)):
+    for name, (subset, supersets, unique_seq) in sorted(removed_subsets.items(), key=lambda item: -len(item[1][0].juncs)):
         if (subset.strand, subset.juncs) in passing or any((s.strand, s.juncs) in passing for s in supersets):
             continue
-        reads = [read for read in subset.reads if read.name not in assigned]
+        # truncated reads of the isoforms it is a subset of, which don't reach its
+        # own sequence, aren't its reads
+        check_exons = subset_check_exons(subset)
+        bounds = parse_unique_bounds(unique_bounds_past(unique_seq, check_exons[0], check_exons[-1], subset.strand))
+        reads = [read for read in subset.reads
+                 if read.name not in assigned and covers_unique_bounds(subset, bounds, read.start, read.end)]
         if len(reads) < max(args.sjc_support, args.subset_backup_support):
             continue
-        source = next((s for s in supersets if s.gene_id is not None), None) or \
-            next((gene_by_junc[(subset.strand, junc)] for junc in subset.juncs if (subset.strand, junc) in gene_by_junc), None)
-        if source is None:
-            logging.debug(f"subset isoform not promoted: no gene: {name}")
-            continue
+        # a copy of the subset, with its gene, strand and reference transcript
         promoted = _one_end_variant(subset, reads)
-        promoted.gene, promoted.gene_id, promoted.strand = source.gene, source.gene_id, source.strand
-        promoted.ref_transcript_id = _get_transcript_gene_from_annot(promoted, annots)[0] if annots is not None else None
         promoted.unpadded_ends = (promoted.start, promoted.end)
         promoted.backup_subset = True
         logging.debug(f"subset isoform promoted, its supersets failing support: {name} ({len(reads)} reads)")
@@ -2086,7 +2120,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                                   se_support=args.single_exon_support, frac_support=args.frac_support)
         final_transcript_objs = _with_single_exon_isoforms(final_transcript_objs, single_exon)
         promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_counts, gene_to_tot,
-                               partition.output_path('isoform.ends.tsv'), annots)
+                               partition.output_path('isoform.ends.tsv'))
         write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, args.generate_map)
 
 def combine_chunks(args, output, partitions):
