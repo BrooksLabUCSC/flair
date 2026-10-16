@@ -140,17 +140,16 @@ Options
 flair quantify
 ==============
 
-**Output**
+**Read assignment**
 
-Default: identifes the best isoform assignment based on alignment quality, fraction of read aligned, and fraction of transcript aligned
+A read is assigned to the isoform it best matches, by alignment quality, the fraction of
+the read aligned and the fraction of the transcript aligned. Two further requirements
+always apply, where earlier FLAIR releases made them optional:
 
-check_splice: adds check for read matching reference transcript at all splice sites
-
-stringent: adds requirement for read to cover at least 25bp of the first and last exons
-
-If you need your reads to match your isoforms well, use --check_splice and --stringent, while if you need more reads assigned to isoforms for better statistical comparison, use the default.
-
---quality 0 is also reccommended, as this allows slightly better recall as FLAIR can disambiguate some similar isoform alignments.
+- the read matches the isoform at every splice site, what ``--check_splice`` used to ask
+  for;
+- the read covers at least 25 bp of the first and last exons, what ``--stringent`` used
+  to ask for.
 
 Options
 -------

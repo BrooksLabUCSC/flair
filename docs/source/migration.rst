@@ -108,7 +108,9 @@ flair quantify
 **Gone**
 
 - ``--output_bam``, ``--sample_id_only``, ``--temp_dir``
-- ``--quality``, ``--stringent``, ``--check_splice``
+- ``--quality``
+- ``--stringent`` and ``--check_splice``: both requirements now always apply to read
+  assignment, so there is nothing to turn on
 
 **New**
 
@@ -254,3 +256,50 @@ Both are new.
   ``flair alleles``; see :ref:`isoalleles-label`.
 - ``flair variantquant`` counts the reads carrying each variant, per sample; see
   :ref:`variantquant-label`.
+
+Standalone programs
+-------------------
+
+**Gone**
+
+- ``bed_to_sequence``: use ``bedtools getfasta``
+- ``normalize_counts_matrix``
+- ``predictProductivity``: ``flair transcriptome`` writes the productivity call in the
+  isoform BED, and ``--predictCDS`` is gone with it
+- ``identify_annotated_gene``
+
+**New**
+
+- ``annotate_aaseq_with_uniprot``
+
+**Changed**
+
+- ``bed_to_gtf``: ``--dontuseCDS`` is ``--no_cds``, ``--add_reference_transcript_id`` is
+  gone, and ``--is_flair_bed`` turns the extra BED columns into GTF attributes
+- ``junctions_from_sam``, ``mark_intron_retention``, ``fasta_seq_lengths`` and
+  ``diffsplice_fishers_exact`` take the same arguments as before, but now parse them
+  with argparse, so each has ``--help``
+- ``flair_partition`` takes the ``--log-*`` options
+
+``gtf_to_bed``, ``identify_gene_isoform`` and ``plot_isoform_usage`` are unchanged.
+``diff_iso_usage`` takes the same arguments but writes three more columns, below.
+
+File formats
+------------
+
+- The counts matrix and the TPM table open with ``gene_id`` and ``isoform_id`` where
+  they had one ``ID`` column holding ``<isoform>_<gene>``. A counts matrix from an
+  earlier FLAIR, whose sample columns are named ``sample_condition_batch``, is still
+  read: the fields are taken back out of the column name.
+- Read maps have a header row, ``name`` and ``reads``, where the old
+  ``.isoform.read.map.txt`` started straight in on the data.
+- ``diff_iso_usage`` adds three columns at the end: ``<sample1>_PSI``,
+  ``<sample2>_PSI`` and ``delta_PSI``.
+- The isoform BED is BED12 plus 13 columns, in this order: ``gene_id``,
+  ``ref_transcript_id``, ``ref_gene_mappings``, ``read_support``, ``frac_support``,
+  ``productivity``, ``transcript_class``, ``fused_genes``, ``pos_in_fusion``,
+  ``samples``, ``source_isoform``, ``allele_group``, ``aaseq_id``. A column that does
+  not apply to a row is empty. Anything reading the BED by column number past column
+  12 has to be told which column it wants.
+- The isoform name no longer carries the gene. It is the isoform id alone, with the
+  gene in the ``gene_id`` column beside it.
