@@ -126,8 +126,12 @@ sample.fusions.isoforms.gtf, sample.fusions.isoforms.bb
     The fusion transcriptome as GTF and bigBed
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.fusion.isoform.read.map.txt
+sample.fusions.isoform.counts.txt
+    Read counts of the fusion isoforms, as flair transcriptome's isoform.counts.txt
+sample.fusions.isoform.read.map.txt
     read map of reads to fusion isoforms
+sample.fusions.aaseq.tsv
+    Protein sequences of the productive fusion isoforms, by the aaseq_id of the bed
 sample.prelimfusions.bed
     The preliminary fusions' loci, with their reads and distances to a TSS
 sample.genomealigned.chim.bam, sample.transcriptomealigned.chim.bam

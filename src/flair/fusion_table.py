@@ -94,7 +94,7 @@ def write_fusion_table(output, genetoname):
     "OUTPUT.fusions.tsv, from the run's preliminary fusions and final isoforms"
     rows = fusion_rows(prelim_read_counts(output + '.prelimfusions.bed'),
                        isoform_contigs(output + '.syntheticAligned.flair.isoforms.bed'),
-                       isoform_read_counts(output + '.fusion.isoform.read.map.txt'),
+                       isoform_read_counts(output + '.fusions.isoform.read.map.txt'),
                        isoform_pieces(output + '.fusions.isoforms.bed'),
                        genetoname)
     write_table(rows, output + '.fusions.tsv')

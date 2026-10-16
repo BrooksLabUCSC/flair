@@ -985,6 +985,9 @@ test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_sort,$@.fusions.isoform.counts.txt)
+	$(call cmp_expect,$@.fusions.aaseq.tsv)
+	test -s $O/$@.fusions.isoform.read.map.txt -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 # 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
 
@@ -1005,6 +1008,9 @@ test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_sort,$@.fusions.isoform.counts.txt)
+	$(call cmp_expect,$@.fusions.aaseq.tsv)
+	test -s $O/$@.fusions.isoform.read.map.txt -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 
 ${FUSION3_TEST_BAM}: $I/ERGIC3_DDX5_KRAS_sim_fusion.badread30x.stranded.fastq ${GENOME_FA}
 	$(call minimap2_genome_align,$I/ERGIC3_DDX5_KRAS_sim_fusion.badread30x.stranded.fastq,${GENOME_FA},-s 40 -G 350k)

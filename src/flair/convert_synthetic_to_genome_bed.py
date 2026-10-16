@@ -112,14 +112,16 @@ def get_locus_bounds(synthinfo):
     return locusbounds
 
 def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, thickStart, thickEnd):
+    """The first exon start, relative to start, and the exon indexes of each locus, and
+    each locus's part of the coding region, thickStart to thickEnd in synthetic
+    coordinates: None for a locus the coding region doesn't reach, or when there is
+    none (thickStart == thickEnd)"""
     starts = [None for x in range(numloci)]
     exonindexes = [[] for x in range(numloci)]
-    thickEdges = [[None, None] for x in range(numloci)]
-    for order in range(numloci):
-        if locusbounds[order][0] < thickStart < locusbounds[order][1]:
-            thickEdges[order][0] = thickStart
-        if locusbounds[order][0] < thickEnd < locusbounds[order][1]:
-            thickEdges[order][1] = thickEnd
+    thickEdges = [None for x in range(numloci)]
+    for order, (locusstart, locusend) in enumerate(locusbounds):
+        if thickStart < thickEnd and thickStart < locusend and locusstart < thickEnd:
+            thickEdges[order] = (max(thickStart, locusstart), min(thickEnd, locusend))
     for i in range(len(esizes)):
         thisstart, thisend = start + estarts[i], start + estarts[i] + esizes[i]
         for order in range(numloci):
@@ -132,7 +134,11 @@ def separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, thickS
                 exonindexes[order].append(i)
     return starts, exonindexes, thickEdges
 
-def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, hasThickEdges, thickEdges):
+def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, thickEdges):
+    """Each locus's piece of a synthetic isoform in genome coordinates.  A piece's
+    coding region is its part of the isoform's (separate_exons_by_locus), within its
+    exons' span: a piece the coding region doesn't reach has none (thickStart and
+    thickEnd None, written as chromEnd), rather than being all coding"""
     genomicbounds = []
     bedinfo = []
     for order in range(numloci):
@@ -151,20 +157,19 @@ def convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusboun
             locusestarts = temp
             locusesizes = locusesizes[::-1]
             chromStart = leftbound - (((start + starts[order]) - locusbounds[order][0]) + totlen)
-            if thickEdges[order][0] is not None:
-                thickEnd = leftbound - (thickEdges[order][0] - locusbounds[order][0])
-            if thickEdges[order][1] is not None:
+            if thickEdges[order] is not None:
                 thickStart = leftbound - (thickEdges[order][1] - locusbounds[order][0])
+                thickEnd = leftbound - (thickEdges[order][0] - locusbounds[order][0])
         else:
             chromStart = leftbound + ((start + starts[order]) - locusbounds[order][0])
-            if thickEdges[order][0] is not None:
+            if thickEdges[order] is not None:
                 thickStart = leftbound + (thickEdges[order][0] - locusbounds[order][0])
-            if thickEdges[order][1] is not None:
                 thickEnd = leftbound + (thickEdges[order][1] - locusbounds[order][0])
         chromEnd = chromStart + totlen
-        if hasThickEdges:
-            thickStart = chromStart if thickStart is None else thickStart
-            thickEnd = chromEnd if thickEnd is None else thickEnd
+        if thickStart is not None:
+            thickStart, thickEnd = max(thickStart, chromStart), min(thickEnd, chromEnd)
+            if thickStart >= thickEnd:
+                thickStart, thickEnd = None, None
 
         genomicbounds.append((genomicchr, chromStart, chromEnd, locusdir))
         blocks = [BedBlock(chromStart + locusestarts[i], chromStart + locusestarts[i] + locusesizes[i])
@@ -209,8 +214,6 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
         if start < locusbounds[0][1] and locusbounds[-1][0] < bed.chromEnd:
             numloci = len(synthinfo)
 
-            # FIXME add handling of existing thickStart and thickEnd values from synthetic aligned bed,
-            hasThickEdges = bed.thickStart != bed.thickEnd
             starts, exonindexes, thickEdges = separate_exons_by_locus(esizes, estarts, numloci, locusbounds, start, bed.thickStart, bed.thickEnd)
 
             assigned_exons = sorted(i for indexes in exonindexes for i in indexes)
@@ -219,7 +222,7 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
                 continue
 
             if None not in starts:
-                genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, hasThickEdges, thickEdges)
+                genomicbounds, bedinfos = convert_to_genomic_coords(numloci, synthinfo, exonindexes, starts, locusbounds, esizes, estarts, start, iso, thickEdges)
                 if not check_too_close(numloci, genomicbounds, min_dist):
                     for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
                         curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, bed.chrom, curr_gene_count)
@@ -232,6 +235,7 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist):
                         outbed = FlairBed(genomicchr, chromStart, chromEnd, name=bed.name, score=bed.score, strand=locusdir, blocks=blocks,
                                           gene_id=fusion_id, ref_gene_mappings=ref_gene_info, thickStart=thickStart, thickEnd=thickEnd,
                                           read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',
-                                          fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples)
+                                          fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples,
+                                          aaseq_id=bed.aaseq_id)
                         outbed.write(out)
     out.close()

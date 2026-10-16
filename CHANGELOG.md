@@ -128,6 +128,16 @@
     GENCODE, RefSeq and Ensembl name them, still leaving out mitochondria and unplaced
     scaffolds, and non-genic loci by their chrom:start-end form rather than a chr
     prefix.  The docs say flair fusion is configured for human genomes.
+  * `flair fusion` writes its isoforms as flair transcriptome does, all named
+    OUTPUT.fusions.*: with the bed, fasta, GTF and bigBed, it now writes
+    OUTPUT.fusions.isoform.counts.txt and OUTPUT.fusions.aaseq.tsv, the proteins
+    of the productive isoforms, whose ids the bed's aaseq_id column now carries.
+    The read map is renamed OUTPUT.fusions.isoform.read.map.txt (was
+    OUTPUT.fusion.isoform.read.map.txt).
+  * `flair fusion` drew a fusion piece the coding region doesn't reach as all
+    coding, in the bed, GTF and bigBed: the 3' piece of an isoform whose stop
+    codon is in its 5' piece, as 5 PTC isoforms in MCF7.
+    Such a piece now has no coding region.
 * `flair align` is removed.  It ran minimap2 and filtered its output, which no
   other module uses: flair transcriptome and flair fusion take a bam of all reads
   aligned to the genome.  Align with minimap2 as the docs show,

@@ -14,6 +14,7 @@ from flair import FlairInputDataError
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.read_processing import get_sequence_from_bed
 from flair.pycbio.hgdata.bed import Bed, BedReader
+from flair.flair_bed import FlairBed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 from flair.fusion_table import write_fusion_table, write_table
@@ -109,9 +110,12 @@ def fusion_cmd(args):
 
 def report_nofusions(outputprefix):
     logging.info('no fusions detected. Exiting')
-    for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa']:
+    for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa',
+                 outputprefix + '.fusions.isoform.counts.txt', outputprefix + '.fusions.isoform.read.map.txt']:
         f = open(file, 'w')
         f.close()
+    with open(outputprefix + '.fusions.aaseq.tsv', 'w') as fh:
+        fh.write('aaseq_id\taaseq\n')
     write_table([], outputprefix + '.fusions.tsv')
 
 def align_to_synth_genome(genome, reads, output, additional_options):
@@ -497,19 +501,30 @@ def filter_fasta(in_fa, out_fa, names):
                 out.write(line)
 
 
+def filter_by_first_column(in_tsv, out_tsv, names, header=False):
+    "the lines of in_tsv whose first column is in names, to out_tsv, after its header line if it has one"
+    with open(out_tsv, 'w') as out:
+        for i, line in enumerate(open(in_tsv)):
+            if (header and i == 0) or line.split('\t', 1)[0] in names:
+                out.write(line)
+
+
 def write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname):
-    "the fusion isoforms in genome coordinates, their sequences, reads, GTF and bigBed"
+    """the fusion isoforms in genome coordinates, as flair transcriptome writes its
+    isoforms: bed, sequences, counts, reads, proteins, GTF and bigBed"""
     logging.info('converting coordinates from synthetic to genomic')
     convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed', output + '-syntheticBreakpointLoc.bed',
                            output + '.fusions.isoforms.bed', min_dist_between_breakpoints)
 
-    goodisos = {bed.name for bed in BedReader(output + '.fusions.isoforms.bed', fixScores=True)}
+    fusion_beds = list(BedReader(output + '.fusions.isoforms.bed', fixScores=True, bedClass=FlairBed))
+    goodisos = {bed.name for bed in fusion_beds}
     filter_fasta(output + '.syntheticAligned.flair.isoforms.fa', output + '.fusions.isoforms.fa', goodisos)
-
-    with open(output + '.fusion.isoform.read.map.txt', 'w') as out:
-        for line in open(output + '.syntheticAligned.flair.isoform.read.map.txt'):
-            if line.split('\t', 1)[0] in goodisos:
-                out.write(line)
+    filter_by_first_column(output + '.syntheticAligned.flair.isoform.counts.txt',
+                           output + '.fusions.isoform.counts.txt', goodisos)
+    filter_by_first_column(output + '.syntheticAligned.flair.isoform.read.map.txt',
+                           output + '.fusions.isoform.read.map.txt', goodisos)
+    filter_by_first_column(output + '.syntheticAligned.flair.aaseq.tsv', output + '.fusions.aaseq.tsv',
+                           {bed.aaseq_id for bed in fusion_beds if bed.aaseq_id is not None}, header=True)
 
     write_fusion_table(output, genetoname)
 
