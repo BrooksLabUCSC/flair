@@ -75,6 +75,7 @@ individually to isoforms of the combined assembly for downstream analyses.
    installing.rst
    flair-protocol.rst
    running.rst
+   migration.rst
    modules.rst
    ids.rst
    scripts.rst
