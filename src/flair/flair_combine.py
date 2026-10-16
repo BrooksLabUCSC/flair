@@ -4,14 +4,15 @@ import logging
 import pysam
 from flair import FlairError
 from flair.bed_to_gtf import bed_to_gtf
-from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons, Gene, Isoform, Junc
-from flair.predictProductivity import predict_productivity
+from flair.predictProductivity import predict_productivity, translate
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import AnnotsByChrom
 from flair.gene_identification import get_gene_name_firstpass, _group_novel_by_splicing
+from flair.convert_synthetic_to_genome_bed import piece_gene
 
 def add_subparser(subparsers):
     desc = "Combine FLAIR transcriptomes or annotation transcriptomes into one"
@@ -270,7 +271,7 @@ def assign_gene_keys(combined):
     for i, bed_list_group in enumerate(combined):
         ref_genes = _ref_genes(bed_list_group)
         _check_ref_transcripts(bed_list_group)
-        if ref_genes != ():
+        if any(ref_genes):  # not a fusion of only non-genic loci, (None, None)
             gene_keys[i] = ('ref', ref_genes)
         elif not _is_fusion(bed_list_group[0]):
             novel.append(i)
@@ -316,16 +317,47 @@ def _partner_gene_keys(i, bed_list_group, og_to_key, key_to_og):
     return partner_keys
 
 
+def fusion_genes(beds, annots_by_chrom):
+    """The genes of a fusion isoform's pieces, beds, in fusion order, as flair fusion
+    gives them (piece_gene): by the pieces' junctions and fusion-junction splice
+    sites, then their exons, None for a non-genic piece, so samples' isoforms of the
+    same pieces get the same genes"""
+    beds = sorted(beds, key=lambda bed: bed.pos_in_fusion)
+    return tuple(piece_gene(bed.chrom, bed.strand, bed.blocks, bed.pos_in_fusion, len(beds), annots_by_chrom)
+                 for bed in beds)
+
+
+def fusion_aaseq(beds, genome):
+    """The protein of a fusion isoform, beds its pieces, if productive (PRO): each
+    piece's part of the CDS (its thickStart to thickEnd), in fusion order, joined and
+    translated, as flair fusion translated it on the pieces joined in its synthetic
+    genome.  As flair transcriptome, None for any other productivity"""
+    if beds[0].productivity != 'PRO':
+        return None
+    cds = ''
+    for bed in sorted(beds, key=lambda bed: bed.pos_in_fusion):
+        coding = [BedBlock(max(blk.start, bed.thickStart), min(blk.end, bed.thickEnd)) for blk in bed.blocks
+                  if blk.start < bed.thickEnd and bed.thickStart < blk.end]
+        cds += get_sequence_for_exons(genome, bed.chrom, bed.strand, coding)
+    return translate(cds)
+
+
 def set_genes_from_annotation(bed_list_group, annots_by_chrom, genome):
     """Give the isoforms of a combined isoform the gene, reference transcript, CDS
     and productivity flair transcriptome gives an isoform of its splice junctions,
     strand and ends (those of the combined isoform, the group's first), whatever
     the samples gave them, with its protein sequence as aaseq_id, for
-    write_combined to number.  Fusion isoforms keep theirs.  Returns whether a
-    sample's genes differed"""
+    write_combined to number.  A fusion isoform's pieces get their genes as flair
+    fusion gives them (fusion_genes), and keep the CDS and productivity flair fusion
+    gave them, with their protein translated from that CDS (fusion_aaseq).  Returns
+    whether a sample's genes differed"""
     primary = bed_list_group[0]
     if _is_fusion(primary):
-        return False
+        genes = fusion_genes(primary, annots_by_chrom)
+        aaseq = fusion_aaseq(primary, genome)
+        for bed in primary:
+            bed.aaseq_id = aaseq
+        return _set_sample_genes(bed_list_group, genes)
     bed = primary[0]
     annots = annots_by_chrom.get(bed.chrom)
     isoform = Isoform(bed.chrom, bed.strand, tuple(Junc(gap.start, gap.end) for gap in bed.getGaps()), bed.start, bed.end)
@@ -335,18 +367,30 @@ def set_genes_from_annotation(bed_list_group, annots_by_chrom, genome):
     isoform.ref_transcript_id = transcript_id
     thick_start, thick_end, productivity, aaseq = predict_productivity(
         isoform, annots.start_codon_count, annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
-    differing = sorted({_genes_str(x[0].ref_gene_mappings) for x in bed_list_group if tuple(x[0].ref_gene_mappings) != genes})
-    if differing:
-        logging.debug(f"combined isoform at {bed.chrom}:{bed.start}-{bed.end} ({bed.strand}) given gene "
-                      f"{','.join(genes) or 'novel'}, samples gave {'; '.join(differing)}")
+    differing = _set_sample_genes(bed_list_group, genes)
     for bed_list in bed_list_group:
         sample_bed = bed_list[0]
-        sample_bed.ref_gene_mappings = genes
         sample_bed.ref_transcript_id = transcript_id
         if sample_bed.transcript_class in ('basic', 'readthrough'):
             sample_bed.transcript_class = 'basic' if len(genes) <= 1 else 'readthrough'
     # as flair transcriptome writes them (convert_to_flair_bed), on the combined isoform
     bed.thickStart, bed.thickEnd, bed.productivity, bed.aaseq_id = thick_start, thick_end, productivity, aaseq
+    return differing
+
+
+def _set_sample_genes(bed_list_group, genes):
+    """give every sample's isoform of a combined isoform, each of its pieces, genes
+    as its ref_gene_mappings, logging the samples that gave others.  Returns
+    whether any did"""
+    differing = sorted({_genes_str(x[0].ref_gene_mappings) for x in bed_list_group
+                        if tuple(x[0].ref_gene_mappings) != genes})
+    if differing:
+        bed = bed_list_group[0][0]
+        logging.debug(f"combined isoform at {bed.chrom}:{bed.start}-{bed.end} ({bed.strand}) given gene "
+                      f"{_genes_str(genes)}, samples gave {'; '.join(differing)}")
+    for bed_list in bed_list_group:
+        for sample_bed in bed_list:
+            sample_bed.ref_gene_mappings = genes
     return len(differing) > 0
 
 
@@ -414,7 +458,7 @@ def write_combined(combined, genome, output, number_aaseqs=False):
             new_gene_id = new_gene(gene_key)
             new_fused_genes = [new_gene(key) for key in partner_keys]
             for bed in bed_list_group[0]:
-                if number_aaseqs and not _is_fusion(bed_list_group[0]) and bed.aaseq_id is not None:
+                if number_aaseqs and bed.aaseq_id is not None:
                     bed.aaseq_id = aaseq_to_id.setdefault(bed.aaseq_id, f'FLP{len(aaseq_to_id) + 1:08d}')
                 else:
                     # a sample's protein id: each sample numbers its own, so they

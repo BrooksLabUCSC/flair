@@ -253,6 +253,10 @@
     partners spliced at different acceptors, as ATP1A1 with ZFP64 and with a
     non-genic chr20 locus in MCF7, were taken for one isoform with two sets of
     genes, an error.
+  * With `--gtf`, the pieces of fusion isoforms get their genes as flair fusion gives
+    them, so samples that gave a fusion isoform different genes no longer stop
+    combine, and their proteins, translated from flair fusion's coding region, are
+    written to `combined.aaseq.tsv`, which left them out.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
