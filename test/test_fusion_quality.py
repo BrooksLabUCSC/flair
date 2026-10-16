@@ -26,6 +26,7 @@ def test_reads_with_a_low_quality_piece(tmp_path):
                      ('both_good', 0, 1000, 60), ('both_good', 2048, 5000, 60),
                      ('at_threshold', 0, 1000, 10), ('at_threshold', 2048, 5000, 60),
                      ('low_secondary', 0, 1000, 60), ('low_secondary', 256, 5000, 0)])
+
     def low_reads(min_mapq):
         with pysam.AlignmentFile(bam) as aligns:
             return {a.query_name for a in aligns if is_low_quality(a, min_mapq)}

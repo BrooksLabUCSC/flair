@@ -294,7 +294,6 @@ SINGLE_EXON_OVERLAP_MARGIN = 10
 SINGLE_EXON_EXPRESSION_RATIO = 1.2
 
 
-
 ####
 # transcriptome alignment
 ####
