@@ -2,7 +2,7 @@
 import pysam
 from flair.pycbio.hgdata.bed import BedBlock
 from flair.flair_bed import FlairBed
-from flair.flair_combine import fusion_aaseq, set_genes_from_annotation
+from flair.flair_combine import fusion_aaseq, load_isos_by_id, set_genes_from_annotation
 from test_fusion_piece_gene import _annots
 
 
@@ -49,3 +49,15 @@ def test_fusion_genes_from_the_annotation_whatever_the_samples_gave(tmp_path):
     group = [sample('A', 's1'), sample('B', 's2')]
     assert set_genes_from_annotation(group, _annots(tmp_path), None)
     assert {tuple(bed.ref_gene_mappings) for bed_list in group for bed in bed_list} == {('A', None)}
+
+
+def test_isoforms_of_one_name_on_two_chromosomes_are_not_a_fusion(tmp_path):
+    # chrX and chrY pseudoautosomal copies given one name by an older flair transcriptome
+    bed = tmp_path / 's.isoforms.bed'
+    with open(bed, 'w') as fh:
+        for chrom, gene in (('chrX', 'GX'), ('chrY', 'GY')):
+            FlairBed(chrom, 100, 400, 'FLT1', score=3, strand='-', blocks=[BedBlock(100, 200), BedBlock(300, 400)],
+                     gene_id='FLG1', ref_gene_mappings=(gene,), read_support=3, frac_support=1.0,
+                     transcript_class='basic', samples=('s',)).write(fh)
+    isotoinfo, _ = load_isos_by_id(str(bed))
+    assert sorted(len(records) for records in isotoinfo.values()) == [1, 1]

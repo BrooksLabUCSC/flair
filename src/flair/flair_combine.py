@@ -131,9 +131,14 @@ def load_isos_by_id(bedfile):
         # by strand too: a single-exon isoform and one antisense to it, with
         # similar ends, aren't the same isoform
         juncchaininfo = (bed.pos_in_fusion, bed.chrom, bed.strand, bed.getGaps())
-        if bed.name not in isotoinfo:
-            isotoinfo[bed.name] = []
-        isotoinfo[bed.name].append((juncchaininfo, bed))
+        # a fusion isoform's pieces share its name.  Other isoforms of one name on
+        # different chromosomes are different isoforms: flair transcriptome before
+        # 10fe17f gave isoforms of the same coordinates on chrX and chrY's
+        # pseudoautosomal region one name, and they were taken for a fusion
+        iso_key = bed.name if bed.pos_in_fusion is not None else (bed.name, bed.chrom)
+        if iso_key not in isotoinfo:
+            isotoinfo[iso_key] = []
+        isotoinfo[iso_key].append((juncchaininfo, bed))
         mysamples.update(set(bed.samples))
     if num_alleles > 0:
         logging.warning(f"{bedfile}: {num_alleles} isoforms of alleles, from flair isoalleles.  flair combine drops "
