@@ -8,7 +8,6 @@ import pipettor
 import shutil
 import pysam
 import logging
-import scipy.stats as sps
 from flair.partition_runner import PartitionRunner, combine_temp_files_by_suffix
 from flair import SeqRange
 from flair import thread_share
@@ -69,8 +68,6 @@ def get_args():
                         help='''specify if intermediate and temporary files are to be kept for debugging.
                         Intermediate files include: promoter-supported reads file,
                         read assignments to firstpass isoforms''')
-    parser.add_argument('--check_outliers', default=False, action='store_true',
-                        help='''whether to run a statistical analysis to identify and filter outliers from the input samples''')
     parser.add_argument('--keep_sup', default=False, action='store_true',
                         help='''specify if you want to keep supplementary alignments to define isoforms''')
     parser.add_argument('--output_read_ends', default=False, action='store_true',
@@ -833,9 +830,12 @@ def get_junc_string(chrom, juncs):
             return ','.join([f'{chrom}:{x[0]}-{x[1]}' for x in juncs])
 
 
-def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot, outtotals, event_support, outoutlier, outolfilt):  # noqa: C901 - FIXME: reduce complexity
-    sig_events = []
-    etype_to_sig = {}
+def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,  # noqa: C901 - FIXME: reduce complexity
+                 outtotals, event_support):
+    """Write the events expressed enough: each row's counts and two PSIs, over the
+    event's reads (PSIjunc) and over the reads covering its locus (PSItot), its BED
+    lines scored by its median PSIjunc, and the event's two totals, which
+    spliceevents_outliers divides by"""
     for ename in event_to_info:
         event = event_to_info[ename]
         if event.totoverlap is None:
@@ -863,122 +863,21 @@ def get_psi_and_filter(event_to_info, allsamples, event_frac_of_tot, junc_frac_o
 
                     # every sample can be below event_support, leaving no PSI to
                     # take a median of and nothing to score the BED with
-                    vals_for_outlier = [x for x in juncpsi if x != 'NA']
-                    if len(vals_for_outlier) > 0:
-                        med = median(vals_for_outlier)
+                    vals = [x for x in juncpsi if x != 'NA']
+                    if len(vals) > 0:
+                        med = median(vals)
                         # FIXME: use BED class
                         for line in jinfo.bedlines:
                             line[4] = round(med * 100)
                             outbed.write('\t'.join([str(x) for x in line]) + '\n')
-
-                        if (outoutlier is not None) and (len(vals_for_outlier) >= 5):
-                            dev = sps.iqr(vals_for_outlier) / 2
-                            for s in allsamples:
-                                thiscount = jinfo.samplecounts[s]
-                                thistot = event.totjunc[s]
-                                thispsi = thiscount / thistot if thistot > event_support else 'NA'
-                                if thispsi != 'NA' and abs(thispsi - med) >= 0.1:  # 10% PSI
-                                    delta = abs(thispsi - med)
-                                    countsstr = f'{thiscount};{thistot}'
-                                    # event_name, gene, median, dev, psi, numsamplesused, thiscount/junctot, absdeltapsi, numberofdev
-                                    if (dev == 0 and thispsi != med) or delta > dev * 3:
-                                        outline = [outinfo[0]] + outinfo[2:4] + [s, round(med, 6), round(dev, 6), round(thispsi, 6), len(vals_for_outlier), countsstr, round(delta, 6), 100000]
-                                        if dev != 0:
-                                            outline[-1] = round(delta / dev, 6)
-                                        sig_events.append(outline)
-                                        if event.eventtype not in etype_to_sig:
-                                            etype_to_sig[event.eventtype] = {}
-                                        all_these_juncs = (frozenset(jinfo.inc_juncs), frozenset(jinfo.exc_juncs), frozenset(jinfo.outer_juncs))
-                                        if all_these_juncs not in etype_to_sig[event.eventtype]:
-                                            etype_to_sig[event.eventtype][all_these_juncs] = {}
-                                        etype_to_sig[event.eventtype][all_these_juncs][s] = outline
                 if any([event.other[s] > 0 for s in allsamples]):
                     outinfo = [f'other_{ename}', ename, event.eventtype, event.gene, '', '', '', '']
                     write_counts_psi(outinfo, event.other, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
                 for total, counts in (('event_reads', event.totjunc), ('locus_reads', event.totoverlap)):
                     outtotals.write('\t'.join([ename, event.eventtype, event.gene, total] + [str(counts[s]) for s in allsamples]) + '\n')
-    if outoutlier is not None:
-        sig_events.sort(reverse=True, key=lambda x: x[::-1])
-        for line in sig_events:
-            outoutlier.write('\t'.join([str(x) for x in line]) + '\n')
-
-        seen_junctions, condensed_sig = {}, []
-        seen_es_juncs = {}
-        TEMP_OUTLIER_DEV_THRESHOLD = 6
-
-        for et in ['es', 'AFE', 'ALE', 'ir', 'alt5ss', 'alt3ss']:  # alt5ss and alt3ss overlaps with ALE and AFE should have already been filtered out when generating events
-            if et in etype_to_sig:
-                for juncs in etype_to_sig[et]:
-                    sample_to_vals = etype_to_sig[et][juncs]
-                    if et != 'ir':
-                        inc_juncs, exc_juncs, outer_juncs = juncs
-                        for j1 in inc_juncs:
-                            for j2 in outer_juncs:
-                                k = frozenset((j1, j2))
-                                if k not in seen_junctions:
-                                    seen_junctions[k] = {}
-                                seen_junctions[k][juncs] = sample_to_vals
-                        if et == 'es':
-                            all_juncs = (inc_juncs | exc_juncs) | outer_juncs
-                            seen_es_juncs[all_juncs] = sample_to_vals
-                    for s in sample_to_vals:
-                        condensed_sig.append(sample_to_vals[s])
-
-        for et in ['ces', 'alt5', 'alt3']:
-            if et in etype_to_sig:
-                for juncs in etype_to_sig[et]:
-                    inc_juncs, exc_juncs, outer_juncs = juncs
-
-                    sample_to_vals = etype_to_sig[et][juncs]
-                    good_s = set()
-                    has_overlap = False
-                    if et == 'ces':  # only for ces, check for subet of full es juncs
-                        if len(inc_juncs) == 0:
-                            all_juncs = exc_juncs | outer_juncs  # exclusion
-                        else:
-                            all_juncs = inc_juncs | outer_juncs  # include only the specific exon that is significatn
-                        for j2 in seen_es_juncs:
-                            if all_juncs - j2 == frozenset():  # is subset of other
-                                has_overlap = True
-                                for s in sample_to_vals:
-                                    if s not in seen_es_juncs[j2]:
-                                        good_s.add(s)
-                                    else:
-                                        this_dev = sample_to_vals[s][-1]
-                                        other_dev = seen_es_juncs[j2][s][-1]
-                                        if other_dev / this_dev < 0.8:  # deviation is 20% better for this event
-                                            good_s.add(s)
-                    else:
-                        all_juncs = inc_juncs | exc_juncs
-                        for jkey in seen_junctions:
-                            if all_juncs - jkey == frozenset():  # is subset of other
-                                has_overlap = True
-                                for j2 in seen_junctions[jkey]:
-                                    for s in sample_to_vals:
-                                        if s not in seen_junctions[jkey][j2]:
-                                            good_s.add(s)
-                                        else:
-                                            this_dev = sample_to_vals[s][-1]
-                                            other_dev = seen_junctions[jkey][j2][s][-1]
-                                            if other_dev / this_dev < 0.8:  # deviation is 20% better for this event
-                                                good_s.add(s)
-
-                    # adding good values to output
-                    if not has_overlap:
-                        good_s = sample_to_vals.keys()
-                        # adding junctions to reference
-                        if all_juncs not in seen_junctions:
-                            seen_junctions[all_juncs] = {}
-                        seen_junctions[all_juncs][juncs] = sample_to_vals
-                    for s in good_s:
-                        condensed_sig.append(sample_to_vals[s])
-        condensed_sig.sort(reverse=True, key=lambda x: x[::-1])
-        for line in condensed_sig:
-            if line[-1] > TEMP_OUTLIER_DEV_THRESHOLD:
-                outolfilt.write('\t'.join([str(x) for x in line]) + '\n')
 
 
-def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_juncs, genetostrand, junc_support, output_read_ends, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss, check_outliers):
+def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_juncs, genetostrand, junc_support, output_read_ends, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss):
     etypetocolor = {'skipped_exons': '66,105,245', 'retained_introns': '144,66,245',
                     'alt3': '245,215,66', 'alt5': '43,184,39', 'tss': '255,0,0', 'tts': '0,0,255'}
     # outends is just for writing out read ends for Harrison - he can group them more intelligently
@@ -987,10 +886,6 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
         outends = open(temp_prefix + '.spliceevents.readends.bed', 'w')
 
     allgenes = set.union(*[set(all_genes_to_juncs[s].keys()) for s in range(len(all_genes_to_juncs))])
-    outoutlier, outolfilt = None, None
-    if check_outliers:
-        outoutlier = open(temp_prefix + '.spliceevents.outliers.tsv', 'w')
-        outolfilt = open(temp_prefix + '.spliceevents.outliers.filtered.tsv', 'w')
     with open(temp_prefix + '.spliceevents.bed', 'w') as outbed, open(temp_prefix + '.spliceevents.counts.tsv', 'w') as outcounts, \
             open(temp_prefix + '.spliceevents.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.spliceevents.PSItot.tsv', 'w') as outpsitot, \
             open(temp_prefix + '.spliceevents.totals.tsv', 'w') as outtotals:
@@ -1027,11 +922,9 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
             # write_ends(t_first_last_sj[1], allsamples, thischrom, strand, gene, 'tts', etypetocolor['tts'], out, outbed, support)
             all_info = (((a3_info | a5_info) | (es_info | ir_info)) | (tts_info | tss_info)) | (afe_info | ale_info)
 
-            get_psi_and_filter(all_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot, outtotals, event_support, outoutlier, outolfilt)
+            write_events(all_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,
+                         outtotals, event_support)
 
-    if check_outliers:
-        outoutlier.close()
-        outolfilt.close()
     if output_read_ends:
         outends.close()
 
@@ -1204,7 +1097,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
             all_genes_to_juncs, annots.gene_to_strand, args.junc_support, args.output_read_ends,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
-            annot_afe_ss, annot_ale_ss, args.check_outliers)
+            annot_afe_ss, annot_ale_ss)
 
         if not args.keep_intermediate:
             for sample, bamfile in allsamples:
@@ -1233,8 +1126,6 @@ def combine_regions(regions, buffersize=0):
 EVENT_ROW_COLUMNS = ['eventname', 'event', 'eventtype', 'gene', 'junctions_included', 'junctions_excluded',
                      'outer_junctions', 'exons']
 EVENT_TOTALS_COLUMNS = ['event', 'eventtype', 'gene', 'total']
-OUTLIER_COLUMNS = ['eventname', 'eventtype', 'gene', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
-                   'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
 
 
 def write_with_header(output, prefixes, suffix, header):
@@ -1310,9 +1201,6 @@ def main():  # noqa: C901 - FIXME: reduce complexity
     write_with_header(args.output, prefixes, '.spliceevents.PSIjunc.tsv', EVENT_ROW_COLUMNS + samples)
     write_with_header(args.output, prefixes, '.spliceevents.PSItot.tsv', EVENT_ROW_COLUMNS + samples)
     write_with_header(args.output, prefixes, '.spliceevents.totals.tsv', EVENT_TOTALS_COLUMNS + samples)
-    if args.check_outliers:
-        for suffix in ['.spliceevents.outliers.tsv', '.spliceevents.outliers.filtered.tsv']:
-            write_with_header(args.output, prefixes, suffix, OUTLIER_COLUMNS)
 
     if not args.keep_intermediate:
         shutil.rmtree(tempDir)

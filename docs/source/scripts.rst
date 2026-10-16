@@ -154,3 +154,25 @@ For example:
 .. figure:: img/toy_diu_isoforms.svg
 
 .. figure:: img/toy_diu_usage.svg
+
+spliceevents_outliers
+=====================
+
+.. include:: cli/spliceevents_outliers.rst
+
+Finds outlier samples of the splicing events from flair spliceevents: samples
+whose PSI of an event is far from the median of all samples', at least 0.1 from
+it and more than 3 deviations (half the interquartile range), of events where at
+least 5 samples have ``--event_support`` reads.  It reads
+``OUTPUT.spliceevents.counts.tsv`` and ``OUTPUT.spliceevents.totals.tsv``, and
+calls outliers of either PSI: ``--psi junc``, of the event's reads, which is more
+sensitive, or ``--psi tot``, of the reads covering the event's locus, which finds
+strong overall events.
+
+**Outputs**
+
+ - ``OUTPUT.spliceevents.outliers.tsv``, every outlier
+ - ``OUTPUT.spliceevents.outliers.filtered.tsv``, the outliers more than 6
+   deviations from the median that a simpler event of the same gene and junctions
+   doesn't explain as well: a complex exon skip by an exon skip, an alternative
+   splice site by an exon skip or alternative first or last exon

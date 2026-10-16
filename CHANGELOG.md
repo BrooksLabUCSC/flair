@@ -263,6 +263,12 @@
     `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv
     has each event's reads and the reads covering its locus per sample, the
     denominators of PSIjunc and PSItot.
+  * Outlier calling moved out of flair spliceevents into the console script
+    `spliceevents_outliers`, which reads OUTPUT.spliceevents.counts.tsv and
+    totals.tsv, so its outliers can be called of either PSI (`--psi junc` or `tot`)
+    without rerunning spliceevents.  `--check_outliers` is removed.  A sample's PSI
+    is used when it has at least `--event_support` reads, as in the PSI tables,
+    rather than more than that.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

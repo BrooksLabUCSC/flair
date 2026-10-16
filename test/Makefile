@@ -1083,10 +1083,14 @@ test-spliceevents-extraannot: mkdirs ${BASIC_ALIGN_BAM}
 	$(call spliceevents_diff,$@)
 
 test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
-	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MULTI_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --check_outliers -o $O/$@
+	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MULTI_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call spliceevents_diff,$@)
+	python3 ../src/flair/spliceevents_outliers.py -i $O/$@ -o $O/$@
 	$(call cmp_expect_sort,$@.spliceevents.outliers.tsv)
 	$(call cmp_expect_sort,$@.spliceevents.outliers.filtered.tsv)
+	python3 ../src/flair/spliceevents_outliers.py -i $O/$@ -o $O/$@-psitot --psi tot
+	$(call cmp_expect_sort,$@-psitot.spliceevents.outliers.tsv)
+	$(call cmp_expect_sort,$@-psitot.spliceevents.outliers.filtered.tsv)
 
 $O/spliceevents-s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<
