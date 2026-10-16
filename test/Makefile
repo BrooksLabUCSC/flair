@@ -426,14 +426,16 @@ define combine_diff
 endef
 
 
-combine-tests: test-combine test-combine-files test-combine-nose test-combine-10pct test-combine-multends test-combine-multends-10pct
+combine-tests: test-combine test-combine-files test-combine-nose test-combine-10pct test-combine-multends test-combine-multends-10pct \
+	test-combine-conflict test-combine-conflict-gtf test-combine-isoalleles
 
 update-combine-tests:
-	for tname in "test-combine" "test-combine-files" "test-combine-nose" "test-combine-10pct" "test-combine-multends" "test-combine-multends-10pct"; \
+	for tname in "test-combine" "test-combine-files" "test-combine-nose" "test-combine-10pct" "test-combine-multends" "test-combine-multends-10pct" "test-combine-conflict-gtf" "test-combine-isoalleles"; \
 	do \
 	cp $O/$$tname.combined.isoforms.bed $E/$$tname.combined.isoforms.bed; \
 	cp $O/$$tname.combined.isoform.counts.tsv $E/$$tname.combined.isoform.counts.tsv; \
 	done
+	cp $O/test-combine-conflict-gtf.combined.aaseq.tsv $E/
 
 test-combine: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@
@@ -463,6 +465,24 @@ test-combine-multends: mkdirs ${GENOME_FA}
 test-combine-multends-10pct: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --min_percent_usage 10
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
+	$(combine_diff)
+
+# a sample whose isoform of ENST00000348547 was given KRAS: without the annotation,
+# an error naming the samples' genes, and with it, the isoform gets its own gene
+test-combine-conflict: mkdirs ${GENOME_FA}
+	! flair combine --manifest $I/combine_manifest_conflict.txt --genome ${GENOME_FA} -o $O/$@ 2> $O/$@.err
+	grep -q 'test-combine-conflict: ENSG00000133703.12; test-transcriptome: ENSG00000125991.19' $O/$@.err
+
+test-combine-conflict-gtf: mkdirs ${GENOME_FA}
+	flair combine --manifest $I/combine_manifest_conflict.txt --genome ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
+	$(combine_diff)
+	$(call cmp_expect,$@.combined.aaseq.tsv)
+
+# isoforms of alleles, from flair isoalleles: combined into their isoforms,
+# without allele information, with a warning; support is per allele, so a lower --min_percent_usage
+test-combine-isoalleles: mkdirs ${GENOME_FA}
+	flair combine --isoform_beds $E/test-isoalleles.isoalleles.bed --genome ${GENOME_FA} --min_percent_usage 1 -o $O/$@ 2> $O/$@.err
+	grep -q 'flair combine drops the allele information' $O/$@.err
 	$(combine_diff)
 
 ###

@@ -167,7 +167,25 @@ point to your files though):
 To combine FLAIR transcriptomes with annotated transcripts, convert the annotation gtf
 to a bed file with gtf_to_bed (see Additional Programs) and name that bed here.
 
-Flair combine will generate a counts file, but for the most accurate quantification, we recommend 
+Isoforms of the same splice junctions and strand from different samples are combined
+into one.  We recommend giving flair combine an annotation GTF (``-f``).  Each combined
+isoform then gets its gene, reference transcript, CDS and productivity from that
+annotation, as flair transcriptome would give them, whatever annotation or FLAIR version
+the samples were run with.  This lets samples run with different annotations be
+combined.  The proteins are numbered anew, in ``combined.aaseq.tsv``.  Fusion isoforms
+keep the samples' genes.  Without ``-f``, the samples' genes, CDS and productivity are
+used, an isoform that samples gave different genes or reference transcripts is an
+error, and isoforms have no protein ids, as each sample numbers its own.
+
+Isoforms of alleles, from flair isoalleles, can be combined, but without their allele
+information: the alleles of an isoform are combined into one isoform, with a warning.
+Their support is per allele, so each allele is a smaller fraction of its gene's reads
+than its isoform is, and ``--min_percent_usage`` should be set lower for them.  Either way, isoforms without an
+annotated gene are grouped into novel genes as flair transcriptome groups them, and
+isoform and gene ids are numbered in genome order, so they don't depend on the order
+of the samples.
+
+Flair combine will generate a counts file, but for the most accurate quantification, we recommend
 running FLAIR quantify using all samples against the combined transcriptome
 
 Options

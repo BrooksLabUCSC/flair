@@ -172,6 +172,26 @@
     `--total_rna` keeps single-exon reads that end at genomic A runs and needs no
     poly(A) tails (it requires `--trust_strand`).
   * Temporary files go in `--temp_dir`, by default $TMPDIR.
+* flair combine
+  * `-f/--gtf` gives each combined isoform its gene, reference transcript, CDS,
+    productivity and protein from that annotation, as flair transcriptome would,
+    whatever annotation or FLAIR version the samples were run with, and writes the
+    proteins to `combined.aaseq.tsv`.  Samples whose transcriptomes gave the same
+    junction chain different genes, which stopped combine, can be combined with it.
+  * Without `--gtf`, isoforms that samples gave different genes or reference
+    transcripts are an error that names the samples and their genes, and the
+    samples' protein ids, which each sample numbers from 1, are dropped.
+  * All the single-exon isoforms on a chromosome strand were combined into one
+    isoform: they share the empty junction chain, whose end groups `--max_ends 1`
+    merged.  Each group of single-exon isoforms with ends within `--end_window` is
+    now its own isoform.  Isoforms on opposite strands are no longer combined.
+  * Isoforms without an annotated gene are grouped into novel genes as flair
+    transcriptome groups them, by shared splicing, rather than through whichever
+    sample genes were seen first.  Isoform and gene ids are numbered in genome
+    order, and the map files are sorted, so the output no longer depends on the
+    order of the samples.
+  * Isoforms of alleles, from flair isoalleles, are combined without their allele
+    information, with a warning.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
