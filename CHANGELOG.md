@@ -257,6 +257,9 @@
     them, so samples that gave a fusion isoform different genes no longer stop
     combine, and their proteins, translated from flair fusion's coding region, are
     written to `combined.aaseq.tsv`, which left them out.
+  * An isoform found in many samples no longer stops combine making
+    `combined.isoforms.bb`: its sample list, like its genes, can be longer than 255
+    characters, bedToBigBed's limit for a string.
 * flair spliceevents
   * Is a flair subcommand, `flair spliceevents`, documented with the other modules;
     it was only runnable as `python flair_spliceevents.py`.  Its options are named
