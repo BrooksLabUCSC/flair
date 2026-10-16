@@ -258,6 +258,15 @@
     combine, and their proteins, translated from flair fusion's coding region, are
     written to `combined.aaseq.tsv`, which left them out.
 * flair spliceevents
+  * Is a flair subcommand, `flair spliceevents`, documented with the other modules;
+    it was only runnable as `python flair_spliceevents.py`.  Its options are named
+    as flair transcriptome's: `-f/--gtf` (was `--annot`), `--keep_supplementary`
+    (`--keep_sup`) and `--no_align_to_annot` (`--noaligntoannot`).
+    `--junc_support`, easily confused with `--junction_support`, is
+    `--feature_support`: the reads a junction, splice site or end of an event needs.
+    `--quality` sets the minimum mapping quality, which was fixed at 0.  Its defaults
+    are flair transcriptome's: `--ss_window` 10 (was 15), `--junction_support` 2
+    (was 1), `--quality` 1 and `--threads` 12 (was 4).
   * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
     were easily taken for flair diffsplice's.  The counts and PSI tables have an
     `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv

@@ -98,7 +98,7 @@ test-help:
 		test-quantify-help test-diffexp-help test-diffsplice-help \
 		test-diff-iso-usage-help \
 		test-plot-usage-help test-transcriptome-help test-fusion-help \
-		test-doc-cli
+		test-spliceevents-help test-doc-cli
 
 # the committed option pages must match what the parsers currently define
 test-doc-cli: mkdirs
@@ -1066,6 +1066,10 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers
 
+test-spliceevents-help: mkdirs
+	flair spliceevents --help > $O/$@.out
+	$(call cmp_expect,$@.out)
+
 define spliceevents_diff
 	$(call cmp_expect_sort,$(1).spliceevents.bed)
 	$(call cmp_expect_sort,$(1).spliceevents.counts.tsv)
@@ -1075,15 +1079,15 @@ define spliceevents_diff
 endef
 
 test-spliceevents: mkdirs ${BASIC_ALIGN_BAM}
-	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call spliceevents_diff,$@)
 
 test-spliceevents-extraannot: mkdirs ${BASIC_ALIGN_BAM}
-	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --annot_basic $(BASIC_ANNOTATION) -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --annot_basic $(BASIC_ANNOTATION) -o $O/$@
 	$(call spliceevents_diff,$@)
 
 test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
-	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MULTI_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MULTI_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call spliceevents_diff,$@)
 	python3 ../src/flair/spliceevents_outliers.py -i $O/$@ -o $O/$@
 	$(call cmp_expect_sort,$@.spliceevents.outliers.tsv)

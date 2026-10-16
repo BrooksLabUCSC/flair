@@ -1,9 +1,7 @@
-#! /usr/bin/env python3
-
-import argparse
 import os
 import os.path as osp
 import sys
+from flair import FlairInputDataError
 import pipettor
 import shutil
 import pysam
@@ -25,68 +23,71 @@ from flair.count_sam_transcripts import run_count_sam_transcripts
 pkgdir = osp.dirname(osp.realpath(__file__))
 gtf_to_bed_prog = osp.join(pkgdir, "gtf_to_bed.py")
 
-def get_args():
-    parser = argparse.ArgumentParser(description='identifies counts of different splicing events directly from a '
-                                                 'bam file of long-rna-seq alignments')
-    parser.add_argument('-m', '--manifest', required=True,
-                        help='manifest tsv with sample name and path to bam file aligned to genome')
-    parser.add_argument('-g', '--genome', required=True, type=str,
-                        help='FastA of reference genome, can be minimap2 indexed')
+def add_subparser(subparsers):
+    desc = ('counts alternative splicing events, and their PSIs, of each sample directly from bam '
+            'files of long-read RNA-seq alignments, for data too fragmented or variable in '
+            'quality for flair transcriptome')
+    parser = subparsers.add_parser('spliceevents', help='Count alternative splicing events from aligned reads',
+                                   description=desc)
+    required = parser.add_argument_group('required named arguments')
+    required.add_argument('-m', '--manifest', required=True,
+                          help='tab-separated manifest of sample name and path to its sorted and indexed bam '
+                               'file aligned to the genome, a line per sample')
+    required.add_argument('-g', '--genome', required=True, type=str,
+                          help='FastA of reference genome, can be minimap2 indexed')
+    required.add_argument('-f', '--gtf', dest='annot', metavar='GTF', required=True,
+                          help='GTF annotation file, used for correcting reads and assigning them to genes')
     parser.add_argument('-o', '--output', default='flair',
-                        help='output file name base for FLAIR isoforms (default: flair)')
-    parser.add_argument('-t', '--threads', type=int, default=4,
-                        help='the number of threads to use (4)')
-    # FIXME: this is different than all other modules that use --gtf.
-    parser.add_argument('-f', '--annot', required=True, default='',
-                        help='GTF annotation file, used for renaming FLAIR isoforms '
-                             'to annotated isoforms and adjusting TSS/TESs')
-    # FIXME: what is the difference than the above, same description
+                        help='output file name base (default: %(default)s)')
+    parser.add_argument('-t', '--threads', type=int, default=12,
+                        help='number of threads to run with (default: %(default)s)')
     parser.add_argument('--annot_basic', default='',
-                        help='GTF annotation file, used for renaming FLAIR isoforms '
-                             'to annotated isoforms and adjusting TSS/TESs')
+                        help='GTF annotation file whose transcripts\' first and last splice sites mark '
+                             'alternative first and last exons, such as GENCODE basic')
     parser.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
                                                'Use this option if you aligned your short-reads with STAR, '
                                                'STAR will automatically output this file')
     parser.add_argument('--junction_bed', help='short-read junctions in bed format '
                                                '(can be generated from long-read alignment with intron-prospector)')
+    parser.add_argument('--junction_support', type=int, default=2,
+                        help='if providing short-read junctions, minimum junction support required to keep junction. '
+                             'If your junctions file is in bed format, the score field will be used for read support '
+                             '(default: %(default)s)')
+    parser.add_argument('--ss_window', type=int, default=10,
+                        help='window size for correcting splice sites (default: %(default)s)')
     parser.add_argument('--region_bed',
                         help='bed file with regions to parallelize by; if not specified, all chromosomes are used')
-    parser.add_argument('--junction_support', type=int, default=1,
-                        help='if providing short-read junctions, minimum junction support required to keep junction. '
-                             'If your junctions file is in bed format, the score field will be used for read support.')
-    parser.add_argument('--ss_window', type=int, default=15,
-                        help='window size for correcting splice sites (15)')
-    parser.add_argument('--junc_support', type=int, default=2,
-                        help='''minimum number of supporting reads for a specific junction''')
+    parser.add_argument('--feature_support', type=int, default=2,
+                        help='minimum number of reads of a junction, splice site or end of an event in some '
+                             'sample (default: %(default)s)')
     parser.add_argument('--event_support', type=int, default=20,
-                        help='''minimum number of supporting reads for an event for PSI to be calculated''')
+                        help='minimum number of reads of an event in a sample for its PSI to be calculated '
+                             '(default: %(default)s)')
     parser.add_argument('--event_frac_of_tot', type=float, default=0.1,
-                        help='''minimum (total reads in splicing event)/(total coverage over locus) to call event''')
+                        help='minimum (total reads in splicing event)/(total coverage over locus) to call event '
+                             '(default: %(default)s)')
     parser.add_argument('--junc_frac_of_event', type=float, default=0.02,
-                        help='''minimum (reads with junction/total reads in splicing event) Set to 0 for max recall''')
-    parser.add_argument('--keep_intermediate', default=False, action='store_true',
-                        help='''specify if intermediate and temporary files are to be kept for debugging.
-                        Intermediate files include: promoter-supported reads file,
-                        read assignments to firstpass isoforms''')
-    parser.add_argument('--keep_sup', default=False, action='store_true',
-                        help='''specify if you want to keep supplementary alignments to define isoforms''')
-    parser.add_argument('--output_read_ends', default=False, action='store_true',
-                        help='''specify if you want to output corrected read ends bed file''')
-    parser.add_argument('--noaligntoannot', default=False, action='store_true',
-                        help='''specify if you don't want
-                        an initial alignment to the annotated sequences and only want transcript
-                        detection from the genomic alignment.
-                        Will be slightly faster but less accurate if the annotation is good''')
+                        help='minimum (reads with junction)/(total reads in splicing event). Set to 0 for max recall '
+                             '(default: %(default)s)')
+    parser.add_argument('--quality', type=int, default=1,
+                        help='minimum mapping quality of genomic alignments (default: %(default)s)')
+    parser.add_argument('--keep_supplementary', action='store_true',
+                        help='keep supplementary alignments')
+    parser.add_argument('--no_align_to_annot', action='store_true',
+                        help="skip the initial alignment to the annotated sequences and correct reads only "
+                             "from the genomic alignment. Slightly faster but less accurate when the annotation "
+                             "is good")
+    parser.add_argument('--output_read_ends', action='store_true',
+                        help='write OUTPUT.spliceevents.readends.bed, the corrected ends of the reads')
+    parser.add_argument('--keep_intermediate', action='store_true',
+                        help='keep intermediate and temporary files for debugging')
+    parser.set_defaults(entry=spliceevents_cmd)
 
-    args = parser.parse_args()
 
-    args.trust_ends = False
-    args.remove_internal_priming = False
-    args.quality = 0  # should only be used for genomic alignment
-
+def spliceevents_cmd(args):
     if not os.path.exists(args.genome):
-        parser.error(f'Genome file path does not exist: {args.genome}')
-    return args
+        raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
+    spliceevents(args)
 
 
 TERMINAL_JUNCTION_DIST_FROM_ANNOT = 20
@@ -930,7 +931,7 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
 
 
 def generate_good_match_to_annot(args, temp_prefix, region, bamfile_name, region_annot, region_annot_fa, clipping_file):
-    if not args.noaligntoannot:
+    if not args.no_align_to_annot:
         pipettor.run([('samtools', 'view', '-h', bamfile_name, f'{region.name}:{region.start}-{region.end}'),
                       ('samtools', 'fasta', '-')],
                      stdout=temp_prefix + '.reads.fasta')
@@ -999,7 +1000,7 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, reg
                                read_to_annot_transcript=read_to_transcript,
                                annots=annots, junction_corrector=junction_corrector,
                                genome=None,
-                               quality=args.quality, keep_sup=args.keep_sup,
+                               quality=args.quality, keep_sup=args.keep_supplementary,
                                sj_to_ends=sj_to_ends,
                                allow_outside_range=True,
                                keep_single_exon=False)
@@ -1044,7 +1045,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  
             pipettor.run([('bedtools', 'intersect', '-wa', '-a', args.annot_basic, '-b', region_bed)], stdout=region_annot_basic)
 
         region_annot_fa = None
-        if not args.noaligntoannot:
+        if not args.no_align_to_annot:
             region_annot_fa = partition.file_prefix + '.annotation.fa'
             get_sequence_from_bed(args.genome, region_annot, region_annot_fa)
 
@@ -1095,7 +1096,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples):  
 
         process_gene_to_events(
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
-            all_genes_to_juncs, annots.gene_to_strand, args.junc_support, args.output_read_ends,
+            all_genes_to_juncs, annots.gene_to_strand, args.feature_support, args.output_read_ends,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss, annot_ale_ss)
 
@@ -1137,9 +1138,7 @@ def write_with_header(output, prefixes, suffix, header):
                 shutil.copyfileobj(fh, out)
 
 
-def main():  # noqa: C901 - FIXME: reduce complexity
-    logging.basicConfig(level=logging.INFO)
-    args = get_args()
+def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
     logging.info('loading genome')
     genome = pysam.FastaFile(args.genome)
 
@@ -1206,7 +1205,3 @@ def main():  # noqa: C901 - FIXME: reduce complexity
         shutil.rmtree(tempDir)
 
     genome.close()
-
-
-if __name__ == "__main__":
-    main()

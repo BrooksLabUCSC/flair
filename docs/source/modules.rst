@@ -425,6 +425,59 @@ considered to include or exclude the each event:
    inclusion_chr1:400-500  chr1:400-500    75.0    35.0    ... e,a
    exclusion_chr1:400-500  chr1:400-500    56.0    15.0    ... f
 
+.. _spliceevents-label:
+
+flair spliceevents
+==================
+
+This module counts alternative splicing events in each sample directly from its
+reads aligned to the genome, without building isoforms first, so it suits
+fragmented or degraded libraries and datasets of variable quality, which flair
+transcriptome handles less well.  Reads are corrected against the annotation, and
+optionally short-read junctions, as flair transcriptome corrects them, and assigned to
+annotated genes.  Single-exon reads are left out.  It finds these events of each gene:
+
+ - exon skipping (es) and complex exon skipping, of several exons (ces)
+ - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
+   splice sites shared by a group of junctions (alt5ss, alt3ss)
+ - intron retention (ir)
+ - alternative first and last exons (AFE, ALE)
+ - alternative transcription starts and ends (tss, tts)
+
+Each event has a row for each of its alternatives, such as an exon's inclusion and
+exclusion, and an ``other`` row for its reads that fit none of them.  An event's PSI
+is computed two ways: of the event's reads (PSIjunc), which is more sensitive, and of
+all reads covering the event's locus (PSItot), which favours events that are strong
+overall.  A sample needs ``--event_support`` reads of an event for a PSI.
+
+The manifest is a tab-separated file of a sample name and the path to its sorted and
+indexed bam file, a line per sample::
+
+   sample1	sample1.genomealigned.bam
+   sample2	sample2.genomealigned.bam
+
+**Outputs**
+
+ - ``OUTPUT.spliceevents.counts.tsv``, the reads of each event row in each sample,
+   with the row's event, event type, gene, and its junctions included, excluded and
+   outer, and exons
+ - ``OUTPUT.spliceevents.PSIjunc.tsv`` and ``OUTPUT.spliceevents.PSItot.tsv``, the
+   rows' PSIs, empty where a sample has too few reads
+ - ``OUTPUT.spliceevents.totals.tsv``, each event's reads (``event_reads``) and the
+   reads covering its locus (``locus_reads``) in each sample, the PSIs' denominators
+ - ``OUTPUT.spliceevents.bed``, the event rows for a genome browser, scored by their
+   median PSIjunc
+ - ``OUTPUT.spliceevents.readends.bed``, with ``--output_read_ends``
+
+Outlier samples, whose PSI of an event is far from the other samples', can be found
+from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__
+script.
+
+Options
+-------
+
+.. include:: cli/spliceevents.rst
+
 .. _variantquant-label:
 
 flair variantquant

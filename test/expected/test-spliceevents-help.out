@@ -1,0 +1,77 @@
+usage: flair spliceevents [-h] -m MANIFEST -g GENOME -f GTF [-o OUTPUT]
+                          [-t THREADS] [--annot_basic ANNOT_BASIC]
+                          [--junction_tab JUNCTION_TAB]
+                          [--junction_bed JUNCTION_BED]
+                          [--junction_support JUNCTION_SUPPORT]
+                          [--ss_window SS_WINDOW] [--region_bed REGION_BED]
+                          [--feature_support FEATURE_SUPPORT]
+                          [--event_support EVENT_SUPPORT]
+                          [--event_frac_of_tot EVENT_FRAC_OF_TOT]
+                          [--junc_frac_of_event JUNC_FRAC_OF_EVENT]
+                          [--quality QUALITY] [--keep_supplementary]
+                          [--no_align_to_annot] [--output_read_ends]
+                          [--keep_intermediate]
+
+counts alternative splicing events, and their PSIs, of each sample directly
+from bam files of long-read RNA-seq alignments, for data too fragmented or
+variable in quality for flair transcriptome
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        output file name base (default: flair)
+  -t THREADS, --threads THREADS
+                        number of threads to run with (default: 12)
+  --annot_basic ANNOT_BASIC
+                        GTF annotation file whose transcripts' first and last
+                        splice sites mark alternative first and last exons,
+                        such as GENCODE basic
+  --junction_tab JUNCTION_TAB
+                        short-read junctions in SJ.out.tab format. Use this
+                        option if you aligned your short-reads with STAR, STAR
+                        will automatically output this file
+  --junction_bed JUNCTION_BED
+                        short-read junctions in bed format (can be generated
+                        from long-read alignment with intron-prospector)
+  --junction_support JUNCTION_SUPPORT
+                        if providing short-read junctions, minimum junction
+                        support required to keep junction. If your junctions
+                        file is in bed format, the score field will be used
+                        for read support (default: 2)
+  --ss_window SS_WINDOW
+                        window size for correcting splice sites (default: 10)
+  --region_bed REGION_BED
+                        bed file with regions to parallelize by; if not
+                        specified, all chromosomes are used
+  --feature_support FEATURE_SUPPORT
+                        minimum number of reads of a junction, splice site or
+                        end of an event in some sample (default: 2)
+  --event_support EVENT_SUPPORT
+                        minimum number of reads of an event in a sample for
+                        its PSI to be calculated (default: 20)
+  --event_frac_of_tot EVENT_FRAC_OF_TOT
+                        minimum (total reads in splicing event)/(total
+                        coverage over locus) to call event (default: 0.1)
+  --junc_frac_of_event JUNC_FRAC_OF_EVENT
+                        minimum (reads with junction)/(total reads in splicing
+                        event). Set to 0 for max recall (default: 0.02)
+  --quality QUALITY     minimum mapping quality of genomic alignments
+                        (default: 1)
+  --keep_supplementary  keep supplementary alignments
+  --no_align_to_annot   skip the initial alignment to the annotated sequences
+                        and correct reads only from the genomic alignment.
+                        Slightly faster but less accurate when the annotation
+                        is good
+  --output_read_ends    write OUTPUT.spliceevents.readends.bed, the corrected
+                        ends of the reads
+  --keep_intermediate   keep intermediate and temporary files for debugging
+
+required named arguments:
+  -m MANIFEST, --manifest MANIFEST
+                        tab-separated manifest of sample name and path to its
+                        sorted and indexed bam file aligned to the genome, a
+                        line per sample
+  -g GENOME, --genome GENOME
+                        FastA of reference genome, can be minimap2 indexed
+  -f GTF, --gtf GTF     GTF annotation file, used for correcting reads and
+                        assigning them to genes
