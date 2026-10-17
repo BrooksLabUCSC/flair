@@ -164,6 +164,27 @@ def internal_exons(juncs):
     return [(juncs[i][1], juncs[i + 1][0]) for i in range(len(juncs) - 1)]
 
 
+def event_name(etype, gene, chrom, start, end, strand):
+    """an event's name: its type, gene, and outer bounds, start 0-based, written 1-based
+    as a genome browser's locus"""
+    return f'{etype}|{gene}|{chrom}:{start + 1}-{end}({strand})'
+
+
+def row_name(ename, alternative):
+    "an event row's name, in BED records: the event's and the row's alternative"
+    return f'{ename}|{alternative}'
+
+
+def coord_ranges(ranges):
+    "introns or exons, (start, end) with 0-based starts, written 1-based"
+    return ','.join(f'{start + 1}-{end}' for start, end in sorted(ranges))
+
+
+def span(ranges):
+    "the outer bounds of introns or exons"
+    return min(r[0] for r in ranges), max(r[1] for r in ranges)
+
+
 def _event_bed(chrom, blocks, name, strand, color):
     "an event's BED record of blocks, (start, end) pairs, scored when the event is written"
     start, end = blocks[0][0], blocks[-1][1]
@@ -441,7 +462,7 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
         if supported(inc, allsamples, min_read_support) and supported(exc, allsamples, min_read_support) \
                 and psi_varies(sample_psis(inc, tot_counts, allsamples, event_support), junc_frac_of_event):
             outer_juncs = exon_to_outer_juncs[exon]
-            ename = f'es-of-{thischrom}:{exon[0]}-{exon[1]}'
+            ename = event_name('es', gene, thischrom, exon[0], exon[1], strand)
 
             # the outer junctions whose inclusion is a large enough part of the event
             goodouterjuncs = set()
@@ -456,7 +477,7 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
 
             beds = []
             for outerjunc in goodouterjuncs:
-                beds.append(junction_bed(thischrom, outerjunc, [exon], f'inc_{ename}', strand, mycolor))
+                beds.append(junction_bed(thischrom, outerjunc, [exon], row_name(ename, 'inc'), strand, mycolor))
                 inc_counts = exonjpairs[((outerjunc[0], exon[0]), (exon[1], outerjunc[1]))]
                 add_counts_at(esjuncs.setdefault((outerjunc[0], exon[0]), {}), outerjunc, inc_counts, allsamples)
                 add_counts_at(esjuncs.setdefault((exon[1], outerjunc[1]), {}), outerjunc, inc_counts, allsamples)
@@ -491,15 +512,16 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
 
         # only require one exon relative to outer junction
         if len(goodB) > 0 and frozenset(my_juncs | {outerjunc, }) not in seen_junc_combos:
-            ename = f'ces-relTo-{thischrom}:{outerjunc[0]}-{outerjunc[1]}({strand})-{gene}'
+            ename = event_name('ces', gene, thischrom, outerjunc[0], outerjunc[1], strand)
             event = event_to_info[ename] = SplicingEvent(ename, 'ces', gene, thischrom, strand, tot_counts, allsamples)
-            bed = junction_bed(thischrom, outerjunc, [], f'exc_{ename}', strand, mycolor)
+            bed = junction_bed(thischrom, outerjunc, [], row_name(ename, 'exc'), strand, mycolor)
             event.events['exc'] = SplicingEventJunction('exc', [bed], exc, set(), my_juncs, {outerjunc, }, all_exons)
 
             for innerjuncs in goodB:
                 my_exons = internal_exons(innerjuncs)
-                jname = 'inc-of-' + ','.join([f'{thischrom}:{x[0]}-{x[1]}' for x in my_exons])
-                bed = junction_bed(thischrom, outerjunc, my_exons, f'{jname}_{ename}', strand, mycolor)
+                # the exons included
+                jname = coord_ranges(my_exons)
+                bed = junction_bed(thischrom, outerjunc, my_exons, row_name(ename, jname), strand, mycolor)
                 event.events[jname] = SplicingEventJunction(jname, [bed], innerjuncs_to_counts[innerjuncs],
                                                             set(innerjuncs), my_juncs - set(innerjuncs), {outerjunc, }, set(my_exons))
                 for j in innerjuncs:
@@ -564,17 +586,20 @@ def process_terminal_exons(termExon, eventtype, thischrom, strand, gene, allsamp
 
     # check that the junctions involved are distant enough from each other
     if len(goodB) > 1 and len(goodBstrict) > 1 and max(goodBstrict) - min(goodBstrict) >= MIN_TERMINAL_JUNCTION_SEPARATION:
-        ename = f'{eventtype}-({strand})-{gene}'
+        # each first or last exon by its introns: those of the event's, or failing that,
+        # all its own
+        ss_juncs = {ssB: ({x for x in my_juncs if ssB in x} or set(termExon[ssB])) for ssB in goodB}
+        ename = event_name(eventtype, gene, thischrom, *span([j for juncs in ss_juncs.values() for j in juncs]), strand)
         event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
         for ssB in goodB:
-            jname = f'{thischrom}:{ssB}'
+            jname = coord_ranges(ss_juncs[ssB])
             # 100 bases of the exon, on its side of the splice site
-            if (eventtype == 'AFE' and strand == '+') or (eventtype == 'ALE' and strand == '-'):
+            if (eventtype == 'afe' and strand == '+') or (eventtype == 'ale' and strand == '-'):
                 bs, be = ssB - 100, ssB
             else:
                 bs, be = ssB, ssB + 100
             inc_juncs = {x for x in my_juncs if ssB in x}
-            event.events[jname] = SplicingEventJunction(jname, [site_bed(thischrom, bs, be, f'{jname}_{ename}', strand, mycolor)],
+            event.events[jname] = SplicingEventJunction(jname, [site_bed(thischrom, bs, be, row_name(ename, jname), strand, mycolor)],
                                                         ss_to_counts[ssB], inc_juncs, my_juncs - inc_juncs)
         event.keep_other(othercounts, min_read_support)
         junc_combos.add(frozenset(my_juncs))
@@ -621,12 +646,13 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
         if len(goodB) > 1:
             ssB_groups_to_ssA.setdefault(frozenset(goodB), {})[ssA] = tot_counts
         if supported(tot_counts, allsamples, event_support) and len(goodBstrict) > 1:  # only if alt splicing, not including junctions involved in exon skipping
-            ename = f'{eventtype}-relTo-{thischrom}:{ssA}({strand})-{gene}'
+            # from the shared site to the furthest alternative one, so unique to the shared site
+            ename = event_name(eventtype, gene, thischrom, *span([junc_between(ssA, ssB) for ssB in goodB]), strand)
             event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
             for ssB in goodB:
                 junc = junc_between(ssA, ssB)
-                jname = f'{thischrom}:{junc[0]}-{junc[1]}'
-                bed = site_bed(thischrom, junc[0], junc[1], f'{jname}_{ename}', strand, colordict[eventtype])
+                jname = coord_ranges([junc])
+                bed = site_bed(thischrom, junc[0], junc[1], row_name(ename, jname), strand, colordict[eventtype])
                 event.events[jname] = SplicingEventJunction(jname, [bed], ssB_counts[ssB], {junc, }, my_juncs - {junc, })
             event.keep_other(othercounts, min_read_support)
             # all goodB lie on the same side of ssA
@@ -650,17 +676,18 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
             else:
                 othercounts = add_counts_to_dict(othercounts, counts)
         if len(good) > 1:
-            oj_string = [f'{thischrom}:{x}' for x in sorted(list(ssBgroup))]
-            ename = f'{eventtype}ss-relTo-{",".join(oj_string)}({strand})-{gene}'
+            # unique: each site A is in one group, and the outer bounds end at the group's
+            # outermost site A
+            ename = event_name(f'{eventtype}ss', gene, thischrom, *span(my_juncs), strand)
             event = event_to_info[ename] = SplicingEvent(ename, f'{eventtype}ss', gene, thischrom, strand, tot_counts, allsamples)
             for ssA in good:
                 if (eventtype == 'alt5' and strand == '+') or (eventtype == 'alt3' and strand == '-'):
                     bs, be = ssA - 10, ssA
                 else:
                     bs, be = ssA, ssA + 10
-                jname = f'{thischrom}:{ssA}'
                 inc_juncs = {junc_between(ssA, ssB) for ssB in ssBgroup}
-                bed = site_bed(thischrom, bs, be, f'{jname}_{ename}', strand, colordict[eventtype])
+                jname = coord_ranges(inc_juncs)
+                bed = site_bed(thischrom, bs, be, row_name(ename, jname), strand, colordict[eventtype])
                 event.events[jname] = SplicingEventJunction(jname, [bed], ssA_counts[ssA], inc_juncs, my_juncs - inc_juncs)
             event.keep_other(othercounts, min_read_support)
             ref_junc = (max(good), min(ssBgroup)) if median(good) < median(ssBgroup) else (max(ssBgroup), min(good))
@@ -711,11 +738,11 @@ def write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, g
         tot_counts = add_counts_to_dict(splicedcounts, retainedcounts)
         if supported(splicedcounts, allsamples, min_read_support) and supported(retainedcounts, allsamples, min_read_support) \
                 and psi_varies(sample_psis(retainedcounts, tot_counts, allsamples, event_support), junc_frac_of_event):
-            ename = f'ir-of-{thischrom}:{j[0]}-{j[1]}({strand})-{gene}'
+            ename = event_name('ir', gene, thischrom, j[0], j[1], strand)
             event = event_to_info[ename] = SplicingEvent(ename, 'ir', gene, thischrom, strand, tot_counts, allsamples)
-            bed = junction_bed(thischrom, j, [], f'spliced_{ename}', strand, mycolor)
+            bed = junction_bed(thischrom, j, [], row_name(ename, 'spliced'), strand, mycolor)
             event.events['spliced'] = SplicingEventJunction('spliced', [bed], splicedcounts, {j, }, set())
-            bed = site_bed(thischrom, j[0], j[1], f'retained_{ename}', strand, mycolor)
+            bed = site_bed(thischrom, j[0], j[1], row_name(ename, 'retained'), strand, mycolor)
             event.events['retained'] = SplicingEventJunction('retained', [bed], retainedcounts, set(), {j, })
             event.totoverlap = get_overlapping_reads(j, interval_to_reads, allsamples)
     return event_to_info
@@ -735,12 +762,16 @@ def write_ends(grouped_ends, allsamples, thischrom, strand, gene, eventtype, myc
         else:
             othercounts = add_counts_to_dict(othercounts, counts)
     if len(good_ends) > 1:
-        ename = f'{eventtype}-({strand})-{gene}'
+        # the 1-based position of each end's base: the reads' starts are 0-based, on +
+        # their tss and on - their tts
+        from_starts = (eventtype == 'tss') == (strand == '+')
+        positions = {e: e + 1 if from_starts else e for e in good_ends}
+        ename = event_name(eventtype, gene, thischrom, min(positions.values()) - 1, max(positions.values()), strand)
         event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
-        for e in good_ends:
-            jname = f'{thischrom}:{e}'
-            bed = site_bed(thischrom, e - 1, e, f'{jname}_{ename}', strand, mycolor)
-            event.events[jname] = SplicingEventJunction(jname, [bed], grouped_ends[e], {e, }, good_ends - {e, })
+        for e, pos in positions.items():
+            jname = str(pos)
+            bed = site_bed(thischrom, pos - 1, pos, row_name(ename, jname), strand, mycolor)
+            event.events[jname] = SplicingEventJunction(jname, [bed], grouped_ends[e], {pos, }, set(positions.values()) - {pos, })
         event.keep_other(othercounts, support)
     return event_to_info
 
@@ -763,7 +794,7 @@ def get_junc_string(chrom, juncs):
         if isinstance(juncs[0], int):
             return ','.join([f'{chrom}:{x}' for x in juncs])
         else:
-            return ','.join([f'{chrom}:{x[0]}-{x[1]}' for x in juncs])
+            return ','.join([f'{chrom}:{x[0] + 1}-{x[1]}' for x in juncs])
 
 
 def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,  # noqa: C901 - FIXME: reduce complexity
@@ -792,7 +823,7 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                 for jname in event.events:
                     jinfo = event.events[jname]
 
-                    outinfo = [f'{jname}_{ename}', ename, event.eventtype, event.gene, get_junc_string(event.chrom, jinfo.inc_juncs),
+                    outinfo = [ename, jname, event.eventtype, event.gene, get_junc_string(event.chrom, jinfo.inc_juncs),
                                get_junc_string(event.chrom, jinfo.exc_juncs), get_junc_string(event.chrom, jinfo.outer_juncs), get_junc_string(event.chrom, jinfo.inc_exon)]
                     juncpsi = write_counts_psi(outinfo, jinfo.samplecounts, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
 
@@ -805,7 +836,7 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                             bed.score = round(med * 100)
                             bed.write(outbed)
                 if any([event.other[s] > 0 for s in allsamples]):
-                    outinfo = [f'other_{ename}', ename, event.eventtype, event.gene, '', '', '', '']
+                    outinfo = [ename, 'other', event.eventtype, event.gene, '', '', '', '']
                     write_counts_psi(outinfo, event.other, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
                 for total, counts in (('event_reads', event.totjunc), ('locus_reads', event.totoverlap)):
                     outtotals.write('\t'.join([ename, event.eventtype, event.gene, total] + [str(counts[s]) for s in allsamples]) + '\n')
@@ -837,8 +868,8 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
             # TODO combine exon skipping at multiple junctions (so all junctions that skip exon are combined)
             es_info, esjuncs = write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gene,
                                                    etypetocolor['skipped_exons'], junc_support, interval_to_reads, junc_frac_of_event, event_support, outer_junc_to_exons)
-            afe_info, afe_junc_comb = process_terminal_exons(afe, 'AFE', thischrom, strand, gene, allsamples, etypetocolor['tss'], junc_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_afe_ss)
-            ale_info, ale_junc_comb = process_terminal_exons(ale, 'ALE', thischrom, strand, gene, allsamples, etypetocolor['tts'], junc_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_ale_ss)
+            afe_info, afe_junc_comb = process_terminal_exons(afe, 'afe', thischrom, strand, gene, allsamples, etypetocolor['tss'], junc_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_afe_ss)
+            ale_info, ale_junc_comb = process_terminal_exons(ale, 'ale', thischrom, strand, gene, allsamples, etypetocolor['tts'], junc_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_ale_ss)
             afe_ale_junc_comb = afe_junc_comb | ale_junc_comb
             a3_info = process_junction_events(ss5to3, esjuncs, 'alt3', thischrom, strand, gene, allsamples, etypetocolor,
                                               junc_support, interval_to_reads, junc_frac_of_event, event_support, afe_ale_junc_comb)
@@ -1010,7 +1041,7 @@ def correction_regions(report_regions, bamfiles):
 
 
 # events whose reads are all of a gene's: its starts and ends, first and last exons
-GENE_WIDE_EVENTS = {'tss', 'tts', 'AFE', 'ALE'}
+GENE_WIDE_EVENTS = {'tss', 'tts', 'afe', 'ale'}
 
 
 def _event_positions(event):
@@ -1067,9 +1098,9 @@ def combine_regions(regions, buffersize=0):
 
 # the columns of the counts and PSI tables before the samples': a row of an event,
 # its event, and its junctions, and of the totals table
-EVENT_ROW_COLUMNS = ['eventname', 'event', 'eventtype', 'gene', 'junctions_included', 'junctions_excluded',
+EVENT_ROW_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'junctions_included', 'junctions_excluded',
                      'outer_junctions', 'exons']
-EVENT_TOTALS_COLUMNS = ['event', 'eventtype', 'gene', 'total']
+EVENT_TOTALS_COLUMNS = ['event', 'event_type', 'gene', 'total']
 
 
 def write_with_header(output, prefixes, suffix, header):

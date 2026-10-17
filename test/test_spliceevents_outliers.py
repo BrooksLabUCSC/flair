@@ -7,8 +7,8 @@ from flair.spliceevents_outliers import (row_outliers, filter_outliers, read_eve
 SAMPLES = ['s1', 's2', 's3', 's4', 's5', 's6']
 
 
-def _row(counts, totals, eventname='inc_es-of-chr1:100-200', eventtype='es', gene='G1'):
-    return {'eventname': eventname, 'eventtype': eventtype, 'gene': gene,
+def _row(counts, totals, event='es|G1|chr1:101-200(+)', alternative='inc', etype='es', gene='G1'):
+    return {'event': event, 'alternative': alternative, 'event_type': etype, 'gene': gene,
             'counts': dict(zip(SAMPLES, counts)), 'totals': dict(zip(SAMPLES, totals))}
 
 
@@ -18,7 +18,8 @@ def test_a_sample_far_from_the_median_is_an_outlier():
     assert list(outliers) == ['s6']
     line = outliers['s6']
     assert dict(zip(OUTLIER_COLUMNS, line))['event_reads;total_locus_reads'] == '60;100'
-    assert line[4] == 0.2 and line[6] == 0.6 and line[9] == 0.4
+    columns = dict(zip(OUTLIER_COLUMNS, line))
+    assert (columns['medianPSI'], columns['sample_val'], columns['delta_PSI_to_med']) == (0.2, 0.6, 0.4)
 
 
 def test_a_small_difference_is_not_an_outlier_however_many_deviations():
@@ -42,8 +43,8 @@ def test_fewer_than_five_samples_with_a_psi_give_no_outliers():
     assert row_outliers(_row([20, 20, 22, 18, 5, 12], [100, 100, 100, 100, 10, 19]), SAMPLES, 20) == {}
 
 
-def _line(eventname, sample, dev_from_med):
-    return [eventname, 'x', 'G1', sample, 0.2, 0.01, 0.6, 6, '60;100', 0.4, dev_from_med]
+def _line(event, sample, dev_from_med):
+    return [event, 'inc', 'x', 'G1', sample, 0.2, 0.01, 0.6, 6, '60;100', 0.4, dev_from_med]
 
 
 ES = (frozenset({'chr1:100-200', 'chr1:300-400'}), frozenset(), frozenset({'chr1:100-400'}))
@@ -52,27 +53,27 @@ CES = (frozenset({'chr1:100-200', 'chr1:300-400'}), frozenset(), frozenset({'chr
 
 
 def test_complex_exon_skip_explained_by_an_exon_skip_is_filtered():
-    es, ces = _line('inc_es', 's6', 20), _line('inc_ces', 's6', 18)
+    es, ces = _line('es|G1', 's6', 20), _line('ces|G1', 's6', 18)
     kept = filter_outliers({'es': {ES: {'s6': es}}, 'ces': {CES: {'s6': ces}}})
     assert kept == [es]
 
 
 def test_complex_exon_skip_much_better_than_its_exon_skip_is_kept():
     # the exon skip's deviation is under 0.8 of the complex one's
-    es, ces = _line('inc_es', 's6', 10), _line('inc_ces', 's6', 20)
+    es, ces = _line('es|G1', 's6', 10), _line('ces|G1', 's6', 20)
     kept = filter_outliers({'es': {ES: {'s6': es}}, 'ces': {CES: {'s6': ces}}})
     assert kept == [ces, es]
 
 
 def test_filtered_outliers_are_more_than_six_deviations_out():
     kept = filter_outliers({'ir': {(frozenset(), frozenset({'chr1:100-200'}), frozenset()):
-                                   {'s5': _line('retained_ir', 's5', 6), 's6': _line('retained_ir', 's6', 6.5)}}})
-    assert [line[3] for line in kept] == ['s6']
+                                   {'s5': _line('ir|G1', 's5', 6), 's6': _line('ir|G1', 's6', 6.5)}}})
+    assert [line[OUTLIER_COLUMNS.index('sample')] for line in kept] == ['s6']
 
 
-COUNTS_HEADER = ['eventname', 'event', 'eventtype', 'gene', 'junctions_included', 'junctions_excluded',
+COUNTS_HEADER = ['event', 'alternative', 'event_type', 'gene', 'junctions_included', 'junctions_excluded',
                  'outer_junctions', 'exons'] + SAMPLES
-TOTALS_HEADER = ['event', 'eventtype', 'gene', 'total'] + SAMPLES
+TOTALS_HEADER = ['event', 'event_type', 'gene', 'total'] + SAMPLES
 
 
 def _write_tables(tmp_path, counts_rows, totals_rows):
@@ -86,17 +87,17 @@ def _write_tables(tmp_path, counts_rows, totals_rows):
     return prefix
 
 
-IR = 'ir-of-chr1:100-200(+)-G1'
-IR_ROWS = [[f'retained_{IR}', IR, 'ir', 'G1', '', 'chr1:100-200', '', '', 20, 20, 22, 18, 20, 60],
-           [f'spliced_{IR}', IR, 'ir', 'G1', 'chr1:100-200', '', '', '', 80, 80, 78, 82, 80, 40]]
+IR = 'ir|G1|chr1:101-200(+)'
+IR_ROWS = [[IR, 'retained', 'ir', 'G1', '', 'chr1:101-200', '', '', 20, 20, 22, 18, 20, 60],
+           [IR, 'spliced', 'ir', 'G1', 'chr1:101-200', '', '', '', 80, 80, 78, 82, 80, 40]]
 
 
 def test_other_rows_are_left_out(tmp_path):
-    prefix = _write_tables(tmp_path, IR_ROWS + [[f'other_{IR}', IR, 'ir', 'G1', '', '', '', '', 1, 1, 1, 1, 1, 1]],
+    prefix = _write_tables(tmp_path, IR_ROWS + [[IR, 'other', 'ir', 'G1', '', '', '', '', 1, 1, 1, 1, 1, 1]],
                            [[IR, 'ir', 'G1', 'event_reads'] + [100] * 6, [IR, 'ir', 'G1', 'locus_reads'] + [200] * 6])
     gene_to_rows, samples = read_events(prefix, 'junc')
     assert samples == SAMPLES
-    assert [row['eventname'] for row in gene_to_rows['G1']] == [f'retained_{IR}', f'spliced_{IR}']
+    assert [row['alternative'] for row in gene_to_rows['G1']] == ['retained', 'spliced']
 
 
 def test_an_event_without_totals_is_an_error(tmp_path):
@@ -112,10 +113,10 @@ def test_psi_tot_divides_by_the_locus_reads(tmp_path):
     # spliced reads are 0.1 against 0.4: only the spliced row by PSItot
     prefix = _write_tables(tmp_path, IR_ROWS, [[IR, 'ir', 'G1', 'event_reads'] + [100] * 6,
                                                [IR, 'ir', 'G1', 'locus_reads'] + [200] * 5 + [400]])
-    for psi, outliers in (('junc', {(f'retained_{IR}', 's6'), (f'spliced_{IR}', 's6')}),
-                          ('tot', {(f'spliced_{IR}', 's6')})):
+    for psi, outliers in (('junc', {('retained', 's6'), ('spliced', 's6')}),
+                          ('tot', {('spliced', 's6')})):
         out = str(tmp_path / psi)
         spliceevents_outliers(prefix, out, psi, 20)
         lines = open(out + '.spliceevents.outliers.tsv').read().splitlines()
         assert lines[0].split('\t') == OUTLIER_COLUMNS
-        assert {(line.split('\t')[0], line.split('\t')[3]) for line in lines[1:]} == outliers
+        assert {(line.split('\t')[1], line.split('\t')[4]) for line in lines[1:]} == outliers

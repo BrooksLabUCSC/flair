@@ -443,11 +443,27 @@ annotated genes.  Single-exon reads are left out.  It finds these events of each
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
    splice sites shared by a group of junctions (alt5ss, alt3ss)
  - intron retention (ir)
- - alternative first and last exons (AFE, ALE)
+ - alternative first and last exons (afe, ale)
  - alternative transcription starts and ends (tss, tts)
 
 Each event has a row for each of its alternatives, such as an exon's inclusion and
-exclusion, and an ``other`` row for its reads that fit none of them.  An event's PSI
+exclusion, and an ``other`` row for its reads that fit none of them.
+
+An event is named ``TYPE|GENE|CHROM:START-END(STRAND)``, its locus, 1-based, being
+its skipped exon for es, and otherwise the outer bounds of its introns, so it can be
+pasted into a genome browser.  Each row is one alternative of its event, named by
+what sets it apart from the event's other rows: ``inc`` and ``exc`` for es and
+``exc`` for ces, the exons
+included of a ces's other rows, ``retained`` and ``spliced`` for ir, the introns of
+each alternative of alt5, alt3, alt5ss, alt3ss, afe and ale, the position of each
+end of tss and tts, and ``other``.  Introns are written as STAR writes them, from
+their first base to their last, and exons from their first base to their last.
+For example, an exon skip and an alternative 3' splice site::
+
+   es|ENSG00000133703.12|chr12:25215437-25215560(-)    inc
+   alt3|G1|chr1:201-350(+)                             201-300
+
+The tables' coordinate columns use the same 1-based coordinates.  An event's PSI
 is computed two ways: of the event's reads (PSIjunc), which is more sensitive, and of
 all reads covering the event's locus (PSItot), which favours events that are strong
 overall.  A sample needs ``--event_support`` reads of an event for a PSI.
@@ -468,14 +484,15 @@ indexed bam file, a line per sample::
 **Outputs**
 
  - ``OUTPUT.spliceevents.counts.tsv``, the reads of each event row in each sample,
-   with the row's event, event type, gene, and its junctions included, excluded and
-   outer, and exons
+   with the row's ``event``, ``alternative``, ``event_type`` and ``gene``, and its
+   ``junctions_included``, ``junctions_excluded``, ``outer_junctions`` and
+   ``exons``
  - ``OUTPUT.spliceevents.PSIjunc.tsv`` and ``OUTPUT.spliceevents.PSItot.tsv``, the
    rows' PSIs, empty where a sample has too few reads
  - ``OUTPUT.spliceevents.totals.tsv``, each event's reads (``event_reads``) and the
    reads covering its locus (``locus_reads``) in each sample, the PSIs' denominators
- - ``OUTPUT.spliceevents.bed``, the event rows for a genome browser, scored by their
-   median PSIjunc
+ - ``OUTPUT.spliceevents.bed``, the event rows for a genome browser, named
+   ``EVENT|ALTERNATIVE`` and scored by their median PSIjunc
  - ``OUTPUT.spliceevents.readends.bed``, with ``--output_read_ends``
 
 Outlier samples, whose PSI of an event is far from the other samples', can be found

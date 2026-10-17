@@ -25,7 +25,7 @@ BETTER_DEVIATION_FRACTION = 0.8
 # no deviation, the samples' PSIs equal but this one's
 NO_DEVIATION = 100000
 
-OUTLIER_COLUMNS = ['eventname', 'eventtype', 'gene', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
+OUTLIER_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
                    'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
 # the denominator of each PSI, a row of the totals table
 PSI_TOTALS = {'junc': 'event_reads', 'tot': 'locus_reads'}
@@ -68,7 +68,7 @@ def read_events(input_prefix, psi):
     totals = {row['event']: {s: int(row[s]) for s in samples} for row in total_rows if row['total'] == PSI_TOTALS[psi]}
     gene_to_rows = defaultdict(list)
     for row in rows:
-        if row['eventname'] == f"other_{row['event']}":  # the reads of an event's other ends or junctions
+        if row['alternative'] == 'other':  # the reads of an event's other ends or junctions
             continue
         if row['event'] not in totals:
             raise FlairInputDataError(f"event {row['event']} of {input_prefix}.spliceevents.counts.tsv is not in "
@@ -95,7 +95,7 @@ def row_outliers(row, samples, event_support):
     for s, psi in psis.items():
         delta = abs(psi - med)
         if delta >= MIN_DELTA_PSI and ((dev == 0 and psi != med) or delta > dev * MIN_DEVIATIONS):
-            outliers[s] = [row['eventname'], row['eventtype'], row['gene'], s, round(med, 6), round(dev, 6), round(psi, 6),
+            outliers[s] = [row['event'], row['alternative'], row['event_type'], row['gene'], s, round(med, 6), round(dev, 6), round(psi, 6),
                            len(vals), f"{row['counts'][s]};{row['totals'][s]}", round(delta, 6),
                            round(delta / dev, 6) if dev != 0 else NO_DEVIATION]
     return outliers
@@ -118,7 +118,7 @@ def filter_outliers(etype_to_sig):  # noqa: C901 - FIXME: reduce complexity
     seen_junctions, seen_es_juncs, kept = {}, {}, []
     # alternative splice site events overlapping alternative first and last exons
     # are already left out when the events are found
-    for et in ['es', 'AFE', 'ALE', 'ir', 'alt5ss', 'alt3ss']:
+    for et in ['es', 'afe', 'ale', 'ir', 'alt5ss', 'alt3ss']:
         for juncs, sample_to_vals in etype_to_sig.get(et, {}).items():
             if et != 'ir':
                 inc_juncs, exc_juncs, outer_juncs = juncs
@@ -172,7 +172,7 @@ def spliceevents_outliers(input_prefix, output, psi, event_support):
                          _junctions(row['outer_junctions']))
                 for s, line in outliers.items():
                     sig_events.append(line)
-                    etype_to_sig.setdefault(row['eventtype'], {}).setdefault(juncs, {})[s] = line
+                    etype_to_sig.setdefault(row['event_type'], {}).setdefault(juncs, {})[s] = line
             for line in _by_deviation(sig_events):
                 out.write('\t'.join(str(x) for x in line) + '\n')
             for line in filter_outliers(etype_to_sig):

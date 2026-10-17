@@ -1102,8 +1102,8 @@ test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
 # without genes, adds nothing
 test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed --output_read_ends -o $O/$@
-	diff <(grep 'es-of-chr12:25215436' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
-	diff <(grep 'es-of-chr12:25215436' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
+	diff <(grep -F 'es|ENSG00000133703.12|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
+	diff <(grep -F 'es|ENSG00000133703.12|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
 
 $O/spliceevents-s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<
