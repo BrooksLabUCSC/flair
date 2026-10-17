@@ -117,6 +117,72 @@ def psi_varies(psis, junc_frac_of_event):
     return max(psis) - min(psis) >= junc_frac_of_event
 
 
+def zero_counts(allsamples):
+    "no reads in any sample"
+    return {s: 0 for s in allsamples}
+
+
+def add_reads(counts, key, allsamples, sample, numreads):
+    "add a sample's reads to counts[key], its reads per sample"
+    if key not in counts:
+        counts[key] = zero_counts(allsamples)
+    counts[key][sample] += numreads
+
+
+def add_counts_at(counts, key, other, allsamples):
+    "add other, reads per sample, to counts[key]"
+    counts[key] = add_counts_to_dict(counts.get(key, zero_counts(allsamples)), other)
+
+
+def sum_counts(all_counts, allsamples):
+    "the sum of reads per sample"
+    total = zero_counts(allsamples)
+    for counts in all_counts:
+        total = add_counts_to_dict(total, counts)
+    return total
+
+
+def supported(counts, allsamples, min_reads):
+    "do some sample's reads reach min_reads"
+    return any(counts[s] >= min_reads for s in allsamples)
+
+
+def sample_psis(counts, totals, allsamples, min_total):
+    "the PSIs, counts over totals, of the samples with at least min_total reads in totals"
+    return [counts[s] / totals[s] for s in allsamples if totals[s] >= min_total]
+
+
+def junc_between(ss1, ss2):
+    "the junction between two splice sites"
+    return (min(ss1, ss2), max(ss1, ss2))
+
+
+def some_psi_between(counts, totals, allsamples, junc_frac_of_event):
+    "is counts, of totals, between junc_frac_of_event and 1 minus it in some sample"
+    return any(junc_frac_of_event <= counts[s] / totals[s] <= 1 - junc_frac_of_event for s in allsamples if totals[s] > 0)
+
+
+def internal_exons(juncs):
+    "the exons between a chain's junctions"
+    return [(juncs[i][1], juncs[i + 1][0]) for i in range(len(juncs) - 1)]
+
+
+def junction_bedline(chrom, junc, exons, name, strand, color):
+    """an event's BED line of a junction, as 10 bases each side of it, and the exons
+    included between its ends"""
+    # FIXME: use BED class
+    start, end = junc[0] - 10, junc[1] + 10
+    sizes = ['10'] + [str(e[1] - e[0]) for e in exons] + ['10']
+    starts = ['0'] + [str(10 + e[0] - junc[0]) for e in exons] + [str(10 + junc[1] - junc[0])]
+    return [chrom, start, end, name, 0, strand, start, end, color, len(exons) + 2, ','.join(sizes), ','.join(starts)]
+
+
+def site_bedline(chrom, start, end, name, strand, color):
+    "an event's BED line of one block"
+    # FIXME: use BED class
+    return [chrom, start, end, name, 0, strand, start, end, color, 1, end - start, 0]
+
+
 TERMINAL_JUNCTION_DIST_FROM_ANNOT = 20
 MIN_TERMINAL_JUNCTION_SEPARATION = 100
 MIN_TERMINAL_SS_FRACTION = 0.1
@@ -188,51 +254,26 @@ def group_juncs_by_annot_gene(sjtoends, sjc_to_gene, junc_to_gene, gene_to_exons
 
 def extract_35ss_info(juncs, strand, allsamples, sample, numreads, ss5to3, ss3to5, alljuncs):
     for j in juncs:
-        if strand == '+':
-            ss5, ss3 = j[0], j[1]
-        else:
-            ss5, ss3 = j[1], j[0]
-        if ss5 not in ss5to3:
-            ss5to3[ss5] = {}
-        if ss3 not in ss3to5:
-            ss3to5[ss3] = {}
-        if ss3 not in ss5to3[ss5]:
-            ss5to3[ss5][ss3] = {s: 0 for s in allsamples}
-        if ss5 not in ss3to5[ss3]:
-            ss3to5[ss3][ss5] = {s: 0 for s in allsamples}
-        ss5to3[ss5][ss3][sample] += numreads
-        ss3to5[ss3][ss5][sample] += numreads
-        if j not in alljuncs:
-            alljuncs[j] = {s: 0 for s in allsamples}
-        alljuncs[j][sample] += numreads
+        ss5, ss3 = (j[0], j[1]) if strand == '+' else (j[1], j[0])
+        add_reads(ss5to3.setdefault(ss5, {}), ss3, allsamples, sample, numreads)
+        add_reads(ss3to5.setdefault(ss3, {}), ss5, allsamples, sample, numreads)
+        add_reads(alljuncs, j, allsamples, sample, numreads)
     return ss5to3, ss3to5, alljuncs
 
 
 def extract_exon_usage_info(juncs, allsamples, sample, numreads, allblocks, exonjpairs):
     # just for middle exons
     for i in range(len(juncs) - 1):
-        exon = (juncs[i][1], juncs[i + 1][0])
-        prevjunc, nextjunc = juncs[i], juncs[i + 1]
-        if exon not in allblocks:
-            allblocks[exon] = {s: 0 for s in allsamples}
-        allblocks[exon][sample] += numreads
-        if (prevjunc, nextjunc) not in exonjpairs:
-            exonjpairs[(prevjunc, nextjunc)] = {s: 0 for s in allsamples}
-        exonjpairs[(prevjunc, nextjunc)][sample] += numreads
+        add_reads(allblocks, (juncs[i][1], juncs[i + 1][0]), allsamples, sample, numreads)
+        add_reads(exonjpairs, (juncs[i], juncs[i + 1]), allsamples, sample, numreads)
     return allblocks, exonjpairs
 
 
 def extract_end_coverage_info(juncs, readinfo, allsamples, sample, thischrom, gene, strand, allblocks, outends):
     for r in readinfo:
         # getting all block coverage to measure intron retention
-        firstexon = (r.start, juncs[0][0])
-        lastexon = (juncs[-1][1], r.end)
-        if firstexon not in allblocks:
-            allblocks[firstexon] = {s: 0 for s in allsamples}
-        if lastexon not in allblocks:
-            allblocks[lastexon] = {s: 0 for s in allsamples}
-        allblocks[firstexon][sample] += 1
-        allblocks[lastexon][sample] += 1
+        add_reads(allblocks, (r.start, juncs[0][0]), allsamples, sample, 1)
+        add_reads(allblocks, (juncs[-1][1], r.end), allsamples, sample, 1)
         if outends:
             Bed(thischrom, r.start, r.end, name=gene + '|' + r.name,
                 score=0, strand=strand).write(outends)
@@ -262,14 +303,10 @@ def get_start_end_counts(readinfo, subset_info, sample, first_junc, last_junc, t
     for r in readinfo:
         # if subset_info[0] == None or first_junc-start > subset_info[0]:
         t_starts_ends[0].append((r.start, sample))
-        if first_junc not in t_first_last_sj[0]:
-            t_first_last_sj[0][first_junc] = {s: 0 for s in allsamples}
-        t_first_last_sj[0][first_junc][sample] += 1
+        add_reads(t_first_last_sj[0], first_junc, allsamples, sample, 1)
         # if subset_info[1] == None or end-last_junc > subset_info[1]:
         t_starts_ends[1].append((r.end, sample))
-        if last_junc not in t_first_last_sj[1]:
-            t_first_last_sj[1][last_junc] = {s: 0 for s in allsamples}
-        t_first_last_sj[1][last_junc][sample] += 1
+        add_reads(t_first_last_sj[1], last_junc, allsamples, sample, 1)
     return t_starts_ends, t_first_last_sj
 
 
@@ -310,17 +347,8 @@ def extract_afe_ale(juncs, strand, allsamples, sample, numreads, alljuncs, afe, 
         ale_junc, afe_junc = juncs[0], juncs[-1]
         ale_ss, afe_ss = juncs[0][0], juncs[-1][1]
 
-    if afe_ss not in afe:
-        afe[afe_ss] = {}
-    if afe_junc not in afe[afe_ss]:
-        afe[afe_ss][afe_junc] = {s: 0 for s in allsamples}
-    afe[afe_ss][afe_junc][sample] += numreads
-
-    if ale_ss not in ale:
-        ale[ale_ss] = {}
-    if ale_junc not in ale[ale_ss]:
-        ale[ale_ss][ale_junc] = {s: 0 for s in allsamples}
-    ale[ale_ss][ale_junc][sample] += numreads
+    add_reads(afe.setdefault(afe_ss, {}), afe_junc, allsamples, sample, numreads)
+    add_reads(ale.setdefault(ale_ss, {}), ale_junc, allsamples, sample, numreads)
 
     return afe, ale
 
@@ -329,8 +357,7 @@ def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples,
     flat_ss = [ss for junc in sjc for ss in junc]
     for j in alljuncs:
         if j not in sjc and j[0] in flat_ss and j[1] in flat_ss:
-            if j not in outer_junc_to_exons:
-                outer_junc_to_exons[j] = {}
+            inner_to_counts = outer_junc_to_exons.setdefault(j, {})
             inner_juncs = []
             outer_left, outer_right = False, False
             for j2 in sjc:
@@ -342,10 +369,7 @@ def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples,
                     outer_right = True
             # this checks for weird junction patterns - requires outer junction to be used as an outer junction
             if outer_left and outer_right:
-                inner_juncs = tuple(inner_juncs)
-                if inner_juncs not in outer_junc_to_exons[j]:
-                    outer_junc_to_exons[j][inner_juncs] = {s: 0 for s in allsamples}
-                outer_junc_to_exons[j][inner_juncs][sample] += numreads
+                add_reads(inner_to_counts, tuple(inner_juncs), allsamples, sample, numreads)
     return outer_junc_to_exons
 
 
@@ -372,10 +396,7 @@ def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischro
 
                 # get intervals for calculating coverage
                 for r in readinfo:
-                    interval = (round(r.start, -1), round(r.end, -1))
-                    if interval not in interval_to_reads:
-                        interval_to_reads[interval] = {s: 0 for s in allsamples}
-                    interval_to_reads[interval][sample] += 1
+                    add_reads(interval_to_reads, (round(r.start, -1), round(r.end, -1)), allsamples, sample, 1)
 
                 ss5to3, ss3to5, alljuncs = extract_35ss_info(juncs, strand, allsamples, sample, numreads,
                                                              ss5to3, ss3to5, alljuncs)
@@ -398,8 +419,6 @@ def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischro
     return ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons
 
 def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gene, mycolor, min_read_support, interval_to_reads, junc_frac_of_event, event_support, outer_junc_to_exons):  # noqa: C901 - FIXME: reduce complexity
-    # outer_junc_to_exons = {}
-    # outer_junc_to_all_inc = {}
     exon_to_outer_juncs = {}
     exon_to_all_inc = {}
     exon_to_all_exc = {}
@@ -407,137 +426,88 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
     for prevjunc, nextjunc in exonjpairs:
         outerjunc = (prevjunc[0], nextjunc[1])
         exon = (prevjunc[1], nextjunc[0])
-
         if exon not in exon_to_outer_juncs:
             exon_to_outer_juncs[exon] = set()
-            exon_to_all_inc[exon] = {s: 0 for s in allsamples}
-            exon_to_all_exc[exon] = {s: 0 for s in allsamples}
+            exon_to_all_exc[exon] = zero_counts(allsamples)
         exon_to_outer_juncs[exon].add(outerjunc)
-        exon_to_all_inc[exon] = add_counts_to_dict(exon_to_all_inc[exon], exonjpairs[(prevjunc, nextjunc)])
+        add_counts_at(exon_to_all_inc, exon, exonjpairs[(prevjunc, nextjunc)], allsamples)
         if outerjunc in alljuncs:
-            # if outerjunc not in outer_junc_to_exons:
-            #     outer_junc_to_exons[outerjunc] = set()
-            #     outer_junc_to_all_inc[outerjunc] = {s: 0 for s in allsamples}
-            exon_to_all_exc[exon] = add_counts_to_dict(exon_to_all_exc[exon], alljuncs[outerjunc])
-            # outer_junc_to_exons[outerjunc].add(exon)
-            # outer_junc_to_all_inc[outerjunc] = add_counts_to_dict(outer_junc_to_all_inc[outerjunc], exonjpairs[(prevjunc, nextjunc)])
+            add_counts_at(exon_to_all_exc, exon, alljuncs[outerjunc], allsamples)
 
     seen_junc_combos = set()
     esjuncs = {}
     for exon in exon_to_outer_juncs:
-        tot_counts = exon_to_all_inc[exon]
-        tot_counts = add_counts_to_dict(tot_counts, exon_to_all_exc[exon])
-
-        inc_frac_list = [exon_to_all_inc[exon][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-        if len(inc_frac_list) >= 1 \
-                and any([exon_to_all_inc[exon][s] >= min_read_support for s in allsamples]) \
-                and any([exon_to_all_exc[exon][s] >= min_read_support for s in allsamples]) \
-                and psi_varies(inc_frac_list, junc_frac_of_event):
+        inc, exc = exon_to_all_inc[exon], exon_to_all_exc[exon]
+        tot_counts = add_counts_to_dict(inc, exc)
+        if supported(inc, allsamples, min_read_support) and supported(exc, allsamples, min_read_support) \
+                and psi_varies(sample_psis(inc, tot_counts, allsamples, event_support), junc_frac_of_event):
             outer_juncs = exon_to_outer_juncs[exon]
+            ename = f'es-of-{thischrom}:{exon[0]}-{exon[1]}'
 
-            bedlines = []
+            # the outer junctions whose inclusion is a large enough part of the event
             goodouterjuncs = set()
             innerjuncs = set()
             for outerjunc in outer_juncs:
                 ejpair = exonjpairs[((outerjunc[0], exon[0]), (exon[1], outerjunc[1]))]
-                if any([ejpair[s] >= min_read_support for s in allsamples]) \
-                        and any([junc_frac_of_event <= ejpair[s] / (exon_to_all_inc[exon][s] + exon_to_all_exc[exon][s]) <= 1 - junc_frac_of_event
-                                 if (exon_to_all_inc[exon][s] + exon_to_all_exc[exon][s]) > 0 else False for s in allsamples]):
+                if supported(ejpair, allsamples, min_read_support) \
+                        and some_psi_between(ejpair, tot_counts, allsamples, junc_frac_of_event):
                     goodouterjuncs.add(outerjunc)
                     innerjuncs.add((outerjunc[0], exon[0]))
                     innerjuncs.add((exon[1], outerjunc[1]))
 
-            ename = f'es-of-{thischrom}:{exon[0]}-{exon[1]}'
-
+            bedlines = []
             for outerjunc in goodouterjuncs:
-                # FIXME: use BED class
-                bedlines.append([thischrom, outerjunc[0] - 10, outerjunc[1] + 10, f'inc_{ename}', 0, strand,
-                                 outerjunc[0] - 10, outerjunc[1] + 10, mycolor, 3,
-                                 f'10,{exon[1] - exon[0]},10',
-                                 f'0,{10 + exon[0] - outerjunc[0]},{10 + outerjunc[1] - outerjunc[0]}'])
-                if (outerjunc[0], exon[0]) not in esjuncs:
-                    esjuncs[(outerjunc[0], exon[0])] = {}
-                if outerjunc not in esjuncs[(outerjunc[0], exon[0])]:
-                    esjuncs[(outerjunc[0], exon[0])][outerjunc] = {s: 0 for s in allsamples}
-                esjuncs[(outerjunc[0], exon[0])][outerjunc] = add_counts_to_dict(esjuncs[(outerjunc[0], exon[0])][outerjunc], exonjpairs[((outerjunc[0], exon[0]), (exon[1], outerjunc[1]))])
-                if (exon[1], outerjunc[1]) not in esjuncs:
-                    esjuncs[(exon[1], outerjunc[1])] = {}
-                if outerjunc not in esjuncs[(exon[1], outerjunc[1])]:
-                    esjuncs[(exon[1], outerjunc[1])][outerjunc] = {s: 0 for s in allsamples}
-                esjuncs[(exon[1], outerjunc[1])][outerjunc] = add_counts_to_dict(esjuncs[(exon[1], outerjunc[1])][outerjunc], exonjpairs[((outerjunc[0], exon[0]), (exon[1], outerjunc[1]))])
+                bedlines.append(junction_bedline(thischrom, outerjunc, [exon], f'inc_{ename}', strand, mycolor))
+                inc_counts = exonjpairs[((outerjunc[0], exon[0]), (exon[1], outerjunc[1]))]
+                add_counts_at(esjuncs.setdefault((outerjunc[0], exon[0]), {}), outerjunc, inc_counts, allsamples)
+                add_counts_at(esjuncs.setdefault((exon[1], outerjunc[1]), {}), outerjunc, inc_counts, allsamples)
 
-            event_to_info[ename] = SplicingEvent(ename, 'es', gene, thischrom, strand, tot_counts, allsamples)
+            event = event_to_info[ename] = SplicingEvent(ename, 'es', gene, thischrom, strand, tot_counts, allsamples)
+            event.events['inc'] = SplicingEventJunction('inc', bedlines, inc, innerjuncs, set(), goodouterjuncs, {exon, })
+            event.events['exc'] = SplicingEventJunction('exc', [], exc, set(), innerjuncs, goodouterjuncs, {exon, })
+            ref_juncs = goodouterjuncs if len(goodouterjuncs) > 0 else outer_juncs
+            event.totoverlap = get_overlapping_reads((max(x[0] for x in ref_juncs), min(x[1] for x in ref_juncs)), interval_to_reads, allsamples)
+            seen_junc_combos.add(frozenset(goodouterjuncs | innerjuncs))
 
-            event_to_info[ename].events['inc'] = SplicingEventJunction('inc', bedlines, exon_to_all_inc[exon], innerjuncs, set(), goodouterjuncs, {exon, })
-
-            event_to_info[ename].events['exc'] = SplicingEventJunction('exc', [], exon_to_all_exc[exon], set(), innerjuncs, goodouterjuncs, {exon, })
-
-            if len(goodouterjuncs) > 0:
-                event_to_info[ename].totoverlap = get_overlapping_reads((max([x[0] for x in goodouterjuncs]), min([x[1] for x in goodouterjuncs])), interval_to_reads, allsamples)
+    # exons skipped together: the chains between the ends of a skipping junction
+    for outerjunc, innerjuncs_to_counts in outer_junc_to_exons.items():
+        exc = alljuncs[outerjunc]
+        if not supported(exc, allsamples, min_read_support):
+            continue
+        tot_counts = sum_counts([exc, *innerjuncs_to_counts.values()], allsamples)
+        if not psi_varies(sample_psis(exc, tot_counts, allsamples, event_support), junc_frac_of_event):
+            continue
+        goodB = set()
+        all_exons = set()
+        my_juncs = set()
+        othercounts = zero_counts(allsamples)
+        for innerjuncs, counts in innerjuncs_to_counts.items():
+            if supported(counts, allsamples, min_read_support) \
+                    and psi_varies(sample_psis(counts, tot_counts, allsamples, event_support), junc_frac_of_event):
+                goodB.add(innerjuncs)
+                all_exons.update(internal_exons(innerjuncs))
+                my_juncs.update(innerjuncs)
             else:
-                event_to_info[ename].totoverlap = get_overlapping_reads((max([x[0] for x in outer_juncs]), min([x[1] for x in outer_juncs])), interval_to_reads, allsamples)
+                othercounts = add_counts_to_dict(othercounts, counts)
 
-            finaljuncs = goodouterjuncs | innerjuncs
-            seen_junc_combos.add(frozenset(finaljuncs))
+        # only require one exon relative to outer junction
+        if len(goodB) > 0 and frozenset(my_juncs | {outerjunc, }) not in seen_junc_combos:
+            ename = f'ces-relTo-{thischrom}:{outerjunc[0]}-{outerjunc[1]}({strand})-{gene}'
+            event = event_to_info[ename] = SplicingEvent(ename, 'ces', gene, thischrom, strand, tot_counts, allsamples)
+            bedline = junction_bedline(thischrom, outerjunc, [], f'exc_{ename}', strand, mycolor)
+            event.events['exc'] = SplicingEventJunction('exc', [bedline], exc, set(), my_juncs, {outerjunc, }, all_exons)
 
-    for outerjunc in outer_junc_to_exons:
-        innerjuncs_to_counts = outer_junc_to_exons[outerjunc]
-        if any([alljuncs[outerjunc][s] >= min_read_support for s in allsamples]):
-            goodB = set()
-            all_exons = set()
-            my_juncs = set()  # {outerjunc,}
-            othercounts = {s: 0 for s in allsamples}
-            tot_counts = alljuncs[outerjunc]
-            for innerjuncs in innerjuncs_to_counts:
-                tot_counts = add_counts_to_dict(tot_counts, innerjuncs_to_counts[innerjuncs])
-            inc_frac_list = [alljuncs[outerjunc][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-            if len(inc_frac_list) > 0 \
-                    and any([alljuncs[outerjunc][s] >= min_read_support for s in allsamples]) \
-                    and psi_varies(inc_frac_list, junc_frac_of_event):
-                for innerjuncs in innerjuncs_to_counts:
-                    inc_frac_list = [innerjuncs_to_counts[innerjuncs][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-                    if any([innerjuncs_to_counts[innerjuncs][s] >= min_read_support for s in allsamples]) \
-                            and psi_varies(inc_frac_list, junc_frac_of_event):
-                        goodB.add(innerjuncs)
-                        my_exons = [(innerjuncs[i][1], innerjuncs[i + 1][0]) for i in range(len(innerjuncs) - 1)]
-                        all_exons.update(set(my_exons))
-                        for j in innerjuncs:
-                            my_juncs.add(j)
-                    else:
-                        othercounts = add_counts_to_dict(othercounts, innerjuncs_to_counts[innerjuncs])
+            for innerjuncs in goodB:
+                my_exons = internal_exons(innerjuncs)
+                jname = 'inc-of-' + ','.join([f'{thischrom}:{x[0]}-{x[1]}' for x in my_exons])
+                bedline = junction_bedline(thischrom, outerjunc, my_exons, f'{jname}_{ename}', strand, mycolor)
+                event.events[jname] = SplicingEventJunction(jname, [bedline], innerjuncs_to_counts[innerjuncs],
+                                                            set(innerjuncs), my_juncs - set(innerjuncs), {outerjunc, }, set(my_exons))
+                for j in innerjuncs:
+                    add_counts_at(esjuncs.setdefault(j, {}), outerjunc, innerjuncs_to_counts[innerjuncs], allsamples)
 
-                if len(goodB) > 0 \
-                        and frozenset(my_juncs | {outerjunc, }) not in seen_junc_combos:  # only require one exon relative to outer junction
-                    ename = f'ces-relTo-{thischrom}:{outerjunc[0]}-{outerjunc[1]}({strand})-{gene}'
-                    event_to_info[ename] = SplicingEvent(ename, 'ces', gene, thischrom, strand, tot_counts, allsamples)
-
-                    # FIXME: use BED class
-                    bedline = [thischrom, outerjunc[0] - 10, outerjunc[1] + 10, f'exc_{ename}', 0, strand, outerjunc[0] - 10, outerjunc[1] + 10,
-                               mycolor, 2, '10,10', f'0,{10 + outerjunc[1] - outerjunc[0]}']
-                    event_to_info[ename].events['exc'] = SplicingEventJunction('exc', [bedline], alljuncs[outerjunc], set(), my_juncs, {outerjunc, }, all_exons)
-
-                    for innerjuncs in goodB:
-                        my_exons = [(innerjuncs[i][1], innerjuncs[i + 1][0]) for i in range(len(innerjuncs) - 1)]
-                        exonstring = ','.join([f'{thischrom}:{x[0]}-{x[1]}' for x in my_exons])
-                        jname = f'inc-of-{exonstring}'
-                        esizes = ','.join([str(x[1] - x[0]) for x in my_exons])
-                        estarts = ','.join([str(10 + x[0] - outerjunc[0]) for x in my_exons])
-                        # FIXME: use BED class
-                        bedline = [thischrom, outerjunc[0] - 10, outerjunc[1] + 10, f'{jname}_{ename}', 0, strand, outerjunc[0] - 10, outerjunc[1] + 10,
-                                   mycolor, 3, f'10,{esizes},10', f'0,{estarts},{10 + outerjunc[1] - outerjunc[0]}']
-                        event_to_info[ename].events[jname] = SplicingEventJunction(jname, [bedline], innerjuncs_to_counts[innerjuncs],
-                                                                                   set(innerjuncs), my_juncs - set(innerjuncs), {outerjunc, }, set(my_exons))
-
-                        for j in innerjuncs:
-                            if j not in esjuncs:
-                                esjuncs[j] = {}
-                            if outerjunc not in esjuncs[j]:
-                                esjuncs[j][outerjunc] = {s: 0 for s in allsamples}
-                            esjuncs[j][outerjunc] = add_counts_to_dict(esjuncs[j][outerjunc], innerjuncs_to_counts[innerjuncs])
-
-                    if any([othercounts[s] >= min_read_support for s in allsamples]):
-                        event_to_info[ename].other = othercounts
-                    event_to_info[ename].totoverlap = get_overlapping_reads(outerjunc, interval_to_reads, allsamples)
+            event.keep_other(othercounts, min_read_support)
+            event.totoverlap = get_overlapping_reads(outerjunc, interval_to_reads, allsamples)
 
     return event_to_info, esjuncs
 
@@ -556,192 +526,149 @@ def add_counts_to_dict(a, b):
 def process_terminal_exons(termExon, eventtype, thischrom, strand, gene, allsamples, mycolor, min_read_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_terminal_ss):  # noqa: C901 - FIXME: reduce complexity
     event_to_info = {}
     junc_combos = set()
-    if len(termExon) > 1:
-        tot_counts = {s: 0 for s in allsamples}
-        othercounts = {s: 0 for s in allsamples}
-        ss_to_counts = {}
-        ss_to_junc_qual = {}
-        actual_terminal = []
-        for termSS in termExon:
-            ss_to_counts[termSS] = {s: 0 for s in allsamples}
-            ss_to_junc_qual[termSS] = []
-            is_annot_terminal = False
-            if gene in annot_terminal_ss:
-                for ss in annot_terminal_ss[gene]:
-                    if ss - 20 <= termSS <= ss + 20:
-                        is_annot_terminal = True
-                        break
-            for termJunc in termExon[termSS]:
-                ss_to_counts[termSS] = add_counts_to_dict(ss_to_counts[termSS], termExon[termSS][termJunc])
-                # here we determine whether this splice site is really a terminal exon
-                # either all reads terminate here, or it's annotated as a terminal junction
-                if is_annot_terminal:
-                    ss_to_junc_qual[termSS].append(True)
-                else:
-                    ss_to_junc_qual[termSS].append(any([termExon[termSS][termJunc][s] == alljuncs[termJunc][s] and termExon[termSS][termJunc][s] >= min_read_support for s in allsamples]))
+    if len(termExon) <= 1:
+        return event_to_info, junc_combos
 
-        for termSS in termExon:
-            if all(ss_to_junc_qual[termSS]):
-                actual_terminal.append(termSS)
+    # the splice sites really of a terminal exon: annotated as one, or every read of each
+    # of their junctions starting or ending there
+    annot_ss = annot_terminal_ss.get(gene, ())
+    ss_to_counts = {}
+    actual_terminal = []
+    othercounts = zero_counts(allsamples)
+    for termSS, junc_counts in termExon.items():
+        ss_to_counts[termSS] = sum_counts(junc_counts.values(), allsamples)
+        if any(abs(termSS - ss) <= TERMINAL_JUNCTION_DIST_FROM_ANNOT for ss in annot_ss) \
+                or all(any(counts[s] == alljuncs[termJunc][s] and counts[s] >= min_read_support for s in allsamples)
+                       for termJunc, counts in junc_counts.items()):
+            actual_terminal.append(termSS)
+        else:
+            othercounts = add_counts_to_dict(othercounts, ss_to_counts[termSS])
+    tot_counts = sum_counts(ss_to_counts.values(), allsamples)
+    if not supported(tot_counts, allsamples, event_support):
+        return event_to_info, junc_combos
+
+    goodB, goodBstrict = [], []
+    my_juncs = set()
+    for termSS in actual_terminal:
+        counts = ss_to_counts[termSS]
+        if supported(counts, allsamples, min_read_support) \
+                and psi_varies(sample_psis(counts, tot_counts, allsamples, event_support), junc_frac_of_event):
+            goodB.append(termSS)
+            if any(counts[s] / tot_counts[s] >= MIN_TERMINAL_SS_FRACTION for s in allsamples if tot_counts[s] > 0):
+                goodBstrict.append(termSS)
+            for termJunc, junc_counts in termExon[termSS].items():
+                if supported(junc_counts, allsamples, min_read_support) \
+                        and some_psi_between(junc_counts, tot_counts, allsamples, junc_frac_of_event):
+                    my_juncs.add(termJunc)
+        else:
+            othercounts = add_counts_to_dict(othercounts, counts)
+
+    # check that the junctions involved are distant enough from each other
+    if len(goodB) > 1 and len(goodBstrict) > 1 and max(goodBstrict) - min(goodBstrict) >= MIN_TERMINAL_JUNCTION_SEPARATION:
+        ename = f'{eventtype}-({strand})-{gene}'
+        event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
+        for ssB in goodB:
+            jname = f'{thischrom}:{ssB}'
+            # 100 bases of the exon, on its side of the splice site
+            if (eventtype == 'AFE' and strand == '+') or (eventtype == 'ALE' and strand == '-'):
+                bs, be = ssB - 100, ssB
             else:
-                othercounts = add_counts_to_dict(othercounts, ss_to_counts[termSS])
-            tot_counts = add_counts_to_dict(tot_counts, ss_to_counts[termSS])
+                bs, be = ssB, ssB + 100
+            inc_juncs = {x for x in my_juncs if ssB in x}
+            event.events[jname] = SplicingEventJunction(jname, [site_bedline(thischrom, bs, be, f'{jname}_{ename}', strand, mycolor)],
+                                                        ss_to_counts[ssB], inc_juncs, my_juncs - inc_juncs)
+        event.keep_other(othercounts, min_read_support)
+        junc_combos.add(frozenset(my_juncs))
+        ref_junc = (max(x[0] for x in my_juncs), min(x[1] for x in my_juncs))
+        event.totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
 
-        if any([tot_counts[s] >= event_support for s in allsamples]):
-            goodB = []
-            goodBstrict = []
-            my_juncs = set()
-            my_juncs = set()
-            for termSS in actual_terminal:
-                inc_frac_list = [ss_to_counts[termSS][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-
-                if any([ss_to_counts[termSS][s] >= min_read_support for s in allsamples]) \
-                        and psi_varies(inc_frac_list, junc_frac_of_event):
-                    goodB.append(termSS)
-                    if any([ss_to_counts[termSS][s] / tot_counts[s] >= MIN_TERMINAL_SS_FRACTION if tot_counts[s] > 0 else False for s in allsamples]):
-                        goodBstrict.append(termSS)
-                    for termJunc in termExon[termSS]:
-                        if any([termExon[termSS][termJunc][s] >= min_read_support for s in allsamples]) \
-                                and any([junc_frac_of_event <= termExon[termSS][termJunc][s] / tot_counts[s] <= 1 - junc_frac_of_event if tot_counts[s] > 0 else False for s in allsamples]):
-                            my_juncs.add(termJunc)
-                else:
-                    othercounts = add_counts_to_dict(othercounts, ss_to_counts[termSS])
-
-            # check that the junctions involved are distant enough from each other
-            if len(goodB) > 1 and len(goodBstrict) > 1 and max(goodBstrict) - min(goodBstrict) >= MIN_TERMINAL_JUNCTION_SEPARATION:
-                ename = f'{eventtype}-({strand})-{gene}'
-                event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
-
-                for ssB in goodB:
-                    jname = f'{thischrom}:{ssB}'
-                    if (eventtype == 'AFE' and strand == '+') or (eventtype == 'ALE' and strand == '-'):
-                        bs, be = ssB - 100, ssB
-                    else:
-                        bs, be = ssB, ssB + 100
-                    # FIXME: use BED class
-                    bedline = [thischrom, bs, be, f'{jname}_{ename}', 0, strand, bs, be, mycolor, 1, be - bs, 0]
-                    inc_juncs = {x for x in my_juncs if ssB in x}
-                    event_to_info[ename].events[jname] = SplicingEventJunction(jname, [bedline], ss_to_counts[ssB], inc_juncs, my_juncs - inc_juncs)
-
-                if any([othercounts[s] >= min_read_support for s in allsamples]):
-                    event_to_info[ename].other = othercounts
-                junc_combos.add(frozenset(my_juncs))
-                ref_junc = (max([x[0] for x in my_juncs]), min([x[1] for x in my_juncs]))
-                event_to_info[ename].totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
-
-            # TODO: add initial check for all reads with junction are equal to all terminal exon reads!
-            # TODO: identify good juncs for each terminal SS, save junc combo
-            # Good juncs must be significant proportion of all reads for event!
+    # TODO: add initial check for all reads with junction are equal to all terminal exon reads!
+    # TODO: identify good juncs for each terminal SS, save junc combo
+    # Good juncs must be significant proportion of all reads for event!
     return event_to_info, junc_combos
 
 
 def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene, allsamples, colordict, min_read_support, interval_to_reads, junc_frac_of_event, event_support, afe_ale_junc_comb):  # noqa: C901 - FIXME: reduce complexity
+    """Splice sites B alternative to each other from one site A (alt5 or alt3, by
+    eventtype), and the sites A sharing the same alternative sites B (alt3ss or alt5ss)"""
     event_to_info = {}
     ssB_groups_to_ssA = {}
-    for ssA in ssAtoB:
-        if len(ssAtoB[ssA]) > 1:  # don't report when no alternative splicing at all
-            goodB, goodBstrict = [], []
-            junccomb = set()
-            my_juncs = set()
-            othercounts = {s: 0 for s in allsamples}
-            tot_counts = {s: 0 for s in allsamples}
-            for ssB in ssAtoB[ssA]:
-                tot_counts = add_counts_to_dict(tot_counts, ssAtoB[ssA][ssB])
-
-            for ssB in ssAtoB[ssA]:
-
-                junc = (min((ssA, ssB)), max((ssA, ssB)))
-                inc_frac_list = [ssAtoB[ssA][ssB][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-
-                if len(inc_frac_list) >= 1 \
-                        and psi_varies(inc_frac_list, junc_frac_of_event):
-
-                    goodB.append(ssB)
-                    my_juncs.add(junc)
-                    junccomb.add(junc)
-                    if junc not in esjuncs:
-                        goodBstrict.append(ssB)
-                    else:
-                        escounts = {s: 0 for s in allsamples}
-                        for ssB2 in ssAtoB[ssA]:
-                            if ssB2 != ssB:
-                                junc2 = (min((ssA, ssB2)), max((ssA, ssB2)))
-                                if junc2 in esjuncs[junc]:
-                                    escounts = add_counts_to_dict(escounts, esjuncs[junc][junc2])
-                        deltafrac = [(ssAtoB[ssA][ssB][s] - escounts[s]) / ssAtoB[ssA][ssB][s] if ssAtoB[ssA][ssB][s] > 0 else 0 for s in allsamples]
-                        delta = [ssAtoB[ssA][ssB][s] - escounts[s] for s in allsamples]
-                        if any([deltafrac[x] > 0.1 and delta[x] > min_read_support for x in range(len(delta))]):
-                            goodBstrict.append(ssB)
+    for ssA, ssB_counts in ssAtoB.items():
+        if len(ssB_counts) <= 1:  # don't report when no alternative splicing at all
+            continue
+        goodB, goodBstrict = [], []
+        my_juncs = set()
+        othercounts = zero_counts(allsamples)
+        tot_counts = sum_counts(ssB_counts.values(), allsamples)
+        for ssB, counts in ssB_counts.items():
+            junc = junc_between(ssA, ssB)
+            if psi_varies(sample_psis(counts, tot_counts, allsamples, event_support), junc_frac_of_event):
+                goodB.append(ssB)
+                my_juncs.add(junc)
+                if junc not in esjuncs:
+                    goodBstrict.append(ssB)
                 else:
-                    othercounts = add_counts_to_dict(othercounts, ssAtoB[ssA][ssB])
+                    # a junction of exon skipping counts only for its reads apart from the skipping
+                    other_juncs = [junc_between(ssA, ssB2) for ssB2 in ssB_counts if ssB2 != ssB]
+                    escounts = sum_counts([esjuncs[junc][j] for j in other_juncs if j in esjuncs[junc]], allsamples)
+                    if any(counts[s] > 0 and (counts[s] - escounts[s]) / counts[s] > 0.1 and counts[s] - escounts[s] > min_read_support
+                           for s in allsamples):
+                        goodBstrict.append(ssB)
+            else:
+                othercounts = add_counts_to_dict(othercounts, counts)
 
-            if frozenset(junccomb) not in afe_ale_junc_comb:
-                if len(goodB) > 1:
-                    ssBgroup = frozenset(goodB)
-                    if ssBgroup not in ssB_groups_to_ssA:
-                        ssB_groups_to_ssA[ssBgroup] = {}
-                    ssB_groups_to_ssA[ssBgroup][ssA] = tot_counts
+        if frozenset(my_juncs) in afe_ale_junc_comb:
+            continue
+        if len(goodB) > 1:
+            ssB_groups_to_ssA.setdefault(frozenset(goodB), {})[ssA] = tot_counts
+        if supported(tot_counts, allsamples, event_support) and len(goodBstrict) > 1:  # only if alt splicing, not including junctions involved in exon skipping
+            ename = f'{eventtype}-relTo-{thischrom}:{ssA}({strand})-{gene}'
+            event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
+            for ssB in goodB:
+                junc = junc_between(ssA, ssB)
+                jname = f'{thischrom}:{junc[0]}-{junc[1]}'
+                bedline = site_bedline(thischrom, junc[0], junc[1], f'{jname}_{ename}', strand, colordict[eventtype])
+                event.events[jname] = SplicingEventJunction(jname, [bedline], ssB_counts[ssB], {junc, }, my_juncs - {junc, })
+            event.keep_other(othercounts, min_read_support)
+            # all goodB lie on the same side of ssA
+            ref_junc = (ssA, min(goodB)) if ssA < min(goodB) else (max(goodB), ssA)
+            event.totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
 
-                if any([tot_counts[s] >= event_support for s in allsamples]) \
-                        and len(goodBstrict) > 1:  # only if alt splicing, not including junctions involved in exon skipping
-                    ename = f'{eventtype}-relTo-{thischrom}:{ssA}({strand})-{gene}'
-                    event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
-                    for ssB in goodB:
-                        junc = (min((ssA, ssB)), max((ssA, ssB)))
-                        jname = f'{thischrom}:{junc[0]}-{junc[1]}'
-                        bs, be = min((ssA, ssB)), max((ssA, ssB))
-                        # FIXME: use BED class
-                        bedline = [thischrom, bs, be, f'{jname}_{ename}', 0, strand, bs, be, colordict[eventtype], 1, be - bs, 0]
-                        event_to_info[ename].events[jname] = SplicingEventJunction(jname, [bedline], ssAtoB[ssA][ssB], {junc, }, my_juncs - {junc, })
-
-                    if any([othercounts[s] >= min_read_support for s in allsamples]):
-                        event_to_info[ename].other = othercounts
-                    # against min(goodB), not the ssB the loop above left behind.  All
-                    # goodB lie on the same side of ssA, so this is the same junction
-                    # the leaked value gave, said properly
-                    ref_junc = (ssA, min(goodB)) if ssA < min(goodB) else (max(goodB), ssA)
-                    event_to_info[ename].totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
     eventtype = 'alt3' if eventtype == 'alt5' else 'alt5'
-    for ssBgroup in ssB_groups_to_ssA:
-        if len(ssB_groups_to_ssA[ssBgroup]) > 1:
-            tot_counts = {s: 0 for s in allsamples}
-            othercounts = {s: 0 for s in allsamples}
-            for ssA in ssB_groups_to_ssA[ssBgroup]:
-                tot_counts = add_counts_to_dict(tot_counts, ssB_groups_to_ssA[ssBgroup][ssA])
-            if any([tot_counts[s] >= event_support for s in allsamples]):
-                good = []
-                my_juncs = set()
-                for ssA in ssB_groups_to_ssA[ssBgroup]:
-                    inc_frac_list = [ssB_groups_to_ssA[ssBgroup][ssA][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-                    if psi_varies(inc_frac_list, junc_frac_of_event):
-                        good.append(ssA)
-                        for ssB in ssBgroup:
-                            my_juncs.add((min((ssA, ssB)), max((ssA, ssB))))
-                    else:
-                        othercounts = add_counts_to_dict(othercounts, ssB_groups_to_ssA[ssBgroup][ssA])
-                if len(good) > 1:
-                    oj_string = [f'{thischrom}:{x}' for x in sorted(list(ssBgroup))]
-                    ename = f'{eventtype}ss-relTo-{",".join(oj_string)}({strand})-{gene}'
-                    event_to_info[ename] = SplicingEvent(ename, f'{eventtype}ss', gene, thischrom, strand, tot_counts, allsamples)
-                    for ssA in good:
-                        if (eventtype == 'alt5' and strand == '+') or (eventtype == 'alt3' and strand == '-'):
-                            bs, be = ssA - 10, ssA
-                        else:
-                            bs, be = ssA, ssA + 10
-                        jname = f'{thischrom}:{ssA}'
-                        inc_juncs = set()
-                        for ssB in ssBgroup:
-                            inc_juncs.add((min((ssA, ssB)), max((ssA, ssB))))
-
-                        # FIXME: use BED class
-                        bedline = [thischrom, bs, be, f'{jname}_{ename}', 0, strand, bs, be, colordict[eventtype], 1, be - bs, 0]
-                        event_to_info[ename].events[jname] = SplicingEventJunction(jname, [bedline], ssB_groups_to_ssA[ssBgroup][ssA], inc_juncs, my_juncs - inc_juncs)
-                    if any([othercounts[s] >= min_read_support for s in allsamples]):
-                        event_to_info[ename].other = othercounts
-                    ref_junc = (max(good), min(ssBgroup)) if median(good) < median(ssBgroup) else (max(ssBgroup), min(good))
-                    event_to_info[ename].totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
+    for ssBgroup, ssA_counts in ssB_groups_to_ssA.items():
+        if len(ssA_counts) <= 1:
+            continue
+        tot_counts = sum_counts(ssA_counts.values(), allsamples)
+        if not supported(tot_counts, allsamples, event_support):
+            continue
+        good = []
+        my_juncs = set()
+        othercounts = zero_counts(allsamples)
+        for ssA, counts in ssA_counts.items():
+            if psi_varies(sample_psis(counts, tot_counts, allsamples, event_support), junc_frac_of_event):
+                good.append(ssA)
+                my_juncs.update(junc_between(ssA, ssB) for ssB in ssBgroup)
+            else:
+                othercounts = add_counts_to_dict(othercounts, counts)
+        if len(good) > 1:
+            oj_string = [f'{thischrom}:{x}' for x in sorted(list(ssBgroup))]
+            ename = f'{eventtype}ss-relTo-{",".join(oj_string)}({strand})-{gene}'
+            event = event_to_info[ename] = SplicingEvent(ename, f'{eventtype}ss', gene, thischrom, strand, tot_counts, allsamples)
+            for ssA in good:
+                if (eventtype == 'alt5' and strand == '+') or (eventtype == 'alt3' and strand == '-'):
+                    bs, be = ssA - 10, ssA
+                else:
+                    bs, be = ssA, ssA + 10
+                jname = f'{thischrom}:{ssA}'
+                inc_juncs = {junc_between(ssA, ssB) for ssB in ssBgroup}
+                bedline = site_bedline(thischrom, bs, be, f'{jname}_{ename}', strand, colordict[eventtype])
+                event.events[jname] = SplicingEventJunction(jname, [bedline], ssA_counts[ssA], inc_juncs, my_juncs - inc_juncs)
+            event.keep_other(othercounts, min_read_support)
+            ref_junc = (max(good), min(ssBgroup)) if median(good) < median(ssBgroup) else (max(ssBgroup), min(good))
+            event.totoverlap = get_overlapping_reads(ref_junc, interval_to_reads, allsamples)
 
     return event_to_info
+
 
 class SplicingEvent:
     """Represents metadata about a splicing event"""
@@ -755,6 +682,11 @@ class SplicingEvent:
         self.events = {}
         self.totoverlap = None
         self.other = {s: 0 for s in allsamples}
+
+    def keep_other(self, othercounts, min_reads):
+        "count the reads of the event's other junctions or sites, if some sample has min_reads of them"
+        if any(othercounts[s] >= min_reads for s in othercounts):
+            self.other = othercounts
 
 class SplicingEventJunction:
     """represents metadata about a specific junction in a splicing event"""
@@ -775,63 +707,43 @@ class SplicingEventJunction:
 
 def write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, gene, mycolor, min_read_support, interval_to_reads, junc_frac_of_event, event_support):
     event_to_info = {}
-    for j in alljuncs:
-        retainedcounts = {s: 0 for s in allsamples}
-        for b in allblocks:  # this nested for loop could get brutal
-            if b[0] < j[0] and j[1] < b[1]:
-                for s in allsamples:
-                    retainedcounts[s] += allblocks[b][s]
-        splicedcounts = alljuncs[j]
-        # if sum(allretainedcounts.values()) > 0:  # only report if junction retained at all
-        tot_counts = splicedcounts
-        tot_counts = add_counts_to_dict(tot_counts, retainedcounts)
-
-        inc_frac_list = [retainedcounts[s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-        if len(inc_frac_list) >= 1 \
-                and any([splicedcounts[s] >= min_read_support for s in allsamples]) \
-                and any([retainedcounts[s] >= min_read_support for s in allsamples]) \
-                and psi_varies(inc_frac_list, junc_frac_of_event):
+    for j, splicedcounts in alljuncs.items():
+        # this nested loop could get brutal
+        retainedcounts = sum_counts([counts for b, counts in allblocks.items() if b[0] < j[0] and j[1] < b[1]], allsamples)
+        tot_counts = add_counts_to_dict(splicedcounts, retainedcounts)
+        if supported(splicedcounts, allsamples, min_read_support) and supported(retainedcounts, allsamples, min_read_support) \
+                and psi_varies(sample_psis(retainedcounts, tot_counts, allsamples, event_support), junc_frac_of_event):
             ename = f'ir-of-{thischrom}:{j[0]}-{j[1]}({strand})-{gene}'
-            event_to_info[ename] = SplicingEvent(ename, 'ir', gene, thischrom, strand, tot_counts, allsamples)
-
-            # FIXME: use BED class
-            bedline = [thischrom, j[0] - 10, j[1] + 10, f'spliced_{ename}', 0, strand, j[0] - 10, j[1] + 10, mycolor, 2, '10,10', f'0,{10 + j[1] - j[0]}']
-            event_to_info[ename].events['spliced'] = SplicingEventJunction('spliced', [bedline], splicedcounts, {j, }, {})
-
-            # FIXME: use BED class
-            bedline = [thischrom, j[0], j[1], f'retained_{ename}', 0, strand, j[0], j[1], mycolor, 1, j[1] - j[0], 0]
-            event_to_info[ename].events['retained'] = SplicingEventJunction('retained', [bedline], retainedcounts, {}, {j, })
-
-            event_to_info[ename].totoverlap = get_overlapping_reads(j, interval_to_reads, allsamples)
+            event = event_to_info[ename] = SplicingEvent(ename, 'ir', gene, thischrom, strand, tot_counts, allsamples)
+            bedline = junction_bedline(thischrom, j, [], f'spliced_{ename}', strand, mycolor)
+            event.events['spliced'] = SplicingEventJunction('spliced', [bedline], splicedcounts, {j, }, set())
+            bedline = site_bedline(thischrom, j[0], j[1], f'retained_{ename}', strand, mycolor)
+            event.events['retained'] = SplicingEventJunction('retained', [bedline], retainedcounts, set(), {j, })
+            event.totoverlap = get_overlapping_reads(j, interval_to_reads, allsamples)
     return event_to_info
 
+
 def write_ends(grouped_ends, allsamples, thischrom, strand, gene, eventtype, mycolor, support, junc_frac_of_event, event_support):
-    good_ends = set()
     event_to_info = {}
-    othercounts = {s: 0 for s in allsamples}
-    tot_counts = {s: 0 for s in allsamples}
-    for e in grouped_ends:
-        tot_counts = add_counts_to_dict(tot_counts, grouped_ends[e])
-    if any([tot_counts[s] >= event_support for s in allsamples]):
-        for e in grouped_ends:
-            inc_frac_list = [grouped_ends[e][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-
-            if any([grouped_ends[e][s] >= support for s in allsamples]) \
-                    and psi_varies(inc_frac_list, junc_frac_of_event):
-                good_ends.add(e)
-            else:
-                othercounts = add_counts_to_dict(othercounts, grouped_ends[e])
-        if len(good_ends) > 1:
-            ename = f'{eventtype}-({strand})-{gene}'
-            event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
-
-            for e in good_ends:
-                jname = f'{thischrom}:{e}'
-                # FIXME: use BED class
-                bedline = [thischrom, e - 1, e, f'{jname}_{ename}', 0, strand, e - 1, e, mycolor, 1, 1, 0]
-                event_to_info[ename].events[jname] = SplicingEventJunction(jname, [bedline], grouped_ends[e], {e, }, good_ends - {e, })
-            if any([othercounts[s] >= support for s in allsamples]):
-                event_to_info[ename].other = othercounts
+    tot_counts = sum_counts(grouped_ends.values(), allsamples)
+    if not supported(tot_counts, allsamples, event_support):
+        return event_to_info
+    good_ends = set()
+    othercounts = zero_counts(allsamples)
+    for e, counts in grouped_ends.items():
+        if supported(counts, allsamples, support) \
+                and psi_varies(sample_psis(counts, tot_counts, allsamples, event_support), junc_frac_of_event):
+            good_ends.add(e)
+        else:
+            othercounts = add_counts_to_dict(othercounts, counts)
+    if len(good_ends) > 1:
+        ename = f'{eventtype}-({strand})-{gene}'
+        event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
+        for e in good_ends:
+            jname = f'{thischrom}:{e}'
+            bedline = site_bedline(thischrom, e - 1, e, f'{jname}_{ename}', strand, mycolor)
+            event.events[jname] = SplicingEventJunction(jname, [bedline], grouped_ends[e], {e, }, good_ends - {e, })
+        event.keep_other(othercounts, support)
     return event_to_info
 
 
@@ -872,7 +784,7 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
             one_event_pass = False
             for jname in event.events:
                 jinfo = event.events[jname]
-                inc_frac_list = [jinfo.samplecounts[s] / event.totoverlap[s] for s in allsamples if event.totoverlap[s] > 0]
+                inc_frac_list = sample_psis(jinfo.samplecounts, event.totoverlap, allsamples, 1)
 
                 if (event.eventtype not in {'es', 'ces'} or jname != 'exc') \
                         and psi_varies(inc_frac_list, junc_frac_of_event):
@@ -916,7 +828,8 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
             open(temp_prefix + '.spliceevents.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.spliceevents.PSItot.tsv', 'w') as outpsitot, \
             open(temp_prefix + '.spliceevents.totals.tsv', 'w') as outtotals:
 
-        for gene in allgenes:
+        # sorted, as a set of names is ordered differently in each run
+        for gene in sorted(allgenes):
 
             # get gene strand - this is not optimal, def need to revamp how getting annot info
             strand = genetostrand[gene]

@@ -292,6 +292,9 @@
   * An event in only one sample with enough reads for a PSI is reported, if its PSI
     is at least `--junc_frac_of_event` from 0 and 1, as in a run of one sample.  It
     was left out, as its PSI couldn't differ from another sample's.
+  * A complex exon skip's BED line of more than one included exon has the right
+    number of blocks, which was always 3.  Its rows are written in the same order in
+    every run.
   * The samples of a region are corrected in parallel, within the `--threads` budget,
     not one after another: a run on one gene used a single thread.
   * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
