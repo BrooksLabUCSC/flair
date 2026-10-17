@@ -295,6 +295,10 @@
   * A complex exon skip's BED line of more than one included exon has the right
     number of blocks, which was always 3.  Its rows are written in the same order in
     every run.
+  * `--annot_basic` is read as a GTF, not converted to BED and cut per region with
+    bedtools.  A gene id containing `_`, as in older GENCODE releases' `_PAR_Y`
+    genes, lost its annotated first and last exons, as the gene was taken from the
+    transcript name.
   * The samples of a region are corrected in parallel, within the `--threads` budget,
     not one after another: a run on one gene used a single thread.
   * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
