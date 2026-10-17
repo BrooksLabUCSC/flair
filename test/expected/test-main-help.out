@@ -25,7 +25,6 @@ options:
 
 subcommands:
   <subcommand>
-    align               Align reads to the genome
     transcriptome       Build a transcriptome from aligned reads
     quantify            Quantify isoform expression
     combine             Combine transcriptomes from multiple samples

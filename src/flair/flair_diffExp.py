@@ -19,11 +19,12 @@ from collections import Counter
 from statistics import median, mean
 import pipettor
 
-from flair import FlairError, FlairInputDataError
+from flair import FlairInputDataError, FlairToolError
 from flair.conditions import condition_column_indexes, select_condition_pair
 from flair.counts_matrix_tsv import read_counts_rows, CountsRow, write_counts_matrix
 from flair.deseq2_counts_tsv import write_deseq2_counts
 from flair.drimseq_counts_tsv import drimseq_counts_writer
+from flair.drimseq_input import check_feature_ids_unique
 from flair.formula_matrix_tsv import FormulaRow, write_formula_matrix
 from flair.iso_usage_change_tsv import iso_usage_change_writer
 from flair.output_compress import compressed_path, output_compression
@@ -288,9 +289,10 @@ def run_deseq2(prefix, workdir, condition_a, condition_b, matrix_file, out_dir, 
                           "--prefix", prefix, "--formula", formula_matrix_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
-        raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
+        raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
+    check_feature_ids_unique(matrix_file)
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
@@ -299,7 +301,7 @@ def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file,
                           "--prefix", prefix, "--formula", formula_matrix_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
-        raise FlairError(f'running {prefix} failed, please check {stderr} for details') from exc
+        raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
 
 
 def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expression,  # noqa: C901 - FIXME: reduce complexity

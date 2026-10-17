@@ -2,9 +2,11 @@
 
 import sys
 from flair import FlairInputDataError
+from flair.diffsplice_event_ids import junction_id
 from flair.es_events_tsv import EsEventsWriter
 from flair.flair_bed import FlairBed
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import cli
 
 
 class Gene(object):
@@ -96,7 +98,7 @@ class Gene(object):
                     exclusion_isos = exclusion_isos.union(self.known_juncs[j1[0], j2[-1]])
             inclusion_isos = sorted(list(inclusion_isos))
             exclusion_isos = sorted(list(exclusion_isos))
-            self.writer.writeRow(("%s:%s-%s" % (self.chrom, acceptor.name, donor.name),
+            self.writer.writeRow((junction_id(self.chrom, self.strand, acceptor.name, donor.name),
                                   self.strand, len(inclusion_isos), len(exclusion_isos),
                                   inclusion_isos, exclusion_isos))
             # print(self.chrom, "\t".join(str(x) for x in sorted([acceptor.name,donor.name])), "%s:%s-%s" % (self.chrom,acceptor.name,donor.name), self.name, self.strand, sep="\t")
@@ -121,7 +123,23 @@ class Exon(object):
         self.inclusion_juncs = set()
 
 
+def check_gene_placement(gene, iso, chrom, strand, flair_isoforms):
+    """All isoforms of a gene must sit on the same chromosome and strand.  Skipped
+    exons are found by graphing a gene's isoforms together, and isoforms of two
+    different loci graphed as one gene produce events that are in neither."""
+    if (gene.chrom, gene.strand) != (chrom, strand):
+        raise FlairInputDataError(
+            f"{flair_isoforms}: isoform {iso} places gene {gene.name} on "
+            f"{chrom}{strand}, an earlier isoform placed it on "
+            f"{gene.chrom}{gene.strand}; give each locus its own gene name")
+
+
 def main():
+    with cli.ErrorHandler():
+        find_skipped_exons()
+
+
+def find_skipped_exons():
 
     flair_isoforms = sys.argv[1]
     genes = dict()
@@ -134,7 +152,9 @@ def main():
 
         if bed.gene_id not in genes:
             genes[bed.gene_id] = Gene(bed.gene_id, bed.chrom, bed.strand)
-        genes[bed.gene_id].isoforms[bed.name] = exons
+        gene = genes[bed.gene_id]
+        check_gene_placement(gene, bed.name, bed.chrom, bed.strand, flair_isoforms)
+        gene.isoforms[bed.name] = exons
 
     with EsEventsWriter(None, outFh=sys.stdout) as writer:
         for gobj in genes.values():

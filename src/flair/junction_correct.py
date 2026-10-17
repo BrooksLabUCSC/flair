@@ -6,6 +6,7 @@ from math import inf
 from flair import PosRange
 from flair.intron_support import IntronSupport
 from flair.isoform_data import Junc
+from flair.count_sam_transcripts import SPLICE_SITE_FLANK
 
 ##
 # Notes:
@@ -19,7 +20,19 @@ from flair.isoform_data import Junc
 # or overlapping other introns.
 ##
 MIN_INTERNAL_EXON_SIZE = 3   # there is one this small!
-MIN_TERMINAL_EXON_SIZE = 32
+# a corrected terminal splice site must be at least this far from the read end, so
+# the read covers the splice site window count_sam_transcripts checks; a junction
+# anchored by fewer bases at a read end is too weakly supported
+MIN_TERMINAL_EXON_SIZE = SPLICE_SITE_FLANK
+
+# strand of a read whose junctions are supported only by weak strand evidence:
+# introns that are neither annotated nor have a canonical GT-AG motif, such as
+# semi-canonical GC-AG or AT-AC introns.  The strand is resolved by gene
+# identification, or the read's transcript is dropped.
+UNKNOWN_STRAND = '.'
+
+# canonical donor and acceptor dinucleotides of an intron, as on the + strand of the genome
+_CANONICAL_MOTIFS = {'+': ('GT', 'AG'), '-': ('CT', 'AC')}
 
 class JunctionCorrector:
     """Correction of read splice sites from orthogonal evidence
@@ -33,27 +46,52 @@ class JunctionCorrector:
         self.intron_support = intron_support
         self.flank_window = flank_window
         self.min_read_support = min_read_support
+        self._strong_strand_cache = {}
 
     @property
     def chroms(self):
         return self.intron_support.chroms
 
-    def overlap_introns(self, chrom, start, end):
+    def overlap_introns(self, chrom, start, end, strand=None):
+        """supported introns near [start, end); with a strand, only introns on that
+        strand or of unknown strand"""
         def _filter_intron(intron):
+            if strand is not None and intron.strand not in (strand, '.'):
+                return False
             return intron.annot_supported or (intron.read_support_cnt > self.min_read_support)
         return list(filter(_filter_intron,
                            self.intron_support.overlap(chrom, start, end, self.flank_window)))
 
-    def correct_readrec(self, readrec):
+    def has_strong_strand(self, intron, genome):
+        """Is an intron's strand strong evidence of a read's strand: it is
+        annotated, or has a canonical GT-AG motif.  Without a genome every
+        intron's strand is taken as strong."""
+        if genome is None or intron.annot_supported:
+            return True
+        key = (intron.chrom, intron.start, intron.end, intron.strand)
+        if key not in self._strong_strand_cache:
+            donor = genome.fetch(intron.chrom, intron.start, intron.start + 2).upper()
+            acceptor = genome.fetch(intron.chrom, intron.end - 2, intron.end).upper()
+            self._strong_strand_cache[key] = (donor, acceptor) == _CANONICAL_MOTIFS.get(intron.strand)
+        return self._strong_strand_cache[key]
+
+    def correct_readrec(self, readrec, trust_strand=False, genome=None):
         """Correct a ReadRec's junctions and strand in place from intron support.
-        Returns True if corrected, False if there is no support."""
-        new_junctions, strand = _correct_junctions(self, readrec)
+        With trust_strand, the read's strand is kept and only introns on that strand
+        (or of unknown strand) are used.  Otherwise, given the genome, a read whose
+        introns are all weak strand evidence (see has_strong_strand) gets
+        UNKNOWN_STRAND.  Returns True if corrected, False if there is no support."""
+        new_junctions, strand = _correct_junctions(self, readrec, trust_strand, genome)
         if new_junctions is None:
             return False
         else:
             readrec.juncs = tuple(Junc(j.start, j.end) for j in new_junctions)
             readrec.strand = strand
             return True
+
+    def build_indexes(self):
+        """build the intron support indexes now, so processes forked afterwards share them"""
+        self.intron_support.build_indexes()
 
     def subset_for_region(self, chrom, start, end):
         """Return a JunctionCorrector object with entries overlapping [start, end) on chrom."""
@@ -107,10 +145,11 @@ def _collect_closest_hits(start, end, intron_hits):
             closest_introns.append(intron)
     return closest_introns
 
-def _correct_junction(corrector, readrec, start, end, new_junctions):
+def _correct_junction(corrector, readrec, start, end, new_junctions, strand=None):
     """Add a corrected intron junction. Return intron record used or
-    None if not supported."""
-    intron_hits = corrector.overlap_introns(readrec.chrom, start, end)
+    None if not supported.  With a strand, only introns on that strand, or of
+    unknown strand, are considered."""
+    intron_hits = corrector.overlap_introns(readrec.chrom, start, end, strand=strand)
     if intron_hits is None or len(intron_hits) == 0:
         logging.debug(f"Read: '{readrec.name}': no intron support for {readrec.chrom}:{start}-{end}")
         return None
@@ -123,10 +162,26 @@ def _correct_junction(corrector, readrec, start, end, new_junctions):
     new_junctions.append(PosRange(best_intron.start, best_intron.end))
     return best_intron
 
-def _determine_strand(readrec, intron_supports):
+def _correct_junction_chain(corrector, readrec, strand=None):
+    """Correct each of a read's junctions, with only introns on the strand if one
+    is given.  Returns (new junctions, the introns used), or (None, None) if a
+    junction has no support."""
+    new_junctions = []
+    intron_supports = []
+    for junc in readrec.juncs:
+        intron_support = _correct_junction(corrector, readrec, junc.start, junc.end,
+                                           new_junctions, strand)
+        if intron_support is None:
+            return None, None
+        intron_supports.append(intron_support)
+    return new_junctions, intron_supports
+
+def _determine_strand(readrec, intron_supports, is_strong=lambda intron: True):
     """Determine the strand from the IntronSupport objects use for
     splice junction correction, or None if there are conflicts.
     Junctions with strand of '.' don't go into the calculation.
+    If none of the stranded introns pass is_strong, the strand is only weakly
+    supported and UNKNOWN_STRAND is returned.
     """
     strand = None
     for intron_support in intron_supports:
@@ -140,21 +195,41 @@ def _determine_strand(readrec, intron_supports):
         # all unknown strand
         logging.debug(f"Read: '{readrec.name}': all of the {len(intron_supports)} intron have unknown splice junction so strand can not be determined")
         return None
+    if not any(is_strong(i) for i in intron_supports if i.strand != '.'):
+        logging.debug(f"Read: '{readrec.name}': strand only weakly supported by junction motifs, left unknown")
+        return UNKNOWN_STRAND
     return strand
 
-def _correct_junctions(corrector, readrec):
+def _correct_junctions(corrector, readrec, trust_strand=False, genome=None):
     """Create a list of new junctions for a read and determine
-    strand.  Returns (None, None) if can't be corrected or strands are inconsistent"""
-    new_junctions = []
-    intron_supports = []
-    for junc in readrec.juncs:
-        intron_support = _correct_junction(corrector, readrec, junc.start, junc.end,
-                                           new_junctions)
-        if intron_support is None:
-            return None, None
-        intron_supports.append(intron_support)
+    strand.  Returns (None, None) if can't be corrected or strands are inconsistent.
+    With trust_strand, the strand is the read's, and the introns used are all on it
+    or of unknown strand.  Otherwise, if the introns that are strong strand evidence
+    (see JunctionCorrector.has_strong_strand) are all on one strand, but weak ones
+    are on the other, the read is corrected again with only introns on the strong
+    strand, as a weak intron on the other strand is not a plausible intron on the
+    read's strand."""
+    if trust_strand:
+        new_junctions, _ = _correct_junction_chain(corrector, readrec, readrec.strand)
+        return (None, None) if new_junctions is None else (new_junctions, readrec.strand)
 
-    strand = _determine_strand(readrec, intron_supports)
+    new_junctions, intron_supports = _correct_junction_chain(corrector, readrec)
+    if new_junctions is None:
+        return None, None
+
+    def is_strong(intron):
+        return corrector.has_strong_strand(intron, genome)
+    strong_strands = {i.strand for i in intron_supports if i.strand != '.' and is_strong(i)}
+    if len(strong_strands) == 1:
+        strong_strand = strong_strands.pop()
+        if any(i.strand not in (strong_strand, '.') for i in intron_supports):
+            logging.debug(f"Read: '{readrec.name}': weak junction support on the strand opposite "
+                          f"strong support, correcting with only {strong_strand} strand introns")
+            new_junctions, intron_supports = _correct_junction_chain(corrector, readrec, strong_strand)
+            if new_junctions is None:
+                return None, None
+
+    strand = _determine_strand(readrec, intron_supports, is_strong)
     if strand is None:
         return None, None
     return new_junctions, strand

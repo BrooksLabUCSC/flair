@@ -13,25 +13,19 @@
 ########################################################################
 
 
-# import pipettor
-# import os
-# import argparse
-# from flair import FlairInputDataError
-# from flair.gtf_io import gtf_record_parser, GtfAttrsSet
-# from flair.pycbio.hgdata.bed import Bed, BedReader
-# from flair.pycbio.sys import fileOps
-# from flair.bed_to_gtf import bed_to_gtf
-# from flair.flair_bed import FlairBed
+import logging
 from flair.isoform_data import get_reverse_complement, translate as translate_seq
 
 STOP_CODON_SEQS = set(['TAA', 'TGA', 'TAG'])
 MAX_DIST_FROM_EXON_EDGE_FOR_PTC = 55
 
 def get_annot_start_codons(transcript, gene_to_cds_starts):
+    """The annotated CDS starts of the genes the transcript is assigned to, on the
+    transcript's strand: a gene's start codons on the other strand, as of an
+    antisense or overlapping gene, would be read in the wrong direction."""
     my_annot_starts = set()
     for gene in transcript.gene.gene_desc:
-        if gene in gene_to_cds_starts:
-            my_annot_starts.update(gene_to_cds_starts[gene])
+        my_annot_starts.update(gene_to_cds_starts.get(gene, {}).get(transcript.strand, ()))
     return my_annot_starts
 
 def identify_start_exon_index(my_exons, annot_start):
@@ -68,16 +62,20 @@ def calc_ptc(exon_sizes, orf_end_pos, ref_transcript_id, transcript_to_nmd_excep
     return "PTC" if is_ptc else "PRO"
 
 def calc_genomic_end_pos(my_exons, exon_sizes, orf_end_pos, strand):
+    """Genomic position of the end of the ORF, orf_end_pos being the transcript
+    position just past the stop codon, or None if that is not in the transcript.
+    my_exons and exon_sizes are ordered 5' to 3'.  The position is found from the
+    exon holding the stop codon's last base, so an ORF ending at the 3' edge of an
+    exon ends there, not at the first base of the next exon, and one ending at the
+    transcript's 3' end ends at the transcript's end."""
+    last_base = orf_end_pos - 1
     curr_start = 0
-    genomic_end_pos = None
-    for i in range(len(my_exons)):
-        if curr_start <= orf_end_pos < curr_start + exon_sizes[i]:
-            if strand == '+':
-                genomic_end_pos = my_exons[i].start + (orf_end_pos - curr_start)
-            else:
-                genomic_end_pos = my_exons[i].end - (orf_end_pos - curr_start)
-        curr_start += exon_sizes[i]
-    return genomic_end_pos
+    for exon, size in zip(my_exons, exon_sizes):
+        if curr_start <= last_base < curr_start + size:
+            offset = last_base - curr_start
+            return exon.start + offset + 1 if strand == '+' else exon.end - offset - 1
+        curr_start += size
+    return None
 
 def identify_prod_from_start(orfs, annot_start, rel_start, my_exons, exon_sizes, my_seq, strand, ref_transcript_id,
                              transcript_to_nmd_except):
@@ -125,11 +123,20 @@ def translate_from_bed(bed_transcript, genome):
                 seq_to_translate += genome.fetch(bed_transcript.chrom, e.start, bed_transcript.thickEnd)
         if bed_transcript.strand == '-':
             seq_to_translate = get_reverse_complement(seq_to_translate)
-        # print(seq_to_translate[-10:], translate(seq_to_translate)[-10:])
         return translate(seq_to_translate)
     return None
 
-def predict_prod_temp(transcript, start_codon_count, gene_to_cds_starts, transcript_to_nmd_except, genome):
+def checked_cds(thickStart, thickEnd, chrom_start, chrom_end):
+    """thickStart and thickEnd if they are a CDS within the transcript (a missing
+    value or one after the other is not), else None.  A BED writer fills in a missing
+    thickStart with chromEnd, which on the minus strand is after thickEnd, and
+    bedToBigBed rejects the whole file."""
+    if thickStart is None or thickEnd is None or not chrom_start <= thickStart <= thickEnd <= chrom_end:
+        return None
+    return thickStart, thickEnd
+
+
+def predict_productivity(transcript, start_codon_count, gene_to_cds_starts, transcript_to_nmd_except, genome):
     my_prod = None
     thickStart, thickEnd = None, None
     my_aaseq = None
@@ -142,6 +149,12 @@ def predict_prod_temp(transcript, start_codon_count, gene_to_cds_starts, transcr
             thickStart, thickEnd = my_orf[2], my_orf[1]
         my_prod = my_orf[0]
         my_aaseq = my_orf[5]
+        if checked_cds(thickStart, thickEnd, transcript.start, transcript.end) is None:
+            # no usable CDS: reported as no good ORF, rather than failing bedToBigBed
+            logging.debug(f"CDS dropped, thickStart {thickStart} and thickEnd {thickEnd} not within "
+                          f"{transcript.chrom}:{transcript.start}-{transcript.end} ({transcript.strand}): {transcript.name}")
+            thickStart = thickEnd = transcript.start
+            my_prod, my_aaseq = 'NGO', None
     return thickStart, thickEnd, my_prod, my_aaseq
 
 def translate(seq):

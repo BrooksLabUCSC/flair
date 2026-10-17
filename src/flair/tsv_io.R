@@ -46,18 +46,6 @@ tsvWriteTable <- function(x, path, ...) {
     write.table(x, file = con, sep = "\t", quote = FALSE, ...)
 }
 
-tsvCheckUniqueIds <- function(ids, column, path, maxReport=10) {
-    # DRIMSeq makes this check itself, with a stopifnot that names neither the
-    # file nor a duplicated value, so it is made here first
-    dups <- unique(ids[duplicated(ids)])
-    if (length(dups) > 0) {
-        more <- if (length(dups) > maxReport) sprintf(", and %d more", length(dups) - maxReport) else ""
-        stop(sprintf("%s: DRIMSeq needs one row per %s; these appear more than once: %s%s. Combine or drop the duplicate rows and rerun.",
-                     path, column, paste(head(dups, maxReport), collapse=", "), more),
-             call.=FALSE)
-    }
-}
-
 tsvFread <- function(path, ...) {
     # data.table's fread needs the R.utils package to open a compressed file
     # itself, so a compressed one is decompressed through a pipe instead, the way

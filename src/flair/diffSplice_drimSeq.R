@@ -4,9 +4,9 @@ library(argparse)
 library(DRIMSeq)
 library(data.table)
 suppressWarnings(library(BiocParallel))
-# traceback alone leaves the exit status at zero, so a failed run looks like a
-# successful one to whatever called this script
-options(error = function() {traceback(2); quit(save="no", status=1)})
+# quit(status=1): an error handler that only prints leaves Rscript exiting 0, so
+# every failure here was invisible to flair and the run looked like it finished
+options(error = function() {traceback(2); quit(status = 1, save = "no")})
 source(file.path(dirname(sub("^--file=", "",
                             grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))),
                  "tsv_io.R"))
@@ -70,7 +70,6 @@ run_DRIMSeq <- function(args) {
   count_df <- as.data.frame(quantDF)
 
   # Initialize and filter data
-  tsvCheckUniqueIds(count_df$feature_id, "feature_id", args$matrix)
   data <- dmDSdata(counts = count_df, samples = sample_df)
   filtered <- dmFilter(data, min_samps_gene_expr = args$min_samps_gene_expr, min_samps_feature_expr = args$min_samps_feature_expr, min_gene_expr = args$min_gene_expr, min_feature_expr = args$min_feature_expr)
 

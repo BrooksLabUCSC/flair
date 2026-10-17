@@ -5,12 +5,17 @@
 
 import argparse
 import os
+import re
 import logging
 import shutil
 import subprocess
+import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import pipettor
+import pysam
 from flair.pycbio.sys import cli, fileOps, loggingOps
-from flair.pycbio.hgdata.bed import BedReader, Bed
+from flair.pycbio.hgdata.bed import Bed
 
 def check_input_files(bed_files, bam_files, gtf_files):
     "fail here rather than inside the sort pipeline, where the message is not the point"
@@ -28,7 +33,7 @@ def build_parser():
     parser.add_argument("--part_merge_dist", type=int, default=0,
                         help="Combine adjacent non-overlapping partitions separated by this distance")
     parser.add_argument("--threads", type=int, default=1,
-                        help="Number of cores for parallel sorting")
+                        help="Number of cores for converting inputs, a BAM by chromosome, and sorting")
     parser.add_argument("--bed", dest="bed_files", action="append", default=[],
                         help="Input BED file, maybe compressed.  Maybe repeated")
     parser.add_argument("--bam", dest="bam_files", action="append", default=[],
@@ -36,7 +41,8 @@ def build_parser():
     parser.add_argument("--gtf", dest="gtf_files", action="append", default=[],
                         help="Input GTF file.  Maybe repeated.")
     parser.add_argument("ranges_bed",
-                        help="Output ranges BED file, will be compressed if it ends in .gz")
+                        help="Output ranges BED file, will be compressed if it ends in .gz.  "
+                        "It is a BED4 with the number of input items in each partition as a fifth column")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
     return parser
 
@@ -63,48 +69,124 @@ class PartitionCounts:
         self.max_part_items = max(self.max_part_items, item_count)
 
 
-def start_sort_process(nthreads):
-    """create process to sort BEDs by chrom start and reversed end,
-    which makes it easy to find overlapping records.  Returns
-    process object."""
-
+def sort_beds(nthreads, in_files, sorted_bed):
+    """sort BEDs by chrom start and reversed end, which makes it easy to find
+    overlapping records.  This writes a file, rather than being read as it
+    outputs, so its final merge doesn't run alongside the partitioning and
+    exceed the threads"""
     # force ASCII sorting
-    os.environ["LC_COLLATE"] = "C"
-    cmd = ["sort", "-k1,1", "-k2,2n", "-k3,3nr", f"--parallel={nthreads}"]
-    proc = subprocess.Popen(cmd,
-                            stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True)
-    return proc
+    env = dict(os.environ, LC_COLLATE="C")
+    cmd = ["sort", "-k1,1", "-k2,2n", "-k3,3nr", f"--parallel={nthreads}", "-o", sorted_bed] + list(in_files)
+    proc = subprocess.run(cmd, env=env, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, output=None, stderr=proc.stderr)
 
-def finish_sort_process(sort_proc):
-    rc = sort_proc.wait()
-    if rc != 0:
-        err = sort_proc.stderr.read()
-        raise subprocess.CalledProcessError(rc, sort_proc.args, output=None, stderr=err)
+###
+# Convert inputs to BED, which is sorted for partitioning.  Only the chrom, start,
+# and end are used.  Each conversion writes its own file, so they can run in
+# parallel.
+###
+def bed_to_file(bed_file, out_bed):
+    with fileOps.opengz(bed_file) as bed_fh, open(out_bed, 'w') as out_fh:
+        shutil.copyfileobj(bed_fh, out_fh)
 
-def copy_bed_to_sort(bed_file, to_sort_fh):
-    with fileOps.opengz(bed_file) as bed_fh:
-        shutil.copyfileobj(bed_fh, to_sort_fh)
+def _bam_region(chrom):
+    "region for a whole chrom; braces keep a name containing ':' from being parsed as a range"
+    return f"{{{chrom}}}" if ':' in chrom else chrom
 
-def copy_bam_to_sort(bam_file, to_sort_fh):
-    cmd = ['bedtools', 'bamtobed', '-i', bam_file]
-    with pipettor.Popen(cmd) as bed_fh:
-        shutil.copyfileobj(bed_fh, to_sort_fh)
+def bam_to_file(bam_file, out_bed, chrom=None):
+    "alignments of a BAM, or of one chrom of an indexed BAM, as BED"
+    if chrom is None:
+        pipettor.run(['bedtools', 'bamtobed', '-i', bam_file], stdout=out_bed)
+    else:
+        pipettor.run([['samtools', 'view', '-u', bam_file, _bam_region(chrom)],
+                      ['bedtools', 'bamtobed', '-i', 'stdin']], stdout=out_bed)
 
-def copy_gtf_to_sort(gtf_file, to_sort_fh):
-    cmd = ['gtf_to_bed', '--include_gene', gtf_file, '/dev/stdout']
-    with pipettor.Popen(cmd) as bed_fh:
-        shutil.copyfileobj(bed_fh, to_sort_fh)
+def bam_chroms(bam_file):
+    """chroms of an indexed BAM that have mapped reads, largest first, so the BAM
+    can be converted by chrom in parallel, or None if it has no index"""
+    with pysam.AlignmentFile(bam_file) as bam:
+        if not (bam.is_bam or bam.is_cram) or not bam.has_index():
+            return None
+        stats = [s for s in bam.get_index_statistics() if s.mapped > 0]
+    return [s.contig for s in sorted(stats, key=lambda s: s.mapped, reverse=True)]
 
-def copy_input_to_sort(bed_files, bam_files, gtf_files, to_sort_fh):
-    for bed_file in bed_files:
-        copy_bed_to_sort(bed_file, to_sort_fh)
-    for bam_file in bam_files:
-        copy_bam_to_sort(bam_file, to_sort_fh)
+
+_TRANSCRIPT_ID_RE = re.compile(r'transcript_id\s+"?([^";]+)"?')
+
+def gtf_to_file(gtf_file, out_bed):
+    """The span of each GTF transcript, from its exons, as a BED3.  Only the span
+    is needed, and converting to BED12 with gtf_to_bed parses the whole GTF into
+    records, which took longer than everything else here combined"""
+    spans = {}  # transcript_id -> [chrom, start, end], start zero-based
+    with fileOps.opengz(gtf_file) as fh:
+        for line in fh:
+            fields = line.split('\t', 8)
+            if len(fields) < 9 or fields[2] != 'exon':
+                continue
+            match = _TRANSCRIPT_ID_RE.search(fields[8])
+            if match is None:
+                continue
+            start, end = int(fields[3]) - 1, int(fields[4])
+            span = spans.get(match.group(1))
+            if span is None:
+                spans[match.group(1)] = [fields[0], start, end]
+            else:
+                span[1] = min(span[1], start)
+                span[2] = max(span[2], end)
+    with open(out_bed, 'w') as out_fh:
+        for chrom, start, end in spans.values():
+            out_fh.write(f"{chrom}\t{start}\t{end}\n")
+
+class _ThreadSlots:
+    "a budget of threads, from which jobs take as many as they use"
+    def __init__(self, nthreads):
+        self._free = nthreads
+        self._cond = threading.Condition()
+
+    def run(self, nslots, func, *args):
+        with self._cond:
+            self._cond.wait_for(lambda: self._free >= nslots)
+            self._free -= nslots
+        try:
+            return func(*args)
+        finally:
+            with self._cond:
+                self._free += nslots
+                self._cond.notify_all()
+
+
+# converting a BAM chrom is two processes, samtools view and bedtools bamtobed,
+# which together use about one and a half cores
+_BAM_CHROM_SLOTS = 2
+
+def convert_inputs(bed_files, bam_files, gtf_files, nthreads, tmp_dir):
+    """Convert all inputs to BED files in tmp_dir, with an indexed BAM split by
+    chrom, using at most nthreads.  Returns the BED files."""
+    nthreads = max(1, nthreads)
+    jobs = []  # (threads used, function, args), slowest first
     for gtf_file in gtf_files:
-        copy_gtf_to_sort(gtf_file, to_sort_fh)
+        jobs.append((1, gtf_to_file, (gtf_file,)))
+    for bam_file in bam_files:
+        # with a single thread, a single bamtobed process for the whole BAM
+        chroms = bam_chroms(bam_file) if nthreads >= _BAM_CHROM_SLOTS else None
+        if chroms is None:
+            jobs.append((1, bam_to_file, (bam_file,)))
+        else:
+            jobs.extend((_BAM_CHROM_SLOTS, bam_to_file, (bam_file, chrom)) for chrom in chroms)
+    for bed_file in bed_files:
+        jobs.append((1, bed_to_file, (bed_file,)))
+
+    out_beds = [os.path.join(tmp_dir, f"in{i}.bed") for i in range(len(jobs))]
+    # the conversions are mostly separate programs, so threads are enough; each
+    # waits for the threads it uses to be free
+    slots = _ThreadSlots(nthreads)
+    with ThreadPoolExecutor(max_workers=nthreads) as executor:
+        futures = [executor.submit(slots.run, nslots, func, args[0], out_bed, *args[1:])
+                   for (nslots, func, args), out_bed in zip(jobs, out_beds)]
+        for future in futures:
+            future.result()
+    return out_beds
 
 def same_chrom(bed, bed_part):
     return bed.chrom == bed_part.chrom
@@ -159,26 +241,43 @@ def partition_reader(bed_reader, min_partition_items, part_merge_dist):
         part_count += 1
         bed_part = make_part_bed(next_bed, part_count)
 
+class _Range:
+    "location of an input item; reading only the first three columns is much faster than parsing BEDs"
+    __slots__ = ("chrom", "chromStart", "chromEnd")
+
+    def __init__(self, chrom, chromStart, chromEnd):
+        self.chrom = chrom
+        self.chromStart = chromStart
+        self.chromEnd = chromEnd
+
+def read_ranges(fh):
+    "generator of _Range objects for the lines of a BED"
+    for line in fh:
+        if line.isspace() or line.startswith(('#', 'track ', 'browser ')):
+            continue
+        chrom, start, end = line.split('\t', 3)[:3]
+        yield _Range(chrom, int(start), int(end))
+
 def write_partitions(from_sort_fh, min_partition_items, part_merge_dist,
                      part_fh, part_counts):
-    bed_reader = BedReader(from_sort_fh, numStdCols=3)
+    bed_reader = read_ranges(from_sort_fh)
 
     for bed_part, item_count in partition_reader(bed_reader,
                                                  min_partition_items, part_merge_dist):
         part_counts.count(item_count)
+        # the item count lets flair order partitions by size
+        bed_part.extraCols = (str(item_count),)
         bed_part.write(part_fh)
 
 def build_partitions(bed_files, bam_files, gtf_files, nthreads, min_partition_items, part_merge_dist,
                      part_fh, part_counts):
-    # NOTE: this takes advantage of sort not writing anything to stdout until
-    # stdin is closed.  Don't do this at home.
-
-    sort_proc = start_sort_process(nthreads)
-    copy_input_to_sort(bed_files, bam_files, gtf_files, sort_proc.stdin)
-    sort_proc.stdin.close()
-    write_partitions(sort_proc.stdout, min_partition_items, part_merge_dist,
-                     part_fh, part_counts)
-    finish_sort_process(sort_proc)
+    with tempfile.TemporaryDirectory(prefix="flair_partition.") as tmp_dir:
+        in_beds = convert_inputs(bed_files, bam_files, gtf_files, nthreads, tmp_dir)
+        sorted_bed = os.path.join(tmp_dir, "sorted.bed")
+        sort_beds(nthreads, in_beds, sorted_bed)
+        with open(sorted_bed) as sorted_fh:
+            write_partitions(sorted_fh, min_partition_items, part_merge_dist,
+                             part_fh, part_counts)
 
 def report_stats(part_counts):
     logging.info(f"Number of items: {part_counts.item_count}")

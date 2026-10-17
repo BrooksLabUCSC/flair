@@ -19,18 +19,6 @@ than 10M reads. In that case, you may want to combine replicates for
 better coverage. However, we have tested and obtained good results with
 ~1M reads.
 
-- FLAIR align
-
-  - Is a wrapper around minimap that uses specific options for what we
-    find to be good spliced alignment; will also do some additional
-    filtering if requested
-  - Pros: this is what FLAIR was tested on, will provide consistent
-    results
-  - Cons: this requires FASTA/FASTQ read files, so if your raw reads are
-    provided as BAM files, you would need to convert them to
-    FASTA/FASTQ, losing information stored in the BAM tags. Also, if
-    your reads are already aligned, realigning is cumbersome.
-
 - Pbmm2 / Dorado align
 
   - These are the minimap2 wrappers developed by PacBio and ONT
@@ -44,7 +32,10 @@ better coverage. However, we have tested and obtained good results with
   - This is the basal aligner used by all of these methods, which can
     also be run directly
   - Pros: maximum flexibility and control in terms of alignment options
-  - Cons: Similar to FLAIR align
+  - Cons: this requires FASTA/FASTQ read files, so if your raw reads are
+    provided as BAM files, you would need to convert them to
+    FASTA/FASTQ, losing information stored in the BAM tags. Also, if
+    your reads are already aligned, realigning is cumbersome.
   - Recommended alignment command:
 
     - ``minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no GENOME.fa SAMPLE.fa | samtools view -hb - | samtools sort - > SAMPLE.genomealigned.bam; samtools index SAMPLE.genomealigned.bam``

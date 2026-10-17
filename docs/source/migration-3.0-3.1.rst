@@ -35,18 +35,16 @@ Commands that moved
 flair align
 -----------
 
-**Renamed**
+``flair align`` is gone.  It ran minimap2 and filtered its output, which nothing else
+used: ``flair transcriptome`` and ``flair fusion`` take a BAM of all the reads aligned
+to the genome.  Align the reads yourself:
 
-- ``--nvrna`` is ``--native_rna``
-- ``--filtertype`` is ``--filter_type``
-- ``--maxintronlen`` is ``--max_intron_len``
-- ``--minfragmentsize`` is ``--min_fragment_size``
+.. code:: text
 
-**Gone**
+   minimap2 -ax splice --MD --secondary=no -t 4 genome.fa reads.fq | samtools sort -o sample.bam -
+   samtools index sample.bam
 
-- ``-f``, ``--gtf``
-- ``--remove_internal_priming``, ``--intprimingthreshold``, ``--intprimingfracAs``
-- ``--remove_singleexon``
+:ref:`alignment-label` says what each option does and when to change it.
 
 flair transcriptome
 -------------------
@@ -75,13 +73,16 @@ flair transcriptome
 
 - ``-n``, ``--no_redundant``
 - ``--predictCDS``
+- ``--trust_ends``: each isoform's ends come from the ends of the reads assigned to it,
+  and passing it is an error that says so
 
 **New**
 
 - ``--sample_name`` is required, and is recorded in the output files
-- ``--trust_strand``, ``--trust_ends``, ``--normalize_ends``
-- ``--generate_map``, ``--fusion_breakpoints``
-- ``--allow_paralogs``, which is not implemented and is an error rather than a no-op
+- ``--trust_strand``, ``--trust_junctions``, ``--normalize_ends``
+- ``--directRNA`` and ``--total_rna``, the latter requiring ``--trust_strand``
+- ``--temp_dir``, which ``--keep_intermediate`` now requires
+- ``--generate_map``, ``--fusion_breakpoints``, ``--subset_backup_support``
 
 **Outputs**
 
@@ -149,6 +150,9 @@ flair combine
 - ``--prefixes`` and ``--isoform_beds`` name the transcriptomes to combine without a
   manifest file; they and ``--manifest`` are mutually exclusive
 - ``-g``, ``--genome``
+- ``-f``, ``--gtf``: with it, each combined isoform takes its gene, reference
+  transcript, CDS, productivity and protein from that annotation, so samples run with
+  different annotations can be combined
 - ``--max_ends``, ``--min_reads``
 
 **Changed**
@@ -179,8 +183,16 @@ flair fusion
 **New**
 
 - ``--sample_name`` is required
-- ``--max_dist_to_tss``, ``--min_dist_between_breakpoints``
-- ``--keep_intermediate``, ``--allow_paralogs``
+- ``--max_dist_to_tss``, ``--min_dist_between_breakpoints``, ``--max_partners``
+- ``--frac_support``, ``--quality``, ``--no_transcriptome_alignment``
+- ``--keep_intermediate``
+
+**Outputs**
+
+- ``OUTPUT.fusions.tsv``, a table of the fusions called: their reads, isoforms and best
+  supported breakpoint.
+- ``OUTPUT.fusions.isoforms.gtf`` and ``.bb`` beside the BED, as flair transcriptome
+  writes them.
 
 flair diffexp
 -------------
@@ -218,9 +230,10 @@ flair diffsplice
 
 **Outputs**
 
-- Event names end in the strand, so ``inclusion_chr1:500-650`` is
-  ``inclusion_chr1:500-650:+``. The same goes for the ``coordinate`` column. Without
-  it, an event called on both strands at one locus appeared twice under one name.
+- Event names carry the strand, so ``inclusion_chr1:500-650`` is
+  ``inclusion_chr1:500-650(+)``, the form ``flair spliceevents`` uses. The same goes for
+  the ``coordinate`` column. Without it, an event called on both strands at one locus
+  appeared twice under one name and DRIMSeq refused the file.
 - All four ``drimseq_<event>_A_v_B.tsv`` are always written. An event type that called
   nothing, or whose events DRIMSeq found nothing significant in, leaves a file of only
   its header.

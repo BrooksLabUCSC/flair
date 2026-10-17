@@ -5,9 +5,11 @@ import argparse
 from collections import namedtuple
 from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows
 from flair import PosRange
+from flair.diffsplice_event_ids import junction_id, site_id
 from flair.isoform_data import Junc
 from flair.event_quant_tsv import event_quant_writer
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import cli
 
 # minimum distance apart for alt SS to be tested
 wiggle = 10
@@ -93,7 +95,7 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                         continue
                     inclusion = tp1
                     exclusion = tp2
-                    strand, chrom_clean = chrom[0], chrom[1:]
+                    strand = chrom[0]
 
                     if (search_threeprime and strand == '+') or (not search_threeprime and strand == '-'):
                         if tp2 > exon_end:  # exon skipping. tp2 does not overlap tp1's exon
@@ -101,10 +103,11 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                     elif tp2 < exon_end:  # exon skipping for alt SS upstream of anchor
                         continue
 
-                    anchor = f'{chrom_clean}:{fiveprime}' if n == 0 else f'{chrom_clean}:{fiveprime}-{n}'
-                    feature_suffix = f'{anchor}:{strand}'
-                    event = (f'{chrom_clean}:{fiveprime}-{inclusion}_'
-                             f'{chrom_clean}:{fiveprime}-{exclusion}:{strand}')
+                    chrom_clean = chrom[1:]
+                    anchor = site_id(chrom_clean, strand, fiveprime)
+                    feature_suffix = anchor if n == 0 else anchor + '-' + str(n)
+                    event = (junction_id(chrom_clean, strand, fiveprime, inclusion) + '_' +
+                             junction_id(chrom_clean, strand, fiveprime, exclusion))
 
                     writer.writeSide('inclusion', feature_suffix, event,
                                      alljuncs[chrom][fiveprime][inclusion]['counts'],
@@ -115,8 +118,13 @@ def find_altss(alljuncs, writer, search_threeprime=True):
                     n += 1
 
 
-def main():  # noqa: C901 - FIXME: reduce complexity
+def main():
     args = parse_args()
+    with cli.ErrorHandler():
+        call_events(args)
+
+
+def call_events(args):  # noqa: C901 - FIXME: reduce complexity
 
     iso_counts = {}
     sample_names = []
@@ -198,7 +206,7 @@ def main():  # noqa: C901 - FIXME: reduce complexity
                     ir_junctions[chrom][j]['exclusion']['counts'] = ir_junctions[chrom][j]['inclusion']['counts'] = []
 
                 strand, chrom_clean = chrom[0], chrom[1:]
-                event = f'{chrom_clean}:{j.start}-{j.end}:{strand}'
+                event = junction_id(chrom_clean, strand, j.start, j.end)
                 writer.writeSide('inclusion', event, event,
                                  ir_junctions[chrom][j]['inclusion']['counts'],
                                  sorted(ir_junctions[chrom][j]['inclusion']['isos']))

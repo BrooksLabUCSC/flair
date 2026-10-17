@@ -12,7 +12,7 @@ The easiest way to install Flair and all of its dependencies is via BioConda:
 
    conda create -n flair -c conda-forge -c bioconda flair
    conda activate flair
-   flair [align/correct/...]
+   flair [transcriptome/quantify/...]
 
 On Apple Silicon Mac systems (ARM64 CPUs: M1, M2, ...) you must use:
 
@@ -59,7 +59,7 @@ FLAIR Docker with:
 .. code:: sh
 
     docker pull brookslab/flair:3.0.0+dev
-    docker run -v [your_path_to_data]:/data brookslab/flair:3.0.0+dev flair [align/correct/...]
+    docker run -v [your_path_to_data]:/data brookslab/flair:3.0.0+dev flair [transcriptome/quantify/...]
 
 .. _pip-install-label:
 
@@ -111,4 +111,4 @@ The dependence must first be installed as for :ref:`pip-install-label`.
 
     git clone https://github.com/BrooksLabUCSC/flair.git
     cd flair
-    ./bin/flair [align/correct/...]
+    ./bin/flair [transcriptome/quantify/...]

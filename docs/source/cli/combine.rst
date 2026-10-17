@@ -6,7 +6,7 @@
 
    usage: flair combine [-h]
                         (--manifest MANIFEST | --prefixes PREFIXES | --isoform_beds ISOFORM_BEDS)
-                        -g GENOME [-o OUTPUT] [--end_window END_WINDOW]
+                        -g GENOME [-f GTF] [-o OUTPUT] [--end_window END_WINDOW]
                         [--min_percent_usage MIN_PERCENT_USAGE]
                         [--remove_single_exon] [--max_ends MAX_ENDS]
                         [--min_reads MIN_READS]
@@ -28,6 +28,10 @@
 .. option:: -g GENOME, --genome GENOME
 
    genome FASTA, required to generate an isoform FASTA file and/or a bigBed file
+
+.. option:: -f GTF, --gtf GTF
+
+   an annotation GTF. With it, each combined isoform is given its gene, reference transcript, CDS, productivity and protein from this annotation, as flair transcriptome gives them, whatever annotation the samples were run with, so samples run with different annotations or FLAIR versions can be combined, and the proteins are written to combined.aaseq.tsv. Fusion isoforms keep the samples' genes. Without it, the samples' genes, CDS and productivity are used, isoforms from different samples with different genes are an error, and isoforms have no protein ids
 
 .. option:: -o OUTPUT, --output OUTPUT
 

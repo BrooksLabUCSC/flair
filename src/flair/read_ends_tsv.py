@@ -32,6 +32,8 @@ class ReadEndsReader(TsvReader):
         super().__init__(read_ends_tsv, typeMap=TYPE_MAP)
 
 class ReadEndsWriter(TsvWriter):
-    def __init__(self, read_ends_tsv, *, outFh=None):
+    def __init__(self, read_ends_tsv, *, outFh=None, writeHeader=True):
+        """writeHeader=False appends to a file that already has its header, as the
+        reads assigned without the realignment are appended to the ends of a region"""
         super().__init__(read_ends_tsv, columns=COLUMNS, typeMap=TYPE_MAP,
-                         outFh=outFh)
+                         outFh=outFh, writeHeader=writeHeader)
