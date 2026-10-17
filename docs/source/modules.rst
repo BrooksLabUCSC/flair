@@ -493,7 +493,6 @@ indexed bam file, a line per sample::
    reads covering its locus (``locus_reads``) in each sample, the PSIs' denominators
  - ``OUTPUT.spliceevents.bed``, the event rows for a genome browser, named
    ``EVENT|ALTERNATIVE`` and scored by their median PSIjunc
- - ``OUTPUT.spliceevents.readends.bed``, with ``--output_read_ends``
 
 Outlier samples, whose PSI of an event is far from the other samples', can be found
 from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__

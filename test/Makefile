@@ -1064,7 +1064,8 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 ###
 # flair spliceevents
 ###
-spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region
+spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region \
+		test-spliceevents-restart
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out
@@ -1101,9 +1102,20 @@ test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
 # region's end; KRAS's end events, of all its reads, are left out.  A second region,
 # without genes, adds nothing
 test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM}
-	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed --output_read_ends -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed -o $O/$@
 	diff <(grep -F 'es|ENSG00000133703.12|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|ENSG00000133703.12|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
+
+# a rerun with --keep_intermediate corrects only the samples without their corrected
+# reads, here the one whose file is removed, and gives the same tables
+test-spliceevents-restart: mkdirs ${BASIC_ALIGN_BAM}
+	rm -rf $O/$@*
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@
+	mkdir -p $O/$@.first && cp $O/$@.spliceevents.*.tsv $O/$@.first/
+	rm $$(ls $O/$@.intermediate/*/*.read_chains.tsv | head -1)
+	flair --log-level INFO spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@ 2> $O/$@.log
+	test $$(grep -c 'reads to the annotated transcripts' $O/$@.log) -eq 1
+	for f in $O/$@.first/*.tsv; do diff $$f $O/$@.$$(basename $$f | sed 's/^$@\.//') || exit 1; done
 
 $O/spliceevents-s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<

@@ -10,8 +10,7 @@ usage: flair spliceevents [-h] -m MANIFEST -g GENOME -f GTF [-o OUTPUT]
                           [--junc_frac_of_event JUNC_FRAC_OF_EVENT]
                           [--quality QUALITY] [--trust_strand]
                           [--trust_junctions] [--keep_supplementary]
-                          [--no_align_to_annot] [--output_read_ends]
-                          [--keep_intermediate]
+                          [--no_align_to_annot] [--keep_intermediate]
 
 counts alternative splicing events, and their PSIs, of each sample directly
 from bam files of long-read RNA-seq alignments, for data too fragmented or
@@ -82,8 +81,6 @@ options:
                         and correct reads only from the genomic alignment.
                         Slightly faster but less accurate when the annotation
                         is good
-  --output_read_ends    write OUTPUT.spliceevents.readends.bed, the corrected
-                        ends of the reads
   --keep_intermediate   keep intermediate and temporary files for debugging
 
 required named arguments:

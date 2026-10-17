@@ -308,6 +308,10 @@
     reads and writes the new columns.  Tables of earlier versions aren't read.
   * A tss or tts taken from the reads' starts (tss on +, tts on -) was placed one
     base before them.
+  * `--output_read_ends` and its OUTPUT.spliceevents.readends.bed are gone.  Each
+    sample's corrected reads are handed from correction to event calling as a line
+    per junction chain with its reads' ends, rather than a line per read with its
+    name, a sixth of the size.
   * With `--region_bed`, only the annotation of the regions is loaded, from `-f` and
     `--annot_basic`: for one locus of GENCODE, in 10 seconds and 0.2 GB rather than
     75 seconds and 3.5 GB.

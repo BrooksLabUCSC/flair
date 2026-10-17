@@ -9,7 +9,7 @@ from flair.partition_runner import PartitionRunner, combine_temp_files_by_suffix
 from flair import SeqRange
 from statistics import median
 from flair.junction_correct import junction_corrector_factory
-from flair.isoform_data import ReadRec
+from collections import namedtuple
 from flair.io_utils import make_temp_dir
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
@@ -89,8 +89,6 @@ def add_subparser(subparsers):
                         help="skip the initial alignment to the annotated sequences and correct reads only "
                              "from the genomic alignment. Slightly faster but less accurate when the annotation "
                              "is good")
-    parser.add_argument('--output_read_ends', action='store_true',
-                        help='write OUTPUT.spliceevents.readends.bed, the corrected ends of the reads')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging')
     parser.set_defaults(entry=spliceevents_cmd)
@@ -289,14 +287,11 @@ def extract_exon_usage_info(juncs, allsamples, sample, numreads, allblocks, exon
     return allblocks, exonjpairs
 
 
-def extract_end_coverage_info(juncs, readinfo, allsamples, sample, thischrom, gene, strand, allblocks, outends):
+def extract_end_coverage_info(juncs, readinfo, allsamples, sample, allblocks):
     for r in readinfo:
         # getting all block coverage to measure intron retention
         add_reads(allblocks, (r.start, juncs[0][0]), allsamples, sample, 1)
         add_reads(allblocks, (juncs[-1][1], r.end), allsamples, sample, 1)
-        if outends:
-            Bed(thischrom, r.start, r.end, name=gene + '|' + r.name,
-                score=0, strand=strand).write(outends)
     return allblocks
 
 def determine_juncs_are_subset(juncs, alljuncs):
@@ -393,7 +388,7 @@ def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples,
     return outer_junc_to_exons
 
 
-def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischrom, outends):
+def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand):
     ss5to3, ss3to5, alljuncs, exonjpairs, allblocks = {}, {}, {}, {}, {}
     afe, ale = {}, {}
     t_starts_ends, t_first_last_sj = [[], []], [{}, {}]
@@ -423,8 +418,7 @@ def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischro
                 afe, ale = extract_afe_ale(juncs, strand, allsamples, sample, numreads, alljuncs, afe, ale)
                 allblocks, exonjpairs = extract_exon_usage_info(juncs, allsamples, sample, numreads,
                                                                 allblocks, exonjpairs)
-                allblocks = extract_end_coverage_info(juncs, readinfo, allsamples, sample, thischrom, gene, strand,
-                                                      allblocks, outends)
+                allblocks = extract_end_coverage_info(juncs, readinfo, allsamples, sample, allblocks)
                 subset_info = determine_juncs_are_subset(juncs, genetojuncs[gene])
                 t_starts_ends, t_first_last_sj = get_start_end_counts(readinfo, subset_info, sample, juncs[0][0], juncs[-1][1],
                                                                       t_starts_ends, t_first_last_sj, allsamples)
@@ -842,15 +836,10 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                     outtotals.write('\t'.join([ename, event.eventtype, event.gene, total] + [str(counts[s]) for s in allsamples]) + '\n')
 
 
-def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_juncs, genetostrand, junc_support, output_read_ends, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss,
+def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_juncs, genetostrand, junc_support, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss,
                            report_regions, gene_to_annot_juncs):
     etypetocolor = {'skipped_exons': '66,105,245', 'retained_introns': '144,66,245',
                     'alt3': '245,215,66', 'alt5': '43,184,39', 'tss': '255,0,0', 'tts': '0,0,255'}
-    # outends is just for writing out read ends for Harrison - he can group them more intelligently
-    outends = None
-    if output_read_ends:
-        outends = open(temp_prefix + '.spliceevents.readends.bed', 'w')
-
     allgenes = set.union(*[set(all_genes_to_juncs[s].keys()) for s in range(len(all_genes_to_juncs))])
     with open(temp_prefix + '.spliceevents.bed', 'w') as outbed, open(temp_prefix + '.spliceevents.counts.tsv', 'w') as outcounts, \
             open(temp_prefix + '.spliceevents.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.spliceevents.PSItot.tsv', 'w') as outpsitot, \
@@ -861,8 +850,7 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
 
             # get gene strand - this is not optimal, def need to revamp how getting annot info
             strand = genetostrand[gene]
-            ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons = extract_splicing_info(allsamples, all_genes_to_juncs,
-                                                                                                                                                                      gene, strand, thischrom, outends)
+            ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons = extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand)
 
             # exon skipping
             # TODO combine exon skipping at multiple junctions (so all junctions that skip exon are combined)
@@ -896,9 +884,6 @@ def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_junc
             write_events(all_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,
                          outtotals, event_support)
 
-    if output_read_ends:
-        outends.close()
-
 
 def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector):
     """The sample's spliced reads in region, corrected as flair transcriptome corrects
@@ -929,18 +914,47 @@ def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, j
     return sj_to_ends
 
 
-def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, genome, junction_corrector, annots):
-    temp_prefix = temp_prefix + '_' + sample
-    sj_to_ends = correct_sample_reads(args, region, temp_prefix + '.correction', bamfile_name, genome, annots, junction_corrector)
-    genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sj_to_ends, annots.sjc_to_gene, annots.junc_to_gene_id, annots.gene_to_exons, annots.gene_to_annot_juncs)
+# a read's corrected ends, all event calling needs of it beyond its junction chain
+ReadEnds = namedtuple('ReadEnds', ('start', 'end'))
 
-    with open(temp_prefix + '_gene_to_juncs.txt', 'w') as out:
-        for gene in genetojuncs:
-            for juncs in genetojuncs[gene]:
-                juncstring = ','.join(['.'.join([str(y) for y in x]) for x in juncs])
-                for read_info in genetojuncs[gene][juncs].reads:
-                    outline = [gene, juncstring, str(read_info.start), str(read_info.end), genetojuncs[gene][juncs].strand, read_info.name]
-                    out.write('\t'.join(outline) + '\n')
+
+def read_chains_path(partition, sample):
+    "the file of a sample's corrected reads in a partition, handed from its correction to the region's event calling"
+    return f'{partition.file_prefix}_{sample}.read_chains.tsv'
+
+
+def write_read_chains(path, chrom, genetojuncs):
+    """Write a sample's corrected reads, a line per junction chain: its gene,
+    chromosome, junctions, strand, and the ends of each of its reads, 0-based
+    start-end pairs.  It's written whole or not at all, as a rerun with
+    --keep_intermediate skips the samples whose file exists"""
+    with open(path + '.tmp', 'w') as out:
+        for gene, chains in genetojuncs.items():
+            for juncs, iso in chains.items():
+                out.write('\t'.join([gene, chrom, ','.join(f'{s}-{e}' for s, e in juncs), iso.strand,
+                                     ','.join(f'{r.start}-{r.end}' for r in iso.reads)]) + '\n')
+    os.replace(path + '.tmp', path)
+
+
+def _ranges(field):
+    return tuple(tuple(int(x) for x in pair.split('-')) for pair in field.split(','))
+
+
+def read_read_chains(path):
+    "a sample's corrected reads from write_read_chains: gene -> junctions -> [ReadEnds]"
+    gene_to_juncs = {}
+    with open(path) as fh:
+        for line in fh:
+            gene, _, juncs, _, ends = line.rstrip('\n').split('\t')
+            gene_to_juncs.setdefault(gene, {})[_ranges(juncs)] = [ReadEnds(*pair) for pair in _ranges(ends)]
+    return gene_to_juncs
+
+
+def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots):
+    "correct a sample's reads in region, give their junction chains genes, and write them to path"
+    sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector)
+    genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sj_to_ends, annots.sjc_to_gene, annots.junc_to_gene_id, annots.gene_to_exons, annots.gene_to_annot_juncs)
+    write_read_chains(path, region.name, genetojuncs)
 
 
 def annotated_terminal_splice_sites(gtf_file, regions=None):
@@ -964,47 +978,34 @@ def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, ite
     """Correct one sample's reads in a region, for _run_region.  A task of its own,
     so the samples of a region are corrected in parallel"""
     sample, bamfile = item
-    if os.path.exists(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
+    path = read_chains_path(partition, sample)
+    if os.path.exists(path):
         return
     annots = annot_data_from_gtf(gtf_data, partition.region)
     if len(annots.transcripts) > 0:
         with pysam.FastaFile(args.genome) as genome:
-            get_juncs_single_sample(args, partition.region, partition.file_prefix, sample, bamfile, genome, junction_corrector, annots)
+            get_juncs_single_sample(args, partition.region, path, bamfile, genome, junction_corrector, annots)
 
 
 def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports, annot_afe_ss, annot_ale_ss):  # noqa: C901 - FIXME: reduce complexity
     annots = annot_data_from_gtf(gtf_data, partition.region)
     if len(annots.transcripts) > 0:  # check if any annotated transcripts in region
         # each sample's corrected reads, from _correct_region_sample
-        all_genes_to_juncs = []
-        for sample, bamfile in allsamples:
-            gene_to_juncs = {}
-            for line in open(partition.file_prefix + '_' + sample + '_gene_to_juncs.txt'):
-                line = line.rstrip().split('\t')
-                gene, juncstring, start, end, strand, readname = line
-                juncs = [x.split('.') for x in juncstring.split(',')]
-                juncs = tuple([(int(x[0]), int(x[1])) for x in juncs])
-                if gene not in gene_to_juncs:
-                    gene_to_juncs[gene] = {}
-                if juncs not in gene_to_juncs[gene]:
-                    gene_to_juncs[gene][juncs] = []
-                gene_to_juncs[gene][juncs].append(ReadRec(None, strand, (), int(start), int(end), readname))
-            all_genes_to_juncs.append(gene_to_juncs)
+        all_genes_to_juncs = [read_read_chains(read_chains_path(partition, sample)) for sample, _ in allsamples]
 
         process_gene_to_events(
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
-            all_genes_to_juncs, annots.gene_to_strand, args.feature_support, args.output_read_ends,
+            all_genes_to_juncs, annots.gene_to_strand, args.feature_support,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss, annot_ale_ss,
             region_reports[_region_key(partition.region)], annots.gene_to_annot_juncs)
 
         if not args.keep_intermediate:
-            for sample, bamfile in allsamples:
-                pipettor.run([('rm', partition.file_prefix + '_' + sample + '_gene_to_juncs.txt')])
+            for sample, _ in allsamples:
+                os.remove(read_chains_path(partition, sample))
     else:
         # no annotated genes, so no events: empty tables, as every partition's are combined
-        suffixes = REGION_OUTPUT_SUFFIXES + (('.spliceevents.readends.bed',) if args.output_read_ends else ())
-        for suffix in suffixes:
+        for suffix in REGION_OUTPUT_SUFFIXES:
             open(partition.file_prefix + suffix, 'w').close()
 
 
@@ -1164,8 +1165,6 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
 
     prefixes = [p.file_prefix for p in runner]
     combine_temp_files_by_suffix(args.output, prefixes, ['.spliceevents.bed'])
-    if args.output_read_ends:
-        combine_temp_files_by_suffix(args.output, prefixes, ['.spliceevents.readends.bed'])
     samples = [x[0] for x in allsamples]
     write_with_header(args.output, prefixes, '.spliceevents.counts.tsv', EVENT_ROW_COLUMNS + samples)
     write_with_header(args.output, prefixes, '.spliceevents.PSIjunc.tsv', EVENT_ROW_COLUMNS + samples)

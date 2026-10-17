@@ -16,8 +16,7 @@
                              [--junc_frac_of_event JUNC_FRAC_OF_EVENT]
                              [--quality QUALITY] [--trust_strand]
                              [--trust_junctions] [--keep_supplementary]
-                             [--no_align_to_annot] [--output_read_ends]
-                             [--keep_intermediate]
+                             [--no_align_to_annot] [--keep_intermediate]
 
 .. rubric:: options
 
@@ -88,10 +87,6 @@
 .. option:: --no_align_to_annot
 
    skip the initial alignment to the annotated sequences and correct reads only from the genomic alignment. Slightly faster but less accurate when the annotation is good
-
-.. option:: --output_read_ends
-
-   write OUTPUT.spliceevents.readends.bed, the corrected ends of the reads
 
 .. option:: --keep_intermediate
 

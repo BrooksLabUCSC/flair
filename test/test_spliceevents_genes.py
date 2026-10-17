@@ -6,7 +6,8 @@ import pysam
 from flair import SeqRange
 from flair.isoform_data import ReadRec
 from flair.read_processing import add_corrected_read_to_groups
-from flair.flair_spliceevents import group_juncs_by_annot_gene, combine_regions, correction_regions
+from flair.flair_spliceevents import (group_juncs_by_annot_gene, combine_regions, correction_regions, ReadEnds,
+                                      read_read_chains, write_read_chains)
 
 # on chr1 +: gene A, one transcript of exons 100-200, 300-400 and 500-600, and gene B,
 # exons 1000-1100, 1200-1300 and 1400-1500 in one transcript, and 1000-1100 and
@@ -92,3 +93,15 @@ def test_regions_reaching_over_each_other_are_corrected_together(tmp_path):
     regions, reports = correction_regions(report, [bam])
     assert regions == [SeqRange('chr1', 1000, 3500)]
     assert reports == {('chr1', 1000, 3500): report}
+
+
+def test_read_chains_written_and_read_back_are_the_same_reads(tmp_path):
+    sj_to_ends = {}
+    for n, (juncs, start, end) in enumerate([(A_JUNCS, 100, 600), (A_JUNCS, 120, 580), (B_SKIP, 1000, 1500)]):
+        add_corrected_read_to_groups(ReadRec('chr1', '+', juncs, start, end, f'r{n}'), sj_to_ends)
+    genes, _, _ = group_juncs_by_annot_gene(sj_to_ends, SJC_TO_GENE, JUNC_TO_GENE, GENE_TO_EXONS, GENE_TO_JUNCS)
+    path = str(tmp_path / 's1.read_chains.tsv')
+    write_read_chains(path, 'chr1', genes)
+    assert open(path).read().splitlines()[0] == 'A\tchr1\t200-300,400-500\t+\t100-600,120-580'
+    assert read_read_chains(path) == {'A': {A_JUNCS: [ReadEnds(100, 600), ReadEnds(120, 580)]},
+                                      'B': {B_SKIP: [ReadEnds(1000, 1500)]}}

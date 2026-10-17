@@ -7,21 +7,17 @@ with 0-based starts, and the tables' rows are keyed by name, event|alternative, 
 """
 import csv
 from flair import SeqRange
-from flair.isoform_data import ReadRec
-from flair.flair_spliceevents import process_gene_to_events, psi_varies, EVENT_ROW_COLUMNS
+from flair.flair_spliceevents import process_gene_to_events, psi_varies, EVENT_ROW_COLUMNS, ReadEnds
 
 SAMPLES = ['s1', 's2', 's3']
 CHROM = 'chr1'
 
 
 def _sample_reads(chains, gene='G1', strand='+'):
-    "one sample's {gene: {junctions: [ReadRec]}}"
+    "one sample's {gene: {junctions: [ReadEnds]}}"
     gene_to_juncs = {gene: {}}
-    n = 0
     for juncs, start, end, count in chains:
-        for _ in range(count):
-            n += 1
-            gene_to_juncs[gene].setdefault(tuple(juncs), []).append(ReadRec(None, strand, (), start, end, f'r{n}'))
+        gene_to_juncs[gene].setdefault(tuple(juncs), []).extend([ReadEnds(start, end)] * count)
     return gene_to_juncs
 
 
@@ -33,7 +29,7 @@ def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac
     samples = SAMPLES[:len(samples_chains)]
     prefix = str(tmp_path / 'region')
     process_gene_to_events(prefix, CHROM, samples, [_sample_reads(chains, strand=strand) for chains in samples_chains],
-                           {'G1': strand}, feature_support, False, event_frac_of_tot, junc_frac_of_event, event_support,
+                           {'G1': strand}, feature_support, event_frac_of_tot, junc_frac_of_event, event_support,
                            annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], {})
     columns = EVENT_ROW_COLUMNS + samples
     tables = {}
