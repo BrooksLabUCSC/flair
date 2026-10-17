@@ -7,18 +7,19 @@ with 0-based starts, and the tables' rows are keyed by name, event|alternative, 
 """
 import csv
 from flair import SeqRange
-from flair.flair_spliceevents import process_gene_to_events, psi_varies, EVENT_ROW_COLUMNS, ReadEnds
+from flair.flair_spliceevents import (process_region_events, psi_varies, extract_terminal_info, group_ends, EVENT_ROW_COLUMNS,
+                                      ReadEnds, ReadChain)
 
 SAMPLES = ['s1', 's2', 's3']
 CHROM = 'chr1'
 
 
 def _sample_reads(chains, gene='G1', strand='+'):
-    "one sample's {gene: {junctions: [ReadEnds]}}"
-    gene_to_juncs = {gene: {}}
+    "one sample's ReadChains, all of gene"
+    by_juncs = {}
     for juncs, start, end, count in chains:
-        gene_to_juncs[gene].setdefault(tuple(juncs), []).extend([ReadEnds(start, end)] * count)
-    return gene_to_juncs
+        by_juncs.setdefault(tuple(juncs), []).extend([ReadEnds(start, end)] * count)
+    return [ReadChain((gene,), juncs, strand, ends) for juncs, ends in by_juncs.items()]
 
 
 def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac_of_tot=0.1,
@@ -28,9 +29,9 @@ def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac
     totals, as {(event, total): {sample: count}}"""
     samples = SAMPLES[:len(samples_chains)]
     prefix = str(tmp_path / 'region')
-    process_gene_to_events(prefix, CHROM, samples, [_sample_reads(chains, strand=strand) for chains in samples_chains],
-                           {'G1': strand}, feature_support, event_frac_of_tot, junc_frac_of_event, event_support,
-                           annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], {})
+    process_region_events(prefix, CHROM, samples, [_sample_reads(chains, strand=strand) for chains in samples_chains],
+                          {}, feature_support, event_frac_of_tot, junc_frac_of_event, event_support,
+                          annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], {})
     columns = EVENT_ROW_COLUMNS + samples
     tables = {}
     for table in ('counts', 'PSIjunc', 'PSItot'):
@@ -286,3 +287,26 @@ def test_a_splice_site_used_alike_in_every_sample_is_counted_as_other(tmp_path):
     assert 'alt3|G1|chr1:201-350(+)|201-380' not in alt3
     other = alt3['alt3|G1|chr1:201-350(+)|other']
     assert (other['s1'], other['s2']) == ('4', '4')
+
+
+def test_a_chains_first_and_last_exons_and_ends_follow_its_strand():
+    two = ((200, 300), (400, 500))
+    one = ((600, 700),)
+    chains = [{'G1': {two: [ReadEnds(100, 550)] * 2, one: [ReadEnds(580, 800)]}}]
+    # on +, the first exon ends at the first junction's start and reads start at their starts
+    _, afe, starts = extract_terminal_info(['s1'], chains, 'G1', '+', 'afe')
+    assert afe == {200: {(200, 300): {'s1': 2}}, 600: {(600, 700): {'s1': 1}}}
+    assert sorted(starts) == [(100, 's1'), (100, 's1'), (580, 's1')]
+    # on -, it starts at the last junction's end, also of a chain of one junction, and reads start at their ends
+    alljuncs, afe, starts = extract_terminal_info(['s1'], chains, 'G1', '-', 'afe')
+    assert afe == {500: {(400, 500): {'s1': 2}}, 700: {(600, 700): {'s1': 1}}}
+    assert sorted(starts) == [(550, 's1'), (550, 's1'), (800, 's1')]
+    assert alljuncs == {(200, 300): {'s1': 2}, (400, 500): {'s1': 2}, (600, 700): {'s1': 1}}
+    _, ale, _ = extract_terminal_info(['s1'], chains, 'G1', '-', 'ale')
+    assert ale == {200: {(200, 300): {'s1': 2}}, 600: {(600, 700): {'s1': 1}}}
+
+
+def test_read_ends_within_the_window_of_the_next_are_counted_at_their_median():
+    ends = [(100, 's1'), (150, 's2'), (190, 's1'), (400, 's2')]
+    assert group_ends(ends, ['s1', 's2'], 100) == {150: {'s1': 2, 's2': 1}, 400: {'s1': 0, 's2': 1}}
+    assert group_ends([], ['s1'], 100) == {}

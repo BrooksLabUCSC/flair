@@ -388,29 +388,34 @@ def _attach_single_exon_isos(single, groups, firstpass):
             unattached.append(k)
     return unattached
 
-def _group_novel_by_splicing(novel, firstpass):
-    """Spliced isoforms sharing a junction or splice site are grouped, and groups
-    whose junction spans overlap are merged, all without read ends.  A single-exon
-    isoform joins the spliced group whose exons it overlaps most; single-exon
-    isoforms overlapping no spliced group are grouped by their read-end spans."""
+def group_by_splicing(novel, firstpass, merge_overlapping=True):
+    """Spliced isoforms sharing a junction or splice site are grouped, and, with
+    merge_overlapping, groups whose junction spans overlap are merged, all without
+    read ends.  A single-exon isoform joins the spliced group whose exons it overlaps
+    most; single-exon isoforms overlapping no spliced group are grouped by their
+    read-end spans."""
     spliced = [k for k in novel if firstpass[k].juncs]
     single = [k for k in novel if not firstpass[k].juncs]
-    comp_spans = []
-    for members in _splice_site_components(spliced, firstpass):
-        spans = [_junction_span(firstpass[k]) for k in members]
-        comp_spans.append((min(s for s, e in spans), max(e for s, e in spans), tuple(members)))
-    groups = [[k for members in merged for k in members] for merged in _sweep_overlap_groups(comp_spans)]
+    components = _splice_site_components(spliced, firstpass)
+    if merge_overlapping:
+        comp_spans = []
+        for members in components:
+            spans = [_junction_span(firstpass[k]) for k in members]
+            comp_spans.append((min(s for s, e in spans), max(e for s, e in spans), tuple(members)))
+        groups = [[k for members in merged for k in members] for merged in _sweep_overlap_groups(comp_spans)]
+    else:
+        groups = [list(members) for members in components]
     unattached = _attach_single_exon_isos(single, groups, firstpass)
     return groups + _group_by_read_span(unattached, firstpass)
 
 def novel_genes(novel, firstpass, chrom, strand):
     """The novel genes of isoforms of one strand with no annotated gene, keys of
-    firstpass, grouped by _group_novel_by_splicing: (gene id, isoform keys) pairs.
+    firstpass, grouped by group_by_splicing: (gene id, isoform keys) pairs.
     A novel gene is named for the span of its isoforms.  Used by flair transcriptome
     and flair spliceevents"""
     used_ids = set()
     named = []
-    for group in _group_novel_by_splicing(novel, firstpass):
+    for group in group_by_splicing(novel, firstpass):
         group_start = min(firstpass[k].start for k in group)
         group_end = max(firstpass[k].end for k in group)
         gene_id = f'{chrom}:{group_start}-{group_end}:{strand}'

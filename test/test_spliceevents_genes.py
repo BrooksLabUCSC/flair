@@ -7,8 +7,8 @@ from flair import SeqRange
 from flair.annotation_data import annot_data_from_gtf
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.isoform_data import Isoform, Junc
-from flair.flair_spliceevents import (annotated_genes, genes_of_chains, combine_regions, correction_regions, ReadEnds,
-                                      ReadChain, read_read_chains, write_read_chains)
+from flair.flair_spliceevents import (annotated_genes, novel_genes_of_chains, gene_junctions, group_chains, combine_regions,
+                                      correction_regions, ReadEnds, ReadChain, read_read_chains, write_read_chains)
 
 # on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle
 # exon, and D and E on -
@@ -67,13 +67,28 @@ def test_chains_of_no_annotated_gene_get_the_same_novel_gene_in_every_sample(tmp
     # chains sharing the splice site at 2300, one in each sample
     s1 = [ReadChain((), ((2200, 2300),), '+', [ReadEnds(2100, 2400)] * 3), ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)])]
     s2 = [ReadChain((), ((2300, 2400),), '+', [ReadEnds(2250, 2500)] * 2)]
-    genes, strands, juncs = genes_of_chains('chr1', [s1, s2], _annots(tmp_path))
+    novel_gene = novel_genes_of_chains('chr1', [s1, s2])
     novel = 'chr1:2100-2500:+'
-    assert genes == [{novel: {((2200, 2300),): s1[0].ends}, 'A': {A_JUNCS: s1[1].ends}},
-                     {novel: {((2300, 2400),): s2[0].ends}}]
-    assert strands == {novel: '+', 'A': '+'}
+    assert novel_gene == {('+', ((2200, 2300),)): novel, ('+', ((2300, 2400),)): novel}
     # a novel gene's junctions are its reads', an annotated one's the annotation's
-    assert juncs == {novel: {(2200, 2300), (2300, 2400)}, 'A': set(A_JUNCS)}
+    assert gene_junctions([s1, s2], novel_gene, _annots(tmp_path)) == {novel: {(2200, 2300), (2300, 2400)}, 'A': set(A_JUNCS)}
+
+
+def test_a_readthroughs_reads_count_with_its_5_gene_for_starts_and_its_3_gene_for_ends():
+    readthrough = ReadChain(('A', 'B'), ((200, 300), (600, 1000)), '+', [ReadEnds(150, 1300)])
+    a = ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)])
+    views, strands, cluster_genes, _ = group_chains('chr1', ['s1'], [[readthrough, a]], {})
+    assert views['five'] == [{'A': {readthrough.juncs: readthrough.ends, A_JUNCS: a.ends}}]
+    assert views['three'] == [{'B': {readthrough.juncs: readthrough.ends}, 'A': {A_JUNCS: a.ends}}]
+    # the two chains share A's donor at 200: one cluster, of both genes
+    assert list(cluster_genes.values()) == ['A,B']
+
+
+def test_a_gene_nested_in_anothers_intron_is_a_cluster_of_its_own():
+    outer = ReadChain(('O',), ((1000, 5000),), '+', [ReadEnds(900, 5100)])
+    nested = ReadChain(('N',), ((2000, 2100), (2200, 2300)), '+', [ReadEnds(1900, 2400)])
+    _, _, cluster_genes, _ = group_chains('chr1', ['s1'], [[outer, nested]], {})
+    assert sorted(cluster_genes.values()) == ['N', 'O']
 
 
 def test_overlapping_and_touching_regions_are_merged():

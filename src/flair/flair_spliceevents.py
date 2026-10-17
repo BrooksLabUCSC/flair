@@ -20,7 +20,8 @@ from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed, BedBlock, BedReader
 from flair.isoform_data import Isoform, Junc
 from flair.junction_correct import UNKNOWN_STRAND
-from flair.gene_identification import get_gene_name_firstpass, get_gene_name_unknown_strand, novel_genes
+from flair.gene_identification import get_gene_name_firstpass, get_gene_name_unknown_strand, novel_genes, group_by_splicing
+from flair.interval_index import IntervalIndex
 
 
 def add_subparser(subparsers):
@@ -240,78 +241,34 @@ def extract_end_coverage_info(juncs, readinfo, allsamples, sample, allblocks):
         add_reads(allblocks, (juncs[-1][1], r.end), allsamples, sample, 1)
     return allblocks
 
-def determine_juncs_are_subset(juncs, alljuncs):
-    is_subset = False
-    unique_seq_bound = [[], []]
-    for otherjuncs in alljuncs:
-        if juncs != otherjuncs and len(juncs) < len(otherjuncs):
-            if str(juncs)[1:-1].rstrip(',') in str(otherjuncs):
-                is_subset = True
-                other_internal_exons = [(otherjuncs[x][1], otherjuncs[x + 1][0]) for x in range(len(otherjuncs) - 1)]
-                for other_exon in other_internal_exons:
-                    if juncs[0][0] == other_exon[1]:
-                        unique_seq_bound[0].append(other_exon[1] - other_exon[0])
-                    if juncs[-1][1] == other_exon[0]:
-                        unique_seq_bound[1].append(other_exon[1] - other_exon[0])
-    if is_subset:
-        unique_seq_bound[0] = max(unique_seq_bound[0]) if len(unique_seq_bound[0]) > 0 else None
-        unique_seq_bound[1] = max(unique_seq_bound[1]) if len(unique_seq_bound[1]) > 0 else None
-        return unique_seq_bound
+def group_ends(ends, allsamples, window):
+    """read ends, (position, sample), clustered where they lie within window of the
+    next, each cluster's reads counted at its median"""
+    end_to_counts = {}
+    curr_group = []
+    for end in sorted(ends):
+        if curr_group and end[0] - curr_group[-1][0] > window:
+            _add_end_group(end_to_counts, curr_group, allsamples)
+            curr_group = []
+        curr_group.append(end)
+    if curr_group:
+        _add_end_group(end_to_counts, curr_group, allsamples)
+    return end_to_counts
+
+
+def _add_end_group(end_to_counts, group, allsamples):
+    counts = end_to_counts.setdefault(int(median([e[0] for e in group])), zero_counts(allsamples))
+    for _, sample in group:
+        counts[sample] += 1
+
+
+def extract_terminal(juncs, strand, terminal, allsamples, sample, numreads, terminal_exons):
+    "a chain's first (afe) or last (ale) exon, as its splice site and junction"
+    if (terminal == 'afe') == (strand == '+'):
+        junc, site = juncs[0], juncs[0][0]
     else:
-        return [None, None]
-
-def get_start_end_counts(readinfo, subset_info, sample, first_junc, last_junc, t_starts_ends, t_first_last_sj, allsamples):
-    for r in readinfo:
-        # if subset_info[0] == None or first_junc-start > subset_info[0]:
-        t_starts_ends[0].append((r.start, sample))
-        add_reads(t_first_last_sj[0], first_junc, allsamples, sample, 1)
-        # if subset_info[1] == None or end-last_junc > subset_info[1]:
-        t_starts_ends[1].append((r.end, sample))
-        add_reads(t_first_last_sj[1], last_junc, allsamples, sample, 1)
-    return t_starts_ends, t_first_last_sj
-
-
-def group_ends(t_starts_ends, allsamples, window):
-    grouped_ends = [[], []]
-    for i in range(2):
-        end_to_counts = {}
-        last_end = 0
-        curr_group = []
-        # all_groups = []
-        for end in sorted(t_starts_ends[i]):
-            if end[0] - last_end > window:
-                if len(curr_group) > 0:
-                    # all_groups.append(curr_group)
-                    g = int(median([x[0] for x in curr_group]))
-                    end_to_counts[g] = {s: 0 for s in allsamples}
-                    for e in curr_group:
-                        end_to_counts[g][e[1]] += 1
-                curr_group = []
-            curr_group.append(end)
-            last_end = end[0]
-        # all_groups.append(curr_group)
-        # end_to_counts[median(curr_group)] = len(curr_group)
-        g = int(median([x[0] for x in curr_group]))
-        end_to_counts[g] = {s: 0 for s in allsamples}
-        for e in curr_group:
-            end_to_counts[g][e[1]] += 1
-
-        grouped_ends[i] = end_to_counts
-    return grouped_ends
-
-
-def extract_afe_ale(juncs, strand, allsamples, sample, numreads, alljuncs, afe, ale):
-    if strand == '+':
-        afe_junc, ale_junc = juncs[0], juncs[-1]
-        afe_ss, ale_ss = juncs[0][0], juncs[-1][1]
-    else:
-        ale_junc, afe_junc = juncs[0], juncs[-1]
-        ale_ss, afe_ss = juncs[0][0], juncs[-1][1]
-
-    add_reads(afe.setdefault(afe_ss, {}), afe_junc, allsamples, sample, numreads)
-    add_reads(ale.setdefault(ale_ss, {}), ale_junc, allsamples, sample, numreads)
-
-    return afe, ale
+        junc, site = juncs[-1], juncs[-1][1]
+    add_reads(terminal_exons.setdefault(site, {}), junc, allsamples, sample, numreads)
 
 
 def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples, sample, numreads):
@@ -334,49 +291,42 @@ def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples,
     return outer_junc_to_exons
 
 
-def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand):
+def extract_terminal_info(allsamples, chains_by_key, key, strand, terminal):
+    """the junctions, first (afe) or last (ale) exons and read starts (or ends) of the
+    chains of key, a 5' (or 3') gene: (position, sample) per read"""
+    alljuncs, terminal_exons, ends = {}, {}, []
+    take_start = (terminal == 'afe') == (strand == '+')
+    for sample, chains in zip(allsamples, chains_by_key):
+        for juncs, readinfo in chains.get(key, {}).items():
+            numreads = len(readinfo)
+            for j in juncs:
+                add_reads(alljuncs, j, allsamples, sample, numreads)
+            extract_terminal(juncs, strand, terminal, allsamples, sample, numreads, terminal_exons)
+            ends.extend(((r.start if take_start else r.end), sample) for r in readinfo)
+    return alljuncs, terminal_exons, ends
+
+
+def extract_splicing_info(allsamples, chains_by_key, key, strand):
+    """the splice sites, junctions, exons and blocks of the chains of key, a cluster,
+    for the events of splicing"""
     ss5to3, ss3to5, alljuncs, exonjpairs, allblocks = {}, {}, {}, {}, {}
-    afe, ale = {}, {}
-    t_starts_ends, t_first_last_sj = [[], []], [{}, {}]
-    interval_to_reads = {}
     outer_junc_to_exons = {}
-    # get valid read ends by excluding subset junction chains (check for whether end is within exon)
-    # only check relative to other reads, not reference?
-    # get list of valid read ends after excluding subset junction chains
-    # cluster within window, take median/mode of window (use code from transcriptome)?
+    for sample, chains in zip(allsamples, chains_by_key):
+        for juncs, readinfo in chains.get(key, {}).items():
+            numreads = len(readinfo)
+            extract_35ss_info(juncs, strand, allsamples, sample, numreads, ss5to3, ss3to5, alljuncs)
+            extract_exon_usage_info(juncs, allsamples, sample, numreads, allblocks, exonjpairs)
+            extract_end_coverage_info(juncs, readinfo, allsamples, sample, allblocks)
 
-    # process each sample for each gene - only ever storing data for one gene at a time
-    for s in range(len(allsamples)):
-        sample = allsamples[s]
-        # TODO: change to genetojuncs being all juncs from all samples!!
-        genetojuncs = all_genes_to_juncs[s]
-        if gene in genetojuncs:
-            for juncs in genetojuncs[gene]:
-                readinfo = genetojuncs[gene][juncs]
-                numreads = len(readinfo)
-
-                # get intervals for calculating coverage
-                for r in readinfo:
-                    add_reads(interval_to_reads, (round(r.start, -1), round(r.end, -1)), allsamples, sample, 1)
-
-                ss5to3, ss3to5, alljuncs = extract_35ss_info(juncs, strand, allsamples, sample, numreads,
-                                                             ss5to3, ss3to5, alljuncs)
-                afe, ale = extract_afe_ale(juncs, strand, allsamples, sample, numreads, alljuncs, afe, ale)
-                allblocks, exonjpairs = extract_exon_usage_info(juncs, allsamples, sample, numreads,
-                                                                allblocks, exonjpairs)
-                allblocks = extract_end_coverage_info(juncs, readinfo, allsamples, sample, allblocks)
-                subset_info = determine_juncs_are_subset(juncs, genetojuncs[gene])
-                t_starts_ends, t_first_last_sj = get_start_end_counts(readinfo, subset_info, sample, juncs[0][0], juncs[-1][1],
-                                                                      t_starts_ends, t_first_last_sj, allsamples)
-
-    # the exons included between the ends of a skipping junction, once all the gene's
+    # the exons included between the ends of a skipping junction, once all the
     # junctions are known: a chain counted before the skipping junction was seen, as
     # in a sample listed before the samples with skipping, was left out
-    for s, sample in enumerate(allsamples):
-        for juncs, readinfo in all_genes_to_juncs[s].get(gene, {}).items():
-            outer_junc_to_exons = extract_tandem_splicing_info(juncs, alljuncs, outer_junc_to_exons, allsamples, sample, len(readinfo))
+    for sample, chains in zip(allsamples, chains_by_key):
+        for juncs, readinfo in chains.get(key, {}).items():
+            extract_tandem_splicing_info(juncs, alljuncs, outer_junc_to_exons, allsamples, sample, len(readinfo))
 
-    return ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons
+    return ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, outer_junc_to_exons
+
 
 def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gene, mycolor, min_read_support, interval_to_reads, junc_frac_of_event, event_support, outer_junc_to_exons):  # noqa: C901 - FIXME: reduce complexity
     exon_to_outer_juncs = {}
@@ -473,12 +423,34 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
     return event_to_info, esjuncs
 
 
-def get_overlapping_reads(ref_junc, interval_to_reads, allsamples):
-    tot_counts = {s: 0 for s in allsamples}
-    for i in interval_to_reads:
-        if i[0] < ref_junc[0] and ref_junc[1] < i[1]:
-            tot_counts = add_counts_to_dict(tot_counts, interval_to_reads[i])
-    return tot_counts
+class ReadCoverage:
+    """The reads of a strand of a region, per sample, by their spans rounded to 10
+    bases, for the reads covering an event's locus, whatever their gene"""
+    def __init__(self, allsamples):
+        self.allsamples = allsamples
+        self.spans = {}
+        self.index = None
+
+    def add(self, start, end, sample, numreads):
+        add_reads(self.spans, (round(start, -1), round(end, -1)), self.allsamples, sample, numreads)
+
+    def covering(self, ref):
+        "reads per sample whose spans contain ref, (start, end)"
+        if self.index is None:
+            self.index = IntervalIndex()
+            for span, counts in self.spans.items():
+                self.index.add(span[0], span[1], (span, counts))
+            self.index.build()
+        # a span containing ref overlaps the range between its ends, which can be in either
+        # order, as a terminal exon event's (its introns' last start, first end)
+        low, high = min(ref), max(ref)
+        return sum_counts([counts for span, counts in self.index.overlap(low, max(high, low + 1))
+                           if span[0] < ref[0] and ref[1] < span[1]], self.allsamples)
+
+
+def get_overlapping_reads(ref_junc, coverage, allsamples):
+    "the reads per sample covering ref_junc, of a ReadCoverage"
+    return coverage.covering(ref_junc)
 
 
 def add_counts_to_dict(a, b):
@@ -794,53 +766,115 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                     outtotals.write('\t'.join([ename, event.eventtype, event.gene, total] + [str(counts[s]) for s in allsamples]) + '\n')
 
 
-def process_gene_to_events(temp_prefix, thischrom, allsamples, all_genes_to_juncs, genetostrand, junc_support, event_frac_of_tot, junc_frac_of_event, event_support, annot_afe_ss, annot_ale_ss,
-                           report_regions, gene_to_annot_juncs):
-    etypetocolor = {'skipped_exons': '66,105,245', 'retained_introns': '144,66,245',
-                    'alt3': '245,215,66', 'alt5': '43,184,39', 'tss': '255,0,0', 'tts': '0,0,255'}
-    allgenes = set.union(*[set(all_genes_to_juncs[s].keys()) for s in range(len(all_genes_to_juncs))])
+ETYPE_TO_COLOR = {'skipped_exons': '66,105,245', 'retained_introns': '144,66,245',
+                  'alt3': '245,215,66', 'alt5': '43,184,39', 'tss': '255,0,0', 'tts': '0,0,255'}
+
+
+def _splicing_clusters(chain_isoforms, chain_genes):
+    """The clusters of junction chains, (strand, junctions) keys of chain_isoforms,
+    linked by shared splice sites (group_by_splicing), each named for its strand and
+    order: each chain's cluster, each cluster's genes and strand.  Clusters whose
+    junctions only overlap, as a gene nested in another's intron, are not merged:
+    they share no event"""
+    cluster_of, cluster_genes, key_strand = {}, {}, {}
+    for strand in ('+', '-'):
+        keys = sorted(k for k in chain_isoforms if k[0] == strand)
+        for group in sorted(group_by_splicing(keys, chain_isoforms, merge_overlapping=False), key=lambda g: min(k[1][0][0] for k in g)):
+            cluster = f'{strand}{len(cluster_genes)}'
+            cluster_genes[cluster] = ','.join(sorted({g for k in group for g in chain_genes[k]}))
+            key_strand[cluster] = strand
+            cluster_of.update((k, cluster) for k in group)
+    return cluster_of, cluster_genes, key_strand
+
+
+def group_chains(chrom, allsamples, sample_chains, novel_gene):
+    """Each sample's reads grouped three ways, each a list per sample of
+    key -> junctions -> [ReadEnds]: by cluster of junction chains linked by shared
+    splice sites, on one strand, for the events of splicing, which don't depend on
+    genes; by each chain's 5'-most gene, for the first exons and starts; and by its
+    3'-most gene, for the last exons and ends.  Also each key's strand, each cluster's
+    genes, as its events' gene, and each strand's ReadCoverage"""
+    chain_genes = {}
+    chain_isoforms = {}
+    coverage = {'+': ReadCoverage(allsamples), '-': ReadCoverage(allsamples)}
+    for sample, chains in zip(allsamples, sample_chains):
+        for chain in chains:
+            key = (chain.strand, chain.juncs)
+            chain_genes[key] = chain.genes or (novel_gene[key],)
+            if key not in chain_isoforms:
+                chain_isoforms[key] = Isoform(chrom, chain.strand, tuple(Junc(*j) for j in chain.juncs))
+            chain_isoforms[key].reads.extend(chain.ends)
+            for r in chain.ends:
+                coverage[chain.strand].add(r.start, r.end, sample, 1)
+    for isoform in chain_isoforms.values():
+        isoform.start, isoform.end = int(median(isoform.starts)), int(median(isoform.ends))
+    cluster_of, cluster_genes, key_strand = _splicing_clusters(chain_isoforms, chain_genes)
+    views = {'cluster': [], 'five': [], 'three': []}
+    for chains in sample_chains:
+        by = {'cluster': {}, 'five': {}, 'three': {}}
+        for chain in chains:
+            key = (chain.strand, chain.juncs)
+            genes = chain_genes[key]
+            for view, group in (('cluster', cluster_of[key]), ('five', genes[0]), ('three', genes[-1])):
+                by[view].setdefault(group, {})[chain.juncs] = chain.ends
+                key_strand[group] = chain.strand
+        for view in views:
+            views[view].append(by[view])
+    return views, key_strand, cluster_genes, coverage
+
+
+def _keys(view):
+    return sorted(set().union(*[sample_groups.keys() for sample_groups in view]))
+
+
+def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, novel_gene, junc_support, event_frac_of_tot, junc_frac_of_event, event_support,  # noqa: C901 - FIXME: reduce complexity
+                          annot_afe_ss, annot_ale_ss, report_regions, gene_juncs):
+    """A region's events, from each sample's ReadChains, written to its tables.  The
+    events of splicing are found per cluster of junction chains linked by shared
+    splice sites, without genes; the alternative first exons and starts per each
+    chain's 5'-most gene, and the last exons and ends per its 3'-most gene, so a
+    readthrough's reads count with the gene each end lies in.  An event's locus
+    reads are all the strand's reads covering it"""
+    views, key_strand, cluster_genes, coverage = group_chains(thischrom, allsamples, sample_chains, novel_gene)
+    events = []  # (event, the span of its gene's junctions, for the regions)
+    afe_ale_junc_comb = {'+': set(), '-': set()}
+    # first exons and starts by 5' gene, last exons and ends by 3' gene
+    for view, terminal, annot_terminal_ss, end_type in (('five', 'afe', annot_afe_ss, 'tss'),
+                                                        ('three', 'ale', annot_ale_ss, 'tts')):
+        for gene in _keys(views[view]):
+            strand = key_strand[gene]
+            cov = coverage[strand]
+            alljuncs, terminal_exons, ends = extract_terminal_info(allsamples, views[view], gene, strand, terminal)
+            gene_span = gene_junction_span(gene_juncs.get(gene, ()))
+            info, junc_comb = process_terminal_exons(terminal_exons, terminal, thischrom, strand, gene, allsamples,
+                                                     ETYPE_TO_COLOR[end_type], junc_support, junc_frac_of_event, event_support, cov,
+                                                     alljuncs, annot_terminal_ss)
+            afe_ale_junc_comb[strand] |= junc_comb
+            info |= write_ends(group_ends(ends, allsamples, 100), allsamples, thischrom, strand, gene, end_type, ETYPE_TO_COLOR[end_type],
+                               junc_support, junc_frac_of_event, event_support)
+            events.extend((event, gene_span) for event in info.values())
+    # the events of splicing, by cluster
+    for cluster in sorted(_keys(views['cluster']), key=lambda c: int(c[1:])):
+        strand, label = key_strand[cluster], cluster_genes[cluster]
+        cov = coverage[strand]
+        ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, outer_junc_to_exons = extract_splicing_info(allsamples, views['cluster'], cluster, strand)
+        es_info, esjuncs = write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, label,
+                                               ETYPE_TO_COLOR['skipped_exons'], junc_support, cov, junc_frac_of_event, event_support, outer_junc_to_exons)
+        a3_info = process_junction_events(ss5to3, esjuncs, 'alt3', thischrom, strand, label, allsamples, ETYPE_TO_COLOR,
+                                          junc_support, cov, junc_frac_of_event, event_support, afe_ale_junc_comb[strand])
+        a5_info = process_junction_events(ss3to5, esjuncs, 'alt5', thischrom, strand, label, allsamples, ETYPE_TO_COLOR,
+                                          junc_support, cov, junc_frac_of_event, event_support, afe_ale_junc_comb[strand])
+        ir_info = write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, label,
+                                         ETYPE_TO_COLOR['retained_introns'], junc_support, cov, junc_frac_of_event, event_support)
+        events.extend((event, (0, 0)) for event in (es_info | a3_info | a5_info | ir_info).values())
+
     with open(temp_prefix + '.spliceevents.bed', 'w') as outbed, open(temp_prefix + '.spliceevents.counts.tsv', 'w') as outcounts, \
             open(temp_prefix + '.spliceevents.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.spliceevents.PSItot.tsv', 'w') as outpsitot, \
             open(temp_prefix + '.spliceevents.totals.tsv', 'w') as outtotals:
-
-        # sorted, as a set of names is ordered differently in each run
-        for gene in sorted(allgenes):
-
-            # get gene strand - this is not optimal, def need to revamp how getting annot info
-            strand = genetostrand[gene]
-            ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons = extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand)
-
-            # exon skipping
-            # TODO combine exon skipping at multiple junctions (so all junctions that skip exon are combined)
-            es_info, esjuncs = write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gene,
-                                                   etypetocolor['skipped_exons'], junc_support, interval_to_reads, junc_frac_of_event, event_support, outer_junc_to_exons)
-            afe_info, afe_junc_comb = process_terminal_exons(afe, 'afe', thischrom, strand, gene, allsamples, etypetocolor['tss'], junc_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_afe_ss)
-            ale_info, ale_junc_comb = process_terminal_exons(ale, 'ale', thischrom, strand, gene, allsamples, etypetocolor['tts'], junc_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_ale_ss)
-            afe_ale_junc_comb = afe_junc_comb | ale_junc_comb
-            a3_info = process_junction_events(ss5to3, esjuncs, 'alt3', thischrom, strand, gene, allsamples, etypetocolor,
-                                              junc_support, interval_to_reads, junc_frac_of_event, event_support, afe_ale_junc_comb)
-            a5_info = process_junction_events(ss3to5, esjuncs, 'alt5', thischrom, strand, gene, allsamples, etypetocolor,
-                                              junc_support, interval_to_reads, junc_frac_of_event, event_support, afe_ale_junc_comb)
-            # intron retention
-            ir_info = write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, gene,
-                                             etypetocolor['retained_introns'], junc_support, interval_to_reads, junc_frac_of_event, event_support)
-
-            grouped_ends = group_ends(t_starts_ends, allsamples, 100)
-            if strand == '-':
-                grouped_ends = grouped_ends[::-1]
-                t_first_last_sj = t_first_last_sj[::-1]
-            tss_info = write_ends(grouped_ends[0], allsamples, thischrom, strand, gene, 'tss', etypetocolor['tss'], junc_support, junc_frac_of_event, event_support)
-            tts_info = write_ends(grouped_ends[1], allsamples, thischrom, strand, gene, 'tts', etypetocolor['tts'], junc_support, junc_frac_of_event, event_support)
-            # write_ends(t_first_last_sj[0], allsamples, thischrom, strand, gene, 'tss', etypetocolor['tss'], out, outbed, support)
-            # write_ends(t_first_last_sj[1], allsamples, thischrom, strand, gene, 'tts', etypetocolor['tts'], out, outbed, support)
-            all_info = (((a3_info | a5_info) | (es_info | ir_info)) | (tts_info | tss_info)) | (afe_info | ale_info)
-            # only the events inside the regions asked for, whose reads are all there
-            gene_span = gene_junction_span(gene_to_annot_juncs.get(gene, ()))
-            all_info = {ename: event for ename, event in all_info.items()
-                        if event_in_regions(event, report_regions, gene_span)}
-
-            write_events(all_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,
-                         outtotals, event_support)
+        # only the events inside the regions asked for, whose reads are all there
+        reported = {event.name: event for event, gene_span in events if event_in_regions(event, report_regions, gene_span)}
+        write_events(reported, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,
+                     outtotals, event_support)
 
 
 def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector):
@@ -967,27 +1001,19 @@ def novel_genes_of_chains(chrom, sample_chains):
     return novel_gene
 
 
-def genes_of_chains(chrom, sample_chains, annots):
-    """Each sample's reads by gene and junction chain, gene -> junctions -> [ReadEnds],
-    from their ReadChains, and each gene's strand and junctions, for --region_bed.  A
-    chain's gene is its annotated genes, a readthrough's joined by commas, or for a
-    chain of none, its novel gene (novel_genes_of_chains)"""
-    novel_gene = novel_genes_of_chains(chrom, sample_chains)
-    all_genes_to_juncs, gene_strand, gene_juncs = [], {}, {}
+def gene_junctions(sample_chains, novel_gene, annots):
+    """Each gene's junctions, for --region_bed: an annotated gene's annotated ones,
+    a novel gene's those of its reads"""
+    gene_juncs = {}
     for chains in sample_chains:
-        gene_to_juncs = {}
         for chain in chains:
-            gene = ','.join(chain.genes) if chain.genes else novel_gene[(chain.strand, chain.juncs)]
-            gene_to_juncs.setdefault(gene, {})[chain.juncs] = chain.ends
-            gene_strand[gene] = chain.strand
             if chain.genes:
-                if gene not in gene_juncs:
-                    gene_juncs[gene] = {(j.start, j.end) for g in chain.genes for j in annots.gene_to_annot_juncs.get(g, ())}
+                for gene in chain.genes:
+                    if gene not in gene_juncs:
+                        gene_juncs[gene] = {(j.start, j.end) for j in annots.gene_to_annot_juncs.get(gene, ())}
             else:
-                # a novel gene's junctions are those of its reads
-                gene_juncs.setdefault(gene, set()).update(chain.juncs)
-        all_genes_to_juncs.append(gene_to_juncs)
-    return all_genes_to_juncs, gene_strand, gene_juncs
+                gene_juncs.setdefault(novel_gene[(chain.strand, chain.juncs)], set()).update(chain.juncs)
+    return gene_juncs
 
 
 def annotated_terminal_splice_sites(gtf_file, regions=None):
@@ -1027,14 +1053,13 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
     if len(annots.transcripts) > 0:  # check if any annotated transcripts in region
         # each sample's corrected reads, from _correct_region_sample
         sample_chains = [read_read_chains(read_chains_path(partition, sample)) for sample, _ in allsamples]
-        all_genes_to_juncs, gene_strand, gene_juncs = genes_of_chains(partition.region.name, sample_chains, annots)
-
-        process_gene_to_events(
+        novel_gene = novel_genes_of_chains(partition.region.name, sample_chains)
+        process_region_events(
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
-            all_genes_to_juncs, gene_strand, args.feature_support,
+            sample_chains, novel_gene, args.feature_support,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss, annot_ale_ss,
-            region_reports[_region_key(partition.region)], gene_juncs)
+            region_reports[_region_key(partition.region)], gene_junctions(sample_chains, novel_gene, annots))
 
         if not args.keep_intermediate:
             for sample, _ in allsamples:

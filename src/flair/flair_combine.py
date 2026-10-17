@@ -11,7 +11,7 @@ from flair.isoform_data import make_big_bed, get_sequence_for_exons, Gene, Isofo
 from flair.predictProductivity import predict_productivity, translate
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import AnnotsByChrom
-from flair.gene_identification import get_gene_name_firstpass, _group_novel_by_splicing
+from flair.gene_identification import get_gene_name_firstpass, group_by_splicing
 from flair.convert_synthetic_to_genome_bed import piece_gene
 
 def add_subparser(subparsers):
@@ -247,7 +247,7 @@ def _check_ref_transcripts(bed_list_group):
 def _novel_gene_keys(combined, novel):
     """gene keys for the combined isoforms without an annotated gene, by their
     indexes in combined: grouped into novel genes as flair transcriptome groups
-    them (_group_novel_by_splicing), on each chromosome and strand"""
+    them (group_by_splicing), on each chromosome and strand"""
     by_chrom_strand = {}
     for i in novel:
         bed = combined[i][0][0]
@@ -255,7 +255,7 @@ def _novel_gene_keys(combined, novel):
             Isoform(bed.chrom, bed.strand, tuple(Junc(gap.start, gap.end) for gap in bed.getGaps()), bed.start, bed.end)
     keys = {}
     for (chrom, strand), isoforms in by_chrom_strand.items():
-        for group in _group_novel_by_splicing(sorted(isoforms), isoforms):
+        for group in group_by_splicing(sorted(isoforms), isoforms):
             key = ('novel', min(group))
             for i in group:
                 keys[i] = key

@@ -327,6 +327,16 @@
     gene `G1,G2`, and reads of no annotated gene, which were left out, are grouped
     over all samples into novel genes named for their locus, as transcriptome names
     them.
+  * Events of splicing (es, ces, alt5, alt3, ir) are found among the junction
+    chains linked by shared splice sites, not per gene, so overlapping genes and
+    readthroughs no longer split an event's reads between genes.  A read's first
+    exon and start (afe, tss) count with the gene it starts in, and its last exon
+    and end (ale, tts) with the gene it ends in.  An event's PSItot is over all the
+    strand's reads covering it.  Until events are given genes of their own, a
+    splicing event's `gene` lists the genes of its chains.
+  * Event calling is faster: on PC9's chr19, 63 rather than 71 seconds.  Each read's
+    chain was compared with every other chain of its gene, for a filter of
+    truncated read ends that was no longer applied.
   * With `--region_bed`, only the annotation of the regions is loaded, from `-f` and
     `--annot_basic`: for one locus of GENCODE, in 10 seconds and 0.2 GB rather than
     75 seconds and 3.5 GB.
