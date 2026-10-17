@@ -318,6 +318,15 @@
     `--annot_basic`), and its reads are the event's only then.  An internal exon
     whose reads were all truncated in any one sample was taken for a first exon,
     and every truncated read of a gene was in its afe and ale totals.
+  * Reads are given genes by flair transcriptome's gene identification, rather than
+    spliceevents' own: by their junction chain, the junctions and splice sites they
+    share with genes, then exon overlap, a gene's strand resolving a read of unknown
+    strand.  Overlapping genes are told apart as transcriptome tells them, so on PC9
+    reads of EEF1G and BSCL2 are no longer given an overlapping unnamed gene or a
+    readthrough.  A read through two genes is given both, its events those of the
+    gene `G1,G2`, and reads of no annotated gene, which were left out, are grouped
+    over all samples into novel genes named for their locus, as transcriptome names
+    them.
   * With `--region_bed`, only the annotation of the regions is loaded, from `-f` and
     `--annot_basic`: for one locus of GENCODE, in 10 seconds and 0.2 GB rather than
     75 seconds and 3.5 GB.

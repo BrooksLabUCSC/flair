@@ -437,7 +437,9 @@ transcriptome handles less well.  Its events resemble flair diffsplice's, but th
 counted from reads, while diffsplice derives them from isoforms and their counts, so
 the two are separate analyses, not steps of one.  Reads are corrected against the annotation, and
 optionally short-read junctions, as flair transcriptome corrects them, and assigned to
-annotated genes.  Single-exon reads are left out.  It finds these events of each gene:
+genes as flair transcriptome assigns them: to annotated genes, a read through two genes
+to both, and reads of no annotated gene, over all samples, to novel genes named for
+their locus.  Single-exon reads are left out.  It finds these events of each gene:
 
  - exon skipping (es) and complex exon skipping, of several exons (ces)
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
@@ -472,8 +474,9 @@ overall.  A sample needs ``--event_support`` reads of an event for a PSI.
 
 With ``--region_bed``, only events inside its regions are reported: those whose
 junctions and exons all lie in a region, whose reads all overlap it, and the start,
-end, first and last exon events of genes whose annotated junctions all lie in one, so
-a region around a gene's annotated exons, or only its spliced part, reports them.
+end, first and last exon events of genes whose annotated junctions (a novel gene's
+reads' junctions) all lie in one, so a region around a gene's annotated exons, or only
+its spliced part, reports them.
 Reads overlapping a region are corrected over their whole length, wherever the region
 ends.  The samples of a region are corrected in parallel.
 

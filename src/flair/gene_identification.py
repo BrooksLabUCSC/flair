@@ -403,12 +403,13 @@ def _group_novel_by_splicing(novel, firstpass):
     unattached = _attach_single_exon_isos(single, groups, firstpass)
     return groups + _group_by_read_span(unattached, firstpass)
 
-def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
-    """Group the strand's isoforms that have no annotated gene into novel genes, by
-    _group_novel_by_splicing, and create their Gene objects.  A novel gene is named
-    for the span of its isoforms."""
-    novel = [iso_key for start, end, iso_key in novel_gene_isos_to_group[strand]]
+def novel_genes(novel, firstpass, chrom, strand):
+    """The novel genes of isoforms of one strand with no annotated gene, keys of
+    firstpass, grouped by _group_novel_by_splicing: (gene id, isoform keys) pairs.
+    A novel gene is named for the span of its isoforms.  Used by flair transcriptome
+    and flair spliceevents"""
     used_ids = set()
+    named = []
     for group in _group_novel_by_splicing(novel, firstpass):
         group_start = min(firstpass[k].start for k in group)
         group_end = max(firstpass[k].end for k in group)
@@ -419,5 +420,14 @@ def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand,
             suffix += 1
             gene_id = f'{chrom}:{group_start}-{group_end}:{strand}.{suffix}'
         used_ids.add(gene_id)
+        named.append((gene_id, group))
+    return named
+
+
+def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
+    """Group the strand's isoforms that have no annotated gene into novel genes
+    (novel_genes), and create their Gene objects."""
+    novel = [iso_key for start, end, iso_key in novel_gene_isos_to_group[strand]]
+    for gene_id, group in novel_genes(novel, firstpass, chrom, strand):
         for k in group:
             add_gene_isoform(genes, gene_id, firstpass[k], strand, is_novel=True)

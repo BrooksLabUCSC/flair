@@ -4,56 +4,76 @@ regions reads are corrected in
 """
 import pysam
 from flair import SeqRange
-from flair.isoform_data import ReadRec
-from flair.read_processing import add_corrected_read_to_groups
-from flair.flair_spliceevents import (group_juncs_by_annot_gene, combine_regions, correction_regions, ReadEnds,
-                                      read_read_chains, write_read_chains)
+from flair.annotation_data import annot_data_from_gtf
+from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
+from flair.isoform_data import Isoform, Junc
+from flair.flair_spliceevents import (annotated_genes, genes_of_chains, combine_regions, correction_regions, ReadEnds,
+                                      ReadChain, read_read_chains, write_read_chains)
 
-# on chr1 +: gene A, one transcript of exons 100-200, 300-400 and 500-600, and gene B,
-# exons 1000-1100, 1200-1300 and 1400-1500 in one transcript, and 1000-1100 and
-# 1400-1500 in another
+# on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle
+# exon, and D and E on -
+GTF = [('A', 'TA', '+', [(100, 200), (300, 400), (500, 600)]),
+       ('B', 'TB', '+', [(1000, 1100), (1200, 1300), (1400, 1500)]),
+       ('B', 'TB2', '+', [(1000, 1100), (1400, 1500)]),
+       ('D', 'TD', '-', [(5000, 5100), (5200, 5300)]),
+       ('E', 'TE', '-', [(6000, 6100), (6200, 6300)])]
 A_JUNCS = ((200, 300), (400, 500))
-B_JUNCS = ((1100, 1200), (1300, 1400))
 B_SKIP = ((1100, 1400),)
-SJC_TO_GENE = {A_JUNCS: 'A', B_JUNCS: 'B', B_SKIP: 'B'}
-JUNC_TO_GENE = {j: gene for juncs, gene in SJC_TO_GENE.items() for j in juncs}
-GENE_TO_JUNCS = {'A': set(A_JUNCS), 'B': set(B_JUNCS) | set(B_SKIP)}
-GENE_TO_EXONS = {'A': ((100, 200), (300, 400), (500, 600)), 'B': ((1000, 1100), (1200, 1300), (1400, 1500))}
 
 
-def _genes(*reads):
-    """group_juncs_by_annot_gene of reads given as (junctions, start, end): the genes'
-    chains, the chains of no gene, and the number of single-exon reads"""
-    sj_to_ends = {}
-    for n, (juncs, start, end) in enumerate(reads):
-        add_corrected_read_to_groups(ReadRec('chr1', '+', juncs, start, end, f'r{n}'), sj_to_ends)
-    genes, nogene, se_reads = group_juncs_by_annot_gene(sj_to_ends, SJC_TO_GENE, JUNC_TO_GENE, GENE_TO_EXONS, GENE_TO_JUNCS)
-    return {gene: sorted(chains) for gene, chains in genes.items()}, sorted(nogene), len(se_reads)
+def _annots(tmp_path):
+    gtf = tmp_path / 'annotation.gtf'
+    with open(gtf, 'w') as fh:
+        for gene, transcript, strand, exons in GTF:
+            attrs = f'gene_id "{gene}"; transcript_id "{transcript}"; gene_name "{gene}";'
+            fh.write(f'chr1\ttest\ttranscript\t{exons[0][0] + 1}\t{exons[-1][1]}\t.\t{strand}\t.\t{attrs}\n')
+            for start, end in exons:
+                fh.write(f'chr1\ttest\texon\t{start + 1}\t{end}\t.\t{strand}\t.\t{attrs}\n')
+    gtf_data = gtf_data_parser(str(gtf), attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    return annot_data_from_gtf(gtf_data, SeqRange('chr1', 0, 10 ** 6))
 
 
-def test_an_annotated_chain_is_its_transcripts_gene():
-    assert _genes((A_JUNCS, 100, 600), (B_SKIP, 1000, 1500)) == ({'A': [A_JUNCS], 'B': [B_SKIP]}, [], 0)
+def _genes(tmp_path, juncs, strand='+'):
+    return annotated_genes(Isoform('chr1', strand, tuple(Junc(*j) for j in juncs)), _annots(tmp_path))
 
 
-def test_a_new_chain_is_the_gene_of_most_of_its_junctions():
+def test_an_annotated_chain_is_its_transcripts_gene(tmp_path):
+    assert _genes(tmp_path, A_JUNCS) == (('A',), '+')
+    assert _genes(tmp_path, B_SKIP) == (('B',), '+')
+
+
+def test_a_new_chain_sharing_junctions_is_their_gene(tmp_path):
     # one of A's junctions and a new one
-    chain = ((200, 300), (400, 550))
-    assert _genes((chain, 100, 700))[0] == {'A': [chain]}
+    assert _genes(tmp_path, ((200, 300), (400, 550))) == (('A',), '+')
 
 
-def test_a_chain_of_no_annotated_junction_is_the_gene_whose_exons_it_overlaps_most():
-    # a new intron inside A's exons
-    chain = ((330, 370),)
-    assert _genes((chain, 300, 400))[0] == {'A': [chain]}
+def test_a_readthrough_chain_is_its_genes_in_the_order_it_reads_them(tmp_path):
+    assert _genes(tmp_path, ((200, 300), (400, 500), (600, 1000), (1100, 1200))) == (('A', 'B'), '+')
+    # on -, E, the higher, is read first
+    assert _genes(tmp_path, ((5100, 5200), (5300, 6000), (6100, 6200)), '-') == (('E', 'D'), '-')
 
 
-def test_a_chain_outside_all_genes_is_of_no_gene():
-    chain = ((2200, 2300),)
-    assert _genes((chain, 2100, 2400)) == ({}, [chain], 0)
+def test_a_chain_of_unknown_strand_gets_its_genes_strand(tmp_path):
+    assert _genes(tmp_path, A_JUNCS, '.') == (('A',), '+')
+    # and one of no gene has none, to be dropped
+    assert _genes(tmp_path, ((2200, 2300),), '.') == ((), None)
 
 
-def test_single_exon_reads_are_counted_apart():
-    assert _genes(((), 100, 200), (A_JUNCS, 100, 600)) == ({'A': [A_JUNCS]}, [], 1)
+def test_a_chain_outside_all_genes_is_of_no_annotated_gene(tmp_path):
+    assert _genes(tmp_path, ((2200, 2300),)) == ((), '+')
+
+
+def test_chains_of_no_annotated_gene_get_the_same_novel_gene_in_every_sample(tmp_path):
+    # chains sharing the splice site at 2300, one in each sample
+    s1 = [ReadChain((), ((2200, 2300),), '+', [ReadEnds(2100, 2400)] * 3), ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)])]
+    s2 = [ReadChain((), ((2300, 2400),), '+', [ReadEnds(2250, 2500)] * 2)]
+    genes, strands, juncs = genes_of_chains('chr1', [s1, s2], _annots(tmp_path))
+    novel = 'chr1:2100-2500:+'
+    assert genes == [{novel: {((2200, 2300),): s1[0].ends}, 'A': {A_JUNCS: s1[1].ends}},
+                     {novel: {((2300, 2400),): s2[0].ends}}]
+    assert strands == {novel: '+', 'A': '+'}
+    # a novel gene's junctions are its reads', an annotated one's the annotation's
+    assert juncs == {novel: {(2200, 2300), (2300, 2400)}, 'A': set(A_JUNCS)}
 
 
 def test_overlapping_and_touching_regions_are_merged():
@@ -96,12 +116,10 @@ def test_regions_reaching_over_each_other_are_corrected_together(tmp_path):
 
 
 def test_read_chains_written_and_read_back_are_the_same_reads(tmp_path):
-    sj_to_ends = {}
-    for n, (juncs, start, end) in enumerate([(A_JUNCS, 100, 600), (A_JUNCS, 120, 580), (B_SKIP, 1000, 1500)]):
-        add_corrected_read_to_groups(ReadRec('chr1', '+', juncs, start, end, f'r{n}'), sj_to_ends)
-    genes, _, _ = group_juncs_by_annot_gene(sj_to_ends, SJC_TO_GENE, JUNC_TO_GENE, GENE_TO_EXONS, GENE_TO_JUNCS)
+    chains = [ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600), ReadEnds(120, 580)]),
+              ReadChain(('A', 'B'), ((200, 300), (600, 1000)), '+', [ReadEnds(150, 1300)]),
+              ReadChain((), ((2200, 2300),), '-', [ReadEnds(2100, 2400)])]
     path = str(tmp_path / 's1.read_chains.tsv')
-    write_read_chains(path, 'chr1', genes)
-    assert open(path).read().splitlines()[0] == 'A\tchr1\t200-300,400-500\t+\t100-600,120-580'
-    assert read_read_chains(path) == {'A': {A_JUNCS: [ReadEnds(100, 600), ReadEnds(120, 580)]},
-                                      'B': {B_SKIP: [ReadEnds(1000, 1500)]}}
+    write_read_chains(path, 'chr1', chains)
+    assert open(path).read().splitlines()[1] == 'A,B\tchr1\t200-300,600-1000\t+\t150-1300'
+    assert read_read_chains(path) == chains

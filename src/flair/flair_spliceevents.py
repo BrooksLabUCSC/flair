@@ -18,6 +18,9 @@ from flair.annotation_alignment import identify_good_match_to_annot
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import Bed, BedBlock, BedReader
+from flair.isoform_data import Isoform, Junc
+from flair.junction_correct import UNKNOWN_STRAND
+from flair.gene_identification import get_gene_name_firstpass, get_gene_name_unknown_strand, novel_genes
 
 
 def add_subparser(subparsers):
@@ -212,71 +215,6 @@ MAX_NONTERMINAL_FRACTION = 0.05
 MAX_NONTERMINAL_FRACTION_ANNOTATED = 0.25
 MIN_TERMINAL_JUNCTION_SEPARATION = 100
 MIN_TERMINAL_SS_FRACTION = 0.1
-
-def get_annot_gene_hits(gene_to_exons, exons):
-    gene_hits = []
-    for annotgene in gene_to_exons:
-        annotexons = gene_to_exons[annotgene]
-        if min((annotexons[-1][1], exons[-1][1])) > max(
-                (annotexons[0][0], exons[0][0])):  # there is overlap in the genes
-            coveredpos = set()
-            for s, e in exons:
-                for ast, ae in annotexons:
-                    for p in range(max((ast, s)), min((ae, e))):
-                        coveredpos.add(p)
-            if len(coveredpos) > sum([x[1] - x[0] for x in exons]) * 0.5:
-                gene_hits.append([len(coveredpos), annotgene])
-    return gene_hits
-
-def get_juncs_to_gene(juncs, isoinfo, sjc_to_gene, junc_to_gene, gene_to_exons, gene_to_juncs):
-    thisgene = None
-    if juncs in sjc_to_gene:
-        thisgene = sjc_to_gene[juncs]
-    else:
-        gene_hits = {}
-        for j in juncs:
-            if j in junc_to_gene:
-                gene_id = junc_to_gene[j]
-                if gene_id not in gene_hits:
-                    gene_hits[gene_id] = [0, -1 * len(gene_to_juncs[gene_id])]
-                gene_hits[gene_id][0] += 1
-        if gene_hits:
-            sortedgenes = sorted(gene_hits.items(), key=lambda x: x[1], reverse=True)
-            thisgene = sortedgenes[0][0]
-        else:
-            # look for exon overlap.  isoinfo is an Isoform, which is not iterable;
-            # its reads are what was wanted.  The median is how isoform_data turns a
-            # read cluster into one isoform, and neither extreme is outlier proof
-            mystart = int(median(isoinfo.starts))
-            myend = int(median(isoinfo.ends))
-            exons = [(mystart, juncs[0][0])] + [(juncs[i][1], juncs[i + 1][0]) for i in range(len(juncs) - 1)] + [
-                (juncs[-1][1], myend)]
-            # strand = isoinfo[0][2]  # not a super robust strand picking, assumes well stranded reads
-            gene_hits = get_annot_gene_hits(gene_to_exons, exons)
-            if len(gene_hits) > 0:
-                gene_hits.sort(reverse=True)
-                thisgene = gene_hits[0][1]
-    return thisgene
-
-def group_juncs_by_annot_gene(sjtoends, sjc_to_gene, junc_to_gene, gene_to_exons, gene_to_juncs):
-    genetojuncs, nogenejuncs, sereads = {}, {}, []
-    no_gene_reads, se_reads_cnt = 0, 0
-    for (chrom, juncs) in sjtoends:
-        if len(juncs) > 0:  # skip single-exon reads
-            thisgene = get_juncs_to_gene(juncs, sjtoends[(chrom, juncs)], sjc_to_gene, junc_to_gene, gene_to_exons, gene_to_juncs)
-            if thisgene:
-                if thisgene not in genetojuncs:
-                    genetojuncs[thisgene] = {}
-                genetojuncs[thisgene][juncs] = sjtoends[(chrom, juncs)]
-            else:
-                no_gene_reads += sjtoends[(chrom, juncs)].num_reads
-                nogenejuncs[juncs] = sjtoends[(chrom, juncs)]
-        else:
-            se_reads_cnt += sjtoends[(chrom, juncs)].num_reads
-            sereads.extend(sjtoends[(chrom, juncs)].reads)
-    logging.debug(f"gene assignment: {no_gene_reads} spliced reads not assigned to a gene, {se_reads_cnt} single-exon reads discarded")
-    return genetojuncs, nogenejuncs, sereads
-
 
 def extract_35ss_info(juncs, strand, allsamples, sample, numreads, ss5to3, ss3to5, alljuncs):
     for j in juncs:
@@ -943,16 +881,20 @@ def read_chains_path(partition, sample):
     return f'{partition.file_prefix}_{sample}.read_chains.tsv'
 
 
-def write_read_chains(path, chrom, genetojuncs):
-    """Write a sample's corrected reads, a line per junction chain: its gene,
-    chromosome, junctions, strand, and the ends of each of its reads, 0-based
-    start-end pairs.  It's written whole or not at all, as a rerun with
-    --keep_intermediate skips the samples whose file exists"""
+# a sample's corrected junction chain: its annotated genes, 5' to 3', or () for none,
+# its junctions, strand, and its reads' ends
+ReadChain = namedtuple('ReadChain', ('genes', 'juncs', 'strand', 'ends'))
+
+
+def write_read_chains(path, chrom, chains):
+    """Write a sample's corrected reads, ReadChains, a line per junction chain: its
+    annotated genes, chromosome, junctions, strand, and the ends of each of its
+    reads, 0-based start-end pairs.  It's written whole or not at all, as a rerun
+    with --keep_intermediate skips the samples whose file exists"""
     with open(path + '.tmp', 'w') as out:
-        for gene, chains in genetojuncs.items():
-            for juncs, iso in chains.items():
-                out.write('\t'.join([gene, chrom, ','.join(f'{s}-{e}' for s, e in juncs), iso.strand,
-                                     ','.join(f'{r.start}-{r.end}' for r in iso.reads)]) + '\n')
+        for chain in chains:
+            out.write('\t'.join([','.join(chain.genes), chrom, ','.join(f'{s}-{e}' for s, e in chain.juncs), chain.strand,
+                                 ','.join(f'{r.start}-{r.end}' for r in chain.ends)]) + '\n')
     os.replace(path + '.tmp', path)
 
 
@@ -961,20 +903,91 @@ def _ranges(field):
 
 
 def read_read_chains(path):
-    "a sample's corrected reads from write_read_chains: gene -> junctions -> [ReadEnds]"
-    gene_to_juncs = {}
+    "a sample's corrected reads from write_read_chains, ReadChains"
+    chains = []
     with open(path) as fh:
         for line in fh:
-            gene, _, juncs, _, ends = line.rstrip('\n').split('\t')
-            gene_to_juncs.setdefault(gene, {})[_ranges(juncs)] = [ReadEnds(*pair) for pair in _ranges(ends)]
-    return gene_to_juncs
+            genes, _, juncs, strand, ends = line.rstrip('\n').split('\t')
+            chains.append(ReadChain(tuple(genes.split(',')) if genes else (), _ranges(juncs), strand,
+                                    [ReadEnds(*pair) for pair in _ranges(ends)]))
+    return chains
+
+
+def annotated_genes(isoform, annots):
+    """A corrected junction chain's annotated genes, 5' to 3', and its strand, as
+    flair transcriptome finds them (gene_identification): () if it has none, and a
+    strand of None for a chain of unknown strand that no gene gives one"""
+    if isoform.strand == UNKNOWN_STRAND:
+        genes, _, strand = get_gene_name_unknown_strand(isoform, annots)
+        if genes is None:
+            return (), None
+    else:
+        genes, _ = get_gene_name_firstpass(isoform, annots)
+        if genes is None:
+            return (), isoform.strand
+        strand = annots.gene_to_strand[genes[0]]
+    # a readthrough's genes in the order it reads them
+    return tuple(sorted(genes, key=lambda g: annots.gene_to_exons[g][0][0], reverse=(strand == '-'))), strand
 
 
 def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots):
-    "correct a sample's reads in region, give their junction chains genes, and write them to path"
+    """correct a sample's reads in region, give their junction chains annotated genes,
+    and write them to path; the chains of no annotated gene get novel genes in event
+    calling, over all samples"""
     sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector)
-    genetojuncs, nogenejuncs, sereads = group_juncs_by_annot_gene(sj_to_ends, annots.sjc_to_gene, annots.junc_to_gene_id, annots.gene_to_exons, annots.gene_to_annot_juncs)
-    write_read_chains(path, region.name, genetojuncs)
+    chains = []
+    for (_, juncs), isoform in sj_to_ends.items():
+        if len(juncs) > 0:
+            genes, strand = annotated_genes(isoform, annots)
+            if strand is None:
+                logging.debug(f'reads dropped: strand unknown and not given by a gene: {juncs}')
+                continue
+            chains.append(ReadChain(genes, tuple((j.start, j.end) for j in juncs), strand, isoform.reads))
+    write_read_chains(path, region.name, chains)
+
+
+def novel_genes_of_chains(chrom, sample_chains):
+    """(strand, junctions) -> novel gene of the ReadChains of no annotated gene, of all
+    samples together, so each sample's reads get the same novel genes, grouped and
+    named as flair transcriptome does (novel_genes)"""
+    novel = {}
+    for chains in sample_chains:
+        for chain in chains:
+            if not chain.genes:
+                key = (chain.strand, chain.juncs)
+                if key not in novel:
+                    novel[key] = Isoform(chrom, chain.strand, tuple(Junc(*j) for j in chain.juncs))
+                novel[key].reads.extend(chain.ends)
+    for isoform in novel.values():
+        isoform.start, isoform.end = int(median(isoform.starts)), int(median(isoform.ends))
+    novel_gene = {}
+    for strand in ('+', '-'):
+        for gene, keys in novel_genes(sorted(k for k in novel if k[0] == strand), novel, chrom, strand):
+            novel_gene.update((k, gene) for k in keys)
+    return novel_gene
+
+
+def genes_of_chains(chrom, sample_chains, annots):
+    """Each sample's reads by gene and junction chain, gene -> junctions -> [ReadEnds],
+    from their ReadChains, and each gene's strand and junctions, for --region_bed.  A
+    chain's gene is its annotated genes, a readthrough's joined by commas, or for a
+    chain of none, its novel gene (novel_genes_of_chains)"""
+    novel_gene = novel_genes_of_chains(chrom, sample_chains)
+    all_genes_to_juncs, gene_strand, gene_juncs = [], {}, {}
+    for chains in sample_chains:
+        gene_to_juncs = {}
+        for chain in chains:
+            gene = ','.join(chain.genes) if chain.genes else novel_gene[(chain.strand, chain.juncs)]
+            gene_to_juncs.setdefault(gene, {})[chain.juncs] = chain.ends
+            gene_strand[gene] = chain.strand
+            if chain.genes:
+                if gene not in gene_juncs:
+                    gene_juncs[gene] = {(j.start, j.end) for g in chain.genes for j in annots.gene_to_annot_juncs.get(g, ())}
+            else:
+                # a novel gene's junctions are those of its reads
+                gene_juncs.setdefault(gene, set()).update(chain.juncs)
+        all_genes_to_juncs.append(gene_to_juncs)
+    return all_genes_to_juncs, gene_strand, gene_juncs
 
 
 def annotated_terminal_splice_sites(gtf_file, regions=None):
@@ -1013,14 +1026,15 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
     annots = annot_data_from_gtf(gtf_data, partition.region)
     if len(annots.transcripts) > 0:  # check if any annotated transcripts in region
         # each sample's corrected reads, from _correct_region_sample
-        all_genes_to_juncs = [read_read_chains(read_chains_path(partition, sample)) for sample, _ in allsamples]
+        sample_chains = [read_read_chains(read_chains_path(partition, sample)) for sample, _ in allsamples]
+        all_genes_to_juncs, gene_strand, gene_juncs = genes_of_chains(partition.region.name, sample_chains, annots)
 
         process_gene_to_events(
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
-            all_genes_to_juncs, annots.gene_to_strand, args.feature_support,
+            all_genes_to_juncs, gene_strand, args.feature_support,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss, annot_ale_ss,
-            region_reports[_region_key(partition.region)], annots.gene_to_annot_juncs)
+            region_reports[_region_key(partition.region)], gene_juncs)
 
         if not args.keep_intermediate:
             for sample, _ in allsamples:
@@ -1076,12 +1090,12 @@ def _event_positions(event):
     return positions
 
 
-def gene_junction_span(annot_juncs):
-    """The span of a gene's annotated junctions, from the first one's start to the
-    last one's end"""
-    if not annot_juncs:
+def gene_junction_span(juncs):
+    """The span of a gene's junctions, its annotated ones, or a novel gene's of its
+    reads, from the first one's start to the last one's end"""
+    if not juncs:
         return (0, 0)
-    return (min(j.start for j in annot_juncs), max(j.end for j in annot_juncs))
+    return (min(j[0] for j in juncs), max(j[1] for j in juncs))
 
 
 def event_in_regions(event, regions, gene_span):
