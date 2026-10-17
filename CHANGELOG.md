@@ -296,9 +296,9 @@
     number of blocks, which was always 3.  Its rows are written in the same order in
     every run.
   * Events and rows are named consistently, and every coordinate is 1-based.  An event
-    is `TYPE|GENE|CHROM:START-END(STRAND)`, its locus being the skipped exon for es
+    is `TYPE|CHROM:START-END(STRAND)`, its locus being the skipped exon for es
     and otherwise the outer bounds of its introns (was, for example,
-    `es-of-chr1:300-400`, without strand or gene, or `alt3-relTo-chr1:200(+)-G1`).
+    `es-of-chr1:300-400`, without strand, or `alt3-relTo-chr1:200(+)-G1`).
     The tables have separate `event` and `alternative` columns (were `eventname`,
     the row joined to the event, and `event`), and `event_type` (was `eventtype`); a
     row's alternative is `inc`, `exc`, `retained`, `spliced` or `other`, the exons
@@ -332,8 +332,20 @@
     readthroughs no longer split an event's reads between genes.  A read's first
     exon and start (afe, tss) count with the gene it starts in, and its last exon
     and end (ale, tts) with the gene it ends in.  An event's PSItot is over all the
-    strand's reads covering it.  Until events are given genes of their own, a
-    splicing event's `gene` lists the genes of its chains.
+    strand's reads covering it.
+  * Each splicing event is given its own gene: the one annotated with most of the
+    introns of all its alternatives, each intron scoring 2 for a gene annotated with
+    it, or failing that 1 for each of its splice sites the gene has, weighted by its
+    share of the event's intron reads, a tie going to
+    the gene of more annotated transcripts, or, sharing none, the gene of most of
+    its reads.  Genes still tied are listed.  An event's gene had been
+    the genes of all its reads, a list for 495 events of PC9's chr19.  The tables have a
+    `novel_junctions` column, a row's introns that aren't annotated, a `gene_name`
+    column, the annotation's name of the gene, and `additional_genes` and
+    `additional_gene_names`, the other genes sharing an intron or splice site with a
+    splicing event, as do the outliers.
+  * spliceevents_outliers compares an outlier with those of the events sharing its
+    junctions, not of its gene, and reads only tables with `novel_junctions`.
   * Event calling is faster: on PC9's chr19, 63 rather than 71 seconds.  Each read's
     chain was compared with every other chain of its gene, for a filter of
     truncated read ends that was no longer applied.

@@ -25,7 +25,7 @@ BETTER_DEVIATION_FRACTION = 0.8
 # no deviation, the samples' PSIs equal but this one's
 NO_DEVIATION = 100000
 
-OUTLIER_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
+OUTLIER_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'gene_name', 'additional_genes', 'additional_gene_names', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
                    'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
 # the denominator of each PSI, a row of the totals table
 PSI_TOTALS = {'junc': 'event_reads', 'tot': 'locus_reads'}
@@ -60,13 +60,16 @@ def read_tsv(path):
 
 
 def read_events(input_prefix, psi):
-    """the event rows of the counts table, by gene in table order, each with its
-    per-sample counts and the per-sample totals of its PSI, and the samples"""
+    """the event rows of the counts table, in table order, each with its per-sample
+    counts and the per-sample totals of its PSI, and the samples"""
     header, rows = read_tsv(input_prefix + '.spliceevents.counts.tsv')
-    samples = header[header.index('exons') + 1:]
+    if 'novel_junctions' not in header:
+        raise FlairInputDataError(f'{input_prefix}.spliceevents.counts.tsv has no novel_junctions column: '
+                                  'it is from an earlier flair spliceevents, rerun it')
+    samples = header[header.index('novel_junctions') + 1:]
     _, total_rows = read_tsv(input_prefix + '.spliceevents.totals.tsv')
     totals = {row['event']: {s: int(row[s]) for s in samples} for row in total_rows if row['total'] == PSI_TOTALS[psi]}
-    gene_to_rows = defaultdict(list)
+    event_rows = []
     for row in rows:
         if row['alternative'] == 'other':  # the reads of an event's other ends or junctions
             continue
@@ -75,12 +78,40 @@ def read_events(input_prefix, psi):
                                       f'{input_prefix}.spliceevents.totals.tsv')
         row['counts'] = {s: int(row[s]) for s in samples}
         row['totals'] = totals[row['event']]
-        gene_to_rows[row['gene']].append(row)
-    return gene_to_rows, samples
+        event_rows.append(row)
+    return event_rows, samples
 
 
 def _junctions(field):
     return frozenset(field.split(',')) if field else frozenset()
+
+
+def _row_junctions(row):
+    "an event row's junctions: (included, excluded, outer)"
+    return (_junctions(row['junctions_included']), _junctions(row['junctions_excluded']),
+            _junctions(row['outer_junctions']))
+
+
+def group_by_shared_junctions(rows):
+    """event rows grouped by events sharing junctions, linked through each other, in
+    table order: an outlier is only explained by an event of the same junctions.  An
+    event of no junctions, a start or end, is alone"""
+    parent = {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for row in rows:
+        event = ('event', row['event'])
+        for junc in set().union(*_row_junctions(row)):
+            parent[find(('junc', junc))] = find(event)
+    groups = defaultdict(list)
+    for row in rows:
+        groups[find(('event', row['event']))].append(row)
+    return list(groups.values())
 
 
 def row_outliers(row, samples, event_support):
@@ -95,7 +126,8 @@ def row_outliers(row, samples, event_support):
     for s, psi in psis.items():
         delta = abs(psi - med)
         if delta >= MIN_DELTA_PSI and ((dev == 0 and psi != med) or delta > dev * MIN_DEVIATIONS):
-            outliers[s] = [row['event'], row['alternative'], row['event_type'], row['gene'], s, round(med, 6), round(dev, 6), round(psi, 6),
+            outliers[s] = [row['event'], row['alternative'], row['event_type'], row['gene'], row['gene_name'],
+                           row['additional_genes'], row['additional_gene_names'], s, round(med, 6), round(dev, 6), round(psi, 6),
                            len(vals), f"{row['counts'][s]};{row['totals'][s]}", round(delta, 6),
                            round(delta / dev, 6) if dev != 0 else NO_DEVIATION]
     return outliers
@@ -111,7 +143,7 @@ def _better_than(this, other):
 
 
 def filter_outliers(etype_to_sig):  # noqa: C901 - FIXME: reduce complexity
-    """A gene's outliers, by event type and then junctions, (included, excluded,
+    """The outliers of events sharing junctions, by event type and then junctions, (included, excluded,
     outer), and sample, kept when a simpler event of the same junctions doesn't
     explain them as well: a complex exon skip by an exon skip, an alternative splice
     site by an exon skip or alternative first or last exon"""
@@ -158,18 +190,16 @@ def filter_outliers(etype_to_sig):  # noqa: C901 - FIXME: reduce complexity
 
 
 def spliceevents_outliers(input_prefix, output, psi, event_support):
-    gene_to_rows, samples = read_events(input_prefix, psi)
+    event_rows, samples = read_events(input_prefix, psi)
     with open(output + '.spliceevents.outliers.tsv', 'w') as out, \
             open(output + '.spliceevents.outliers.filtered.tsv', 'w') as out_filtered:
         for fh in (out, out_filtered):
             fh.write('\t'.join(OUTLIER_COLUMNS) + '\n')
-        # each gene's events alone, as an outlier is only explained by an event of its gene
-        for rows in gene_to_rows.values():
+        for rows in group_by_shared_junctions(event_rows):
             sig_events, etype_to_sig = [], {}
             for row in rows:
                 outliers = row_outliers(row, samples, event_support)
-                juncs = (_junctions(row['junctions_included']), _junctions(row['junctions_excluded']),
-                         _junctions(row['outer_junctions']))
+                juncs = _row_junctions(row)
                 for s, line in outliers.items():
                     sig_events.append(line)
                     etype_to_sig.setdefault(row['event_type'], {}).setdefault(juncs, {})[s] = line

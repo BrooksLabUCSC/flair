@@ -77,18 +77,19 @@ def test_chains_of_no_annotated_gene_get_the_same_novel_gene_in_every_sample(tmp
 def test_a_readthroughs_reads_count_with_its_5_gene_for_starts_and_its_3_gene_for_ends():
     readthrough = ReadChain(('A', 'B'), ((200, 300), (600, 1000)), '+', [ReadEnds(150, 1300)])
     a = ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)])
-    views, strands, cluster_genes, _ = group_chains('chr1', ['s1'], [[readthrough, a]], {})
+    views, strands, chain_genes, _ = group_chains('chr1', ['s1'], [[readthrough, a]], {})
     assert views['five'] == [{'A': {readthrough.juncs: readthrough.ends, A_JUNCS: a.ends}}]
     assert views['three'] == [{'B': {readthrough.juncs: readthrough.ends}, 'A': {A_JUNCS: a.ends}}]
-    # the two chains share A's donor at 200: one cluster, of both genes
-    assert list(cluster_genes.values()) == ['A,B']
+    # the two chains share A's donor at 200: one cluster
+    assert [sorted(chains) for chains in views['cluster'][0].values()] == [sorted([A_JUNCS, readthrough.juncs])]
+    assert chain_genes[('+', readthrough.juncs)] == ('A', 'B')
 
 
 def test_a_gene_nested_in_anothers_intron_is_a_cluster_of_its_own():
     outer = ReadChain(('O',), ((1000, 5000),), '+', [ReadEnds(900, 5100)])
     nested = ReadChain(('N',), ((2000, 2100), (2200, 2300)), '+', [ReadEnds(1900, 2400)])
-    _, _, cluster_genes, _ = group_chains('chr1', ['s1'], [[outer, nested]], {})
-    assert sorted(cluster_genes.values()) == ['N', 'O']
+    views, _, _, _ = group_chains('chr1', ['s1'], [[outer, nested]], {})
+    assert sorted(list(chains) for chains in views['cluster'][0].values()) == [[outer.juncs], [nested.juncs]]
 
 
 def test_overlapping_and_touching_regions_are_merged():

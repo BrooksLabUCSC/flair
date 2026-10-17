@@ -444,7 +444,7 @@ the two are separate analyses, not steps of one.  Reads are corrected against th
 optionally short-read junctions, as flair transcriptome corrects them, and assigned to
 genes as flair transcriptome assigns them: to annotated genes, a read through two genes
 to both, and reads of no annotated gene, over all samples, to novel genes named for
-their locus.  Single-exon reads are left out.  It finds these events of each gene:
+their locus.  Single-exon reads are left out.  It finds these events:
 
  - exon skipping (es) and complex exon skipping, of several exons (ces)
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
@@ -458,7 +458,20 @@ their locus.  Single-exon reads are left out.  It finds these events of each gen
 Each event has a row for each of its alternatives, such as an exon's inclusion and
 exclusion, and an ``other`` row for its reads that fit none of them.
 
-An event is named ``TYPE|GENE|CHROM:START-END(STRAND)``, its locus, 1-based, being
+The events of splicing (es, ces, alt5, alt3, alt5ss, alt3ss, ir) are found among
+reads linked by shared splice sites, whatever their genes, so overlapping genes and
+readthroughs don't split an event's reads.  Each is then given the gene annotated
+with most of its introns, those of all its alternatives, the ``other`` row's too:
+each intron scores 2 for a gene annotated with it, or failing that 1 for each of its
+splice sites the gene has, weighted by the intron's share of the reads of all the
+event's introns, so a rare alternative counts little.  A tie goes to the gene of more annotated transcripts, so
+a gene rather than a readthrough of it.  Genes still tied are all given, comma-separated.
+An event sharing no intron or splice site with the annotation, as in a novel gene,
+gets the gene of most of its reads.  First and last exons and starts and ends are
+found per gene: a read's first exon and start with the gene it starts in, its last
+exon and end with the gene it ends in.
+
+An event is named ``TYPE|CHROM:START-END(STRAND)``, its locus, 1-based, being
 its skipped exon for es, and otherwise the outer bounds of its introns, so it can be
 pasted into a genome browser.  Each row is one alternative of its event, named by
 what sets it apart from the event's other rows: ``inc`` and ``exc`` for es and
@@ -469,8 +482,8 @@ end of tss and tts, and ``other``.  Introns are written as STAR writes them, fro
 their first base to their last, and exons from their first base to their last.
 For example, an exon skip and an alternative 3' splice site::
 
-   es|ENSG00000133703.12|chr12:25215437-25215560(-)    inc
-   alt3|G1|chr1:201-350(+)                             201-300
+   es|chr12:25215437-25215560(-)    inc
+   alt3|chr1:201-350(+)             201-300
 
 The tables' coordinate columns use the same 1-based coordinates.  An event's PSI
 is computed two ways: of the event's reads (PSIjunc), which is more sensitive, and of
@@ -494,9 +507,16 @@ indexed bam file, a line per sample::
 **Outputs**
 
  - ``OUTPUT.spliceevents.counts.tsv``, the reads of each event row in each sample,
-   with the row's ``event``, ``alternative``, ``event_type`` and ``gene``, and its
+   with the row's ``event``, ``alternative``, ``event_type``, ``gene`` and
+   ``gene_name``, the annotation's name of the gene, empty if it has none,
+   ``additional_genes`` and ``additional_gene_names``, the other annotated genes
+   sharing an intron or splice site with a splicing event, best scoring first, to
+   find all the events that could be a gene's, and its
    ``junctions_included``, ``junctions_excluded``, ``outer_junctions`` and
-   ``exons``
+   ``exons``, and ``novel_junctions``, the row's introns that aren't annotated:
+   those its reads splice, the skipping junctions of an exon skip's exclusion.  An
+   event of an annotated gene can have novel alternatives, so these, rather than
+   the gene, find novel splicing
  - ``OUTPUT.spliceevents.PSIjunc.tsv`` and ``OUTPUT.spliceevents.PSItot.tsv``, the
    rows' PSIs, empty where a sample has too few reads
  - ``OUTPUT.spliceevents.totals.tsv``, each event's reads (``event_reads``) and the

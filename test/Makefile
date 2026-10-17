@@ -1103,8 +1103,8 @@ test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS}
 # without genes, adds nothing
 test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed -o $O/$@
-	diff <(grep -F 'es|ENSG00000133703.12|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
-	diff <(grep -F 'es|ENSG00000133703.12|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
+	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
+	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
 
 # a rerun with --keep_intermediate corrects only the samples without their corrected
 # reads, here the one whose file is removed, and gives the same tables

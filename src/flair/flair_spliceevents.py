@@ -10,7 +10,7 @@ from flair.partition_runner import PartitionRunner, combine_temp_files_by_suffix
 from flair import SeqRange
 from statistics import median
 from flair.junction_correct import junction_corrector_factory
-from collections import namedtuple
+from collections import namedtuple, Counter
 from flair.io_utils import make_temp_dir
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
@@ -167,10 +167,11 @@ def internal_exons(juncs):
     return [(juncs[i][1], juncs[i + 1][0]) for i in range(len(juncs) - 1)]
 
 
-def event_name(etype, gene, chrom, start, end, strand):
-    """an event's name: its type, gene, and outer bounds, start 0-based, written 1-based
-    as a genome browser's locus"""
-    return f'{etype}|{gene}|{chrom}:{start + 1}-{end}({strand})'
+def event_name(etype, chrom, start, end, strand):
+    """an event's name: its type and outer bounds, start 0-based, written 1-based as a
+    genome browser's locus.  Not its gene, which may be several, or decided only once
+    the event is found"""
+    return f'{etype}|{chrom}:{start + 1}-{end}({strand})'
 
 
 def row_name(ename, alternative):
@@ -352,7 +353,7 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
         if supported(inc, allsamples, min_read_support) and supported(exc, allsamples, min_read_support) \
                 and psi_varies(sample_psis(inc, tot_counts, allsamples, event_support), junc_frac_of_event):
             outer_juncs = exon_to_outer_juncs[exon]
-            ename = event_name('es', gene, thischrom, exon[0], exon[1], strand)
+            ename = event_name('es', thischrom, exon[0], exon[1], strand)
 
             # the outer junctions whose inclusion is a large enough part of the event
             goodouterjuncs = set()
@@ -373,6 +374,9 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
                 add_counts_at(esjuncs.setdefault((exon[1], outerjunc[1]), {}), outerjunc, inc_counts, allsamples)
 
             event = event_to_info[ename] = SplicingEvent(ename, 'es', gene, thischrom, strand, tot_counts, allsamples)
+            event.introns = {j for outerjunc in outer_juncs
+                             for j in ((outerjunc[0], exon[0]), (exon[1], outerjunc[1]))}
+            event.introns.update(outerjunc for outerjunc in outer_juncs if outerjunc in alljuncs)
             event.events['inc'] = SplicingEventJunction('inc', beds, inc, innerjuncs, set(), goodouterjuncs, {exon, })
             event.events['exc'] = SplicingEventJunction('exc', [], exc, set(), innerjuncs, goodouterjuncs, {exon, })
             ref_juncs = goodouterjuncs if len(goodouterjuncs) > 0 else outer_juncs
@@ -402,8 +406,9 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
 
         # only require one exon relative to outer junction
         if len(goodB) > 0 and frozenset(my_juncs | {outerjunc, }) not in seen_junc_combos:
-            ename = event_name('ces', gene, thischrom, outerjunc[0], outerjunc[1], strand)
+            ename = event_name('ces', thischrom, outerjunc[0], outerjunc[1], strand)
             event = event_to_info[ename] = SplicingEvent(ename, 'ces', gene, thischrom, strand, tot_counts, allsamples)
+            event.introns = {outerjunc}.union(*innerjuncs_to_counts)
             bed = junction_bed(thischrom, outerjunc, [], row_name(ename, 'exc'), strand, mycolor)
             event.events['exc'] = SplicingEventJunction('exc', [bed], exc, set(), my_juncs, {outerjunc, }, all_exons)
 
@@ -513,7 +518,7 @@ def process_terminal_exons(termExon, eventtype, thischrom, strand, gene, allsamp
         # each first or last exon by its introns: those of the event's, or failing that,
         # all its own
         ss_juncs = {ssB: ({x for x in my_juncs if ssB in x} or set(termExon[ssB])) for ssB in goodB}
-        ename = event_name(eventtype, gene, thischrom, *span([j for juncs in ss_juncs.values() for j in juncs]), strand)
+        ename = event_name(eventtype, thischrom, *span([j for juncs in ss_juncs.values() for j in juncs]), strand)
         event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
         for ssB in goodB:
             jname = coord_ranges(ss_juncs[ssB])
@@ -571,8 +576,9 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
             ssB_groups_to_ssA.setdefault(frozenset(goodB), {})[ssA] = tot_counts
         if supported(tot_counts, allsamples, event_support) and len(goodBstrict) > 1:  # only if alt splicing, not including junctions involved in exon skipping
             # from the shared site to the furthest alternative one, so unique to the shared site
-            ename = event_name(eventtype, gene, thischrom, *span([junc_between(ssA, ssB) for ssB in goodB]), strand)
+            ename = event_name(eventtype, thischrom, *span([junc_between(ssA, ssB) for ssB in goodB]), strand)
             event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
+            event.introns = {junc_between(ssA, ssB) for ssB in ssB_counts}
             for ssB in goodB:
                 junc = junc_between(ssA, ssB)
                 jname = coord_ranges([junc])
@@ -602,8 +608,9 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
         if len(good) > 1:
             # unique: each site A is in one group, and the outer bounds end at the group's
             # outermost site A
-            ename = event_name(f'{eventtype}ss', gene, thischrom, *span(my_juncs), strand)
+            ename = event_name(f'{eventtype}ss', thischrom, *span(my_juncs), strand)
             event = event_to_info[ename] = SplicingEvent(ename, f'{eventtype}ss', gene, thischrom, strand, tot_counts, allsamples)
+            event.introns = {junc_between(ssA, ssB) for ssA in ssA_counts for ssB in ssBgroup}
             for ssA in good:
                 if (eventtype == 'alt5' and strand == '+') or (eventtype == 'alt3' and strand == '-'):
                     bs, be = ssA - 10, ssA
@@ -632,6 +639,10 @@ class SplicingEvent:
         self.events = {}
         self.totoverlap = None
         self.other = {s: 0 for s in allsamples}
+        # all the introns of its alternatives, those of other too, for its gene
+        self.introns = set()
+        # the other annotated genes sharing an intron or splice site with it
+        self.additional_genes = []
 
     def keep_other(self, othercounts, min_reads):
         "count the reads of the event's other junctions or sites, if some sample has min_reads of them"
@@ -662,8 +673,9 @@ def write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, g
         tot_counts = add_counts_to_dict(splicedcounts, retainedcounts)
         if supported(splicedcounts, allsamples, min_read_support) and supported(retainedcounts, allsamples, min_read_support) \
                 and psi_varies(sample_psis(retainedcounts, tot_counts, allsamples, event_support), junc_frac_of_event):
-            ename = event_name('ir', gene, thischrom, j[0], j[1], strand)
+            ename = event_name('ir', thischrom, j[0], j[1], strand)
             event = event_to_info[ename] = SplicingEvent(ename, 'ir', gene, thischrom, strand, tot_counts, allsamples)
+            event.introns = {j}
             bed = junction_bed(thischrom, j, [], row_name(ename, 'spliced'), strand, mycolor)
             event.events['spliced'] = SplicingEventJunction('spliced', [bed], splicedcounts, {j, }, set())
             bed = site_bed(thischrom, j[0], j[1], row_name(ename, 'retained'), strand, mycolor)
@@ -690,7 +702,7 @@ def write_ends(grouped_ends, allsamples, thischrom, strand, gene, eventtype, myc
         # their tss and on - their tts
         from_starts = (eventtype == 'tss') == (strand == '+')
         positions = {e: e + 1 if from_starts else e for e in good_ends}
-        ename = event_name(eventtype, gene, thischrom, min(positions.values()) - 1, max(positions.values()), strand)
+        ename = event_name(eventtype, thischrom, min(positions.values()) - 1, max(positions.values()), strand)
         event = event_to_info[ename] = SplicingEvent(ename, eventtype, gene, thischrom, strand, tot_counts, allsamples)
         for e, pos in positions.items():
             jname = str(pos)
@@ -722,11 +734,11 @@ def get_junc_string(chrom, juncs):
 
 
 def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,  # noqa: C901 - FIXME: reduce complexity
-                 outtotals, event_support):
+                 outtotals, event_support, annotated):
     """Write the events expressed enough: each row's counts and two PSIs, over the
-    event's reads (PSIjunc) and over the reads covering its locus (PSItot), its BED
-    lines scored by its median PSIjunc, and the event's two totals, which
-    spliceevents_outliers divides by"""
+    event's reads (PSIjunc) and over the reads covering its locus (PSItot), with the
+    row's introns that aren't annotated, its BED lines scored by its median PSIjunc,
+    and the event's two totals, which spliceevents_outliers divides by"""
     for ename in event_to_info:
         event = event_to_info[ename]
         if event.totoverlap is None:
@@ -744,11 +756,15 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                     one_event_pass = True
 
             if one_event_pass:
+                genes = [event.gene, annotated.gene_names(event.gene.split(',')),
+                         ','.join(event.additional_genes), annotated.gene_names(event.additional_genes)]
                 for jname in event.events:
                     jinfo = event.events[jname]
 
-                    outinfo = [ename, jname, event.eventtype, event.gene, get_junc_string(event.chrom, jinfo.inc_juncs),
-                               get_junc_string(event.chrom, jinfo.exc_juncs), get_junc_string(event.chrom, jinfo.outer_juncs), get_junc_string(event.chrom, jinfo.inc_exon)]
+                    novel = {j for j in row_introns(event, jname) if not annotated.is_annotated(j, event.strand)}
+                    outinfo = [ename, jname, event.eventtype, *genes, get_junc_string(event.chrom, jinfo.inc_juncs),
+                               get_junc_string(event.chrom, jinfo.exc_juncs), get_junc_string(event.chrom, jinfo.outer_juncs),
+                               get_junc_string(event.chrom, jinfo.inc_exon), get_junc_string(event.chrom, novel)]
                     juncpsi = write_counts_psi(outinfo, jinfo.samplecounts, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
 
                     # every sample can be below event_support, leaving no PSI to
@@ -760,31 +776,30 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                             bed.score = round(med * 100)
                             bed.write(outbed)
                 if any([event.other[s] > 0 for s in allsamples]):
-                    outinfo = [ename, 'other', event.eventtype, event.gene, '', '', '', '']
+                    outinfo = [ename, 'other', event.eventtype, *genes, '', '', '', '', '']
                     write_counts_psi(outinfo, event.other, event.totjunc, event.totoverlap, allsamples, outcounts, outpsijunc, outpsitot, event_support)
                 for total, counts in (('event_reads', event.totjunc), ('locus_reads', event.totoverlap)):
-                    outtotals.write('\t'.join([ename, event.eventtype, event.gene, total] + [str(counts[s]) for s in allsamples]) + '\n')
+                    outtotals.write('\t'.join([ename, event.eventtype, *genes, total] + [str(counts[s]) for s in allsamples]) + '\n')
 
 
 ETYPE_TO_COLOR = {'skipped_exons': '66,105,245', 'retained_introns': '144,66,245',
                   'alt3': '245,215,66', 'alt5': '43,184,39', 'tss': '255,0,0', 'tts': '0,0,255'}
 
 
-def _splicing_clusters(chain_isoforms, chain_genes):
+def _splicing_clusters(chain_isoforms):
     """The clusters of junction chains, (strand, junctions) keys of chain_isoforms,
     linked by shared splice sites (group_by_splicing), each named for its strand and
-    order: each chain's cluster, each cluster's genes and strand.  Clusters whose
-    junctions only overlap, as a gene nested in another's intron, are not merged:
-    they share no event"""
-    cluster_of, cluster_genes, key_strand = {}, {}, {}
+    order: each chain's cluster, and each cluster's strand.  Clusters whose junctions
+    only overlap, as a gene nested in another's intron, are not merged: they share
+    no event"""
+    cluster_of, key_strand = {}, {}
     for strand in ('+', '-'):
         keys = sorted(k for k in chain_isoforms if k[0] == strand)
         for group in sorted(group_by_splicing(keys, chain_isoforms, merge_overlapping=False), key=lambda g: min(k[1][0][0] for k in g)):
-            cluster = f'{strand}{len(cluster_genes)}'
-            cluster_genes[cluster] = ','.join(sorted({g for k in group for g in chain_genes[k]}))
+            cluster = f'{strand}{len(key_strand)}'
             key_strand[cluster] = strand
             cluster_of.update((k, cluster) for k in group)
-    return cluster_of, cluster_genes, key_strand
+    return cluster_of, key_strand
 
 
 def group_chains(chrom, allsamples, sample_chains, novel_gene):
@@ -792,8 +807,9 @@ def group_chains(chrom, allsamples, sample_chains, novel_gene):
     key -> junctions -> [ReadEnds]: by cluster of junction chains linked by shared
     splice sites, on one strand, for the events of splicing, which don't depend on
     genes; by each chain's 5'-most gene, for the first exons and starts; and by its
-    3'-most gene, for the last exons and ends.  Also each key's strand, each cluster's
-    genes, as its events' gene, and each strand's ReadCoverage"""
+    3'-most gene, for the last exons and ends.  Also each key's strand, each chain's
+    genes, by (strand, junctions), a novel gene's if of none annotated, and each
+    strand's ReadCoverage"""
     chain_genes = {}
     chain_isoforms = {}
     coverage = {'+': ReadCoverage(allsamples), '-': ReadCoverage(allsamples)}
@@ -808,7 +824,7 @@ def group_chains(chrom, allsamples, sample_chains, novel_gene):
                 coverage[chain.strand].add(r.start, r.end, sample, 1)
     for isoform in chain_isoforms.values():
         isoform.start, isoform.end = int(median(isoform.starts)), int(median(isoform.ends))
-    cluster_of, cluster_genes, key_strand = _splicing_clusters(chain_isoforms, chain_genes)
+    cluster_of, key_strand = _splicing_clusters(chain_isoforms)
     views = {'cluster': [], 'five': [], 'three': []}
     for chains in sample_chains:
         by = {'cluster': {}, 'five': {}, 'three': {}}
@@ -820,7 +836,93 @@ def group_chains(chrom, allsamples, sample_chains, novel_gene):
                 key_strand[group] = chain.strand
         for view in views:
             views[view].append(by[view])
-    return views, key_strand, cluster_genes, coverage
+    return views, key_strand, chain_genes, coverage
+
+
+class AnnotatedSplicing:
+    """The annotated introns and splice sites of each strand, and the genes they are
+    annotated in, to give events their genes and tell their novel junctions"""
+    def __init__(self, annots=None):
+        self.intron_genes = {'+': {}, '-': {}}
+        self.site_genes = {'+': {}, '-': {}}
+        self.num_transcripts = {}
+        self.names = {}
+        if annots is not None:
+            self.num_transcripts = annots.gene_to_num_transcripts
+            self.names = annots.gene_to_name
+            for gene, juncs in annots.gene_to_annot_juncs.items():
+                strand = annots.gene_to_strand.get(gene)
+                if strand not in self.intron_genes:
+                    continue
+                for j in juncs:
+                    self.intron_genes[strand].setdefault((j.start, j.end), set()).add(gene)
+                    for site in (j.start, j.end):
+                        self.site_genes[strand].setdefault(site, set()).add(gene)
+
+    def is_annotated(self, junc, strand):
+        return junc in self.intron_genes[strand]
+
+    def gene_names(self, genes):
+        "the annotation's names of genes, a list, comma-separated, empty if it names none of them"
+        names = [self.names.get(gene, '') for gene in genes]
+        return ','.join(names) if any(names) else ''
+
+
+def _top(scores):
+    "the keys of the highest score, several on a tie"
+    if not scores:
+        return []
+    best = max(scores.values())
+    return sorted(key for key, score in scores.items() if score == best)
+
+
+def row_introns(event, alternative):
+    """the introns spliced by the reads of an event row: those it includes, or the
+    skipping junctions of an exon skip's exclusion"""
+    row = event.events[alternative]
+    if event.eventtype in ('es', 'ces') and alternative == 'exc':
+        return set(row.outer_juncs)
+    return {j for j in row.inc_juncs if isinstance(j, tuple)}
+
+
+def event_gene_scores(introns, strand, annotated, junc_reads):
+    """the genes sharing an intron or splice site with an event, on its strand, and their
+    scores: 2 for an intron the gene has annotated, or failing that 1 for each of its
+    splice sites the gene has, each intron weighted by its share of the reads of all
+    the introns, junc_reads, so a rare alternative counts little"""
+    total = sum(junc_reads.get(junc, 0) for junc in introns)
+    scores = Counter()
+    for junc in introns:
+        weight = junc_reads.get(junc, 0) / total if total > 0 else 1
+        intron_genes = annotated.intron_genes[strand].get(junc, set())
+        for gene in intron_genes:
+            scores[gene] += 2 * weight
+        for site in junc:
+            for gene in annotated.site_genes[strand].get(site, set()) - intron_genes:
+                scores[gene] += weight
+    # genes of the same introns tie, whatever order their weights were added in
+    return {gene: round(score, 9) for gene, score in scores.items()}
+
+
+def annotated_event_genes(scores, annotated):
+    """the genes of the highest event_gene_scores.  A tie goes to the gene of most
+    annotated transcripts, so a gene and a readthrough of it give the gene; genes still
+    tied are all given"""
+    best = _top(scores)
+    return _top({gene: annotated.num_transcripts.get(gene, 0) for gene in best})
+
+
+def read_event_genes(introns, cluster_chains, chain_genes, strand):
+    """the genes of most reads of an event's introns, by the genes the reads were given
+    in correction, each gene of a readthrough counted: for an event of no annotated
+    intron or splice site"""
+    reads = Counter()
+    for chains in cluster_chains:
+        for juncs, ends in chains.items():
+            if introns.intersection(juncs):
+                for gene in chain_genes[(strand, juncs)]:
+                    reads[gene] += len(ends)
+    return _top(reads)
 
 
 def _keys(view):
@@ -828,14 +930,20 @@ def _keys(view):
 
 
 def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, novel_gene, junc_support, event_frac_of_tot, junc_frac_of_event, event_support,  # noqa: C901 - FIXME: reduce complexity
-                          annot_afe_ss, annot_ale_ss, report_regions, gene_juncs):
+                          annot_afe_ss, annot_ale_ss, report_regions, gene_juncs, annotated=None):
     """A region's events, from each sample's ReadChains, written to its tables.  The
     events of splicing are found per cluster of junction chains linked by shared
     splice sites, without genes; the alternative first exons and starts per each
     chain's 5'-most gene, and the last exons and ends per its 3'-most gene, so a
     readthrough's reads count with the gene each end lies in.  An event's locus
-    reads are all the strand's reads covering it"""
-    views, key_strand, cluster_genes, coverage = group_chains(thischrom, allsamples, sample_chains, novel_gene)
+    reads are all the strand's reads covering it.  A splicing event's gene is the one
+    annotated with most of its introns, those of all its alternatives, and their
+    splice sites, weighted by their reads (annotated_event_genes), or, with none, that
+    of most of its reads
+    (read_event_genes); several only on a tie.
+    Its first and last exons and ends are of the gene they were grouped by"""
+    annotated = annotated or AnnotatedSplicing()
+    views, key_strand, chain_genes, coverage = group_chains(thischrom, allsamples, sample_chains, novel_gene)
     events = []  # (event, the span of its gene's junctions, for the regions)
     afe_ale_junc_comb = {'+': set(), '-': set()}
     # first exons and starts by 5' gene, last exons and ends by 3' gene
@@ -855,7 +963,8 @@ def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, nov
             events.extend((event, gene_span) for event in info.values())
     # the events of splicing, by cluster
     for cluster in sorted(_keys(views['cluster']), key=lambda c: int(c[1:])):
-        strand, label = key_strand[cluster], cluster_genes[cluster]
+        strand = key_strand[cluster]
+        label = ''  # each event's gene, once it is found
         cov = coverage[strand]
         ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, outer_junc_to_exons = extract_splicing_info(allsamples, views['cluster'], cluster, strand)
         es_info, esjuncs = write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, label,
@@ -866,15 +975,28 @@ def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, nov
                                           junc_support, cov, junc_frac_of_event, event_support, afe_ale_junc_comb[strand])
         ir_info = write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, label,
                                          ETYPE_TO_COLOR['retained_introns'], junc_support, cov, junc_frac_of_event, event_support)
-        events.extend((event, (0, 0)) for event in (es_info | a3_info | a5_info | ir_info).values())
+        cluster_chains = [chains.get(cluster, {}) for chains in views['cluster']]
+        junc_reads = {junc: sum(counts.values()) for junc, counts in alljuncs.items()}
+        for event in (es_info | a3_info | a5_info | ir_info).values():
+            scores = event_gene_scores(event.introns, strand, annotated, junc_reads)
+            genes = annotated_event_genes(scores, annotated) or read_event_genes(event.introns, cluster_chains, chain_genes, strand)
+            event.gene = ','.join(genes)
+            # the other genes sharing a splice site, best first
+            event.additional_genes = sorted(set(scores) - set(genes), key=lambda gene: (-scores[gene], gene))
+            events.append((event, (0, 0)))
 
     with open(temp_prefix + '.spliceevents.bed', 'w') as outbed, open(temp_prefix + '.spliceevents.counts.tsv', 'w') as outcounts, \
             open(temp_prefix + '.spliceevents.PSIjunc.tsv', 'w') as outpsijunc, open(temp_prefix + '.spliceevents.PSItot.tsv', 'w') as outpsitot, \
             open(temp_prefix + '.spliceevents.totals.tsv', 'w') as outtotals:
         # only the events inside the regions asked for, whose reads are all there
-        reported = {event.name: event for event, gene_span in events if event_in_regions(event, report_regions, gene_span)}
+        reported = {}
+        for event, gene_span in events:
+            if event_in_regions(event, report_regions, gene_span):
+                if event.name in reported:
+                    raise AssertionError(f'two events named {event.name}, of {reported[event.name].gene} and {event.gene}')
+                reported[event.name] = event
         write_events(reported, allsamples, event_frac_of_tot, junc_frac_of_event, outbed, outcounts, outpsijunc, outpsitot,
-                     outtotals, event_support)
+                     outtotals, event_support, annotated)
 
 
 def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector):
@@ -1059,7 +1181,8 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
             sample_chains, novel_gene, args.feature_support,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss, annot_ale_ss,
-            region_reports[_region_key(partition.region)], gene_junctions(sample_chains, novel_gene, annots))
+            region_reports[_region_key(partition.region)], gene_junctions(sample_chains, novel_gene, annots),
+            AnnotatedSplicing(annots))
 
         if not args.keep_intermediate:
             for sample, _ in allsamples:
@@ -1160,9 +1283,10 @@ def combine_regions(regions, buffersize=0):
 
 # the columns of the counts and PSI tables before the samples': a row of an event,
 # its event, and its junctions, and of the totals table
-EVENT_ROW_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'junctions_included', 'junctions_excluded',
-                     'outer_junctions', 'exons']
-EVENT_TOTALS_COLUMNS = ['event', 'event_type', 'gene', 'total']
+EVENT_GENE_COLUMNS = ['gene', 'gene_name', 'additional_genes', 'additional_gene_names']
+EVENT_ROW_COLUMNS = ['event', 'alternative', 'event_type', *EVENT_GENE_COLUMNS, 'junctions_included', 'junctions_excluded',
+                     'outer_junctions', 'exons', 'novel_junctions']
+EVENT_TOTALS_COLUMNS = ['event', 'event_type', *EVENT_GENE_COLUMNS, 'total']
 
 
 def write_with_header(output, prefixes, suffix, header):
