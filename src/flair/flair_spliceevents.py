@@ -912,12 +912,13 @@ def get_juncs_single_sample(args, region, temp_prefix, sample, bamfile_name, gen
                     out.write('\t'.join(outline) + '\n')
 
 
-def annotated_terminal_splice_sites(gtf_file):
+def annotated_terminal_splice_sites(gtf_file, regions=None):
     """gene -> the splice sites of the first exons, and of the last exons, of its spliced
     transcripts in gtf_file, such as GENCODE basic, which mark its alternative first
-    and last exons"""
+    and last exons; given regions, of the transcripts overlapping them"""
     annot_afe_ss, annot_ale_ss = {}, {}
-    for trans in gtf_data_parser(gtf_file, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES).transcripts:
+    for trans in gtf_data_parser(gtf_file, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
+                                 regions=regions).transcripts:
         exons = sorted((exon.start, exon.end) for exon in trans.exons)
         if len(exons) > 1:
             afe_ss, ale_ss = exons[0][1], exons[-1][0]
@@ -1105,8 +1106,12 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
         region_reports = {_region_key(region): [region] for region in all_regions}
     logging.info(f'input regions: {len(all_regions)}')
 
+    # with --region_bed, only the annotation of the regions reads are corrected in, the
+    # transcripts each region's partition would take, rather than the whole GTF's
+    annot_regions = all_regions if args.region_bed else None
     logging.info('loading annotation GTF')
-    annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
+                                     regions=annot_regions)
     logging.info('building intron support database')
     junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
                                                     annot_gtf_data=annot_gtf_data,
@@ -1116,7 +1121,7 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
     annot_afe_ss, annot_ale_ss = {}, {}
     if args.annot_basic:
         logging.info('loading first and last exons of --annot_basic')
-        annot_afe_ss, annot_ale_ss = annotated_terminal_splice_sites(args.annot_basic)
+        annot_afe_ss, annot_ale_ss = annotated_terminal_splice_sites(args.annot_basic, annot_regions)
 
     logging.info(f'correcting reads of {len(allsamples)} samples in {len(all_regions)} regions, then finding events, with {args.threads} threads')
 

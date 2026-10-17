@@ -295,6 +295,9 @@
   * A complex exon skip's BED line of more than one included exon has the right
     number of blocks, which was always 3.  Its rows are written in the same order in
     every run.
+  * With `--region_bed`, only the annotation of the regions is loaded, from `-f` and
+    `--annot_basic`: for one locus of GENCODE, in 10 seconds and 0.2 GB rather than
+    75 seconds and 3.5 GB.
   * `--annot_basic` is read as a GTF, not converted to BED and cut per region with
     bedtools.  A gene id containing `_`, as in older GENCODE releases' `_PAR_Y`
     genes, lost its annotated first and last exons, as the gene was taken from the
