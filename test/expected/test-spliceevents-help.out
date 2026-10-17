@@ -24,10 +24,11 @@ options:
                         number of threads to run with (default: 12)
   --annot_basic ANNOT_BASIC
                         GTF annotation file of full-length transcripts, such
-                        as GENCODE basic, whose first and last splice sites
-                        mark alternative first and last exons. A comprehensive
-                        annotation includes truncated transcripts, whose ends
-                        are not real first and last exons
+                        as GENCODE basic, whose first and last exons may also
+                        be used as internal ones in some reads and still count
+                        as first and last exons. A comprehensive annotation
+                        includes truncated transcripts, whose ends are not
+                        real first and last exons
   --junction_tab JUNCTION_TAB
                         short-read junctions in SJ.out.tab format. Use this
                         option if you aligned your short-reads with STAR, STAR

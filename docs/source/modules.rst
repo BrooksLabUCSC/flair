@@ -443,7 +443,9 @@ annotated genes.  Single-exon reads are left out.  It finds these events of each
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
    splice sites shared by a group of junctions (alt5ss, alt3ss)
  - intron retention (ir)
- - alternative first and last exons (afe, ale)
+ - alternative first and last exons (afe, ale): only exons whose junction reads,
+   over all samples together, rarely have an exon before (or after) them count, as
+   a truncated read makes an internal exon look like a first or last one
  - alternative transcription starts and ends (tss, tts)
 
 Each event has a row for each of its alternatives, such as an exon's inclusion and

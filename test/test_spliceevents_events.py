@@ -203,6 +203,39 @@ def test_first_exons_spliced_to_one_acceptor_are_an_afe_event_not_alt5(tmp_path)
     assert _of_type(tables, 'alt5') == {}
 
 
+def test_an_internal_exon_whose_reads_are_truncated_in_one_sample_is_not_a_first_exon(tmp_path):
+    # exons 100-200, 300-400 and 500-600: s1's reads are whole, while s2's start in
+    # the middle exon or stop in it, so in s2 alone the middle exon looks like a
+    # first exon.  Pooled, most reads of its junction have an exon before it
+    whole, truncated_start, truncated_end = [(200, 300), (400, 500)], [(400, 500)], [(200, 300)]
+    tables, _ = _events(tmp_path, [(whole, 100, 600, 30)],
+                        [(truncated_end, 100, 380, 20), (truncated_start, 320, 600, 20)])
+    assert _of_type(tables, 'afe') == {}
+
+
+def _afe_with_internal_reads(tmp_path, annot_afe_ss=None):
+    # first exons ending at 200 and 320, both spliced to 400, and 4 reads of 44 that
+    # have an exon before the one ending at 320, 9%
+    first, second, internal = [(200, 400), (500, 600)], [(320, 400), (500, 600)], [(200, 250), (320, 400), (500, 600)]
+    return _events(tmp_path, [(first, 100, 700, 30), (second, 250, 700, 10), (internal, 100, 700, 2)],
+                   [(first, 100, 700, 10), (second, 250, 700, 30), (internal, 100, 700, 2)], annot_afe_ss=annot_afe_ss)[0]
+
+
+def test_a_first_exon_also_internal_in_some_reads_is_a_first_exon_only_if_annotated(tmp_path):
+    assert _of_type(_afe_with_internal_reads(tmp_path), 'afe') == {}
+    afe = _of_type(_afe_with_internal_reads(tmp_path, annot_afe_ss={'+': [320]}), 'afe')
+    assert sorted(row['alternative'] for row in afe.values()) == ['201-250,201-400', '321-400']
+
+
+def test_an_afe_events_reads_are_those_of_its_first_exons(tmp_path):
+    # s1's 20 reads starting inside the exon at 400-500, after a first exon in s2's
+    # reads, are truncated, not of a first exon: not in the event's total
+    first, second, truncated = [(200, 400), (500, 600)], [(320, 400), (500, 600)], [(500, 600)]
+    _, totals = _events(tmp_path, [(first, 100, 700, 30), (second, 250, 700, 10), (truncated, 450, 700, 20)],
+                        [(first, 100, 700, 10), (second, 250, 700, 30)])
+    assert totals[('afe|G1|chr1:201-400(+)', 'event_reads')] == {'s1': 40, 's2': 40}
+
+
 def test_first_exons_closer_than_min_terminal_junction_separation_are_not_an_afe_event(tmp_path):
     first, second = [(200, 400), (500, 600)], [(260, 400), (500, 600)]
     tables, _ = _events(tmp_path, [(first, 100, 700, 30), (second, 220, 700, 10)],

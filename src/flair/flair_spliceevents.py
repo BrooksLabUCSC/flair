@@ -1,4 +1,5 @@
 import os
+from bisect import bisect_left
 import os.path as osp
 from flair import FlairInputDataError
 import pipettor
@@ -39,9 +40,9 @@ def add_subparser(subparsers):
                         help='number of threads to run with (default: %(default)s)')
     parser.add_argument('--annot_basic', default='',
                         help='GTF annotation file of full-length transcripts, such as GENCODE basic, whose '
-                             'first and last splice sites mark alternative first and last exons.  A '
-                             'comprehensive annotation includes truncated transcripts, whose ends are not '
-                             'real first and last exons')
+                             'first and last exons may also be used as internal ones in some reads and '
+                             'still count as first and last exons.  A comprehensive annotation includes '
+                             'truncated transcripts, whose ends are not real first and last exons')
     parser.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
                                                'Use this option if you aligned your short-reads with STAR, '
                                                'STAR will automatically output this file')
@@ -202,6 +203,13 @@ def site_bed(chrom, start, end, name, strand, color):
 
 
 TERMINAL_JUNCTION_DIST_FROM_ANNOT = 20
+# the most of a first or last exon's junction reads, pooled over the samples, that
+# have an exon before (or after) it: truncated reads can't add an exon, so a real
+# first or last exon has none, while an internal exon whose reads in one sample are
+# all truncated has them in the others
+MAX_NONTERMINAL_FRACTION = 0.05
+# for a first or last exon of --annot_basic, which may also be used as an internal one
+MAX_NONTERMINAL_FRACTION_ANNOTATED = 0.25
 MIN_TERMINAL_JUNCTION_SEPARATION = 100
 MIN_TERMINAL_SS_FRACTION = 0.1
 
@@ -538,33 +546,45 @@ def get_overlapping_reads(ref_junc, interval_to_reads, allsamples):
 def add_counts_to_dict(a, b):
     return {s: a[s] + b[s] for s in a.keys()}
 
+def near_annotated_site(site, annot_sites):
+    "is site within TERMINAL_JUNCTION_DIST_FROM_ANNOT of one of annot_sites, a sorted list"
+    i = bisect_left(annot_sites, site - TERMINAL_JUNCTION_DIST_FROM_ANNOT)
+    return i < len(annot_sites) and annot_sites[i] <= site + TERMINAL_JUNCTION_DIST_FROM_ANNOT
+
+
+def is_terminal_site(junc_counts, alljuncs, allsamples, min_read_support, annotated):
+    """Is a splice site of first (or last) junctions really a first (or last) exon's:
+    pooled over the samples, at least min_read_support reads have its junctions as
+    their first (or last), and few of its junctions' reads have an exon before (or
+    after) it, more being allowed of an annotated one"""
+    terminal = sum(counts[s] for counts in junc_counts.values() for s in allsamples)
+    total = sum(alljuncs[junc][s] for junc in junc_counts for s in allsamples)
+    max_fraction = MAX_NONTERMINAL_FRACTION_ANNOTATED if annotated else MAX_NONTERMINAL_FRACTION
+    return terminal >= min_read_support and total - terminal <= max_fraction * total
+
+
 def process_terminal_exons(termExon, eventtype, thischrom, strand, gene, allsamples, mycolor, min_read_support, junc_frac_of_event, event_support, interval_to_reads, alljuncs, annot_terminal_ss):  # noqa: C901 - FIXME: reduce complexity
+    """Alternative first (afe) or last (ale) exons of a gene, from termExon, its reads'
+    first or last junctions by their splice site.  Only the sites really of a first
+    or last exon (is_terminal_site) are its alternatives, and only their reads are
+    the event's: a truncated read's first junction, after an internal exon, is
+    neither"""
     event_to_info = {}
     junc_combos = set()
-    if len(termExon) <= 1:
+    annot_ss = annot_terminal_ss.get(strand, [])
+    ss_to_counts = {termSS: sum_counts(junc_counts.values(), allsamples) for termSS, junc_counts in termExon.items()
+                    if is_terminal_site(junc_counts, alljuncs, allsamples, min_read_support,
+                                        near_annotated_site(termSS, annot_ss))}
+    if len(ss_to_counts) <= 1:
         return event_to_info, junc_combos
-
-    # the splice sites really of a terminal exon: annotated as one, or every read of each
-    # of their junctions starting or ending there
-    annot_ss = annot_terminal_ss.get(gene, ())
-    ss_to_counts = {}
-    actual_terminal = []
-    othercounts = zero_counts(allsamples)
-    for termSS, junc_counts in termExon.items():
-        ss_to_counts[termSS] = sum_counts(junc_counts.values(), allsamples)
-        if any(abs(termSS - ss) <= TERMINAL_JUNCTION_DIST_FROM_ANNOT for ss in annot_ss) \
-                or all(any(counts[s] == alljuncs[termJunc][s] and counts[s] >= min_read_support for s in allsamples)
-                       for termJunc, counts in junc_counts.items()):
-            actual_terminal.append(termSS)
-        else:
-            othercounts = add_counts_to_dict(othercounts, ss_to_counts[termSS])
     tot_counts = sum_counts(ss_to_counts.values(), allsamples)
     if not supported(tot_counts, allsamples, event_support):
         return event_to_info, junc_combos
 
     goodB, goodBstrict = [], []
     my_juncs = set()
-    for termSS in actual_terminal:
+    othercounts = zero_counts(allsamples)
+    for termSS in ss_to_counts:
         counts = ss_to_counts[termSS]
         if supported(counts, allsamples, min_read_support) \
                 and psi_varies(sample_psis(counts, tot_counts, allsamples, event_support), junc_frac_of_event):
@@ -958,10 +978,11 @@ def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_c
 
 
 def annotated_terminal_splice_sites(gtf_file, regions=None):
-    """gene -> the splice sites of the first exons, and of the last exons, of its spliced
-    transcripts in gtf_file, such as GENCODE basic, which mark its alternative first
-    and last exons; given regions, of the transcripts overlapping them"""
-    annot_afe_ss, annot_ale_ss = {}, {}
+    """strand -> the splice sites of the first exons, and of the last exons, of the
+    spliced transcripts in gtf_file, such as GENCODE basic, sorted, which mark
+    alternative first and last exons; given regions, of the transcripts overlapping
+    them.  By strand, not gene, so they don't depend on the reads' genes"""
+    annot_afe_ss, annot_ale_ss = {'+': set(), '-': set()}, {'+': set(), '-': set()}
     for trans in gtf_data_parser(gtf_file, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
                                  regions=regions).transcripts:
         exons = sorted((exon.start, exon.end) for exon in trans.exons)
@@ -969,9 +990,10 @@ def annotated_terminal_splice_sites(gtf_file, regions=None):
             afe_ss, ale_ss = exons[0][1], exons[-1][0]
             if trans.strand == '-':
                 afe_ss, ale_ss = ale_ss, afe_ss
-            annot_afe_ss.setdefault(trans.gene_id, set()).add(afe_ss)
-            annot_ale_ss.setdefault(trans.gene_id, set()).add(ale_ss)
-    return annot_afe_ss, annot_ale_ss
+            annot_afe_ss[trans.strand].add(afe_ss)
+            annot_ale_ss[trans.strand].add(ale_ss)
+    return ({strand: sorted(sites) for strand, sites in annot_afe_ss.items()},
+            {strand: sorted(sites) for strand, sites in annot_ale_ss.items()})
 
 
 def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item):

@@ -312,6 +312,12 @@
     sample's corrected reads are handed from correction to event calling as a line
     per junction chain with its reads' ends, rather than a line per read with its
     name, a sixth of the size.
+  * Alternative first and last exons (afe, ale) are told from truncated reads over
+    all samples together: an exon is a first exon only if at most 5% of the reads
+    of its junctions have an exon before it (25% for a first exon of
+    `--annot_basic`), and its reads are the event's only then.  An internal exon
+    whose reads were all truncated in any one sample was taken for a first exon,
+    and every truncated read of a gene was in its afe and ale totals.
   * With `--region_bed`, only the annotation of the regions is loaded, from `-f` and
     `--annot_basic`: for one locus of GENCODE, in 10 seconds and 0.2 GB rather than
     75 seconds and 3.5 GB.
