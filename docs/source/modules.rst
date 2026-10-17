@@ -72,6 +72,8 @@ flair transcriptome
 
 This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of
 reads aligned to the genome, as :ref:`aligning reads to the genome <alignment-label>` describes.
+For when to count splicing events from reads with flair spliceevents instead, see
+:ref:`choosing-analysis-label`.
 
 
 **Outputs**
@@ -429,6 +431,9 @@ considered to include or exclude the each event:
 
 flair spliceevents
 ==================
+
+For when to count splicing events from reads rather than build isoforms, see
+:ref:`choosing-analysis-label`.
 
 This module counts alternative splicing events in each sample directly from its
 reads aligned to the genome, without building isoforms first, so it suits
