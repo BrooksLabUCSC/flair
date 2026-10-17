@@ -105,6 +105,18 @@ def spliceevents_cmd(args):
     spliceevents(args)
 
 
+def psi_varies(psis, junc_frac_of_event):
+    """Is a junction, splice site or end of an event alternative, from its PSIs in the
+    samples with enough reads of the event: differing across them by
+    junc_frac_of_event, or, in the only sample with a PSI, at least junc_frac_of_event
+    from both 0 and 1, so an event in one sample, as in a small dataset, is reported"""
+    if len(psis) == 0:
+        return False
+    if len(psis) == 1:
+        return junc_frac_of_event <= psis[0] <= 1 - junc_frac_of_event
+    return max(psis) - min(psis) >= junc_frac_of_event
+
+
 TERMINAL_JUNCTION_DIST_FROM_ANNOT = 20
 MIN_TERMINAL_JUNCTION_SEPARATION = 100
 MIN_TERMINAL_SS_FRACTION = 0.1
@@ -368,7 +380,6 @@ def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischro
                 ss5to3, ss3to5, alljuncs = extract_35ss_info(juncs, strand, allsamples, sample, numreads,
                                                              ss5to3, ss3to5, alljuncs)
                 afe, ale = extract_afe_ale(juncs, strand, allsamples, sample, numreads, alljuncs, afe, ale)
-                outer_junc_to_exons = extract_tandem_splicing_info(juncs, alljuncs, outer_junc_to_exons, allsamples, sample, numreads)
                 allblocks, exonjpairs = extract_exon_usage_info(juncs, allsamples, sample, numreads,
                                                                 allblocks, exonjpairs)
                 allblocks = extract_end_coverage_info(juncs, readinfo, allsamples, sample, thischrom, gene, strand,
@@ -376,6 +387,13 @@ def extract_splicing_info(allsamples, all_genes_to_juncs, gene, strand, thischro
                 subset_info = determine_juncs_are_subset(juncs, genetojuncs[gene])
                 t_starts_ends, t_first_last_sj = get_start_end_counts(readinfo, subset_info, sample, juncs[0][0], juncs[-1][1],
                                                                       t_starts_ends, t_first_last_sj, allsamples)
+
+    # the exons included between the ends of a skipping junction, once all the gene's
+    # junctions are known: a chain counted before the skipping junction was seen, as
+    # in a sample listed before the samples with skipping, was left out
+    for s, sample in enumerate(allsamples):
+        for juncs, readinfo in all_genes_to_juncs[s].get(gene, {}).items():
+            outer_junc_to_exons = extract_tandem_splicing_info(juncs, alljuncs, outer_junc_to_exons, allsamples, sample, len(readinfo))
 
     return ss5to3, ss3to5, alljuncs, exonjpairs, allblocks, t_starts_ends, t_first_last_sj, interval_to_reads, afe, ale, outer_junc_to_exons
 
@@ -414,8 +432,7 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
         if len(inc_frac_list) >= 1 \
                 and any([exon_to_all_inc[exon][s] >= min_read_support for s in allsamples]) \
                 and any([exon_to_all_exc[exon][s] >= min_read_support for s in allsamples]) \
-                and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                     or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                and psi_varies(inc_frac_list, junc_frac_of_event):
             outer_juncs = exon_to_outer_juncs[exon]
 
             bedlines = []
@@ -475,14 +492,12 @@ def write_exon_skipping(exonjpairs, alljuncs, allsamples, thischrom, strand, gen
                 tot_counts = add_counts_to_dict(tot_counts, innerjuncs_to_counts[innerjuncs])
             inc_frac_list = [alljuncs[outerjunc][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
             if len(inc_frac_list) > 0 \
-                and any([alljuncs[outerjunc][s] >= min_read_support for s in allsamples]) \
-                and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                     or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                    and any([alljuncs[outerjunc][s] >= min_read_support for s in allsamples]) \
+                    and psi_varies(inc_frac_list, junc_frac_of_event):
                 for innerjuncs in innerjuncs_to_counts:
                     inc_frac_list = [innerjuncs_to_counts[innerjuncs][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
                     if any([innerjuncs_to_counts[innerjuncs][s] >= min_read_support for s in allsamples]) \
-                        and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                             or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                            and psi_varies(inc_frac_list, junc_frac_of_event):
                         goodB.add(innerjuncs)
                         my_exons = [(innerjuncs[i][1], innerjuncs[i + 1][0]) for i in range(len(innerjuncs) - 1)]
                         all_exons.update(set(my_exons))
@@ -581,8 +596,7 @@ def process_terminal_exons(termExon, eventtype, thischrom, strand, gene, allsamp
                 inc_frac_list = [ss_to_counts[termSS][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
 
                 if any([ss_to_counts[termSS][s] >= min_read_support for s in allsamples]) \
-                    and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                         or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                        and psi_varies(inc_frac_list, junc_frac_of_event):
                     goodB.append(termSS)
                     if any([ss_to_counts[termSS][s] / tot_counts[s] >= MIN_TERMINAL_SS_FRACTION if tot_counts[s] > 0 else False for s in allsamples]):
                         goodBstrict.append(termSS)
@@ -640,8 +654,7 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
                 inc_frac_list = [ssAtoB[ssA][ssB][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
 
                 if len(inc_frac_list) >= 1 \
-                    and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                         or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                        and psi_varies(inc_frac_list, junc_frac_of_event):
 
                     goodB.append(ssB)
                     my_juncs.add(junc)
@@ -700,8 +713,7 @@ def process_junction_events(ssAtoB, esjuncs, eventtype, thischrom, strand, gene,
                 my_juncs = set()
                 for ssA in ssB_groups_to_ssA[ssBgroup]:
                     inc_frac_list = [ssB_groups_to_ssA[ssBgroup][ssA][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
-                    if (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                            or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                    if psi_varies(inc_frac_list, junc_frac_of_event):
                         good.append(ssA)
                         for ssB in ssBgroup:
                             my_juncs.add((min((ssA, ssB)), max((ssA, ssB))))
@@ -776,10 +788,9 @@ def write_intron_retention(alljuncs, allsamples, allblocks, thischrom, strand, g
 
         inc_frac_list = [retainedcounts[s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
         if len(inc_frac_list) >= 1 \
-            and any([splicedcounts[s] >= min_read_support for s in allsamples]) \
-            and any([retainedcounts[s] >= min_read_support for s in allsamples]) \
-            and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                 or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                and any([splicedcounts[s] >= min_read_support for s in allsamples]) \
+                and any([retainedcounts[s] >= min_read_support for s in allsamples]) \
+                and psi_varies(inc_frac_list, junc_frac_of_event):
             ename = f'ir-of-{thischrom}:{j[0]}-{j[1]}({strand})-{gene}'
             event_to_info[ename] = SplicingEvent(ename, 'ir', gene, thischrom, strand, tot_counts, allsamples)
 
@@ -806,8 +817,7 @@ def write_ends(grouped_ends, allsamples, thischrom, strand, gene, eventtype, myc
             inc_frac_list = [grouped_ends[e][s] / tot_counts[s] for s in allsamples if tot_counts[s] >= event_support]
 
             if any([grouped_ends[e][s] >= support for s in allsamples]) \
-                and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                     or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                    and psi_varies(inc_frac_list, junc_frac_of_event):
                 good_ends.add(e)
             else:
                 othercounts = add_counts_to_dict(othercounts, grouped_ends[e])
@@ -865,8 +875,7 @@ def write_events(event_to_info, allsamples, event_frac_of_tot, junc_frac_of_even
                 inc_frac_list = [jinfo.samplecounts[s] / event.totoverlap[s] for s in allsamples if event.totoverlap[s] > 0]
 
                 if (event.eventtype not in {'es', 'ces'} or jname != 'exc') \
-                    and (max(inc_frac_list) - min(inc_frac_list) >= junc_frac_of_event
-                         or (len(allsamples) == 1 and junc_frac_of_event <= inc_frac_list[0] <= 1 - junc_frac_of_event)):
+                        and psi_varies(inc_frac_list, junc_frac_of_event):
                     one_event_pass = True
 
             if one_event_pass:

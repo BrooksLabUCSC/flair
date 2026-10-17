@@ -285,6 +285,13 @@
     dropped.
   * A chromosome or region without annotated genes no longer stops the run when the
     regions' tables are combined.
+  * A complex exon skip's (ces) inclusion counts every read including its exons.
+    Reads counted before the first read skipping them were left out, so samples
+    listed early in the manifest, or without skipping, had too low an inclusion,
+    and some events were lost.
+  * An event in only one sample with enough reads for a PSI is reported, if its PSI
+    is at least `--junc_frac_of_event` from 0 and 1, as in a run of one sample.  It
+    was left out, as its PSI couldn't differ from another sample's.
   * The samples of a region are corrected in parallel, within the `--threads` budget,
     not one after another: a run on one gene used a single thread.
   * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
