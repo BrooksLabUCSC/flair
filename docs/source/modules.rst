@@ -506,6 +506,14 @@ its spliced part, reports them.
 Reads overlapping a region are corrected over their whole length, wherever the region
 ends.  The samples of a region are corrected in parallel.
 
+Without ``--region_bed``, each chromosome is cut in intergenic gaps of the annotation
+into pieces of about 5000 annotated exons, which are corrected and searched for events
+in parallel.  A piece owns the reads starting in it, corrected over their whole length,
+and reports the events starting in it, so an event close to a cut can miss the reads
+of the piece before.  Reads are aligned to their piece's annotated transcripts, not
+the whole chromosome's.  ``--partition no`` keeps chromosomes whole, slower but
+without those losses, and ``--partition yes`` cuts ``--region_bed`` regions too.
+
 The manifest is a tab-separated file of a sample name and the path to its sorted and
 indexed bam file, a line per sample::
 

@@ -351,6 +351,20 @@
     `--annot_basic` if given.  A read overlapping several genes' exons belongs to
     the one whose exons share the most bases with it, of its own strand with
     `--trust_strand`, else of either.  They were all left out.
+  * Whole chromosomes are cut into pieces in intergenic gaps of the annotation, about
+    5000 annotated exons each, and each piece's reads are corrected and its events
+    found in parallel.  A piece owns the reads starting in it, however far they run,
+    and reports the events starting in it, so an event near a cut can miss reads
+    starting in the piece before.  Reads are aligned to the annotated transcripts of
+    their piece rather than of their chromosome.  On PC9's chr19 this takes 8 minutes
+    rather than 63, and 0.8 rather than 2.6 GB, and 95% of events are unchanged, the
+    other 5% from the alignment to fewer transcripts: without it, 99.9% are.
+    `--partition no` corrects whole chromosomes, and `--partition yes` cuts
+    `--region_bed` regions, which are not cut by default.
+  * The genome-wide annotation of first and last exons was pickled into every
+    region's task, 1.7 seconds each, which kept the threads waiting on the main
+    process.  A 1% sample of PC9 over the whole genome now takes under 5 minutes
+    rather than 18.
   * `--annot_basic` first and last exons were matched by position on any
     chromosome, so a first exon's splice site counted as annotated if another
     chromosome had one at the same position.

@@ -8,7 +8,8 @@ from flair.annotation_data import annot_data_from_gtf
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.isoform_data import Isoform, Junc
 from flair.flair_spliceevents import (annotated_genes, novel_genes_of_chains, gene_junctions, group_chains, combine_regions,
-                                      correction_regions, ReadEnds, ReadChain, read_read_chains, write_read_chains,
+                                      correction_regions, partition_regions, gene_clusters, intergenic_cuts, ReadEnds, ReadChain,
+                                      read_read_chains, write_read_chains, SplicingEvent, SplicingEventJunction, event_in_regions,
                                       annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons, AnnotatedTerminalExon,
                                       fragment_chains, extract_terminal_info)
 
@@ -134,6 +135,45 @@ def test_regions_reaching_over_each_other_are_corrected_together(tmp_path):
     regions, reports = correction_regions(report, [bam])
     assert regions == [SeqRange('chr1', 1000, 3500)]
     assert reports == {('chr1', 1000, 3500): report}
+
+
+def test_regions_are_cut_in_the_gaps_between_genes(tmp_path):
+    transcripts = _gtf_data(tmp_path).transcripts
+    region = SeqRange('chr1', 0, 10000)
+    # A 100-600 (3 exons), B 1000-1500 (5, of two transcripts), D 5000-5300 (2), E 6000-6300 (2)
+    assert gene_clusters(region, transcripts) == [[100, 600, 3], [1000, 1500, 5], [5000, 5300, 2], [6000, 6300, 2]]
+    assert intergenic_cuts(region, transcripts) == [800, 3250, 5650]
+    # pieces of at least 5 exons, but the last
+    assert intergenic_cuts(region, transcripts, min_exons=5) == [3250]
+    # genes cut by the region are clipped to it
+    assert gene_clusters(SeqRange('chr1', 1200, 5100), transcripts) == [[1200, 1500, 5], [5000, 5100, 2]]
+
+
+def test_pieces_own_the_reads_starting_in_them(tmp_path):
+    # a read from 1400 to 3600 crosses the cut at 3250, and is only the second piece's
+    bam = _bam(tmp_path / 's1.bam', [(200, '300M'), (1100, '100M'), (1400, '100M2000N100M'), (6000, '100M')])
+    region = SeqRange('chr1', 0, 10000)
+    pieces = partition_regions([region], [bam], {('chr1', 0, 10000): [800, 3250, 5650]})
+    # each corrected over its piece and its reads; the third, 3250-5650, has none
+    assert pieces == [(SeqRange('chr1', 0, 800), SeqRange('chr1', 0, 800), region, 1),
+                      (SeqRange('chr1', 800, 3600), SeqRange('chr1', 800, 3250), region, 2),
+                      (SeqRange('chr1', 5650, 10000), SeqRange('chr1', 5650, 10000), region, 1)]
+
+
+def test_the_first_piece_owns_the_reads_starting_before_the_region(tmp_path):
+    bam = _bam(tmp_path / 's1.bam', [(900, '200M')])
+    region = SeqRange('chr1', 1000, 5000)
+    pieces = partition_regions([region], [bam], {('chr1', 1000, 5000): [3000]})
+    assert pieces == [(SeqRange('chr1', 900, 3000), SeqRange('chr1', 0, 3000), region, 1)]
+
+
+def test_a_cut_regions_events_are_reported_by_the_piece_they_start_in():
+    event = SplicingEvent('ir|chr1:3001-3500(+)', 'ir', 'A', 'chr1', '+', {}, [])
+    event.events['spliced'] = SplicingEventJunction('spliced', [], {}, {(3000, 3500)}, set())
+    region = [SeqRange('chr1', 0, 10000)]
+    assert event_in_regions(event, region, None)
+    assert event_in_regions(event, region, None, SeqRange('chr1', 800, 3250))
+    assert not event_in_regions(event, region, None, SeqRange('chr1', 3250, 5650))
 
 
 def test_read_chains_written_and_read_back_are_the_same_reads(tmp_path):

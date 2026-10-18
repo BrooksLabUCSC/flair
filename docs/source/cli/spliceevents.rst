@@ -9,7 +9,8 @@
                              [--junction_tab JUNCTION_TAB]
                              [--junction_bed JUNCTION_BED]
                              [--junction_support JUNCTION_SUPPORT]
-                             [--ss_window SS_WINDOW] [--region_bed REGION_BED]
+                             [--ss_window SS_WINDOW] [--partition {yes,no}]
+                             [--region_bed REGION_BED]
                              [--feature_support FEATURE_SUPPORT]
                              [--event_support EVENT_SUPPORT]
                              [--event_frac_of_tot EVENT_FRAC_OF_TOT]
@@ -47,6 +48,10 @@
 .. option:: --ss_window SS_WINDOW
 
    window size for correcting splice sites (default: 10)
+
+.. option:: --partition {yes,no}
+
+   whether to cut the regions reads are corrected and events found in, in intergenic gaps of the annotation, into pieces of about 5000 annotated exons, each owning the reads that start in it. By default, yes for whole chromosomes and no for --region_bed regions
 
 .. option:: --region_bed REGION_BED
 

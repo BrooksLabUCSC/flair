@@ -1,5 +1,5 @@
 import os
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 import os.path as osp
 from flair import FlairInputDataError
 import pipettor
@@ -22,6 +22,11 @@ from flair.isoform_data import Isoform, Junc
 from flair.junction_correct import UNKNOWN_STRAND
 from flair.gene_identification import get_gene_name_firstpass, get_gene_name_unknown_strand, novel_genes, group_by_splicing
 from flair.interval_index import IntervalIndex
+
+
+# with --partition, the annotated exons to put in each piece, so a chromosome is cut
+# by its number of genes, and the same way whatever the number of threads
+PARTITION_EXONS = 5000
 
 
 def add_subparser(subparsers):
@@ -59,6 +64,11 @@ def add_subparser(subparsers):
                              '(default: %(default)s)')
     parser.add_argument('--ss_window', type=int, default=10,
                         help='window size for correcting splice sites (default: %(default)s)')
+    parser.add_argument('--partition', choices=('yes', 'no'), default=None,
+                        help='whether to cut the regions reads are corrected and events found in, in intergenic '
+                             'gaps of the annotation, into pieces of about %d annotated exons, each owning the reads '
+                             'that start in it.  By default, yes for whole chromosomes and no for --region_bed '
+                             'regions' % PARTITION_EXONS)
     parser.add_argument('--region_bed',
                         help='bed file of the regions to report events in, such as the genes of interest; if not '
                              'specified, all chromosomes are used.  Reads overlapping a region are corrected over '
@@ -946,7 +956,7 @@ def _keys(view):
 
 
 def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, novel_gene, junc_support, event_frac_of_tot, junc_frac_of_event, event_support,  # noqa: C901 - FIXME: reduce complexity
-                          annot_afe_ss, annot_ale_ss, report_regions, gene_juncs, annotated=None):
+                          annot_afe_ss, annot_ale_ss, report_regions, gene_juncs, annotated=None, owned=None):
     """A region's events, from each sample's ReadChains, written to its tables.  The
     events of splicing are found per cluster of junction chains linked by shared
     splice sites, without genes; the alternative first exons and starts per each
@@ -1007,7 +1017,7 @@ def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, nov
         # only the events inside the regions asked for, whose reads are all there
         reported = {}
         for event, gene_span in events:
-            if event_in_regions(event, report_regions, gene_span):
+            if event_in_regions(event, report_regions, gene_span, owned):
                 if event.name in reported:
                     raise AssertionError(f'two events named {event.name}, of {reported[event.name].gene} and {event.gene}')
                 reported[event.name] = event
@@ -1015,16 +1025,25 @@ def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, nov
                      outtotals, event_support, annotated)
 
 
-def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector):
+def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector, read_starts=None):
     """The sample's reads in region, corrected as flair transcriptome corrects them,
     grouped by junction chain: aligned to the annotated transcripts, then their
-    junctions corrected, the unspliced reads under no junctions.  The alignment's
+    junctions corrected, the unspliced reads under no junctions.  Given read_starts,
+    a SeqRange, only the reads aligned to start in it.  The alignment's
     intermediates are written in work_dir, removed after"""
     os.makedirs(work_dir, exist_ok=True)
     temp_prefix = osp.join(work_dir, 'reads')
-    pipettor.run([('samtools', 'view', '-h', bamfile_name, f'{region.name}:{region.start}-{region.end}'),
-                  ('samtools', 'fasta', '-')],
-                 stdout=temp_prefix + '.reads.fasta')
+    if read_starts is None:
+        pipettor.run([('samtools', 'view', '-h', bamfile_name, f'{region.name}:{region.start}-{region.end}'),
+                      ('samtools', 'fasta', '-')],
+                     stdout=temp_prefix + '.reads.fasta')
+    else:
+        # as samtools fasta: primary alignments, in the read's own orientation
+        with pysam.AlignmentFile(bamfile_name, 'rb') as bam, open(temp_prefix + '.reads.fasta', 'w') as out:
+            for read in bam.fetch(region.name, region.start, region.end):
+                if not (read.is_secondary or read.is_supplementary) \
+                        and read_starts.start <= read.reference_start < read_starts.end:
+                    out.write(f'>{read.query_name}\n{read.get_forward_sequence()}\n')
     sj_to_ends = {}
     with pysam.AlignmentFile(bamfile_name, 'rb') as bam_file:
         generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region.name, region.start, region.end)
@@ -1039,7 +1058,7 @@ def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, j
                                    sj_to_ends=sj_to_ends,
                                    allow_outside_range=True,
                                    keep_single_exon=True, trust_strand=args.trust_strand,
-                                   check_motifs=not args.trust_junctions)
+                                   check_motifs=not args.trust_junctions, read_starts=read_starts)
     shutil.rmtree(work_dir)
     return sj_to_ends
 
@@ -1117,12 +1136,14 @@ def fragment_chains(reads, fragment_exons, trust_strand):
     return [ReadChain((gene,), (), strand, ends, kind) for (kind, gene, strand), ends in sorted(by_fragment.items())]
 
 
-def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots, terminal_exons):
+def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots, terminal_exons,
+                            read_starts=None):
     """correct a sample's reads in region, give their junction chains annotated genes,
     and write them to path, with the unspliced reads that are fragments of one gene's
     first or last exons, terminal_exons; the chains of no annotated gene get novel
     genes in event calling, over all samples"""
-    sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector)
+    sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector,
+                                      read_starts)
     fragment_exons = AnnotatedFragmentExons(terminal_exons, annots)
     chains = []
     for (_, juncs), isoform in sj_to_ends.items():
@@ -1269,7 +1290,7 @@ class AnnotatedFragmentExons:
         return found.pop(), gene, gene_strand
 
 
-def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item, terminal_exons):
+def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item, terminal_exons, read_starts):
     """Correct one sample's reads in a region, for _run_region.  A task of its own,
     so the samples of a region are corrected in parallel"""
     sample, bamfile = item
@@ -1282,10 +1303,12 @@ def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, ite
             region = partition.region
             region_terminal = [exon for exon in terminal_exons.get(region.name, ())
                                if exon.start < region.end and region.start < exon.end]
-            get_juncs_single_sample(args, region, path, bamfile, genome, junction_corrector, annots, region_terminal)
+            get_juncs_single_sample(args, region, path, bamfile, genome, junction_corrector, annots, region_terminal,
+                                    read_starts.get(_region_key(region)))
 
 
-def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports, annot_afe_ss, annot_ale_ss):  # noqa: C901 - FIXME: reduce complexity
+def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports, annot_afe_ss, annot_ale_ss,
+                read_starts):  # noqa: C901 - FIXME: reduce complexity
     annots = annot_data_from_gtf(gtf_data, partition.region)
     if len(annots.transcripts) > 0:  # check if any annotated transcripts in region
         # each sample's corrected reads, from _correct_region_sample
@@ -1297,7 +1320,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
             annot_afe_ss.get(partition.region.name, {}), annot_ale_ss.get(partition.region.name, {}),
             region_reports[_region_key(partition.region)], gene_junctions(sample_chains, novel_gene, annots),
-            AnnotatedSplicing(annots))
+            AnnotatedSplicing(annots), read_starts.get(_region_key(partition.region)))
 
         if not args.keep_intermediate:
             for sample, _ in allsamples:
@@ -1315,6 +1338,35 @@ REGION_OUTPUT_SUFFIXES = ('.spliceevents.bed', '.spliceevents.counts.tsv', '.spl
 
 def _region_key(region):
     return (region.name, region.start, region.end)
+
+
+def gene_clusters(region, transcripts):
+    """The spans of region's annotated genes, both strands, merged where they overlap,
+    and the number of exons in each, sorted"""
+    spans = sorted((max(t.start, region.start), min(t.end, region.end), len(t.exons)) for t in transcripts
+                   if t.chrom == region.name and t.start < region.end and region.start < t.end)
+    clusters = []
+    for start, end, exons in spans:
+        if clusters and start < clusters[-1][1]:
+            clusters[-1][1] = max(clusters[-1][1], end)
+            clusters[-1][2] += exons
+        else:
+            clusters.append([start, end, exons])
+    return clusters
+
+
+def intergenic_cuts(region, transcripts, min_exons=0):
+    """Where to cut region into partitions: the middle of the gaps between its
+    gene clusters, each partition with at least min_exons annotated exons, but
+    the last, so 0 cuts at every gap"""
+    clusters = gene_clusters(region, transcripts)
+    cuts, exons = [], 0
+    for (_, end, n), (start, _, _) in zip(clusters, clusters[1:]):
+        exons += n
+        if exons >= min_exons:
+            cuts.append((end + start) // 2)
+            exons = 0
+    return cuts
 
 
 def correction_regions(report_regions, bamfiles):
@@ -1340,6 +1392,35 @@ def correction_regions(report_regions, bamfiles):
     return merged, reports
 
 
+def partition_regions(report_regions, bamfiles, cuts):
+    """The partitions of report regions cut at cuts, a dict of region key to sorted
+    positions: each piece owns the reads aligned to start in it, the first also
+    those starting before the region, and is corrected over their whole length.
+    Reads crossing a cut are only the piece's they start in, so the events past a
+    cut lose them.  Returns, for each piece with reads, its region to correct reads
+    in, the range its reads start in, its report region, and its number of reads"""
+    pieces = []
+    for region in report_regions:
+        bounds = [region.start] + cuts.get(_region_key(region), []) + [region.end]
+        num_pieces = len(bounds) - 1
+        low, high = bounds[:-1], bounds[1:]
+        reads = [0] * num_pieces
+        for bamfile in bamfiles:
+            with pysam.AlignmentFile(bamfile, 'rb') as bam:
+                for read in bam.fetch(region.name, region.start, region.end):
+                    if read.is_mapped and not read.is_secondary:
+                        i = max(bisect_right(bounds, read.reference_start) - 1, 0)
+                        low[i], high[i] = min(low[i], read.reference_start), max(high[i], read.reference_end)
+                        reads[i] += 1
+        for i in range(num_pieces):
+            if reads[i] > 0:
+                owned = SeqRange(region.name, bounds[i] if i > 0 else 0, bounds[i + 1])
+                pieces.append((SeqRange(region.name, low[i], high[i]), owned, region, reads[i]))
+    return pieces
+
+
+
+
 # events whose reads are all of a gene's: its starts and ends, first and last exons
 GENE_WIDE_EVENTS = {'tss', 'tts', 'afe', 'ale'}
 
@@ -1361,14 +1442,16 @@ def gene_junction_span(juncs):
     return (min(j[0] for j in juncs), max(j[1] for j in juncs))
 
 
-def event_in_regions(event, regions, gene_span):
+def event_in_regions(event, regions, gene_span, owned=None):
     """Is an event inside one of the regions events are reported in: all its
     junctions and exons, so every read reaching it overlaps the region and its
     counts are complete.  An event of all its gene's reads (GENE_WIDE_EVENTS) only
     when all the gene's annotated junctions are, gene_span (gene_junction_span),
     as a user choosing a region around a gene would think of it: its reads are
     spliced, so nearly all have a junction in the region and were fetched.  The
-    gene's first and last exons may run past the region"""
+    gene's first and last exons may run past the region.  Given owned, the range
+    a partition's reads start in, only an event starting in it, so each event is
+    reported by one partition"""
     if event.eventtype in GENE_WIDE_EVENTS:
         low, high = gene_span
     else:
@@ -1376,6 +1459,8 @@ def event_in_regions(event, regions, gene_span):
         if not positions:
             return False
         low, high = min(positions), max(positions)
+    if owned is not None and not owned.start <= low < owned.end:
+        return False
     return any(region.name == event.chrom and region.start <= low and high <= region.end for region in regions)
 
 
@@ -1429,21 +1514,48 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
             allsamples.append((sample, bamfile))
 
     if args.region_bed:
-        report_regions = [SeqRange(bed.chrom, bed.chromStart, bed.chromEnd) for bed in BedReader(args.region_bed)]
-        all_regions, region_reports = correction_regions(combine_regions(report_regions),
-                                                         [bamfile for _, bamfile in allsamples])
+        report_regions = combine_regions([SeqRange(bed.chrom, bed.chromStart, bed.chromEnd) for bed in BedReader(args.region_bed)])
     else:
-        all_regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))
-                       for chrom in genome.references]
+        report_regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom)) for chrom in genome.references]
+    bamfiles = [bamfile for _, bamfile in allsamples]
+
+    annot_gtf_data = None
+    cuts = None
+    # by default, chromosomes are cut, and --region_bed regions not
+    if (args.partition or ('no' if args.region_bed else 'yes')) == 'yes':
+        # the annotation of the regions' chromosomes, to cut the regions in their
+        # intergenic gaps and to correct reads in the pieces
+        chrom_regions = None
+        if args.region_bed:
+            chrom_regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom)) for chrom in sorted({r.name for r in report_regions})]
+        logging.info('loading annotation GTF')
+        annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
+                                         regions=chrom_regions)
+        transcripts = annot_gtf_data.transcripts
+        cuts = {_region_key(region): intergenic_cuts(region, transcripts, PARTITION_EXONS) for region in report_regions}
+
+    weights = None
+    read_starts = {}  # partition key -> the range its reads start in, when cut
+    if cuts:
+        pieces = partition_regions(report_regions, bamfiles, cuts)
+        all_regions = [region for region, _, _, _ in pieces]
+        region_reports = {_region_key(region): [report] for region, _, report, _ in pieces}
+        read_starts = {_region_key(region): owned for region, owned, _, _ in pieces}
+        weights = [num_reads for *_, num_reads in pieces]
+    elif args.region_bed:
+        all_regions, region_reports = correction_regions(report_regions, bamfiles)
+    else:
+        all_regions = report_regions
         region_reports = {_region_key(region): [region] for region in all_regions}
     logging.info(f'input regions: {len(all_regions)}')
 
-    # with --region_bed, only the annotation of the regions reads are corrected in, the
-    # transcripts each region's partition would take, rather than the whole GTF's
+    if annot_gtf_data is None:
+        # with --region_bed, only the annotation of the regions reads are corrected in, the
+        # transcripts each region's partition would take, rather than the whole GTF's
+        logging.info('loading annotation GTF')
+        annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
+                                         regions=all_regions if args.region_bed else None)
     annot_regions = all_regions if args.region_bed else None
-    logging.info('loading annotation GTF')
-    annot_gtf_data = gtf_data_parser(args.annot, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
-                                     regions=annot_regions)
     logging.info('building intron support database')
     junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,
                                                     annot_gtf_data=annot_gtf_data,
@@ -1465,10 +1577,11 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
     logging.info(f'correcting reads of {len(allsamples)} samples in {len(all_regions)} regions, then finding events, with {args.threads} threads')
 
     runner = PartitionRunner(all_regions, tempDir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
-                             threads=args.threads)
-    runner.run(_correct_region_sample, items=allsamples, args=args, terminal_exons=terminal_exons)
+                             threads=args.threads, weights=weights)
+    runner.run(_correct_region_sample, items=allsamples, args=args, terminal_exons=terminal_exons,
+               read_starts=read_starts)
     runner.run(_run_region, args=args, allsamples=allsamples, region_reports=region_reports,
-               annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss)
+               annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss, read_starts=read_starts)
 
     prefixes = [p.file_prefix for p in runner]
     combine_temp_files_by_suffix(args.output, prefixes, ['.spliceevents.bed'])
