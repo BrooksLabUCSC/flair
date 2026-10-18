@@ -30,7 +30,7 @@
 
 .. option:: --annot_basic ANNOT_BASIC
 
-   GTF annotation file of full-length transcripts, such as GENCODE basic, whose first and last exons may also be used as internal ones in some reads and still count as first and last exons. A comprehensive annotation includes truncated transcripts, whose ends are not real first and last exons
+   GTF annotation file of full-length transcripts, such as GENCODE basic, whose first and last exons may also be used as internal ones in some reads and still count as first and last exons, and which unspliced reads are fragments of, rather than those of -f. A comprehensive annotation includes truncated transcripts, whose ends are not real first and last exons
 
 .. option:: --junction_tab JUNCTION_TAB
 

@@ -144,7 +144,8 @@ depends mostly on how complete your reads are.
     short read spanning the same junctions could show.  It has no
     differential test between conditions; its tables of counts and PSIs
     can be tested with your own statistics, and outlier samples can be found
-    with the spliceevents_outliers script.  Single-exon reads are left out.
+    with the spliceevents_outliers script.  Unspliced reads only count toward
+    starts and ends, as fragments of an annotated first or last exon.
 
 Their outputs are only comparable at the end: FLAIR spliceevents' events
 resemble those of FLAIR diffsplice, after transcriptome, combine and quantify,

@@ -444,7 +444,15 @@ the two are separate analyses, not steps of one.  Reads are corrected against th
 optionally short-read junctions, as flair transcriptome corrects them, and assigned to
 genes as flair transcriptome assigns them: to annotated genes, a read through two genes
 to both, and reads of no annotated gene, over all samples, to novel genes named for
-their locus.  Single-exon reads are left out.  It finds these events:
+their locus.  Unspliced reads count only as fragments, for starts and ends: one
+whose 5' end lies in an annotated last exon, or within 100 bases before it, is a 3'
+fragment, whose end counts as one of the gene's transcript ends, and one whose 3' end
+lies in an annotated first exon is a 5' fragment, whose start counts as a start.  A
+read overlapping several genes' exons is the fragment of the one whose exons share the
+most bases with it, if it's at that gene's first or last exon; a tie leaves it out.
+Without ``--trust_strand``, the genes of both strands count, as an unspliced read's
+strand isn't known.  The first and last exons are those of ``--annot_basic``, if given.  Other unspliced reads are left out.  It finds these
+events:
 
  - exon skipping (es) and complex exon skipping, of several exons (ces)
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'

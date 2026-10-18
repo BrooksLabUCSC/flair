@@ -45,8 +45,9 @@ def add_subparser(subparsers):
     parser.add_argument('--annot_basic', default='',
                         help='GTF annotation file of full-length transcripts, such as GENCODE basic, whose '
                              'first and last exons may also be used as internal ones in some reads and '
-                             'still count as first and last exons.  A comprehensive annotation includes '
-                             'truncated transcripts, whose ends are not real first and last exons')
+                             'still count as first and last exons, and which unspliced reads are fragments of, '
+                             'rather than those of -f.  A comprehensive annotation includes truncated '
+                             'transcripts, whose ends are not real first and last exons')
     parser.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
                                                'Use this option if you aligned your short-reads with STAR, '
                                                'STAR will automatically output this file')
@@ -294,15 +295,17 @@ def extract_tandem_splicing_info(sjc, alljuncs, outer_junc_to_exons, allsamples,
 
 def extract_terminal_info(allsamples, chains_by_key, key, strand, terminal):
     """the junctions, first (afe) or last (ale) exons and read starts (or ends) of the
-    chains of key, a 5' (or 3') gene: (position, sample) per read"""
+    chains of key, a 5' (or 3') gene: (position, sample) per read.  Its fragments,
+    under no junctions, have only their starts (or ends)"""
     alljuncs, terminal_exons, ends = {}, {}, []
     take_start = (terminal == 'afe') == (strand == '+')
     for sample, chains in zip(allsamples, chains_by_key):
         for juncs, readinfo in chains.get(key, {}).items():
             numreads = len(readinfo)
-            for j in juncs:
-                add_reads(alljuncs, j, allsamples, sample, numreads)
-            extract_terminal(juncs, strand, terminal, allsamples, sample, numreads, terminal_exons)
+            if juncs:
+                for j in juncs:
+                    add_reads(alljuncs, j, allsamples, sample, numreads)
+                extract_terminal(juncs, strand, terminal, allsamples, sample, numreads, terminal_exons)
             ends.extend(((r.start if take_start else r.end), sample) for r in readinfo)
     return alljuncs, terminal_exons, ends
 
@@ -807,14 +810,17 @@ def group_chains(chrom, allsamples, sample_chains, novel_gene):
     key -> junctions -> [ReadEnds]: by cluster of junction chains linked by shared
     splice sites, on one strand, for the events of splicing, which don't depend on
     genes; by each chain's 5'-most gene, for the first exons and starts; and by its
-    3'-most gene, for the last exons and ends.  Also each key's strand, each chain's
-    genes, by (strand, junctions), a novel gene's if of none annotated, and each
-    strand's ReadCoverage"""
+    3'-most gene, for the last exons and ends.  A gene's 5' fragments are with its
+    starts and its 3' fragments with its ends, under no junctions, and nowhere else.
+    Also each key's strand, each chain's genes, by (strand, junctions), a novel gene's
+    if of none annotated, and each strand's ReadCoverage, of its spliced reads"""
     chain_genes = {}
     chain_isoforms = {}
     coverage = {'+': ReadCoverage(allsamples), '-': ReadCoverage(allsamples)}
     for sample, chains in zip(allsamples, sample_chains):
         for chain in chains:
+            if chain.fragment:
+                continue
             key = (chain.strand, chain.juncs)
             chain_genes[key] = chain.genes or (novel_gene[key],)
             if key not in chain_isoforms:
@@ -825,10 +831,20 @@ def group_chains(chrom, allsamples, sample_chains, novel_gene):
     for isoform in chain_isoforms.values():
         isoform.start, isoform.end = int(median(isoform.starts)), int(median(isoform.ends))
     cluster_of, key_strand = _splicing_clusters(chain_isoforms)
+    return _chain_views(sample_chains, chain_genes, cluster_of, key_strand), key_strand, chain_genes, coverage
+
+
+def _chain_views(sample_chains, chain_genes, cluster_of, key_strand):
+    "group_chains' three groupings of each sample's chains, adding the genes' strands to key_strand"
     views = {'cluster': [], 'five': [], 'three': []}
     for chains in sample_chains:
         by = {'cluster': {}, 'five': {}, 'three': {}}
         for chain in chains:
+            if chain.fragment:
+                gene = chain.genes[0]
+                by['five' if chain.fragment == 'first' else 'three'].setdefault(gene, {})[()] = chain.ends
+                key_strand[gene] = chain.strand
+                continue
             key = (chain.strand, chain.juncs)
             genes = chain_genes[key]
             for view, group in (('cluster', cluster_of[key]), ('five', genes[0]), ('three', genes[-1])):
@@ -836,7 +852,7 @@ def group_chains(chrom, allsamples, sample_chains, novel_gene):
                 key_strand[group] = chain.strand
         for view in views:
             views[view].append(by[view])
-    return views, key_strand, chain_genes, coverage
+    return views
 
 
 class AnnotatedSplicing:
@@ -1000,10 +1016,10 @@ def process_region_events(temp_prefix, thischrom, allsamples, sample_chains, nov
 
 
 def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector):
-    """The sample's spliced reads in region, corrected as flair transcriptome corrects
-    them, grouped by junction chain: aligned to the annotated transcripts, then their
-    junctions corrected, single-exon reads, often fragments, left out.  The
-    alignment's intermediates are written in work_dir, removed after"""
+    """The sample's reads in region, corrected as flair transcriptome corrects them,
+    grouped by junction chain: aligned to the annotated transcripts, then their
+    junctions corrected, the unspliced reads under no junctions.  The alignment's
+    intermediates are written in work_dir, removed after"""
     os.makedirs(work_dir, exist_ok=True)
     temp_prefix = osp.join(work_dir, 'reads')
     pipettor.run([('samtools', 'view', '-h', bamfile_name, f'{region.name}:{region.start}-{region.end}'),
@@ -1022,7 +1038,7 @@ def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, j
                                    quality=args.quality, keep_sup=args.keep_supplementary,
                                    sj_to_ends=sj_to_ends,
                                    allow_outside_range=True,
-                                   keep_single_exon=False, trust_strand=args.trust_strand,
+                                   keep_single_exon=True, trust_strand=args.trust_strand,
                                    check_motifs=not args.trust_junctions)
     shutil.rmtree(work_dir)
     return sj_to_ends
@@ -1038,34 +1054,38 @@ def read_chains_path(partition, sample):
 
 
 # a sample's corrected junction chain: its annotated genes, 5' to 3', or () for none,
-# its junctions, strand, and its reads' ends
-ReadChain = namedtuple('ReadChain', ('genes', 'juncs', 'strand', 'ends'))
+# its junctions, strand, and its reads' ends.  Or its unspliced reads that are
+# fragments of one gene, with no junctions, and fragment 'last' for 3' fragments,
+# 'first' for 5' (AnnotatedFragmentExons)
+ReadChain = namedtuple('ReadChain', ('genes', 'juncs', 'strand', 'ends', 'fragment'), defaults=('',))
 
 
 def write_read_chains(path, chrom, chains):
     """Write a sample's corrected reads, ReadChains, a line per junction chain: its
-    annotated genes, chromosome, junctions, strand, and the ends of each of its
-    reads, 0-based start-end pairs.  It's written whole or not at all, as a rerun
-    with --keep_intermediate skips the samples whose file exists"""
+    annotated genes, chromosome, junctions, strand, the ends of each of its reads,
+    0-based start-end pairs, and, for fragments, without junctions, which kind.  It's
+    written whole or not at all, as a rerun with --keep_intermediate skips the samples
+    whose file exists"""
     with open(path + '.tmp', 'w') as out:
         for chain in chains:
             out.write('\t'.join([','.join(chain.genes), chrom, ','.join(f'{s}-{e}' for s, e in chain.juncs), chain.strand,
-                                 ','.join(f'{r.start}-{r.end}' for r in chain.ends)]) + '\n')
+                                 ','.join(f'{r.start}-{r.end}' for r in chain.ends), chain.fragment]) + '\n')
     os.replace(path + '.tmp', path)
 
 
 def _ranges(field):
-    return tuple(tuple(int(x) for x in pair.split('-')) for pair in field.split(','))
+    return tuple(tuple(int(x) for x in pair.split('-')) for pair in field.split(',')) if field else ()
 
 
 def read_read_chains(path):
-    "a sample's corrected reads from write_read_chains, ReadChains"
+    """a sample's corrected reads from write_read_chains, ReadChains; of an earlier
+    version's files, without fragments, too"""
     chains = []
     with open(path) as fh:
         for line in fh:
-            genes, _, juncs, strand, ends = line.rstrip('\n').split('\t')
+            genes, _, juncs, strand, ends, *fragment = line.rstrip('\n').split('\t')
             chains.append(ReadChain(tuple(genes.split(',')) if genes else (), _ranges(juncs), strand,
-                                    [ReadEnds(*pair) for pair in _ranges(ends)]))
+                                    [ReadEnds(*pair) for pair in _ranges(ends)], *fragment))
     return chains
 
 
@@ -1086,11 +1106,24 @@ def annotated_genes(isoform, annots):
     return tuple(sorted(genes, key=lambda g: annots.gene_to_exons[g][0][0], reverse=(strand == '-'))), strand
 
 
-def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots):
+def fragment_chains(reads, fragment_exons, trust_strand):
+    """the unspliced reads that are fragments of one gene (AnnotatedFragmentExons), as a ReadChain
+    per gene and kind"""
+    by_fragment = {}
+    for read in reads:
+        found = fragment_exons.fragment(read.start, read.end, read.strand if trust_strand else None)
+        if found is not None:
+            by_fragment.setdefault(found, []).append(ReadEnds(read.start, read.end))
+    return [ReadChain((gene,), (), strand, ends, kind) for (kind, gene, strand), ends in sorted(by_fragment.items())]
+
+
+def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots, terminal_exons):
     """correct a sample's reads in region, give their junction chains annotated genes,
-    and write them to path; the chains of no annotated gene get novel genes in event
-    calling, over all samples"""
+    and write them to path, with the unspliced reads that are fragments of one gene's
+    first or last exons, terminal_exons; the chains of no annotated gene get novel
+    genes in event calling, over all samples"""
     sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector)
+    fragment_exons = AnnotatedFragmentExons(terminal_exons, annots)
     chains = []
     for (_, juncs), isoform in sj_to_ends.items():
         if len(juncs) > 0:
@@ -1099,6 +1132,8 @@ def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_c
                 logging.debug(f'reads dropped: strand unknown and not given by a gene: {juncs}')
                 continue
             chains.append(ReadChain(genes, tuple((j.start, j.end) for j in juncs), strand, isoform.reads))
+        else:
+            chains.extend(fragment_chains(isoform.reads, fragment_exons, args.trust_strand))
     write_read_chains(path, region.name, chains)
 
 
@@ -1138,26 +1173,103 @@ def gene_junctions(sample_chains, novel_gene, annots):
     return gene_juncs
 
 
-def annotated_terminal_splice_sites(gtf_file, regions=None):
-    """strand -> the splice sites of the first exons, and of the last exons, of the
-    spliced transcripts in gtf_file, such as GENCODE basic, sorted, which mark
-    alternative first and last exons; given regions, of the transcripts overlapping
-    them.  By strand, not gene, so they don't depend on the reads' genes"""
-    annot_afe_ss, annot_ale_ss = {'+': set(), '-': set()}, {'+': set(), '-': set()}
-    for trans in gtf_data_parser(gtf_file, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES,
-                                 regions=regions).transcripts:
+# an exon's first or last exon by kind: 'first' or 'last', strand, start, end, gene
+AnnotatedTerminalExon = namedtuple('AnnotatedTerminalExon', ('kind', 'strand', 'start', 'end', 'gene'))
+
+
+def annotated_terminal_exons(transcripts):
+    """chrom -> the first and last exons, TerminalExons, of the spliced transcripts, as
+    of GENCODE basic, whose first and last exons are real ones"""
+    exons_by_chrom = {}
+    for trans in transcripts:
         exons = sorted((exon.start, exon.end) for exon in trans.exons)
         if len(exons) > 1:
-            afe_ss, ale_ss = exons[0][1], exons[-1][0]
-            if trans.strand == '-':
-                afe_ss, ale_ss = ale_ss, afe_ss
-            annot_afe_ss[trans.strand].add(afe_ss)
-            annot_ale_ss[trans.strand].add(ale_ss)
-    return ({strand: sorted(sites) for strand, sites in annot_afe_ss.items()},
-            {strand: sorted(sites) for strand, sites in annot_ale_ss.items()})
+            first, last = (exons[0], exons[-1]) if trans.strand == '+' else (exons[-1], exons[0])
+            terminal = exons_by_chrom.setdefault(trans.chrom, set())
+            terminal.add(AnnotatedTerminalExon('first', trans.strand, *first, trans.gene_id))
+            terminal.add(AnnotatedTerminalExon('last', trans.strand, *last, trans.gene_id))
+    return {chrom: sorted(exons) for chrom, exons in exons_by_chrom.items()}
 
 
-def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item):
+def annotated_terminal_splice_sites(terminal_exons):
+    """chrom -> strand -> the splice sites, sorted, of terminal_exons' first exons, and
+    of their last exons, which mark alternative first and last exons.  By strand, not
+    gene, so they don't depend on the reads' genes"""
+    afe_ss, ale_ss = {}, {}
+    for chrom, exons in terminal_exons.items():
+        for sites in (afe_ss, ale_ss):
+            sites[chrom] = {'+': set(), '-': set()}
+        for exon in exons:
+            # the splice site of a first exon is its 3' end, of a last exon its 5' end
+            site = exon.end if (exon.kind == 'first') == (exon.strand == '+') else exon.start
+            (afe_ss if exon.kind == 'first' else ale_ss)[chrom][exon.strand].add(site)
+    return tuple({chrom: {strand: sorted(strand_sites) for strand, strand_sites in by_strand.items()}
+                  for chrom, by_strand in sites.items()} for sites in (afe_ss, ale_ss))
+
+
+# how far past its splice site, into the intron, the end of an unspliced read in a
+# first or last exon may be, as flair transcriptome's --end_window
+FRAGMENT_SPLICE_SITE_WINDOW = 100
+
+
+class AnnotatedFragmentExons:
+    """The annotated first and last exons of a region, and the exons of all its genes,
+    to tell the unspliced reads that are fragments of a gene's transcripts: in a last
+    exon, a 3' fragment, whose end is a transcript's end, or in a first exon, a 5'
+    fragment, whose start is a transcript's start"""
+    def __init__(self, terminal_exons, annots):
+        self.terminal = IntervalIndex()
+        for exon in terminal_exons:
+            self.terminal.add(exon.start, exon.end, exon)
+        # each gene's exons, merged, so the bases a read shares with a gene count once
+        self.exons = IntervalIndex()
+        for gene, exons in annots.gene_to_exons.items():
+            strand = annots.gene_to_strand[gene]
+            merged = []
+            for start, end in sorted(exons):
+                if merged and start <= merged[-1][1]:
+                    merged[-1][1] = max(merged[-1][1], end)
+                else:
+                    merged.append([start, end])
+            for start, end in merged:
+                self.exons.add(start, end, (gene, strand, start, end))
+
+    def fragment(self, start, end, strand=None):
+        """('last' or 'first', gene, strand) of an unspliced read, or None: of the genes
+        whose exons overlap the read, the one sharing the most bases with it, if that's
+        one gene, and the read's end at its splice site, its 5' end in a last exon or
+        its 3' end in a first, lies in the exon or within FRAGMENT_SPLICE_SITE_WINDOW
+        past the site, while its other end may run past the transcript's end.  Given
+        strand, the read's trusted strand, only the genes on it; otherwise the genes of
+        both strands, as an unspliced read's strand isn't known"""
+        shared = {}
+        for gene, gene_strand, exon_start, exon_end in self.exons.overlap(start, end):
+            if strand in (None, gene_strand):
+                key = (gene, gene_strand)
+                shared[key] = shared.get(key, 0) + min(end, exon_end) - max(start, exon_start)
+        if len(shared) == 0:
+            return None
+        most = max(shared.values())
+        best = [key for key, bases in shared.items() if bases == most]
+        if len(best) != 1:
+            return None
+        gene, gene_strand = best[0]
+        found = set()
+        for exon in self.terminal.overlap(start, end, slack=FRAGMENT_SPLICE_SITE_WINDOW):
+            if exon.gene != gene:
+                continue
+            if (exon.kind == 'last') == (exon.strand == '+'):  # the splice site is the exon's start
+                at_site = exon.start - FRAGMENT_SPLICE_SITE_WINDOW <= start < exon.end
+            else:
+                at_site = exon.start < end <= exon.end + FRAGMENT_SPLICE_SITE_WINDOW
+            if at_site:
+                found.add(exon.kind)
+        if len(found) != 1:
+            return None
+        return found.pop(), gene, gene_strand
+
+
+def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item, terminal_exons):
     """Correct one sample's reads in a region, for _run_region.  A task of its own,
     so the samples of a region are corrected in parallel"""
     sample, bamfile = item
@@ -1167,7 +1279,10 @@ def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, ite
     annots = annot_data_from_gtf(gtf_data, partition.region)
     if len(annots.transcripts) > 0:
         with pysam.FastaFile(args.genome) as genome:
-            get_juncs_single_sample(args, partition.region, path, bamfile, genome, junction_corrector, annots)
+            region = partition.region
+            region_terminal = [exon for exon in terminal_exons.get(region.name, ())
+                               if exon.start < region.end and region.start < exon.end]
+            get_juncs_single_sample(args, region, path, bamfile, genome, junction_corrector, annots, region_terminal)
 
 
 def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports, annot_afe_ss, annot_ale_ss):  # noqa: C901 - FIXME: reduce complexity
@@ -1180,7 +1295,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
             partition.file_prefix, partition.region.name, [x[0] for x in allsamples],
             sample_chains, novel_gene, args.feature_support,
             args.event_frac_of_tot, args.junc_frac_of_event, args.event_support,
-            annot_afe_ss, annot_ale_ss,
+            annot_afe_ss.get(partition.region.name, {}), annot_ale_ss.get(partition.region.name, {}),
             region_reports[_region_key(partition.region)], gene_junctions(sample_chains, novel_gene, annots),
             AnnotatedSplicing(annots))
 
@@ -1335,16 +1450,23 @@ def spliceevents(args):  # noqa: C901 - FIXME: reduce complexity
                                                     intron_beds=args.junction_bed,
                                                     star_sj_tabs=args.junction_tab)
 
+    # first and last exons, which unspliced fragments lie in, and, of --annot_basic,
+    # which first and last exons may also be internal ones
     annot_afe_ss, annot_ale_ss = {}, {}
     if args.annot_basic:
         logging.info('loading first and last exons of --annot_basic')
-        annot_afe_ss, annot_ale_ss = annotated_terminal_splice_sites(args.annot_basic, annot_regions)
+        terminal_exons = annotated_terminal_exons(gtf_data_parser(args.annot_basic, attrs=GtfAttrsSet.FLAIR,
+                                                                  include_features=TRANSCRIPT_EXON_FEATURES,
+                                                                  regions=annot_regions).transcripts)
+        annot_afe_ss, annot_ale_ss = annotated_terminal_splice_sites(terminal_exons)
+    else:
+        terminal_exons = annotated_terminal_exons(annot_gtf_data.transcripts)
 
     logging.info(f'correcting reads of {len(allsamples)} samples in {len(all_regions)} regions, then finding events, with {args.threads} threads')
 
     runner = PartitionRunner(all_regions, tempDir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
                              threads=args.threads)
-    runner.run(_correct_region_sample, items=allsamples, args=args)
+    runner.run(_correct_region_sample, items=allsamples, args=args, terminal_exons=terminal_exons)
     runner.run(_run_region, args=args, allsamples=allsamples, region_reports=region_reports,
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss)
 

@@ -8,7 +8,9 @@ from flair.annotation_data import annot_data_from_gtf
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.isoform_data import Isoform, Junc
 from flair.flair_spliceevents import (annotated_genes, novel_genes_of_chains, gene_junctions, group_chains, combine_regions,
-                                      correction_regions, ReadEnds, ReadChain, read_read_chains, write_read_chains)
+                                      correction_regions, ReadEnds, ReadChain, read_read_chains, write_read_chains,
+                                      annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons, AnnotatedTerminalExon,
+                                      fragment_chains, extract_terminal_info)
 
 # on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle
 # exon, and D and E on -
@@ -21,16 +23,19 @@ A_JUNCS = ((200, 300), (400, 500))
 B_SKIP = ((1100, 1400),)
 
 
-def _annots(tmp_path):
+def _gtf_data(tmp_path, gtf_transcripts=GTF, chrom='chr1'):
     gtf = tmp_path / 'annotation.gtf'
     with open(gtf, 'w') as fh:
-        for gene, transcript, strand, exons in GTF:
+        for gene, transcript, strand, exons in gtf_transcripts:
             attrs = f'gene_id "{gene}"; transcript_id "{transcript}"; gene_name "{gene}";'
-            fh.write(f'chr1\ttest\ttranscript\t{exons[0][0] + 1}\t{exons[-1][1]}\t.\t{strand}\t.\t{attrs}\n')
+            fh.write(f'{chrom}\ttest\ttranscript\t{exons[0][0] + 1}\t{exons[-1][1]}\t.\t{strand}\t.\t{attrs}\n')
             for start, end in exons:
-                fh.write(f'chr1\ttest\texon\t{start + 1}\t{end}\t.\t{strand}\t.\t{attrs}\n')
-    gtf_data = gtf_data_parser(str(gtf), attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
-    return annot_data_from_gtf(gtf_data, SeqRange('chr1', 0, 10 ** 6))
+                fh.write(f'{chrom}\ttest\texon\t{start + 1}\t{end}\t.\t{strand}\t.\t{attrs}\n')
+    return gtf_data_parser(str(gtf), attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+
+
+def _annots(tmp_path, gtf_transcripts=GTF):
+    return annot_data_from_gtf(_gtf_data(tmp_path, gtf_transcripts), SeqRange('chr1', 0, 10 ** 6))
 
 
 def _genes(tmp_path, juncs, strand='+'):
@@ -137,5 +142,121 @@ def test_read_chains_written_and_read_back_are_the_same_reads(tmp_path):
               ReadChain((), ((2200, 2300),), '-', [ReadEnds(2100, 2400)])]
     path = str(tmp_path / 's1.read_chains.tsv')
     write_read_chains(path, 'chr1', chains)
-    assert open(path).read().splitlines()[1] == 'A,B\tchr1\t200-300,600-1000\t+\t150-1300'
+    assert open(path).read().splitlines()[1] == 'A,B\tchr1\t200-300,600-1000\t+\t150-1300\t'
     assert read_read_chains(path) == chains
+
+
+def test_first_and_last_exons_and_their_splice_sites_are_by_chromosome(tmp_path):
+    terminal = annotated_terminal_exons(_gtf_data(tmp_path).transcripts)
+    assert set(terminal) == {'chr1'}
+    assert AnnotatedTerminalExon('first', '+', 100, 200, 'A') in terminal['chr1']
+    assert AnnotatedTerminalExon('last', '+', 500, 600, 'A') in terminal['chr1']
+    # on -, the first exon is the higher
+    assert AnnotatedTerminalExon('first', '-', 5200, 5300, 'D') in terminal['chr1']
+    assert AnnotatedTerminalExon('last', '-', 5000, 5100, 'D') in terminal['chr1']
+    afe_ss, ale_ss = annotated_terminal_splice_sites(terminal)
+    assert afe_ss['chr1']['+'] == [200, 1100] and afe_ss['chr1']['-'] == [5200, 6200]
+    assert ale_ss['chr1']['+'] == [500, 1400] and ale_ss['chr1']['-'] == [5100, 6100]
+    # another chromosome's sites are its own
+    other = annotated_terminal_exons(_gtf_data(tmp_path, chrom='chr2').transcripts)
+    assert annotated_terminal_splice_sites(other)[0].keys() == {'chr2'}
+
+
+# A's last exon is 500-600 and first 100-200 on +; D's last 5000-5100 and first
+# 5200-5300 on -; and an antisense gene, AS, overlapping B's last exon, 1400-1500
+FRAGMENT_GTF = GTF + [('AS', 'TAS', '-', [(1450, 1550), (1700, 1800)]), ('S', 'TS', '+', [(8000, 9000)])]
+
+
+def _fragment_exons(tmp_path):
+    gtf_data = _gtf_data(tmp_path, FRAGMENT_GTF)
+    annots = annot_data_from_gtf(gtf_data, SeqRange('chr1', 0, 10 ** 6))
+    return AnnotatedFragmentExons(annotated_terminal_exons(gtf_data.transcripts)['chr1'], annots)
+
+
+def test_an_unspliced_read_in_a_last_exon_is_a_3_fragment(tmp_path):
+    exons = _fragment_exons(tmp_path)
+    assert exons.fragment(520, 650) == ('last', 'A', '+')
+    # its start up to 100 bases into the intron before, its end past the transcript's
+    assert exons.fragment(420, 580) == ('last', 'A', '+')
+    assert exons.fragment(380, 580) is None
+    # on -, by its end
+    assert exons.fragment(4900, 5050) == ('last', 'D', '-')
+    assert exons.fragment(4900, 5250) is None
+
+
+def test_an_unspliced_read_in_a_first_exon_is_a_5_fragment(tmp_path):
+    exons = _fragment_exons(tmp_path)
+    assert exons.fragment(50, 180) == ('first', 'A', '+')
+    assert exons.fragment(5220, 5400) == ('first', 'D', '-')
+
+
+def test_an_unspliced_read_elsewhere_is_not_a_fragment(tmp_path):
+    exons = _fragment_exons(tmp_path)
+    # in an internal exon
+    assert exons.fragment(320, 380) is None
+    # intronic
+    assert exons.fragment(420, 480) is None
+    # a single-exon gene's
+    assert exons.fragment(8100, 8200) is None
+
+
+def test_a_fragment_is_of_the_gene_sharing_the_most_bases_with_it(tmp_path):
+    exons = _fragment_exons(tmp_path)
+    # in B's last exon, 1400-1500, and the antisense gene's, 1450-1550: 60 bases of
+    # B's and 30 of AS's
+    assert exons.fragment(1420, 1480) == ('last', 'B', '+')
+    # 50 of each: no one gene
+    assert exons.fragment(1450, 1500) is None
+    # 90 of AS's last exon, which on - ends at its splice site, 1550
+    assert exons.fragment(1460, 1560) == ('last', 'AS', '-')
+
+
+def test_a_fragments_trusted_strand_must_be_its_genes(tmp_path):
+    exons = _fragment_exons(tmp_path)
+    assert exons.fragment(520, 650, '+') == ('last', 'A', '+')
+    assert exons.fragment(520, 650, '-') is None
+    # only the genes of the trusted strand count, so a tie between strands isn't one
+    assert exons.fragment(1450, 1500, '+') == ('last', 'B', '+')
+    assert exons.fragment(1450, 1500, '-') == ('last', 'AS', '-')
+
+
+class _Read:
+    def __init__(self, start, end, strand='+'):
+        self.start, self.end, self.strand = start, end, strand
+
+
+def test_fragments_are_a_chain_per_gene_and_kind(tmp_path):
+    reads = [_Read(520, 650), _Read(530, 640, '-'), _Read(50, 180), _Read(320, 380)]
+    chains = fragment_chains(reads, _fragment_exons(tmp_path), trust_strand=False)
+    assert chains == [ReadChain(('A',), (), '+', [ReadEnds(50, 180)], 'first'),
+                      ReadChain(('A',), (), '+', [ReadEnds(520, 650), ReadEnds(530, 640)], 'last')]
+    # with a trusted strand, the read on - isn't A's
+    chains = fragment_chains(reads, _fragment_exons(tmp_path), trust_strand=True)
+    assert [len(chain.ends) for chain in chains] == [1, 1]
+
+
+def test_fragments_count_only_for_their_genes_starts_or_ends():
+    a = ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)])
+    last = ReadChain(('A',), (), '+', [ReadEnds(520, 650)] * 2, 'last')
+    first = ReadChain(('A',), (), '+', [ReadEnds(50, 180)], 'first')
+    views, _, chain_genes, coverage = group_chains('chr1', ['s1'], [[a, last, first]], {})
+    assert [list(chains) for chains in views['cluster'][0].values()] == [[A_JUNCS]]
+    assert views['three'][0]['A'] == {A_JUNCS: a.ends, (): last.ends}
+    assert views['five'][0]['A'] == {A_JUNCS: a.ends, (): first.ends}
+    assert coverage['+'].covering((300, 400)) == {'s1': 1}
+    alljuncs, ale, ends = extract_terminal_info(['s1'], views['three'], 'A', '+', 'ale')
+    assert sorted(ends) == [(600, 's1'), (650, 's1'), (650, 's1')]
+    assert list(ale) == [500] and alljuncs.keys() == set(A_JUNCS)
+    _, _, starts = extract_terminal_info(['s1'], views['five'], 'A', '+', 'afe')
+    assert sorted(starts) == [(50, 's1'), (100, 's1')]
+
+
+def test_fragments_are_written_and_read_back_and_old_files_still_read(tmp_path):
+    chains = [ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)]),
+              ReadChain(('A',), (), '+', [ReadEnds(520, 650)], 'last')]
+    path = str(tmp_path / 's1.read_chains.tsv')
+    write_read_chains(path, 'chr1', chains)
+    assert read_read_chains(path) == chains
+    with open(path, 'w') as fh:
+        fh.write('A\tchr1\t200-300,400-500\t+\t100-600\n')
+    assert read_read_chains(path) == chains[:1]

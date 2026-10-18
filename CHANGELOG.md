@@ -344,6 +344,16 @@
     column, the annotation's name of the gene, and `additional_genes` and
     `additional_gene_names`, the other genes sharing an intron or splice site with a
     splicing event, as do the outliers.
+  * Unspliced reads that are fragments of an annotated first or last exon count
+    toward starts and ends (tss, tts): a read whose 5' end is in a last exon, or
+    within 100 bases before it, adds its end to its gene's transcript ends, and one
+    whose 3' end is in a first exon adds its start, with first and last exons of
+    `--annot_basic` if given.  A read overlapping several genes' exons belongs to
+    the one whose exons share the most bases with it, of its own strand with
+    `--trust_strand`, else of either.  They were all left out.
+  * `--annot_basic` first and last exons were matched by position on any
+    chromosome, so a first exon's splice site counted as annotated if another
+    chromosome had one at the same position.
   * spliceevents_outliers compares an outlier with those of the events sharing its
     junctions, not of its gene, and reads only tables with `novel_junctions`.
   * Event calling is faster: on PC9's chr19, 63 rather than 71 seconds.  Each read's
