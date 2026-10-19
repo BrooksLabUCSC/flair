@@ -9,6 +9,7 @@
                              [--pos_ref POS_REF] [--vcf VCF] [-o OUTPUT]
                              [--isoform_bed ISOFORM_BED]
                              [--min_coverage MIN_COVERAGE] [--output_all]
+                             [-t THREADS] [--temp_dir TEMP_DIR]
                              [--keep_intermediate]
 
 .. rubric:: options
@@ -45,7 +46,15 @@
 
    output read counts for all putative RNA editing sites that pass the coverage threshold, regardless of whether any reads are edited
 
+.. option:: -t THREADS, --threads THREADS
+
+   number of samples to read at once, each in its own process (default: 4)
+
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it, with a file per sample of its reads covering the sites (default: $TMPDIR or the system temporary directory)
+
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging
+   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given
 

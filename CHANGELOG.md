@@ -460,6 +460,12 @@
     covering the same sites, but kept only how many sites each read was modified at
     and pooled the samples, so it couldn't tell which variants were on a read
     together; `flair alleles` groups the reads carrying variants.
+  * A rerun to the same output no longer counts every read twice: the temporary
+    files were appended to, in OUTPUT.intermediate, kept by `--keep_intermediate`
+    or a failed run.  As flair transcriptome, each run has a directory of its own in
+    `--temp_dir`, by default $TMPDIR, removed also when the run fails, and
+    `--keep_intermediate` requires `--temp_dir`.
+  * `-t/--threads` reads that many samples at once (default 4).
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

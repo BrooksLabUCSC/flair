@@ -4,12 +4,12 @@ import os
 import shutil
 import logging
 import math
+import multiprocessing as mp
 from collections import Counter
-from contextlib import ExitStack
 import pysam
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
-from flair.io_utils import make_temp_dir
+from flair.io_utils import make_run_temp_dir
 from flair import FlairInputDataError
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
@@ -61,15 +61,25 @@ def add_subparser(subparsers):
     parser.add_argument('--output_all', action='store_true',
                         help="output read counts for all putative RNA editing sites that pass the coverage threshold, "
                              "regardless of whether any reads are edited")
+    parser.add_argument('-t', '--threads', type=int, default=4,
+                        help='number of samples to read at once, each in its own process (default: %(default)s)')
+    parser.add_argument('--temp_dir',
+                        help='directory for temporary files; each run makes its own directory, named for the '
+                             'output, in it, with a file per sample of its reads covering the sites '
+                             '(default: $TMPDIR or the system temporary directory)')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help='keep intermediate and temporary files for debugging')
+                        help="keep intermediate and temporary files for debugging, in the run's directory in "
+                             '--temp_dir, which must be given')
     parser.set_defaults(entry=quantvarpos_cmd)
 
 def quantvarpos_cmd(args):
+    if args.keep_intermediate and args.temp_dir is None:
+        raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     quantvarpos(manifest=args.manifest, transcriptome_bam=args.transcriptome_bam,
                 pos_ref=args.pos_ref, vcf=args.vcf, output=args.output,
                 isoform_bed=args.isoform_bed, min_coverage=args.min_coverage,
-                output_all=args.output_all, keep_intermediate=args.keep_intermediate)
+                output_all=args.output_all, keep_intermediate=args.keep_intermediate,
+                temp_dir=args.temp_dir, threads=args.threads)
 
 def extract_sample_data(manifestfile):
     sampledata = []
@@ -195,11 +205,18 @@ def _parse_cigar(cigar, alignstart, transcriptvars):
     return coveredvars
 
 
-def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
-    """Write the variant sites a read covers to its reference's temp file, each with
-    its genes and the alt the read shows there, or NO_ALT"""
+def parse_single_bam_read(s, out, vcfvars, sampleindex):
+    """Write the variant sites a read covers to out, its sample's temp file, each with
+    its genes and the alt the read shows there, or NO_ALT.  vcfvars are the sites
+    near the read (get_correct_vcf_vars); most reads cover none, and finding the
+    read's bases at its sites is by far the slowest part, so it is done only for
+    the reads covering one"""
+    if not vcfvars:
+        return
     # check for which vars are covered
     coveredvars = _parse_cigar(s.cigartuples, s.reference_start, vcfvars)
+    if not coveredvars:
+        return
 
     # check for which covered vars are actually mod
     readseq = s.query_sequence
@@ -214,26 +231,24 @@ def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
                             or (compbase[i[2].upper()] == ref and compbase[readseq[i[0]]] == alt):
                         coveredvars[i[1] + 1] = alt
 
-    if coveredvars:  # for now, only outputting reads that cover var pos
-        coveredvarstrings = [VAR_FIELD_SEP.join([str(v), vcfvars[v][2], coveredvars[v]]) for v in coveredvars]
-        tempvarout = temp_files.open(s.reference_name)
-        tempvarout.write(
-            '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
+    coveredvarstrings = [VAR_FIELD_SEP.join([str(v), vcfvars[v][2], coveredvars[v]]) for v in coveredvars]
+    out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
 
 
-def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata, threshold, output_all, vcfvars):
+def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars):
     """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv:
     per sample, the reads covering the site not showing the alt, and those showing
     it, so they add up to the site's coverage whatever its other alts.  A row is
     written if a sample has threshold reads covering the site, and if a sample has a
-    read showing the alt, or output_all"""
+    read showing the alt, or output_all.  temp_paths are the samples' temp files,
+    from parse_all_bam_files"""
     samplenames = [x[0] for x in sampledata]
 
     with open(f'{outprefix}.var.counts.tsv', 'w') as out:
         out.write('\t'.join(['varpos', 'ref', 'alt', 'gene', 'transcript'] + samplenames) + '\n')
         vartocounts = {}
-        for tf in tempfilenames:
-            with open(tempdir + tf + '.txt', 'r') as mutstringfile:
+        for temp_path in temp_paths:
+            with open(temp_path) as mutstringfile:
                 for line in mutstringfile:
                     refname, readname, mutstring = line.rstrip('\n').split('\t')
                     # three fields per mut now, whatever the gene count: the gene list
@@ -308,8 +323,8 @@ def combine_vcf_files(vcffilelist):
     """(chrom, pos, ref) -> the alt bases of the SNVs of the vcf files, of each site's
     alts in all of them, whatever their IDs.  Each alt of a multi-allelic site is its
     own SNV, a read showing any of them modified.  Other variants, indels and
-    substitutions of more than one base, are left out with a warning.  A site given
-    different refs is an error: the vcfs aren't of one genome"""
+    substitutions of more than one base, are left out with a warning.  An SNV site
+    given different refs is an error: the vcfs aren't of one genome"""
     vartoalt = {}
     site_refs = {}  # (chrom, pos) -> (ref, the vcf file first giving it)
     nskipped = 0
@@ -318,37 +333,22 @@ def combine_vcf_files(vcffilelist):
             if line[0] != '#':
                 chrom, pos, _, ref, alts = line.rstrip('\n').split('\t')[:5]
                 ref = ref.upper()
-                first_ref, first_vcf = site_refs.setdefault((chrom, pos), (ref, samplevcf))
-                if ref != first_ref:
-                    raise FlairInputDataError(f'vcf files disagree on the reference base of {chrom}:{pos}: {first_ref} in '
-                                              f'{first_vcf}, {ref} in {samplevcf}; are they called on the same genome?')
                 alts = {alt.upper() for alt in alts.split(',')}
                 snv_alts = {alt for alt in alts if is_snv(ref, alt)}
                 nskipped += len(alts) - len(snv_alts)
                 if snv_alts:
+                    # of SNVs only: an indel at the site has a longer ref, as TA of a deletion of A
+                    first_ref, first_vcf = site_refs.setdefault((chrom, pos), (ref, samplevcf))
+                    if ref != first_ref:
+                        raise FlairInputDataError(f'vcf files disagree on the reference base of {chrom}:{pos}: {first_ref} '
+                                                  f'in {first_vcf}, {ref} in {samplevcf}; are they called on the same genome?')
                     vartoalt.setdefault((chrom, pos, ref), set()).update(snv_alts)
     if nskipped > 0:
         logging.warning(f'{nskipped} vcf alleles that are not SNVs (indels or substitutions of more than '
                         'one base) left out: variantquant counts SNVs only')
     return vartoalt
 
-class TempVarFiles:
-    """Append handles for the per-reference temp files, opened once each.  The write
-    path used to open, append and close the file for every read covering a variant."""
-    def __init__(self, tempdir, stack):
-        self.tempdir = tempdir
-        self.stack = stack
-        self.by_refname = {}
-
-    def open(self, refname):
-        out = self.by_refname.get(refname)
-        if out is None:
-            out = self.stack.enter_context(open(self.tempdir + refname + '.txt', 'a'))
-            self.by_refname[refname] = out
-        return out
-
-
-def _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex):
+def _parse_one_bam_file(bamfile, out, vcfvars, sindex):
     with pysam.AlignmentFile(bamfile, 'rb') as samfile:
         c = 0
         for s in samfile:
@@ -357,26 +357,42 @@ def _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex):
                 if c % 100000 == 0:
                     logging.info(f'{c} reads checked')
                 myvcfvars = get_correct_vcf_vars(vcfvars, s.reference_name, s.reference_start, s.reference_end)
-                parse_single_bam_read(s, temp_files, myvcfvars, sindex)
+                parse_single_bam_read(s, out, myvcfvars, sindex)
 
 
-def parse_all_bam_files(sampledata, tempdir, vcfvars):
-    with ExitStack() as stack:
-        temp_files = TempVarFiles(tempdir, stack)
-        for sindex in range(len(sampledata)):
-            sample, bamfile = sampledata[sindex][0], sampledata[sindex][1]
-            _parse_one_bam_file(bamfile, temp_files, vcfvars, sindex)
-            logging.info(f'done parsing reads for {sample}')
+# the sites of parse_all_bam_files, for its forked processes, which share them
+# rather than each task being sent a copy of what may be millions of sites
+_pool_vcfvars = None
 
-def get_genes_from_tempdir(tempdir):
-    genenames = set()
-    for f in os.listdir(tempdir):
-        if f[0] != '.' and 'processed' not in f:
-            genenames.add(f.split('.txt')[0])
-    return genenames
+
+def _parse_sample(sindex, sample, bamfile, temp_path, vcfvars=None):
+    "parse a sample's reads to its temp file, of the sites, or the pool's"
+    with open(temp_path, 'w') as out:
+        _parse_one_bam_file(bamfile, out, _pool_vcfvars if vcfvars is None else vcfvars, sindex)
+    logging.info(f'done parsing reads for {sample}')
+
+
+def parse_all_bam_files(sampledata, tempdir, vcfvars, threads):
+    """Parse each sample's reads covering the sites to a temp file of its own,
+    tempdir/<sample index>.txt, threads samples at once.  The files' paths, by sample"""
+    global _pool_vcfvars
+    tasks = [(sindex, row[0], row[1], f'{tempdir}{sindex}.txt') for sindex, row in enumerate(sampledata)]
+    if threads <= 1 or len(tasks) <= 1:
+        for task in tasks:
+            _parse_sample(*task, vcfvars=vcfvars)
+    else:
+        _pool_vcfvars = vcfvars
+        try:
+            mp.set_start_method('fork', force=True)
+            with mp.Pool(min(threads, len(tasks))) as pool:
+                pool.starmap(_parse_sample, tasks)
+        finally:
+            _pool_vcfvars = None
+    return [task[-1] for task in tasks]
+
 
 def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_bed,
-                min_coverage, output_all, keep_intermediate):
+                min_coverage, output_all, keep_intermediate, temp_dir=None, threads=1):
     # Load reference data
     if manifest:
         sampledata = extract_sample_data(manifest)
@@ -410,11 +426,16 @@ def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_be
             logging.warning(f'{nskipped} --pos_ref alleles that are not SNVs left out: variantquant counts SNVs only')
 
     logging.info('done combining vcf variants')
-    tempdir = make_temp_dir(output)
-    parse_all_bam_files(sampledata, tempdir, vcfvars)  # parses to intermediate files with read name to all vars
-    logging.info('parsed all reads')
-    genenames = get_genes_from_tempdir(tempdir)
-    read_vars_to_genome_pos_counts(genenames, tempdir, output, sampledata, min_coverage, output_all, vcfvars)
-
-    if not keep_intermediate:
-        shutil.rmtree(tempdir)
+    # a directory of this run's own, so no earlier run's files are read
+    tempdir = make_run_temp_dir(output, temp_dir)
+    logging.info(f'temporary files in {tempdir}')
+    try:
+        temp_paths = parse_all_bam_files(sampledata, tempdir, vcfvars, threads)
+        logging.info('parsed all reads')
+        read_vars_to_genome_pos_counts(temp_paths, output, sampledata, min_coverage, output_all, vcfvars)
+    finally:
+        # also on failure, so runs don't leave their files in $TMPDIR
+        if keep_intermediate:
+            logging.info(f'intermediate files kept in {tempdir}')
+        else:
+            shutil.rmtree(tempdir, ignore_errors=True)

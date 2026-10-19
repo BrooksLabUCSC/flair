@@ -1,9 +1,10 @@
 """flair variantquant: the SNVs of vcf files, and the reads showing them"""
+from types import SimpleNamespace
 import pysam
 import pytest
 from flair import FlairInputDataError
-from flair.flair_variantquant import (NO_ALT, add_vcf_var, combine_vcf_files, parse_single_bam_read,
-                                      read_vars_to_genome_pos_counts)
+from flair.flair_variantquant import (NO_ALT, add_vcf_var, combine_vcf_files, parse_all_bam_files, parse_single_bam_read,
+                                      quantvarpos, quantvarpos_cmd, read_vars_to_genome_pos_counts)
 
 
 def _vcf(path, *records):
@@ -38,9 +39,6 @@ class _Temp:
     def __init__(self):
         self.lines = []
 
-    def open(self, refname):
-        return self
-
     def write(self, line):
         self.lines.append(line)
 
@@ -66,6 +64,14 @@ def test_a_read_showing_any_alt_of_a_multi_allelic_site_is_modified():
     assert status == {'g': 'G', 't': 'T', 'c': NO_ALT, 'ref': NO_ALT}
 
 
+def test_an_snv_and_an_indel_at_one_position_are_not_a_ref_disagreement(tmp_path):
+    # a deletion of the A after chr1:100's T
+    vcf1 = _vcf(tmp_path / 's1.vcf', ('chr1', '100', '.', 'T', 'C'))
+    vcf2 = _vcf(tmp_path / 's2.vcf', ('chr1', '100', '.', 'TA', 'T'))
+    assert combine_vcf_files([vcf1, vcf2]) == {('chr1', '100', 'T'): {'C'}}
+    assert combine_vcf_files([vcf2, vcf1]) == {('chr1', '100', 'T'): {'C'}}
+
+
 def test_vcfs_disagreeing_on_a_sites_ref_are_an_error(tmp_path):
     vcf1 = _vcf(tmp_path / 's1.vcf', ('chr1', '100', '.', 'A', 'G'))
     vcf2 = _vcf(tmp_path / 's2.vcf', ('chr1', '100', '.', 'C', 'T'))
@@ -82,8 +88,59 @@ def test_each_allele_of_a_site_is_counted_of_the_reads_covering_it(tmp_path):
             out.write(f'chr1\t{n % 2}__r{n}\t5|G1|{allele}\n')
     vcfvars = add_vcf_var({}, 'chr1', 'A', ['G', 'T'], 5, 'G1')
     output = str(tmp_path / 'out')
-    read_vars_to_genome_pos_counts(['chr1'], str(tempdir) + '/', output, [['s1'], ['s2']], 1, False, vcfvars)
+    read_vars_to_genome_pos_counts([str(tempdir / 'chr1.txt')], output, [['s1'], ['s2']], 1, False, vcfvars)
     rows = [line.rstrip('\n').split('\t') for line in open(output + '.var.counts.tsv')]
     assert rows == [['varpos', 'ref', 'alt', 'gene', 'transcript', 's1', 's2'],
                     ['chr1:5', 'A', 'G', 'G1', '', '1;1', '2;0'],
                     ['chr1:5', 'A', 'T', 'G1', '', '1;1', '1;1']]
+
+
+def _bam(path, reads):
+    "an unindexed bam of reads, (name, seq, md), as _read makes them"
+    header = {'SQ': [{'SN': 'chr1', 'LN': 1000}]}
+    with pysam.AlignmentFile(str(path), 'wb', header=header) as bam:
+        for read in reads:
+            bam.write(_read(*read))
+    return str(path)
+
+
+SITES_READS = [('g', 'AAAAGAAAAA', '4A5'), ('t', 'AAAATAAAAA', '4A5'), ('ref', 'AAAAAAAAAA', '10')]
+
+
+def _pos_ref(path):
+    "a --pos_ref file of the site chr1:5 A>G,T, as annotate_group_vcf_vars writes it"
+    path.write_text('chr1\t0\t5\tA\tG,T\tG1\n')
+    return str(path)
+
+
+def _quantvarpos(tmp_path, **kwargs):
+    quantvarpos(manifest=None, transcriptome_bam=_bam(tmp_path / 's1.bam', SITES_READS), pos_ref=_pos_ref(tmp_path / 'sites.tsv'),
+                vcf=None, output=str(tmp_path / 'out'), isoform_bed=None, min_coverage=1, output_all=False, **kwargs)
+    return open(tmp_path / 'out.var.counts.tsv').read()
+
+
+def test_a_rerun_to_the_same_output_counts_its_reads_once(tmp_path):
+    # the first run's intermediate files are kept, where the second run puts its own
+    temp_dir = str(tmp_path / 'tmp')
+    first = _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir)
+    assert first.splitlines()[1:] == ['chr1:5\tA\tG\tG1\t\t2;1', 'chr1:5\tA\tT\tG1\t\t2;1']
+    assert _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir) == first
+
+
+def test_samples_read_in_parallel_are_as_read_one_at_a_time(tmp_path):
+    vcfvars = add_vcf_var({}, 'chr1', 'A', ['G', 'T'], 5, 'G1')
+    samples = [[f's{n}', _bam(tmp_path / f's{n}.bam', SITES_READS[n:])] for n in range(3)]
+    results = []
+    for threads in (1, 2):
+        tempdir = tmp_path / f'tmp{threads}'
+        tempdir.mkdir()
+        paths = parse_all_bam_files(samples, str(tempdir) + '/', vcfvars, threads)
+        results.append([open(path).read() for path in paths])
+    assert results[0] == results[1]
+    assert [len(lines.splitlines()) for lines in results[0]] == [3, 2, 1]
+
+
+def test_keeping_intermediate_files_needs_a_temp_dir():
+    args = SimpleNamespace(keep_intermediate=True, temp_dir=None)
+    with pytest.raises(FlairInputDataError, match='--temp_dir'):
+        quantvarpos_cmd(args)
