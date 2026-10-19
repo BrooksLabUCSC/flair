@@ -4,6 +4,7 @@ import os
 import shutil
 import logging
 import math
+from collections import Counter
 from contextlib import ExitStack
 import pysam
 from flair.pycbio.hgdata.bed import BedReader
@@ -16,8 +17,16 @@ compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
             'R': 'Y', 'Y': 'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W',
             'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
 
+# the bases of the ref and alt of an SNV, the only variants counted
+SNV_BASES = frozenset('ACGT')
+
 # genes are binned by the start coordinate of the gene for the variant lookup
 GENE_BIN_SIZE = 10 ** 7
+# variants are binned by position, for the lookup of the variants a read covers
+VAR_BIN_SIZE = 10 ** 6
+
+# a read's allele at a site where it shows none of the site's alts
+NO_ALT = '.'
 
 # a temp record is pos, gene list, status; the gene list is itself a list, so the two
 # need separators that cannot be confused, or the field count varies with gene count
@@ -70,10 +79,8 @@ def extract_sample_data(manifestfile):
     return sampledata
 
 def extract_varinfo(refinfo, alt):
-    chrom, gpos, id, ref = refinfo
-    alt = list(alt)
-    gpos = int(gpos)
-    return chrom, gpos, ref, alt
+    chrom, gpos, ref = refinfo
+    return chrom, int(gpos), ref, sorted(alt)
 
 def get_potential_genes(chrom, gpos, chrregiontogenes):
     """Genes that might contain gpos.  chrregiontogenes is keyed by the bin of each
@@ -147,18 +154,25 @@ def get_bedisoform_info(bedisofile):
         genestoboundaries = add_gene_to_boundaries(genestoboundaries, gene, thischr, dir, start, end)
     return isotoblocks, genetoiso, chrregiontogenes, genestoboundaries
 
-# this is called by extract_vcf_vars
+def var_bin(pos):
+    "the start of the bin of variants pos is in"
+    return math.floor(pos / VAR_BIN_SIZE) * VAR_BIN_SIZE
+
+
 def add_vcf_var(vcfvars, chrom, ref, alts, tpos2, name):
-    roundedpos = math.floor(tpos2 / (10 ** 6)) * 10 ** 6
-    poskey = (chrom, roundedpos)
-    if poskey not in vcfvars:
-        vcfvars[poskey] = {}
-    vcfvars[poskey][tpos2] = (ref, alts, name)
+    vcfvars.setdefault((chrom, var_bin(tpos2)), {})[tpos2] = (ref, alts, name)
     return vcfvars
+
+
+def site_alleles(vcfvars, chrom, pos):
+    "the ref and alts of the site at chrom:pos"
+    ref, alts, _ = vcfvars[(chrom, var_bin(pos))][pos]
+    return ref, alts
+
 
 def get_correct_vcf_vars(vcfvars, refname, startpos, endpos):
     myvcfvars = {}
-    for roundedpos in range(math.floor(startpos / (10 ** 6)) * 10 ** 6, math.ceil(endpos / (10 ** 6)) * 10 ** 6, 10**6):
+    for roundedpos in range(var_bin(startpos), math.ceil(endpos / VAR_BIN_SIZE) * VAR_BIN_SIZE, VAR_BIN_SIZE):
         if (refname, roundedpos) in vcfvars:
             myvcfvars.update(vcfvars[(refname, roundedpos)])
     return myvcfvars
@@ -171,7 +185,7 @@ def _parse_cigar(cigar, alignstart, transcriptvars):
         if block[0] in {0, 7, 8}:  # match, consumes both
             for pos in range(alignstart + ref + 1, alignstart + ref + block[1] + 1):
                 if pos in transcriptvars:
-                    coveredvars[pos] = 0
+                    coveredvars[pos] = NO_ALT
             ref += block[1]
             quer += block[1]
         elif block[0] in {1, 4}:  # consumes query ###1 is insertion
@@ -182,7 +196,8 @@ def _parse_cigar(cigar, alignstart, transcriptvars):
 
 
 def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
-    """for each read, figure out what variants it overlaps with. Then figure out whether it's modified or not at that variant"""
+    """Write the variant sites a read covers to its reference's temp file, each with
+    its genes and the alt the read shows there, or NO_ALT"""
     # check for which vars are covered
     coveredvars = _parse_cigar(s.cigartuples, s.reference_start, vcfvars)
 
@@ -197,20 +212,26 @@ def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
                     # restrict to same mutation from vcf, but not strand specific
                     if (i[2].upper() == ref and readseq[i[0]] == alt) \
                             or (compbase[i[2].upper()] == ref and compbase[readseq[i[0]]] == alt):
-                        coveredvars[i[1] + 1] = 1
+                        coveredvars[i[1] + 1] = alt
 
     if coveredvars:  # for now, only outputting reads that cover var pos
-        coveredvarstrings = [VAR_FIELD_SEP.join([str(v), vcfvars[v][2], str(coveredvars[v])]) for v in coveredvars]
+        coveredvarstrings = [VAR_FIELD_SEP.join([str(v), vcfvars[v][2], coveredvars[v]]) for v in coveredvars]
         tempvarout = temp_files.open(s.reference_name)
         tempvarout.write(
             '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
 
 
-def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata, threshold, output_all):  # noqa: C901 - FIXME: reduce complexity
+def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata,  # noqa: C901 - FIXME: reduce complexity
+                                   threshold, output_all, vcfvars):
+    """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv:
+    per sample, the reads covering the site not showing the alt, and those showing
+    it, so they add up to the site's coverage whatever its other alts.  A row is
+    written if a sample has threshold reads covering the site, and if a sample has a
+    read showing the alt, or output_all"""
     samplenames = [x[0] for x in sampledata]
 
     with open(f'{outprefix}.var.counts.tsv', 'w') as out, open(f'{outprefix}.vargroup.counts.tsv', 'w') as out2:
-        out.write('\t'.join(['varpos', 'gene', 'transcript'] + samplenames) + '\n')
+        out.write('\t'.join(['varpos', 'ref', 'alt', 'gene', 'transcript'] + samplenames) + '\n')
         vartocounts = {}
         vargroup_to_data = {}
         for tf in tempfilenames:
@@ -232,7 +253,8 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
                         varkey = ','.join(varpos)
                         key = (refname, mygene, varkey)
                         # print(allmuts)
-                        modinfo = tuple([int(x[-1]) for x in allmuts])
+                        # modified: showing any of the site's alts
+                        modinfo = tuple(int(x[-1] != NO_ALT) for x in allmuts)
 
                         if key not in vargroup_to_data:
                             vargroup_to_data[key] = []
@@ -241,15 +263,13 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
                     # each mut: position, varname (may be chrom:pos or gene), varstatus
                     sampleindex = int(readname.split('__')[0])
                     for m in allmuts:
-                        varpos = refname + ':' + m[0]
                         # first of the sorted gene list, as before, when a variant falls
                         # in more than one gene
-                        gene = m[1].split(GENE_LIST_SEP)[0]
-                        transcript = ''
-                        var = (varpos, gene, transcript)
+                        var = (refname, int(m[0]), m[1].split(GENE_LIST_SEP)[0])
                         if var not in vartocounts:
-                            vartocounts[var] = [[0, 0] for x in range(len(samplenames))]  # [unmod counts, mod counts]
-                        vartocounts[var][sampleindex][int(m[-1])] += 1
+                            # per sample, the reads covering the site, by the alt they show
+                            vartocounts[var] = [Counter() for x in range(len(samplenames))]
+                        vartocounts[var][sampleindex][m[-1]] += 1
 
         for chrom, gene, varpos in vargroup_to_data:
             readinfo = vargroup_to_data[(chrom, gene, varpos)]
@@ -261,11 +281,17 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
             outline = [chrom, gene, str(len(outmods)), str(totpos), ','.join(outmods), varpos]
             out2.write('\t'.join(outline) + '\n')
 
-        for var in vartocounts:
-            if any([x[0] + x[1] >= threshold for x in vartocounts[var]]) and (any([x[1] > 0 for x in vartocounts[var]]) or output_all):  # any modified reads in any sample
-                varcounts = [f'{x[0]};{x[1]}' for x in vartocounts[var]]
-                outline = list(var) + varcounts
-                out.write('\t'.join(outline) + '\n')
+        transcript = ''
+        for (refname, pos, gene), sample_alleles in vartocounts.items():
+            coverage = [sum(alleles.values()) for alleles in sample_alleles]
+            if not any(cov >= threshold for cov in coverage):
+                continue
+            ref, alts = site_alleles(vcfvars, refname, pos)
+            for alt in alts:
+                modified = [alleles[alt] for alleles in sample_alleles]
+                if any(mod > 0 for mod in modified) or output_all:
+                    varcounts = [f'{cov - mod};{mod}' for cov, mod in zip(coverage, modified)]
+                    out.write('\t'.join([f'{refname}:{pos}', ref, alt, gene, transcript] + varcounts) + '\n')
 
 def retrieve_good_iso_pos(potgenes, genestoboundaries, gpos, genetoiso, isotoblocks):
     for gene in potgenes:
@@ -302,16 +328,38 @@ def group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, gene
         vcfvars = add_vcf_var(vcfvars, chrom, ref, alts, gpos, GENE_LIST_SEP.join(sorted(overlapgenes)))
     return vcfvars
 
+
+def is_snv(ref, alt):
+    "whether a vcf ref and one of its alts are an SNV, which one read base can show"
+    return ref in SNV_BASES and alt in SNV_BASES and alt != ref
+
+
 def combine_vcf_files(vcffilelist):
+    """(chrom, pos, ref) -> the alt bases of the SNVs of the vcf files, of each site's
+    alts in all of them, whatever their IDs.  Each alt of a multi-allelic site is its
+    own SNV, a read showing any of them modified.  Other variants, indels and
+    substitutions of more than one base, are left out with a warning.  A site given
+    different refs is an error: the vcfs aren't of one genome"""
     vartoalt = {}
+    site_refs = {}  # (chrom, pos) -> (ref, the vcf file first giving it)
+    nskipped = 0
     for samplevcf in vcffilelist:
         for line in open(samplevcf):
             if line[0] != '#':
-                line = line.rstrip().split('\t')
-                refinfo, alt = tuple(line[:4]), line[4]
-                if refinfo not in vartoalt:
-                    vartoalt[refinfo] = set()
-                vartoalt[refinfo].add(alt)
+                chrom, pos, _, ref, alts = line.rstrip('\n').split('\t')[:5]
+                ref = ref.upper()
+                first_ref, first_vcf = site_refs.setdefault((chrom, pos), (ref, samplevcf))
+                if ref != first_ref:
+                    raise FlairInputDataError(f'vcf files disagree on the reference base of {chrom}:{pos}: {first_ref} in '
+                                              f'{first_vcf}, {ref} in {samplevcf}; are they called on the same genome?')
+                alts = {alt.upper() for alt in alts.split(',')}
+                snv_alts = {alt for alt in alts if is_snv(ref, alt)}
+                nskipped += len(alts) - len(snv_alts)
+                if snv_alts:
+                    vartoalt.setdefault((chrom, pos, ref), set()).update(snv_alts)
+    if nskipped > 0:
+        logging.warning(f'{nskipped} vcf alleles that are not SNVs (indels or substitutions of more than '
+                        'one base) left out: variantquant counts SNVs only')
     return vartoalt
 
 class TempVarFiles:
@@ -379,22 +427,24 @@ def quantvarpos(*, manifest, transcriptome_bam, pos_ref, vcf, output, isoform_be
         logging.info('done combining vcfs')
         vcfvars = group_annotated_ref_vars(vartoalt, chrregiontogenes, genestoboundaries, genetoiso, isotoblocks)
     else:
+        nskipped = 0
         for line in open(pos_ref):
             line = line.rstrip('\n').split('\t')
-            chrom, region, pos, ref, alt, name = line
-            region, pos = int(region), int(pos)
-            alts = alt.split(',')
-            poskey = (chrom, region)
-            if poskey not in vcfvars:
-                vcfvars[poskey] = {}
-            vcfvars[poskey][pos] = (ref, alts, name)
+            # the file's bin of the position, its second column, is that of add_vcf_var
+            chrom, _, pos, ref, alt, name = line
+            alts = [a for a in alt.split(',') if is_snv(ref, a)]
+            nskipped += len(alt.split(',')) - len(alts)
+            if alts:
+                add_vcf_var(vcfvars, chrom, ref, alts, int(pos), name)
+        if nskipped > 0:
+            logging.warning(f'{nskipped} --pos_ref alleles that are not SNVs left out: variantquant counts SNVs only')
 
     logging.info('done combining vcf variants')
     tempdir = make_temp_dir(output)
     parse_all_bam_files(sampledata, tempdir, vcfvars)  # parses to intermediate files with read name to all vars
     logging.info('parsed all reads')
     genenames = get_genes_from_tempdir(tempdir)
-    read_vars_to_genome_pos_counts(genenames, tempdir, output, sampledata, min_coverage, output_all)
+    read_vars_to_genome_pos_counts(genenames, tempdir, output, sampledata, min_coverage, output_all, vcfvars)
 
     if not keep_intermediate:
         shutil.rmtree(tempdir)
