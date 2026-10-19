@@ -568,9 +568,12 @@ Options
 flair variantquant
 ==================
 
-Quantifies variants at genome positions using reads aligned to the transcriptome.
-Sites to check are named either with a vcf, with a reference position file, or per
-sample through a manifest.
+Counts the reads showing each SNV allele at sites given by a vcf or a ``--pos_ref``
+file, per sample, from reads aligned to the genome: the sites of RNA editing in a
+database such as REDIportal, or the variants called in the samples.  A sample is given
+by ``--bam``, or several by a manifest, either of sample names and bam files, with the
+sites from ``--vcf`` or ``--pos_ref``, or of sample names, bam files and each sample's
+own vcf, whose sites are merged, every sample counted at all of them.
 
 Options
 -------

@@ -4,9 +4,9 @@
 
 .. code-block:: text
 
-   usage: flair variantquant [-h] [--manifest MANIFEST]
-                             [--transcriptome_bam TRANSCRIPTOME_BAM]
-                             [--pos_ref POS_REF] [--vcf VCF] [-o OUTPUT]
+   usage: flair variantquant [-h] (--bam BAM | --manifest MANIFEST)
+                             [--vcf VCF | --pos_ref POS_REF] [--keep_flags FLAGS]
+                             [--sample_name SAMPLE_NAME] [-o OUTPUT]
                              [--isoform_bed ISOFORM_BED]
                              [--min_coverage MIN_COVERAGE] [--output_all]
                              [-t THREADS] [--temp_dir TEMP_DIR]
@@ -14,21 +14,29 @@
 
 .. rubric:: options
 
+.. option:: --bam BAM
+
+   bam file of one sample, aligned to the genome; or give --manifest
+
 .. option:: --manifest MANIFEST
 
-   used instead of --transcriptome_bam and --vcf: path to manifest file that points to sample names, bam files aligned to transcriptome, and vcf vars for that sample called on the genome. Each line of file should be tab separated. If you are using just one reference vcf file, just include it in the third column for the first sample and leave that column blank for the rest.
-
-.. option:: --transcriptome_bam TRANSCRIPTOME_BAM
-
-   used instead of --manifest: path to bam file for an individual sample
-
-.. option:: --pos_ref POS_REF
-
-   either this, --vcf or --manifest: path to reference file of sites to check for variants
+   tab-separated manifest of the samples, a line each: sample name and bam file, aligned to the genome, with --vcf or --pos_ref for the sites, or sample name, bam file and vcf file of the sample's own variants, on every line, whose sites are merged, every sample counted at all of them
 
 .. option:: --vcf VCF
 
-   either this, --pos_ref or --manifest: path to reference vcf file of sites to check for variants
+   vcf file, plain or gzipped, of the sites to count, for all samples. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
+
+.. option:: --pos_ref POS_REF
+
+   file of the sites to count, for all samples, as annotate_group_vcf_vars writes, faster to load than a vcf with --isoform_bed: tab-separated chromosome, the start of the position's 1 Mb bin, 1-based position, ref base, comma-separated alt bases, comma-separated genes
+
+.. option:: --keep_flags FLAGS
+
+   comma-separated vcf FILTER flags whose records are counted too, as RefCall, or all, every record; a record of more than one flag is counted if all of them are given
+
+.. option:: --sample_name SAMPLE_NAME
+
+   the sample's name, with --bam (default: the bam file's name, less .bam)
 
 .. option:: -o OUTPUT, --output OUTPUT
 
@@ -36,15 +44,15 @@
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   path to transcriptome bed file
+   flair isoform bed file, as flair transcriptome writes, of the genes to name the sites of a vcf with: a site is of the genes with an isoform exon over it. Without it, or with --pos_ref, whose sites have their genes, the gene column is empty
 
 .. option:: --min_coverage MIN_COVERAGE
 
-   minimum total read coverage required to output a site (default: 5)
+   minimum reads covering a site, in at least one sample, for its alleles to be written (default: 5)
 
 .. option:: --output_all
 
-   output read counts for all putative RNA editing sites that pass the coverage threshold, regardless of whether any reads are edited
+   write the alleles of every site with --min_coverage, whether or not any read shows them
 
 .. option:: -t THREADS, --threads THREADS
 

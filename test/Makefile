@@ -948,7 +948,7 @@ test-isoalleles: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 
 
 test-variantquant: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
-	flair variantquant --transcriptome_bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
 	$(call cmp_expect_sort,$@.var.counts.tsv)
 
 test-identifyvars-snvs: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}

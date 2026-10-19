@@ -466,6 +466,23 @@
     `--temp_dir`, by default $TMPDIR, removed also when the run fails, and
     `--keep_intermediate` requires `--temp_dir`.
   * `-t/--threads` reads that many samples at once (default 4).
+  * Reads are aligned to the genome: `--transcriptome_bam` is now `--bam`, and the
+    sample of `--bam` is named for its file, or by the new `--sample_name`, not
+    `sample`.  The transcriptome-aligned path was removed earlier.
+  * A manifest is either of sample names and bam files, with the sites from `--vcf`
+    or `--pos_ref`, which it couldn't be used with before, or of sample names, bam
+    files and each sample's own vcf.  One vcf on the first line for all samples, as
+    before, is an error that says to give `--vcf`, as are duplicate sample names and
+    missing files.
+  * Only the records of a vcf whose FILTER is PASS or `.` are sites, so a
+    DeepVariant RefCall is not; a vcf of only its first five columns, as REDIportal's,
+    has all its records counted.  `--keep_flags` counts the records of the FILTER
+    flags given too, as `RefCall`, or `all` every record, as before.  Gzipped vcfs
+    are read.
+  * `--isoform_bed` is optional: without it the gene column is empty.
+  * The bases of the reads at the sites come from their cigars, not their MD tags,
+    which variantquant no longer needs, 6 times faster with the 15.6M sites of
+    REDIportal.  A read is modified where its base is one of the site's alts.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

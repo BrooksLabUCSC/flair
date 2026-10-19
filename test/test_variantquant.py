@@ -1,19 +1,22 @@
 """flair variantquant: the SNVs of vcf files, and the reads showing them"""
+import gzip
 from types import SimpleNamespace
 import pysam
 import pytest
 from flair import FlairInputDataError
 from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, combine_vcf_files, parse_all_bam_files,
                                       parse_single_bam_read, quantvarpos, quantvarpos_cmd, read_bases_at,
-                                      read_vars_to_genome_pos_counts, site_positions, sites_in_span)
+                                      read_vars_to_genome_pos_counts, samples_and_site_vcfs, site_positions,
+                                      sites_in_span)
 
 
-def _vcf(path, *records):
-    "a vcf of records, (chrom, pos, id, ref, alt)"
-    with open(path, 'w') as out:
+def _vcf(path, *records, filters=None, gzipped=False):
+    "a vcf of records, (chrom, pos, id, ref, alt), their FILTERs filters, by default PASS"
+    filters = filters or ['PASS'] * len(records)
+    with (gzip.open if gzipped else open)(path, 'wt') as out:
         out.write('##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
-        for record in records:
-            out.write('\t'.join(record + ('.', 'PASS', '.')) + '\n')
+        for record, vcf_filter in zip(records, filters):
+            out.write('\t'.join(record + ('.', vcf_filter, '.')) + '\n')
     return str(path)
 
 
@@ -116,8 +119,8 @@ def _pos_ref(path):
 
 
 def _quantvarpos(tmp_path, **kwargs):
-    quantvarpos(manifest=None, transcriptome_bam=_bam(tmp_path / 's1.bam', SITES_READS), pos_ref=_pos_ref(tmp_path / 'sites.tsv'),
-                vcf=None, output=str(tmp_path / 'out'), isoform_bed=None, min_coverage=1, output_all=False, **kwargs)
+    quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), pos_ref=_pos_ref(tmp_path / 'sites.tsv'),
+                output=str(tmp_path / 'out'), min_coverage=1, output_all=False, **kwargs)
     return open(tmp_path / 'out.var.counts.tsv').read()
 
 
@@ -143,7 +146,7 @@ def test_samples_read_in_parallel_are_as_read_one_at_a_time(tmp_path):
 
 
 def test_keeping_intermediate_files_needs_a_temp_dir():
-    args = SimpleNamespace(keep_intermediate=True, temp_dir=None)
+    args = SimpleNamespace(keep_intermediate=True, temp_dir=None, sample_name=None, bam='s1.bam')
     with pytest.raises(FlairInputDataError, match='--temp_dir'):
         quantvarpos_cmd(args)
 
@@ -166,3 +169,97 @@ def test_the_sites_of_a_read_crossing_a_bin_are_of_both_bins():
     assert sites_in_span(positions, 'chr1', b - 10, b + 10) == [b - 5, b, b + 1]
     # a read ending at a bin's first position, 1-based, has its site
     assert sites_in_span(positions, 'chr1', VAR_BIN_SIZE - 10, VAR_BIN_SIZE) == [VAR_BIN_SIZE - 5, VAR_BIN_SIZE]
+
+
+def test_only_records_passing_their_filters_are_sites(tmp_path):
+    vcf = _vcf(tmp_path / 's1.vcf', ('chr1', '100', '.', 'A', 'G'), ('chr1', '200', '.', 'A', 'G'),
+               ('chr1', '300', '.', 'A', 'G'), filters=['PASS', 'RefCall', '.'])
+    assert sorted(combine_vcf_files([vcf])) == [('chr1', '100', 'A'), ('chr1', '300', 'A')]
+
+
+def test_a_vcf_of_its_first_five_columns_has_every_record_a_site(tmp_path):
+    # as REDIportal's sites, with no FILTER
+    vcf = tmp_path / 'sites.vcf'
+    vcf.write_text('chr1\t100\t.\tA\tG\nchr1\t200\t.\tT\tC\n')
+    assert sorted(combine_vcf_files([str(vcf)])) == [('chr1', '100', 'A'), ('chr1', '200', 'T')]
+
+
+def test_a_gzipped_vcf_is_read(tmp_path):
+    vcf = _vcf(tmp_path / 's1.vcf.gz', ('chr1', '100', '.', 'A', 'G'), gzipped=True)
+    assert combine_vcf_files([vcf]) == {('chr1', '100', 'A'): {'G'}}
+
+
+def _manifest(tmp_path, *lines):
+    path = tmp_path / 'manifest.tsv'
+    path.write_text(''.join(line + '\n' for line in lines))
+    return str(path)
+
+
+def _files(tmp_path, *names):
+    for name in names:
+        (tmp_path / name).write_text('')
+    return [str(tmp_path / name) for name in names]
+
+
+def test_a_manifest_of_bams_has_its_sites_from_a_vcf(tmp_path):
+    bam1, bam2, vcf = _files(tmp_path, 's1.bam', 's2.bam', 'sites.vcf')
+    manifest = _manifest(tmp_path, '# sample, bam', f's1\t{bam1}', '', f's2\t{bam2}')
+    assert samples_and_site_vcfs(manifest, None, None, None, vcf) == ([['s1', bam1], ['s2', bam2]], [vcf])
+    assert samples_and_site_vcfs(manifest, None, None, 'sites.tsv', None) == ([['s1', bam1], ['s2', bam2]], None)
+    with pytest.raises(FlairInputDataError, match='give --vcf or --pos_ref'):
+        samples_and_site_vcfs(manifest, None, None, None, None)
+
+
+def test_a_manifest_of_each_samples_vcf_takes_no_other_sites(tmp_path):
+    bam1, bam2, vcf1, vcf2 = _files(tmp_path, 's1.bam', 's2.bam', 's1.vcf', 's2.vcf')
+    manifest = _manifest(tmp_path, f's1\t{bam1}\t{vcf1}', f's2\t{bam2}\t{vcf2}')
+    assert samples_and_site_vcfs(manifest, None, None, None, None) == ([['s1', bam1], ['s2', bam2]], [vcf1, vcf2])
+    with pytest.raises(FlairInputDataError, match='--vcf and --pos_ref can not be given'):
+        samples_and_site_vcfs(manifest, None, None, None, vcf1)
+
+
+def test_a_manifest_with_a_vcf_on_some_lines_is_an_error(tmp_path):
+    bam1, bam2, vcf = _files(tmp_path, 's1.bam', 's2.bam', 'sites.vcf')
+    # one vcf for all samples on the first line, as variantquant used to take
+    for lines in ([f's1\t{bam1}\t{vcf}', f's2\t{bam2}'], [f's1\t{bam1}\t{vcf}', f's2\t{bam2}\t']):
+        with pytest.raises(FlairInputDataError, match='give --vcf'):
+            samples_and_site_vcfs(_manifest(tmp_path, *lines), None, None, None, None)
+
+
+def test_a_manifest_naming_a_sample_twice_or_a_missing_file_is_an_error(tmp_path):
+    bam1, = _files(tmp_path, 's1.bam')
+    with pytest.raises(FlairInputDataError, match='more than once: s1'):
+        samples_and_site_vcfs(_manifest(tmp_path, f's1\t{bam1}', f's1\t{bam1}'), None, None, None, 'sites.vcf')
+    with pytest.raises(FlairInputDataError, match=r'manifest.tsv:2: bam file .*s2.bam does not exist'):
+        samples_and_site_vcfs(_manifest(tmp_path, f's1\t{bam1}', f's2\t{tmp_path}/s2.bam'), None, None, None,
+                              'sites.vcf')
+
+
+def test_a_bams_sample_is_named_for_it_or_by_sample_name(tmp_path):
+    bam, = _files(tmp_path, 'ULC0422N.bam')
+    assert samples_and_site_vcfs(None, bam, None, None, 'sites.vcf') == ([['ULC0422N', bam]], ['sites.vcf'])
+    assert samples_and_site_vcfs(None, bam, 'tumor', None, 'sites.vcf') == ([['tumor', bam]], ['sites.vcf'])
+    with pytest.raises(FlairInputDataError, match='give --vcf or --pos_ref'):
+        samples_and_site_vcfs(None, bam, None, None, None)
+
+
+def test_a_vcfs_sites_without_an_isoform_bed_have_no_genes(tmp_path):
+    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '5', '.', 'A', 'G,T'))
+    quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
+                output_all=False, keep_intermediate=False)
+    assert open(tmp_path / 'out.var.counts.tsv').read().splitlines() == [
+        'varpos\tref\talt\tgene\ttranscript\ts1', 'chr1:5\tA\tG\t\t\t2;1', 'chr1:5\tA\tT\t\t\t2;1']
+
+
+def test_records_of_kept_flags_are_sites_too(tmp_path):
+    vcf = _vcf(tmp_path / 's1.vcf', ('chr1', '100', '.', 'A', 'G'), ('chr1', '200', '.', 'A', 'G'),
+               ('chr1', '300', '.', 'A', 'G'), ('chr1', '400', '.', 'A', 'G'),
+               filters=['PASS', 'RefCall', 'NoCall', 'RefCall;LowQual'])
+
+    def sites(keep_flags):
+        return sorted(int(pos) for _, pos, _ in combine_vcf_files([vcf], keep_flags))
+
+    assert sites({'RefCall'}) == [100, 200]
+    # a record of more than one flag needs them all kept
+    assert sites({'RefCall', 'LowQual'}) == [100, 200, 400]
+    assert sites({'all'}) == [100, 200, 300, 400]
