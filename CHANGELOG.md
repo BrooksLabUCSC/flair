@@ -389,6 +389,15 @@
     spliceevents_outliers, whose outliers of the MET samples are the same.  On PC9's
     chr19 and chr17, 6949 events are now 7391: those of rare forms are gone and those
     alike in both samples found.
+  * The skipping junctions of an exon skip, and the junctions of a first or last exon
+    event, are picked as the event's alternatives are, alternative or main in the
+    samples of `--event_support` reads.  They needed a PSI away from 0 and 1 in one
+    sample, of any reads, so an exon included in every read of one sample and none of
+    another was written with no junctions, and a first exon used alone in each sample
+    stopped the run.  An event's main alternative is a row only for its part of the
+    reads of a sample of `--event_support` reads, not of a sample of a few.  A first
+    or last exon whose reads are spread over junctions too small alone includes them
+    all, as its row's name has them; its included junctions were empty.
   * An event is written when its reads are at least `--event_frac_of_tot` of its locus
     reads in some sample.  It also needed a row, not counting an exon skip's
     exclusion, alternative as a part of the locus reads, which only ever dropped exon

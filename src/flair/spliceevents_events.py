@@ -172,21 +172,17 @@ class EventCaller:
         return is_alternative(sample_psis(counts, totals, self.samples, self.thresholds.event_support),
                               self.thresholds.junc_frac_of_event)
 
-    def some_psi_between(self, counts, totals):
-        "is counts, of totals, between junc_frac_of_event and 1 minus it in some sample"
-        frac = self.thresholds.junc_frac_of_event
-        return any(frac <= counts[s] / totals[s] <= 1 - frac for s in self.samples if totals[s] > 0)
-
     def split(self, alternatives, totals):
         """the supported alternatives, key -> reads per sample, of an event: those that
         are alternative, which make it an event, and its main ones, too common to be,
-        but a large part of it in some sample (MIN_MAIN_FRACTION), rows too, and the
-        reads of the rest, its other row"""
+        but a large part of it in some sample with event_support reads
+        (MIN_MAIN_FRACTION), rows too, and the reads of the rest, its other row"""
         alt_rows, main_rows, other = [], [], Counter()
         for key, counts in alternatives.items():
             if self.supported(counts) and self.alternative(counts, totals):
                 alt_rows.append(key)
-            elif self.supported(counts) and any(counts[s] >= MIN_MAIN_FRACTION * totals[s] > 0 for s in self.samples):
+            elif self.supported(counts) and any(counts[s] >= MIN_MAIN_FRACTION * totals[s]
+                                                for s in self.samples if totals[s] >= self.thresholds.event_support):
                 main_rows.append(key)
             else:
                 other += counts
@@ -296,7 +292,7 @@ def exon_skipping_events(caller, info):
             continue
         # the skipping junctions whose inclusion is a large enough part of the event
         good = {outer for outer in exon_outers if caller.supported(info.junc_pairs[_flanking(outer, exon)])
-                and caller.some_psi_between(info.junc_pairs[_flanking(outer, exon)], tot)}
+                and caller.alternative(info.junc_pairs[_flanking(outer, exon)], tot)}
         flanking = {j for outer in good for j in _flanking(outer, exon)}
         event = caller.event('es', *exon, tot)
         events.append(event)
@@ -531,26 +527,27 @@ def terminal_exon_events(caller, eventtype, terminal_exons, juncs, annot_sites):
              if any(site_counts[site][s] / tot[s] >= MIN_TERMINAL_SS_FRACTION for s in caller.samples if tot[s] > 0)]
     if len(major) <= 1 or max(major) - min(major) < MIN_TERMINAL_JUNCTION_SEPARATION:
         return [], set()
-
-    def alternative_juncs(sites):
-        return {junc for site in sites for junc, counts in terminal_exons[site].items()
-                if caller.supported(counts) and caller.some_psi_between(counts, tot)}
-
     rows = alt_rows + main_rows
-    event_juncs = alternative_juncs(rows)
-    # each first or last exon by its introns: those of the event's, or failing that, all its own
-    site_juncs = {site: ({j for j in event_juncs if site in j} or set(terminal_exons[site])) for site in rows}
-    event = caller.event(eventtype, *span([j for js in site_juncs.values() for j in js]), tot)
+    # the rows' junctions that are the event's, alternative or main, as its sites are
+    site_of = {junc: site for site in rows for junc in terminal_exons[site]}
+    alt_juncs, main_juncs, _ = caller.split({junc: terminal_exons[site][junc] for junc, site in site_of.items()}, tot)
+    # each first or last exon by its introns, its row's name and included junctions: its
+    # alternative or main ones, or failing that, as its reads are spread over junctions
+    # too small alone, all its own
+    site_juncs = {site: ({j for j in alt_juncs + main_juncs if site_of[j] == site} or set(terminal_exons[site]))
+                  for site in rows}
+    event_juncs = set().union(*site_juncs.values())
+    event = caller.event(eventtype, *span(event_juncs), tot)
     for site in rows:
         # 100 bases of the exon, on its side of the splice site: upstream of a first exon's, downstream of a last's
         exon_left = lies_left(eventtype == 'afe', caller.strand)
         block = (site - 100, site) if exon_left else (site, site + 100)
-        inc = {j for j in event_juncs if site in j}
-        event.add(coord_ranges(site_juncs[site]), site_counts[site], inc, event_juncs - inc, blocks=[[block]])
+        inc = site_juncs[site]
+        event.add(coord_ranges(inc), site_counts[site], inc, event_juncs - inc, blocks=[[block]])
     caller.keep_other(event, other)
     event.totoverlap = caller.covering((max(j[0] for j in event_juncs), min(j[1] for j in event_juncs)))
-    # the alternative sites' junctions, as an alt5 or alt3 event's are compared
-    return [event], {frozenset(alternative_juncs(alt_rows))}
+    # the alternative sites' alternative junctions, as an alt5 or alt3 event's are compared
+    return [event], {frozenset(j for j in alt_juncs if site_of[j] in alt_rows)}
 
 
 def end_events(caller, eventtype, ends):

@@ -141,7 +141,11 @@ def test_an_exon_skipped_alike_in_every_sample_is_an_event(tmp_path):
 
 def test_an_exon_included_in_one_sample_and_skipped_in_the_other_is_an_event(tmp_path):
     tables, _ = _events(tmp_path, [(INC, 100, 600, 30)], [(EXC, 100, 600, 30)])
-    assert sorted(_of_type(tables, 'es')) == [f'{ES}|exc', f'{ES}|inc']
+    es = _of_type(tables, 'es')
+    assert sorted(es) == [f'{ES}|exc', f'{ES}|inc']
+    # its inclusion by its flanking junctions, and its skipping junction
+    assert es[f'{ES}|inc']['junctions_included'] == 'chr1:201-300,chr1:401-500'
+    assert es[f'{ES}|inc']['outer_junctions'] == 'chr1:201-500'
 
 
 def test_an_exon_skipped_in_too_few_reads_in_every_sample_is_not_an_event(tmp_path):
@@ -224,6 +228,15 @@ def test_an_alternative_alike_in_every_sample_is_a_row_when_a_large_part_of_the_
                                                 'alt3|chr1:201-380(+)|201-380']
 
 
+def test_an_alternative_large_only_in_a_sample_of_too_few_reads_is_other(tmp_path):
+    # the acceptor at 380 is 3 of s2's 16 reads, under event_support, and none of s1's 40
+    tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 10)],
+                        [(NEAR, 100, 600, 5), (FAR, 100, 600, 8), (FARTHER, 100, 600, 3)])
+    alt3 = _of_type(tables, 'alt3')
+    assert sorted(alt3) == ['alt3|chr1:201-350(+)|201-300', 'alt3|chr1:201-350(+)|201-350', 'alt3|chr1:201-350(+)|other']
+    assert alt3['alt3|chr1:201-350(+)|other']['s2'] == '3'
+
+
 def test_alternative_sites_of_too_few_reads_are_not_an_event(tmp_path):
     # the acceptors at 350 and 380, of one read each, vary, but fewer than feature_support
     tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 1)],
@@ -277,6 +290,27 @@ def test_a_junction_of_few_reads_nested_in_a_long_intron_is_not_retained(tmp_pat
     tables, _ = _events(tmp_path, [(long_intron, 100, 600, 40), (nested, 250, 600, 2), (retained, 100, 600, 10)],
                         [(long_intron, 100, 600, 40), (nested, 250, 600, 2), (retained, 100, 600, 30)])
     assert not any(name.startswith('ir|chr1:301-350(+)') for name in _of_type(tables, 'ir'))
+
+
+def test_first_exons_each_used_alone_in_a_sample_are_an_afe_event(tmp_path):
+    # the first exon ending at 200 in s1 only, the one ending at 320 in s2 only
+    first, second = [(200, 400), (500, 600)], [(320, 400), (500, 600)]
+    tables, _ = _events(tmp_path, [(first, 100, 700, 30)], [(second, 250, 700, 30)])
+    afe = _of_type(tables, 'afe')
+    assert sorted(row['alternative'] for row in afe.values()) == ['201-400', '321-400']
+    assert {row['junctions_included'] for row in afe.values()} == {'chr1:201-400', 'chr1:321-400'}
+
+
+def test_a_first_exon_of_junctions_too_small_alone_includes_them_all(tmp_path):
+    # the first exon ending at 120, 4 of 46 reads, spliced to 400 or 403 in 2 each:
+    # alternative as an exon, but neither junction alone
+    first, second = [(200, 400), (500, 600)], [(320, 400), (500, 600)]
+    wobble = [([(120, 400), (500, 600)], 50, 700, 2), ([(120, 403), (500, 600)], 50, 700, 2)]
+    tables, _ = _events(tmp_path, [(first, 100, 700, 30), (second, 250, 700, 10), *wobble],
+                        [(first, 100, 700, 10), (second, 250, 700, 30), *wobble])
+    afe = {row['alternative']: row for row in _of_type(tables, 'afe').values()}
+    assert afe['121-400,121-403']['junctions_included'] == 'chr1:121-400,chr1:121-403'
+    assert 'chr1:121-403' in afe['201-400']['junctions_excluded']
 
 
 def test_first_exons_spliced_to_one_acceptor_are_an_afe_event_not_alt5(tmp_path):
