@@ -389,6 +389,12 @@
     spliceevents_outliers, whose outliers of the MET samples are the same.  On PC9's
     chr19 and chr17, 6949 events are now 7391: those of rare forms are gone and those
     alike in both samples found.
+  * An event is written when its reads are at least `--event_frac_of_tot` of its locus
+    reads in some sample.  It also needed a row, not counting an exon skip's
+    exclusion, alternative as a part of the locus reads, which only ever dropped exon
+    skips whose inclusion was under 5% of the locus reads, however many its reads, as
+    an exon included in 92 and 37 reads.  On PC9's chr19 and chr17, 100 es and 40 ces
+    events more.
   * An ir event's `other` row is the reads of the junctions both of whose splice sites
     are within 100 bases of its own, which don't retain it either and were left out of
     its total, so a junction sharing a site with a stronger one showed retention of

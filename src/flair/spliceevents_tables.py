@@ -5,7 +5,7 @@ import shutil
 from flair.partition_runner import combine_temp_files_by_suffix
 from statistics import median
 from flair.pycbio.hgdata.bed import Bed, BedBlock
-from flair.spliceevents_events import EVENT_COLORS, is_alternative, row_introns, row_name, sample_psis
+from flair.spliceevents_events import EVENT_COLORS, row_introns, row_name
 
 
 def junc_string(chrom, features):
@@ -15,13 +15,9 @@ def junc_string(chrom, features):
 
 def is_expressed(event, samples, thresholds):
     """Is an event expressed enough to write: in some sample, its reads at least
-    event_frac_of_tot of its locus reads, and some row, but an exon skip's exclusion,
-    alternative as a part of the locus reads"""
+    event_frac_of_tot of its locus reads"""
     locus = event.totoverlap
-    if not any(locus[s] > 0 and thresholds.event_frac_of_tot <= event.totjunc[s] / locus[s] for s in samples):
-        return False
-    return any(is_alternative(sample_psis(row.counts, locus, samples, 1), thresholds.junc_frac_of_event)
-               for alternative, row in event.rows.items() if event.eventtype not in ('es', 'ces') or alternative != 'exc')
+    return any(locus[s] > 0 and thresholds.event_frac_of_tot <= event.totjunc[s] / locus[s] for s in samples)
 
 
 class EventTables:

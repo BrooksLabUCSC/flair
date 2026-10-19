@@ -339,6 +339,14 @@ def test_an_event_of_few_of_its_locus_reads_is_not_written(tmp_path):
     assert _of_type(tables, 'es')
 
 
+def test_an_exon_included_in_few_of_its_locus_reads_is_written(tmp_path):
+    # included in 6 of the event's 100 reads, but under junc_frac_of_event of the 130
+    # covering it: an alternative exon, the event 77% of its locus
+    tables, _ = _events(tmp_path, [(INC, 100, 600, 6), (EXC, 100, 600, 94), ([(620, 700)], 150, 800, 30)],
+                        [(INC, 100, 600, 6), (EXC, 100, 600, 94), ([(620, 700)], 150, 800, 30)])
+    assert sorted(_of_type(tables, 'es')) == [f'{ES}|exc', f'{ES}|inc']
+
+
 def test_last_exons_spliced_from_one_donor_are_an_ale_event_not_alt3(tmp_path):
     # from the donor at 400, last exons starting at 500 and 620
     near, far = [(200, 300), (400, 500)], [(200, 300), (400, 620)]
