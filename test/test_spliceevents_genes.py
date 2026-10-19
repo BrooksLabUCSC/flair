@@ -7,11 +7,13 @@ from flair import SeqRange
 from flair.annotation_data import annot_data_from_gtf
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.isoform_data import Isoform, Junc
-from flair.flair_spliceevents import (annotated_genes, novel_genes_of_chains, gene_junctions, group_chains, combine_regions,
-                                      correction_regions, partition_regions, gene_clusters, intergenic_cuts, ReadEnds, ReadChain,
-                                      read_read_chains, write_read_chains, SplicingEvent, event_in_regions,
-                                      annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons, AnnotatedTerminalExon,
-                                      fragment_chains, extract_terminal_info)
+from flair.spliceevents_events import SplicingEvent, extract_terminal_info
+from flair.spliceevents_genes import novel_genes_of_chains, gene_junctions, group_chains
+from flair.spliceevents_reads import (annotated_genes, ReadEnds, ReadChain, read_read_chains, write_read_chains,
+                                      annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons,
+                                      AnnotatedTerminalExon, fragment_chains)
+from flair.spliceevents_regions import (combine_regions, correction_regions, partition_regions, gene_clusters,
+                                        intergenic_cuts, event_in_regions)
 
 # on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle
 # exon, and D and E on -

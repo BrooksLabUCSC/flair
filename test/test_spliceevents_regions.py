@@ -1,6 +1,7 @@
 """flair spliceevents with --region_bed: which events are reported"""
 from flair import SeqRange
-from flair.flair_spliceevents import SplicingEvent, event_in_regions, gene_junction_span
+from flair.spliceevents_events import SplicingEvent
+from flair.spliceevents_regions import event_in_regions, gene_junction_span
 from flair.isoform_data import Junc
 
 REGION = [SeqRange('chr1', 1000, 5000)]

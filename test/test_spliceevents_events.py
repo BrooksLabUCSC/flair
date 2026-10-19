@@ -7,8 +7,10 @@ with 0-based starts, and the tables' rows are keyed by name, event|alternative, 
 """
 import csv
 from flair import SeqRange
-from flair.flair_spliceevents import (process_region_events, psi_varies, extract_terminal_info, group_ends, read_event_genes,
-                                      AnnotatedSplicing, EVENT_ROW_COLUMNS, ReadEnds, ReadChain, Thresholds)
+from flair.spliceevents_events import psi_varies, extract_terminal_info, group_ends, Thresholds
+from flair.spliceevents_genes import process_region_events, read_event_genes, AnnotatedSplicing
+from flair.spliceevents_reads import ReadEnds, ReadChain
+from flair.spliceevents_tables import EVENT_ROW_COLUMNS
 
 SAMPLES = ['s1', 's2', 's3']
 CHROM = 'chr1'
