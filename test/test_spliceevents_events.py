@@ -8,7 +8,7 @@ with 0-based starts, and the tables' rows are keyed by name, event|alternative, 
 import csv
 from flair import SeqRange
 from flair.flair_spliceevents import (process_region_events, psi_varies, extract_terminal_info, group_ends, read_event_genes,
-                                      AnnotatedSplicing, EVENT_ROW_COLUMNS, ReadEnds, ReadChain)
+                                      AnnotatedSplicing, EVENT_ROW_COLUMNS, ReadEnds, ReadChain, Thresholds)
 
 SAMPLES = ['s1', 's2', 's3']
 CHROM = 'chr1'
@@ -24,13 +24,13 @@ def _sample_reads(chains, gene='G1', strand='+'):
 
 def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac_of_tot=0.1,
             junc_frac_of_event=0.02, event_support=20, annot_afe_ss=None, annot_ale_ss=None, annotated=None):
-    """process_gene_to_events on the reads of each sample: the rows of each table, as
+    """process_region_events on the reads of each sample: the rows of each table, as
     {row name: {column: value}}, keyed by table (counts, PSIjunc, PSItot), and the
     totals, as {(event, total): {sample: count}}"""
     samples = SAMPLES[:len(samples_chains)]
     prefix = str(tmp_path / 'region')
     process_region_events(prefix, CHROM, samples, [_sample_reads(chains, strand=strand) for chains in samples_chains],
-                          {}, feature_support, event_frac_of_tot, junc_frac_of_event, event_support,
+                          {}, Thresholds(feature_support, event_frac_of_tot, junc_frac_of_event, event_support),
                           annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], {}, annotated)
     columns = EVENT_ROW_COLUMNS + samples
     tables = {}
@@ -308,8 +308,8 @@ def test_a_chains_first_and_last_exons_and_ends_follow_its_strand():
 
 def test_read_ends_within_the_window_of_the_next_are_counted_at_their_median():
     ends = [(100, 's1'), (150, 's2'), (190, 's1'), (400, 's2')]
-    assert group_ends(ends, ['s1', 's2'], 100) == {150: {'s1': 2, 's2': 1}, 400: {'s1': 0, 's2': 1}}
-    assert group_ends([], ['s1'], 100) == {}
+    assert group_ends(ends, 100) == {150: {'s1': 2, 's2': 1}, 400: {'s2': 1}}
+    assert group_ends([], 100) == {}
 
 
 def _annotated(gene_introns, strand='+', num_transcripts=None):

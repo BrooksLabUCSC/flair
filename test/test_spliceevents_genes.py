@@ -9,7 +9,7 @@ from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.isoform_data import Isoform, Junc
 from flair.flair_spliceevents import (annotated_genes, novel_genes_of_chains, gene_junctions, group_chains, combine_regions,
                                       correction_regions, partition_regions, gene_clusters, intergenic_cuts, ReadEnds, ReadChain,
-                                      read_read_chains, write_read_chains, SplicingEvent, SplicingEventJunction, event_in_regions,
+                                      read_read_chains, write_read_chains, SplicingEvent, event_in_regions,
                                       annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons, AnnotatedTerminalExon,
                                       fragment_chains, extract_terminal_info)
 
@@ -168,8 +168,8 @@ def test_the_first_piece_owns_the_reads_starting_before_the_region(tmp_path):
 
 
 def test_a_cut_regions_events_are_reported_by_the_piece_they_start_in():
-    event = SplicingEvent('ir|chr1:3001-3500(+)', 'ir', 'A', 'chr1', '+', {}, [])
-    event.events['spliced'] = SplicingEventJunction('spliced', [], {}, {(3000, 3500)}, set())
+    event = SplicingEvent('ir|chr1:3001-3500(+)', 'ir', 'chr1', '+', {}, 'A')
+    event.add('spliced', {}, [(3000, 3500)], ())
     region = [SeqRange('chr1', 0, 10000)]
     assert event_in_regions(event, region, None)
     assert event_in_regions(event, region, None, SeqRange('chr1', 800, 3250))
