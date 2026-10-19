@@ -226,6 +226,9 @@ MIN_TERMINAL_SS_FRACTION = 0.1
 
 # read ends within this of the next are one start or end
 END_GROUP_WINDOW = 100
+# junctions both of whose splice sites are within this of a retained intron's, as a
+# copy of it shifted by an aligner, are the other row of its ir event
+IR_NEAR_JUNCTION_WINDOW = 100
 
 
 # a cluster's splicing, reads per sample: of each junction, of each 3' splice site by
@@ -422,19 +425,37 @@ def shared_site_events(caller, eventtype, groups):
     return events
 
 
+def _overlapping(juncs, junc):
+    "the junctions of juncs, sorted, overlapping junc, but junc"
+    return [k for k in juncs[:bisect_left(juncs, (junc[1],))] if k != junc and junc[0] < k[1]]
+
+
 def intron_retention_events(caller, info):
-    "Retained introns (ir): each junction's reads, and those of the blocks containing it"
+    """Retained introns (ir): each junction's reads, those of the blocks containing it,
+    and those of the junctions near it (IR_NEAR_JUNCTION_WINDOW), its other row, which
+    don't retain it either.  Only a junction of at least junc_frac_of_event of all the
+    reads over it in some sample, those of every junction overlapping it too, so a
+    junction of few reads, nested in a long intron or a shifted copy of one, doesn't
+    take the reads retaining its region"""
     events = []
+    juncs = sorted(info.juncs)
     for junc, spliced in info.juncs.items():
         retained = total([counts for block, counts in info.blocks.items() if block[0] < junc[0] and junc[1] < block[1]])
-        tot = spliced + retained
-        if caller.supported(spliced) and caller.supported(retained) and caller.alternative(retained, tot):
-            event = caller.event('ir', *junc, tot)
-            events.append(event)
-            event.introns = {junc}
-            event.add('spliced', spliced, [junc], (), blocks=[junction_blocks(junc)])
-            event.add('retained', retained, (), [junc], blocks=[[junc]])
-            event.totoverlap = caller.covering(junc)
+        overlapping = _overlapping(juncs, junc)
+        near = [k for k in overlapping
+                if abs(k[0] - junc[0]) <= IR_NEAR_JUNCTION_WINDOW and abs(k[1] - junc[1]) <= IR_NEAR_JUNCTION_WINDOW]
+        other = total([info.juncs[k] for k in near])
+        tot = spliced + retained + other
+        if not (caller.supported(spliced) and caller.supported(retained) and caller.alternative(retained, tot)
+                and caller.alternative(spliced, spliced + retained + total([info.juncs[k] for k in overlapping]))):
+            continue
+        event = caller.event('ir', *junc, tot)
+        events.append(event)
+        event.introns = {junc, *near}
+        event.add('spliced', spliced, [junc], (), blocks=[junction_blocks(junc)])
+        event.add('retained', retained, (), [junc], blocks=[[junc]])
+        caller.keep_other(event, other)
+        event.totoverlap = caller.covering(junc)
     return events
 
 

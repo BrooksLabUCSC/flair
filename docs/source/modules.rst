@@ -459,7 +459,12 @@ events:
    exon with alternative splice sites
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
    splice sites shared by a group of junctions (alt5ss, alt3ss)
- - intron retention (ir)
+ - intron retention (ir): a junction's reads against the reads with an exon across it,
+   and in its ``other`` row the reads of junctions both of whose splice sites are
+   within 100 bases of its own, which don't retain it either.  A junction with under
+   ``--junc_frac_of_event`` of all the reads over it in every sample, those of every
+   junction overlapping it too, is none, as a shifted copy of an intron or a junction
+   of few reads nested in a long one, whose retained reads are the long intron's
  - alternative first and last exons (afe, ale): only exons whose junction reads,
    over all samples together, rarely have an exon before (or after) them count, as
    a truncated read makes an internal exon look like a first or last one

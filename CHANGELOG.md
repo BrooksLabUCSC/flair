@@ -389,6 +389,15 @@
     spliceevents_outliers, whose outliers of the MET samples are the same.  On PC9's
     chr19 and chr17, 6949 events are now 7391: those of rare forms are gone and those
     alike in both samples found.
+  * An ir event's `other` row is the reads of the junctions both of whose splice sites
+    are within 100 bases of its own, which don't retain it either and were left out of
+    its total, so a junction sharing a site with a stronger one showed retention of
+    45% for 8%.  A junction with under `--junc_frac_of_event` of all the reads over it
+    in every sample, those of every junction overlapping it too, is no ir event: a
+    copy of an intron shifted by a few bases, or a junction of few reads nested in a
+    long intron, took the reads retaining its region as its own.  On PC9's chr19 and
+    chr17, 922 ir events are now 850, and those of a junction under a tenth of an
+    overlapping one's reads went from 96 to 38.
   * An event's main alternative is a row of its own when it has a tenth of the event's
     reads in some sample.  It was in the `other` row, as much as 97% of the event's
     reads.  On PC9's chr19 and chr17, 392 events had more than half their reads in

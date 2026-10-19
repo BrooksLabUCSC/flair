@@ -251,6 +251,34 @@ def test_an_intron_inside_another_reads_exon_is_retained(tmp_path):
     assert ir['ir|chr1:201-300(+)|retained']['s1'] == '10'
 
 
+def test_an_ir_events_other_row_is_the_junctions_near_its_own(tmp_path):
+    # the acceptor at 320 too: its reads don't retain 200-300 either
+    spliced, near, retained = [(200, 300), (400, 500)], [(200, 320), (400, 500)], [(400, 500)]
+    tables, _ = _events(tmp_path, [(spliced, 100, 600, 30), (near, 100, 600, 10), (retained, 100, 600, 10)],
+                        [(spliced, 100, 600, 10), (near, 100, 600, 30), (retained, 100, 600, 10)])
+    other = _of_type(tables, 'ir')['ir|chr1:201-300(+)|other']
+    assert (other['s1'], other['s2']) == ('10', '30')
+
+
+def test_a_shifted_copy_of_an_intron_of_few_reads_is_not_retained(tmp_path):
+    # 206-306, 2 reads in each sample, is under junc_frac_of_event of the reads over it
+    spliced, shifted, retained = [(200, 300), (400, 500)], [(206, 306), (400, 500)], [(400, 500)]
+    tables, _ = _events(tmp_path, [(spliced, 100, 600, 30), (shifted, 100, 600, 2), (retained, 100, 600, 10)],
+                        [(spliced, 100, 600, 10), (shifted, 100, 600, 2), (retained, 100, 600, 30)])
+    ir = _of_type(tables, 'ir')
+    assert not any(name.startswith('ir|chr1:207-306(+)') for name in ir)
+    assert (ir['ir|chr1:201-300(+)|other']['s1'], ir['ir|chr1:201-300(+)|other']['s2']) == ('2', '2')
+
+
+def test_a_junction_of_few_reads_nested_in_a_long_intron_is_not_retained(tmp_path):
+    # 300-350, 2 reads in each sample, inside the intron 200-500 of 40: under
+    # junc_frac_of_event of the reads over it, though its sites are far from the long one's
+    long_intron, nested, retained = [(200, 500)], [(300, 350), (400, 500)], [(400, 500)]
+    tables, _ = _events(tmp_path, [(long_intron, 100, 600, 40), (nested, 250, 600, 2), (retained, 100, 600, 10)],
+                        [(long_intron, 100, 600, 40), (nested, 250, 600, 2), (retained, 100, 600, 30)])
+    assert not any(name.startswith('ir|chr1:301-350(+)') for name in _of_type(tables, 'ir'))
+
+
 def test_first_exons_spliced_to_one_acceptor_are_an_afe_event_not_alt5(tmp_path):
     # first exons ending at 200 and 320, 120 apart, both spliced to 400
     first, second = [(200, 400), (500, 600)], [(320, 400), (500, 600)]
