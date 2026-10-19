@@ -83,6 +83,16 @@ def test_alternative_site_much_better_than_its_exon_skip_is_kept():
     assert kept == [alt3, es]
 
 
+def test_alternative_site_explained_by_one_of_its_events_is_filtered_whatever_the_others():
+    # a complex exon skip of two exons, between the same outer sites, also holds the
+    # alt3's junctions but has no outlier of s6: the exon skip still explains it
+    ces = (frozenset({'chr1:100-200', 'chr1:250-300', 'chr1:350-400'}), frozenset(), frozenset({'chr1:100-400'}))
+    es, alt3 = _line('es', 's6', 20), _line('alt3', 's6', 18)
+    ces_line = _line('ces', 's5', 20)
+    kept = filter_outliers({'es': {ES: {'s6': es}}, 'ces': {ces: {'s5': ces_line}}, 'alt3': {ALT3: {'s6': alt3}}})
+    assert kept == [es, ces_line]
+
+
 def test_alternative_site_sharing_no_event_junctions_is_kept():
     # an alt5 of other junctions than the exon skip's
     alt5 = (frozenset({'chr1:500-600'}), frozenset({'chr1:550-600'}), frozenset())
@@ -101,6 +111,15 @@ def test_starts_and_ends_are_left_out_of_the_filtered_outliers():
 def test_an_unknown_event_type_is_an_error():
     with pytest.raises(ValueError):
         filter_outliers({'new': {ES: {'s6': _line('new', 's6', 20)}}})
+
+
+def test_complex_exon_skip_is_compared_with_the_exon_skips_inclusion_row():
+    # by PSItot, an exon skip's rows needn't mirror each other: the exclusion row
+    # has an outlier of s6, the inclusion row, the complex skip's match, has none
+    es_exc_juncs = (frozenset(), ES[0], ES[2])
+    es_exc, ces = _line('es', 's6', 20), _line('ces', 's6', 18)
+    kept = filter_outliers({'es': {ES: {}, es_exc_juncs: {'s6': es_exc}}, 'ces': {CES: {'s6': ces}}})
+    assert kept == [es_exc, ces]
 
 
 def test_filtered_outliers_are_more_than_six_deviations_out():

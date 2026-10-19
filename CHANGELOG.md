@@ -372,6 +372,12 @@
     junctions, not of its gene, and reads only tables with `novel_junctions`.
     Starts and ends (tss, tts) are left out of its filtered outliers, as before,
     which is now documented: their outliers are mostly false positives.
+  * spliceevents_outliers filters an alternative splice site's outlier that any of
+    the events that may explain it explains as well.  It was kept when it beat one
+    of them, so a complex exon skip without an outlier of the sample kept an alt5
+    or alt3 that an exon skip explained.
+    A complex exon skip is compared with an exon skip's inclusion row, the row it
+    matches, not its exclusion row, which differ with `--psi tot`.
   * The starts, ends, first and last exons of an annotated gene of one exon, whose
     reads splice inside it, were reported only when its chromosome was neither cut
     nor given by `--region_bed`: the gene had no junctions to place it.  It is
