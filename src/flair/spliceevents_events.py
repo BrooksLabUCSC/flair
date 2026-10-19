@@ -8,6 +8,10 @@ from collections import namedtuple, Counter
 
 # the thresholds of event calling, from the command line
 Thresholds = namedtuple('Thresholds', ('feature_support', 'event_frac_of_tot', 'junc_frac_of_event', 'event_support'))
+# an alternative whose PSI doesn't vary is a row of its event, not part of its other
+# row, when it has this part of the event's reads in some sample, as the main
+# alternative often does
+MIN_STEADY_FRACTION = 0.1
 
 
 def thresholds_of(args):
@@ -116,7 +120,7 @@ EventRow = namedtuple('EventRow', ('counts', 'inc_juncs', 'exc_juncs', 'outer_ju
 class SplicingEvent:
     """An event: its rows, EventRows by alternative, its reads per sample (totjunc),
     the reads covering its locus (totoverlap), and the reads of its other row, those
-    of the alternatives too rare or invariant to be rows"""
+    of the alternatives too rare, or invariant and too small a part of it, to be rows"""
     def __init__(self, name, eventtype, chrom, strand, totjunc, gene=''):
         self.name = name
         self.eventtype = eventtype
@@ -176,16 +180,20 @@ class EventCaller:
         frac = self.thresholds.junc_frac_of_event
         return any(frac <= counts[s] / totals[s] <= 1 - frac for s in self.samples if totals[s] > 0)
 
-    def split(self, alternatives, totals, need_support=True):
-        """the alternatives, key -> reads per sample, of an event, which vary and, with
-        need_support, are supported, and the reads of the rest, its other row"""
-        good, other = [], Counter()
+    def split(self, alternatives, totals):
+        """the supported alternatives, key -> reads per sample, of an event: those that
+        vary, which make it an event, and those that don't but are a large part of it
+        in some sample (MIN_STEADY_FRACTION), rows too, and the reads of the rest, its
+        other row"""
+        varying, steady, other = [], [], Counter()
         for key, counts in alternatives.items():
-            if (not need_support or self.supported(counts)) and self.varies(counts, totals):
-                good.append(key)
+            if self.supported(counts) and self.varies(counts, totals):
+                varying.append(key)
+            elif self.supported(counts) and any(counts[s] >= MIN_STEADY_FRACTION * totals[s] > 0 for s in self.samples):
+                steady.append(key)
             else:
                 other += counts
-        return good, other
+        return varying, steady, other
 
     def event(self, eventtype, start, end, totals):
         return SplicingEvent(event_name(eventtype, self.chrom, start, end, self.strand), eventtype, self.chrom,
@@ -314,16 +322,17 @@ def complex_skipping_events(caller, info, es_juncs, seen):
         tot = total([exc, *inner_counts.values()])
         if not (caller.supported(exc) and caller.varies(exc, tot)):
             continue
-        good, other = caller.split(inner_counts, tot)
-        inner_juncs = set().union(*good)
-        if not good or frozenset(inner_juncs | {outer}) in seen:
+        varying, steady, other = caller.split(inner_counts, tot)
+        if not varying or frozenset(set().union(*varying) | {outer}) in seen:
             continue
+        rows = varying + steady
+        inner_juncs = set().union(*rows)
         event = caller.event('ces', *outer, tot)
         events.append(event)
         event.introns = {outer}.union(*inner_counts)
-        exons = {exon for inner in good for exon in internal_exons(inner)}
+        exons = {exon for inner in rows for exon in internal_exons(inner)}
         event.add('exc', exc, (), inner_juncs, [outer], exons, [junction_blocks(outer)])
-        for inner in good:
+        for inner in rows:
             inner_exons = internal_exons(inner)
             event.add(coord_ranges(inner_exons), inner_counts[inner], inner, inner_juncs - set(inner), [outer], inner_exons,
                       [junction_blocks(outer, inner_exons)])
@@ -360,27 +369,28 @@ def alternative_site_events(caller, eventtype, site_alternatives, es_juncs, term
         if len(alternatives) <= 1:
             continue
         tot = total(alternatives.values())
-        good, other = caller.split(alternatives, tot, need_support=False)
-        juncs = {junc_between(site, alt) for alt in good}
-        if frozenset(juncs) in terminal_juncs:
+        varying, steady, other = caller.split(alternatives, tot)
+        if frozenset(junc_between(site, alt) for alt in varying) in terminal_juncs:
             continue
-        if len(good) > 1:
-            groups.setdefault(frozenset(good), {})[site] = tot
+        if len(varying) > 1:
+            groups.setdefault(frozenset(varying), {})[site] = tot
         # only if alternative splicing, not counting the reads of junctions skipping exons
-        own = [alt for alt in good if _apart_from_skipping(caller, site, alt, alternatives, es_juncs)]
+        own = [alt for alt in varying if _apart_from_skipping(caller, site, alt, alternatives, es_juncs)]
         if len(own) <= 1 or not caller.supported(tot, caller.thresholds.event_support):
             continue
+        rows = varying + steady
+        juncs = {junc_between(site, alt) for alt in rows}
         # from the shared site to the furthest alternative one, so unique to the shared site
         start, end = span(juncs)
         event = caller.event(eventtype, start, end, tot)
         events.append(event)
         event.introns = {junc_between(site, alt) for alt in alternatives}
-        for alt in good:
+        for alt in rows:
             junc = junc_between(site, alt)
             event.add(coord_ranges([junc]), alternatives[alt], [junc], juncs - {junc}, blocks=[[junc]])
         caller.keep_other(event, other)
         # all the alternative sites lie on the same side of the shared one
-        event.totoverlap = caller.covering((site, min(good)) if site < min(good) else (max(good), site))
+        event.totoverlap = caller.covering((site, min(rows)) if site < min(rows) else (max(rows), site))
     return events, groups
 
 
@@ -392,23 +402,24 @@ def shared_site_events(caller, eventtype, groups):
         tot = total(site_totals.values())
         if len(site_totals) <= 1 or not caller.supported(tot, caller.thresholds.event_support):
             continue
-        good, other = caller.split(site_totals, tot, need_support=False)
-        if len(good) <= 1:
+        varying, steady, other = caller.split(site_totals, tot)
+        if len(varying) <= 1:
             continue
-        juncs = {junc_between(site, alt) for site in good for alt in alts}
+        rows = varying + steady
+        juncs = {junc_between(site, alt) for site in rows for alt in alts}
         # unique: each site is in one group, and the event ends at its outermost site
         start, end = span(juncs)
         event = caller.event(eventtype, start, end, tot)
         events.append(event)
         event.introns = {junc_between(site, alt) for site in site_totals for alt in alts}
-        for site in good:
+        for site in rows:
             inc = {junc_between(site, alt) for alt in alts}
             # 10 bases of the exon, on its side of the site: upstream of a 5' site, downstream of a 3' one
             exon_left = lies_left(eventtype == 'alt5ss', caller.strand)
             block = (site - 10, site) if exon_left else (site, site + 10)
             event.add(coord_ranges(inc), site_totals[site], inc, juncs - inc, blocks=[[block]])
         caller.keep_other(event, other)
-        event.totoverlap = caller.covering((max(good), min(alts)) if median(good) < median(alts) else (max(alts), min(good)))
+        event.totoverlap = caller.covering((max(rows), min(alts)) if median(rows) < median(alts) else (max(alts), min(rows)))
     return events
 
 
@@ -494,18 +505,23 @@ def terminal_exon_events(caller, eventtype, terminal_exons, juncs, annot_sites):
     tot = total(site_counts.values())
     if len(site_counts) <= 1 or not caller.supported(tot, caller.thresholds.event_support):
         return [], set()
-    good, other = caller.split(site_counts, tot)
+    varying, steady, other = caller.split(site_counts, tot)
     # the sites of a large enough part of the reads, far enough apart
-    major = [site for site in good
+    major = [site for site in varying
              if any(site_counts[site][s] / tot[s] >= MIN_TERMINAL_SS_FRACTION for s in caller.samples if tot[s] > 0)]
     if len(major) <= 1 or max(major) - min(major) < MIN_TERMINAL_JUNCTION_SEPARATION:
         return [], set()
-    event_juncs = {junc for site in good for junc, counts in terminal_exons[site].items()
-                   if caller.supported(counts) and caller.some_psi_between(counts, tot)}
+
+    def alternative_juncs(sites):
+        return {junc for site in sites for junc, counts in terminal_exons[site].items()
+                if caller.supported(counts) and caller.some_psi_between(counts, tot)}
+
+    rows = varying + steady
+    event_juncs = alternative_juncs(rows)
     # each first or last exon by its introns: those of the event's, or failing that, all its own
-    site_juncs = {site: ({j for j in event_juncs if site in j} or set(terminal_exons[site])) for site in good}
+    site_juncs = {site: ({j for j in event_juncs if site in j} or set(terminal_exons[site])) for site in rows}
     event = caller.event(eventtype, *span([j for js in site_juncs.values() for j in js]), tot)
-    for site in good:
+    for site in rows:
         # 100 bases of the exon, on its side of the splice site: upstream of a first exon's, downstream of a last's
         exon_left = lies_left(eventtype == 'afe', caller.strand)
         block = (site - 100, site) if exon_left else (site, site + 100)
@@ -513,7 +529,8 @@ def terminal_exon_events(caller, eventtype, terminal_exons, juncs, annot_sites):
         event.add(coord_ranges(site_juncs[site]), site_counts[site], inc, event_juncs - inc, blocks=[[block]])
     caller.keep_other(event, other)
     event.totoverlap = caller.covering((max(j[0] for j in event_juncs), min(j[1] for j in event_juncs)))
-    return [event], {frozenset(event_juncs)}
+    # the varying sites' junctions, as an alt5 or alt3 event's are compared
+    return [event], {frozenset(alternative_juncs(varying))}
 
 
 def end_events(caller, eventtype, ends):
@@ -521,13 +538,13 @@ def end_events(caller, eventtype, ends):
     tot = total(ends.values())
     if not caller.supported(tot, caller.thresholds.event_support):
         return []
-    good, other = caller.split(ends, tot)
-    if len(good) <= 1:
+    varying, steady, other = caller.split(ends, tot)
+    if len(varying) <= 1:
         return []
     # the 1-based position of each end's base: the reads' starts are 0-based, on +
     # their tss and on - their tts
     from_starts = lies_left(eventtype == 'tss', caller.strand)
-    positions = {end: end + 1 if from_starts else end for end in good}
+    positions = {end: end + 1 if from_starts else end for end in varying + steady}
     event = caller.event(eventtype, min(positions.values()) - 1, max(positions.values()), tot)
     # all the reads of a start or end are the gene's, so its locus is the event
     event.totoverlap = tot

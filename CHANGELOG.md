@@ -378,6 +378,15 @@
     or alt3 that an exon skip explained.
     A complex exon skip is compared with an exon skip's inclusion row, the row it
     matches, not its exclusion row, which differ with `--psi tot`.
+  * An event's alternative whose PSI doesn't vary across the samples is a row of its own
+    when it has a tenth of the event's reads in some sample.  It was in the `other`
+    row, which so held an event's main alternative, as much as 97% of its reads.  On
+    PC9's chr19 and chr17, 392 events had more than half their reads in `other`, now
+    29, all tss and tts, whose `other` gathers many small ends.  Whether an event is
+    found doesn't change, but its name spans its new rows.
+  * alt5, alt3, alt5ss and alt3ss alternatives need `--feature_support` reads, as
+    other events' do: a junction of one read made an event, if its PSI varied.  On
+    PC9's chr19 and chr17, 1985 alt5 and alt3 events are now 1550.
   * The starts, ends, first and last exons of an annotated gene of one exon, whose
     reads splice inside it, were reported only when its chromosome was neither cut
     nor given by `--region_bed`: the gene had no junctions to place it.  It is

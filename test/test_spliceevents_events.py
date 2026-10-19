@@ -194,6 +194,34 @@ def test_the_same_junctions_on_minus_are_an_alt5_event(tmp_path):
     assert _of_type(tables, 'alt3') == {}
 
 
+FARTHER = [(200, 380), (400, 500)]
+
+
+def test_an_alternative_alike_in_every_sample_is_a_row_when_a_large_part_of_the_event(tmp_path):
+    # the acceptor at 300, half the reads in both samples, doesn't vary but is a row
+    tables, _ = _events(tmp_path, [(NEAR, 100, 600, 50), (FAR, 100, 600, 30), (FARTHER, 100, 600, 20)],
+                        [(NEAR, 100, 600, 50), (FAR, 100, 600, 10), (FARTHER, 100, 600, 40)])
+    assert sorted(_of_type(tables, 'alt3')) == ['alt3|chr1:201-380(+)|201-300', 'alt3|chr1:201-380(+)|201-350',
+                                                'alt3|chr1:201-380(+)|201-380']
+
+
+def test_alternative_sites_of_too_few_reads_are_not_an_event(tmp_path):
+    # the acceptors at 350 and 380, of one read each, vary, but fewer than feature_support
+    tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 1)],
+                        [(NEAR, 100, 600, 30), (FARTHER, 100, 600, 1)])
+    assert _of_type(tables, 'alt3') == {}
+
+
+def test_a_ces_inclusion_alike_in_every_sample_is_a_row_when_a_large_part_of_the_event(tmp_path):
+    # the first exon included alone, 30% of the reads in both samples, doesn't vary
+    first_only = [(200, 300), (400, 700)]
+    tables, _ = _events(tmp_path, [(INC2, 100, 800, 40), (first_only, 100, 800, 30), (EXC2, 100, 800, 30)],
+                        [(INC2, 100, 800, 20), (first_only, 100, 800, 30), (EXC2, 100, 800, 50)])
+    assert _ces_counts(tables) == {'exc': {'s1': '30', 's2': '50'},
+                                   '301-400,501-600': {'s1': '40', 's2': '20'},
+                                   '301-400': {'s1': '30', 's2': '30'}}
+
+
 def test_an_intron_inside_another_reads_exon_is_retained(tmp_path):
     # the retaining reads are spliced downstream, as single-exon reads are left out
     spliced, retained = [(200, 300), (400, 500)], [(400, 500)]
@@ -419,10 +447,10 @@ def test_a_rows_introns_not_in_the_annotation_are_its_novel_junctions(tmp_path):
 
 def test_an_events_gene_counts_the_introns_of_its_other_row(tmp_path):
     # alt3 from the donor at 200 to 300 and 350, varying, and to 380 alike in both
-    # samples, in its other row.  Of 200-300 and 200-350, GX and GY score 3 each; with
-    # 200-380, which only GX has, GX 5 and GY 4
-    s1 = [([(200, 300)], 100, 400, 30), ([(200, 350)], 100, 400, 10), ([(200, 380)], 100, 400, 20)]
-    s2 = [([(200, 300)], 100, 400, 10), ([(200, 350)], 100, 400, 30), ([(200, 380)], 100, 400, 20)]
+    # samples and under MIN_STEADY_FRACTION of the reads, in its other row.  Of 200-300
+    # and 200-350, GX and GY score 3 each; with 200-380, which only GX has, GX 5 and GY 4
+    s1 = [([(200, 300)], 100, 400, 30), ([(200, 350)], 100, 400, 10), ([(200, 380)], 100, 400, 3)]
+    s2 = [([(200, 300)], 100, 400, 10), ([(200, 350)], 100, 400, 30), ([(200, 380)], 100, 400, 3)]
     annotated = _annotated({'GX': [(200, 300), (200, 380)], 'GY': [(200, 350)]})
     tables, _ = _events(tmp_path, s1, s2, junc_frac_of_event=0.2, annotated=annotated)
     alt3 = _of_type(tables, 'alt3')
