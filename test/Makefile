@@ -1065,7 +1065,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 # flair spliceevents
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region \
-		test-spliceevents-restart
+		test-spliceevents-region-partition test-spliceevents-nopartition test-spliceevents-restart
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out
@@ -1105,6 +1105,19 @@ test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed -o $O/$@
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
+
+# --region_bed regions cut in intergenic gaps, as whole chromosomes are by default,
+# give the region's events
+test-spliceevents-region-partition: mkdirs ${BASIC_ALIGN_BAM}
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed --partition yes -o $O/$@
+	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
+	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.PSIjunc.tsv) <(sed 1d $O/$@.spliceevents.PSIjunc.tsv)
+
+# whole chromosomes, not cut, give the events of the cut ones
+test-spliceevents-nopartition: mkdirs ${BASIC_ALIGN_BAM}
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition no -o $O/$@
+	for s in bed counts.tsv PSIjunc.tsv PSItot.tsv totals.tsv; do \
+	    diff <(sort $E/test-spliceevents.spliceevents.$$s) <(sort $O/$@.spliceevents.$$s) || exit 1; done
 
 # a rerun with --keep_intermediate corrects only the samples without their corrected
 # reads, here the one whose file is removed, and gives the same tables
