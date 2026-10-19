@@ -3,10 +3,17 @@
 Outlier samples of flair spliceevents' events: samples whose PSI of an event row is
 far from the median of all samples', from OUTPUT.spliceevents.counts.tsv and
 OUTPUT.spliceevents.totals.tsv.
+
+NOTE: the outliers of starts and ends (tss and tts) are left out of the filtered
+table, OUTPUT.spliceevents.outliers.filtered.tsv, on purpose: their events, from
+read ends, give far too many false positive outliers.  They are still in the
+table of every outlier.  When start and end events improve, add them to
+SIMPLE_EVENTS and take them out of LEFT_OUT_EVENTS.
 """
 import argparse
 import csv
 from collections import defaultdict
+from itertools import product
 from statistics import median
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
@@ -25,8 +32,8 @@ BETTER_DEVIATION_FRACTION = 0.8
 # no deviation, the samples' PSIs equal but this one's
 NO_DEVIATION = 100000
 
-OUTLIER_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'gene_name', 'additional_genes', 'additional_gene_names', 'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val',
-                   'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
+OUTLIER_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'gene_name', 'additional_genes', 'additional_gene_names',
+                   'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val', 'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
 # the denominator of each PSI, a row of the totals table
 PSI_TOTALS = {'junc': 'event_reads', 'tot': 'locus_reads'}
 
@@ -41,7 +48,8 @@ def build_parser():
     parser.add_argument('-o', '--output', required=True,
                         help='output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and '
                              f'OUTPUT.spliceevents.outliers.filtered.tsv, those more than {FILTERED_MIN_DEVIATIONS} '
-                             'deviations from the median and not explained by a simpler event')
+                             'deviations from the median and not explained by a simpler event, without starts and '
+                             'ends (tss, tts), whose outliers are mostly false positives')
     parser.add_argument('--psi', choices=sorted(PSI_TOTALS), default='junc',
                         help="the PSI to call outliers of: 'junc', of the event's reads (PSIjunc), more sensitive, "
                              "or 'tot', of the reads covering its locus (PSItot), for strong overall events "
@@ -142,71 +150,85 @@ def _better_than(this, other):
     return other[-1] / this[-1] < BETTER_DEVIATION_FRACTION
 
 
-def filter_outliers(etype_to_sig):  # noqa: C901 - FIXME: reduce complexity
-    """The outliers of events sharing junctions, by event type and then junctions, (included, excluded,
-    outer), and sample, kept when a simpler event of the same junctions doesn't
-    explain them as well: a complex exon skip by an exon skip, an alternative splice
-    site by an exon skip or alternative first or last exon"""
-    seen_junctions, seen_es_juncs, kept = {}, {}, []
-    # alternative splice site events overlapping alternative first and last exons
-    # are already left out when the events are found
-    for et in ['es', 'afe', 'ale', 'ir', 'alt5ss', 'alt3ss']:
-        for juncs, sample_to_vals in etype_to_sig.get(et, {}).items():
-            if et != 'ir':
-                inc_juncs, exc_juncs, outer_juncs = juncs
-                for j1 in inc_juncs:
-                    for j2 in outer_juncs:
-                        seen_junctions.setdefault(frozenset((j1, j2)), {})[juncs] = sample_to_vals
-                if et == 'es':
-                    seen_es_juncs[(inc_juncs | exc_juncs) | outer_juncs] = sample_to_vals
-            kept.extend(sample_to_vals.values())
+def _write_lines(fh, lines):
+    for line in lines:
+        fh.write('\t'.join(str(x) for x in line) + '\n')
 
-    for et in ['ces', 'alt5', 'alt3']:
-        for juncs, sample_to_vals in etype_to_sig.get(et, {}).items():
-            inc_juncs, exc_juncs, outer_juncs = juncs
-            good_s = set()
-            has_overlap = False
-            if et == 'ces':  # against the exon skips whose junctions hold its own
-                # the exclusion row, by its exons' junctions, else the exon included
-                all_juncs = (exc_juncs if len(inc_juncs) == 0 else inc_juncs) | outer_juncs
-                for es_juncs, es_vals in seen_es_juncs.items():
-                    if all_juncs <= es_juncs:
-                        has_overlap = True
-                        good_s.update(s for s in sample_to_vals
-                                      if s not in es_vals or _better_than(sample_to_vals[s], es_vals[s]))
+
+# the events whose outliers are all kept, and those whose outliers a simpler event
+# may explain, compared after them.  Alternative splice sites overlapping first and
+# last exons are already left out when the events are found
+SIMPLE_EVENTS = ('es', 'afe', 'ale', 'ir', 'alt5ss', 'alt3ss')
+COMPLEX_EVENTS = ('ces', 'alt5', 'alt3')
+# NOTE: left out of the filtered outliers on purpose, for now: start and end
+# events, from read ends, give far too many false positive outliers.  Move them
+# to SIMPLE_EVENTS when they are better (see the module docstring)
+LEFT_OUT_EVENTS = ('tss', 'tts')
+
+
+def _explaining(eventtype, juncs, es_juncs, site_juncs):
+    """A complex exon skip's or alternative splice site's own junctions, and the
+    outliers of the events that may explain it: for a complex exon skip, the exon
+    skips holding its junctions, its exons' for its exclusion row, and for an
+    alternative splice site, the events in site_juncs holding both its junctions"""
+    inc, exc, outer = juncs
+    if eventtype == 'ces':
+        own = (inc or exc) | outer
+        return own, [outliers for skip_juncs, outliers in es_juncs.items() if own <= skip_juncs]
+    own = inc | exc
+    return own, [outliers for key, by_juncs in site_juncs.items() if own <= key for outliers in by_juncs.values()]
+
+
+def filter_outliers(etype_to_sig):
+    """The outliers, more than FILTERED_MIN_DEVIATIONS out, of events sharing
+    junctions, given by event type, then junctions (included, excluded, outer), then
+    sample.  An outlier of a complex exon skip or alternative splice site is kept
+    only when no simpler event of its junctions explains it as well: an exon skip,
+    or a complex event not explained itself.  Starts and ends (LEFT_OUT_EVENTS)
+    are left out, and an event type of none of the lists is an error"""
+    unknown = set(etype_to_sig) - set(SIMPLE_EVENTS + COMPLEX_EVENTS + LEFT_OUT_EVENTS)
+    if unknown:
+        raise ValueError(f'event types {sorted(unknown)} not in SIMPLE_EVENTS, COMPLEX_EVENTS or LEFT_OUT_EVENTS')
+    # the exon skips by their junctions, and the events by the junctions an
+    # alternative splice site they explain splices: an exon skip's flanking junction
+    # and its skipping one
+    es_juncs, site_juncs, kept = {}, {}, []
+    for eventtype in SIMPLE_EVENTS:
+        for juncs, outliers in etype_to_sig.get(eventtype, {}).items():
+            if eventtype == 'es':
+                inc, exc, outer = juncs
+                es_juncs[inc | exc | outer] = outliers
+                for flanking, skipping in product(inc, outer):
+                    site_juncs.setdefault(frozenset((flanking, skipping)), {})[juncs] = outliers
+            kept.extend(outliers.values())
+    for eventtype in COMPLEX_EVENTS:
+        for juncs, outliers in etype_to_sig.get(eventtype, {}).items():
+            own, explaining = _explaining(eventtype, juncs, es_juncs, site_juncs)
+            if explaining:
+                kept.extend(line for s, line in outliers.items()
+                            if any(s not in other or _better_than(line, other[s]) for other in explaining))
             else:
-                all_juncs = inc_juncs | exc_juncs
-                for jkey, others in seen_junctions.items():
-                    if all_juncs <= jkey:
-                        has_overlap = True
-                        for other_vals in others.values():
-                            good_s.update(s for s in sample_to_vals
-                                          if s not in other_vals or _better_than(sample_to_vals[s], other_vals[s]))
-            if not has_overlap:
-                good_s = sample_to_vals.keys()
-                seen_junctions.setdefault(all_juncs, {})[juncs] = sample_to_vals
-            kept.extend(sample_to_vals[s] for s in good_s)
+                site_juncs.setdefault(own, {})[juncs] = outliers
+                kept.extend(outliers.values())
     return [line for line in _by_deviation(kept) if line[-1] > FILTERED_MIN_DEVIATIONS]
 
 
 def spliceevents_outliers(input_prefix, output, psi, event_support):
+    """Write every outlier of the events of input_prefix, and those filtered by
+    filter_outliers, by group of events sharing junctions"""
     event_rows, samples = read_events(input_prefix, psi)
     with open(output + '.spliceevents.outliers.tsv', 'w') as out, \
             open(output + '.spliceevents.outliers.filtered.tsv', 'w') as out_filtered:
         for fh in (out, out_filtered):
             fh.write('\t'.join(OUTLIER_COLUMNS) + '\n')
         for rows in group_by_shared_junctions(event_rows):
-            sig_events, etype_to_sig = [], {}
+            lines, etype_to_sig = [], {}
             for row in rows:
-                outliers = row_outliers(row, samples, event_support)
-                juncs = _row_junctions(row)
-                for s, line in outliers.items():
-                    sig_events.append(line)
-                    etype_to_sig.setdefault(row['event_type'], {}).setdefault(juncs, {})[s] = line
-            for line in _by_deviation(sig_events):
-                out.write('\t'.join(str(x) for x in line) + '\n')
-            for line in filter_outliers(etype_to_sig):
-                out_filtered.write('\t'.join(str(x) for x in line) + '\n')
+                for s, line in row_outliers(row, samples, event_support).items():
+                    lines.append(line)
+                    etype_to_sig.setdefault(row['event_type'], {}).setdefault(_row_junctions(row), {})[s] = line
+            _write_lines(out, _by_deviation(lines))
+            _write_lines(out_filtered, filter_outliers(etype_to_sig))
 
 
 def main():

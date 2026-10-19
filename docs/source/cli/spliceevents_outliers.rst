@@ -15,7 +15,7 @@
 
 .. option:: -o OUTPUT, --output OUTPUT
 
-   output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and OUTPUT.spliceevents.outliers.filtered.tsv, those more than 6 deviations from the median and not explained by a simpler event
+   output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and OUTPUT.spliceevents.outliers.filtered.tsv, those more than 6 deviations from the median and not explained by a simpler event, without starts and ends (tss, tts), whose outliers are mostly false positives
 
 .. option:: --psi {junc,tot}
 

@@ -66,6 +66,43 @@ def test_complex_exon_skip_much_better_than_its_exon_skip_is_kept():
     assert kept == [ces, es]
 
 
+# an alt3 of the exon skip's first junction, its 5' site spliced to the exon or past it:
+# the exon skip's flanking and skipping junctions
+ALT3 = (frozenset({'chr1:100-200'}), frozenset({'chr1:100-400'}), frozenset())
+
+
+def test_alternative_site_explained_by_an_exon_skip_is_filtered():
+    es, alt3 = _line('es', 's6', 20), _line('alt3', 's6', 18)
+    kept = filter_outliers({'es': {ES: {'s6': es}}, 'alt3': {ALT3: {'s6': alt3}}})
+    assert kept == [es]
+
+
+def test_alternative_site_much_better_than_its_exon_skip_is_kept():
+    es, alt3 = _line('es', 's6', 10), _line('alt3', 's6', 20)
+    kept = filter_outliers({'es': {ES: {'s6': es}}, 'alt3': {ALT3: {'s6': alt3}}})
+    assert kept == [alt3, es]
+
+
+def test_alternative_site_sharing_no_event_junctions_is_kept():
+    # an alt5 of other junctions than the exon skip's
+    alt5 = (frozenset({'chr1:500-600'}), frozenset({'chr1:550-600'}), frozenset())
+    es, alt = _line('es', 's6', 20), _line('alt5', 's6', 18)
+    kept = filter_outliers({'es': {ES: {'s6': es}}, 'alt5': {alt5: {'s6': alt}}})
+    assert kept == [es, alt]
+
+
+def test_starts_and_ends_are_left_out_of_the_filtered_outliers():
+    # on purpose, for their many false positives: see LEFT_OUT_EVENTS
+    tss = (frozenset({'101'}), frozenset({'201'}), frozenset())
+    es = _line('es', 's6', 20)
+    assert filter_outliers({'es': {ES: {'s6': es}}, 'tss': {tss: {'s6': _line('tss', 's6', 30)}}}) == [es]
+
+
+def test_an_unknown_event_type_is_an_error():
+    with pytest.raises(ValueError):
+        filter_outliers({'new': {ES: {'s6': _line('new', 's6', 20)}}})
+
+
 def test_filtered_outliers_are_more_than_six_deviations_out():
     kept = filter_outliers({'ir': {(frozenset(), frozenset({'chr1:100-200'}), frozenset()):
                                    {'s5': _line('ir', 's5', 6), 's6': _line('ir', 's6', 6.5)}}})

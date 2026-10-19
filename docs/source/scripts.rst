@@ -174,5 +174,11 @@ strong overall events.
  - ``OUTPUT.spliceevents.outliers.tsv``, every outlier
  - ``OUTPUT.spliceevents.outliers.filtered.tsv``, the outliers more than 6
    deviations from the median that a simpler event of the same junctions doesn't
-   explain as well: a complex exon skip by an exon skip, an alternative
-   splice site by an exon skip or alternative first or last exon
+   explain as well: a complex exon skip by an exon skip, and an alternative
+   splice site by an exon skip or a complex exon skip
+
+.. note::
+
+   Starts and ends (tss and tts) are left out of the filtered outliers on
+   purpose.  Their events, from read ends, give far too many false positive
+   outliers for now.  They are still in ``OUTPUT.spliceevents.outliers.tsv``.

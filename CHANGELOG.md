@@ -370,6 +370,8 @@
     chromosome had one at the same position.
   * spliceevents_outliers compares an outlier with those of the events sharing its
     junctions, not of its gene, and reads only tables with `novel_junctions`.
+    Starts and ends (tss, tts) are left out of its filtered outliers, as before,
+    which is now documented: their outliers are mostly false positives.
   * The starts, ends, first and last exons of an annotated gene of one exon, whose
     reads splice inside it, were reported only when its chromosome was neither cut
     nor given by `--region_bed`: the gene had no junctions to place it.  It is
