@@ -221,8 +221,7 @@ def parse_single_bam_read(s, temp_files, vcfvars, sampleindex):
             '\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
 
 
-def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata,  # noqa: C901 - FIXME: reduce complexity
-                                   threshold, output_all, vcfvars):
+def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata, threshold, output_all, vcfvars):
     """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv:
     per sample, the reads covering the site not showing the alt, and those showing
     it, so they add up to the site's coverage whatever its other alts.  A row is
@@ -230,10 +229,9 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
     read showing the alt, or output_all"""
     samplenames = [x[0] for x in sampledata]
 
-    with open(f'{outprefix}.var.counts.tsv', 'w') as out, open(f'{outprefix}.vargroup.counts.tsv', 'w') as out2:
+    with open(f'{outprefix}.var.counts.tsv', 'w') as out:
         out.write('\t'.join(['varpos', 'ref', 'alt', 'gene', 'transcript'] + samplenames) + '\n')
         vartocounts = {}
-        vargroup_to_data = {}
         for tf in tempfilenames:
             with open(tempdir + tf + '.txt', 'r') as mutstringfile:
                 for line in mutstringfile:
@@ -241,24 +239,6 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
                     # three fields per mut now, whatever the gene count: the gene list
                     # used to be comma joined into a comma joined record
                     allmuts = [x.split(VAR_FIELD_SEP) for x in mutstring.split(';')]
-
-                    allgenes = []
-                    for x in allmuts:
-                        allgenes.extend([g for g in x[1].split(GENE_LIST_SEP) if g != ''])
-
-                    if len(allgenes) > 0:  # only use reads that overlap annotated genes
-                        mygene = max(set(allgenes), key=allgenes.count)
-
-                        varpos = [x[0] for x in allmuts]
-                        varkey = ','.join(varpos)
-                        key = (refname, mygene, varkey)
-                        # print(allmuts)
-                        # modified: showing any of the site's alts
-                        modinfo = tuple(int(x[-1] != NO_ALT) for x in allmuts)
-
-                        if key not in vargroup_to_data:
-                            vargroup_to_data[key] = []
-                        vargroup_to_data[key].append(modinfo)
 
                     # each mut: position, varname (may be chrom:pos or gene), varstatus
                     sampleindex = int(readname.split('__')[0])
@@ -270,16 +250,6 @@ def read_vars_to_genome_pos_counts(tempfilenames, tempdir, outprefix, sampledata
                             # per sample, the reads covering the site, by the alt they show
                             vartocounts[var] = [Counter() for x in range(len(samplenames))]
                         vartocounts[var][sampleindex][m[-1]] += 1
-
-        for chrom, gene, varpos in vargroup_to_data:
-            readinfo = vargroup_to_data[(chrom, gene, varpos)]
-            outmods = []
-            totpos = len(varpos.split(','))
-            for readmods in readinfo:
-                totmods = len([x for x in readmods if x == 1])
-                outmods.append(str(totmods))
-            outline = [chrom, gene, str(len(outmods)), str(totpos), ','.join(outmods), varpos]
-            out2.write('\t'.join(outline) + '\n')
 
         transcript = ''
         for (refname, pos, gene), sample_alleles in vartocounts.items():

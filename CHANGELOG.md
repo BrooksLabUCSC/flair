@@ -446,6 +446,20 @@
     without rerunning spliceevents.  `--check_outliers` is removed.  A sample's PSI
     is used when it has at least `--event_support` reads, as in the PSI tables,
     rather than more than that.
+* flair variantquant
+  * OUTPUT.var.counts.tsv has a row per allele of a site, with new `ref` and `alt`
+    columns: a sample's `unmodified;modified` counts are the reads covering the site
+    not showing the row's alt, and those showing it.  Multi-allelic vcf sites were
+    never counted, their ALT compared whole, as `G,T`, with one read base; each alt
+    is now its own row.
+  * Only SNVs are counted: indels and substitutions of more than one base, which a
+    read base can't show and so were never counted, are left out with a warning.
+  * A site's alts are merged across the vcfs whatever their IDs, and vcfs giving a
+    site different ref bases are an error, as they aren't of one genome.
+  * OUTPUT.vargroup.counts.tsv, an experiment, is removed.  It grouped the reads
+    covering the same sites, but kept only how many sites each read was modified at
+    and pooled the samples, so it couldn't tell which variants were on a read
+    together; `flair alleles` groups the reads carrying variants.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
