@@ -529,6 +529,8 @@ def end_events(caller, eventtype, ends):
     from_starts = lies_left(eventtype == 'tss', caller.strand)
     positions = {end: end + 1 if from_starts else end for end in good}
     event = caller.event(eventtype, min(positions.values()) - 1, max(positions.values()), tot)
+    # all the reads of a start or end are the gene's, so its locus is the event
+    event.totoverlap = tot
     for end, pos in positions.items():
         event.add(str(pos), ends[end], {pos}, set(positions.values()) - {pos}, blocks=[[(pos - 1, pos)]])
     caller.keep_other(event, other)

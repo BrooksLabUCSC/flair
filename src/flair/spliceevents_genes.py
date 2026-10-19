@@ -174,7 +174,7 @@ def annotated_event_genes(scores, annotated):
     annotated transcripts, so a gene and a readthrough of it give the gene; genes still
     tied are all given"""
     best = _top(scores)
-    return _top({gene: annotated.num_transcripts.get(gene, 0) for gene in best})
+    return _top({gene: annotated.num_transcripts[gene] for gene in best})
 
 
 def read_event_genes(introns, cluster_chains, chain_genes, strand):
@@ -239,7 +239,7 @@ def process_region_events(temp_prefix, chrom, samples, sample_chains, novel_gene
     annotated = annotated or AnnotatedSplicing()
     views, key_strand, chain_genes, coverage = group_chains(chrom, samples, sample_chains, novel_gene)
     callers = {strand: EventCaller(chrom, strand, samples, thresholds, coverage[strand]) for strand in ('+', '-')}
-    events = []  # (event, the span of its gene's junctions, for the regions)
+    events = []  # (event, of a GENE_WIDE_EVENTS type the span of its gene's junctions, for the regions)
     terminal_juncs = {'+': set(), '-': set()}
     for view, terminal, annot_ss, end_type in (('five', 'afe', annot_afe_ss, 'tss'), ('three', 'ale', annot_ale_ss, 'tts')):
         for gene in _keys(views[view]):
@@ -247,13 +247,13 @@ def process_region_events(temp_prefix, chrom, samples, sample_chains, novel_gene
             gene_events, event_juncs = gene_terminal_events(caller, views[view], gene, terminal, end_type,
                                                             annot_ss.get(caller.strand, []))
             terminal_juncs[caller.strand] |= event_juncs
-            gene_span = gene_junction_span(gene_juncs.get(gene, ()))
+            gene_span = gene_junction_span(gene_juncs[gene])
             events.extend((event, gene_span) for event in gene_events)
     for cluster in sorted(_keys(views['cluster']), key=lambda c: int(c[1:])):
         caller = callers[key_strand[cluster]]
         cluster_chains = [chains.get(cluster, {}) for chains in views['cluster']]
-        events.extend((event, (0, 0)) for event in cluster_events(caller, cluster_chains, terminal_juncs[caller.strand],
-                                                                  annotated, chain_genes))
+        events.extend((event, None) for event in cluster_events(caller, cluster_chains, terminal_juncs[caller.strand],
+                                                                annotated, chain_genes))
     reported = {}
     for event, gene_span in events:
         if event_in_regions(event, report_regions, gene_span, owned):
@@ -262,8 +262,6 @@ def process_region_events(temp_prefix, chrom, samples, sample_chains, novel_gene
             reported[event.name] = event
     with EventTables(temp_prefix, samples, thresholds.event_support) as tables:
         for event in reported.values():
-            if event.totoverlap is None:
-                event.totoverlap = event.totjunc
             if is_expressed(event, samples, thresholds):
                 tables.write(event, annotated)
 
@@ -281,15 +279,12 @@ def novel_genes_of_chains(chrom, sample_chains):
 
 
 def gene_junctions(sample_chains, novel_gene, annots):
-    """Each gene's junctions, for --region_bed: an annotated gene's annotated ones,
-    a novel gene's those of its reads"""
-    gene_juncs = {}
+    """Each gene's junctions, for --region_bed: an annotated gene's annotated ones, or
+    those of its reads for a novel gene, or an annotated one with none, of one exon"""
+    read_juncs = {}
     for chains in sample_chains:
         for chain in chains:
-            if chain.genes:
-                for gene in chain.genes:
-                    if gene not in gene_juncs:
-                        gene_juncs[gene] = {(j.start, j.end) for j in annots.gene_to_annot_juncs.get(gene, ())}
-            else:
-                gene_juncs.setdefault(novel_gene[(chain.strand, chain.juncs)], set()).update(chain.juncs)
-    return gene_juncs
+            for gene in chain.genes or (novel_gene[(chain.strand, chain.juncs)],):
+                read_juncs.setdefault(gene, set()).update(chain.juncs)
+    return {gene: {(j.start, j.end) for j in annots.gene_to_annot_juncs.get(gene, ())} or juncs
+            for gene, juncs in read_juncs.items()}

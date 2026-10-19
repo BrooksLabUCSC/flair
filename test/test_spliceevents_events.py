@@ -31,9 +31,16 @@ def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac
     totals, as {(event, total): {sample: count}}"""
     samples = SAMPLES[:len(samples_chains)]
     prefix = str(tmp_path / 'region')
-    process_region_events(prefix, CHROM, samples, [_sample_reads(chains, strand=strand) for chains in samples_chains],
+    sample_chains = [_sample_reads(chains, strand=strand) for chains in samples_chains]
+    # each gene's junctions, those of its reads, as a novel gene's
+    gene_juncs = {}
+    for chains in sample_chains:
+        for chain in chains:
+            for gene in chain.genes:
+                gene_juncs.setdefault(gene, set()).update(chain.juncs)
+    process_region_events(prefix, CHROM, samples, sample_chains,
                           {}, Thresholds(feature_support, event_frac_of_tot, junc_frac_of_event, event_support),
-                          annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], {}, annotated)
+                          annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], gene_juncs, annotated)
     columns = EVENT_ROW_COLUMNS + samples
     tables = {}
     for table in ('counts', 'PSIjunc', 'PSItot'):
@@ -317,7 +324,7 @@ def test_read_ends_within_the_window_of_the_next_are_counted_at_their_median():
 def _annotated(gene_introns, strand='+', num_transcripts=None):
     "AnnotatedSplicing of genes' introns, {gene: [(start, end)]}"
     annotated = AnnotatedSplicing()
-    annotated.num_transcripts = num_transcripts or {}
+    annotated.num_transcripts = num_transcripts or {gene: 1 for gene in gene_introns}
     for gene, introns in gene_introns.items():
         for junc in introns:
             annotated.intron_genes[strand].setdefault(junc, set()).add(gene)

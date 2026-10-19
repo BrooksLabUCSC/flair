@@ -370,6 +370,10 @@
     chromosome had one at the same position.
   * spliceevents_outliers compares an outlier with those of the events sharing its
     junctions, not of its gene, and reads only tables with `novel_junctions`.
+  * The starts, ends, first and last exons of an annotated gene of one exon, whose
+    reads splice inside it, were reported only when its chromosome was neither cut
+    nor given by `--region_bed`: the gene had no junctions to place it.  It is
+    placed by its reads' junctions, as a novel gene.
   * Event calling is faster: on PC9's chr19, 63 rather than 71 seconds.  Each read's
     chain was compared with every other chain of its gene, for a filter of
     truncated read ends that was no longer applied.

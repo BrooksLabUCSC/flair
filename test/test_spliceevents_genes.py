@@ -82,6 +82,14 @@ def test_chains_of_no_annotated_gene_get_the_same_novel_gene_in_every_sample(tmp
     assert gene_junctions([s1, s2], novel_gene, _annots(tmp_path)) == {novel: {(2200, 2300), (2300, 2400)}, 'A': set(A_JUNCS)}
 
 
+def test_an_annotated_gene_of_one_exon_has_its_reads_junctions(tmp_path):
+    # as HEXIM1, whose reads splice inside its one exon: without junctions it had
+    # no span, and its starts and ends were reported only in a region from 0
+    annots = _annots(tmp_path, GTF + [('S', 'TS', '+', [(3000, 4000)])])
+    chains = [ReadChain(('S',), ((3200, 3500),), '+', [ReadEnds(3000, 4000)] * 3)]
+    assert gene_junctions([chains], {}, annots) == {'S': {(3200, 3500)}}
+
+
 def test_a_readthroughs_reads_count_with_its_5_gene_for_starts_and_its_3_gene_for_ends():
     readthrough = ReadChain(('A', 'B'), ((200, 300), (600, 1000)), '+', [ReadEnds(150, 1300)])
     a = ReadChain(('A',), A_JUNCS, '+', [ReadEnds(100, 600)])

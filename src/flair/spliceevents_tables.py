@@ -53,9 +53,7 @@ class EventTables:
         return [counts[s] / event.totjunc[s] for s in self.samples if event.totjunc[s] >= self.event_support]
 
     def _write_beds(self, event, alternative, blocks_list, psis):
-        "a row's BED records, scored by its median PSIjunc, none if no sample has a PSI"
-        if not psis:
-            return
+        "a row's BED records, scored by its median PSIjunc"
         for blocks in blocks_list:
             start, end = blocks[0][0], blocks[-1][1]
             Bed(event.chrom, start, end, row_name(event.name, alternative), score=round(median(psis) * 100),

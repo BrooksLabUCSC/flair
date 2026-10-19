@@ -108,8 +108,6 @@ def _event_positions(event):
 def gene_junction_span(juncs):
     """The span of a gene's junctions, its annotated ones, or a novel gene's of its
     reads, from the first one's start to the last one's end"""
-    if not juncs:
-        return (0, 0)
     return (min(j[0] for j in juncs), max(j[1] for j in juncs))
 
 
@@ -127,8 +125,6 @@ def event_in_regions(event, regions, gene_span, owned=None):
         low, high = gene_span
     else:
         positions = _event_positions(event)
-        if not positions:
-            return False
         low, high = min(positions), max(positions)
     if owned is not None and not owned.start <= low < owned.end:
         return False
