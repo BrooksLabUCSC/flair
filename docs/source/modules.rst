@@ -46,8 +46,7 @@ Options to consider:
     fusion does not report: to find those, align with a smaller ``-G`` and lower flair
     fusion's ``--min_dist_between_breakpoints`` to match.
 ``--MD``
-    Adds the MD tags that flair alleles and flair variantquant need to find the reads'
-    mismatches.
+    Adds the MD tags that flair alleles needs to find the reads' mismatches.
 ``--secondary=no``
     Leaves out secondary alignments.  FLAIR uses each read's primary alignment, and
     flair fusion its supplementary ones.

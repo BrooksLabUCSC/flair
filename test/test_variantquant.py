@@ -3,8 +3,9 @@ from types import SimpleNamespace
 import pysam
 import pytest
 from flair import FlairInputDataError
-from flair.flair_variantquant import (NO_ALT, add_vcf_var, combine_vcf_files, parse_all_bam_files, parse_single_bam_read,
-                                      quantvarpos, quantvarpos_cmd, read_vars_to_genome_pos_counts)
+from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, combine_vcf_files, parse_all_bam_files,
+                                      parse_single_bam_read, quantvarpos, quantvarpos_cmd, read_bases_at,
+                                      read_vars_to_genome_pos_counts, site_positions, sites_in_span)
 
 
 def _vcf(path, *records):
@@ -43,23 +44,24 @@ class _Temp:
         self.lines.append(line)
 
 
-def _read(name, seq, md):
-    "a read aligned at chr1:1-10 (1-based), its differences from the genome given by md"
-    header = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 1000}]})
+def _read(name, seq, md=None, cigar='10M', start=0):
+    "a read aligned at chr1:start + 1 (1-based), its differences from the genome given by md"
+    header = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 3 * VAR_BIN_SIZE}]})
     read = pysam.AlignedSegment(header)
-    read.query_name, read.reference_id, read.reference_start = name, 0, 0
-    read.cigarstring, read.query_sequence = '10M', seq
-    read.set_tag('MD', md)
+    read.query_name, read.reference_id, read.reference_start = name, 0, start
+    read.cigarstring, read.query_sequence = cigar, seq
+    if md is not None:
+        read.set_tag('MD', md)
     return read
 
 
 def test_a_read_showing_any_alt_of_a_multi_allelic_site_is_modified():
     # the genome is AAAAAAAAAA; the site is chr1:5 A>G,T
-    sites = {5: ('A', ['G', 'T'], 'G1')}
+    sites = add_vcf_var({}, 'chr1', 'A', ['G', 'T'], 5, 'G1')
     temp = _Temp()
     for name, seq, md in (('g', 'AAAAGAAAAA', '4A5'), ('t', 'AAAATAAAAA', '4A5'), ('c', 'AAAACAAAAA', '4A5'),
                           ('ref', 'AAAAAAAAAA', '10')):
-        parse_single_bam_read(_read(name, seq, md), temp, sites, 0)
+        parse_single_bam_read(_read(name, seq, md), temp, sites, site_positions(sites), 0)
     status = {line.split('\t')[1].split('__')[1]: line.rstrip().split('|')[-1] for line in temp.lines}
     assert status == {'g': 'G', 't': 'T', 'c': NO_ALT, 'ref': NO_ALT}
 
@@ -144,3 +146,23 @@ def test_keeping_intermediate_files_needs_a_temp_dir():
     args = SimpleNamespace(keep_intermediate=True, temp_dir=None)
     with pytest.raises(FlairInputDataError, match='--temp_dir'):
         quantvarpos_cmd(args)
+
+
+def test_a_reads_bases_at_sites_are_found_past_clips_insertions_deletions_and_introns():
+    # 2 bases soft clipped, chr1:1-3 aligned, an insertion, 4-5, 6-7 deleted, 8-9, 10-19 an
+    # intron, 20-21 aligned: bases of the query TT ACG G CA TG GA
+    read = _read('r', 'TTACGGCATGGA', cigar='2S3M1I2M2D2M10N2M')
+    sites = [1, 3, 4, 6, 9, 15, 21]
+    assert list(read_bases_at(read, sites)) == [(1, 'A'), (3, 'G'), (4, 'C'), (9, 'G'), (21, 'A')]
+
+
+def test_the_sites_of_a_read_crossing_a_bin_are_of_both_bins():
+    vcfvars = {}
+    for pos in (VAR_BIN_SIZE - 5, VAR_BIN_SIZE, VAR_BIN_SIZE + 1, VAR_BIN_SIZE + 50):
+        add_vcf_var(vcfvars, 'chr1', 'A', ['G'], pos, '')
+    positions = site_positions(vcfvars)
+    # the read covers VAR_BIN_SIZE - 9 to VAR_BIN_SIZE + 10, 1-based
+    b = VAR_BIN_SIZE
+    assert sites_in_span(positions, 'chr1', b - 10, b + 10) == [b - 5, b, b + 1]
+    # a read ending at a bin's first position, 1-based, has its site
+    assert sites_in_span(positions, 'chr1', VAR_BIN_SIZE - 10, VAR_BIN_SIZE) == [VAR_BIN_SIZE - 5, VAR_BIN_SIZE]

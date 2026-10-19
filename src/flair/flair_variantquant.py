@@ -5,6 +5,7 @@ import shutil
 import logging
 import math
 import multiprocessing as mp
+from bisect import bisect_right
 from collections import Counter
 import pysam
 from flair.pycbio.hgdata.bed import BedReader
@@ -13,9 +14,11 @@ from flair.io_utils import make_run_temp_dir
 from flair import FlairInputDataError
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
-compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
-            'R': 'Y', 'Y': 'R', 'K': 'M', 'M': 'K', 'S': 'S', 'W': 'W',
-            'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
+# cigar operations aligning read bases to the genome (M, =, X), only of the read
+# (I, S), and only of the genome (D, N)
+ALIGNED_OPS = (pysam.CMATCH, pysam.CEQUAL, pysam.CDIFF)
+QUERY_OPS = (pysam.CINS, pysam.CSOFT_CLIP)
+REF_OPS = (pysam.CDEL, pysam.CREF_SKIP)
 
 # the bases of the ref and alt of an SNV, the only variants counted
 SNV_BASES = frozenset('ACGT')
@@ -180,59 +183,60 @@ def site_alleles(vcfvars, chrom, pos):
     return ref, alts
 
 
-def get_correct_vcf_vars(vcfvars, refname, startpos, endpos):
-    myvcfvars = {}
-    for roundedpos in range(var_bin(startpos), math.ceil(endpos / VAR_BIN_SIZE) * VAR_BIN_SIZE, VAR_BIN_SIZE):
-        if (refname, roundedpos) in vcfvars:
-            myvcfvars.update(vcfvars[(refname, roundedpos)])
-    return myvcfvars
+def site_positions(vcfvars):
+    "the sorted positions of each bin's sites, by bin, to find the sites of each read (sites_in_span)"
+    return {key: sorted(sites) for key, sites in vcfvars.items()}
 
 
-def _parse_cigar(cigar, alignstart, transcriptvars):
-    ref, quer = 0, 0
-    coveredvars = {}
-    for block in cigar:
-        if block[0] in {0, 7, 8}:  # match, consumes both
-            for pos in range(alignstart + ref + 1, alignstart + ref + block[1] + 1):
-                if pos in transcriptvars:
-                    coveredvars[pos] = NO_ALT
-            ref += block[1]
-            quer += block[1]
-        elif block[0] in {1, 4}:  # consumes query ###1 is insertion
-            quer += block[1]
-        elif block[0] in {2, 3}:  # consumes reference ##2 is deletion
-            ref += block[1]
-    return coveredvars
+def sites_in_span(positions, chrom, start, end):
+    """the sorted positions, 1-based, of the sites in chrom:start-end, 0-based, of
+    positions (site_positions), found by bisection, so a read's lookup costs little
+    with millions of sites, as of a database of RNA editing sites"""
+    sites = []
+    for bin_start in range(var_bin(start + 1), var_bin(end) + 1, VAR_BIN_SIZE):
+        bin_sites = positions.get((chrom, bin_start))
+        if bin_sites:
+            sites.extend(bin_sites[bisect_right(bin_sites, start):bisect_right(bin_sites, end)])
+    return sites
 
 
-def parse_single_bam_read(s, out, vcfvars, sampleindex):
-    """Write the variant sites a read covers to out, its sample's temp file, each with
-    its genes and the alt the read shows there, or NO_ALT.  vcfvars are the sites
-    near the read (get_correct_vcf_vars); most reads cover none, and finding the
-    read's bases at its sites is by far the slowest part, so it is done only for
-    the reads covering one"""
-    if not vcfvars:
+def read_bases_at(read, sites):
+    """(site, base) of each of sites, sorted 1-based positions in the read's span, that
+    the read aligns a base to, with that base: one walk of its cigar, rather than
+    decoding all its aligned bases.  Sites in its deletions and introns have none"""
+    seq = read.query_sequence
+    ref, query, i = read.reference_start, 0, 0
+    for op, length in read.cigartuples:
+        if i == len(sites):
+            return
+        if op in ALIGNED_OPS:
+            end = ref + length
+            # the sites up to the block's end; those before it were passed already
+            while i < len(sites) and sites[i] <= end:
+                yield sites[i], seq[query + sites[i] - 1 - ref]
+                i += 1
+            ref, query = end, query + length
+        elif op in QUERY_OPS:
+            query += length
+        elif op in REF_OPS:
+            ref += length
+            while i < len(sites) and sites[i] <= ref:
+                i += 1
+
+
+def parse_single_bam_read(s, out, vcfvars, positions, sampleindex):
+    """Write the sites a read aligns a base to, of vcfvars, to out, its sample's temp
+    file, each with its genes and the alt the read shows there, or NO_ALT.  positions
+    are vcfvars' site_positions.  Most reads cover no site, and return at once"""
+    sites = sites_in_span(positions, s.reference_name, s.reference_start, s.reference_end)
+    if not sites or s.query_sequence is None:
         return
-    # check for which vars are covered
-    coveredvars = _parse_cigar(s.cigartuples, s.reference_start, vcfvars)
-    if not coveredvars:
-        return
-
-    # check for which covered vars are actually mod
-    readseq = s.query_sequence
-    alignedbases = s.get_aligned_pairs(with_seq=True, matches_only=True)
-    for i in alignedbases:
-        if i[2] and i[2].islower():
-            if i[1] + 1 in coveredvars:
-                ref, alts = vcfvars[i[1] + 1][:2]
-                for alt in alts:  # could be multiple alt alleles
-                    # restrict to same mutation from vcf, but not strand specific
-                    if (i[2].upper() == ref and readseq[i[0]] == alt) \
-                            or (compbase[i[2].upper()] == ref and compbase[readseq[i[0]]] == alt):
-                        coveredvars[i[1] + 1] = alt
-
-    coveredvarstrings = [VAR_FIELD_SEP.join([str(v), vcfvars[v][2], coveredvars[v]]) for v in coveredvars]
-    out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(coveredvarstrings)]) + '\n')
+    records = []
+    for pos, base in read_bases_at(s, sites):
+        _, alts, name = vcfvars[(s.reference_name, var_bin(pos))][pos]
+        records.append(VAR_FIELD_SEP.join([str(pos), name, base if base in alts else NO_ALT]))
+    if records:
+        out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(records)]) + '\n')
 
 
 def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars):
@@ -348,7 +352,7 @@ def combine_vcf_files(vcffilelist):
                         'one base) left out: variantquant counts SNVs only')
     return vartoalt
 
-def _parse_one_bam_file(bamfile, out, vcfvars, sindex):
+def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex):
     with pysam.AlignmentFile(bamfile, 'rb') as samfile:
         c = 0
         for s in samfile:
@@ -356,38 +360,39 @@ def _parse_one_bam_file(bamfile, out, vcfvars, sindex):
                 c += 1
                 if c % 100000 == 0:
                     logging.info(f'{c} reads checked')
-                myvcfvars = get_correct_vcf_vars(vcfvars, s.reference_name, s.reference_start, s.reference_end)
-                parse_single_bam_read(s, out, myvcfvars, sindex)
+                parse_single_bam_read(s, out, vcfvars, positions, sindex)
 
 
-# the sites of parse_all_bam_files, for its forked processes, which share them
-# rather than each task being sent a copy of what may be millions of sites
-_pool_vcfvars = None
+# the sites of parse_all_bam_files and their site_positions, for its forked
+# processes, which share them rather than each task being sent a copy of what may
+# be millions of sites
+_pool_sites = None
 
 
-def _parse_sample(sindex, sample, bamfile, temp_path, vcfvars=None):
-    "parse a sample's reads to its temp file, of the sites, or the pool's"
+def _parse_sample(sindex, sample, bamfile, temp_path, sites=None):
+    "parse a sample's reads to its temp file, of sites, (vcfvars, positions), or the pool's"
     with open(temp_path, 'w') as out:
-        _parse_one_bam_file(bamfile, out, _pool_vcfvars if vcfvars is None else vcfvars, sindex)
+        _parse_one_bam_file(bamfile, out, *(_pool_sites if sites is None else sites), sindex)
     logging.info(f'done parsing reads for {sample}')
 
 
 def parse_all_bam_files(sampledata, tempdir, vcfvars, threads):
     """Parse each sample's reads covering the sites to a temp file of its own,
     tempdir/<sample index>.txt, threads samples at once.  The files' paths, by sample"""
-    global _pool_vcfvars
+    global _pool_sites
+    sites = (vcfvars, site_positions(vcfvars))
     tasks = [(sindex, row[0], row[1], f'{tempdir}{sindex}.txt') for sindex, row in enumerate(sampledata)]
     if threads <= 1 or len(tasks) <= 1:
         for task in tasks:
-            _parse_sample(*task, vcfvars=vcfvars)
+            _parse_sample(*task, sites=sites)
     else:
-        _pool_vcfvars = vcfvars
+        _pool_sites = sites
         try:
             mp.set_start_method('fork', force=True)
             with mp.Pool(min(threads, len(tasks))) as pool:
                 pool.starmap(_parse_sample, tasks)
         finally:
-            _pool_vcfvars = None
+            _pool_sites = None
     return [task[-1] for task in tasks]
 
 
