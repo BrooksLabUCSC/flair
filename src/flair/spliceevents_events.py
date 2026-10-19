@@ -313,9 +313,11 @@ def exon_skipping_events(caller, info):
 
 
 def complex_skipping_events(caller, info, es_juncs, seen):
-    """Exons skipped together (ces): each skipping junction, and the junctions between
-    its ends of the reads not skipping, unless an es event has the same junctions.
-    Adds the reads of the junctions flanking the included exons to es_juncs"""
+    """Complex exon skipping (ces): each skipping junction against every way the
+    reads not skipping include the exons between its ends, by their junctions: several
+    exons, or one exon with alternative splice sites, which no other event puts
+    together.  Not when an es event has the same junctions.  Adds the reads of the
+    junctions flanking the included exons to es_juncs"""
     events = []
     for outer, inner_counts in info.skipped.items():
         exc = info.juncs[outer]

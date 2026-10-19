@@ -454,7 +454,9 @@ Without ``--trust_strand``, the genes of both strands count, as an unspliced rea
 strand isn't known.  The first and last exons are those of ``--annot_basic``, if given.  Other unspliced reads are left out.  It finds these
 events:
 
- - exon skipping (es) and complex exon skipping, of several exons (ces)
+ - exon skipping (es), and complex exon skipping (ces): a skipping junction against
+   every way the reads include the exons between its ends, several exons, or one
+   exon with alternative splice sites
  - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
    splice sites shared by a group of junctions (alt5ss, alt3ss)
  - intron retention (ir)
