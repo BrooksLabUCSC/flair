@@ -378,15 +378,23 @@
     or alt3 that an exon skip explained.
     A complex exon skip is compared with an exon skip's inclusion row, the row it
     matches, not its exclusion row, which differ with `--psi tot`.
-  * An event's alternative whose PSI doesn't vary across the samples is a row of its own
-    when it has a tenth of the event's reads in some sample.  It was in the `other`
-    row, which so held an event's main alternative, as much as 97% of its reads.  On
-    PC9's chr19 and chr17, 392 events had more than half their reads in `other`, now
-    29, all tss and tts, whose `other` gathers many small ends.  Whether an event is
-    found doesn't change, but its name spans its new rows.
+  * An event is found from its alternatives that are alternative, their part of the
+    event's reads at least `--junc_frac_of_event` in some sample and at most 1 minus it
+    in some sample, whatever the number of samples, and `--junc_frac_of_event` is 0.05
+    (was 0.02).
+    With more than one sample, an alternative had to differ across them by
+    `--junc_frac_of_event`, however few its reads: 2 against 3 reads made an event,
+    and an exon skipped in half the reads of every sample was none.  Whether an
+    alternative differs between samples is left to what reads the tables, as
+    spliceevents_outliers, whose outliers of the MET samples are the same.  On PC9's
+    chr19 and chr17, 6949 events are now 7391: those of rare forms are gone and those
+    alike in both samples found.
+  * An event's main alternative is a row of its own when it has a tenth of the event's
+    reads in some sample.  It was in the `other` row, as much as 97% of the event's
+    reads.  On PC9's chr19 and chr17, 392 events had more than half their reads in
+    `other`, now 11, all tss and tts, whose `other` gathers many small ends.
   * alt5, alt3, alt5ss and alt3ss alternatives need `--feature_support` reads, as
-    other events' do: a junction of one read made an event, if its PSI varied.  On
-    PC9's chr19 and chr17, 1985 alt5 and alt3 events are now 1550.
+    other events' do: a junction of one read could make an event.
   * The starts, ends, first and last exons of an annotated gene of one exon, whose
     reads splice inside it, were reported only when its chromosome was neither cut
     nor given by `--region_bed`: the gene had no junctions to place it.  It is

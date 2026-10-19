@@ -69,8 +69,11 @@ options:
                         minimum (total reads in splicing event)/(total
                         coverage over locus) to call event (default: 0.1)
   --junc_frac_of_event JUNC_FRAC_OF_EVENT
-                        minimum (reads with junction)/(total reads in splicing
-                        event). Set to 0 for max recall (default: 0.02)
+                        how alternative a junction, splice site or end must be
+                        to make an event: its reads' part of the event's reads
+                        at least this in some sample, and at most 1 minus it
+                        in some sample. Set to 0 for max recall (default:
+                        0.05)
   --quality QUALITY     minimum mapping quality of genomic alignments
                         (default: 1)
   --trust_strand        trust the stranding of the input reads and do not

@@ -71,7 +71,7 @@
 
 .. option:: --junc_frac_of_event JUNC_FRAC_OF_EVENT
 
-   minimum (reads with junction)/(total reads in splicing event). Set to 0 for max recall (default: 0.02)
+   how alternative a junction, splice site or end must be to make an event: its reads' part of the event's reads at least this in some sample, and at most 1 minus it in some sample. Set to 0 for max recall (default: 0.05)
 
 .. option:: --quality QUALITY
 

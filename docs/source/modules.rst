@@ -468,9 +468,13 @@ events:
 Each event has a row for each of its alternatives, such as an exon's inclusion and
 exclusion, and an ``other`` row for its reads that fit none of them.  An event is
 found from its alternatives of at least ``--feature_support`` reads in some sample
-whose PSI varies across the samples by ``--junc_frac_of_event``.  An alternative that
-doesn't vary is a row too when it has a tenth of the event's reads in some sample, as
-its main one often does, and the reads of the rest are its ``other`` row.
+that are alternative: their part of the event's reads at least
+``--junc_frac_of_event`` in some sample, and at most 1 minus it in some sample, the
+same one or another, so one used alone in a sample and not at all in another is.
+How that part differs between samples is left to what reads the tables, as
+spliceevents_outliers.  An event's main
+alternative, too common to be alternative, is a row too when it has a tenth of the
+event's reads in some sample, and the reads of the rest are its ``other`` row.
 
 The events of splicing (es, ces, alt5, alt3, alt5ss, alt3ss, ir) are found among
 reads linked by shared splice sites, whatever their genes, so overlapping genes and

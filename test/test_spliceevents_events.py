@@ -7,7 +7,7 @@ with 0-based starts, and the tables' rows are keyed by name, event|alternative, 
 """
 import csv
 from flair import SeqRange
-from flair.spliceevents_events import psi_varies, extract_terminal_info, group_ends, Thresholds
+from flair.spliceevents_events import is_alternative, extract_terminal_info, group_ends, Thresholds
 from flair.spliceevents_genes import process_region_events, read_event_genes, AnnotatedSplicing
 from flair.spliceevents_reads import ReadEnds, ReadChain
 from flair.spliceevents_tables import EVENT_ROW_COLUMNS
@@ -25,7 +25,7 @@ def _sample_reads(chains, gene='G1', strand='+'):
 
 
 def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac_of_tot=0.1,
-            junc_frac_of_event=0.02, event_support=20, annot_afe_ss=None, annot_ale_ss=None, annotated=None):
+            junc_frac_of_event=0.05, event_support=20, annot_afe_ss=None, annot_ale_ss=None, annotated=None):
     """process_region_events on the reads of each sample: the rows of each table, as
     {row name: {column: value}}, keyed by table (counts, PSIjunc, PSItot), and the
     totals, as {(event, total): {sample: count}}"""
@@ -111,12 +111,19 @@ def test_an_event_with_a_psi_in_only_one_sample_is_not_reported_when_it_is_const
     assert _of_type(tables, 'es') == {}
 
 
-def test_psis_vary_by_junc_frac_of_event_or_one_psi_is_away_from_0_and_1():
-    assert psi_varies([0.5, 0.53], 0.02)
-    assert not psi_varies([0.5, 0.51], 0.02)
-    assert psi_varies([0.5], 0.02)
-    assert not psi_varies([0.99], 0.02)
-    assert not psi_varies([], 0.02)
+def test_an_alternative_has_a_psi_away_from_0_and_1_in_some_sample():
+    # alike in every sample, but alternative
+    assert is_alternative([0.5, 0.51], 0.05)
+    assert is_alternative([0.5], 0.05)
+    assert is_alternative([0.99, 0.5], 0.05)
+    # used alone in one sample and not at all in another
+    assert is_alternative([0.0, 1.0], 0.05)
+    assert is_alternative([0.97, 0.03], 0.05)
+    # differing between samples, but never alternative
+    assert not is_alternative([0.01, 0.04], 0.05)
+    assert not is_alternative([0.99], 0.05)
+    assert not is_alternative([0.97, 0.99], 0.05)
+    assert not is_alternative([], 0.05)
 
 
 def test_a_skip_in_fewer_reads_than_feature_support_is_not_an_event(tmp_path):
@@ -125,10 +132,22 @@ def test_a_skip_in_fewer_reads_than_feature_support_is_not_an_event(tmp_path):
     assert _of_type(tables, 'es') == {}
 
 
-def test_an_exon_skipped_alike_in_every_sample_is_not_an_event(tmp_path):
-    # PSIs differ by less than junc_frac_of_event
+def test_an_exon_skipped_alike_in_every_sample_is_an_event(tmp_path):
+    # whether its PSI differs between samples is for what reads the tables
     tables, _ = _events(tmp_path, [(INC, 100, 600, 30), (EXC, 100, 600, 10)],
-                        [(INC, 100, 600, 30), (EXC, 100, 600, 10)], junc_frac_of_event=0.05)
+                        [(INC, 100, 600, 30), (EXC, 100, 600, 10)])
+    assert sorted(_of_type(tables, 'es')) == [f'{ES}|exc', f'{ES}|inc']
+
+
+def test_an_exon_included_in_one_sample_and_skipped_in_the_other_is_an_event(tmp_path):
+    tables, _ = _events(tmp_path, [(INC, 100, 600, 30)], [(EXC, 100, 600, 30)])
+    assert sorted(_of_type(tables, 'es')) == [f'{ES}|exc', f'{ES}|inc']
+
+
+def test_an_exon_skipped_in_too_few_reads_in_every_sample_is_not_an_event(tmp_path):
+    # skipped in 3% and 4% of the reads, under junc_frac_of_event, though they differ
+    tables, _ = _events(tmp_path, [(INC, 100, 600, 300), (EXC, 100, 600, 9)],
+                        [(INC, 100, 600, 300), (EXC, 100, 600, 12)])
     assert _of_type(tables, 'es') == {}
 
 
@@ -262,7 +281,8 @@ def _afe_with_internal_reads(tmp_path, annot_afe_ss=None):
 def test_a_first_exon_also_internal_in_some_reads_is_a_first_exon_only_if_annotated(tmp_path):
     assert _of_type(_afe_with_internal_reads(tmp_path), 'afe') == {}
     afe = _of_type(_afe_with_internal_reads(tmp_path, annot_afe_ss={'+': [320]}), 'afe')
-    assert sorted(row['alternative'] for row in afe.values()) == ['201-250,201-400', '321-400']
+    # 200-250, in 2 of 44 reads in each sample, is too rare to be one of its introns
+    assert sorted(row['alternative'] for row in afe.values()) == ['201-400', '321-400']
 
 
 def test_an_afe_events_reads_are_those_of_its_first_exons(tmp_path):
@@ -315,15 +335,15 @@ def test_donors_sharing_alternative_acceptors_are_an_alt5ss_event(tmp_path):
                                                   'alt3ss|chr1:201-350(+)|201-350,251-350']
 
 
-def test_a_splice_site_used_alike_in_every_sample_is_counted_as_other(tmp_path):
-    # a third acceptor at 380, in 4 reads of 44 in both samples
+def test_a_splice_site_in_too_few_reads_in_every_sample_is_counted_as_other(tmp_path):
+    # a third acceptor at 380, in 2 reads of 42 in both samples, under junc_frac_of_event
     third = [(200, 380), (400, 500)]
-    tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 10), (third, 100, 600, 4)],
-                        [(NEAR, 100, 600, 10), (FAR, 100, 600, 30), (third, 100, 600, 4)])
+    tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 10), (third, 100, 600, 2)],
+                        [(NEAR, 100, 600, 10), (FAR, 100, 600, 30), (third, 100, 600, 2)])
     alt3 = _of_type(tables, 'alt3')
     assert 'alt3|chr1:201-350(+)|201-380' not in alt3
     other = alt3['alt3|chr1:201-350(+)|other']
-    assert (other['s1'], other['s2']) == ('4', '4')
+    assert (other['s1'], other['s2']) == ('2', '2')
 
 
 def test_a_chains_first_and_last_exons_and_ends_follow_its_strand():

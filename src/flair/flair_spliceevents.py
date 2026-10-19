@@ -80,9 +80,10 @@ def add_subparser(subparsers):
     parser.add_argument('--event_frac_of_tot', type=float, default=0.1,
                         help='minimum (total reads in splicing event)/(total coverage over locus) to call event '
                              '(default: %(default)s)')
-    parser.add_argument('--junc_frac_of_event', type=float, default=0.02,
-                        help='minimum (reads with junction)/(total reads in splicing event). Set to 0 for max recall '
-                             '(default: %(default)s)')
+    parser.add_argument('--junc_frac_of_event', type=float, default=0.05,
+                        help="how alternative a junction, splice site or end must be to make an event: its "
+                             "reads' part of the event's reads at least this in some sample, and at most 1 minus "
+                             "it in some sample.  Set to 0 for max recall (default: %(default)s)")
     parser.add_argument('--quality', type=int, default=1,
                         help='minimum mapping quality of genomic alignments (default: %(default)s)')
     parser.add_argument('--trust_strand', action='store_true',
