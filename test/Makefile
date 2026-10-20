@@ -914,7 +914,7 @@ ${BASIC_LONGSHOT}: ${GENOME_FA} ${BASIC_ALIGN_BAM}
 have_longshot := $(shell which longshot >/dev/null 2>&1 && echo yes || echo no)
 longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant \
 	test-variantquant-gtf test-variantquant-bed12-gtf test-variantquant-nogenes test-variantquant-manifest \
-	test-variantquant-manifest-vcfs test-variantquant-filters
+	test-variantquant-manifest-vcfs test-variantquant-filters test-variantquant-stranded
 
 ifeq (${have_longshot},yes)
 variants-tests: ${longshot_tests}
@@ -985,6 +985,11 @@ test-variantquant-filters: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
 	$(call cmp_expect_sort,$@.var.counts.tsv)
 	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) -g ${GENOME_FA} --output_all --keep_flags RefCall -o $O/$@-keep
 	$(call cmp_expect_sort,$@-keep.var.counts.tsv)
+
+# each strand of reads at a site a row of its own, of alignments of mapping quality at least 1
+test-variantquant-stranded: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --trust_strand --quality 1 --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
 
 # a manifest of each sample's vcf, one gzipped
 test-variantquant-manifest-vcfs: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}

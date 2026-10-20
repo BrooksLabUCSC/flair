@@ -2,8 +2,8 @@
 vcf, as RNA editing sites of a database like REDIportal or variants called in the samples, from
 reads aligned to the genome.  Each sample's reads covering a site go to a temp file
 of its own, in parallel, a record per read: its reference, sample index and read
-name, and per site covered its position, genes and the alt it shows, or NO_ALT;
-then the counts of every sample are written from them"""
+name, strand, or UNSTRANDED, and per site covered its position, genes and the alt it
+shows, or NO_ALT; then the counts of every sample are written from them"""
 
 import os
 import shutil
@@ -12,7 +12,7 @@ import logging
 import math
 import multiprocessing as mp
 from bisect import bisect_right
-from collections import Counter
+from collections import Counter, namedtuple
 import pysam
 from flair.pycbio.hgdata.bed import BedReader
 from flair.pycbio.sys import fileOps
@@ -35,6 +35,8 @@ VAR_BIN_SIZE = 10 ** 6
 
 # a read's allele at a site where it shows none of the site's alts
 NO_ALT = '.'
+# a read's strand, without --trust_strand
+UNSTRANDED = '.'
 
 # a temp record is pos, gene list, status; the gene list is itself a list, so the two
 # need separators that cannot be confused, or the field count varies with gene count
@@ -85,6 +87,12 @@ def add_subparser(subparsers):
     parser.add_argument('--min_coverage', type=int, default=5,
                         help='minimum reads covering a site, in at least one sample, for its alleles to be '
                              'written (default: %(default)s)')
+    parser.add_argument('--quality', type=int, default=0,
+                        help='minimum mapping quality of the alignments counted (default: %(default)s)')
+    parser.add_argument('--trust_strand', action='store_true',
+                        help="trust the stranding of the reads, as of oriented reads or direct RNA: each read is of "
+                             "its alignment's strand, and the counts of each strand of reads at a site are a row of "
+                             'their own, with a strand column, the + and - reads of an allele two rows')
     parser.add_argument('--output_all', action='store_true',
                         help='write the alleles of every site with --min_coverage, whether or not any read '
                              'shows them')
@@ -108,7 +116,8 @@ def quantvarpos_cmd(args):
     quantvarpos(manifest=args.manifest, bam=args.bam, sample_name=args.sample_name,
                 vcf=args.vcf, keep_flags=args.keep_flags, genome=args.genome, output=args.output,
                 isoform_bed=args.isoform_bed, gtf=args.gtf, min_coverage=args.min_coverage,
-                output_all=args.output_all, keep_intermediate=args.keep_intermediate,
+                output_all=args.output_all, quality=args.quality, trust_strand=args.trust_strand,
+                keep_intermediate=args.keep_intermediate,
                 temp_dir=args.temp_dir, threads=args.threads)
 
 
@@ -214,10 +223,11 @@ def read_bases_at(read, sites):
                 i += 1
 
 
-def parse_single_bam_read(s, out, vcfvars, positions, sampleindex):
+def parse_single_bam_read(s, out, vcfvars, positions, sampleindex, strand=UNSTRANDED):
     """Write the sites a read aligns a base to, of vcfvars, to out, its sample's temp
-    file, each with its genes and the alt the read shows there, or NO_ALT.  positions
-    are vcfvars' site_positions.  Most reads cover no site, and return at once"""
+    file, with its strand, each with its genes and the alt the read shows there, or
+    NO_ALT.  positions are vcfvars' site_positions.  Most reads cover no site, and
+    return at once"""
     sites = sites_in_span(positions, s.reference_name, s.reference_start, s.reference_end)
     if not sites or s.query_sequence is None:
         return
@@ -226,25 +236,27 @@ def parse_single_bam_read(s, out, vcfvars, positions, sampleindex):
         _, alts, name = vcfvars[(s.reference_name, var_bin(pos))][pos]
         records.append(VAR_FIELD_SEP.join([str(pos), name, base if base in alts else NO_ALT]))
     if records:
-        out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, ';'.join(records)]) + '\n')
+        out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, strand, ';'.join(records)]) + '\n')
 
 
-def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars):
+def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars,
+                                   stranded=False):
     """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv:
     per sample, the reads covering the site not showing the alt, and those showing
-    it, so they add up to the site's coverage whatever its other alts.  A row is
-    written if a sample has threshold reads covering the site, and if a sample has a
-    read showing the alt, or output_all.  temp_paths are the samples' temp files,
-    from parse_all_bam_files"""
+    it, so they add up to the site's coverage whatever its other alts.  Given
+    stranded, of each strand of the reads, in a strand column, a row for each
+    strand of reads at the site.  A row is written if a sample has threshold reads
+    covering the site, and if a sample has a read showing the alt, or output_all.
+    temp_paths are the samples' temp files, from parse_all_bam_files"""
     samplenames = [x[0] for x in sampledata]
 
     with open(f'{outprefix}.var.counts.tsv', 'w') as out:
-        out.write('\t'.join(['varpos', 'ref', 'alt', 'gene', 'transcript'] + samplenames) + '\n')
+        out.write('\t'.join(['varpos', 'ref', 'alt'] + (['strand'] if stranded else []) + ['gene'] + samplenames) + '\n')
         vartocounts = {}
         for temp_path in temp_paths:
             with open(temp_path) as mutstringfile:
                 for line in mutstringfile:
-                    refname, readname, mutstring = line.rstrip('\n').split('\t')
+                    refname, readname, strand, mutstring = line.rstrip('\n').split('\t')
                     # three fields per mut now, whatever the gene count: the gene list
                     # used to be comma joined into a comma joined record
                     allmuts = [x.split(VAR_FIELD_SEP) for x in mutstring.split(';')]
@@ -254,14 +266,13 @@ def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold,
                     for m in allmuts:
                         # first of the sorted gene list, as before, when a variant falls
                         # in more than one gene
-                        var = (refname, int(m[0]), m[1].split(GENE_LIST_SEP)[0])
+                        var = (refname, int(m[0]), m[1].split(GENE_LIST_SEP)[0], strand)
                         if var not in vartocounts:
                             # per sample, the reads covering the site, by the alt they show
                             vartocounts[var] = [Counter() for x in range(len(samplenames))]
                         vartocounts[var][sampleindex][m[-1]] += 1
 
-        transcript = ''
-        for (refname, pos, gene), sample_alleles in vartocounts.items():
+        for (refname, pos, gene, strand), sample_alleles in vartocounts.items():
             coverage = [sum(alleles.values()) for alleles in sample_alleles]
             if not any(cov >= threshold for cov in coverage):
                 continue
@@ -270,7 +281,8 @@ def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold,
                 modified = [alleles[alt] for alleles in sample_alleles]
                 if any(mod > 0 for mod in modified) or output_all:
                     varcounts = [f'{cov - mod};{mod}' for cov, mod in zip(coverage, modified)]
-                    out.write('\t'.join([f'{refname}:{pos}', ref, alt, gene, transcript] + varcounts) + '\n')
+                    out.write('\t'.join([f'{refname}:{pos}', ref, alt] + ([strand] if stranded else []) + [gene]
+                                        + varcounts) + '\n')
 
 def is_snv(ref, alt):
     "whether a vcf ref and one of its alts are an SNV, which one read base can show"
@@ -517,18 +529,26 @@ def name_sites_by_genes(vcfvars, exons):
     return vcfvars
 
 
-def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex):
+# which reads of the bam files to count, and how: quality, the minimum mapping
+# quality, and trust_strand, whether each read's strand is its alignment's
+ReadOptions = namedtuple('ReadOptions', ('quality', 'trust_strand'))
+
+
+def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex, read_options):
     """parse the reads of a bam file: its primary and supplementary alignments, the
     supplementary of other parts of a read, as of a chimera, but not its secondary,
-    other alignments of the same bases, which would count them again"""
+    other alignments of the same bases, which would count them again, of at least
+    the mapping quality of read_options, each of its alignment's strand given
+    trust_strand"""
     with pysam.AlignmentFile(bamfile, 'rb') as samfile:
         c = 0
         for s in samfile:
-            if s.is_mapped and not s.is_secondary:
+            if s.is_mapped and not s.is_secondary and s.mapping_quality >= read_options.quality:
                 c += 1
                 if c % 100000 == 0:
                     logging.info(f'{c} reads checked')
-                parse_single_bam_read(s, out, vcfvars, positions, sindex)
+                strand = ('-' if s.is_reverse else '+') if read_options.trust_strand else UNSTRANDED
+                parse_single_bam_read(s, out, vcfvars, positions, sindex, strand)
 
 
 # the sites of parse_all_bam_files and their site_positions, for its forked
@@ -537,19 +557,20 @@ def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex):
 _pool_sites = None
 
 
-def _parse_sample(sindex, sample, bamfile, temp_path, sites=None):
+def _parse_sample(sindex, sample, bamfile, temp_path, read_options, sites=None):
     "parse a sample's reads to its temp file, of sites, (vcfvars, positions), or the pool's"
     with open(temp_path, 'w') as out:
-        _parse_one_bam_file(bamfile, out, *(_pool_sites if sites is None else sites), sindex)
+        _parse_one_bam_file(bamfile, out, *(_pool_sites if sites is None else sites), sindex, read_options)
     logging.info(f'done parsing reads for {sample}')
 
 
-def parse_all_bam_files(sampledata, tempdir, vcfvars, threads):
-    """Parse each sample's reads covering the sites to a temp file of its own,
-    tempdir/<sample index>.txt, threads samples at once.  The files' paths, by sample"""
+def parse_all_bam_files(sampledata, tempdir, vcfvars, threads, read_options=ReadOptions(0, False)):
+    """Parse each sample's reads covering the sites, of read_options, to a temp file
+    of its own, tempdir/<sample index>.txt, threads samples at once.  The files'
+    paths, by sample"""
     global _pool_sites
     sites = (vcfvars, site_positions(vcfvars))
-    tasks = [(sindex, row[0], row[1], f'{tempdir}{sindex}.txt') for sindex, row in enumerate(sampledata)]
+    tasks = [(sindex, row[0], row[1], f'{tempdir}{sindex}.txt', read_options) for sindex, row in enumerate(sampledata)]
     if threads <= 1 or len(tasks) <= 1:
         for task in tasks:
             _parse_sample(*task, sites=sites)
@@ -561,7 +582,7 @@ def parse_all_bam_files(sampledata, tempdir, vcfvars, threads):
                 pool.starmap(_parse_sample, tasks)
         finally:
             _pool_sites = None
-    return [task[-1] for task in tasks]
+    return [task[3] for task in tasks]
 
 
 def samples_and_site_vcfs(manifest, bam, sample_name, vcf):
@@ -583,7 +604,8 @@ def samples_and_site_vcfs(manifest, bam, sample_name, vcf):
 
 
 def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_flags=frozenset(), genome=None, output,
-                isoform_bed=None, gtf=None, min_coverage, output_all, keep_intermediate, temp_dir=None, threads=1):
+                isoform_bed=None, gtf=None, min_coverage, output_all, quality=0, trust_strand=False,
+                keep_intermediate, temp_dir=None, threads=1):
     sampledata, site_vcfs = samples_and_site_vcfs(manifest, bam, sample_name, vcf)
     vcfvars = read_vcf_sites(site_vcfs, keep_flags)
     logging.info('done reading vcfs')
@@ -599,9 +621,10 @@ def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_fla
     tempdir = make_run_temp_dir(output, temp_dir)
     logging.info(f'temporary files in {tempdir}')
     try:
-        temp_paths = parse_all_bam_files(sampledata, tempdir, vcfvars, threads)
+        temp_paths = parse_all_bam_files(sampledata, tempdir, vcfvars, threads, ReadOptions(quality, trust_strand))
         logging.info('parsed all reads')
-        read_vars_to_genome_pos_counts(temp_paths, output, sampledata, min_coverage, output_all, vcfvars)
+        read_vars_to_genome_pos_counts(temp_paths, output, sampledata, min_coverage, output_all, vcfvars,
+                                       stranded=trust_strand)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

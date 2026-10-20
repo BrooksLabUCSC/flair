@@ -97,14 +97,14 @@ def test_each_allele_of_a_site_is_counted_of_the_reads_covering_it(tmp_path):
     tempdir.mkdir()
     with open(tempdir / 'chr1.txt', 'w') as out:
         for n, allele in enumerate(['G', 'T', 'T', NO_ALT]):
-            out.write(f'chr1\t{n % 2}__r{n}\t5|G1|{allele}\n')
+            out.write(f'chr1\t{n % 2}__r{n}\t.\t5|G1|{allele}\n')
     vcfvars = add_vcf_var({}, 'chr1', 'A', ['G', 'T'], 5, 'G1')
     output = str(tmp_path / 'out')
     read_vars_to_genome_pos_counts([str(tempdir / 'chr1.txt')], output, [['s1'], ['s2']], 1, False, vcfvars)
     rows = [line.rstrip('\n').split('\t') for line in open(output + '.var.counts.tsv')]
-    assert rows == [['varpos', 'ref', 'alt', 'gene', 'transcript', 's1', 's2'],
-                    ['chr1:5', 'A', 'G', 'G1', '', '1;1', '2;0'],
-                    ['chr1:5', 'A', 'T', 'G1', '', '1;1', '1;1']]
+    assert rows == [['varpos', 'ref', 'alt', 'gene', 's1', 's2'],
+                    ['chr1:5', 'A', 'G', 'G1', '1;1', '2;0'],
+                    ['chr1:5', 'A', 'T', 'G1', '1;1', '1;1']]
 
 
 def _bam(path, reads):
@@ -134,7 +134,7 @@ def test_a_rerun_to_the_same_output_counts_its_reads_once(tmp_path):
     # the first run's intermediate files are kept, where the second run puts its own
     temp_dir = str(tmp_path / 'tmp')
     first = _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir)
-    assert first.splitlines()[1:] == ['chr1:5\tA\tG\t\t\t2;1', 'chr1:5\tA\tT\t\t\t2;1']
+    assert first.splitlines()[1:] == ['chr1:5\tA\tG\t\t2;1', 'chr1:5\tA\tT\t\t2;1']
     assert _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir) == first
 
 
@@ -253,7 +253,7 @@ def test_a_vcfs_sites_without_an_isoform_bed_have_no_genes(tmp_path):
     quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
                 output_all=False, keep_intermediate=False)
     assert open(tmp_path / 'out.var.counts.tsv').read().splitlines() == [
-        'varpos\tref\talt\tgene\ttranscript\ts1', 'chr1:5\tA\tG\t\t\t2;1', 'chr1:5\tA\tT\t\t\t2;1']
+        'varpos\tref\talt\tgene\ts1', 'chr1:5\tA\tG\t\t2;1', 'chr1:5\tA\tT\t\t2;1']
 
 
 def test_records_of_kept_flags_are_sites_too(tmp_path):
@@ -389,3 +389,29 @@ def test_sites_whose_ref_is_not_the_genomes_are_left_out(tmp_path, caplog):
     assert 'chr1:12 A>G at None' in caplog.text
     assert 'chr1:2 G>A at C' in caplog.text
     assert '1 vcf sites on sequences not in the genome left out' in caplog.text
+
+
+def test_trusting_strand_counts_each_strand_of_reads_in_a_row_of_its_own(tmp_path):
+    # chr1:5 A>G: + reads g and ref, - reads g2, ref2 and ref3, and low, of mapping quality 0
+    reads = [_read('g', 'AAAAGAAAAA'), _read('ref', 'AAAAAAAAAA'), _read('g2', 'AAAAGAAAAA'),
+             _read('ref2', 'AAAAAAAAAA'), _read('ref3', 'AAAAAAAAAA'), _read('low', 'AAAAGAAAAA')]
+    for read in reads:
+        read.mapping_quality = 60
+    for read in reads[2:]:
+        read.is_reverse = True
+    reads[5].mapping_quality = 0
+    header = {'SQ': [{'SN': 'chr1', 'LN': 3 * VAR_BIN_SIZE}]}
+    with pysam.AlignmentFile(str(tmp_path / 's1.bam'), 'wb', header=header) as bam:
+        for read in reads:
+            bam.write(read)
+    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '5', '.', 'A', 'G'))
+
+    def counts(**options):
+        quantvarpos(bam=str(tmp_path / 's1.bam'), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
+                    output_all=False, keep_intermediate=False, **options)
+        return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
+
+    assert counts() == ['chr1:5\tA\tG\t\t3;3', 'varpos\tref\talt\tgene\ts1']
+    assert counts(quality=1) == ['chr1:5\tA\tG\t\t3;2', 'varpos\tref\talt\tgene\ts1']
+    assert counts(quality=1, trust_strand=True) == ['chr1:5\tA\tG\t+\t\t1;1', 'chr1:5\tA\tG\t-\t\t2;1',
+                                                    'varpos\tref\talt\tstrand\tgene\ts1']

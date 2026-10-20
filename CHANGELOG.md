@@ -448,7 +448,7 @@
     rather than more than that.
 * flair variantquant
   * OUTPUT.var.counts.tsv has a row per allele of a site, with new `ref` and `alt`
-    columns: a sample's `unmodified;modified` counts are the reads covering the site
+    columns, and without the `transcript` column, which was always empty: a sample's `unmodified;modified` counts are the reads covering the site
     not showing the row's alt, and those showing it.  Multi-allelic vcf sites were
     never counted, their ALT compared whole, as `G,T`, with one read base; each alt
     is now its own row.
@@ -503,6 +503,12 @@
     counted the 41,442 REDIportal records of the transcript's strand, as A>G of a
     minus strand gene, now left out; its 247 records matching neither strand counted
     every read of the genome's base as edited.
+  * `--quality` is the minimum mapping quality of the alignments counted (default 0,
+    every alignment, as before).
+  * `--trust_strand` trusts the stranding of the reads, as of oriented reads or
+    direct RNA: each read is of its alignment's strand, and the counts of each strand
+    of reads at a site are a row of their own, with a strand column, so an antisense
+    transcript's reads aren't counted with the sense transcript's.
   * `--pos_ref` is removed, and annotate_group_vcf_vars.py, which wrote its files:
     a vcf with `--isoform_bed` or `--gtf` now loads nearly as fast as they did.
 * Incompatibles

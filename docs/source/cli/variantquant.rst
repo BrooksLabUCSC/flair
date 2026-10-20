@@ -8,9 +8,9 @@
                              [-g GENOME] [--keep_flags FLAGS]
                              [--sample_name SAMPLE_NAME] [-o OUTPUT]
                              [--isoform_bed ISOFORM_BED] [-f GTF]
-                             [--min_coverage MIN_COVERAGE] [--output_all]
-                             [-t THREADS] [--temp_dir TEMP_DIR]
-                             [--keep_intermediate]
+                             [--min_coverage MIN_COVERAGE] [--quality QUALITY]
+                             [--trust_strand] [--output_all] [-t THREADS]
+                             [--temp_dir TEMP_DIR] [--keep_intermediate]
 
 .. rubric:: options
 
@@ -53,6 +53,14 @@
 .. option:: --min_coverage MIN_COVERAGE
 
    minimum reads covering a site, in at least one sample, for its alleles to be written (default: 5)
+
+.. option:: --quality QUALITY
+
+   minimum mapping quality of the alignments counted (default: 0)
+
+.. option:: --trust_strand
+
+   trust the stranding of the reads, as of oriented reads or direct RNA: each read is of its alignment's strand, and the counts of each strand of reads at a site are a row of their own, with a strand column, the + and - reads of an allele two rows
 
 .. option:: --output_all
 
