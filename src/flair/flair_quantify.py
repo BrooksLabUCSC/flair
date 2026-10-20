@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import os
-import pipettor
 import pysam
 from shutil import rmtree
 import logging
@@ -14,7 +13,8 @@ from flair.flair_bed import FlairBed
 from flair.flair_transcriptome import _check_junction_subset, unique_bounds_past
 from flair.terminal_exon_ends import GeneTerminalExonEnds
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
-from flair.count_sam_transcripts import run_count_sam_transcripts
+from flair.count_sam_transcripts import run_count_sam_transcripts, TRUST_ENDS_WINDOW
+from flair.annotation_precheck import read_introns, splice_sites_cleanly_aligned
 from flair.counts_to_tpm import counts_to_tpm
 from flair.isoform_data import get_reverse_complement
 import multiprocessing as mp
@@ -167,31 +167,111 @@ def write_map_out(sample_data, gene_data, temp_dir, output, generate_map):
                     for line in open(temp_dir + gene_id + '/' + sample + '.isoform.read.map.txt'):
                         fh.write(line)
 
-def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends):
+def direct_assignment_chains(isoform_beds):
+    """The isoforms reads can be assigned to without the realignment, by junction
+    chain: the gene's spliced isoforms, but not a fusion's pieces, whose reads need
+    their partner too, nor a chain more than one isoform has, where the realignment
+    chooses between them by their ends"""
+    by_chain = {}
+    for bed in isoform_beds:
+        if len(bed.blocks) > 1 and bed.pos_in_fusion is None and bed.transcript_class != 'fusion':
+            by_chain.setdefault(tuple((gap.start, gap.end) for gap in bed.getGaps()), []).append(bed)
+    return {chain: beds[0] for chain, beds in by_chain.items() if len(beds) == 1}
+
+def direct_isoform(read, chains, genome, trust_ends):
+    """The isoform a read is assigned to without the realignment, or None: its
+    introns are the chain of one isoform (direct_assignment_chains), aligned cleanly
+    at their splice sites, as flair transcriptome's direct assignment requires of
+    reads.  Unlike there, the read needn't cover the isoform's unique sequence
+    (load_unique_bound): a read with exactly the isoform's junctions is its read,
+    though another isoform's chain contains them, rather than being given to
+    neither when it starts or ends inside that isoform's exons.  With trust_ends, its
+    ends must also be near the isoform's, as count_sam_transcripts requires.  A
+    read with a supplementary alignment, perhaps a fusion's, is realigned."""
+    if read.has_tag('SA'):
+        return None
+    introns = read_introns(read)
+    bed = chains.get(introns)
+    if bed is None or not splice_sites_cleanly_aligned(read, introns, genome):
+        return None
+    if trust_ends and (abs(read.reference_start - bed.chromStart) > TRUST_ENDS_WINDOW
+                       or abs(read.reference_end - bed.chromEnd) > TRUST_ENDS_WINDOW):
+        return None
+    return bed
+
+def write_reads_to_realign(bam_file, gene_info, chains, genome, trust_ends, fasta):
+    """Write the gene's primary reads to fasta to be realigned, as samtools fasta would,
+    except the reads assigned without the realignment (direct_isoform), which are
+    returned as isoform name -> read names, with the number of reads written"""
+    direct, num_realign = {}, 0
+    with open(fasta, 'w') as fh:
+        # samtools' region, with the 1-based start
+        for read in bam_file.fetch(region=f'{gene_info.chrom}:{gene_info.left_bound}-{gene_info.right_bound}'):
+            if read.is_secondary or read.is_supplementary or read.query_sequence is None:
+                continue
+            bed = direct_isoform(read, chains, genome, trust_ends)
+            if bed is not None:
+                direct.setdefault(bed.name, []).append(read.query_name)
+            else:
+                fh.write('>' + read.query_name + '\n' + read.get_forward_sequence() + '\n')
+                num_realign += 1
+    return direct, num_realign
+
+def add_direct_assignments(direct, counts_file, read_map_file):
+    """Add the reads assigned without the realignment, isoform name -> read names, to
+    count_sam_transcripts' counts and read map"""
+    counts = {}
+    for line in open(counts_file):
+        name, count = line.rstrip('\n').split('\t')
+        counts[name] = int(count)
+    for name, reads in direct.items():
+        counts[name] = counts.get(name, 0) + len(reads)
+    with open(counts_file, 'w') as fh:
+        for name, count in counts.items():
+            fh.write(name + '\t' + str(count) + '\n')
+    if read_map_file is not None:
+        read_map = {}
+        for line in open(read_map_file):
+            name, reads = line.rstrip('\n').split('\t')
+            read_map[name] = reads.split(',') if reads else []
+        for name, reads in direct.items():
+            read_map.setdefault(name, []).extend(reads)
+        with open(read_map_file, 'w') as fh:
+            for name, reads in read_map.items():
+                fh.write(name + '\t' + ','.join(reads) + '\n')
+
+def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends, chains, genome):
     temp_prefix_sample = temp_prefix + sample
-    pipettor.run([('samtools', 'view', '-h', bamfile, gene_info.chrom + ':' + str(gene_info.left_bound) + '-' + str(gene_info.right_bound)),
-                  ('samtools', 'fasta', '-')],
-                 stdout=temp_prefix_sample + '.reads.fasta')
     # with, not a bare open: this runs once per gene per sample, so the descriptors
     # grew without bound in a worker handling many genes
     with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
+        direct, num_realign = write_reads_to_realign(bam_file, gene_info, chains, genome, trust_ends,
+                                                     temp_prefix_sample + '.reads.fasta')
         generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
+    logging.debug(f'{gene_info.gene_id} {sample}: {sum(len(r) for r in direct.values())} reads assigned without '
+                  f'realignment, {num_realign} realigned')
     read_map_file = temp_prefix_sample + '.isoform.read.map.txt' if generate_map else None
-    mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
-    # minimap2 borrows threads left idle in the thread budget while it runs
-    with thread_share.program_threads() as mm2_threads:
-        run_count_sam_transcripts(
-            mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
-            output=temp_prefix_sample + '.isoform.counts.txt',
-            trimmedreads=temp_prefix_sample + '.reads.genomicclipping.txt',
-            generate_map=read_map_file,
-            stringent=True,
-            allow_UTR_indels=True,  # is_annot,
-            check_splice=True,
-            isoforms=temp_prefix + 'isoforms.bed',
-            trust_ends=trust_ends,
-            unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
-        )
+    if num_realign == 0:
+        for path in (temp_prefix_sample + '.isoform.counts.txt', read_map_file):
+            if path is not None:
+                open(path, 'w').close()
+    else:
+        mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
+        # minimap2 borrows threads left idle in the thread budget while it runs
+        with thread_share.program_threads() as mm2_threads:
+            run_count_sam_transcripts(
+                mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
+                output=temp_prefix_sample + '.isoform.counts.txt',
+                trimmedreads=temp_prefix_sample + '.reads.genomicclipping.txt',
+                generate_map=read_map_file,
+                stringent=True,
+                allow_UTR_indels=True,  # is_annot,
+                check_splice=True,
+                isoforms=temp_prefix + 'isoforms.bed',
+                trust_ends=trust_ends,
+                unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
+            )
+    add_direct_assignments(direct, temp_prefix_sample + '.isoform.counts.txt', read_map_file)
 
 def get_counts_for_gene(input):
     temp_dir, gene_id, gene_info, sample_data, generate_map, trust_ends, genome_file, norm_ends = input
@@ -215,10 +295,12 @@ def get_counts_for_gene(input):
                     seq = get_reverse_complement(seq)
                 fh_fa.write('>' + bed.name + '\n' + seq + '\n')
 
-    load_unique_bound(temp_prefix, gene_info)
+        load_unique_bound(temp_prefix, gene_info)
 
-    for sample, group, batch, bamfile in sample_data:
-        get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends)
+        # the isoforms with their ends as realigned to, normalized or not
+        chains = direct_assignment_chains(gene_info.isoform_beds)
+        for sample, group, batch, bamfile in sample_data:
+            get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends, chains, genome)
 
 def _count_gene_task(input):
     thread_share.task_start()
