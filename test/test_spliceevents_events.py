@@ -62,7 +62,7 @@ def _of_type(tables, eventtype):
 # exons 100-200, 300-400 and 500-600 on +: the middle one included or skipped
 INC = [(200, 300), (400, 500)]
 EXC = [(200, 500)]
-ES = 'es|chr1:301-400(+)'
+ES = 'es|chr1:301-400(+)|G1'
 
 
 def test_a_skipped_exon_is_an_es_event_with_its_inclusion_and_exclusion(tmp_path):
@@ -163,7 +163,7 @@ def test_one_sample_needs_its_psi_between_junc_frac_of_event_and_one_minus_it(tm
 # exons 100-200, 300-400, 500-600 and 700-800 on +: the two middle ones included or skipped together
 INC2 = [(200, 300), (400, 500), (600, 700)]
 EXC2 = [(200, 700)]
-CES = 'ces|chr1:201-700(+)'
+CES = 'ces|chr1:201-700(+)|G1'
 
 
 def _ces_counts(tables):
@@ -204,8 +204,8 @@ def test_two_acceptors_of_one_donor_are_an_alt3_event_on_plus(tmp_path):
                         [(NEAR, 100, 600, 10), (FAR, 100, 600, 30)])
     alt3 = _of_type(tables, 'alt3')
     # from the shared donor to the furthest acceptor, rows by their introns
-    assert sorted(alt3) == ['alt3|chr1:201-350(+)|201-300', 'alt3|chr1:201-350(+)|201-350']
-    assert alt3['alt3|chr1:201-350(+)|201-350']['s2'] == '30'
+    assert sorted(alt3) == ['alt3|chr1:201-350(+)|G1|201-300', 'alt3|chr1:201-350(+)|G1|201-350']
+    assert alt3['alt3|chr1:201-350(+)|G1|201-350']['s2'] == '30'
     assert _of_type(tables, 'alt5') == {}
 
 
@@ -213,7 +213,7 @@ def test_the_same_junctions_on_minus_are_an_alt5_event(tmp_path):
     # on -, 200 is the acceptor and 300 and 350 the donors
     tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 10)],
                         [(NEAR, 100, 600, 10), (FAR, 100, 600, 30)], strand='-')
-    assert sorted(_of_type(tables, 'alt5')) == ['alt5|chr1:201-350(-)|201-300', 'alt5|chr1:201-350(-)|201-350']
+    assert sorted(_of_type(tables, 'alt5')) == ['alt5|chr1:201-350(-)|G1|201-300', 'alt5|chr1:201-350(-)|G1|201-350']
     assert _of_type(tables, 'alt3') == {}
 
 
@@ -224,8 +224,8 @@ def test_an_alternative_alike_in_every_sample_is_a_row_when_a_large_part_of_the_
     # the acceptor at 300, half the reads in both samples, doesn't vary but is a row
     tables, _ = _events(tmp_path, [(NEAR, 100, 600, 50), (FAR, 100, 600, 30), (FARTHER, 100, 600, 20)],
                         [(NEAR, 100, 600, 50), (FAR, 100, 600, 10), (FARTHER, 100, 600, 40)])
-    assert sorted(_of_type(tables, 'alt3')) == ['alt3|chr1:201-380(+)|201-300', 'alt3|chr1:201-380(+)|201-350',
-                                                'alt3|chr1:201-380(+)|201-380']
+    assert sorted(_of_type(tables, 'alt3')) == ['alt3|chr1:201-380(+)|G1|201-300', 'alt3|chr1:201-380(+)|G1|201-350',
+                                                'alt3|chr1:201-380(+)|G1|201-380']
 
 
 def test_an_alternative_large_only_in_a_sample_of_too_few_reads_is_other(tmp_path):
@@ -233,8 +233,8 @@ def test_an_alternative_large_only_in_a_sample_of_too_few_reads_is_other(tmp_pat
     tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 10)],
                         [(NEAR, 100, 600, 5), (FAR, 100, 600, 8), (FARTHER, 100, 600, 3)])
     alt3 = _of_type(tables, 'alt3')
-    assert sorted(alt3) == ['alt3|chr1:201-350(+)|201-300', 'alt3|chr1:201-350(+)|201-350', 'alt3|chr1:201-350(+)|other']
-    assert alt3['alt3|chr1:201-350(+)|other']['s2'] == '3'
+    assert sorted(alt3) == ['alt3|chr1:201-350(+)|G1|201-300', 'alt3|chr1:201-350(+)|G1|201-350', 'alt3|chr1:201-350(+)|G1|other']
+    assert alt3['alt3|chr1:201-350(+)|G1|other']['s2'] == '3'
 
 
 def test_alternative_sites_of_too_few_reads_are_not_an_event(tmp_path):
@@ -260,8 +260,8 @@ def test_an_intron_inside_another_reads_exon_is_retained(tmp_path):
     tables, _ = _events(tmp_path, [(spliced, 100, 600, 30), (retained, 100, 600, 10)],
                         [(spliced, 100, 600, 10), (retained, 100, 600, 30)])
     ir = _of_type(tables, 'ir')
-    assert sorted(ir) == ['ir|chr1:201-300(+)|retained', 'ir|chr1:201-300(+)|spliced']
-    assert ir['ir|chr1:201-300(+)|retained']['s1'] == '10'
+    assert sorted(ir) == ['ir|chr1:201-300(+)|G1|retained', 'ir|chr1:201-300(+)|G1|spliced']
+    assert ir['ir|chr1:201-300(+)|G1|retained']['s1'] == '10'
 
 
 def test_an_ir_events_other_row_is_the_junctions_near_its_own(tmp_path):
@@ -269,7 +269,7 @@ def test_an_ir_events_other_row_is_the_junctions_near_its_own(tmp_path):
     spliced, near, retained = [(200, 300), (400, 500)], [(200, 320), (400, 500)], [(400, 500)]
     tables, _ = _events(tmp_path, [(spliced, 100, 600, 30), (near, 100, 600, 10), (retained, 100, 600, 10)],
                         [(spliced, 100, 600, 10), (near, 100, 600, 30), (retained, 100, 600, 10)])
-    other = _of_type(tables, 'ir')['ir|chr1:201-300(+)|other']
+    other = _of_type(tables, 'ir')['ir|chr1:201-300(+)|G1|other']
     assert (other['s1'], other['s2']) == ('10', '30')
 
 
@@ -279,8 +279,8 @@ def test_a_shifted_copy_of_an_intron_of_few_reads_is_not_retained(tmp_path):
     tables, _ = _events(tmp_path, [(spliced, 100, 600, 30), (shifted, 100, 600, 2), (retained, 100, 600, 10)],
                         [(spliced, 100, 600, 10), (shifted, 100, 600, 2), (retained, 100, 600, 30)])
     ir = _of_type(tables, 'ir')
-    assert not any(name.startswith('ir|chr1:207-306(+)') for name in ir)
-    assert (ir['ir|chr1:201-300(+)|other']['s1'], ir['ir|chr1:201-300(+)|other']['s2']) == ('2', '2')
+    assert not any(name.startswith('ir|chr1:207-306(+)|G1') for name in ir)
+    assert (ir['ir|chr1:201-300(+)|G1|other']['s1'], ir['ir|chr1:201-300(+)|G1|other']['s2']) == ('2', '2')
 
 
 def test_a_junction_of_few_reads_nested_in_a_long_intron_is_not_retained(tmp_path):
@@ -289,7 +289,7 @@ def test_a_junction_of_few_reads_nested_in_a_long_intron_is_not_retained(tmp_pat
     long_intron, nested, retained = [(200, 500)], [(300, 350), (400, 500)], [(400, 500)]
     tables, _ = _events(tmp_path, [(long_intron, 100, 600, 40), (nested, 250, 600, 2), (retained, 100, 600, 10)],
                         [(long_intron, 100, 600, 40), (nested, 250, 600, 2), (retained, 100, 600, 30)])
-    assert not any(name.startswith('ir|chr1:301-350(+)') for name in _of_type(tables, 'ir'))
+    assert not any(name.startswith('ir|chr1:301-350(+)|G1') for name in _of_type(tables, 'ir'))
 
 
 def test_first_exons_each_used_alone_in_a_sample_are_an_afe_event(tmp_path):
@@ -318,7 +318,7 @@ def test_first_exons_spliced_to_one_acceptor_are_an_afe_event_not_alt5(tmp_path)
     first, second = [(200, 400), (500, 600)], [(320, 400), (500, 600)]
     tables, _ = _events(tmp_path, [(first, 100, 700, 30), (second, 250, 700, 10)],
                         [(first, 100, 700, 10), (second, 250, 700, 30)])
-    assert sorted(_of_type(tables, 'afe')) == ['afe|chr1:201-400(+)|201-400', 'afe|chr1:201-400(+)|321-400']
+    assert sorted(_of_type(tables, 'afe')) == ['afe|chr1:201-400(+)|G1|201-400', 'afe|chr1:201-400(+)|G1|321-400']
     assert _of_type(tables, 'alt5') == {}
 
 
@@ -353,7 +353,7 @@ def test_an_afe_events_reads_are_those_of_its_first_exons(tmp_path):
     first, second, truncated = [(200, 400), (500, 600)], [(320, 400), (500, 600)], [(500, 600)]
     _, totals = _events(tmp_path, [(first, 100, 700, 30), (second, 250, 700, 10), (truncated, 450, 700, 20)],
                         [(first, 100, 700, 10), (second, 250, 700, 30)])
-    assert totals[('afe|chr1:201-400(+)', 'event_reads')] == {'s1': 40, 's2': 40}
+    assert totals[('afe|chr1:201-400(+)|G1', 'event_reads')] == {'s1': 40, 's2': 40}
 
 
 def test_first_exons_closer_than_min_terminal_junction_separation_are_not_an_afe_event(tmp_path):
@@ -386,7 +386,7 @@ def test_last_exons_spliced_from_one_donor_are_an_ale_event_not_alt3(tmp_path):
     near, far = [(200, 300), (400, 500)], [(200, 300), (400, 620)]
     tables, _ = _events(tmp_path, [(near, 100, 600, 30), (far, 100, 700, 10)],
                         [(near, 100, 600, 10), (far, 100, 700, 30)])
-    assert sorted(_of_type(tables, 'ale')) == ['ale|chr1:401-620(+)|401-500', 'ale|chr1:401-620(+)|401-620']
+    assert sorted(_of_type(tables, 'ale')) == ['ale|chr1:401-620(+)|G1|401-500', 'ale|chr1:401-620(+)|G1|401-620']
     assert _of_type(tables, 'alt3') == {}
 
 
@@ -398,11 +398,11 @@ def test_donors_sharing_alternative_acceptors_are_an_alt5ss_event(tmp_path):
                         chains({(200, 300): 10, (200, 350): 20, (250, 300): 20, (250, 350): 40}))
     alt5ss = _of_type(tables, 'alt5ss')
     # each donor's row by its introns to the shared acceptors
-    event = 'alt5ss|chr1:201-350(+)'
+    event = 'alt5ss|chr1:201-350(+)|G1'
     assert sorted(alt5ss) == [f'{event}|201-300,201-350', f'{event}|251-300,251-350']
     assert (alt5ss[f'{event}|201-300,201-350']['s1'], alt5ss[f'{event}|201-300,201-350']['s2']) == ('60', '30')
-    assert sorted(_of_type(tables, 'alt3ss')) == ['alt3ss|chr1:201-350(+)|201-300,251-300',
-                                                  'alt3ss|chr1:201-350(+)|201-350,251-350']
+    assert sorted(_of_type(tables, 'alt3ss')) == ['alt3ss|chr1:201-350(+)|G1|201-300,251-300',
+                                                  'alt3ss|chr1:201-350(+)|G1|201-350,251-350']
 
 
 def test_a_splice_site_in_too_few_reads_in_every_sample_is_counted_as_other(tmp_path):
@@ -411,8 +411,8 @@ def test_a_splice_site_in_too_few_reads_in_every_sample_is_counted_as_other(tmp_
     tables, _ = _events(tmp_path, [(NEAR, 100, 600, 30), (FAR, 100, 600, 10), (third, 100, 600, 2)],
                         [(NEAR, 100, 600, 10), (FAR, 100, 600, 30), (third, 100, 600, 2)])
     alt3 = _of_type(tables, 'alt3')
-    assert 'alt3|chr1:201-350(+)|201-380' not in alt3
-    other = alt3['alt3|chr1:201-350(+)|other']
+    assert 'alt3|chr1:201-350(+)|G1|201-380' not in alt3
+    other = alt3['alt3|chr1:201-350(+)|G1|other']
     assert (other['s1'], other['s2']) == ('2', '2')
 
 
@@ -459,7 +459,8 @@ def test_a_splicing_event_is_of_the_gene_annotated_with_most_of_its_introns_and_
     annotated = _annotated({'GX': INC, 'GY': [(200, 300)]})
     tables, totals = _events(tmp_path, *ES_READS, annotated=annotated)
     assert {row['gene'] for row in _of_type(tables, 'es').values()} == {'GX'}
-    assert totals[(ES, 'event_reads')] == {'s1': 40, 's2': 40}
+    # the event named with its gene
+    assert totals[('es|chr1:301-400(+)|GX', 'event_reads')] == {'s1': 40, 's2': 40}
 
 
 def test_an_events_gene_name_is_the_annotations_empty_if_it_names_none(tmp_path):
@@ -524,15 +525,16 @@ def test_an_event_of_no_annotation_is_of_the_gene_of_most_of_its_reads():
 def test_a_rows_introns_not_in_the_annotation_are_its_novel_junctions(tmp_path):
     # the inclusion introns annotated, the skipping junction not
     tables, _ = _events(tmp_path, *ES_READS, annotated=_annotated({'GX': INC}))
-    assert tables['counts'][f'{ES}|inc']['novel_junctions'] == ''
-    assert tables['counts'][f'{ES}|exc']['novel_junctions'] == 'chr1:201-500'
+    es = 'es|chr1:301-400(+)|GX'
+    assert tables['counts'][f'{es}|inc']['novel_junctions'] == ''
+    assert tables['counts'][f'{es}|exc']['novel_junctions'] == 'chr1:201-500'
     # an alternative acceptor's novel intron
     tables, _ = _events(tmp_path, [([(200, 300)], 100, 400, 30), ([(200, 350)], 100, 400, 10)],
                         [([(200, 300)], 100, 400, 10), ([(200, 350)], 100, 400, 30)],
                         annotated=_annotated({'GX': [(200, 300)]}))
     alt3 = _of_type(tables, 'alt3')
-    assert alt3['alt3|chr1:201-350(+)|201-300']['novel_junctions'] == ''
-    assert alt3['alt3|chr1:201-350(+)|201-350']['novel_junctions'] == 'chr1:201-350'
+    assert alt3['alt3|chr1:201-350(+)|GX|201-300']['novel_junctions'] == ''
+    assert alt3['alt3|chr1:201-350(+)|GX|201-350']['novel_junctions'] == 'chr1:201-350'
 
 
 def test_an_events_gene_counts_the_introns_of_its_other_row(tmp_path):
@@ -544,7 +546,7 @@ def test_an_events_gene_counts_the_introns_of_its_other_row(tmp_path):
     annotated = _annotated({'GX': [(200, 300), (200, 380)], 'GY': [(200, 350)]})
     tables, _ = _events(tmp_path, s1, s2, junc_frac_of_event=0.2, annotated=annotated)
     alt3 = _of_type(tables, 'alt3')
-    assert 'alt3|chr1:201-350(+)|other' in alt3
+    assert 'alt3|chr1:201-350(+)|GX|other' in alt3
     assert {row['gene'] for row in alt3.values()} == {'GX'}
 
 
@@ -556,3 +558,20 @@ def test_an_events_introns_count_for_its_gene_by_their_reads(tmp_path):
     annotated = _annotated({'GX': [(200, 300)], 'GY': [(200, 350)]})
     tables, _ = _events(tmp_path, s1, s2, annotated=annotated)
     assert {row['gene'] for row in _of_type(tables, 'alt3').values()} == {'GX'}
+
+
+def test_two_genes_events_of_one_locus_are_named_by_their_genes(tmp_path):
+    # G1 and G2, as a gene and its readthrough, the readthrough's reads of a junction more,
+    # upstream, share their last exon and its ends at 500 or 900: each has a tts event of
+    # the same locus, told apart by their genes
+    def reads(gene, juncs, counts):
+        return [ReadChain((gene,), juncs, '+', [ReadEnds(50, 500)] * counts[0] + [ReadEnds(50, 900)] * counts[1])]
+    g1, g2 = ((200, 300),), ((80, 120), (200, 300))
+    sample_chains = [reads('G1', g1, (30, 10)) + reads('G2', g2, (30, 10)),
+                     reads('G1', g1, (10, 30)) + reads('G2', g2, (10, 30))]
+    prefix = str(tmp_path / 'region')
+    process_region_events(prefix, CHROM, SAMPLES[:2], sample_chains, {}, Thresholds(2, 0.1, 0.05, 20), {}, {},
+                          [SeqRange(CHROM, 0, 10 ** 9)], {'G1': set(g1), 'G2': set(g2)})
+    with open(f'{prefix}.spliceevents.counts.tsv') as fh:
+        names = {line.split('\t')[0] for line in fh if line.split('\t')[2] == 'tts'}
+    assert names == {'tts|chr1:500-900(+)|G1', 'tts|chr1:500-900(+)|G2'}

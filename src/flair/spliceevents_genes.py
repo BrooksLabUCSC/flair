@@ -9,8 +9,8 @@ from flair.gene_identification import novel_genes, group_by_splicing
 from flair.interval_index import IntervalIndex
 from flair.spliceevents_events import (END_GROUP_WINDOW, EventCaller, add_reads, alternative_site_events,
                                        complex_skipping_events, end_events, exon_skipping_events, extract_splicing_info,
-                                       extract_terminal_info, group_ends, intron_retention_events, shared_site_events,
-                                       terminal_exon_events, total)
+                                       extract_terminal_info, group_ends, intron_retention_events, named_with_gene,
+                                       shared_site_events, terminal_exon_events, total)
 from flair.spliceevents_regions import event_in_regions, gene_junction_span
 from flair.spliceevents_tables import EventTables, is_expressed
 
@@ -256,6 +256,7 @@ def process_region_events(temp_prefix, chrom, samples, sample_chains, novel_gene
                                                                 annotated, chain_genes))
     reported = {}
     for event, gene_span in events:
+        event.name = named_with_gene(event.name, event.gene)
         if event_in_regions(event, report_regions, gene_span, owned):
             if event.name in reported:
                 raise AssertionError(f'two events named {event.name}, of {reported[event.name].gene} and {event.gene}')

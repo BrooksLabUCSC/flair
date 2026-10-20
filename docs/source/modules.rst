@@ -493,9 +493,11 @@ gets the gene of most of its reads.  First and last exons and starts and ends ar
 found per gene: a read's first exon and start with the gene it starts in, its last
 exon and end with the gene it ends in.
 
-An event is named ``TYPE|CHROM:START-END(STRAND)``, its locus, 1-based, being
+An event is named ``TYPE|CHROM:START-END(STRAND)|GENE``, its locus, 1-based, being
 its skipped exon for es, and otherwise the outer bounds of its introns, so it can be
-pasted into a genome browser.  Each row is one alternative of its event, named by
+pasted into a genome browser, and its gene, as the ``gene`` column, the genes
+comma-separated if tied, so the events of two genes of one locus, as the ends of a gene
+and a readthrough of it, are told apart.  Each row is one alternative of its event, named by
 what sets it apart from the event's other rows: ``inc`` and ``exc`` for es and
 ``exc`` for ces, the exons
 included of a ces's other rows, ``retained`` and ``spliced`` for ir, the introns of
@@ -504,8 +506,8 @@ end of tss and tts, and ``other``.  Introns are written as STAR writes them, fro
 their first base to their last, and exons from their first base to their last.
 For example, an exon skip and an alternative 3' splice site::
 
-   es|chr12:25215437-25215560(-)    inc
-   alt3|chr1:201-350(+)             201-300
+   es|chr12:25215437-25215560(-)|ENSG00000133703.12    inc
+   alt3|chr1:201-350(+)|G1                             201-300
 
 The tables' coordinate columns use the same 1-based coordinates.  An event's PSI
 is computed two ways: of the event's reads (PSIjunc), which is more sensitive, and of

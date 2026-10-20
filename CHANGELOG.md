@@ -440,6 +440,10 @@
     `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv
     has each event's reads and the reads covering its locus per sample, the
     denominators of PSIjunc and PSItot.
+  * An event's name ends with its gene, `TYPE|CHROM:START-END(STRAND)|GENE`, the
+    genes comma-separated if tied, as the `gene` column.  The ends of a gene and a
+    readthrough of it, as SEPTIN5's and SEPTIN5-GP1BB's, were two events of one
+    name, which stopped the run.
   * With `--region_bed`, a region's reads are fetched only where they overlap its
     regions, not over the whole region extended over its reads, which a few reads
     running past a gene could stretch over a highly expressed neighbour: NUTM2B,

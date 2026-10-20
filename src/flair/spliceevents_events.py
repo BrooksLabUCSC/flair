@@ -75,10 +75,17 @@ def internal_exons(juncs):
 
 
 def event_name(etype, chrom, start, end, strand):
-    """an event's name: its type and outer bounds, start 0-based, written 1-based as a
-    genome browser's locus.  Not its gene, which may be several, or decided only once
-    the event is found"""
+    """an event's name as it is found: its type and outer bounds, start 0-based, written
+    1-based as a genome browser's locus.  Its gene, decided only once the event is
+    found, is added when it is (named_with_gene)"""
     return f'{etype}|{chrom}:{start + 1}-{end}({strand})'
+
+
+def named_with_gene(name, gene):
+    """an event's name with its gene, gene IDs comma-separated if tied, as the gene
+    column, so two genes' events of one locus, as a gene's and a readthrough's ends,
+    are told apart: TYPE|CHROM:START-END(STRAND)|GENE"""
+    return f'{name}|{gene}'
 
 
 def row_name(ename, alternative):
