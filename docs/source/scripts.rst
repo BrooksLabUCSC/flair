@@ -25,17 +25,6 @@ To obtain a UniProt reference file:
 
 A fasta file similar to the input but with aaidXX changed to UniProt ID when possible
 
-annotate_group_vcf_vars
-=======================
-
-.. include:: cli/annotate_group_vcf_vars.rst
-
-Writes the ``--pos_ref`` file of :ref:`flair variantquant <variantquant-label>`:
-the SNV sites of a vcf, each with the genes of a flair isoform bed or a GTF it is in,
-so they needn't be found again in every run.  variantquant loads the 15.6M RNA
-editing sites of REDIportal from it in about 36 seconds, against 43 from the vcf and
-an isoform bed and 57 with a GENCODE GTF.
-
 bed_to_gtf
 ==========
 

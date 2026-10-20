@@ -4,9 +4,8 @@ from types import SimpleNamespace
 import pysam
 import pytest
 from flair import FlairInputDataError
-from flair.annotate_group_vcf_vars import annotate_group_vcf_vars
 from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, exons_of_gtf,
-                                      load_pos_ref, name_sites_by_genes, parse_all_bam_files, parse_single_bam_read,
+                                      name_sites_by_genes, parse_all_bam_files, parse_single_bam_read,
                                       quantvarpos, quantvarpos_cmd, read_bases_at, read_vars_to_genome_pos_counts,
                                       read_vcf_sites, samples_and_site_vcfs, site_exons, site_positions,
                                       sites_in_span)
@@ -120,14 +119,13 @@ def _bam(path, reads):
 SITES_READS = [('g', 'AAAAGAAAAA', '4A5'), ('t', 'AAAATAAAAA', '4A5'), ('ref', 'AAAAAAAAAA', '10')]
 
 
-def _pos_ref(path):
-    "a --pos_ref file of the site chr1:5 A>G,T, as annotate_group_vcf_vars writes it"
-    path.write_text('chr1\t0\t5\tA\tG,T\tG1\n')
-    return str(path)
+def _sites_vcf(path):
+    "a vcf of the site chr1:5 A>G,T"
+    return _vcf(path, ('chr1', '5', '.', 'A', 'G,T'))
 
 
 def _quantvarpos(tmp_path, **kwargs):
-    quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), pos_ref=_pos_ref(tmp_path / 'sites.tsv'),
+    quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=_sites_vcf(tmp_path / 'sites.vcf'),
                 output=str(tmp_path / 'out'), min_coverage=1, output_all=False, **kwargs)
     return open(tmp_path / 'out.var.counts.tsv').read()
 
@@ -136,7 +134,7 @@ def test_a_rerun_to_the_same_output_counts_its_reads_once(tmp_path):
     # the first run's intermediate files are kept, where the second run puts its own
     temp_dir = str(tmp_path / 'tmp')
     first = _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir)
-    assert first.splitlines()[1:] == ['chr1:5\tA\tG\tG1\t\t2;1', 'chr1:5\tA\tT\tG1\t\t2;1']
+    assert first.splitlines()[1:] == ['chr1:5\tA\tG\t\t\t2;1', 'chr1:5\tA\tT\t\t\t2;1']
     assert _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir) == first
 
 
@@ -212,18 +210,17 @@ def _files(tmp_path, *names):
 def test_a_manifest_of_bams_has_its_sites_from_a_vcf(tmp_path):
     bam1, bam2, vcf = _files(tmp_path, 's1.bam', 's2.bam', 'sites.vcf')
     manifest = _manifest(tmp_path, '# sample, bam', f's1\t{bam1}', '', f's2\t{bam2}')
-    assert samples_and_site_vcfs(manifest, None, None, None, vcf) == ([['s1', bam1], ['s2', bam2]], [vcf])
-    assert samples_and_site_vcfs(manifest, None, None, 'sites.tsv', None) == ([['s1', bam1], ['s2', bam2]], None)
-    with pytest.raises(FlairInputDataError, match='give --vcf or --pos_ref'):
-        samples_and_site_vcfs(manifest, None, None, None, None)
+    assert samples_and_site_vcfs(manifest, None, None, vcf) == ([['s1', bam1], ['s2', bam2]], [vcf])
+    with pytest.raises(FlairInputDataError, match='give --vcf'):
+        samples_and_site_vcfs(manifest, None, None, None)
 
 
 def test_a_manifest_of_each_samples_vcf_takes_no_other_sites(tmp_path):
     bam1, bam2, vcf1, vcf2 = _files(tmp_path, 's1.bam', 's2.bam', 's1.vcf', 's2.vcf')
     manifest = _manifest(tmp_path, f's1\t{bam1}\t{vcf1}', f's2\t{bam2}\t{vcf2}')
-    assert samples_and_site_vcfs(manifest, None, None, None, None) == ([['s1', bam1], ['s2', bam2]], [vcf1, vcf2])
-    with pytest.raises(FlairInputDataError, match='--vcf and --pos_ref can not be given'):
-        samples_and_site_vcfs(manifest, None, None, None, vcf1)
+    assert samples_and_site_vcfs(manifest, None, None, None) == ([['s1', bam1], ['s2', bam2]], [vcf1, vcf2])
+    with pytest.raises(FlairInputDataError, match='--vcf can not be given'):
+        samples_and_site_vcfs(manifest, None, None, vcf1)
 
 
 def test_a_manifest_with_a_vcf_on_some_lines_is_an_error(tmp_path):
@@ -231,24 +228,24 @@ def test_a_manifest_with_a_vcf_on_some_lines_is_an_error(tmp_path):
     # one vcf for all samples on the first line, as variantquant used to take
     for lines in ([f's1\t{bam1}\t{vcf}', f's2\t{bam2}'], [f's1\t{bam1}\t{vcf}', f's2\t{bam2}\t']):
         with pytest.raises(FlairInputDataError, match='give --vcf'):
-            samples_and_site_vcfs(_manifest(tmp_path, *lines), None, None, None, None)
+            samples_and_site_vcfs(_manifest(tmp_path, *lines), None, None, None)
 
 
 def test_a_manifest_naming_a_sample_twice_or_a_missing_file_is_an_error(tmp_path):
     bam1, = _files(tmp_path, 's1.bam')
     with pytest.raises(FlairInputDataError, match='more than once: s1'):
-        samples_and_site_vcfs(_manifest(tmp_path, f's1\t{bam1}', f's1\t{bam1}'), None, None, None, 'sites.vcf')
+        samples_and_site_vcfs(_manifest(tmp_path, f's1\t{bam1}', f's1\t{bam1}'), None, None, 'sites.vcf')
     with pytest.raises(FlairInputDataError, match=r'manifest.tsv:2: bam file .*s2.bam does not exist'):
-        samples_and_site_vcfs(_manifest(tmp_path, f's1\t{bam1}', f's2\t{tmp_path}/s2.bam'), None, None, None,
+        samples_and_site_vcfs(_manifest(tmp_path, f's1\t{bam1}', f's2\t{tmp_path}/s2.bam'), None, None,
                               'sites.vcf')
 
 
 def test_a_bams_sample_is_named_for_it_or_by_sample_name(tmp_path):
     bam, = _files(tmp_path, 'ULC0422N.bam')
-    assert samples_and_site_vcfs(None, bam, None, None, 'sites.vcf') == ([['ULC0422N', bam]], ['sites.vcf'])
-    assert samples_and_site_vcfs(None, bam, 'tumor', None, 'sites.vcf') == ([['tumor', bam]], ['sites.vcf'])
-    with pytest.raises(FlairInputDataError, match='give --vcf or --pos_ref'):
-        samples_and_site_vcfs(None, bam, None, None, None)
+    assert samples_and_site_vcfs(None, bam, None, 'sites.vcf') == ([['ULC0422N', bam]], ['sites.vcf'])
+    assert samples_and_site_vcfs(None, bam, 'tumor', 'sites.vcf') == ([['tumor', bam]], ['sites.vcf'])
+    with pytest.raises(FlairInputDataError, match='give --vcf'):
+        samples_and_site_vcfs(None, bam, None, None)
 
 
 def test_a_vcfs_sites_without_an_isoform_bed_have_no_genes(tmp_path):
@@ -334,16 +331,6 @@ def test_supplementary_alignments_are_counted_but_not_secondary(tmp_path):
     tempdir.mkdir()
     path, = parse_all_bam_files([['s1', str(tmp_path / 's1.bam')]], str(tempdir) + '/', vcfvars, 1)
     assert [line.split('\t')[1] for line in open(path)] == ['0__p', '0__s']
-
-
-def test_a_pos_ref_file_has_the_sites_of_its_vcf_and_bed(tmp_path):
-    bed = _isoform_bed(tmp_path / 'isoforms.bed', ('T1', 'G1', 100, [(100, 200)]))
-    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '150', '.', 'A', 'G,T'), ('chr1', '250', '.', 'T', 'C'),
-               ('chr1', '160', '.', 'AT', 'A'))
-    annotate_group_vcf_vars(vcf, str(tmp_path / 'sites.tsv'), isoform_bed=bed)
-    assert open(tmp_path / 'sites.tsv').read() == 'chr1\t0\t150\tA\tG,T\tG1\nchr1\t0\t250\tT\tC\t\n'
-    from_vcf = name_sites_by_genes(read_vcf_sites([vcf]), site_exons(bed, None))
-    assert load_pos_ref(str(tmp_path / 'sites.tsv')) == from_vcf
 
 
 def _gtf(path, *exons):

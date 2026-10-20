@@ -469,9 +469,8 @@
   * Reads are aligned to the genome: `--transcriptome_bam` is now `--bam`, and the
     sample of `--bam` is named for its file, or by the new `--sample_name`, not
     `sample`.  The transcriptome-aligned path was removed earlier.
-  * A manifest is either of sample names and bam files, with the sites from `--vcf`
-    or `--pos_ref`, which it couldn't be used with before, or of sample names, bam
-    files and each sample's own vcf.  One vcf on the first line for all samples, as
+  * A manifest is either of sample names and bam files, with the sites from `--vcf`,
+    or of sample names, bam files and each sample's own vcf.  One vcf on the first line for all samples, as
     before, is an error that says to give `--vcf`, as are duplicate sample names and
     missing files.
   * Only the records of a vcf whose FILTER is PASS or `.` are sites, so a
@@ -496,15 +495,15 @@
     bed, a BED12 alone naming no sites.
   * Sites load several times faster and in a fifth of the memory: the 15.6M REDIportal
     sites of a vcf in 37 seconds and 2.2 GB, with an isoform bed's genes in 43 seconds,
-    with GENCODE's in 57, from a `--pos_ref` file in 36; it was 3 to 9 minutes and
-    about 12 GB.  Genes are found in one sweep of each chromosome's sorted sites and
-    exons.
-  * `annotate_group_vcf_vars`, which writes the `--pos_ref` file of a vcf and isoform
-    bed or GTF, is installed and documented, with `--isoform_bed` (`--bed_isoforms`
-    still works), `--gtf`, `--vcf` and the new `--keep_flags`.
+    with GENCODE's in 57; it was 3 to 9 minutes and about 12 GB.  Genes are found in
+    one sweep of each chromosome's sorted sites and exons.
+  * `--pos_ref` is removed, and annotate_group_vcf_vars.py, which wrote its files:
+    a vcf with `--isoform_bed` or `--gtf` now loads nearly as fast as they did.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
+  * flair variantquant: `--pos_ref` is removed, give the vcf with `--vcf` and the
+    genes with `--isoform_bed` or `--gtf`; `--transcriptome_bam` is now `--bam`.
   * Remove flair align options that are no longer need without flair correct.
   * Logging options (--log-level, --log-stderr, --log-conf, --log-debug) and
     --version must now precede the subcommand: `flair --log-debug align ...`.

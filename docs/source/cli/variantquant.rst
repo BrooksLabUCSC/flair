@@ -4,10 +4,9 @@
 
 .. code-block:: text
 
-   usage: flair variantquant [-h] (--bam BAM | --manifest MANIFEST)
-                             [--vcf VCF | --pos_ref POS_REF] [--keep_flags FLAGS]
-                             [--sample_name SAMPLE_NAME] [-o OUTPUT]
-                             [--isoform_bed ISOFORM_BED] [-f GTF]
+   usage: flair variantquant [-h] (--bam BAM | --manifest MANIFEST) [--vcf VCF]
+                             [--keep_flags FLAGS] [--sample_name SAMPLE_NAME]
+                             [-o OUTPUT] [--isoform_bed ISOFORM_BED] [-f GTF]
                              [--min_coverage MIN_COVERAGE] [--output_all]
                              [-t THREADS] [--temp_dir TEMP_DIR]
                              [--keep_intermediate]
@@ -20,15 +19,11 @@
 
 .. option:: --manifest MANIFEST
 
-   tab-separated manifest of the samples, a line each: sample name and bam file, aligned to the genome, with --vcf or --pos_ref for the sites, or sample name, bam file and vcf file of the sample's own variants, on every line, whose sites are merged, every sample counted at all of them
+   tab-separated manifest of the samples, a line each: sample name and bam file, aligned to the genome, with --vcf for the sites, or sample name, bam file and vcf file of the sample's own variants, on every line, whose sites are merged, every sample counted at all of them
 
 .. option:: --vcf VCF
 
-   vcf file, plain or gzipped, of the sites to count, for all samples. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
-
-.. option:: --pos_ref POS_REF
-
-   file of the sites to count, for all samples, as annotate_group_vcf_vars writes, faster to load than a vcf with --isoform_bed: tab-separated chromosome, the start of the position's 1 Mb bin, 1-based position, ref base, comma-separated alt bases, comma-separated genes
+   vcf file, plain or gzipped, of the sites to count, for all samples; only its first five columns are needed. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
 
 .. option:: --keep_flags FLAGS
 
@@ -44,7 +39,7 @@
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   bed file of isoforms whose exons name the sites of a vcf by their genes: a site is of the genes of the exons over it. An isoform's gene is its 13th column, as of a flair isoform bed, or, for a BED12 or an isoform with it empty, that of the --gtf gene its exons overlap most, else it names none. Without it or --gtf the gene column is empty; with --pos_ref, whose sites have their genes, neither is used
+   bed file of isoforms whose exons name the sites of a vcf by their genes: a site is of the genes of the exons over it. An isoform's gene is its 13th column, as of a flair isoform bed, or, for a BED12 or an isoform with it empty, that of the --gtf gene its exons overlap most, else it names none. Without it or --gtf the gene column is empty
 
 .. option:: -f GTF, --gtf GTF
 

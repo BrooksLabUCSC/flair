@@ -1,5 +1,5 @@
 """flair variantquant: the reads of each sample showing each SNV allele at sites of a
-vcf or a --pos_ref file, as RNA editing sites of a database like REDIportal, from
+vcf, as RNA editing sites of a database like REDIportal or variants called in the samples, from
 reads aligned to the genome.  Each sample's reads covering a site go to a temp file
 of its own, in parallel, a record per read: its reference, sample index and read
 name, and per site covered its position, genes and the alt it shows, or NO_ALT;
@@ -42,9 +42,9 @@ GENE_LIST_SEP = ','
 
 
 def add_subparser(subparsers):
-    desc = ('count the reads showing each SNV allele at sites given by a vcf or a --pos_ref file, as the '
-            'sites of RNA editing in a database such as REDIportal, or variants called in the samples, per '
-            'sample, from reads aligned to the genome')
+    desc = ('count the reads showing each SNV allele at sites given by a vcf, as the sites of RNA editing in '
+            'a database such as REDIportal, or variants called in the samples, per sample, from reads aligned '
+            'to the genome')
     parser = subparsers.add_parser('variantquant', help="Count the reads showing variants at genome positions",
                                    description=desc)
     reads = parser.add_mutually_exclusive_group(required=True)
@@ -52,18 +52,13 @@ def add_subparser(subparsers):
                        help='bam file of one sample, aligned to the genome; or give --manifest')
     reads.add_argument('--manifest',
                        help='tab-separated manifest of the samples, a line each: sample name and bam file, '
-                            'aligned to the genome, with --vcf or --pos_ref for the sites, or sample name, bam '
+                            'aligned to the genome, with --vcf for the sites, or sample name, bam '
                             "file and vcf file of the sample's own variants, on every line, whose sites are "
                             'merged, every sample counted at all of them')
-    sites = parser.add_mutually_exclusive_group()
-    sites.add_argument('--vcf',
-                       help='vcf file, plain or gzipped, of the sites to count, for all samples.  Only SNVs of '
-                            'records whose FILTER is PASS or . are counted, or one of --keep_flags')
-    sites.add_argument('--pos_ref',
-                       help='file of the sites to count, for all samples, as annotate_group_vcf_vars writes, '
-                            'faster to load than a vcf with --isoform_bed: tab-separated chromosome, the start of '
-                            'the position\'s 1 Mb bin, 1-based position, ref base, comma-separated alt bases, '
-                            'comma-separated genes')
+    parser.add_argument('--vcf',
+                        help='vcf file, plain or gzipped, of the sites to count, for all samples; only its first '
+                             'five columns are needed.  Only SNVs of records whose FILTER is PASS or . are '
+                             'counted, or one of --keep_flags')
     parser.add_argument('--keep_flags', type=lambda flags: set(flags.split(',')), default=set(), metavar='FLAGS',
                         help='comma-separated vcf FILTER flags whose records are counted too, as RefCall, or all, '
                              'every record; a record of more than one flag is counted if all of them are given')
@@ -76,7 +71,7 @@ def add_subparser(subparsers):
                              'of the genes of the exons over it.  An isoform\'s gene is its 13th column, as of a '
                              'flair isoform bed, or, for a BED12 or an isoform with it empty, that of the --gtf '
                              'gene its exons overlap most, else it names none.  Without it or --gtf the gene '
-                             'column is empty; with --pos_ref, whose sites have their genes, neither is used')
+                             'column is empty')
     parser.add_argument('-f', '--gtf',
                         help='GTF annotation file, plain or gzipped, whose exons name the sites of a vcf by their '
                              'gene_ids, or, with --isoform_bed, the genes of its isoforms without them')
@@ -104,7 +99,7 @@ def quantvarpos_cmd(args):
     if args.sample_name is not None and args.bam is None:
         raise FlairInputDataError("--sample_name names --bam's sample; a manifest names its samples")
     quantvarpos(manifest=args.manifest, bam=args.bam, sample_name=args.sample_name,
-                pos_ref=args.pos_ref, vcf=args.vcf, keep_flags=args.keep_flags, output=args.output,
+                vcf=args.vcf, keep_flags=args.keep_flags, output=args.output,
                 isoform_bed=args.isoform_bed, gtf=args.gtf, min_coverage=args.min_coverage,
                 output_all=args.output_all, keep_intermediate=args.keep_intermediate,
                 temp_dir=args.temp_dir, threads=args.threads)
@@ -477,23 +472,6 @@ def name_sites_by_genes(vcfvars, exons):
     return vcfvars
 
 
-def load_pos_ref(pos_ref):
-    "the SNV sites of a --pos_ref file, as add_vcf_var keeps them, with their genes, refs and alts shared"
-    vcfvars = {}
-    shared = {}
-    nskipped = 0
-    for line in open(pos_ref):
-        # the file's bin of the position, its second column, is that of add_vcf_var
-        chrom, _, pos, ref, alt, name = line.rstrip('\n').split('\t')
-        alts = tuple(a for a in alt.split(',') if is_snv(ref, a))
-        nskipped += len(alt.split(',')) - len(alts)
-        if alts:
-            add_vcf_var(vcfvars, chrom, shared.setdefault(ref, ref), shared.setdefault(alts, alts), int(pos),
-                        shared.setdefault(name, name))
-    if nskipped > 0:
-        logging.warning(f'{nskipped} --pos_ref alleles that are not SNVs left out: variantquant counts SNVs only')
-    return vcfvars
-
 def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex):
     """parse the reads of a bam file: its primary and supplementary alignments, the
     supplementary of other parts of a read, as of a chimera, but not its secondary,
@@ -541,42 +519,32 @@ def parse_all_bam_files(sampledata, tempdir, vcfvars, threads):
     return [task[-1] for task in tasks]
 
 
-def samples_and_site_vcfs(manifest, bam, sample_name, pos_ref, vcf):
-    """The samples, [name, bam] each, and the vcf files of the sites, or none for
-    --pos_ref: --vcf, or each sample's own of the manifest"""
+def samples_and_site_vcfs(manifest, bam, sample_name, vcf):
+    "The samples, [name, bam] each, and the vcf files of the sites: --vcf, or each sample's own of the manifest"
     if (manifest is None) == (bam is None):
         raise FlairInputDataError('give one of --bam, a sample, or --manifest')
-    if pos_ref is not None and vcf is not None:
-        raise FlairInputDataError('give one of --vcf or --pos_ref, the sites to count')
     if manifest is not None:
         samples = read_manifest(manifest)
         if len(samples[0]) == 3:
-            if vcf is not None or pos_ref is not None:
-                raise FlairInputDataError(f'{manifest} gives each sample its vcf, so --vcf and --pos_ref can not be given')
+            if vcf is not None:
+                raise FlairInputDataError(f'{manifest} gives each sample its vcf, so --vcf can not be given')
             return [sample[:2] for sample in samples], [sample[2] for sample in samples]
     else:
         _check_exists(bam, 'bam file', '--bam')
         samples = [[sample_name or bam_sample_name(bam), bam]]
-    if vcf is None and pos_ref is None:
-        raise FlairInputDataError('give --vcf or --pos_ref, the sites to count, or a manifest with the vcf of each sample')
-    return samples, ([vcf] if vcf is not None else None)
+    if vcf is None:
+        raise FlairInputDataError('give --vcf, the sites to count, or a manifest with the vcf of each sample')
+    return samples, [vcf]
 
 
-def quantvarpos(*, manifest=None, bam=None, sample_name=None, pos_ref=None, vcf=None, keep_flags=frozenset(), output,
+def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_flags=frozenset(), output,
                 isoform_bed=None, gtf=None, min_coverage, output_all, keep_intermediate, temp_dir=None, threads=1):
-    sampledata, site_vcfs = samples_and_site_vcfs(manifest, bam, sample_name, pos_ref, vcf)
-    if site_vcfs is None and keep_flags:
-        logging.warning('--keep_flags is not used with --pos_ref, which has no vcf filters')
-    if site_vcfs is None:
-        if isoform_bed is not None or gtf is not None:
-            logging.warning('--isoform_bed and --gtf are not used with --pos_ref, whose sites have their genes')
-        vcfvars = load_pos_ref(pos_ref)
-    else:
-        vcfvars = read_vcf_sites(site_vcfs, keep_flags)
-        logging.info('done reading vcfs')
-        if isoform_bed is not None or gtf is not None:
-            name_sites_by_genes(vcfvars, site_exons(isoform_bed, gtf))
-            logging.info('done finding the genes of the sites')
+    sampledata, site_vcfs = samples_and_site_vcfs(manifest, bam, sample_name, vcf)
+    vcfvars = read_vcf_sites(site_vcfs, keep_flags)
+    logging.info('done reading vcfs')
+    if isoform_bed is not None or gtf is not None:
+        name_sites_by_genes(vcfvars, site_exons(isoform_bed, gtf))
+        logging.info('done finding the genes of the sites')
     logging.info(f'{sum(len(sites) for sites in vcfvars.values())} sites to count')
 
     # a directory of this run's own, so no earlier run's files are read
