@@ -448,7 +448,10 @@
     rather than more than that.
 * flair variantquant
   * OUTPUT.var.counts.tsv has a row per allele of a site, with new `ref` and `alt`
-    columns, and without the `transcript` column, which was always empty: a sample's `unmodified;modified` counts are the reads covering the site
+    columns, and without the `transcript` column, which was always empty.  Its
+    columns are the same in every run, `varpos ref alt strand phase_set haplotype
+    gene` and then the samples, `strand`, `phase_set` and `haplotype` `.` when the
+    reads aren't split by them (`--trust_strand`, `--haplotypes`): a sample's `unmodified;modified` counts are the reads covering the site
     not showing the row's alt, and those showing it.  Multi-allelic vcf sites were
     never counted, their ALT compared whole, as `G,T`, with one read base; each alt
     is now its own row.
@@ -507,8 +510,16 @@
     every alignment, as before).
   * `--trust_strand` trusts the stranding of the reads, as of oriented reads or
     direct RNA: each read is of its alignment's strand, and the counts of each strand
-    of reads at a site are a row of their own, with a strand column, so an antisense
+    of reads at a site are a row of their own, of its strand column, so an antisense
     transcript's reads aren't counted with the sense transcript's.
+  * `--haplotypes` counts the reads of each haplotype of haplotagged bams apart, as
+    WhatsHap haplotag writes them: each phase set (PS) and haplotype (HP) of reads at
+    a site is a row of its own, of its phase_set and haplotype columns, the reads without
+    an HP tag a row of their own, so a somatic variant's reads on one germline
+    haplotype show against the other's.  Samples sharing no phase set, so not of one
+    phasing, are warned of.  With `--trust_strand` and `--haplotypes`, an allele any
+    of whose rows has a read showing it has every row written, of the haplotype or
+    strand without one too.
   * `--pos_ref` is removed, and annotate_group_vcf_vars.py, which wrote its files:
     a vcf with `--isoform_bed` or `--gtf` now loads nearly as fast as they did.
 * Incompatibles

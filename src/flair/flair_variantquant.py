@@ -2,8 +2,8 @@
 vcf, as RNA editing sites of a database like REDIportal or variants called in the samples, from
 reads aligned to the genome.  Each sample's reads covering a site go to a temp file
 of its own, in parallel, a record per read: its reference, sample index and read
-name, strand, or UNSTRANDED, and per site covered its position, genes and the alt it
-shows, or NO_ALT; then the counts of every sample are written from them"""
+name, strand, phase set and haplotype (ReadGroup), and per site covered its position,
+genes and the alt it shows, or NO_ALT; then the counts of every sample are written from them"""
 
 import os
 import shutil
@@ -35,8 +35,15 @@ VAR_BIN_SIZE = 10 ** 6
 
 # a read's allele at a site where it shows none of the site's alts
 NO_ALT = '.'
-# a read's strand, without --trust_strand
-UNSTRANDED = '.'
+# the columns of OUTPUT.var.counts.tsv before the samples', in every run
+VAR_COUNTS_COLUMNS = ['varpos', 'ref', 'alt', 'strand', 'phase_set', 'haplotype', 'gene']
+
+# a read's group, of the --trust_strand and --haplotypes it is counted in: its strand,
+# phase set and haplotype, of its HP and PS tags, each NO_GROUP when not trusted, given
+# or tagged
+ReadGroup = namedtuple('ReadGroup', ('strand', 'phase_set', 'haplotype'))
+NO_GROUP = '.'
+UNGROUPED = ReadGroup(NO_GROUP, NO_GROUP, NO_GROUP)
 
 # a temp record is pos, gene list, status; the gene list is itself a list, so the two
 # need separators that cannot be confused, or the field count varies with gene count
@@ -92,7 +99,17 @@ def add_subparser(subparsers):
     parser.add_argument('--trust_strand', action='store_true',
                         help="trust the stranding of the reads, as of oriented reads or direct RNA: each read is of "
                              "its alignment's strand, and the counts of each strand of reads at a site are a row of "
-                             'their own, with a strand column, the + and - reads of an allele two rows')
+                             'their own, of the strand column, the + and - reads of an allele two rows; without it '
+                             'the strand column is .')
+    parser.add_argument('--haplotypes', action='store_true',
+                        help="count the reads of each haplotype apart, of haplotagged bams, as WhatsHap haplotag "
+                             'writes: each read is of the haplotype of its HP tag in the phase set of its PS tag, and '
+                             'the counts of each phase set and haplotype at a site are a row of their own, of the '
+                             'phase_set and haplotype columns, the reads without an HP tag a row of . and . (as '
+                             'every row without --haplotypes).  '
+                             'Haplotypes are comparable only within a phase set and of one phasing, as the samples of '
+                             'one patient haplotagged with its phased variants: a warning is given of samples sharing '
+                             'no phase set')
     parser.add_argument('--output_all', action='store_true',
                         help='write the alleles of every site with --min_coverage, whether or not any read '
                              'shows them')
@@ -117,6 +134,7 @@ def quantvarpos_cmd(args):
                 vcf=args.vcf, keep_flags=args.keep_flags, genome=args.genome, output=args.output,
                 isoform_bed=args.isoform_bed, gtf=args.gtf, min_coverage=args.min_coverage,
                 output_all=args.output_all, quality=args.quality, trust_strand=args.trust_strand,
+                haplotypes=args.haplotypes,
                 keep_intermediate=args.keep_intermediate,
                 temp_dir=args.temp_dir, threads=args.threads)
 
@@ -223,9 +241,9 @@ def read_bases_at(read, sites):
                 i += 1
 
 
-def parse_single_bam_read(s, out, vcfvars, positions, sampleindex, strand=UNSTRANDED):
+def parse_single_bam_read(s, out, vcfvars, positions, sampleindex, group=UNGROUPED):
     """Write the sites a read aligns a base to, of vcfvars, to out, its sample's temp
-    file, with its strand, each with its genes and the alt the read shows there, or
+    file, with its ReadGroup, each with its genes and the alt the read shows there, or
     NO_ALT.  positions are vcfvars' site_positions.  Most reads cover no site, and
     return at once"""
     sites = sites_in_span(positions, s.reference_name, s.reference_start, s.reference_end)
@@ -236,53 +254,77 @@ def parse_single_bam_read(s, out, vcfvars, positions, sampleindex, strand=UNSTRA
         _, alts, name = vcfvars[(s.reference_name, var_bin(pos))][pos]
         records.append(VAR_FIELD_SEP.join([str(pos), name, base if base in alts else NO_ALT]))
     if records:
-        out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, strand, ';'.join(records)]) + '\n')
+        out.write('\t'.join([s.reference_name, str(sampleindex) + '__' + s.query_name, *group, ';'.join(records)]) + '\n')
+
+
+def _read_temp_counts(temp_paths, nsamples):
+    """the counts of the samples' temp files: (chrom, pos, gene, ReadGroup) -> per
+    sample, a Counter of the alts the reads show, and each sample's phase sets"""
+    vartocounts = {}
+    phase_sets = [set() for _ in range(nsamples)]
+    for temp_path in temp_paths:
+        with open(temp_path) as mutstringfile:
+            for line in mutstringfile:
+                refname, readname, strand, phase_set, haplotype, mutstring = line.rstrip('\n').split('\t')
+                group = ReadGroup(strand, phase_set, haplotype)
+                sampleindex = int(readname.split('__')[0])
+                if phase_set != NO_GROUP:
+                    phase_sets[sampleindex].add((refname, phase_set))
+                # each site: position, genes, the alt the read shows
+                for pos, genes, allele in (x.split(VAR_FIELD_SEP) for x in mutstring.split(';')):
+                    # the first of the sorted genes, as before, when a site is of more than one
+                    var = (refname, int(pos), genes.split(GENE_LIST_SEP)[0], group)
+                    if var not in vartocounts:
+                        vartocounts[var] = [Counter() for _ in range(nsamples)]
+                    vartocounts[var][sampleindex][allele] += 1
+    return vartocounts, phase_sets
+
+
+def _warn_of_unshared_phase_sets(samplenames, phase_sets):
+    "warn if two samples with haplotagged reads share no phase set, so aren't of one phasing"
+    tagged = [(name, sets) for name, sets in zip(samplenames, phase_sets) if sets]
+    for i, (name1, sets1) in enumerate(tagged):
+        for name2, sets2 in tagged[i + 1:]:
+            if not sets1 & sets2:
+                logging.warning(f'samples {name1} and {name2} share no phase set: haplotypes are comparable only of '
+                                "reads haplotagged with one phasing, as of one patient's samples, so give each "
+                                "patient's samples a run of their own")
+                return
 
 
 def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars,
-                                   stranded=False):
-    """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv:
-    per sample, the reads covering the site not showing the alt, and those showing
-    it, so they add up to the site's coverage whatever its other alts.  Given
-    stranded, of each strand of the reads, in a strand column, a row for each
-    strand of reads at the site.  A row is written if a sample has threshold reads
-    covering the site, and if a sample has a read showing the alt, or output_all.
+                                   haplotypes=False):
+    """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv,
+    of VAR_COUNTS_COLUMNS and then the samples: per sample, the reads covering the
+    site not showing the alt, and those showing it, so they add up to the site's
+    coverage whatever its other alts.  Each group of reads (ReadGroup) at the site
+    has a row of its own, of its strand, phase set and haplotype, NO_GROUP those of
+    reads not split by them, so the columns are those of every run.  Given
+    haplotypes, samples sharing no phase set are warned of.  An allele's rows are written if a sample has a read of any group showing
+    the alt, or output_all, so a haplotype or strand of none still has its row, and
+    each row if a sample has threshold reads of its group covering the site.
     temp_paths are the samples' temp files, from parse_all_bam_files"""
     samplenames = [x[0] for x in sampledata]
+    vartocounts, phase_sets = _read_temp_counts(temp_paths, len(samplenames))
+    if haplotypes:
+        _warn_of_unshared_phase_sets(samplenames, phase_sets)
 
     with open(f'{outprefix}.var.counts.tsv', 'w') as out:
-        out.write('\t'.join(['varpos', 'ref', 'alt'] + (['strand'] if stranded else []) + ['gene'] + samplenames) + '\n')
-        vartocounts = {}
-        for temp_path in temp_paths:
-            with open(temp_path) as mutstringfile:
-                for line in mutstringfile:
-                    refname, readname, strand, mutstring = line.rstrip('\n').split('\t')
-                    # three fields per mut now, whatever the gene count: the gene list
-                    # used to be comma joined into a comma joined record
-                    allmuts = [x.split(VAR_FIELD_SEP) for x in mutstring.split(';')]
-
-                    # each mut: position, varname (may be chrom:pos or gene), varstatus
-                    sampleindex = int(readname.split('__')[0])
-                    for m in allmuts:
-                        # first of the sorted gene list, as before, when a variant falls
-                        # in more than one gene
-                        var = (refname, int(m[0]), m[1].split(GENE_LIST_SEP)[0], strand)
-                        if var not in vartocounts:
-                            # per sample, the reads covering the site, by the alt they show
-                            vartocounts[var] = [Counter() for x in range(len(samplenames))]
-                        vartocounts[var][sampleindex][m[-1]] += 1
-
-        for (refname, pos, gene, strand), sample_alleles in vartocounts.items():
-            coverage = [sum(alleles.values()) for alleles in sample_alleles]
-            if not any(cov >= threshold for cov in coverage):
-                continue
+        out.write('\t'.join(VAR_COUNTS_COLUMNS + samplenames) + '\n')
+        groups_of_site = {}
+        for (refname, pos, gene, group), sample_alleles in vartocounts.items():
+            groups_of_site.setdefault((refname, pos, gene), []).append((group, sample_alleles))
+        for (refname, pos, gene), groups in groups_of_site.items():
             ref, alts = site_alleles(vcfvars, refname, pos)
             for alt in alts:
-                modified = [alleles[alt] for alleles in sample_alleles]
-                if any(mod > 0 for mod in modified) or output_all:
-                    varcounts = [f'{cov - mod};{mod}' for cov, mod in zip(coverage, modified)]
-                    out.write('\t'.join([f'{refname}:{pos}', ref, alt] + ([strand] if stranded else []) + [gene]
-                                        + varcounts) + '\n')
+                if not (output_all or any(alleles[alt] > 0 for _, sample_alleles in groups for alleles in sample_alleles)):
+                    continue
+                for group, sample_alleles in groups:
+                    coverage = [sum(alleles.values()) for alleles in sample_alleles]
+                    if any(cov >= threshold for cov in coverage):
+                        varcounts = [f'{cov - alleles[alt]};{alleles[alt]}' for cov, alleles in zip(coverage, sample_alleles)]
+                        out.write('\t'.join([f'{refname}:{pos}', ref, alt, *group, gene] + varcounts) + '\n')
+
 
 def is_snv(ref, alt):
     "whether a vcf ref and one of its alts are an SNV, which one read base can show"
@@ -530,8 +572,18 @@ def name_sites_by_genes(vcfvars, exons):
 
 
 # which reads of the bam files to count, and how: quality, the minimum mapping
-# quality, and trust_strand, whether each read's strand is its alignment's
-ReadOptions = namedtuple('ReadOptions', ('quality', 'trust_strand'))
+# quality, trust_strand, whether each read's strand is its alignment's, and
+# haplotypes, whether each read's phase set and haplotype are its PS and HP tags
+ReadOptions = namedtuple('ReadOptions', ('quality', 'trust_strand', 'haplotypes'))
+
+
+def read_group(read, read_options):
+    "the ReadGroup of a read, of read_options"
+    strand = ('-' if read.is_reverse else '+') if read_options.trust_strand else NO_GROUP
+    if read_options.haplotypes and read.has_tag('HP'):
+        phase_set = str(read.get_tag('PS')) if read.has_tag('PS') else NO_GROUP
+        return ReadGroup(strand, phase_set, str(read.get_tag('HP')))
+    return ReadGroup(strand, NO_GROUP, NO_GROUP)
 
 
 def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex, read_options):
@@ -547,8 +599,7 @@ def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex, read_options):
                 c += 1
                 if c % 100000 == 0:
                     logging.info(f'{c} reads checked')
-                strand = ('-' if s.is_reverse else '+') if read_options.trust_strand else UNSTRANDED
-                parse_single_bam_read(s, out, vcfvars, positions, sindex, strand)
+                parse_single_bam_read(s, out, vcfvars, positions, sindex, read_group(s, read_options))
 
 
 # the sites of parse_all_bam_files and their site_positions, for its forked
@@ -564,7 +615,7 @@ def _parse_sample(sindex, sample, bamfile, temp_path, read_options, sites=None):
     logging.info(f'done parsing reads for {sample}')
 
 
-def parse_all_bam_files(sampledata, tempdir, vcfvars, threads, read_options=ReadOptions(0, False)):
+def parse_all_bam_files(sampledata, tempdir, vcfvars, threads, read_options=ReadOptions(0, False, False)):
     """Parse each sample's reads covering the sites, of read_options, to a temp file
     of its own, tempdir/<sample index>.txt, threads samples at once.  The files'
     paths, by sample"""
@@ -605,7 +656,7 @@ def samples_and_site_vcfs(manifest, bam, sample_name, vcf):
 
 def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_flags=frozenset(), genome=None, output,
                 isoform_bed=None, gtf=None, min_coverage, output_all, quality=0, trust_strand=False,
-                keep_intermediate, temp_dir=None, threads=1):
+                haplotypes=False, keep_intermediate, temp_dir=None, threads=1):
     sampledata, site_vcfs = samples_and_site_vcfs(manifest, bam, sample_name, vcf)
     vcfvars = read_vcf_sites(site_vcfs, keep_flags)
     logging.info('done reading vcfs')
@@ -621,10 +672,10 @@ def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_fla
     tempdir = make_run_temp_dir(output, temp_dir)
     logging.info(f'temporary files in {tempdir}')
     try:
-        temp_paths = parse_all_bam_files(sampledata, tempdir, vcfvars, threads, ReadOptions(quality, trust_strand))
+        temp_paths = parse_all_bam_files(sampledata, tempdir, vcfvars, threads, ReadOptions(quality, trust_strand, haplotypes))
         logging.info('parsed all reads')
         read_vars_to_genome_pos_counts(temp_paths, output, sampledata, min_coverage, output_all, vcfvars,
-                                       stranded=trust_strand)
+                                       haplotypes=haplotypes)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

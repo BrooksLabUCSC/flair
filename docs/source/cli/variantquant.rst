@@ -9,8 +9,9 @@
                              [--sample_name SAMPLE_NAME] [-o OUTPUT]
                              [--isoform_bed ISOFORM_BED] [-f GTF]
                              [--min_coverage MIN_COVERAGE] [--quality QUALITY]
-                             [--trust_strand] [--output_all] [-t THREADS]
-                             [--temp_dir TEMP_DIR] [--keep_intermediate]
+                             [--trust_strand] [--haplotypes] [--output_all]
+                             [-t THREADS] [--temp_dir TEMP_DIR]
+                             [--keep_intermediate]
 
 .. rubric:: options
 
@@ -60,7 +61,11 @@
 
 .. option:: --trust_strand
 
-   trust the stranding of the reads, as of oriented reads or direct RNA: each read is of its alignment's strand, and the counts of each strand of reads at a site are a row of their own, with a strand column, the + and - reads of an allele two rows
+   trust the stranding of the reads, as of oriented reads or direct RNA: each read is of its alignment's strand, and the counts of each strand of reads at a site are a row of their own, of the strand column, the + and - reads of an allele two rows; without it the strand column is .
+
+.. option:: --haplotypes
+
+   count the reads of each haplotype apart, of haplotagged bams, as WhatsHap haplotag writes: each read is of the haplotype of its HP tag in the phase set of its PS tag, and the counts of each phase set and haplotype at a site are a row of their own, of the phase_set and haplotype columns, the reads without an HP tag a row of . and . (as every row without --haplotypes). Haplotypes are comparable only within a phase set and of one phasing, as the samples of one patient haplotagged with its phased variants: a warning is given of samples sharing no phase set
 
 .. option:: --output_all
 

@@ -1,4 +1,4 @@
-varpos	ref	alt	gene	basic-reads
-chr12:25205716	A	G		159;0
-chr12:25205716	A	T		87;72
-chr12:25206009	T	C		87;74
+varpos	ref	alt	strand	phase_set	haplotype	gene	basic-reads
+chr12:25205716	A	G	.	.	.		159;0
+chr12:25205716	A	T	.	.	.		87;72
+chr12:25206009	T	C	.	.	.		87;74

@@ -97,14 +97,14 @@ def test_each_allele_of_a_site_is_counted_of_the_reads_covering_it(tmp_path):
     tempdir.mkdir()
     with open(tempdir / 'chr1.txt', 'w') as out:
         for n, allele in enumerate(['G', 'T', 'T', NO_ALT]):
-            out.write(f'chr1\t{n % 2}__r{n}\t.\t5|G1|{allele}\n')
+            out.write(f'chr1\t{n % 2}__r{n}\t.\t.\t.\t5|G1|{allele}\n')
     vcfvars = add_vcf_var({}, 'chr1', 'A', ['G', 'T'], 5, 'G1')
     output = str(tmp_path / 'out')
     read_vars_to_genome_pos_counts([str(tempdir / 'chr1.txt')], output, [['s1'], ['s2']], 1, False, vcfvars)
     rows = [line.rstrip('\n').split('\t') for line in open(output + '.var.counts.tsv')]
-    assert rows == [['varpos', 'ref', 'alt', 'gene', 's1', 's2'],
-                    ['chr1:5', 'A', 'G', 'G1', '1;1', '2;0'],
-                    ['chr1:5', 'A', 'T', 'G1', '1;1', '1;1']]
+    assert rows == [['varpos', 'ref', 'alt', 'strand', 'phase_set', 'haplotype', 'gene', 's1', 's2'],
+                    ['chr1:5', 'A', 'G', '.', '.', '.', 'G1', '1;1', '2;0'],
+                    ['chr1:5', 'A', 'T', '.', '.', '.', 'G1', '1;1', '1;1']]
 
 
 def _bam(path, reads):
@@ -134,7 +134,7 @@ def test_a_rerun_to_the_same_output_counts_its_reads_once(tmp_path):
     # the first run's intermediate files are kept, where the second run puts its own
     temp_dir = str(tmp_path / 'tmp')
     first = _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir)
-    assert first.splitlines()[1:] == ['chr1:5\tA\tG\t\t2;1', 'chr1:5\tA\tT\t\t2;1']
+    assert first.splitlines()[1:] == ['chr1:5\tA\tG\t.\t.\t.\t\t2;1', 'chr1:5\tA\tT\t.\t.\t.\t\t2;1']
     assert _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir) == first
 
 
@@ -253,7 +253,7 @@ def test_a_vcfs_sites_without_an_isoform_bed_have_no_genes(tmp_path):
     quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
                 output_all=False, keep_intermediate=False)
     assert open(tmp_path / 'out.var.counts.tsv').read().splitlines() == [
-        'varpos\tref\talt\tgene\ts1', 'chr1:5\tA\tG\t\t2;1', 'chr1:5\tA\tT\t\t2;1']
+        'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1', 'chr1:5\tA\tG\t.\t.\t.\t\t2;1', 'chr1:5\tA\tT\t.\t.\t.\t\t2;1']
 
 
 def test_records_of_kept_flags_are_sites_too(tmp_path):
@@ -411,7 +411,58 @@ def test_trusting_strand_counts_each_strand_of_reads_in_a_row_of_its_own(tmp_pat
                     output_all=False, keep_intermediate=False, **options)
         return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
 
-    assert counts() == ['chr1:5\tA\tG\t\t3;3', 'varpos\tref\talt\tgene\ts1']
-    assert counts(quality=1) == ['chr1:5\tA\tG\t\t3;2', 'varpos\tref\talt\tgene\ts1']
-    assert counts(quality=1, trust_strand=True) == ['chr1:5\tA\tG\t+\t\t1;1', 'chr1:5\tA\tG\t-\t\t2;1',
-                                                    'varpos\tref\talt\tstrand\tgene\ts1']
+    assert counts() == ['chr1:5\tA\tG\t.\t.\t.\t\t3;3', 'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    assert counts(quality=1) == ['chr1:5\tA\tG\t.\t.\t.\t\t3;2', 'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    assert counts(quality=1, trust_strand=True) == ['chr1:5\tA\tG\t+\t.\t.\t\t1;1', 'chr1:5\tA\tG\t-\t.\t.\t\t2;1',
+                                                    'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+
+
+def _tagged_bam(path, reads):
+    "a bam of reads, (name, seq, HP, PS, reverse), HP None for an untagged read"
+    header = {'SQ': [{'SN': 'chr1', 'LN': 3 * VAR_BIN_SIZE}]}
+    with pysam.AlignmentFile(str(path), 'wb', header=header) as bam:
+        for name, seq, hp, ps, reverse in reads:
+            read = _read(name, seq)
+            read.mapping_quality, read.is_reverse = 60, reverse
+            if hp is not None:
+                read.set_tag('HP', hp)
+                read.set_tag('PS', ps)
+            bam.write(read)
+    return str(path)
+
+
+def test_haplotypes_count_the_reads_of_each_phase_set_and_haplotype_in_a_row_of_their_own(tmp_path):
+    # chr1:5 A>G: haplotype 1 of phase set 100 all A, haplotype 2 G but one, two reads untagged
+    bam = _tagged_bam(tmp_path / 's1.bam', [('a1', 'AAAAAAAAAA', 1, 100, False), ('a2', 'AAAAAAAAAA', 1, 100, True),
+                                            ('g1', 'AAAAGAAAAA', 2, 100, False), ('g2', 'AAAAGAAAAA', 2, 100, False),
+                                            ('a3', 'AAAAAAAAAA', 2, 100, True), ('u1', 'AAAAGAAAAA', None, None, False),
+                                            ('u2', 'AAAAAAAAAA', None, None, True)])
+    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '5', '.', 'A', 'G'))
+
+    def counts(**options):
+        # an allele's rows are of every group, haplotype 1, of no read showing G, too
+        quantvarpos(bam=bam, vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1, output_all=False,
+                    keep_intermediate=False, **options)
+        return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
+
+    assert counts(haplotypes=True) == ['chr1:5\tA\tG\t.\t.\t.\t\t1;1', 'chr1:5\tA\tG\t.\t100\t1\t\t2;0',
+                                       'chr1:5\tA\tG\t.\t100\t2\t\t1;2', 'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    # with strand, each strand of each haplotype
+    assert counts(haplotypes=True, trust_strand=True)[:3] == ['chr1:5\tA\tG\t+\t.\t.\t\t0;1',
+                                                              'chr1:5\tA\tG\t+\t100\t1\t\t1;0',
+                                                              'chr1:5\tA\tG\t+\t100\t2\t\t0;2']
+
+
+def test_samples_sharing_no_phase_set_are_warned_of(tmp_path, caplog):
+    bam1 = _tagged_bam(tmp_path / 's1.bam', [('a', 'AAAAGAAAAA', 1, 100, False)])
+    bam2 = _tagged_bam(tmp_path / 's2.bam', [('b', 'AAAAGAAAAA', 1, 200, False)])
+    bam3 = _tagged_bam(tmp_path / 's3.bam', [('c', 'AAAAGAAAAA', 2, 100, False)])
+    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '5', '.', 'A', 'G'))
+    manifest = _manifest(tmp_path, f's1\t{bam1}', f's3\t{bam3}')
+    quantvarpos(manifest=manifest, vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1, output_all=False,
+                keep_intermediate=False, haplotypes=True)
+    assert 'share no phase set' not in caplog.text
+    manifest = _manifest(tmp_path, f's1\t{bam1}', f's2\t{bam2}')
+    quantvarpos(manifest=manifest, vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1, output_all=False,
+                keep_intermediate=False, haplotypes=True)
+    assert 'samples s1 and s2 share no phase set' in caplog.text

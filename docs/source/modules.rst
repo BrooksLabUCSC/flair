@@ -582,6 +582,15 @@ the genome's base nor its complement counts every read of the genome's base as
 showing its alt.  Given the genome, ``-g``, variantquant checks each site's REF and
 leaves out those that aren't the genome's base, with a warning.
 
+With ``--trust_strand``, each read is of its alignment's strand, and each strand of
+reads at a site is counted in a row of its own.  With ``--haplotypes``, the reads of a
+haplotagged bam, as WhatsHap haplotag writes it, are counted by their phase set and
+haplotype, their PS and HP tags, a row each, and the reads without an HP tag in a row
+of their own: at a somatic variant, the haplotype carrying it shows its alt reads
+against the other's.  A haplotype is comparable only within a phase set and one
+phasing, so a run's samples should be of one patient, haplotagged with its phased
+variants.
+
 Options
 -------
 
