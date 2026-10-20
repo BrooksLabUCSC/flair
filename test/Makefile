@@ -912,7 +912,9 @@ ${BASIC_LONGSHOT}: ${GENOME_FA} ${BASIC_ALIGN_BAM}
 # longshot is not currently include in the docker container, so tests needing
 # it are skipped with a warning rather than failing
 have_longshot := $(shell which longshot >/dev/null 2>&1 && echo yes || echo no)
-longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant
+longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant \
+	test-variantquant-gtf test-variantquant-bed12-gtf test-variantquant-nogenes test-variantquant-manifest \
+	test-variantquant-manifest-vcfs test-variantquant-filters
 
 ifeq (${have_longshot},yes)
 variants-tests: ${longshot_tests}
@@ -949,6 +951,44 @@ test-isoalleles: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 
 test-variantquant: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
+
+# genes of the GTF's exons
+test-variantquant-gtf: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --gtf $(BASIC_ANNOTATION) -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
+
+# a BED12 of the isoforms, of no genes, given the GTF genes they overlap
+test-variantquant-bed12-gtf: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	cut -f 1-12 $(TOME_ISOFORM_BED) > $O/$@.bed12
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --isoform_bed $O/$@.bed12 --gtf $(BASIC_ANNOTATION) -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
+
+# no genes, the sample named
+test-variantquant-nogenes: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --sample_name tumor --vcf ${BASIC_LONGSHOT} -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
+
+# a manifest of two samples, of one bam, read in parallel, the sites of --vcf
+test-variantquant-manifest: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	printf 's1\t%s\n# a comment\n\ns2\t%s\n' ${BASIC_ALIGN_BAM} ${BASIC_ALIGN_BAM} > $O/$@.manifest.tsv
+	flair variantquant --manifest $O/$@.manifest.tsv -t 2 --vcf ${BASIC_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
+
+# a multi-allelic site, an indel, left out, and a RefCall, left out but with --keep_flags;
+# every allele written, of reads showing it or not
+VARIANTQUANT_SITES = $I/variantquant.sites.vcf
+test-variantquant-filters: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) --output_all -o $O/$@
+	$(call cmp_expect_sort,$@.var.counts.tsv)
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) --output_all --keep_flags RefCall -o $O/$@-keep
+	$(call cmp_expect_sort,$@-keep.var.counts.tsv)
+
+# a manifest of each sample's vcf, one gzipped
+test-variantquant-manifest-vcfs: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	gzip -c ${BASIC_LONGSHOT} > $O/$@.vcf.gz
+	printf 's1\t%s\t%s\ns2\t%s\t%s\n' ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} ${BASIC_ALIGN_BAM} $O/$@.vcf.gz > $O/$@.manifest.tsv
+	flair variantquant --manifest $O/$@.manifest.tsv --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
 	$(call cmp_expect_sort,$@.var.counts.tsv)
 
 test-identifyvars-snvs: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}

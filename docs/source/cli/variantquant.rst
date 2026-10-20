@@ -7,7 +7,7 @@
    usage: flair variantquant [-h] (--bam BAM | --manifest MANIFEST)
                              [--vcf VCF | --pos_ref POS_REF] [--keep_flags FLAGS]
                              [--sample_name SAMPLE_NAME] [-o OUTPUT]
-                             [--isoform_bed ISOFORM_BED]
+                             [--isoform_bed ISOFORM_BED] [-f GTF]
                              [--min_coverage MIN_COVERAGE] [--output_all]
                              [-t THREADS] [--temp_dir TEMP_DIR]
                              [--keep_intermediate]
@@ -44,7 +44,11 @@
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   flair isoform bed file, as flair transcriptome writes, of the genes to name the sites of a vcf with: a site is of the genes with an isoform exon over it. Without it, or with --pos_ref, whose sites have their genes, the gene column is empty
+   bed file of isoforms whose exons name the sites of a vcf by their genes: a site is of the genes of the exons over it. An isoform's gene is its 13th column, as of a flair isoform bed, or, for a BED12 or an isoform with it empty, that of the --gtf gene its exons overlap most, else it names none. Without it or --gtf the gene column is empty; with --pos_ref, whose sites have their genes, neither is used
+
+.. option:: -f GTF, --gtf GTF
+
+   GTF annotation file, plain or gzipped, whose exons name the sites of a vcf by their gene_ids, or, with --isoform_bed, the genes of its isoforms without them
 
 .. option:: --min_coverage MIN_COVERAGE
 

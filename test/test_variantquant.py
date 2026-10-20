@@ -4,9 +4,11 @@ from types import SimpleNamespace
 import pysam
 import pytest
 from flair import FlairInputDataError
-from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, combine_vcf_files, parse_all_bam_files,
-                                      parse_single_bam_read, quantvarpos, quantvarpos_cmd, read_bases_at,
-                                      read_vars_to_genome_pos_counts, samples_and_site_vcfs, site_positions,
+from flair.annotate_group_vcf_vars import annotate_group_vcf_vars
+from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, exons_of_gtf,
+                                      load_pos_ref, name_sites_by_genes, parse_all_bam_files, parse_single_bam_read,
+                                      quantvarpos, quantvarpos_cmd, read_bases_at, read_vars_to_genome_pos_counts,
+                                      read_vcf_sites, samples_and_site_vcfs, site_exons, site_positions,
                                       sites_in_span)
 
 
@@ -18,6 +20,12 @@ def _vcf(path, *records, filters=None, gzipped=False):
         for record, vcf_filter in zip(records, filters):
             out.write('\t'.join(record + ('.', vcf_filter, '.')) + '\n')
     return str(path)
+
+
+def combine_vcf_files(vcfs, keep_flags=frozenset()):
+    "(chrom, pos, ref) -> alts of read_vcf_sites' sites"
+    return {(chrom, str(pos), ref): set(alts) for (chrom, _), sites in read_vcf_sites(vcfs, keep_flags).items()
+            for pos, (ref, alts, _) in sites.items()}
 
 
 def test_each_alt_of_a_multi_allelic_site_is_an_snv(tmp_path):
@@ -265,6 +273,54 @@ def test_records_of_kept_flags_are_sites_too(tmp_path):
     assert sites({'all'}) == [100, 200, 300, 400]
 
 
+def _isoform_bed(path, *isoforms):
+    "a flair isoform bed of isoforms, (name, gene, start, [(exon start, end), ...]) on chr1, + strand"
+    with open(path, 'w') as out:
+        for name, gene, start, exons in isoforms:
+            sizes = ''.join(f'{end - s},' for s, end in exons)
+            starts = ''.join(f'{s - start},' for s, _ in exons)
+            fields = ['chr1', start, exons[-1][1], name, 20, '+', start, start, '0,0,0', len(exons), sizes, starts,
+                      gene, '', '', 20, 1.0, 'PRO', 'basic', '', '', 's1,', '', '', '']
+            out.write('\t'.join(str(f) for f in fields) + '\n')
+    return str(path)
+
+
+def _site_genes(exons, *positions):
+    "the genes name_sites_by_genes gives sites at positions on chr1, by position"
+    vcfvars = {}
+    for pos in positions:
+        add_vcf_var(vcfvars, 'chr1', 'A', ('G',), pos, '')
+    name_sites_by_genes(vcfvars, exons)
+    return [vcfvars[('chr1', pos // VAR_BIN_SIZE * VAR_BIN_SIZE)][pos][2] for pos in positions]
+
+
+def test_a_site_is_of_the_genes_with_an_exon_over_it(tmp_path):
+    # exons chr1:101-200 and 301-400, 1-based; another gene's exon 381-500
+    bed = _isoform_bed(tmp_path / 'isoforms.bed', ('T1', 'G1', 100, [(100, 200), (300, 400)]),
+                       ('T2', 'G2', 380, [(380, 500)]))
+    assert _site_genes(site_exons(bed, None), 100, 101, 200, 201, 300, 301, 390, 450, 501) == \
+        ['', 'G1', 'G1', '', '', 'G1', 'G1,G2', 'G2', '']
+
+
+def test_an_exon_reaching_across_a_bin_names_the_sites_of_both():
+    b = VAR_BIN_SIZE
+    exons = {'chr1': [(b - 10, b + 10, 'G1')]}
+    assert _site_genes(exons, b - 20, b - 5, b, b + 5, b + 11) == ['', 'G1', 'G1', 'G1', '']
+
+
+def test_a_gtfs_exons_are_by_gene_id(tmp_path):
+    gtf = tmp_path / 'genes.gtf'
+    rows = [('chr1', 'gene', 101, 400, 'gene_id "G1";'),
+            ('chr1', 'transcript', 101, 400, 'gene_id "G1"; transcript_id "T1";'),
+            ('chr1', 'exon', 101, 200, 'gene_id "G1"; transcript_id "T1"; exon_number 1;'),
+            ('chr1', 'exon', 301, 400, 'gene_id "G1"; transcript_id "T1"; exon_number 2;'),
+            ('chr1', 'exon', 101, 200, 'gene_id "G1"; transcript_id "T2";'),
+            ('chr2', 'exon', 51, 60, 'transcript_id "T3"; gene_id "G2";')]
+    gtf.write_text('#!genome-build GRCh38\n' + ''.join(f'{c}\tsrc\t{f}\t{s}\t{e}\t.\t+\t.\t{a}\n'
+                                                       for c, f, s, e, a in rows))
+    assert exons_of_gtf(str(gtf)) == {'chr1': [(100, 200, 'G1'), (300, 400, 'G1')], 'chr2': [(50, 60, 'G2')]}
+
+
 def test_supplementary_alignments_are_counted_but_not_secondary(tmp_path):
     vcfvars = add_vcf_var({}, 'chr1', 'A', ['G'], 5, '')
     reads = [_read('p', 'AAAAGAAAAA'), _read('s', 'AAAAGAAAAA'), _read('x', 'AAAAGAAAAA')]
@@ -278,3 +334,54 @@ def test_supplementary_alignments_are_counted_but_not_secondary(tmp_path):
     tempdir.mkdir()
     path, = parse_all_bam_files([['s1', str(tmp_path / 's1.bam')]], str(tempdir) + '/', vcfvars, 1)
     assert [line.split('\t')[1] for line in open(path)] == ['0__p', '0__s']
+
+
+def test_a_pos_ref_file_has_the_sites_of_its_vcf_and_bed(tmp_path):
+    bed = _isoform_bed(tmp_path / 'isoforms.bed', ('T1', 'G1', 100, [(100, 200)]))
+    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '150', '.', 'A', 'G,T'), ('chr1', '250', '.', 'T', 'C'),
+               ('chr1', '160', '.', 'AT', 'A'))
+    annotate_group_vcf_vars(vcf, str(tmp_path / 'sites.tsv'), isoform_bed=bed)
+    assert open(tmp_path / 'sites.tsv').read() == 'chr1\t0\t150\tA\tG,T\tG1\nchr1\t0\t250\tT\tC\t\n'
+    from_vcf = name_sites_by_genes(read_vcf_sites([vcf]), site_exons(bed, None))
+    assert load_pos_ref(str(tmp_path / 'sites.tsv')) == from_vcf
+
+
+def _gtf(path, *exons):
+    "a GTF of exons, (chrom, start, end, strand, gene) 1-based"
+    path.write_text(''.join(f'{c}\tsrc\texon\t{s}\t{e}\t.\t{strand}\t.\tgene_id "{g}"; transcript_id "{g}.1";\n'
+                            for c, s, e, strand, g in exons))
+    return str(path)
+
+
+def _bed12(path, *isoforms):
+    "a BED12 of isoforms, (name, start, strand, [(exon start, end), ...]) on chr1, 0-based"
+    with open(path, 'w') as out:
+        for name, start, strand, exons in isoforms:
+            sizes = ''.join(f'{end - s},' for s, end in exons)
+            starts = ''.join(f'{s - start},' for s, _ in exons)
+            fields = ('chr1', start, exons[-1][1], name, 0, strand, start, start, '0,0,0', len(exons), sizes, starts)
+            out.write('\t'.join(str(f) for f in fields) + '\n')
+    return str(path)
+
+
+def test_a_bed12s_isoforms_are_of_the_gtf_genes_they_overlap_most(tmp_path):
+    # the GTF's G1 on + has exons 101-200 and 301-400, G2 on - 151-450; the bed's isoform on +
+    # has a novel exon 501-600, past them, and T2 overlaps no gene
+    gtf = _gtf(tmp_path / 'genes.gtf', ('chr1', 101, 200, '+', 'G1'), ('chr1', 301, 400, '+', 'G1'),
+               ('chr1', 151, 450, '-', 'G2'))
+    bed = _bed12(tmp_path / 'isoforms.bed', ('T1', 100, '+', [(100, 200), (300, 400), (500, 600)]),
+                 ('T2', 2000, '+', [(2000, 2100)]))
+    exons = site_exons(bed, gtf)
+    assert exons == {'chr1': [(100, 200, 'G1'), (300, 400, 'G1'), (500, 600, 'G1')]}
+    # the novel exon's site is G1's, which the GTF alone misses, and G2 names no site of the bed
+    assert _site_genes(exons, 160, 550, 2050) == ['G1', 'G1', '']
+    assert _site_genes(site_exons(None, gtf), 160, 550) == ['G1,G2', '']
+
+
+def test_a_flair_beds_genes_are_its_own_and_a_bed12_alone_names_no_sites(tmp_path, caplog):
+    gtf = _gtf(tmp_path / 'genes.gtf', ('chr1', 101, 200, '+', 'G1'))
+    flair_bed = _isoform_bed(tmp_path / 'isoforms.bed', ('T1', 'FLG1', 100, [(100, 200)]))
+    assert site_exons(flair_bed, gtf) == {'chr1': [(100, 200, 'FLG1')]}
+    bed = _bed12(tmp_path / 'plain.bed', ('T1', 100, '+', [(100, 200)]))
+    assert site_exons(bed, None) == {}
+    assert '1 of the 1 isoforms' in caplog.text

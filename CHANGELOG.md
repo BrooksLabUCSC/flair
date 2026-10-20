@@ -485,6 +485,23 @@
     REDIportal.  A read is modified where its base is one of the site's alts.
   * Supplementary alignments are counted, but no longer secondary alignments, which
     counted a read's bases again.
+  * A site's genes are those of the isoform exons over it.  The scan of each gene's
+    isoforms it replaces compared the 1-based site with the exons' 0-based starts, so a
+    site on an exon's last base wasn't of its gene and one just before an exon was:
+    of 1M REDIportal sites, 38.
+  * `-f/--gtf` names sites by the gene_ids of a GTF's exons.  With `--isoform_bed`,
+    an isoform whose gene, its 13th column, is empty or missing, as of a BED12, gets
+    the GTF gene its exons overlap most on its strand, so a site in a novel exon of a
+    known gene is named; a flair bed's genes are its own.  `--isoform_bed` reads any
+    bed, a BED12 alone naming no sites.
+  * Sites load several times faster and in a fifth of the memory: the 15.6M REDIportal
+    sites of a vcf in 37 seconds and 2.2 GB, with an isoform bed's genes in 43 seconds,
+    with GENCODE's in 57, from a `--pos_ref` file in 36; it was 3 to 9 minutes and
+    about 12 GB.  Genes are found in one sweep of each chromosome's sorted sites and
+    exons.
+  * `annotate_group_vcf_vars`, which writes the `--pos_ref` file of a vcf and isoform
+    bed or GTF, is installed and documented, with `--isoform_bed` (`--bed_isoforms`
+    still works), `--gtf`, `--vcf` and the new `--keep_flags`.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

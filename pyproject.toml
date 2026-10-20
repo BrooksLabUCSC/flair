@@ -52,6 +52,7 @@ identify_gene_isoform = "flair.identify_gene_isoform:main"
 diff_iso_usage = "flair.diff_iso_usage:main"
 diffsplice_fishers_exact = "flair.diffsplice_fishers_exact:main"
 spliceevents_outliers = "flair.spliceevents_outliers:main"
+annotate_group_vcf_vars = "flair.annotate_group_vcf_vars:main"
 flair_partition = "flair.flair_partition:main"
 annotate_aaseq_with_uniprot = "flair.annotate_aaseq_with_uniprot:main"
 
