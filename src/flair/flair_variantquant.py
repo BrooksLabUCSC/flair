@@ -28,6 +28,7 @@ REF_OPS = (pysam.CDEL, pysam.CREF_SKIP)
 
 # the bases of the ref and alt of an SNV, the only variants counted
 SNV_BASES = frozenset('ACGT')
+COMPLEMENT = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
 
 # variants are binned by position, for the lookup of the variants a read covers
 VAR_BIN_SIZE = 10 ** 6
@@ -57,8 +58,14 @@ def add_subparser(subparsers):
                             'merged, every sample counted at all of them')
     parser.add_argument('--vcf',
                         help='vcf file, plain or gzipped, of the sites to count, for all samples; only its first '
-                             'five columns are needed.  Only SNVs of records whose FILTER is PASS or . are '
-                             'counted, or one of --keep_flags')
+                             'five columns are needed.  Its records must be of the genome\'s strand, their REF the '
+                             'genome\'s base, as a minus strand A-to-I edit is T>C, not A>G: --genome checks it.  '
+                             'Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags')
+    parser.add_argument('-g', '--genome',
+                        help='FastA of the genome the reads are aligned to, with its .fai index: each site\'s REF '
+                             'is checked to be the genome\'s base, and a site whose REF is not, as of a record of '
+                             'the transcript\'s strand or another genome, is left out with a warning, rather than '
+                             'every read of the genome\'s base counted as showing its alt')
     parser.add_argument('--keep_flags', type=lambda flags: set(flags.split(',')), default=set(), metavar='FLAGS',
                         help='comma-separated vcf FILTER flags whose records are counted too, as RefCall, or all, '
                              'every record; a record of more than one flag is counted if all of them are given')
@@ -99,7 +106,7 @@ def quantvarpos_cmd(args):
     if args.sample_name is not None and args.bam is None:
         raise FlairInputDataError("--sample_name names --bam's sample; a manifest names its samples")
     quantvarpos(manifest=args.manifest, bam=args.bam, sample_name=args.sample_name,
-                vcf=args.vcf, keep_flags=args.keep_flags, output=args.output,
+                vcf=args.vcf, keep_flags=args.keep_flags, genome=args.genome, output=args.output,
                 isoform_bed=args.isoform_bed, gtf=args.gtf, min_coverage=args.min_coverage,
                 output_all=args.output_all, keep_intermediate=args.keep_intermediate,
                 temp_dir=args.temp_dir, threads=args.threads)
@@ -332,6 +339,44 @@ def read_vcf_sites(vcffilelist, keep_flags=frozenset()):
     return vcfvars
 
 
+# how many of the sites whose REF is not the genome's base a warning gives
+MISMATCH_EXAMPLES = 5
+
+
+def check_sites_against_genome(vcfvars, genome_fa):
+    """Leave out the sites of vcfvars (add_vcf_var) whose REF is not the base of the
+    genome FastA, warning of how many, of a few, and of those whose REF is the
+    complement of the genome's, likely of the transcript's strand, and of those on
+    sequences not in the genome.  Each bin's sites are fetched as one region, from
+    its first to its last, so a few sites read little of the genome"""
+    not_in_genome = mismatched = complemented = 0
+    examples = []
+    with pysam.FastaFile(genome_fa) as genome:
+        lengths = dict(zip(genome.references, genome.lengths))
+        for chrom, bin_start in sorted(vcfvars):
+            sites = vcfvars[(chrom, bin_start)]
+            if chrom not in lengths:
+                not_in_genome += len(vcfvars.pop((chrom, bin_start)))
+                continue
+            first, last = min(sites), max(sites)
+            seq = genome.fetch(chrom, first - 1, min(last, lengths[chrom])).upper()
+            for pos in [pos for pos, (ref, _, _) in sites.items() if seq[pos - first:pos - first + 1] != ref]:
+                ref, alts, _ = sites.pop(pos)
+                base = seq[pos - first:pos - first + 1] or None
+                mismatched += 1
+                complemented += COMPLEMENT.get(ref) == base
+                if len(examples) < MISMATCH_EXAMPLES:
+                    examples.append(f'{chrom}:{pos} {ref}>{",".join(alts)} at {base}')
+            if not sites:
+                del vcfvars[(chrom, bin_start)]
+    if mismatched > 0:
+        logging.warning(f'{mismatched} vcf sites whose REF is not the genome\'s base left out, {complemented} of them '
+                        'its complement, as of a record of the transcript\'s strand: the vcf must be of the genome\'s '
+                        f'strand.  As {", ".join(examples)}')
+    if not_in_genome > 0:
+        logging.warning(f'{not_in_genome} vcf sites on sequences not in the genome left out')
+
+
 def _vcf_giving_ref(vcffilelist, chrom, pos, ref):
     "the first of the vcf files giving the SNV site chrom:pos ref, for the error of read_vcf_sites"
     for samplevcf in vcffilelist:
@@ -537,11 +582,14 @@ def samples_and_site_vcfs(manifest, bam, sample_name, vcf):
     return samples, [vcf]
 
 
-def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_flags=frozenset(), output,
+def quantvarpos(*, manifest=None, bam=None, sample_name=None, vcf=None, keep_flags=frozenset(), genome=None, output,
                 isoform_bed=None, gtf=None, min_coverage, output_all, keep_intermediate, temp_dir=None, threads=1):
     sampledata, site_vcfs = samples_and_site_vcfs(manifest, bam, sample_name, vcf)
     vcfvars = read_vcf_sites(site_vcfs, keep_flags)
     logging.info('done reading vcfs')
+    if genome is not None:
+        check_sites_against_genome(vcfvars, genome)
+        logging.info('done checking the sites against the genome')
     if isoform_bed is not None or gtf is not None:
         name_sites_by_genes(vcfvars, site_exons(isoform_bed, gtf))
         logging.info('done finding the genes of the sites')

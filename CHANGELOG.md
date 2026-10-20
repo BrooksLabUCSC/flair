@@ -497,6 +497,12 @@
     sites of a vcf in 37 seconds and 2.2 GB, with an isoform bed's genes in 43 seconds,
     with GENCODE's in 57; it was 3 to 9 minutes and about 12 GB.  Genes are found in
     one sweep of each chromosome's sorted sites and exons.
+  * `-g/--genome` checks that each site's REF is the genome's base, and leaves out
+    the sites whose REF isn't, with a warning: the vcf must be of the genome's
+    strand.  The match of the complements, replaced by the bases of the reads' cigars,
+    counted the 41,442 REDIportal records of the transcript's strand, as A>G of a
+    minus strand gene, now left out; its 247 records matching neither strand counted
+    every read of the genome's base as edited.
   * `--pos_ref` is removed, and annotate_group_vcf_vars.py, which wrote its files:
     a vcf with `--isoform_bed` or `--gtf` now loads nearly as fast as they did.
 * Incompatibles

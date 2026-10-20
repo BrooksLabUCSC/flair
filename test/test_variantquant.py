@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pysam
 import pytest
 from flair import FlairInputDataError
-from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, exons_of_gtf,
+from flair.flair_variantquant import (NO_ALT, VAR_BIN_SIZE, add_vcf_var, check_sites_against_genome, exons_of_gtf,
                                       name_sites_by_genes, parse_all_bam_files, parse_single_bam_read,
                                       quantvarpos, quantvarpos_cmd, read_bases_at, read_vars_to_genome_pos_counts,
                                       read_vcf_sites, samples_and_site_vcfs, site_exons, site_positions,
@@ -372,3 +372,20 @@ def test_a_flair_beds_genes_are_its_own_and_a_bed12_alone_names_no_sites(tmp_pat
     bed = _bed12(tmp_path / 'plain.bed', ('T1', 100, '+', [(100, 200)]))
     assert site_exons(bed, None) == {}
     assert '1 of the 1 isoforms' in caplog.text
+
+
+def test_sites_whose_ref_is_not_the_genomes_are_left_out(tmp_path, caplog):
+    fasta = tmp_path / 'genome.fa'
+    fasta.write_text('>chr1\nACGTACGTAC\n')
+    pysam.faidx(str(fasta))
+    # chr1:1 is A, as is its record; 2, C, recorded G>A, its complement, as of the transcript's
+    # strand; 3, G, recorded A>G; 12 is past chr1's end; chr2 is not in the genome
+    vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '1', '.', 'A', 'G'), ('chr1', '2', '.', 'G', 'A'),
+               ('chr1', '3', '.', 'A', 'G'), ('chr1', '12', '.', 'A', 'G'), ('chr2', '5', '.', 'A', 'G'))
+    vcfvars = read_vcf_sites([vcf])
+    check_sites_against_genome(vcfvars, str(fasta))
+    assert vcfvars == {('chr1', 0): {1: ('A', ('G',), '')}}
+    assert "3 vcf sites whose REF is not the genome's base left out, 1 of them its complement" in caplog.text
+    assert 'chr1:12 A>G at None' in caplog.text
+    assert 'chr1:2 G>A at C' in caplog.text
+    assert '1 vcf sites on sequences not in the genome left out' in caplog.text

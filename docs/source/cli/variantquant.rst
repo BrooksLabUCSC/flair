@@ -5,8 +5,9 @@
 .. code-block:: text
 
    usage: flair variantquant [-h] (--bam BAM | --manifest MANIFEST) [--vcf VCF]
-                             [--keep_flags FLAGS] [--sample_name SAMPLE_NAME]
-                             [-o OUTPUT] [--isoform_bed ISOFORM_BED] [-f GTF]
+                             [-g GENOME] [--keep_flags FLAGS]
+                             [--sample_name SAMPLE_NAME] [-o OUTPUT]
+                             [--isoform_bed ISOFORM_BED] [-f GTF]
                              [--min_coverage MIN_COVERAGE] [--output_all]
                              [-t THREADS] [--temp_dir TEMP_DIR]
                              [--keep_intermediate]
@@ -23,7 +24,11 @@
 
 .. option:: --vcf VCF
 
-   vcf file, plain or gzipped, of the sites to count, for all samples; only its first five columns are needed. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
+   vcf file, plain or gzipped, of the sites to count, for all samples; only its first five columns are needed. Its records must be of the genome's strand, their REF the genome's base, as a minus strand A-to-I edit is T>C, not A>G: --genome checks it. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
+
+.. option:: -g GENOME, --genome GENOME
+
+   FastA of the genome the reads are aligned to, with its .fai index: each site's REF is checked to be the genome's base, and a site whose REF is not, as of a record of the transcript's strand or another genome, is left out with a warning, rather than every read of the genome's base counted as showing its alt
 
 .. option:: --keep_flags FLAGS
 

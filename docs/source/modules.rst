@@ -575,6 +575,13 @@ several by a manifest, either of sample names and bam files, with the sites from
 ``--vcf``, or of sample names, bam files and each sample's own vcf, whose sites are
 merged, every sample counted at all of them.
 
+The vcf must be of the genome's strand: a record's REF is the genome's base, so an
+A-to-I edit of a minus strand gene is T>C, not A>G.  A record of the transcript's
+strand, as a few of REDIportal's are, is never counted, and one whose REF is neither
+the genome's base nor its complement counts every read of the genome's base as
+showing its alt.  Given the genome, ``-g``, variantquant checks each site's REF and
+leaves out those that aren't the genome's base, with a warning.
+
 Options
 -------
 

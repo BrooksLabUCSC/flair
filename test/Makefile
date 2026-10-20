@@ -975,13 +975,15 @@ test-variantquant-manifest: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGS
 	flair variantquant --manifest $O/$@.manifest.tsv -t 2 --vcf ${BASIC_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
 	$(call cmp_expect_sort,$@.var.counts.tsv)
 
-# a multi-allelic site, an indel, left out, and a RefCall, left out but with --keep_flags;
-# every allele written, of reads showing it or not
+# a multi-allelic site, an indel, left out, a RefCall, left out but with --keep_flags, and two
+# sites whose REF is not the genome's, left out by --genome, one its complement, of the
+# transcript's strand, and one of every read counted as showing its alt; every allele
+# written, of reads showing it or not
 VARIANTQUANT_SITES = $I/variantquant.sites.vcf
 test-variantquant-filters: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
-	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) --output_all -o $O/$@
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) -g ${GENOME_FA} --output_all -o $O/$@
 	$(call cmp_expect_sort,$@.var.counts.tsv)
-	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) --output_all --keep_flags RefCall -o $O/$@-keep
+	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf $(VARIANTQUANT_SITES) -g ${GENOME_FA} --output_all --keep_flags RefCall -o $O/$@-keep
 	$(call cmp_expect_sort,$@-keep.var.counts.tsv)
 
 # a manifest of each sample's vcf, one gzipped
