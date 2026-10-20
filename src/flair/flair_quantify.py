@@ -14,12 +14,16 @@ from flair.terminal_exon_ends import GeneTerminalExonEnds
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.count_sam_transcripts import run_count_sam_transcripts, TRUST_ENDS_WINDOW
 from flair.annotation_precheck import read_introns, splice_sites_cleanly_aligned
+from flair.interval_index import IntervalIndex
 from flair.counts_to_tpm import counts_to_tpm
 from flair.isoform_data import get_reverse_complement
 import multiprocessing as mp
 
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+
+# the single-exon isoforms of every gene (single_exon_index), set by quantify
+_single_exon_index = {}
 
 def add_subparser(subparsers):
     desc = "Quantify the expression level of isoforms across samples"
@@ -178,15 +182,57 @@ def direct_isoform(read, chains, genome, trust_ends):
         return None
     return bed
 
-def write_reads_to_realign(bam_file, gene_info, chains, genome, trust_ends, fasta):
+def is_realigned_to(bed):
+    """Is an isoform in the realignment's reference: spliced isoforms and fusions'
+    pieces, but not other single-exon isoforms, whose reads are the unspliced reads
+    (single_exon_isoform), as in flair transcriptome, so a spliced read isn't
+    counted for one with its intron as a deletion"""
+    return len(bed.blocks) > 1 or bed.pos_in_fusion is not None or bed.transcript_class == 'fusion'
+
+def single_exon_index(gene_data):
+    """The single-exon isoforms of every gene, by chromosome, as (start, end, name,
+    gene id), that unspliced reads are assigned to (single_exon_isoform)"""
+    index = {}
+    for gene_info in gene_data.values():
+        for bed in gene_info.isoform_beds:
+            if not is_realigned_to(bed):
+                index.setdefault(bed.chrom, IntervalIndex()).add(
+                    bed.chromStart, bed.chromEnd, (bed.chromStart, bed.chromEnd, bed.name, gene_info.gene_id))
+    for chrom_index in index.values():
+        chrom_index.build()
+    return index
+
+def single_exon_isoform(read, se_index):
+    """The single-exon isoform an unspliced read is assigned to, as (start, end, name,
+    gene id), or None, without the realignment, as flair transcriptome assigns its
+    unspliced reads: of the single-exon isoforms the read covers more than half of,
+    the one whose ends are nearest the read's, then the leftmost.  Strand isn't
+    known.  The isoforms of every gene are candidates, so each gene the read is
+    fetched for finds the same one, and the read is counted once."""
+    chrom_index = se_index.get(read.reference_name)
+    if chrom_index is None:
+        return None
+    start, end = read.reference_start, read.reference_end
+    covered = [iso for iso in chrom_index.overlap(start, end)
+               if min(iso[1], end) - max(iso[0], start) > (iso[1] - iso[0]) / 2]
+    return min(covered, key=lambda iso: (abs(start - iso[0]) + abs(end - iso[1]),) + iso, default=None)
+
+def write_reads_to_realign(bam_file, gene_info, chains, genome, trust_ends, fasta, se_index):
     """Write the gene's primary reads to fasta to be realigned, as samtools fasta would,
-    except the reads assigned without the realignment (direct_isoform), which are
-    returned as isoform name -> read names, with the number of reads written"""
+    except the reads assigned without the realignment, which are returned as
+    isoform name -> read names, with the number of reads written: reads matching a
+    spliced isoform (direct_isoform), and unspliced reads, which are never realigned,
+    assigned to a single-exon isoform (single_exon_isoform), if it is this gene's"""
     direct, num_realign = {}, 0
     with open(fasta, 'w') as fh:
         # samtools' region, with the 1-based start
         for read in bam_file.fetch(region=f'{gene_info.chrom}:{gene_info.left_bound}-{gene_info.right_bound}'):
             if read.is_secondary or read.is_supplementary or read.query_sequence is None:
+                continue
+            if not read_introns(read):
+                iso = single_exon_isoform(read, se_index)
+                if iso is not None and iso[3] == gene_info.gene_id:
+                    direct.setdefault(iso[2], []).append(read.query_name)
                 continue
             bed = direct_isoform(read, chains, genome, trust_ends)
             if bed is not None:
@@ -219,18 +265,19 @@ def add_direct_assignments(direct, counts_file, read_map_file):
             for name, reads in read_map.items():
                 fh.write(name + '\t' + ','.join(reads) + '\n')
 
-def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends, chains, genome):
+def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends, chains, genome,
+                          se_index, has_realign_reference):
     temp_prefix_sample = temp_prefix + sample
     # with, not a bare open: this runs once per gene per sample, so the descriptors
     # grew without bound in a worker handling many genes
     with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
         direct, num_realign = write_reads_to_realign(bam_file, gene_info, chains, genome, trust_ends,
-                                                     temp_prefix_sample + '.reads.fasta')
+                                                     temp_prefix_sample + '.reads.fasta', se_index)
         generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
     logging.debug(f'{gene_info.gene_id} {sample}: {sum(len(r) for r in direct.values())} reads assigned without '
                   f'realignment, {num_realign} realigned')
     read_map_file = temp_prefix_sample + '.isoform.read.map.txt' if generate_map else None
-    if num_realign == 0:
+    if num_realign == 0 or not has_realign_reference:
         for path in (temp_prefix_sample + '.isoform.counts.txt', read_map_file):
             if path is not None:
                 open(path, 'w').close()
@@ -262,8 +309,12 @@ def get_counts_for_gene(input):
     temp_prefix = temp_dir + gene_id + '/'
     os.makedirs(temp_prefix)
     with pysam.FastaFile(genome_file) as genome:
+        has_realign_reference = False
         with open(temp_prefix + 'isoforms.bed', 'w') as fh_bed, open(temp_prefix + 'isoforms.fa', 'w') as fh_fa:
             for bed in gene_info.isoform_beds:
+                if not is_realigned_to(bed):
+                    continue
+                has_realign_reference = True
                 if norm_ends and len(bed.blocks) > 1:
                     bed.chromStart, bed.chromEnd = gene_info.terminal_exon_ends.normalized_ends(bed.blocks[0].end, bed.blocks[-1].start,
                                                                                                 genome.get_reference_length(bed.chrom))
@@ -281,7 +332,8 @@ def get_counts_for_gene(input):
         # the isoforms with their ends as realigned to, normalized or not
         chains = direct_assignment_chains(gene_info.isoform_beds)
         for sample, group, batch, bamfile in sample_data:
-            get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends, chains, genome)
+            get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends, chains, genome,
+                                  _single_exon_index, has_realign_reference)
 
 def _count_gene_task(input):
     thread_share.task_start()
@@ -296,6 +348,9 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
     temp_dir = make_temp_dir(output)
     sample_data = load_manifest(manifest)
     gene_data = load_isoform_data(isoform_bed)
+    # built before the gene tasks fork, which share it
+    global _single_exon_index
+    _single_exon_index = single_exon_index(gene_data)
 
     logging.info(f'Re-aligning reads to transcriptome. Writing temporary files into {temp_dir}')
 
