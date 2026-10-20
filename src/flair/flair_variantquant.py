@@ -454,10 +454,13 @@ def load_pos_ref(pos_ref):
     return vcfvars
 
 def _parse_one_bam_file(bamfile, out, vcfvars, positions, sindex):
+    """parse the reads of a bam file: its primary and supplementary alignments, the
+    supplementary of other parts of a read, as of a chimera, but not its secondary,
+    other alignments of the same bases, which would count them again"""
     with pysam.AlignmentFile(bamfile, 'rb') as samfile:
         c = 0
         for s in samfile:
-            if s.is_mapped:  # and not s.is_supplementary: ##not s.is_secondary and
+            if s.is_mapped and not s.is_secondary:
                 c += 1
                 if c % 100000 == 0:
                     logging.info(f'{c} reads checked')

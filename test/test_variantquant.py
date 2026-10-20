@@ -263,3 +263,18 @@ def test_records_of_kept_flags_are_sites_too(tmp_path):
     # a record of more than one flag needs them all kept
     assert sites({'RefCall', 'LowQual'}) == [100, 200, 400]
     assert sites({'all'}) == [100, 200, 300, 400]
+
+
+def test_supplementary_alignments_are_counted_but_not_secondary(tmp_path):
+    vcfvars = add_vcf_var({}, 'chr1', 'A', ['G'], 5, '')
+    reads = [_read('p', 'AAAAGAAAAA'), _read('s', 'AAAAGAAAAA'), _read('x', 'AAAAGAAAAA')]
+    reads[1].is_supplementary = True
+    reads[2].is_secondary = True
+    header = {'SQ': [{'SN': 'chr1', 'LN': 3 * VAR_BIN_SIZE}]}
+    with pysam.AlignmentFile(str(tmp_path / 's1.bam'), 'wb', header=header) as bam:
+        for read in reads:
+            bam.write(read)
+    tempdir = tmp_path / 'tmp'
+    tempdir.mkdir()
+    path, = parse_all_bam_files([['s1', str(tmp_path / 's1.bam')]], str(tempdir) + '/', vcfvars, 1)
+    assert [line.split('\t')[1] for line in open(path)] == ['0__p', '0__s']

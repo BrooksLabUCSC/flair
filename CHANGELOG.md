@@ -483,6 +483,8 @@
   * The bases of the reads at the sites come from their cigars, not their MD tags,
     which variantquant no longer needs, 6 times faster with the 15.6M sites of
     REDIportal.  A read is modified where its base is one of the site's alts.
+  * Supplementary alignments are counted, but no longer secondary alignments, which
+    counted a read's bases again.
 * Incompatibles
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
