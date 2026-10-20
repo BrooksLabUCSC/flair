@@ -20,6 +20,7 @@ transcript alignment would find.
 from bisect import bisect_left
 import pysam
 from flair.count_sam_transcripts import SPLICE_SITE_FLANK
+from flair.read_processing import fetch_reads
 
 # mismatches allowed in the window on each side of a splice site
 MAX_SPLICE_SITE_MISMATCHES = 1
@@ -130,12 +131,12 @@ def needs_annotation_alignment(read, junc_index, genome):
                 and splice_sites_cleanly_aligned(read, introns, genome))
 
 
-def reads_skipping_annotation_alignment(bam_file, region, annots, genome):
+def reads_skipping_annotation_alignment(bam_file, region, annots, genome, windows=None):
     """Names of the primary alignments in region that don't need aligning to the
-    annotated transcripts"""
+    annotated transcripts, given windows, ReadWindows, of the reads in them (fetch_reads)"""
     junc_index = AnnotJunctionIndex(annots)
     skip = set()
-    for read in bam_file.fetch(region.name, region.start, region.end):
+    for read in fetch_reads(bam_file, region.name, region.start, region.end, windows):
         if read.is_unmapped or read.is_secondary or read.is_supplementary:
             continue
         if not needs_annotation_alignment(read, junc_index, genome):

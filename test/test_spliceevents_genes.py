@@ -12,8 +12,9 @@ from flair.spliceevents_genes import novel_genes_of_chains, gene_junctions, grou
 from flair.spliceevents_reads import (annotated_genes, ReadEnds, ReadChain, read_read_chains, write_read_chains,
                                       annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons,
                                       AnnotatedTerminalExon, fragment_chains)
+from flair.read_processing import fetch_reads, generate_genomic_alignment_read_to_clipping_file
 from flair.spliceevents_regions import (combine_regions, correction_regions, partition_regions, gene_clusters,
-                                        intergenic_cuts, event_in_regions)
+                                        intergenic_cuts, event_in_regions, read_windows)
 
 # on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle
 # exon, and D and E on -
@@ -145,6 +146,44 @@ def test_regions_reaching_over_each_other_are_corrected_together(tmp_path):
     regions, reports = correction_regions(report, [bam])
     assert regions == [SeqRange('chr1', 1000, 3500)]
     assert reports == {('chr1', 1000, 3500): report}
+
+
+def test_regions_read_in_parallel_are_as_read_one_at_a_time(tmp_path):
+    bam = _bam(tmp_path / 's1.bam', [(900, '100M4100N100M'), (5900, '200M'), (8000, '100M')])
+    report = [SeqRange('chr1', 1000, 5000), SeqRange('chr1', 6000, 7000), SeqRange('chr1', 8000, 9000)]
+    assert correction_regions(report, [bam], threads=2) == correction_regions(report, [bam])
+    cuts = {('chr1', 1000, 5000): [3000]}
+    assert partition_regions(report, [bam], cuts, threads=2) == partition_regions(report, [bam], cuts)
+
+
+def _names(bam, windows):
+    with pysam.AlignmentFile(bam) as bam_file:
+        return [read.query_name for read in fetch_reads(bam_file, 'chr1', 0, 10000, windows)]
+
+
+def test_a_region_extended_over_its_reads_fetches_only_those_reaching_a_report_region(tmp_path):
+    # the region was extended to a nearby gene at 8000-9000 by r1, which runs from the first
+    # report region past the second and is fetched once; r0 and r4 reach neither
+    bam = _bam(tmp_path / 's1.bam', [(200, '500M'), (900, '200M'), (4000, '100M3900N500M'), (5500, '100M2000N100M'),
+                                     (8000, '500M')])
+    windows = read_windows(None, [SeqRange('chr1', 6000, 7000), SeqRange('chr1', 1000, 5000)])
+    assert _names(bam, windows) == ['r1', 'r2', 'r3']
+    assert _names(bam, None) == ['r0', 'r1', 'r2', 'r3', 'r4']
+
+
+def test_a_partition_fetches_the_reads_starting_in_it(tmp_path):
+    bam = _bam(tmp_path / 's1.bam', [(1500, '1000M'), (2000, '100M'), (2900, '500M')])
+    assert _names(bam, read_windows(SeqRange('chr1', 2000, 3000), [SeqRange('chr1', 0, 10000)])) == ['r1', 'r2']
+
+
+def test_the_clipping_of_only_the_reads_to_correct_is_written(tmp_path):
+    bam = _bam(tmp_path / 's1.bam', [(1000, '10S100M'), (8000, '100M5S')])
+    windows = read_windows(None, [SeqRange('chr1', 900, 2000)])
+    with pysam.AlignmentFile(bam) as bam_file:
+        n, path = generate_genomic_alignment_read_to_clipping_file(str(tmp_path / 'reads'), bam_file, 'chr1', 0, 10000,
+                                                                   windows)
+    assert n == 1
+    assert open(path).read() == 'r0\t10\t0\n'
 
 
 def test_regions_are_cut_in_the_gaps_between_genes(tmp_path):

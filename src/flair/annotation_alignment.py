@@ -86,18 +86,19 @@ def _write_reads_subset(in_fasta, out_fasta, skip):
     return nwritten
 
 def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, *, no_align_to_annot, directRNA,
-                                 check_splice, trust_strand, fusion_breakpoints):
+                                 check_splice, trust_strand, fusion_breakpoints, windows=None):
     """read -> (annotated transcript, start splice site index and distance, end splice
     site index and distance) of the reads in region that align well to an annotated
     transcript, of the reads in temp_prefix.reads.fasta, their genomic clipping in
     temp_prefix.reads.genomicclipping.txt.  Reads whose correction the alignment can't
-    change aren't aligned."""
+    change aren't aligned.  Given windows, ReadWindows, only the reads in them are
+    checked for needing the alignment, as only they are in the fasta."""
     chrom = region.name
     read_to_transcript = {}
     if not no_align_to_annot and len(annots.transcripts) > 0:
         # reads whose correction aligning to the annotation can't change go straight
         # to junction correction
-        skip = reads_skipping_annotation_alignment(bam_file, region, annots, genome)
+        skip = reads_skipping_annotation_alignment(bam_file, region, annots, genome, windows)
         annot_reads = temp_prefix + '.annotreads.fasta'
         nreads = _write_reads_subset(temp_prefix + '.reads.fasta', annot_reads, skip)
         logging.info(f'aligning {nreads} reads to the annotated transcripts; {len(skip)} need no alignment')

@@ -8,7 +8,7 @@ import shutil
 import pysam
 import logging
 from collections import namedtuple
-from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
+from flair.read_processing import fetch_reads, generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
 from flair.annotation_alignment import identify_good_match_to_annot
 from flair.junction_correct import UNKNOWN_STRAND
@@ -17,26 +17,27 @@ from flair.interval_index import IntervalIndex
 from flair.spliceevents_events import lies_left
 
 
-def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector, read_starts=None):
+def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector, windows=None):
     """The sample's reads in region, corrected as flair transcriptome corrects them,
     grouped by junction chain: aligned to the annotated transcripts, then their
-    junctions corrected, the unspliced reads under no junctions.  Given read_starts,
-    a SeqRange, only the reads aligned to start in it.  The alignment's
+    junctions corrected, the unspliced reads under no junctions.  Given windows,
+    ReadWindows (read_windows), only the reads in them.  The alignment's
     intermediates are written in work_dir, removed after"""
     os.makedirs(work_dir, exist_ok=True)
     temp_prefix = osp.join(work_dir, 'reads')
     # the reads as samtools fasta writes them: primary alignments, in the read's own orientation
     with pysam.AlignmentFile(bamfile_name, 'rb') as bam, open(temp_prefix + '.reads.fasta', 'w') as out:
-        for read in bam.fetch(region.name, region.start, region.end):
-            if not (read.is_secondary or read.is_supplementary) \
-                    and (read_starts is None or read_starts.start <= read.reference_start < read_starts.end):
+        for read in fetch_reads(bam, region.name, region.start, region.end, windows):
+            if not (read.is_secondary or read.is_supplementary):
                 out.write(f'>{read.query_name}\n{read.get_forward_sequence()}\n')
     sj_to_ends = {}
     with pysam.AlignmentFile(bamfile_name, 'rb') as bam_file:
-        generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region.name, region.start, region.end)
+        generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region.name, region.start, region.end,
+                                                         windows)
         read_to_transcript = identify_good_match_to_annot(
             temp_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
-            directRNA=False, check_splice=True, trust_strand=args.trust_strand, fusion_breakpoints=None)
+            directRNA=False, check_splice=True, trust_strand=args.trust_strand, fusion_breakpoints=None,
+            windows=windows)
         filter_correct_group_reads(bam_file=bam_file, region=region,
                                    read_to_annot_transcript=read_to_transcript,
                                    annots=annots, junction_corrector=junction_corrector,
@@ -45,7 +46,7 @@ def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, j
                                    sj_to_ends=sj_to_ends,
                                    allow_outside_range=True,
                                    keep_single_exon=True, trust_strand=args.trust_strand,
-                                   check_motifs=not args.trust_junctions, read_starts=read_starts)
+                                   check_motifs=not args.trust_junctions, windows=windows)
     shutil.rmtree(work_dir)
     return sj_to_ends
 
@@ -124,13 +125,13 @@ def fragment_chains(reads, fragment_exons, trust_strand):
 
 
 def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots, terminal_exons,
-                            read_starts=None):
+                            windows=None):
     """correct a sample's reads in region, give their junction chains annotated genes,
     and write them to path, with the unspliced reads that are fragments of one gene's
     first or last exons, terminal_exons; the chains of no annotated gene get novel
     genes in event calling, over all samples"""
     sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector,
-                                      read_starts)
+                                      windows)
     fragment_exons = AnnotatedFragmentExons(terminal_exons, annots)
     chains = []
     for (_, juncs), isoform in sj_to_ends.items():

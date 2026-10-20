@@ -5,7 +5,7 @@ import logging
 from flair.annotation_precheck import splice_sites_cleanly_aligned
 from flair.iso_gene_id import split_iso_gene
 from flair.isoform_data import Junc, ReadRec
-from flair.read_processing import should_process_read, add_corrected_read_to_groups
+from flair.read_processing import should_process_read, add_corrected_read_to_groups, fetch_reads
 
 
 def _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends, window, from_annotation):
@@ -97,13 +97,11 @@ def filter_correct_group_reads(*, bam_file, region, read_to_annot_transcript,
                                annots, junction_corrector, genome,
                                quality, keep_sup, sj_to_ends,
                                allow_outside_range=False,
-                               keep_single_exon=True, trust_strand=False, check_motifs=True, read_starts=None):
+                               keep_single_exon=True, trust_strand=False, check_motifs=True, windows=None):
     """Filter reads, correct splice junctions, and group by junction chain.  Given
-    read_starts, a SeqRange, only the reads aligned to start in it.
+    windows, ReadWindows, only the reads in them (fetch_reads).
     sj_to_ends is mutated in place."""
-    for read in bam_file.fetch(region.name, region.start, region.end):
-        if read_starts is not None and not read_starts.start <= read.reference_start < read_starts.end:
-            continue
+    for read in fetch_reads(bam_file, region.name, region.start, region.end, windows):
         if should_process_read(read, region, quality, keep_sup, allow_outside_range):
             _correct_and_group_read(read,
                                     read_to_annot_transcript=read_to_annot_transcript,

@@ -3,8 +3,10 @@ intergenic gaps, regions extended over their reads, and the events each region
 reports.  Used by flair spliceevents"""
 
 from bisect import bisect_right
+import multiprocessing as mp
 import pysam
 from flair import SeqRange
+from flair.read_processing import ReadWindows
 
 
 def region_key(region):
@@ -49,18 +51,31 @@ def _read_spans(bamfiles, region):
                     yield read.reference_start, read.reference_end
 
 
-def correction_regions(report_regions, bamfiles):
+def _map_tasks(func, tasks, threads):
+    "func(*task) of each task, in threads processes, as reading every region of every bam file is slow"
+    if threads <= 1 or len(tasks) <= 1:
+        return [func(*task) for task in tasks]
+    mp.set_start_method('fork', force=True)
+    with mp.Pool(threads) as pool:
+        return pool.starmap(func, tasks)
+
+
+def _extended_region(region, bamfiles):
+    "region extended over the reads overlapping it in all bam files"
+    start, end = region.start, region.end
+    for read_start, read_end in _read_spans(bamfiles, region):
+        start, end = min(start, read_start), max(end, read_end)
+    return SeqRange(region.name, start, end)
+
+
+def correction_regions(report_regions, bamfiles, threads=1):
     """The regions to correct reads in, for the regions events are reported in: each
     report region extended over the reads overlapping it in any sample, so a read
     running past its end is corrected with the annotation and junctions it reaches,
     as anywhere else.  Extended regions that overlap are merged.  Returns the
     regions, and a map of each one's key to the report regions in it."""
-    extended = []
-    for region in report_regions:
-        start, end = region.start, region.end
-        for read_start, read_end in _read_spans(bamfiles, region):
-            start, end = min(start, read_start), max(end, read_end)
-        extended.append((SeqRange(region.name, start, end), region))
+    tasks = [(region, bamfiles) for region in report_regions]
+    extended = list(zip(_map_tasks(_extended_region, tasks, threads), report_regions))
     merged = combine_regions([ext for ext, _ in extended])
     reports = {region_key(region): [] for region in merged}
     for ext, region in extended:
@@ -69,7 +84,19 @@ def correction_regions(report_regions, bamfiles):
     return merged, reports
 
 
-def partition_regions(report_regions, bamfiles, cuts):
+def _piece_extents(region, bamfiles, bounds):
+    """for the pieces of region between bounds, the start and end of the reads starting
+    in each, the first's also of those starting before region, and their numbers"""
+    low, high = bounds[:-1], bounds[1:]
+    reads = [0] * len(low)
+    for read_start, read_end in _read_spans(bamfiles, region):
+        i = max(bisect_right(bounds, read_start) - 1, 0)
+        low[i], high[i] = min(low[i], read_start), max(high[i], read_end)
+        reads[i] += 1
+    return low, high, reads
+
+
+def partition_regions(report_regions, bamfiles, cuts, threads=1):
     """The partitions of report regions cut at cuts, a dict of region key to sorted
     positions: each piece owns the reads aligned to start in it, the first also
     those starting before the region, and is corrected over their whole length.
@@ -77,19 +104,27 @@ def partition_regions(report_regions, bamfiles, cuts):
     cut lose them.  Returns, for each piece with reads, its region to correct reads
     in, the range its reads start in, its report region, and its number of reads"""
     pieces = []
-    for region in report_regions:
-        bounds = [region.start] + cuts.get(region_key(region), []) + [region.end]
-        low, high = bounds[:-1], bounds[1:]
-        reads = [0] * len(low)
-        for read_start, read_end in _read_spans(bamfiles, region):
-            i = max(bisect_right(bounds, read_start) - 1, 0)
-            low[i], high[i] = min(low[i], read_start), max(high[i], read_end)
-            reads[i] += 1
+    all_bounds = [[region.start] + cuts.get(region_key(region), []) + [region.end] for region in report_regions]
+    tasks = [(region, bamfiles, bounds) for region, bounds in zip(report_regions, all_bounds)]
+    extents = _map_tasks(_piece_extents, tasks, threads)
+    for region, bounds, (low, high, reads) in zip(report_regions, all_bounds, extents):
         for i in range(len(low)):
             if reads[i] > 0:
                 owned = SeqRange(region.name, bounds[i] if i > 0 else 0, bounds[i + 1])
                 pieces.append((SeqRange(region.name, low[i], high[i]), owned, region, reads[i]))
     return pieces
+
+
+def read_windows(read_starts, reports):
+    """The ReadWindows of the reads of a region to correct: given read_starts, the
+    range a partition's reads start in, those starting in it, else those overlapping
+    one of the region's report regions.  A region extended over its reads also holds
+    reads of nearby genes that reach no report region, and can be far longer, as a
+    few reads running past a gene reach a highly expressed one; fetching the windows
+    alone never reads them"""
+    if read_starts is not None:
+        return ReadWindows([read_starts], True)
+    return ReadWindows(sorted(reports), False)
 
 
 # events whose reads are all of a gene's: its starts and ends, first and last exons

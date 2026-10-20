@@ -16,7 +16,7 @@ from flair.spliceevents_genes import AnnotatedSplicing, gene_junctions, novel_ge
 from flair.spliceevents_reads import (annotated_terminal_exons, annotated_terminal_splice_sites,
                                       get_juncs_single_sample, read_chains_path, read_read_chains)
 from flair.spliceevents_regions import (combine_regions, correction_regions, intergenic_cuts, partition_regions,
-                                        region_key)
+                                        read_windows, region_key)
 from flair.spliceevents_tables import EventTables, combine_region_tables
 
 
@@ -113,7 +113,8 @@ def spliceevents_cmd(args):
     spliceevents(args)
 
 
-def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item, terminal_exons, read_starts):
+def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item, terminal_exons, region_reports,
+                           read_starts):
     """Correct one sample's reads in a region, for _run_region.  A task of its own,
     so the samples of a region are corrected in parallel"""
     sample, bamfile = item
@@ -126,8 +127,9 @@ def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, ite
             region = partition.region
             region_terminal = [exon for exon in terminal_exons.get(region.name, ())
                                if exon.start < region.end and region.start < exon.end]
+            windows = read_windows(read_starts.get(region_key(region)), region_reports[region_key(region)])
             get_juncs_single_sample(args, region, path, bamfile, genome, junction_corrector, annots, region_terminal,
-                                    read_starts.get(region_key(region)))
+                                    windows)
 
 
 def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports, annot_afe_ss, annot_ale_ss,
@@ -197,14 +199,14 @@ def plan_correction(args, genome, report_regions, bamfiles):
             gtf_data = load_gtf(args.annot)
         cuts = {region_key(region): intergenic_cuts(region, gtf_data.transcripts, PARTITION_EXONS) for region in report_regions}
         plan = CorrectionPlan([], {}, {}, [], gtf_data)
-        for region, owned, report, nreads in partition_regions(report_regions, bamfiles, cuts):
+        for region, owned, report, nreads in partition_regions(report_regions, bamfiles, cuts, args.threads):
             plan.regions.append(region)
             plan.reports[region_key(region)] = [report]
             plan.read_starts[region_key(region)] = owned
             plan.weights.append(nreads)
         return plan
     if args.region_bed:
-        regions, reports = correction_regions(report_regions, bamfiles)
+        regions, reports = correction_regions(report_regions, bamfiles, args.threads)
         # only the annotation of the regions reads are corrected in
         return CorrectionPlan(regions, reports, {}, None, load_gtf(args.annot, regions))
     return CorrectionPlan(report_regions, {region_key(region): [region] for region in report_regions}, {}, None,
@@ -247,7 +249,7 @@ def spliceevents(args):
     runner = PartitionRunner(plan.regions, temp_dir, gtf_data=plan.gtf_data, junction_corrector=junction_corrector,
                              threads=args.threads, weights=plan.weights)
     runner.run(_correct_region_sample, items=allsamples, args=args, terminal_exons=terminal_exons,
-               read_starts=plan.read_starts)
+               region_reports=plan.reports, read_starts=plan.read_starts)
     runner.run(_run_region, args=args, allsamples=allsamples, region_reports=plan.reports,
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss, read_starts=plan.read_starts)
 

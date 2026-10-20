@@ -440,6 +440,11 @@
     `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv
     has each event's reads and the reads covering its locus per sample, the
     denominators of PSIjunc and PSItot.
+  * With `--region_bed`, a region's reads are fetched only where they overlap its
+    regions, not over the whole region extended over its reads, which a few reads
+    running past a gene could stretch over a highly expressed neighbour: NUTM2B,
+    stretched over SFTPA1, SFTPA2 and SFTPD in lung, took 30 seconds rather than 7.3
+    hours.  The reads extending the regions are found in parallel.
   * Outlier calling moved out of flair spliceevents into the console script
     `spliceevents_outliers`, which reads OUTPUT.spliceevents.counts.tsv and
     totals.tsv, so its outliers can be called of either PSI (`--psi junc` or `tot`)
