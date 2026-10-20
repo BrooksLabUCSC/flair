@@ -121,7 +121,12 @@
     reads first: the genes, the reads of the preliminary fusion and of its final
     isoforms, the number of isoforms, and the best supported breakpoint and isoform
     with their reads.  A breakpoint is each junction between consecutive loci, as
-    chrom:pos(strand)--chrom:pos(strand), comma-separated for 3 or more loci.
+    chrom:pos(strand)--chrom:pos(strand), comma-separated for 3 or more loci.  Its preliminary reads aren't capped at 1000, as the score of
+    OUTPUT.prelimfusions.bed is, whose last column now has them.
+  * `flair fusion --filter`, as flair transcriptome's, keeps the subset fusion
+    isoforms of truncated reads, by default none (nosubset).  For the most recall,
+    give `--filter comprehensive --frac_support 0`: of a KIF5B--RET fusion's 123
+    reads, mostly 5' truncated, its isoforms had 6, then 111.
   * `flair fusion` found no fusions with a RefSeq or Ensembl reference: it took only
     chromosomes named chr... as nuclear, to leave out unplaced scaffolds, so rejected
     every fusion on NC_000012.12 or 12.  Chromosomes are now recognised as UCSC,

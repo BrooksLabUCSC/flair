@@ -113,6 +113,15 @@ exon has its donor, and never by where reads end.  A piece with neither keeps th
 of the preliminary fusion.  An isoform two of whose pieces are of one gene is left
 out: flair fusion does not call rearrangements within a gene.
 
+The fusion isoforms are built by flair transcriptome from the fusion reads, which are
+often 5' truncated.  By default, as transcriptome's ``--filter nosubset``, an isoform
+that is a part of another is dropped, and a truncated read counts for no isoform, so a
+fusion can have many fewer final reads than preliminary ones: of a KIF5B--RET fusion's
+123 reads, mostly 5' truncated, 6 were in its isoforms.  For the most recall, as for
+reporting fusions, give ``--filter comprehensive``, every spliced subset isoform kept,
+and ``--frac_support 0``, every isoform however few of the fusion's reads it has: that
+fusion's isoforms then had 111 of its reads.
+
 flair fusion is configured for human genomes: its paralog table and its filters of
 immunoglobulin genes and mitochondrial fusions are human.  It has been tested with
 GENCODE, RefSeq and Ensembl references, and recognises chromosomes as UCSC and GENCODE

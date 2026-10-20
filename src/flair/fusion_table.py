@@ -14,7 +14,8 @@ def prelim_read_counts(prelim_bed):
     counts = {}
     for line in open(prelim_bed):
         f = line.split('\t')
-        counts[f[3].split('__', 1)[1]] = int(f[4])
+        # the reads are the last column, as the score is capped at 1000
+        counts[f[3].split('__', 1)[1]] = int(f[-1])
     return counts
 
 

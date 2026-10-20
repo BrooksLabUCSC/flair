@@ -1024,10 +1024,10 @@ FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
 REFSEQ_FUSION_TEST_BAM = $O/fusion_tests.refSeq.bam
 
 fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf \
-	test-fusion-refseq test-fusion-help
+	test-fusion-refseq test-fusion-recall test-fusion-help
 
 update-fusion-tests:
-	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene" "test-fusion-refseq"; \
+	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene" "test-fusion-refseq" "test-fusion-recall"; \
 	do \
 	cp $O/$$tname.fusions.isoforms.bed $E/$$tname.fusions.isoforms.bed; \
 	cp $O/$$tname.fusions.isoforms.fa $E/$$tname.fusions.isoforms.fa; \
@@ -1044,6 +1044,16 @@ test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	test -s $O/$@.fusions.isoform.read.map.txt -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 # 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
+
+# test-fusion for the most recall: every spliced subset fusion isoform kept, and every
+# isoform whatever its part of the fusion's reads
+test-fusion-recall: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2 \
+	    --filter comprehensive --frac_support 0
+	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
+	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_sort,$@.fusions.isoform.counts.txt)
 
 test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
