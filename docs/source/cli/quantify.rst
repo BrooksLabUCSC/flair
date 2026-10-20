@@ -7,7 +7,8 @@
    usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
                          ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
                          [--trust_ends] [--generate_map] [--with_gene]
-                         [--normalize_ends]
+                         [--normalize_ends] [--temp_dir TEMP_DIR]
+                         [--keep_intermediate]
 
 .. rubric:: options
 
@@ -38,6 +39,14 @@
 .. option:: --normalize_ends
 
    normalize transcript ends; recommended when not using --trust_ends and different transcript ends do not matter
+
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it, with the reads and isoforms of each batch of genes realigned (default: $TMPDIR or the system temporary directory)
+
+.. option:: --keep_intermediate
+
+   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given
 
 .. rubric:: required named arguments
 

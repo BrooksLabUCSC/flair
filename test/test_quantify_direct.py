@@ -1,8 +1,8 @@
 import pysam
 from flair.flair_bed import FlairBed
 from flair.pycbio.hgdata.bed import BedBlock
-from flair.flair_quantify import (direct_assignment_chains, direct_isoform, add_direct_assignments, GeneData,
-                                  is_realigned_to, single_exon_index, single_exon_isoform)
+from flair.flair_quantify import (direct_assignment_chains, direct_isoform, read_count_sam_results, make_batches, GeneData,
+                                  batch_reads, is_realigned_to, single_exon_index, single_exon_isoform)
 
 GENOME_SEQ = ''.join('ACGT'[(i * 7 + i // 3) % 4] for i in range(2000))
 _HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 2000}]})
@@ -97,20 +97,77 @@ def test_trust_ends_needs_ends_near_the_isoforms():
                    trust_ends=True) == 'main'
 
 
-def test_direct_assignments_added_to_counts_and_map(tmp_path):
+def test_realigned_reads_added_to_direct_assignments(tmp_path):
     counts, read_map = tmp_path / 'counts.txt', tmp_path / 'map.txt'
     counts.write_text('main\t2\nupstream\t1\n')
     read_map.write_text('main\tr1,r2\nupstream\tr3\n')
-    add_direct_assignments({'main': ['r4'], 'third': ['r5', 'r6']}, counts, read_map)
-    assert counts.read_text() == 'main\t3\nupstream\t1\nthird\t2\n'
-    assert read_map.read_text() == 'main\tr1,r2,r4\nupstream\tr3\nthird\tr5,r6\n'
+    assigned = {'main': ['r4'], 'third': ['r5', 'r6']}
+    read_count_sam_results(counts, read_map, assigned)
+    assert assigned == {'main': ['r4', 'r1', 'r2'], 'third': ['r5', 'r6'], 'upstream': ['r3']}
 
 
-def test_direct_assignments_without_realigned_reads_or_map(tmp_path):
+def test_realigned_counts_added_without_a_map(tmp_path):
     counts = tmp_path / 'counts.txt'
-    counts.write_text('')
-    add_direct_assignments({'main': ['r1']}, counts, None)
-    assert counts.read_text() == 'main\t1\n'
+    counts.write_text('main\t2\nupstream\t1\n')
+    assigned = {'main': 1}
+    read_count_sam_results(counts, None, assigned)
+    assert assigned == {'main': 3, 'upstream': 1}
+
+
+def _gene(gene_id, start, end, n_isoforms=1, chrom='chr1'):
+    gene = GeneData(gene_id, chrom, '+')
+    for i in range(n_isoforms):
+        gene.add_isoform_bed(FlairBed(chrom, start, end, f'{gene_id}.{i}', strand='+', blocks=[BedBlock(start, end)]))
+    return gene
+
+
+def _batches(genes, num_batches):
+    return [(b['chrom'], b['start'], b['end'], b['loci'], b['prev_end'], b['gene_ids'])
+            for b in make_batches({g.gene_id: g for g in genes}, num_batches)]
+
+
+def test_overlapping_genes_are_batched_together():
+    genes = [_gene('A', 100, 500), _gene('B', 400, 900), _gene('C', 2000, 2500)]
+    assert _batches(genes, 3) == [('chr1', 100, 900, [(100, 900)], None, ['A', 'B']),
+                                  ('chr1', 2000, 2500, [(2000, 2500)], 900, ['C'])]
+
+
+def test_batches_by_chromosome():
+    genes = [_gene('A', 100, 500), _gene('B', 1000, 1500), _gene('C', 100, 300, chrom='chr2')]
+    assert _batches(genes, 3) == [('chr1', 100, 500, [(100, 500)], None, ['A']),
+                                  ('chr1', 1000, 1500, [(1000, 1500)], 500, ['B']),
+                                  ('chr2', 100, 300, [(100, 300)], None, ['C'])]
+
+
+def test_loci_grouped_up_to_a_share_of_the_isoforms():
+    genes = [_gene('A', 100, 200, 2), _gene('B', 300, 400, 1), _gene('C', 500, 600, 1), _gene('D', 700, 800, 4)]
+    # 8 isoforms over 2 batches: 4 each, a batch closing once it has that many
+    assert _batches(genes, 2) == [('chr1', 100, 600, [(100, 200), (300, 400), (500, 600)], None, ['A', 'B', 'C']),
+                                  ('chr1', 700, 800, [(700, 800)], 600, ['D'])]
+
+
+def test_each_read_overlapping_a_locus_taken_by_one_batch(tmp_path):
+    genes = {g.gene_id: g for g in (_gene('A', 100, 500), _gene('B', 600, 900), _gene('C', 1200, 1500))}
+    reads = [('over_a_and_b', 250, [(pysam.CMATCH, 450)]),          # A's single-exon isoform, taken by A's batch only
+             ('spliced_in_b', 610, [(pysam.CMATCH, 40), (pysam.CREF_SKIP, 100), (pysam.CMATCH, 40)]),
+             ('in_the_gap', 950, [(pysam.CMATCH, 50), (pysam.CREF_SKIP, 100), (pysam.CMATCH, 50)])]
+    bam_path = str(tmp_path / 'reads.bam')
+    with pysam.AlignmentFile(bam_path, 'wb', header=_HEADER) as bam:
+        for name, start, cigar in reads:
+            seg = _read(start, cigar)
+            seg.query_name = name
+            bam.write(seg)
+    pysam.index(bam_path)
+    se_index = single_exon_index(genes)
+    taken = []
+    with pysam.AlignmentFile(bam_path) as bam:
+        for batch in make_batches(genes, 3):
+            direct, num_realign = batch_reads(bam, batch, {}, _Genome(), False, se_index,
+                                              str(tmp_path / 'r.fa'), str(tmp_path / 'clip.txt'))
+            realigned = [line[1:].strip() for line in open(tmp_path / 'r.fa') if line.startswith('>')]
+            taken.append((batch['gene_ids'], direct, realigned))
+            assert num_realign == len(realigned)
+    assert taken == [(['A'], {'A.0': ['over_a_and_b']}, []), (['B'], {}, ['spliced_in_b']), (['C'], {}, [])]
 
 
 def _gene_data(*genes):

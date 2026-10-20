@@ -495,21 +495,27 @@ test-combine-isoalleles: mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-normends test-quantify-help
+quantify-tests: test-quantify test-quantify-normends test-quantify-onethread-keep test-quantify-help
 
 test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
-	rm -rf $O/$@.intermediate
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
-	rm -rf $O/$@.intermediate
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene --normalize_ends
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
+
+# one thread, without the pool, and the intermediate files kept: the same counts as test-quantify
+test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
+	rm -rf $O/$@.tmp
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene \
+	   -t 1 --temp_dir $O/$@.tmp --keep_intermediate
+	diff $E/test-quantify.counts.tsv $O/$@.counts.tsv
+	ls $O/$@.tmp/*.intermediate/*/isoforms.fa > /dev/null
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out
