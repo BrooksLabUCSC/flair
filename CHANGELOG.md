@@ -181,6 +181,11 @@
   `make test-alignments` checks their alignments, so a minimap2 that aligns them
   differently shows there first.
 * flair transcriptome
+  * With `--filter comprehensive` or `ginormous`, the reads are realigned to the
+    firstpass isoforms with 50 secondary alignments rather than 4: a truncated read
+    aligns alike to its own subset isoform and every isoform containing it, and with
+    4 its own was often not among them, so it was assigned to none.  Of a KIF5B--RET
+    fusion's 123 reads, 74 were assigned among its isoforms, now 117.
   * Isoforms of the same coordinates on different sequences got the same isoform
     id: an isoform's name, by which ids are given, hashed its exons but not its
     chromosome.  In LRGASP WTC11 with spike-ins, single-exon ERCCs starting at 1

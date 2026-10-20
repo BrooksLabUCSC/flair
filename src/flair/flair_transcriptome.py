@@ -15,8 +15,9 @@ from collections import Counter
 from flair import FlairError, FlairInputDataError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
-from flair.annotation_alignment import (_exon_bounds, _write_reads_subset, identify_good_match_to_annot,
-                                        normalize_gene_terminal_exons, transcriptome_align_and_count)
+from flair.annotation_alignment import (SECONDARY_ALIGNMENTS, _exon_bounds, _write_reads_subset,
+                                        identify_good_match_to_annot, normalize_gene_terminal_exons,
+                                        transcriptome_align_and_count)
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
@@ -49,6 +50,13 @@ MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 # the reads of the isoforms it is a subset of
 FILTER_MODES = ('nosubset', 'comprehensive', 'ginormous')
 DEFAULT_FILTER = 'nosubset'
+# the --filter modes keeping every subset isoform, so a truncated read is aligned alike
+# to its own isoform and every isoform containing it, and the secondary alignments to
+# them minimap2 reports in the realignment, for the read's own to be among them: with
+# the default 4, of a KIF5B--RET fusion's 123 reads, mostly 5' truncated, 74 were
+# assigned among its 20 isoforms, and 117 with 50
+KEEP_SUBSET_FILTERS = ('comprehensive', 'ginormous')
+KEEP_SUBSET_SECONDARY_ALIGNMENTS = 50
 _SUPPORT_RATIO_FILTER_RE = re.compile(r'^(\d+(?:\.\d+)?)[xX]$')
 
 
@@ -1538,7 +1546,10 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                               partition.output_path('firstpass.uniquebound.txt'),
                                               directRNA=args.directRNA, no_stringent=args.no_stringent,
                                               check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
-                                              fusion_breakpoints=args.fusion_breakpoints)
+                                              fusion_breakpoints=args.fusion_breakpoints,
+                                              secondary_alignments=(KEEP_SUBSET_SECONDARY_ALIGNMENTS
+                                                                    if args.filter in KEEP_SUBSET_FILTERS
+                                                                    else SECONDARY_ALIGNMENTS))
             else:
                 generate_empty_intermediate_files(partition.file_prefix, ['.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
             with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh:

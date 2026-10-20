@@ -129,16 +129,25 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
     return read_to_transcript
 
 
-def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound,
-                                  *, directRNA, no_stringent, check_splice, trust_strand, fusion_breakpoints):  # noqa: C901 - FIXME: reduce complexity
+# the secondary alignments of each read to the transcripts that minimap2 reports for
+# count_sam_transcripts to choose from (-N)
+SECONDARY_ALIGNMENTS = 4
+
+
+def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound,  # noqa: C901 - FIXME: reduce complexity
+                                  *, directRNA, no_stringent, check_splice, trust_strand, fusion_breakpoints,
+                                  secondary_alignments=SECONDARY_ALIGNMENTS):
     """Align reads to transcripts with minimap2 and assign each to its best
     transcript with count_sam_transcripts: to the annotated transcripts (is_annot),
-    or to flair transcriptome's firstpass isoforms"""
+    or to flair transcriptome's firstpass isoforms.  minimap2 reports
+    secondary_alignments other alignments of each read, which must reach the
+    transcript it fits among many alike, as a truncated read among the isoforms
+    containing its own"""
     # minimap (results are piped into count_sam_transcripts.py)
     # '--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
     if isinstance(input_reads, str):
         input_reads = [input_reads]
-    mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD'] + [align_ref_fasta] + input_reads
+    mm2_cmd = ['minimap2', '-a', '-N', str(secondary_alignments), '--MD'] + [align_ref_fasta] + input_reads
 
     # FIXME add in step to filter out chimeric reads here
     # FIXME really need to go in and check on how count_sam_transcripts is working
