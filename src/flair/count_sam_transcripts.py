@@ -44,6 +44,10 @@ def parse_args():
                         help='''[OPTIONAL] fusion detection only - bed file containing locations of fusion breakpoints on the synthetic genome''')
     parser.add_argument('--allow_UTR_indels', default=False, action='store_true',
                         help='specify if want to allow reads to include indels in UTRs (more permissive for population variation + A to I editing)')
+    parser.add_argument('--transcript_fasta',
+                        help='fasta of the transcripts the reads are aligned to; with --allow_UTR_indels, a large '
+                             'deletion in a terminal exon on a canonical splice motif is an intron the transcript '
+                             'lacks, not tolerated')
     parser.add_argument('--trimmedreads',
                         help='[requires file path] specify if your reads are properly trimmed and you want to remove alignments '
                         'with too much softclipping at the ends (improves accuracy when possible). Provide a file of read to level of clipping when aligned to the genome.')
@@ -85,6 +89,10 @@ LARGE_INDEL_TOLERANCE = 25
 # terminal exon aligns to the spliced transcript with the intron as one large
 # insertion, which minimap2 may place some way into the terminal exon
 TERMINAL_INDEL_SPLICE_SITE_DIST = 50
+# intron motifs, in the transcript's sense orientation: a large deletion in a terminal
+# exon on one of these is a read spliced where the transcript isn't, not a skip of
+# the reverse transcriptase across double-stranded RNA, which allow_UTR_indels is for
+CANONICAL_SPLICE_MOTIFS = frozenset((('GT', 'AG'), ('GC', 'AG'), ('AT', 'AC')))
 
 @dataclass
 class IsoformInfo:
@@ -94,13 +102,29 @@ class IsoformInfo:
     transcript_to_bp_ss_index: dict = field(default_factory=dict)
     transcript_to_genomic_ends: dict = field(default_factory=dict)
     transcript_to_unique_bounds: dict = field(default_factory=dict)
+    transcript_to_seq: dict = field(default_factory=dict)
 
 
-def read_isoforms_bed(*, isoforms, fusion_breakpoints=None, unique_bound=None):  # noqa: C901 - FIXME: reduce complexity
-    """Read the isoforms BED (and optional unique-bound TSV) and build an
-    IsoformInfo with exon block sizes, genomic ends, fusion-breakpoint
-    splice-site indices, and unique-sequence boundaries per transcript."""
+def read_transcript_fasta(path):
+    "a fasta's sequences by name"
+    seqs, name = {}, None
+    for line in open(path):
+        line = line.rstrip('\n')
+        if line.startswith('>'):
+            name = line[1:].split()[0]
+            seqs[name] = []
+        elif name is not None:
+            seqs[name].append(line)
+    return {name: ''.join(parts) for name, parts in seqs.items()}
+
+
+def read_isoforms_bed(*, isoforms, fusion_breakpoints=None, unique_bound=None, transcript_fasta=None):  # noqa: C901 - FIXME: reduce complexity
+    """Read the isoforms BED (and optional unique-bound TSV and transcript fasta) and
+    build an IsoformInfo with exon block sizes, genomic ends, fusion-breakpoint
+    splice-site indices, unique-sequence boundaries and sequences per transcript."""
     info = IsoformInfo()
+    if transcript_fasta:
+        info.transcript_to_seq = read_transcript_fasta(transcript_fasta)
     chrtobp = {}
     if fusion_breakpoints:
         for bed in BedReader(fusion_breakpoints, numStdCols=3):
@@ -274,11 +298,28 @@ def get_matchvals(md, *, stringent, check_splice, fusion_breakpoints):
     return matchvals
 
 
-def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # noqa: C901 - FIXME: reduce complexity
+def deletion_on_splice_motif(tseq, start, length):
+    """Could a deletion of tseq[start:start + length] be an intron on a canonical splice
+    motif, in the transcript's sense orientation, at any of the placements the aligner
+    could equally have given it: in a repeat, the deletion slides along it, and the
+    aligner's choice of where is arbitrary"""
+    first = start
+    while first > 0 and tseq[first - 1] == tseq[first - 1 + length]:
+        first -= 1
+    last = start
+    while last + length < len(tseq) and tseq[last] == tseq[last + length]:
+        last += 1
+    return any((tseq[pos:pos + 2].upper(), tseq[pos + length - 2:pos + length].upper()) in CANONICAL_SPLICE_MOTIFS
+               for pos in range(first, last + 1))
+
+
+def process_cigar(matchvals, cigarblocks, startpos, exoninfo, tseq=None):  # noqa: C901 - FIXME: reduce complexity
     """Walk the CIGAR operations of a transcript alignment to build a
     per-transcript-position coverage vector, collect query-side clipping,
     record alignment block positions, and flag large indels outside the
-    terminal exons."""
+    terminal exons.  Given the transcript's sequence, tseq, a large deletion in a
+    terminal exon on a canonical splice motif is flagged too: it is the read spliced
+    where the transcript isn't (deletion_on_splice_motif)."""
     matchpos = 0
     # indexed by transcript position; startpos is 0-based (pysam reference_start)
     coveredpos = [0] * startpos
@@ -291,12 +332,6 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
         # so a deletion of or next to an internal exon can't count as a tolerated indel
         lb = max(exoninfo[0] - TERMINAL_INDEL_SPLICE_SITE_DIST, 0)
         rb = min(sum(exoninfo), sum(exoninfo) - exoninfo[-1] + TERMINAL_INDEL_SPLICE_SITE_DIST)
-        # this checks if transcript is a subset of a longer SJC and disallows first or last exon permissivity
-        if exon_bounds:
-            if exon_bounds['left']:
-                lb = 0
-            if exon_bounds['right']:
-                rb = sum(exoninfo)
     else:
         lb, rb = None, None
     indel_detected = False
@@ -320,6 +355,8 @@ def process_cigar(matchvals, cigarblocks, startpos, exoninfo, exon_bounds):  # n
                     # starting in the first exon but ending near its splice site, or past
                     # it, is not
                     if not (tendpos + blen <= lb or tendpos >= rb):
+                        indel_detected = True
+                    elif tseq is not None and deletion_on_splice_motif(tseq, tendpos, blen):
                         indel_detected = True
                 else:
                     indel_detected = True
@@ -533,9 +570,8 @@ def get_best_transcript(tinfo, info, genomicclipping,
         matchvals = get_matchvals(thist.md, stringent=stringent, check_splice=check_splice,
                                   fusion_breakpoints=fusion_breakpoints)
         terminal_exon_info = exoninfo if allow_UTR_indels else None
-        terminal_exon_bounds = info.transcript_to_unique_bounds[thist.name] if thist.name in info.transcript_to_unique_bounds else None
-
-        indel_detected, coveredpos, query_clipping, blockstarts, blocksizes, tendpos = process_cigar(matchvals, thist.cigar, thist.startpos, terminal_exon_info, terminal_exon_bounds)
+        indel_detected, coveredpos, query_clipping, blockstarts, blocksizes, tendpos = process_cigar(
+            matchvals, thist.cigar, thist.startpos, terminal_exon_info, info.transcript_to_seq.get(thist.name))
         gtstrand = info.transcript_to_genomic_ends[tname][2]
 
         # correcting clipping values to subtract out genomic clipping
@@ -687,7 +723,8 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     unique_bound=None,
                                     fusion_breakpoints=None,
                                     allow_UTR_indels=False, trimmedreads=None,
-                                    output_endpos=None, stranded=False, no_extra_clipping=False):
+                                    output_endpos=None, stranded=False, no_extra_clipping=False,
+                                    transcript_fasta=None):
     """Build count_sam_transcripts.py argv."""
     # FIXNE: default values should be centralized
     cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
@@ -711,6 +748,8 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
         cmd += ['--fusion_breakpoints', str(fusion_breakpoints)]
     if allow_UTR_indels:
         cmd.append('--allow_UTR_indels')
+    if transcript_fasta:
+        cmd += ['--transcript_fasta', str(transcript_fasta)]
     if trimmedreads:
         cmd += ['--trimmedreads', str(trimmedreads)]
     if output_endpos:
@@ -729,7 +768,8 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
                               unique_bound=None,
                               fusion_breakpoints=None,
                               allow_UTR_indels=False, trimmedreads=None,
-                              output_endpos=None, stranded=False, no_extra_clipping=False):
+                              output_endpos=None, stranded=False, no_extra_clipping=False,
+                              transcript_fasta=None):
     """Run count_sam_transcripts.py; if mm2_cmd given, pipe its stdout in as SAM."""
     cmd = build_count_sam_transcripts_cmd(
         output=output, sam=sam, threads=threads,
@@ -739,7 +779,8 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
         unique_bound=unique_bound,
         fusion_breakpoints=fusion_breakpoints,
         allow_UTR_indels=allow_UTR_indels, trimmedreads=trimmedreads,
-        output_endpos=output_endpos, stranded=stranded, no_extra_clipping=no_extra_clipping)
+        output_endpos=output_endpos, stranded=stranded, no_extra_clipping=no_extra_clipping,
+        transcript_fasta=transcript_fasta)
     pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]
     pipettor.run(pipeline)
 
@@ -748,7 +789,7 @@ if __name__ == '__main__':
     args = parse_args()
     args = check_args(args)
     info = read_isoforms_bed(isoforms=args.isoforms, fusion_breakpoints=args.fusion_breakpoints,
-                             unique_bound=args.unique_bound)
+                             unique_bound=args.unique_bound, transcript_fasta=args.transcript_fasta)
     readstoclipping = {}
     if args.trimmedreads:
         for line in open(args.trimmedreads):

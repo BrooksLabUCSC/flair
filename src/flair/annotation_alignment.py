@@ -158,6 +158,7 @@ def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_
             output_endpos=output_endpos,
             stringent=stringent,
             allow_UTR_indels=not directRNA,
+            transcript_fasta=align_ref_fasta,
             check_splice=check_splice,
             isoforms=ref_bed,
             trust_ends=False,

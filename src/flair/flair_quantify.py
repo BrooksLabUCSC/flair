@@ -10,7 +10,6 @@ from flair.io_utils import make_temp_dir
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
-from flair.flair_transcriptome import _check_junction_subset, unique_bounds_past
 from flair.terminal_exon_ends import GeneTerminalExonEnds
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.count_sam_transcripts import run_count_sam_transcripts, TRUST_ENDS_WINDOW
@@ -123,26 +122,6 @@ def load_isoform_data(isoform_bed):
         gene_data[bed.gene_id].add_isoform_bed(bed)
     return gene_data
 
-def write_unique_bound(fh, isoform, unique_seq_bound):
-    bounds = unique_bounds_past(unique_seq_bound, isoform.blocks[0], isoform.blocks[-1], isoform.strand)
-    if len(bounds) > 0:
-        fh.write(isoform.name + '\t' + ','.join(bounds) + '\n')
-
-def load_unique_bound(temp_prefix, gene_info):
-    with open(temp_prefix + 'isoforms.uniquebound.txt', 'w') as fh:
-        for isoform in gene_info.isoform_beds:
-            if len(isoform.blocks) > 1:
-                unique_seq_bound = []
-                terminal_exon_is_subset = [0, 0]  # first exon is a subset, last exon is a subset
-                superset_support = []
-                juncs = isoform.getGaps()
-                first_exon, last_exon = isoform.blocks[0], isoform.blocks[-1]
-                for otheriso in gene_info.isoform_beds:
-                    if isoform.name != otheriso.name and len(otheriso.blocks) > 1:
-                        _check_junction_subset(juncs, first_exon, last_exon, otheriso.read_support, otheriso.getGaps(), otheriso.blocks,
-                                               terminal_exon_is_subset, superset_support, unique_seq_bound)
-                write_unique_bound(fh, isoform, unique_seq_bound)
-
 def write_combined_counts(sample_data, gene_data, temp_dir, output, with_gene):
     with open(output + '.counts.tsv', 'w') as fh:
         # just the sample id; the condition and batch of each column are in the
@@ -183,9 +162,9 @@ def direct_isoform(read, chains, genome, trust_ends):
     introns are the chain of one isoform (direct_assignment_chains), aligned cleanly
     at their splice sites, as flair transcriptome's direct assignment requires of
     reads.  Unlike there, the read needn't cover the isoform's unique sequence
-    (load_unique_bound): a read with exactly the isoform's junctions is its read,
-    though another isoform's chain contains them, rather than being given to
-    neither when it starts or ends inside that isoform's exons.  With trust_ends, its
+    past the exons of an isoform whose chain contains its own: a read is
+    full-length for the one isoform with exactly its junctions, so that is its
+    isoform, as in the realignment (get_counts_for_sample).  With trust_ends, its
     ends must also be near the isoform's, as count_sam_transcripts requires.  A
     read with a supplementary alignment, perhaps a fusion's, is realigned."""
     if read.has_tag('SA'):
@@ -257,6 +236,10 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
                 open(path, 'w').close()
     else:
         mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
+        # a read counts for an isoform it is full-length for, covering all its junctions
+        # and into its first and last exons.  Without unique sequence bounds, a read
+        # whose junctions are a contiguous run of a longer isoform's is that shorter
+        # isoform's, not given to neither: it is not full-length for the longer one.
         # minimap2 borrows threads left idle in the thread budget while it runs
         with thread_share.program_threads() as mm2_threads:
             run_count_sam_transcripts(
@@ -266,10 +249,10 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
                 generate_map=read_map_file,
                 stringent=True,
                 allow_UTR_indels=True,  # is_annot,
+                transcript_fasta=temp_prefix + 'isoforms.fa',
                 check_splice=True,
                 isoforms=temp_prefix + 'isoforms.bed',
                 trust_ends=trust_ends,
-                unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
             )
     add_direct_assignments(direct, temp_prefix_sample + '.isoform.counts.txt', read_map_file)
 
@@ -294,8 +277,6 @@ def get_counts_for_gene(input):
                 if bed.strand == '-':
                     seq = get_reverse_complement(seq)
                 fh_fa.write('>' + bed.name + '\n' + seq + '\n')
-
-        load_unique_bound(temp_prefix, gene_info)
 
         # the isoforms with their ends as realigned to, normalized or not
         chains = direct_assignment_chains(gene_info.isoform_beds)
