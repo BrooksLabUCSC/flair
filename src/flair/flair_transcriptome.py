@@ -15,9 +15,10 @@ from collections import Counter
 from flair import FlairError, FlairInputDataError
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
-from flair.annotation_alignment import (SECONDARY_ALIGNMENTS, _exon_bounds, _write_reads_subset,
+from flair.annotation_alignment import (_exon_bounds, _write_reads_subset,
                                         identify_good_match_to_annot, normalize_gene_terminal_exons,
                                         transcriptome_align_and_count)
+from flair.count_sam_transcripts import MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
@@ -1549,7 +1550,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                               fusion_breakpoints=args.fusion_breakpoints,
                                               secondary_alignments=(KEEP_SUBSET_SECONDARY_ALIGNMENTS
                                                                     if args.filter in KEEP_SUBSET_FILTERS
-                                                                    else SECONDARY_ALIGNMENTS))
+                                                                    else MINIMAP2_SECONDARY_ALIGNMENTS))
             else:
                 generate_empty_intermediate_files(partition.file_prefix, ['.isoform.counts.txt', '.countsam.read.map.txt', '.isoform.ends.tsv'])
             with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh:

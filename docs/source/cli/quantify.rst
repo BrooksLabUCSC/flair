@@ -18,27 +18,27 @@
 
 .. option:: -t THREADS, --threads THREADS
 
-   minimap2 number of threads (default: 4)
+   number of threads: batches of genes counted at once, with minimap2 given any left idle (default: 4)
 
 .. option:: --tpm
 
-   convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv
+   also write the counts as transcripts per million, <output>.tpm.tsv
 
 .. option:: --trust_ends
 
-   specify if reads are generated from a long read method with minimal fragmentation
+   count a read for a spliced isoform only if its ends are within 50 bp of the isoform's, for reads of full-length molecules, as from a protocol with little fragmentation
 
 .. option:: --generate_map
 
-   create read-to-isoform assignment files for each sample
+   write each sample's reads by isoform, <output>.<sample id>.read.map.txt: a line of an isoform and its reads, comma-separated
 
 .. option:: --with_gene
 
-   output lines with isoform_gene
+   name each counts row <isoform>_<gene id> rather than <isoform>, its isoform's name and gene id (column 13 of the isoform bed)
 
 .. option:: --normalize_ends
 
-   normalize transcript ends; recommended when not using --trust_ends and different transcript ends do not matter
+   give each spliced isoform, for counting, the furthest ends of its gene's isoforms with terminal exons like its own, so reads are counted whatever their ends; recommended without --trust_ends when the isoforms of a gene differ only in their ends
 
 .. option:: --temp_dir TEMP_DIR
 
@@ -52,13 +52,13 @@
 
 .. option:: --manifest MANIFEST
 
-   Tab delimited file containing sample id, condition, batch, and the path to that sample's reads aligned to the genome as a sorted, indexed BAM
+   tab-separated file of the samples, a line each of four fields: sample id, condition, batch, and the sample's reads aligned to the genome as a sorted, indexed BAM. Blank lines and lines starting with '#' are skipped; each sample id once
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of genome
+   FASTA of the genome the reads are aligned to, indexed with samtools faidx (a .fai is made beside it if missing and the directory is writable)
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   isoform .bed file
+   the isoforms to count, a FLAIR isoform bed (the 25 columns of flair transcriptome, flair combine and flair fusion), whose fusion isoforms are counted too
 

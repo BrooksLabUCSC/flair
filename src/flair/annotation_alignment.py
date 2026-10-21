@@ -7,7 +7,7 @@ good matches correct the reads' junctions and ends.
 import logging
 from flair import thread_share
 from flair.annotation_precheck import reads_skipping_annotation_alignment
-from flair.count_sam_transcripts import run_count_sam_transcripts
+from flair.count_sam_transcripts import run_count_sam_transcripts, MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.isoform_data import Exon, get_bed_exons_from_exons, get_sequence_for_exons
 from flair.terminal_exon_ends import TerminalExonEnds
 
@@ -129,14 +129,9 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
     return read_to_transcript
 
 
-# the secondary alignments of each read to the transcripts that minimap2 reports for
-# count_sam_transcripts to choose from (-N)
-SECONDARY_ALIGNMENTS = 4
-
-
 def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound,  # noqa: C901 - FIXME: reduce complexity
                                   *, directRNA, no_stringent, check_splice, trust_strand, fusion_breakpoints,
-                                  secondary_alignments=SECONDARY_ALIGNMENTS):
+                                  secondary_alignments=MINIMAP2_SECONDARY_ALIGNMENTS):
     """Align reads to transcripts with minimap2 and assign each to its best
     transcript with count_sam_transcripts: to the annotated transcripts (is_annot),
     or to flair transcriptome's firstpass isoforms.  minimap2 reports

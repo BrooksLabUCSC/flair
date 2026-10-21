@@ -14,7 +14,7 @@ from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from flair.terminal_exon_ends import GeneTerminalExonEnds
-from flair.count_sam_transcripts import run_count_sam_transcripts, TRUST_ENDS_WINDOW
+from flair.count_sam_transcripts import run_count_sam_transcripts, TRUST_ENDS_WINDOW, MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.annotation_precheck import read_introns, splice_sites_cleanly_aligned
 from flair.interval_index import IntervalIndex
 from flair.identify_prelim_fusions import needs_transcriptome
@@ -22,8 +22,6 @@ from flair.counts_to_tpm import counts_to_tpm
 from flair.isoform_data import get_reverse_complement
 import multiprocessing as mp
 
-
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 # batches of loci per thread, for the pool to balance them
 BATCHES_PER_THREAD = 8
@@ -51,27 +49,35 @@ def add_subparser(subparsers):
                                    description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--manifest', type=str, required=True,
-                          help='Tab delimited file containing sample id, condition, batch, and the path to '
-                               "that sample's reads aligned to the genome as a sorted, indexed BAM")
+                          help='tab-separated file of the samples, a line each of four fields: sample id, condition, '
+                               "batch, and the sample's reads aligned to the genome as a sorted, indexed BAM.  Blank "
+                               "lines and lines starting with '#' are skipped; each sample id once")
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FastA of genome')
+                          help='FASTA of the genome the reads are aligned to, indexed with samtools faidx (a .fai is '
+                               'made beside it if missing and the directory is writable)')
     required.add_argument('--isoform_bed', type=str, required=True,
-                          help='isoform .bed file')
+                          help='the isoforms to count, a FLAIR isoform bed (the 25 columns of flair transcriptome, '
+                               'flair combine and flair fusion), whose fusion isoforms are counted too')
     parser.add_argument('-o', '--output', type=str, default='flair.quantify',
                         help='output file name base for FLAIR quantify (default: %(default)s)')
     parser.add_argument('-t', '--threads', type=int, default=4,
-                        help='minimap2 number of threads (default: %(default)s)')
+                        help='number of threads: batches of genes counted at once, with minimap2 given any '
+                             'left idle (default: %(default)s)')
     parser.add_argument('--tpm', action='store_true',
-                        help='convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
+                        help='also write the counts as transcripts per million, <output>.tpm.tsv')
     parser.add_argument('--trust_ends', action='store_true',
-                        help='specify if reads are generated from a long read method with minimal fragmentation')
+                        help="count a read for a spliced isoform only if its ends are within 50 bp of the isoform's, "
+                             'for reads of full-length molecules, as from a protocol with little fragmentation')
     parser.add_argument('--generate_map', action='store_true',
-                        help='create read-to-isoform assignment files for each sample')
+                        help="write each sample's reads by isoform, <output>.<sample id>.read.map.txt: a line of an "
+                             'isoform and its reads, comma-separated')
     parser.add_argument('--with_gene', action='store_true',
-                        help='output lines with isoform_gene')
+                        help="name each counts row <isoform>_<gene id> rather than <isoform>, its isoform's name and "
+                             'gene id (column 13 of the isoform bed)')
     parser.add_argument('--normalize_ends', action='store_true',
-                        help="normalize transcript ends; recommended when not using --trust_ends and "
-                             "different transcript ends do not matter")
+                        help="give each spliced isoform, for counting, the furthest ends of its gene's isoforms with "
+                             'terminal exons like its own, so reads are counted whatever their ends; recommended '
+                             'without --trust_ends when the isoforms of a gene differ only in their ends')
     parser.add_argument('--temp_dir',
                         help='directory for temporary files; each run makes its own directory, named for the '
                              'output, in it, with the reads and isoforms of each batch of genes realigned '
@@ -79,13 +85,6 @@ def add_subparser(subparsers):
     parser.add_argument('--keep_intermediate', action='store_true',
                         help="keep intermediate and temporary files for debugging, in the run's directory in "
                              '--temp_dir, which must be given')
-    # parser.add_argument('--stringent', action='store_true',
-    #                     help="""Supporting reads must cover 80 percent of their isoform and extend at least 25 nt into the
-    #                     first and last exons. If those exons are themselves shorter than 25 nt, the requirement becomes
-    #                     'must start within 4 nt from the start" or "must end within 4 nt from the end" """)
-    # parser.add_argument('--check_splice', action='store_true',
-    #                     help="""enforce coverage of 4 out of 6 bp around each splice site and no
-    #                     insertions greater than 3 bp at the splice site""")
     parser.set_defaults(entry=quantify_cmd)
 
 def quantify_cmd(args):
@@ -141,7 +140,6 @@ class GeneData():
         self.left_bound = None
         self.right_bound = None
         self.isoform_beds = []
-        # self.isoform_fas = []
         self.terminal_exon_ends = GeneTerminalExonEnds(gene_id)
 
     def add_isoform_bed(self, isoform):
@@ -425,7 +423,8 @@ def count_batch(batch, batch_beds, sample_data, temp_dir, genome_file, trust_end
                     # The batch's isoforms of all its genes are realigned to together, so a read
                     # fitting isoforms of two overlapping genes is ranked against both, once.
                     read_map_file = prefix + '.isoform.read.map.txt' if generate_map else None
-                    mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', prefix + '.reads.fasta']
+                    mm2_cmd = ['minimap2', '-a', '-N', str(MINIMAP2_SECONDARY_ALIGNMENTS), '--MD', temp_prefix + 'isoforms.fa',
+                               prefix + '.reads.fasta']
                     # minimap2 borrows threads left idle in the thread budget while it runs
                     with thread_share.program_threads() as mm2_threads:
                         run_count_sam_transcripts(
@@ -434,7 +433,7 @@ def count_batch(batch, batch_beds, sample_data, temp_dir, genome_file, trust_end
                             trimmedreads=prefix + '.reads.genomicclipping.txt',
                             generate_map=read_map_file,
                             stringent=True,
-                            allow_UTR_indels=True,  # is_annot,
+                            allow_UTR_indels=True,
                             transcript_fasta=temp_prefix + 'isoforms.fa',
                             check_splice=True,
                             isoforms=temp_prefix + 'isoforms.bed',
@@ -529,8 +528,8 @@ def count_fusions(fusions, sample_data, temp_dir, genome_file, threads, trust_en
             logging.info(f'{sample}: {num_reads} chimeric reads realigned to {len(fusions)} fusion isoforms')
             if num_reads > 0:
                 run_count_sam_transcripts(
-                    mm2_cmd=['minimap2', '-a', '-N', '4', '--MD', '-t', str(threads), temp_prefix + 'fusions.fa',
-                             prefix + '.reads.fasta'],
+                    mm2_cmd=['minimap2', '-a', '-N', str(MINIMAP2_SECONDARY_ALIGNMENTS), '--MD', '-t', str(threads),
+                             temp_prefix + 'fusions.fa', prefix + '.reads.fasta'],
                     output=prefix + '.isoform.counts.txt',
                     trimmedreads=prefix + '.reads.genomicclipping.txt',
                     generate_map=prefix + '.isoform.read.map.txt',

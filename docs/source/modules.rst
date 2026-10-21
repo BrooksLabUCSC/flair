@@ -221,63 +221,113 @@ Options
 flair quantify
 ==============
 
+Counts the reads of each isoform in each sample, from the samples' reads aligned to
+the genome, for a set of isoforms such as ``flair combine``'s.  Each read is counted
+for at most one isoform, one it is full-length for, so the counts of different
+samples, and of the isoforms of a gene, can be compared.
+
+**Samples**
+
+``--manifest`` is a tab-separated file of a line per sample, of four fields: its id, its
+condition, its batch, and its reads aligned to the genome as a sorted, indexed BAM::
+
+   sample1	condition1	batch1	mydata/sample1.bam
+   sample2	condition1	batch1	mydata/sample2.bam
+   sample3	condition2	batch1	mydata/sample3.bam
+   sample4	condition2	batch1	mydata/sample4.bam
+
+Lines starting with ``#`` and blank lines are skipped.  A line of other than four
+fields, fields separated by spaces, a sample id given twice, a missing or unindexed
+BAM, and a BAM with none of the isoforms' chromosomes (as ``chr1`` against ``1``) are
+errors.  Absolute paths are safest.
+
+**Isoforms**
+
+``--isoform_bed`` is a FLAIR isoform bed, the 25 columns ``flair transcriptome``,
+``flair combine`` and ``flair fusion`` write: an isoform's gene id is its 13th column.
+A gene's isoforms must be on one chromosome and strand, and an isoform's name used
+once on a chromosome.  A set from an older ``flair combine`` can have a gene on both
+strands: combine its samples again.  The pieces of a fusion isoform, sharing its name,
+are counted as the fusion.
+
+**How reads are counted**
+
+A read counts for an isoform it is full-length for: aligned across all of the
+isoform's splice junctions, with few mismatches and indels within 5 bases of each, and
+into its first and last exons.  A read whose junctions are a contiguous run of a longer
+isoform's is the shorter isoform's, not the longer one's, which it doesn't cover.
+
+- A read whose junctions are exactly those of one isoform, aligned cleanly at its
+  splice sites, is counted for it without realignment.
+- Other spliced reads are aligned with minimap2 to the sequences of the isoforms of
+  their locus and counted for the isoform their best alignment is full-length for.  A
+  large deletion in an isoform's first or last exon, as reverse transcriptase skipping
+  across double-stranded RNA leaves in a 3' UTR, is tolerated, unless it is on a GT-AG,
+  GC-AG or AT-AC splice motif: a read spliced where the isoform isn't is another
+  isoform's.
+- An unspliced read is counted for the single-exon isoform it covers more than half
+  of whose ends are nearest its own, and never for a spliced isoform, as in ``flair
+  transcriptome``.  An unspliced read's strand isn't known, so a single-exon isoform of
+  either strand can take it.
+- A fusion's reads are its chimeric reads, those with a supplementary alignment or 40
+  or more bases clipped at an end, aligned to its fused transcript, its pieces' exons
+  in order: a read must be full-length across the fusion junctions too.  They aren't
+  counted for the fusion's partner genes as well.
+
+Genes that overlap are counted together, and each read is considered once, so a read
+fitting the isoforms of two overlapping genes is counted for the one it fits best,
+not for both.  With ``--trust_ends``, a read also needs its ends within 50 bases of a
+spliced isoform's, for protocols giving full-length molecules.  With
+``--normalize_ends``, each spliced isoform is given, for counting, the furthest ends
+of its gene's isoforms with terminal exons like its own, so reads aren't lost to where
+an isoform's ends were placed.
+
 **Output**
 
-Default: identifes the best isoform assignment based on alignment quality, fraction of read aligned, and fraction of transcript aligned
-
-check_splice: adds check for read matching reference transcript at all splice sites
-
-stringent: adds requirement for read to cover at least 25bp of the first and last exons
-
-If you need your reads to match your isoforms well, use --check_splice and --stringent, while if you need more reads assigned to isoforms for better statistical comparison, use the default.
-
---quality 0 is also reccommended, as this allows slightly better recall as FLAIR can disambiguate some similar isoform alignments.
-
-Options
--------
-
-Manifest example (we suggest using absolute file paths to point to your files though):
+``<output>.counts.tsv`` has a row per isoform, named by the isoform, or with
+``--with_gene`` by ``<isoform>_<gene id>``, and a column of read counts per sample,
+named by its id:
 
 .. code:: text
 
-   sample1      condition1      batch1  mydata/sample1.bam
-   sample2      condition1      batch1  mydata/sample2.bam
-   sample3      condition1      batch1  mydata/sample3.bam
-   sample4      condition2      batch1  mydata/sample4.bam
-   sample5      condition2      batch1  mydata/sample5.bam
-   sample6      condition2      batch1  mydata/sample6.bam
-
-
-.. include:: cli/quantify.rst
-
-
-Other info
-----------
-The counts file names each column after the sample it holds:
-
-.. code:: text
-
-   ids  sample1 sample2 sample3 sample4 sample5 sample6
-   ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
-   ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
+   ids	sample1	sample2	sample3	sample4
+   ENST00000225792.10_ENSG00000108654.15	21	12	10	10
+   ENST00000256078.9_ENSG00000133703.12	7	6	7	15
 
 The condition and batch of each column are in ``<output>.sample_info.tsv``, written
-beside the counts file, which `flair diffexp` and `flair diffsplice` read:
+beside the counts file, which ``flair diffexp`` and ``flair diffsplice`` read:
 
 .. code:: text
 
-   sample_id    condition       batch
-   sample1      condition1      batch1
-   sample2      condition1      batch1
-   sample3      condition1      batch1
-   sample4      condition2      batch1
-   sample5      condition2      batch1
-   sample6      condition2      batch1
+   sample_id	condition	batch
+   sample1	condition1	batch1
+   sample2	condition1	batch1
+   sample3	condition2	batch1
+   sample4	condition2	batch1
 
 Because these are columns of their own, the id, condition and batch fields may
 contain any characters. A counts matrix from an earlier FLAIR, whose columns are
 named ``sample_condition_batch``, is still read by taking the fields back out of the
 column name.
+
+With ``--tpm``, ``<output>.tpm.tsv`` has the counts as transcripts per million; a
+sample with no reads counted has 0 throughout, with a warning.  With
+``--generate_map``, ``<output>.<sample id>.read.map.txt`` lists each sample's reads by
+isoform, a line of an isoform's name and its reads' names, comma-separated; an isoform
+can have more than one line.
+
+**Temporary files**
+
+The reads realigned and minimap2's alignments are written to a directory of the
+run's own in ``--temp_dir``, by default ``$TMPDIR`` or the system temporary directory,
+which is best on a local disk, and removed when the run ends, even on failure, unless
+``--keep_intermediate``.  ``-t`` sets how many batches of genes are counted at once,
+and minimap2 is given the threads left idle as the run finishes.
+
+Options
+-------
+
+.. include:: cli/quantify.rst
 
 
 

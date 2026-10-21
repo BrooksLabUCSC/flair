@@ -71,6 +71,9 @@ def check_args(args):
     return args
 
 
+# secondary alignments minimap2 reports per read (-N), ranked against the primary by
+# get_best_transcript, so a read can go to a transcript it fits as well as its primary's
+MINIMAP2_SECONDARY_ALIGNMENTS = 4
 # bases on each side of a splice site in which an alignment's mismatches and
 # indels are counted, by check_splicesites and check_fusionbp; also the bases a read
 # must align into a terminal exon, so it covers that exon's splice site window
@@ -726,7 +729,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     output_endpos=None, stranded=False, no_extra_clipping=False,
                                     transcript_fasta=None):
     """Build count_sam_transcripts.py argv."""
-    # FIXNE: default values should be centralized
+    # FIXME: default values should be centralized
     cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
            '--sam', str(sam), '-o', str(output)]
     if threads != 4:
