@@ -11,12 +11,16 @@ table of every outlier.  When start and end events improve, add them to
 SIMPLE_EVENTS and take them out of LEFT_OUT_EVENTS.
 """
 import argparse
-import csv
 from collections import defaultdict
 from itertools import product
 from statistics import median
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
+from flair import splicing_outliers_tsv
+from flair.splicing_events_tsv import SplicingEventsReader
+from flair.splicing_outliers_tsv import SplicingOutliersWriter
+from flair.splicing_totals_tsv import SplicingTotalsReader
+from flair.tsv_column_types import read_header_columns
 
 # a sample is an outlier when its PSI is at least MIN_DELTA_PSI from the median and
 # more than MIN_DEVIATIONS deviations (half the interquartile range) from it, of at
@@ -32,8 +36,7 @@ BETTER_DEVIATION_FRACTION = 0.8
 # no deviation, the samples' PSIs equal but this one's
 NO_DEVIATION = 100000
 
-OUTLIER_COLUMNS = ['event', 'alternative', 'event_type', 'gene', 'gene_name', 'additional_genes', 'additional_gene_names',
-                   'sample', 'medianPSI', 'dev(IQR/2)', 'sample_val', 'tot_not_NA_samples', 'event_reads;total_locus_reads', 'delta_PSI_to_med', 'dev_from_med']
+OUTLIER_COLUMNS = list(splicing_outliers_tsv.COLUMNS)
 # the denominator of each PSI, a row of the totals table
 PSI_TOTALS = {'junc': 'event_reads', 'tot': 'locus_reads'}
 
@@ -60,29 +63,25 @@ def build_parser():
     return parser
 
 
-def read_tsv(path):
-    "the header and rows, each a dict, of a tab-separated table"
-    with open(path, newline='') as fh:
-        reader = csv.DictReader(fh, delimiter='\t')
-        return reader.fieldnames, list(reader)
-
-
 def read_events(input_prefix, psi):
-    """the event rows of the counts table, in table order, each with its per-sample
-    counts and the per-sample totals of its PSI, and the samples"""
-    header, rows = read_tsv(input_prefix + '.spliceevents.counts.tsv')
-    if 'novel_junctions' not in header:
-        raise FlairInputDataError(f'{input_prefix}.spliceevents.counts.tsv has no novel_junctions column: '
+    """the event rows of the counts table (splicing_events_tsv), in table order, each a
+    dict of its columns with its per-sample counts and the per-sample totals of its PSI
+    (splicing_totals_tsv), and the samples"""
+    counts_tsv = input_prefix + '.spliceevents.counts.tsv'
+    if 'novel_junctions' not in read_header_columns(counts_tsv):
+        raise FlairInputDataError(f'{counts_tsv} has no novel_junctions column: '
                                   'it is from an earlier flair spliceevents, rerun it')
-    samples = header[header.index('novel_junctions') + 1:]
-    _, total_rows = read_tsv(input_prefix + '.spliceevents.totals.tsv')
-    totals = {row['event']: {s: int(row[s]) for s in samples} for row in total_rows if row['total'] == PSI_TOTALS[psi]}
+    with SplicingEventsReader(counts_tsv) as reader:
+        samples = reader.sample_columns
+        rows = [{col: getattr(row, col) for col in reader.columns} for row in reader]
+    with SplicingTotalsReader(input_prefix + '.spliceevents.totals.tsv') as reader:
+        totals = {row.event: {s: getattr(row, s) for s in samples} for row in reader if row.total == PSI_TOTALS[psi]}
     event_rows = []
     for row in rows:
         if row['alternative'] == 'other':  # the reads of an event's other ends or junctions
             continue
         if row['event'] not in totals:
-            raise FlairInputDataError(f"event {row['event']} of {input_prefix}.spliceevents.counts.tsv is not in "
+            raise FlairInputDataError(f"event {row['event']} of {counts_tsv} is not in "
                                       f'{input_prefix}.spliceevents.totals.tsv')
         row['counts'] = {s: int(row[s]) for s in samples}
         row['totals'] = totals[row['event']]
@@ -91,7 +90,8 @@ def read_events(input_prefix, psi):
 
 
 def _junctions(field):
-    return frozenset(field.split(',')) if field else frozenset()
+    "a coordinate column's junctions, a list on the row"
+    return frozenset(field)
 
 
 def _row_junctions(row):
@@ -136,7 +136,7 @@ def row_outliers(row, samples, event_support):
         if delta >= MIN_DELTA_PSI and ((dev == 0 and psi != med) or delta > dev * MIN_DEVIATIONS):
             outliers[s] = [row['event'], row['alternative'], row['event_type'], row['gene'], row['gene_name'],
                            row['additional_genes'], row['additional_gene_names'], s, round(med, 6), round(dev, 6), round(psi, 6),
-                           len(vals), f"{row['counts'][s]};{row['totals'][s]}", round(delta, 6),
+                           len(vals), [row['counts'][s], row['totals'][s]], round(delta, 6),
                            round(delta / dev, 6) if dev != 0 else NO_DEVIATION]
     return outliers
 
@@ -150,9 +150,9 @@ def _better_than(this, other):
     return other[-1] / this[-1] < BETTER_DEVIATION_FRACTION
 
 
-def _write_lines(fh, lines):
+def _write_lines(writer, lines):
     for line in lines:
-        fh.write('\t'.join(str(x) for x in line) + '\n')
+        writer.writeRow(line)
 
 
 # the events whose outliers are all kept, and those whose outliers a simpler event
@@ -220,10 +220,8 @@ def spliceevents_outliers(input_prefix, output, psi, event_support):
     """Write every outlier of the events of input_prefix, and those filtered by
     filter_outliers, by group of events sharing junctions"""
     event_rows, samples = read_events(input_prefix, psi)
-    with open(output + '.spliceevents.outliers.tsv', 'w') as out, \
-            open(output + '.spliceevents.outliers.filtered.tsv', 'w') as out_filtered:
-        for fh in (out, out_filtered):
-            fh.write('\t'.join(OUTLIER_COLUMNS) + '\n')
+    with SplicingOutliersWriter(output + '.spliceevents.outliers.tsv') as out, \
+            SplicingOutliersWriter(output + '.spliceevents.outliers.filtered.tsv') as out_filtered:
         for rows in group_by_shared_junctions(event_rows):
             lines, etype_to_sig = [], {}
             for row in rows:

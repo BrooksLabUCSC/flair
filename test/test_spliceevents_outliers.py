@@ -8,8 +8,8 @@ SAMPLES = ['s1', 's2', 's3', 's4', 's5', 's6']
 
 
 def _row(counts, totals, event='es|chr1:101-200(+)', alternative='inc', etype='es', gene='G1'):
-    return {'event': event, 'alternative': alternative, 'event_type': etype, 'gene': gene, 'gene_name': 'NAME1',
-            'additional_genes': '', 'additional_gene_names': '',
+    return {'event': event, 'alternative': alternative, 'event_type': etype, 'gene': [gene], 'gene_name': ['NAME1'],
+            'additional_genes': [], 'additional_gene_names': [],
             'counts': dict(zip(SAMPLES, counts)), 'totals': dict(zip(SAMPLES, totals))}
 
 
@@ -18,7 +18,7 @@ def test_a_sample_far_from_the_median_is_an_outlier():
     outliers = row_outliers(_row([20, 20, 22, 18, 20, 60], [100] * 6), SAMPLES, 20)
     assert list(outliers) == ['s6']
     line = outliers['s6']
-    assert dict(zip(OUTLIER_COLUMNS, line))['event_reads;total_locus_reads'] == '60;100'
+    assert dict(zip(OUTLIER_COLUMNS, line))['event_reads;total_locus_reads'] == [60, 100]
     columns = dict(zip(OUTLIER_COLUMNS, line))
     assert (columns['medianPSI'], columns['sample_val'], columns['delta_PSI_to_med']) == (0.2, 0.6, 0.4)
 
@@ -182,7 +182,11 @@ def test_psi_tot_divides_by_the_locus_reads(tmp_path):
 
 
 def _event_row(event, included='', excluded='', outer=''):
-    return {'event': event, 'junctions_included': included, 'junctions_excluded': excluded, 'outer_junctions': outer}
+    "an event row as the reader gives it, its coordinate columns lists"
+    def juncs(field):
+        return field.split(',') if field else []
+    return {'event': event, 'junctions_included': juncs(included), 'junctions_excluded': juncs(excluded),
+            'outer_junctions': juncs(outer)}
 
 
 def test_events_sharing_junctions_are_compared_whatever_their_genes():

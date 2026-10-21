@@ -10,7 +10,7 @@ from flair import SeqRange
 from flair.spliceevents_events import is_alternative, extract_terminal_info, group_ends, Thresholds
 from flair.spliceevents_genes import process_region_events, read_event_genes, AnnotatedSplicing
 from flair.spliceevents_reads import ReadEnds, ReadChain
-from flair.spliceevents_tables import EVENT_ROW_COLUMNS
+from flair.splicing_events_tsv import columns
 
 SAMPLES = ['s1', 's2', 's3']
 CHROM = 'chr1'
@@ -41,14 +41,16 @@ def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac
     process_region_events(prefix, CHROM, samples, sample_chains,
                           {}, Thresholds(feature_support, event_frac_of_tot, junc_frac_of_event, event_support),
                           annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], gene_juncs, annotated)
-    columns = EVENT_ROW_COLUMNS + samples
     tables = {}
     for table in ('counts', 'PSIjunc', 'PSItot'):
         with open(f'{prefix}.spliceevents.{table}.tsv') as fh:
+            # a region's part of a table carries the header
+            assert fh.readline().rstrip('\n').split('\t') == columns(samples)
             tables[table] = {f"{row['event']}|{row['alternative']}": row
-                             for row in csv.DictReader(fh, fieldnames=columns, delimiter='\t')}
+                             for row in csv.DictReader(fh, fieldnames=columns(samples), delimiter='\t')}
     totals = {}
     with open(f'{prefix}.spliceevents.totals.tsv') as fh:
+        next(fh)
         for line in fh:
             event, _, _, _, _, _, total, *counts = line.rstrip('\n').split('\t')
             totals[(event, total)] = dict(zip(samples, (int(c) for c in counts)))

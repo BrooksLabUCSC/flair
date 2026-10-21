@@ -249,6 +249,6 @@ def spliceevents(args):
     runner.run(_run_region, args=args, allsamples=allsamples, region_reports=plan.reports,
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss, read_starts=plan.read_starts)
 
-    combine_region_tables(args.output, [p.file_prefix for p in runner], [sample for sample, _ in allsamples])
+    combine_region_tables(args.output, [p.file_prefix for p in runner])
     if not args.keep_intermediate:
         shutil.rmtree(temp_dir)

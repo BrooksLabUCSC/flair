@@ -231,7 +231,7 @@ def test_read_chains_written_and_read_back_are_the_same_reads(tmp_path):
               ReadChain((), ((2200, 2300),), '-', [ReadEnds(2100, 2400)])]
     path = str(tmp_path / 's1.read_chains.tsv')
     write_read_chains(path, 'chr1', chains)
-    assert open(path).read().splitlines()[1] == 'A,B\tchr1\t200-300,600-1000\t+\t150-1300\t'
+    assert open(path).read().splitlines()[2] == 'A,B\tchr1\t200-300,600-1000\t+\t150-1300\t'
     assert read_read_chains(path) == chains
 
 

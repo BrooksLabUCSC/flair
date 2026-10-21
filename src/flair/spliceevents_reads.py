@@ -15,6 +15,8 @@ from flair.junction_correct import UNKNOWN_STRAND
 from flair.gene_identification import get_gene_name_firstpass, get_gene_name_unknown_strand
 from flair.interval_index import IntervalIndex
 from flair.spliceevents_events import lies_left
+from flair import read_chains_tsv
+from flair.read_chains_tsv import read_chains_writer
 
 
 def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector, windows=None):
@@ -68,25 +70,21 @@ ReadChain = namedtuple('ReadChain', ('genes', 'juncs', 'strand', 'ends', 'fragme
 
 
 def write_read_chains(path, chrom, chains):
-    """Write a sample's corrected reads, ReadChains, a line per junction chain: its
-    annotated genes, chromosome, junctions, strand, the ends of each of its reads,
-    0-based start-end pairs, and, for fragments, without junctions, which kind.  It's
-    written whole or not at all, as a rerun with --keep_intermediate skips the samples
-    whose file exists"""
-    with open(path + '.tmp', 'w') as out:
+    """Write a sample's corrected reads, ReadChains, a row per junction chain
+    (read_chains_tsv), whole or not at all, as a rerun with --keep_intermediate skips
+    the samples whose file exists"""
+    with read_chains_writer(path) as writer:
         for chain in chains:
-            out.write('\t'.join([','.join(chain.genes), chrom, ','.join(f'{s}-{e}' for s, e in chain.juncs), chain.strand,
-                                 ','.join(f'{r.start}-{r.end}' for r in chain.ends), chain.fragment]) + '\n')
-    os.replace(path + '.tmp', path)
+            writer.writeRow([list(chain.genes), chrom, chain.juncs, chain.strand,
+                             [(r.start, r.end) for r in chain.ends], chain.fragment])
 
 
 def _ranges(field):
     return tuple(tuple(int(x) for x in pair.split('-')) for pair in field.split(',')) if field else ()
 
 
-def read_read_chains(path):
-    """a sample's corrected reads from write_read_chains, ReadChains; of an earlier
-    version's files, without fragments, too"""
+def _read_headerless_chains(path):
+    "the read chains of an earlier spliceevents' file, without header or fragments"
     chains = []
     with open(path) as fh:
         for line in fh:
@@ -94,6 +92,16 @@ def read_read_chains(path):
             chains.append(ReadChain(tuple(genes.split(',')) if genes else (), _ranges(juncs), strand,
                                     [ReadEnds(*pair) for pair in _ranges(ends)], *fragment))
     return chains
+
+
+def read_read_chains(path):
+    """a sample's corrected reads from write_read_chains, ReadChains; of an earlier
+    version's files, without header or fragments, too"""
+    with open(path) as fh:
+        if not fh.readline().startswith('\t'.join(read_chains_tsv.COLUMNS[:2])):
+            return _read_headerless_chains(path)
+    return [ReadChain(tuple(row.genes), row.juncs, row.strand, [ReadEnds(*pair) for pair in row.ends], row.fragment)
+            for row in read_chains_tsv.ReadChainsReader(path)]
 
 
 def annotated_genes(isoform, annots):

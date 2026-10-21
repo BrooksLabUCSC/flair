@@ -25,6 +25,8 @@ from flair.retained_introns_tsv import RetainedIntronsReader, RetainedIntronsWri
 from flair.seq_lengths_tsv import (SeqLengthHistogramReader, SeqLengthHistogramWriter,
                                    SeqLengthsReader, SeqLengthsWriter)
 from flair.splicing_events_tsv import SplicingEventsReader, SplicingEventsWriter
+from flair.splicing_totals_tsv import SplicingTotalsReader, SplicingTotalsWriter
+from flair.read_chains_tsv import ReadChainsReader, read_chains_writer
 from flair.splicing_outliers_tsv import SplicingOutliersReader, SplicingOutliersWriter
 from flair.tpm_tsv import CountsRow, TpmReader, tpm_writer
 from flair.transcript_counts_tsv import TranscriptCountsReader, TranscriptCountsWriter
@@ -223,22 +225,42 @@ def test_seq_length_histogram_round_trip(tmp_path):
 def test_splicing_events_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'events.tsv')
     with SplicingEventsWriter(path, ['s1', 's2']) as writer:
-        writer.writeEvent(['e1', 'skipped_exons', 'gene1',
-                           ['chr1:100-200'], [], ['chr1:50-300'], ['chr1:100-200']],
-                          ['3', '4'])
+        writer.writeRow(['es|chr1:201-300(+)|G1', 'inclusion', 'es', ['G1'], ['NAME1'], ['G2', 'G3'], [],
+                         ['chr1:101-200', 'chr1:301-400'], [], ['chr1:101-400'], ['chr1:201-300'], [],
+                         '3', ''])
     with SplicingEventsReader(path) as reader:
         assert reader.sample_columns == ['s1', 's2']
         rows = list(reader)
-    assert rows[0].junctions_included == ['chr1:100-200']
+    assert rows[0].junctions_included == ['chr1:101-200', 'chr1:301-400']
     assert rows[0].junctions_excluded == []
+    assert (rows[0].additional_genes, rows[0].s1, rows[0].s2) == (['G2', 'G3'], '3', '')
+
+def test_splicing_totals_round_trip(tmp_path):
+    path = tsv_path(tmp_path, 'totals.tsv')
+    with SplicingTotalsWriter(path, ['s1', 's2']) as writer:
+        writer.writeRow(['es|chr1:201-300(+)|G1', 'es', ['G1'], ['NAME1'], [], [], 'event_reads', 40, 0])
+    with SplicingTotalsReader(path) as reader:
+        assert reader.sample_columns == ['s1', 's2']
+        rows = list(reader)
+    assert (rows[0].total, rows[0].gene, rows[0].s1, rows[0].s2) == ('event_reads', ['G1'], 40, 0)
 
 def test_splicing_outliers_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'outliers.tsv')
     with SplicingOutliersWriter(path) as writer:
-        writer.writeRow(['e1', 'skipped_exons', 'gene1', 's1', 0.5, 0.1, 0.9, 3,
-                         [7, 20], 0.4, 4.0])
+        writer.writeRow(['es|chr1:201-300(+)|G1', 'inclusion', 'es', ['G1'], ['NAME1'], [], [], 's1',
+                         0.5, 0.1, 0.9, 3, [7, 20], 0.4, 4.0])
     rows = list(SplicingOutliersReader(path))
     assert rows[0]['event_reads;total_locus_reads'] == [7, 20]
+    assert (rows[0].gene, rows[0].sample) == (['G1'], 's1')
+
+def test_read_chains_round_trip(tmp_path):
+    path = tsv_path(tmp_path, 'read_chains.tsv')
+    with read_chains_writer(path) as writer:
+        writer.writeRow([['A', 'B'], 'chr1', ((200, 300), (600, 1000)), '+', ((150, 1300),), ''])
+        writer.writeRow([[], 'chr1', (), '-', ((10, 50),), 'last'])
+    rows = list(ReadChainsReader(path))
+    assert (rows[0].genes, rows[0].juncs, rows[0].ends) == (['A', 'B'], ((200, 300), (600, 1000)), ((150, 1300),))
+    assert (rows[1].genes, rows[1].juncs, rows[1].fragment) == ([], (), 'last')
 
 def test_transcript_counts_round_trip(tmp_path):
     path = written(TranscriptCountsWriter, tsv_path(tmp_path, 'counts.tsv'),
