@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""Copy a FLAIR read map from stdin to stdout as one line per isoform, its reads
+sorted, and the lines sorted.
+
+quantify writes a line of an isoform and its reads, comma-separated, as each batch
+of genes and minimap2 give them, so their order, and an isoform with lines from two
+batches, depend on threading rather than on which reads were assigned.  Merged and
+sorted, two runs compare by what they assigned.
+"""
+import sys
+
+
+def main():
+    reads = {}
+    for line in sys.stdin:
+        name, names = line.rstrip('\n').split('\t')
+        reads.setdefault(name, []).extend(names.split(',') if names else [])
+    for name in sorted(reads):
+        print(name + '\t' + ','.join(sorted(reads[name])))
+
+
+if __name__ == '__main__':
+    main()

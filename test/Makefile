@@ -303,6 +303,12 @@ endef
 # compare an output file against another output file, for tests that must produce
 # the same result as an earlier test from differently arranged input
 ##
+# a read map, merged by isoform and sorted (bin/read-map-sort), as threading orders it
+define cmp_expect_read_map
+	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
+	diff <(bin/read-map-sort < $E/${1}) <(bin/read-map-sort < $O/${1})
+endef
+
 define cmp_expect_sort_as
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff <(sort $O/${2} | bin/tsv-round-numeric) <(sort $O/${1} | bin/tsv-round-numeric)
@@ -503,6 +509,8 @@ test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
+	$(call cmp_expect_read_map,$@.A1.read.map.txt)
+	$(call cmp_expect_read_map,$@.B3.read.map.txt)
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene --normalize_ends
@@ -516,6 +524,7 @@ test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GE
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene \
 	   -t 1 --temp_dir $O/$@.tmp --keep_intermediate
 	diff $E/test-quantify.counts.tsv $O/$@.counts.tsv
+	diff <(bin/read-map-sort < $E/test-quantify.A1.read.map.txt) <(bin/read-map-sort < $O/$@.A1.read.map.txt)
 	ls $O/$@.tmp/*.intermediate/*/isoforms.fa > /dev/null
 
 # combine's isoforms with a two-piece fusion, on opposite strands, with the fusion's simulated reads as a
@@ -525,6 +534,7 @@ test-quantify-fusion: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	flair quantify --manifest $O/$@.manifest.tsv --genome ${GENOME_FA} --isoform_bed $E/test-combine-files.combined.isoforms.bed \
 	   --generate_map --with_gene -o $O/$@
 	$(call cmp_expect,$@.counts.tsv)
+	$(call cmp_expect_read_map,$@.fusion.read.map.txt)
 
 # a three-piece fusion: flair fusion's counts (test-fusion-3gene)
 test-quantify-fusion-3gene: mkdirs ${GENOME_FA} $O/fusion3_tests.bam
