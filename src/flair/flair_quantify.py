@@ -7,8 +7,9 @@ import itertools
 import logging
 from bisect import bisect_right
 from flair import FlairInputDataError
+from flair.pycbio import PycbioDataError
 from flair.counts_matrix import SampleInfo, sample_info_path, write_sample_info
-from flair.io_utils import make_run_temp_dir
+from flair.io_utils import make_run_temp_dir, read_manifest_rows
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
@@ -98,20 +99,18 @@ def check_input_files(*, manifest, genome, isoform_bed):
             raise FlairInputDataError(f'{what} file does not exist: {path}')
 
 def load_manifest(manifest):
-    """the manifest rows.  The id, condition and batch fields may contain anything:
+    """the manifest rows, (id, condition, batch, bam) each (io_utils.read_manifest_rows),
+    each bam indexed.  The id, condition and batch fields may contain anything:
     they are written to the sample info file as their own columns rather than being
     joined into the counts column names."""
-    sample_data = []
-    for line in open(manifest):
-        cols = line.rstrip().split('\t')
-        if len(cols) < 4:
-            raise FlairInputDataError(f'expected 4 tab-separated columns in {manifest}, got {len(cols)}')
-
-        sample, group, batch, readFile = cols
-        if not os.path.exists(readFile):
-            raise FlairInputDataError(f'reads file does not exist: {readFile}')
-
-        sample_data.append((sample, group, batch, readFile))
+    sample_data = [tuple(row) for row in read_manifest_rows(
+        manifest, (4,), "a sample id, its condition, its batch, and the sample's reads aligned to the genome as a "
+        'sorted, indexed BAM', {3: 'reads file'})]
+    for sample, group, batch, bamfile in sample_data:
+        with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
+            if not bam_file.has_index():
+                raise FlairInputDataError(f"{manifest}: sample {sample}'s BAM {bamfile} has no index; make one with "
+                                          'samtools index')
     return sample_data
 
 class GeneData():
@@ -135,36 +134,56 @@ class GeneData():
             self.terminal_exon_ends.add(isoform.blocks[0].start, isoform.blocks[0].end,
                                         isoform.blocks[-1].start, isoform.blocks[-1].end)
 
+def _isoform_beds(isoform_bed):
+    "the isoforms of a FLAIR isoform bed, with errors about its format as input errors"
+    try:
+        yield from BedReader(isoform_bed, bedClass=FlairBed)
+    except PycbioDataError as exc:
+        raise FlairInputDataError(f'{isoform_bed} is not a FLAIR isoform bed, of the 25 columns flair transcriptome '
+                                  f'and flair combine write: {exc}') from exc
+
 def load_isoform_data(isoform_bed):
     """The isoforms by gene, gene id -> GeneData, and fusion isoforms, name -> their
     pieces in pos_in_fusion order.  A fusion's pieces share its name and gene id, on
-    any chromosomes and strands, so they aren't in a gene (count_fusions)."""
+    any chromosomes and strands, so they aren't in a gene (count_fusions).  A gene's
+    isoforms are on one chromosome and strand, and isoform names are unique on a
+    chromosome, but for a fusion's pieces."""
     gene_data, fusions = {}, {}
     names = {}
-    for bed in BedReader(isoform_bed, bedClass=FlairBed):
+    for bed in _isoform_beds(isoform_bed):
         if bed.pos_in_fusion is not None:
             fusions.setdefault(bed.name, []).append(bed)
             continue
-        if bed.gene_id not in gene_data:
-            gene_data[bed.gene_id] = GeneData(bed.gene_id, bed.chrom, bed.strand)
-        elif bed.strand != gene_data[bed.gene_id].strand:
-            raise FlairInputDataError(f"gene id '{bed.gene_id}' has isoforms on both strands, "
-                                      f"'{gene_data[bed.gene_id].strand}' and '{bed.strand}'; give each strand its own "
-                                      "gene id")
+        if not bed.gene_id:
+            raise FlairInputDataError(f"{isoform_bed}: isoform '{bed.name}' has no gene id (column 13); quantify needs "
+                                      'the isoforms of flair transcriptome or flair combine')
+        gene_info = gene_data.get(bed.gene_id)
+        if gene_info is None:
+            gene_info = gene_data[bed.gene_id] = GeneData(bed.gene_id, bed.chrom, bed.strand)
+        elif bed.chrom != gene_info.chrom or bed.strand != gene_info.strand:
+            raise FlairInputDataError(f"{isoform_bed}: gene id '{bed.gene_id}' has isoforms on {gene_info.chrom} "
+                                      f"{gene_info.strand} and on {bed.chrom} {bed.strand}; a gene's isoforms are on one "
+                                      'chromosome and strand.  A set from an older flair combine can have such genes: '
+                                      'combine the samples again with the current flair combine')
         # isoforms are realigned to and counted by name, a batch of genes at a time
         if (bed.chrom, bed.name) in names:
-            raise FlairInputDataError(f"isoform name '{bed.name}' is used more than once on {bed.chrom}")
+            raise FlairInputDataError(f"{isoform_bed}: isoform name '{bed.name}' is used more than once on {bed.chrom}")
         names[(bed.chrom, bed.name)] = bed.gene_id
-        gene_data[bed.gene_id].add_isoform_bed(bed)
-    other_names = {name for _, name in names}
+        gene_info.add_isoform_bed(bed)
+    if not gene_data and not fusions:
+        raise FlairInputDataError(f'{isoform_bed}: no isoforms')
+    _order_fusion_pieces(isoform_bed, fusions, {name for _, name in names})
+    return gene_data, fusions
+
+def _order_fusion_pieces(isoform_bed, fusions, other_names):
+    "sort each fusion's pieces by pos_in_fusion, 0, 1, ..., and check its name is its own"
     for name, pieces in fusions.items():
         pieces.sort(key=lambda bed: bed.pos_in_fusion)
         if [bed.pos_in_fusion for bed in pieces] != list(range(len(pieces))) or len(pieces) < 2:
-            raise FlairInputDataError(f"fusion isoform '{name}' needs pieces with pos_in_fusion 0, 1, ...; "
+            raise FlairInputDataError(f"{isoform_bed}: fusion isoform '{name}' needs pieces with pos_in_fusion 0, 1, ...; "
                                       f"it has {[bed.pos_in_fusion for bed in pieces]}")
         if name in other_names:
-            raise FlairInputDataError(f"isoform name '{name}' is both a fusion and another isoform")
-    return gene_data, fusions
+            raise FlairInputDataError(f"{isoform_bed}: isoform name '{name}' is both a fusion and another isoform")
 
 def normalize_isoform_ends(gene_data, genome_file):
     """With --normalize_ends, give each spliced isoform the ends its gene's isoforms

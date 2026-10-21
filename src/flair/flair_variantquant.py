@@ -17,7 +17,7 @@ import pysam
 from flair.pycbio.hgdata.bed import BedReader
 from flair.pycbio.sys import fileOps
 from flair.interval_index import IntervalIndex
-from flair.io_utils import make_run_temp_dir
+from flair.io_utils import make_run_temp_dir, read_manifest_rows
 from flair import FlairInputDataError
 
 # cigar operations aligning read bases to the genome (M, =, X), only of the read
@@ -145,34 +145,14 @@ def _check_exists(path, what, where):
 
 
 def read_manifest(path):
-    """A manifest's samples, [name, bam] or [name, bam, vcf] each, a tab-separated line
-    each but comments and blank lines.  Either every sample has its vcf or none does:
-    a vcf on some lines, as one for all samples on the first, is for --vcf"""
-    samples = []
-    with open(path) as fh:
-        for lineno, line in enumerate(fh, 1):
-            line = line.rstrip('\r\n')
-            if line.strip() == '' or line.startswith('#'):
-                continue
-            fields = line.split('\t')
-            where = f'{path}:{lineno}'
-            if len(fields) not in (2, 3) or '' in fields:
-                raise FlairInputDataError(f'{where}: a manifest line is a sample name, its bam file and optionally '
-                                          f'its own vcf file, tab-separated; for one vcf of all samples give --vcf: '
-                                          f'{line!r}')
-            _check_exists(fields[1], 'bam file', where)
-            if len(fields) == 3:
-                _check_exists(fields[2], 'vcf file', where)
-            samples.append(fields)
-    if len(samples) == 0:
-        raise FlairInputDataError(f'{path}: manifest has no samples')
+    """A manifest's samples, [name, bam] or [name, bam, vcf] each (io_utils.read_manifest_rows).
+    Either every sample has its vcf or none does: a vcf on some lines, as one for all
+    samples on the first, is for --vcf"""
+    samples = read_manifest_rows(path, (2, 3), 'a sample name, its bam file and optionally its own vcf file '
+                                 '(for one vcf of all samples, give --vcf)', {1: 'bam file', 2: 'vcf file'})
     if len({len(sample) for sample in samples}) > 1:
         raise FlairInputDataError(f'{path}: either every sample has its own vcf in the manifest or none does; '
                                   'for one vcf of all samples, leave them out and give --vcf')
-    names = [sample[0] for sample in samples]
-    duplicated = sorted({name for name in names if names.count(name) > 1})
-    if duplicated:
-        raise FlairInputDataError(f'{path}: samples named more than once: {", ".join(duplicated)}')
     return samples
 
 

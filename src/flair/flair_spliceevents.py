@@ -7,7 +7,7 @@ from flair.partition_runner import PartitionRunner
 from flair import SeqRange
 from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
-from flair.io_utils import make_temp_dir
+from flair.io_utils import make_temp_dir, read_manifest_rows
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import BedReader
@@ -154,14 +154,9 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
 
 
 def read_manifest(path):
-    "a manifest's samples, (name, bam file), a line each but comments"
-    allsamples = []
-    with open(path) as fh:
-        for line in fh:
-            if line[0] != '#':
-                sample, bamfile = line.rstrip().split('\t')
-                allsamples.append((sample, bamfile))
-    return allsamples
+    "a manifest's samples, (name, bam file) each (io_utils.read_manifest_rows)"
+    return [tuple(row) for row in read_manifest_rows(path, (2,), 'a sample name and its sorted, indexed bam file',
+                                                     {1: 'bam file'})]
 
 
 def load_gtf(path, regions=None):
