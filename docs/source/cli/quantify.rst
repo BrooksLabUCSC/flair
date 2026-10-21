@@ -6,8 +6,7 @@
 
    usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
                          ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
-                         [--trust_ends] [--generate_map] [--with_gene]
-                         [--normalize_ends]
+                         [--trust_ends] [--generate_map] [--normalize_ends]
 
 .. rubric:: options
 
@@ -31,10 +30,6 @@
 
    create read-to-isoform assignment files for each sample
 
-.. option:: --with_gene
-
-   output lines with isoform_gene
-
 .. option:: --normalize_ends
 
    normalize transcript ends; recommended when not using --trust_ends and different transcript ends do not matter
@@ -47,7 +42,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of genome
+   FASTA of genome; a compressed genome must be bgzip and indexed with samtools faidx
 
 .. option:: --isoform_bed ISOFORM_BED
 

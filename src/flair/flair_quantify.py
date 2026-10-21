@@ -6,8 +6,12 @@ import pysam
 from shutil import rmtree
 import logging
 from flair import FlairInputDataError
-from flair.counts_matrix import SampleInfo, sample_info_path, write_sample_info
-from flair.io_utils import make_temp_dir
+from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
+from flair.read_map_tsv import ReadMapReader, ReadMapWriter
+from flair.transcript_counts_tsv import TranscriptCountsReader
+from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
+from flair.io_utils import check_genome_fasta, make_temp_dir
+from flair.output_compress import compressed_path
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
@@ -18,6 +22,7 @@ from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.counts_to_tpm import counts_to_tpm
 from flair.isoform_data import get_reverse_complement
 import multiprocessing as mp
+from flair.pycbio.sys import fileOps
 
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -31,7 +36,7 @@ def add_subparser(subparsers):
                           help='Tab delimited file containing sample id, condition, batch, and the path to '
                                "that sample's reads aligned to the genome as a sorted, indexed BAM")
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FastA of genome')
+                          help='FASTA of genome; a compressed genome must be bgzip and indexed with samtools faidx')
     required.add_argument('--isoform_bed', type=str, required=True,
                           help='isoform .bed file')
     parser.add_argument('-o', '--output', type=str, default='flair.quantify',
@@ -44,8 +49,6 @@ def add_subparser(subparsers):
                         help='specify if reads are generated from a long read method with minimal fragmentation')
     parser.add_argument('--generate_map', action='store_true',
                         help='create read-to-isoform assignment files for each sample')
-    parser.add_argument('--with_gene', action='store_true',
-                        help='output lines with isoform_gene')
     parser.add_argument('--normalize_ends', action='store_true',
                         help="normalize transcript ends; recommended when not using --trust_ends and "
                              "different transcript ends do not matter")
@@ -63,31 +66,29 @@ def quantify_cmd(args):
     quantify(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed,
              output=args.output, threads=args.threads,
              tpm=args.tpm, trust_ends=args.trust_ends, generate_map=args.generate_map,
-             with_gene=args.with_gene, normalize_ends=args.normalize_ends)
+             normalize_ends=args.normalize_ends)
 
 def check_input_files(*, manifest, genome, isoform_bed):
-    if isoform_bed.endswith('.psl'):
-        raise FlairInputDataError('FLAIR no longer accepts PSL input, convert it with psl_to_bed: ' + isoform_bed)
-    for what, path in (('isoform models bed', isoform_bed), ('genome fasta', genome),
-                       ('manifest', manifest)):
+    for what, path in (('isoform models bed', isoform_bed), ('manifest', manifest)):
         if not os.path.exists(path):
             raise FlairInputDataError(f'{what} file does not exist: {path}')
+    check_genome_fasta(genome)
 
 def load_manifest(manifest):
     """the manifest rows.  The id, condition and batch fields may contain anything:
     they are written to the sample info file as their own columns rather than being
     joined into the counts column names."""
     sample_data = []
-    for line in open(manifest):
-        cols = line.rstrip().split('\t')
+    for line in fileOps.iterLines(manifest):
+        cols = line.split('\t')
         if len(cols) < 4:
             raise FlairInputDataError(f'expected 4 tab-separated columns in {manifest}, got {len(cols)}')
 
-        sample, group, batch, readFile = cols
-        if not os.path.exists(readFile):
-            raise FlairInputDataError(f'reads file does not exist: {readFile}')
+        sample, group, batch, read_file = cols
+        if not os.path.exists(read_file):
+            raise FlairInputDataError(f'reads file does not exist: {read_file}')
 
-        sample_data.append((sample, group, batch, readFile))
+        sample_data.append((sample, group, batch, read_file))
     return sample_data
 
 class GeneData():
@@ -129,7 +130,7 @@ def write_unique_bound(fh, isoform, unique_seq_bound):
         fh.write(isoform.name + '\t' + ','.join(bounds) + '\n')
 
 def load_unique_bound(temp_prefix, gene_info):
-    with open(temp_prefix + 'isoforms.uniquebound.txt', 'w') as fh:
+    with open(temp_prefix + 'isoforms.uniquebound.tsv', 'w') as fh:
         for isoform in gene_info.isoform_beds:
             if len(isoform.blocks) > 1:
                 unique_seq_bound = []
@@ -143,29 +144,30 @@ def load_unique_bound(temp_prefix, gene_info):
                                                terminal_exon_is_subset, superset_support, unique_seq_bound)
                 write_unique_bound(fh, isoform, unique_seq_bound)
 
-def write_combined_counts(sample_data, gene_data, temp_dir, output, with_gene):
-    with open(output + '.counts.tsv', 'w') as fh:
-        # just the sample id; the condition and batch of each column are in the
-        # sample info file written beside this one
-        fh.write('\t'.join(['ids'] + [x[0] for x in sample_data]) + '\n')
-        for gene_id in gene_data:
-            gene_info = gene_data[gene_id]
-            iso_to_counts = {x.name: [0] * len(sample_data) for x in gene_info.isoform_beds}
-            for i, (sample, group, batch, bamfile) in enumerate(sample_data):
-                for line in open(temp_dir + gene_id + '/' + sample + '.isoform.counts.txt'):
-                    line = line.rstrip().split('\t')
-                    iso_to_counts[line[0]][i] = int(line[1])
-            for iso in iso_to_counts:
-                iso_id = iso + '_' + gene_id if with_gene else iso
-                fh.write('\t'.join([iso_id] + [str(x) for x in iso_to_counts[iso]]) + '\n')
+def gene_counts_rows(sample_data, gene_data, temp_dir, gene_id):
+    "the counts rows of one gene, one per isoform"
+    gene_info = gene_data[gene_id]
+    iso_to_counts = {x.name: [0] * len(sample_data) for x in gene_info.isoform_beds}
+    for i, (sample, group, batch, bamfile) in enumerate(sample_data):
+        for row in TranscriptCountsReader(temp_dir + gene_id + '/' + sample + '.isoform.counts.tsv'):
+            iso_to_counts[row.transcript][i] = row.count
+    return [CountsRow(gene_id, iso, counts) for iso, counts in iso_to_counts.items()]
+
+def write_combined_counts(sample_data, gene_data, temp_dir, output):
+    # just the sample id in each column name; the condition and batch of each column
+    # are in the sample info file written beside this one
+    rows = []
+    for gene_id in gene_data:
+        rows.extend(gene_counts_rows(sample_data, gene_data, temp_dir, gene_id))
+    write_counts_matrix(compressed_path(output + '.counts.tsv'), [x[0] for x in sample_data], rows)
 
 def write_map_out(sample_data, gene_data, temp_dir, output, generate_map):
     if generate_map:
         for sample, group, batch, bamfile in sample_data:
-            with open(f'{output}.{sample}.read.map.txt', 'w') as fh:
+            with ReadMapWriter(compressed_path(f'{output}.{sample}.read.map.tsv')) as writer:
                 for gene_id in gene_data:
-                    for line in open(temp_dir + gene_id + '/' + sample + '.isoform.read.map.txt'):
-                        fh.write(line)
+                    for row in ReadMapReader(temp_dir + gene_id + '/' + sample + '.isoform.read.map.tsv'):
+                        writer.writeReads(row.name, row.reads)
 
 def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map, trust_ends):
     temp_prefix_sample = temp_prefix + sample
@@ -176,21 +178,21 @@ def get_counts_for_sample(sample, bamfile, temp_prefix, gene_info, generate_map,
     # grew without bound in a worker handling many genes
     with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
         generate_genomic_alignment_read_to_clipping_file(temp_prefix_sample, bam_file, gene_info.chrom, gene_info.left_bound, gene_info.right_bound)
-    read_map_file = temp_prefix_sample + '.isoform.read.map.txt' if generate_map else None
+    read_map_file = temp_prefix_sample + '.isoform.read.map.tsv' if generate_map else None
     mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD', temp_prefix + 'isoforms.fa', temp_prefix_sample + '.reads.fasta']
     # minimap2 borrows threads left idle in the thread budget while it runs
     with thread_share.program_threads() as mm2_threads:
         run_count_sam_transcripts(
             mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
-            output=temp_prefix_sample + '.isoform.counts.txt',
-            trimmedreads=temp_prefix_sample + '.reads.genomicclipping.txt',
+            output=temp_prefix_sample + '.isoform.counts.tsv',
+            trimmedreads=temp_prefix_sample + '.reads.genomicclipping.tsv',
             generate_map=read_map_file,
             stringent=True,
             allow_UTR_indels=True,  # is_annot,
             check_splice=True,
             isoforms=temp_prefix + 'isoforms.bed',
             trust_ends=trust_ends,
-            unique_bound=temp_prefix + 'isoforms.uniquebound.txt',
+            unique_bound=temp_prefix + 'isoforms.uniquebound.tsv',
         )
 
 def get_counts_for_gene(input):
@@ -228,7 +230,7 @@ def _count_gene_task(input):
         thread_share.task_done()
 
 def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
-             trust_ends, generate_map, with_gene, normalize_ends):
+             trust_ends, generate_map, normalize_ends):
     logging.info('loading isos')
     temp_dir = make_temp_dir(output)
     sample_data = load_manifest(manifest)
@@ -251,14 +253,15 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
             pool.map(_count_gene_task, packed)
 
     logging.info('writing quantify output')
-    write_combined_counts(sample_data, gene_data, temp_dir, output, with_gene)
-    write_sample_info(sample_info_path(output + '.counts.tsv'),
+    write_combined_counts(sample_data, gene_data, temp_dir, output)
+    counts_matrix_tsv = compressed_path(output + '.counts.tsv')
+    write_sample_info(sample_info_path(counts_matrix_tsv),
                       [SampleInfo(sample, condition, batch)
                        for sample, condition, batch, _ in sample_data])
 
     write_map_out(sample_data, gene_data, temp_dir, output, generate_map)
 
     if tpm:
-        counts_to_tpm(open(output + '.counts.tsv'), output + '.tpm.tsv')
+        counts_to_tpm(fileOps.opengz(counts_matrix_tsv), compressed_path(output + '.tpm.tsv'))
 
     rmtree(temp_dir)

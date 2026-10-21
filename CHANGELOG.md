@@ -15,6 +15,11 @@
     annotation fasta and isoform names, alignments without AS or MD tags, and the
     option and input problems in junctions_from_sam and identify_vars say what to
     do about them.
+  * `flair variantquant` no longer multiplies its counts when rerun into an
+    output directory an earlier run left intermediates in, and its rows are
+    written in a fixed order rather than one that depended on the hash seed.
+  * `flair diffsplice` fails when a counts matrix isoform id has no record in
+    `--isoform_bed`.  That combination used to produce empty results silently.
   * `flair diffexp` gained `--condition_a` and `--condition_b`, matching
     `flair diffsplice`.  `condition_a` is the reference that fold changes are
     measured against.
@@ -278,6 +283,17 @@
     combine, and their proteins, translated from flair fusion's coding region, are
     written to `combined.aaseq.tsv`, which left them out.
 * Incompatibles
+  * `gtf_to_bed --include_gene` adds a column naming the gene instead of appending
+    it to the isoform name.  The annotation BED and FASTA that flair transcriptome
+    builds are named by the transcript alone for the same reason.  A transcript id
+    that appears under two genes is now an error.
+  * The fusiongeneX isoform name prefix is gone; a FLAIR BED gives an isoform's
+    position in a fusion in its `pos_in_fusion` column.
+  * The counts matrix now starts with two id columns, `gene_id` then `isoform_id`,
+    in place of the single `isoform_gene` column.  `flair quantify --with_gene` is
+    gone, the gene is always named.  A matrix from an earlier FLAIR is refused
+    rather than split on an underscore, which was wrong for some gene ids.
+    `flair combine` writes its counts file the same way.
   * `flair diffsplice` event ids now carry the strand, as
     `chr1:100-200(+)` and `chr1:35556271(+)`, matching the event names
     `flair spliceevents` writes. Without it, an event at the same coordinates on
@@ -290,6 +306,8 @@
     that ordering meant.
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
+  * Removed the identify_annotated_gene script.  It read and wrote PSL, which no
+    flair command produces or accepts any more.
   * Remove flair align options that are no longer need without flair correct.
   * Logging options (--log-level, --log-stderr, --log-conf, --log-debug) and
     --version must now precede the subcommand: `flair --log-debug align ...`.

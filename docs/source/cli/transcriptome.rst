@@ -6,6 +6,7 @@
 
    usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME --sample_name
                               SAMPLE_NAME [-o OUTPUT] [-f ANNOT_GTF]
+                              [--junction_star JUNCTION_STAR]
                               [--junction_tab JUNCTION_TAB]
                               [--junction_bed JUNCTION_BED]
                               [--junction_support JUNCTION_SUPPORT]
@@ -28,23 +29,27 @@
 
 .. option:: -o OUTPUT, --output OUTPUT
 
-   output file name base for FLAIR isoforms, defaults to --sample_name
+   prefix for the output file names; defaults to the required --sample_name
 
 .. option:: -f ANNOT_GTF, --gtf ANNOT_GTF
 
    GTF annotation file, used for identifying annotated isoforms
 
+.. option:: --junction_star JUNCTION_STAR
+
+   splice junctions in STAR SJ.out.tab format, as STAR writes when it aligns reads
+
 .. option:: --junction_tab JUNCTION_TAB
 
-   short-read junctions in SJ.out.tab format. Use this option if you aligned your short-reads with STAR, STAR will automatically output this file
+   deprecated name for --junction_star
 
 .. option:: --junction_bed JUNCTION_BED
 
-   short-read junctions in bed format (can be generated from long-read alignment with intron-prospector)
+   splice junctions as BED6 to BED9 with the number of supporting reads in the score column, as intron-prospector writes from a BAM of either short or long reads. An alternative format to --junction_star, not a different kind of evidence
 
 .. option:: --junction_support JUNCTION_SUPPORT
 
-   if providing short-read junctions, minimum junction support required to keep junction. If your junctions file is in bed format, the score field will be used for read support (default: 2)
+   minimum number of supporting reads to keep a junction, from either --junction_star or --junction_bed; for bed the score column holds the count (default: 2)
 
 .. option:: --ss_window SS_WINDOW
 
@@ -150,7 +155,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of reference genome, can be minimap2 indexed
+   FASTA of reference genome, can be minimap2 indexed; a compressed genome must be bgzip and indexed with samtools faidx
 
 .. option:: --sample_name SAMPLE_NAME
 

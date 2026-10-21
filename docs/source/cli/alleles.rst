@@ -31,7 +31,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of reference genome
+   FASTA of reference genome
 
 .. option:: -o OUTPUT, --output OUTPUT
 

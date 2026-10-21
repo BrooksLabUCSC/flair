@@ -4,6 +4,7 @@ from flair.isoform_data import Isoform, Junc
 import pysam
 from flair.isoform_data import ReadRec
 from flair.direct_assignment import covers_unique_bounds, direct_assignments, unassignable_reads, write_direct_assignments
+from flair.read_ends_tsv import ReadEndsWriter
 
 # exons 1000-1100, 1300-1400 and 1600-1700
 JUNCS = (Junc(1100, 1300), Junc(1400, 1600))
@@ -61,7 +62,8 @@ def test_unique_bounds_must_be_covered():
 
 def test_ends_are_written_as_count_sam_transcripts_writes_them():
     fh = io.StringIO()
-    write_direct_assignments({'r': (_isoform('tx'), _read('r', start=1010, end=1690))}, fh)
+    writer = ReadEndsWriter(None, outFh=fh, writeHeader=False)
+    write_direct_assignments({'r': (_isoform('tx'), _read('r', start=1010, end=1690))}, writer)
     assert fh.getvalue() == 'r\ttx\t0\t90\t110\t1\t90\t110\n'
 
 

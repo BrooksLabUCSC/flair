@@ -6,14 +6,14 @@ from flair.pycbio.hgdata.bed import BedReader
 
 
 def get_iso_info_from_bed(file):
-    isotoinfo = {}
+    iso_to_info = {}
     for bed in BedReader(file, fixScores=True):
         chrom, start, end, iso, strand = bed.chrom, bed.chromStart, bed.chromEnd, bed.name, bed.strand
         esizes = [len(blk) for blk in bed.blocks]
         estarts = [blk.start - start for blk in bed.blocks]
         isizes = [estarts[i + 1] - (esizes[i] + estarts[i]) for i in range(len(esizes) - 1)]
-        isotoinfo[iso] = {'chrom': chrom, 'strand': strand, 'start': start, 'end': end, 'esizes': esizes, 'introns': isizes}
-    return isotoinfo
+        iso_to_info[iso] = {'chrom': chrom, 'strand': strand, 'start': start, 'end': end, 'esizes': esizes, 'introns': isizes}
+    return iso_to_info
 
 def convert_start_pos(isoinfo, isostart):
     """Genomic position of a transcript offset.  An offset at or past the end of the
@@ -83,7 +83,7 @@ genomesamplebam = sys.argv[3]
 outprefix = sys.argv[4]
 
 
-isotoinfo = get_iso_info_from_bed(isoformbed)
+iso_to_info = get_iso_info_from_bed(isoformbed)
 
 
 samfile = pysam.AlignmentFile(transcriptomebam, 'rb')
@@ -95,14 +95,14 @@ outchroms = outfile.references
 # CURRENTLY NONE OF THIS WORKS FOR NEGATIVE STRAND READS
 for s in samfile:
     if s.is_mapped:
-        thisisoinfo = isotoinfo[s.reference_name]
-        newrefid = outchroms.index(thisisoinfo['chrom'])
-        newrefstart = convert_start_pos(thisisoinfo, s.reference_start)
-        newcigart = convert_cigar(thisisoinfo, s.cigartuples, s.reference_start)
-        if thisisoinfo['strand'] == '+':
+        iso_info = iso_to_info[s.reference_name]
+        newrefid = outchroms.index(iso_info['chrom'])
+        newrefstart = convert_start_pos(iso_info, s.reference_start)
+        newcigart = convert_cigar(iso_info, s.cigartuples, s.reference_start)
+        if iso_info['strand'] == '+':
             a = generate_new_segment(s, newrefid=newrefid, newrefstart=newrefstart, newcigart=newcigart)
         else:
-            newcigart = convert_cigar(thisisoinfo, s.cigartuples, s.reference_start)
+            newcigart = convert_cigar(iso_info, s.cigartuples, s.reference_start)
             totalaligneddist = sum([x[1] for x in newcigart if x[0] not in {1, 4, 5}])
             newrefstart = newrefstart - totalaligneddist  # was read end, correct to read start
             newflag = s.flag - 16 if s.is_reverse else s.flag + 16

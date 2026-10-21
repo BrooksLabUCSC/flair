@@ -29,7 +29,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   genome fasta file (used for making big bed)
+   genome FASTA file (used for making bigBed)
 
 .. option:: -o OUTPUT, --output OUTPUT
 

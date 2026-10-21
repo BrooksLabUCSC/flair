@@ -1,7 +1,9 @@
 Modules
 ^^^^^^^
 
-``flair`` is a program which implement the follow module sub-commands.
+Each FLAIR analysis is a sub-command of ``flair``.  See :ref:`running-label`
+for the options that come before the sub-command and for how compression
+works.
 
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR transcriptome on all samples together (will generate the most comprehensive transcriptome)
@@ -79,7 +81,7 @@ reads aligned to the genome, as :ref:`aligning reads to the genome <alignment-la
  - ``flair.isoforms.bed``
  - ``flair.isoforms.gtf``
  - ``flair.isoforms.fa``
- - ``flair.read.map.txt``
+ - ``flair.isoform.read.map.tsv``
 
 Options
 -------
@@ -133,9 +135,9 @@ sample.fusions.isoforms.gtf, sample.fusions.isoforms.bb
     The fusion transcriptome as GTF and bigBed
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.fusions.isoform.counts.txt
+sample.fusions.isoform.counts.tsv
     Read counts of the fusion isoforms, as flair transcriptome's isoform.counts.txt
-sample.fusions.isoform.read.map.txt
+sample.fusions.isoform.read.map.tsv
     read map of reads to fusion isoforms
 sample.fusions.aaseq.tsv
     Protein sequences of the productive fusion isoforms, by the aaseq_id of the bed
@@ -211,17 +213,16 @@ Options
 flair quantify
 ==============
 
-**Output**
+**Read assignment**
 
-Default: identifes the best isoform assignment based on alignment quality, fraction of read aligned, and fraction of transcript aligned
+A read is assigned to the isoform it best matches, by alignment quality, the fraction of
+the read aligned and the fraction of the transcript aligned. Two further requirements
+always apply, where earlier FLAIR releases made them optional:
 
-check_splice: adds check for read matching reference transcript at all splice sites
-
-stringent: adds requirement for read to cover at least 25bp of the first and last exons
-
-If you need your reads to match your isoforms well, use --check_splice and --stringent, while if you need more reads assigned to isoforms for better statistical comparison, use the default.
-
---quality 0 is also reccommended, as this allows slightly better recall as FLAIR can disambiguate some similar isoform alignments.
+- the read matches the isoform at every splice site, what ``--check_splice`` used to ask
+  for;
+- the read covers at least 25 bp of the first and last exons, what ``--stringent`` used
+  to ask for.
 
 Options
 -------
@@ -243,13 +244,17 @@ Manifest example (we suggest using absolute file paths to point to your files th
 
 Other info
 ----------
-The counts file names each column after the sample it holds:
+The counts file opens with the two id columns and names each later column after the
+sample it holds:
 
 .. code:: text
 
-   ids  sample1 sample2 sample3 sample4 sample5 sample6
-   ENST00000225792.10_ENSG00000108654.15   21.0    12.0    10.0    10.0    14.0    13.0
-   ENST00000256078.9_ENSG00000133703.12    7.0     6.0     7.0     15.0    12.0    7.0
+   gene_id      isoform_id      sample1 sample2 sample3 sample4 sample5 sample6
+   FLG00000001  FLT00000001     21.0    12.0    10.0    10.0    14.0    13.0
+   FLG00000001  FLT00000002     7.0     6.0     7.0     15.0    12.0    7.0
+
+Each row is one isoform of one gene, named by the two leading id columns described
+in :ref:`ids-label`.
 
 The condition and batch of each column are in ``<output>.sample_info.tsv``, written
 beside the counts file, which `flair diffexp` and `flair diffsplice` read:
@@ -377,6 +382,9 @@ If DRIMSeq was run, where ``A`` is ``--condition_a`` and ``B`` is ``--condition_
  - ``drimseq_ir_A_v_B.tsv``
  - ``workdir`` Temporary files including unfiltered output files.
 
+All four are written whichever events were called: an event type that called nothing, or
+whose events DRIMSeq found nothing significant in, leaves a file of only its header.
+
 Options
 -------
 
@@ -397,33 +405,33 @@ considered to include or exclude the each event:
 
 .. code::
 
-   a3ss_feature_id     coordinate                  sample1 sample2 ... isoform_ids
-   inclusion_chr1:80   chr1:80-400_chr1:80-450     75.0    35.0    ... a,e
-   exclusion_chr1:80   chr1:80-400_chr1:80-450     3.0     13.0    ... c
-   inclusion_chr1:500  chr1:500-650_chr1:500-700   4.0     18.0    ... d
-   exclusion_chr1:500  chr1:500-650_chr1:500-700   70.0    17.0    ... e
+   a3ss_feature_id       coordinate                    sample1 sample2 ... isoform_ids
+   inclusion_chr1:80:+   chr1:80-400_chr1:80-450:+     75.0    35.0    ... a,e
+   exclusion_chr1:80:+   chr1:80-400_chr1:80-450:+     3.0     13.0    ... c
+   inclusion_chr1:500:+  chr1:500-650_chr1:500-700:+   4.0     18.0    ... d
+   exclusion_chr1:500:+  chr1:500-650_chr1:500-700:+   70.0    17.0    ... e
 
 .. code::
 
-   ir_feature_id           coordinate      sample1 sample2 ... isoform_ids
-   inclusion_chr1:500-650  chr1:500-650    46.0    13.0    ... g
-   exclusion_chr1:500-650  chr1:500-650    4.0     18.0    ... d
-   inclusion_chr1:500-700  chr1:500-700    46.0    13.0    ... g
-   exclusion_chr1:500-700  chr1:500-700    70.0    17.0    ... e
-   inclusion_chr1:250-450  chr1:250-450    50.0    31.0    ... d,g
-   exclusion_chr1:250-450  chr1:250-450    80.0    17.0    ... b
+   ir_feature_id             coordinate        sample1 sample2 ... isoform_ids
+   inclusion_chr1:500-650:+  chr1:500-650:+    46.0    13.0    ... g
+   exclusion_chr1:500-650:+  chr1:500-650:+    4.0     18.0    ... d
+   inclusion_chr1:500-700:+  chr1:500-700:+    46.0    13.0    ... g
+   exclusion_chr1:500-700:+  chr1:500-700:+    70.0    17.0    ... e
+   inclusion_chr1:250-450:+  chr1:250-450:+    50.0    31.0    ... d,g
+   exclusion_chr1:250-450:+  chr1:250-450:+    80.0    17.0    ... b
 
 .. code::
 
-   es_feature_id           coordinate      sample1 sample2 ... isoform_ids
-   inclusion_chr1:450-500  chr1:450-500    83.0    30.0    ... b,c
-   exclusion_chr1:450-500  chr1:450-500    56.0    15.0    ... f
-   inclusion_chr1:200-250  chr1:200-250    80.0    17.0    ... b
-   exclusion_chr1:200-250  chr1:200-250    3.0     13.0    ... c
-   inclusion_chr1:200-500  chr1:200-500    4.0     18.0    ... d
-   exclusion_chr1:200-500  chr1:200-500    22.0    15.0    ... h
-   inclusion_chr1:400-500  chr1:400-500    75.0    35.0    ... e,a
-   exclusion_chr1:400-500  chr1:400-500    56.0    15.0    ... f
+   es_feature_id             coordinate        sample1 sample2 ... isoform_ids
+   inclusion_chr1:450-500:+  chr1:450-500:+    83.0    30.0    ... b,c
+   exclusion_chr1:450-500:+  chr1:450-500:+    56.0    15.0    ... f
+   inclusion_chr1:200-250:+  chr1:200-250:+    80.0    17.0    ... b
+   exclusion_chr1:200-250:+  chr1:200-250:+    3.0     13.0    ... c
+   inclusion_chr1:200-500:+  chr1:200-500:+    4.0     18.0    ... d
+   exclusion_chr1:200-500:+  chr1:200-500:+    22.0    15.0    ... h
+   inclusion_chr1:400-500:+  chr1:400-500:+    75.0    35.0    ... e,a
+   exclusion_chr1:400-500:+  chr1:400-500:+    56.0    15.0    ... f
 
 .. _variantquant-label:
 

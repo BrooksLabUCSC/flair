@@ -2,7 +2,7 @@
 tests of flair_bed module
 """
 import pytest
-from flair.flair_bed import FlairBed, FlairBedReader, parseStrOrNone
+from flair.flair_bed import FlairBed, FlairBedReader, parse_str_or_none
 from flair.pycbio.hgdata.bed import BedException
 
 
@@ -24,11 +24,11 @@ def _make_bed(**overrides):
 
 
 def test_parse_str_or_none_empty():
-    assert parseStrOrNone("") is None
+    assert parse_str_or_none("") is None
 
 
 def test_parse_str_or_none_value():
-    assert parseStrOrNone("foo") == "foo"
+    assert parse_str_or_none("foo") == "foo"
 
 
 def test_to_row_no_frac_support():

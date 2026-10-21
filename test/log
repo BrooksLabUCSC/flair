@@ -1,0 +1,882 @@
+make: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make  test-base test-with-R && echo "===== TESTS PASSED =====" >&2 || { echo "===== TESTS FAILED =====" >&2; exit 1; }
+make[1]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make  align-tests quantify-tests bed-to-gtf-tests combine-tests diff-iso-usage-tests plot-usage-tests transcriptome-tests fusion-tests variants-tests spliceevents-tests partition-tests lib-tests test-doc-cli && echo "===== TESTS PASSED =====" >&2 || { echo "===== TESTS FAILED =====" >&2; exit 1; }
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+cp expected/test-transcriptome.isoforms.fa output/test-transcriptome.isoforms.fa
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-transcriptome.isoforms.bed > tmp-input/test-transcriptome.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/basic.reads_manifest_bam.txt > tmp-input/basic.reads_manifest_bam.txt.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/test-collapse-annot.isoforms.bed > tmp-input/test-collapse-annot.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-transcriptome-mult-ends.isoforms.bed > tmp-input/test-transcriptome-mult-ends.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-transcriptome-mutant-splice.isoforms.bed > tmp-input/test-transcriptome-mutant-splice.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-transcriptome-readthrough.isoforms.bed > tmp-input/test-transcriptome-readthrough.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-fusion.fusions.isoforms.bed > tmp-input/test-fusion.fusions.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-transcriptome-seg1-badannot.isoforms.bed > tmp-input/test-transcriptome-seg1-badannot.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-transcriptome-seg1-badannot-multends.isoforms.bed > tmp-input/test-transcriptome-seg1-badannot-multends.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed > tmp-input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c expected/test-quantify.counts.tsv > tmp-input/test-quantify.counts.tsv.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/basic.shortread_junctions.tab > tmp-input/basic.shortread_junctions.tab.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/spliceevents.manifest.tsv > tmp-input/spliceevents.manifest.tsv.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/basic.annotation.gtf > tmp-input/basic.annotation.gtf.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+cat input/basic.annotation.gtf input/shared_junction_gene.gtf > output/basic.annotation.sharedjunc.gtf.tmp
+mv -f output/basic.annotation.sharedjunc.gtf.tmp output/basic.annotation.sharedjunc.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+cat input/DDX5_POLG2_gencode38.gtf input/DDX5_POLG2_readthrough_gene.gtf > output/DDX5_POLG2_gencode38.readthrough_gene.gtf.tmp
+mv -f output/DDX5_POLG2_gencode38.readthrough_gene.gtf.tmp output/DDX5_POLG2_gencode38.readthrough_gene.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+samtools faidx --output output/test-transcriptome.isoforms.fa.fai output/test-transcriptome.isoforms.fa
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq >output/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+bin/trim_polya_reads input/basic.reads.fa output/basic.reads.nopolyA.fa.tmp
+input/basic.reads.fa: trimmed 574 of 1013 reads
+mv -f output/basic.reads.nopolyA.fa.tmp output/basic.reads.nopolyA.fa
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+awk '/^>/ {print; next} {print "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" $0}' output/basic.reads.nopolyA.fa > output/basic.reads.polyT.fa.tmp
+mv -f output/basic.reads.polyT.fa.tmp output/basic.reads.polyT.fa
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+diff_iso_usage --help > output/test-diff-iso-usage-help.out
+diff expected/test-diff-iso-usage-help.out output/test-diff-iso-usage-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+bed_to_gtf input/test-collapse-annot.isoforms.bed > output/test-bed-to-gtf.gtf
+diff expected/test-bed-to-gtf.gtf output/test-bed-to-gtf.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+bed_to_gtf --is_flair_bed expected/test-transcriptome.isoforms.bed > output/test-bed-to-gtf-extracols.gtf
+diff expected/test-bed-to-gtf-extracols.gtf output/test-bed-to-gtf-extracols.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair_partition --threads=2 --part_merge_dist=10000 --log-level=info --bed=input/partition-test.bed output/test-partition-adjacent.ranges.bed >& output/test-partition-adjacent.out
+diff expected/test-partition-adjacent.ranges.bed output/test-partition-adjacent.ranges.bed
+diff expected/test-partition-adjacent.out output/test-partition-adjacent.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed output/test-partition-basic.ranges.bed >& output/test-partition-basic.out
+diff expected/test-partition-basic.ranges.bed output/test-partition-basic.ranges.bed
+diff expected/test-partition-basic.out output/test-partition-basic.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+bed_to_gtf tmp-input/test-collapse-annot.isoforms.bed.gz > output/test-bed-to-gtf-compress.gtf
+diff expected/test-bed-to-gtf.gtf output/test-bed-to-gtf-compress.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair_partition --threads=2 --min_partition_items=3  --log-level=info --bed=input/partition-test.bed output/test-partition-min-reads.ranges.bed >& output/test-partition-min-reads.out
+diff expected/test-partition-min-reads.ranges.bed output/test-partition-min-reads.ranges.bed
+diff expected/test-partition-min-reads.out output/test-partition-min-reads.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed --bam=input/tiny.sam --gtf=input/seg1.gencodeV47.gtf \
+    output/test-partition-sam.ranges.bed >& output/test-partition-sam.out
+diff expected/test-partition-sam.ranges.bed output/test-partition-sam.ranges.bed
+diff expected/test-partition-sam.out output/test-partition-sam.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair quantify --help > output/test-quantify-help.out
+diff expected/test-quantify-help.out output/test-quantify-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair fusion  --help > output/test-fusion-help.out
+diff expected/test-fusion-help.out output/test-fusion-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align --help > output/test-align-help.out
+diff expected/test-align-help.out output/test-align-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome --help > output/test-transcriptome-help.out
+diff expected/test-transcriptome-help.out output/test-transcriptome-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+plot_isoform_usage --help > output/test-plot-usage-help.out
+diff expected/test-plot-usage-help.out output/test-plot-usage-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+rm -rf output/cli
+../dev/bin/flair-gen-cli-doc output/cli >/dev/null
+diff -r ../docs/source/cli output/cli
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+plot_isoform_usage expected/test-transcriptome.isoforms.bed expected/test-quantify.counts.tsv FLG00000002 --min_reads 1 -o output/test-plot-usage
+file output/test-plot-usage_FLG00000002_usage.pdf | grep 'PDF document' >/dev/null
+file output/test-plot-usage_FLG00000002_isoforms.pdf | grep 'PDF document' >/dev/null
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+plot_isoform_usage tmp-input/test-transcriptome.isoforms.bed.gz tmp-input/test-quantify.counts.tsv.gz \
+   FLG00000002 --min_reads 1 -o output/test-plot-usage-compress
+file output/test-plot-usage-compress_FLG00000002_usage.pdf | grep 'PDF document' >/dev/null
+file output/test-plot-usage-compress_FLG00000002_isoforms.pdf | grep 'PDF document' >/dev/null
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 -m pytest --capture=no  --log-cli-level=INFO  .
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /hive/users/markd/flair/projs/src/flair-mddev
+configfile: pyproject.toml
+plugins: anyio-4.15.1, xdist-3.8.0
+collected 124 items
+
+test_bed_output.py::test_sorted_as_written PASSED
+test_bed_output.py::test_sorted_compressed PASSED
+test_bed_output.py::test_sort_written_file PASSED
+test_bed_output.py::test_sort_written_file_compressed PASSED
+test_conditions.py::test_select_condition_pair_sorted_default 
+-------------------------------- live log call ---------------------------------
+INFO     root:conditions.py:44 comparing test against reference ctl, the two conditions in sorted order; name them with --condition_a and --condition_b to compare in the other direction
+PASSED
+test_conditions.py::test_select_condition_pair_ignores_column_order 
+-------------------------------- live log call ---------------------------------
+INFO     root:conditions.py:44 comparing test against reference ctl, the two conditions in sorted order; name them with --condition_a and --condition_b to compare in the other direction
+INFO     root:conditions.py:44 comparing test against reference ctl, the two conditions in sorted order; name them with --condition_a and --condition_b to compare in the other direction
+PASSED
+test_conditions.py::test_select_condition_pair_named PASSED
+test_conditions.py::test_select_condition_pair_unknown_name PASSED
+test_conditions.py::test_select_condition_pair_needs_both PASSED
+test_conditions.py::test_select_condition_pair_needs_exactly_two PASSED
+test_conditions.py::test_condition_column_indexes PASSED
+test_correct_lib.py::test_load_bed_annot_support PASSED
+test_correct_lib.py::test_load_star_annot_support PASSED
+test_correct_lib.py::test_no_support PASSED
+test_correct_lib.py::test_adjust_start PASSED
+test_correct_lib.py::test_adjust_end PASSED
+test_correct_lib.py::test_adjust_both PASSED
+test_counts_matrix_tsv.py::test_round_trip PASSED
+test_counts_matrix_tsv.py::test_round_trip_compressed PASSED
+test_counts_matrix_tsv.py::test_counts_are_ints PASSED
+test_counts_matrix_tsv.py::test_non_numeric_count_is_an_error PASSED
+test_counts_matrix_tsv.py::test_old_format_refused PASSED
+test_counts_matrix_tsv.py::test_wrong_count_of_counts PASSED
+test_counts_matrix_tsv.py::test_failed_write_leaves_no_file PASSED
+test_counts_matrix_tsv.py::test_describe_ids_elides PASSED
+test_diffsplice.py::test_check_isoform_ids_all_present PASSED
+test_diffsplice.py::test_check_isoform_ids_extra_bed_records PASSED
+test_diffsplice.py::test_check_isoform_ids_missing_from_bed PASSED
+test_diffsplice.py::test_check_isoform_ids_missing_list_elided PASSED
+test_flair_bed.py::test_parse_str_or_none_empty PASSED
+test_flair_bed.py::test_parse_str_or_none_value PASSED
+test_flair_bed.py::test_to_row_no_frac_support PASSED
+test_flair_bed.py::test_construct_minimal PASSED
+test_flair_bed.py::test_construct_full PASSED
+test_flair_bed.py::test_transcript_id_property PASSED
+test_flair_bed.py::test_transcript_id_setter PASSED
+test_flair_bed.py::test_thick_start_passed_to_super PASSED
+test_flair_bed.py::test_num_columns PASSED
+test_flair_bed.py::test_to_row_length PASSED
+test_flair_bed.py::test_to_row_values PASSED
+test_flair_bed.py::test_parse_wrong_column_count PASSED
+test_flair_bed.py::test_parse_round_trip PASSED
+test_flair_bed.py::test_parse_empty_string_extras_become_none PASSED
+test_flair_bed.py::test_reader PASSED
+test_gtf_io.py::test_gtf_data_parser_flair PASSED
+test_gtf_io.py::test_gtf_data_parser_all PASSED
+test_gtf_io.py::test_gtf_record_parser_include_exons PASSED
+test_gtf_io.py::test_gtf_record_parser_include_transcripts PASSED
+test_gtf_io.py::test_gtf_record_parser_no_filter PASSED
+test_gtf_io.py::test_gtf_data_parser_include_features PASSED
+test_gtf_io.py::test_gtf_data_exons PASSED
+test_gtf_io.py::test_gtf_data_cds PASSED
+test_gtf_io.py::test_parse PASSED
+test_gtf_io.py::test_trans_lookup_flair PASSED
+test_gtf_io.py::test_trans_lookup_all PASSED
+test_gtf_io.py::test_trans_error PASSED
+test_gtf_io.py::test_chroms PASSED
+test_gtf_io.py::test_iter_overlap PASSED
+test_gtf_io.py::test_iter_overlap_strand PASSED
+test_gtf_io.py::test_iter_overlap_other_strand PASSED
+test_gtf_io.py::test_rec_str PASSED
+test_gtf_io.py::test_rec_str1 PASSED
+test_gtf_io.py::test_rec_str2 PASSED
+test_gtf_io.py::test_rec_str3 PASSED
+test_gtf_io.py::test_whitespace_space_in_gene_id PASSED
+test_gtf_io.py::test_whitespace_tab_in_gene_id PASSED
+test_gtf_io.py::test_whitespace_space_in_transcript_id PASSED
+test_gtf_io.py::test_whitespace_tab_in_transcript_id PASSED
+test_gtf_io.py::test_no_whitespace_valid PASSED
+test_partition_runner.py::test_partition_dirs_created PASSED
+test_partition_runner.py::test_partition_pickle_files_exist PASSED
+test_partition_runner.py::test_partition_load_gtf_data PASSED
+test_partition_runner.py::test_partition_load_junction_corrector PASSED
+test_partition_runner.py::test_partition_gtf_subset_chr12 PASSED
+test_partition_runner.py::test_partition_gtf_no_cross_contamination PASSED
+test_partition_runner.py::test_partition_junction_corrector_empty_for_chr17 PASSED
+test_partition_runner.py::test_runner_len PASSED
+test_partition_runner.py::test_runner_iter PASSED
+test_partition_runner.py::test_runner_regions PASSED
+test_partition_runner.py::test_run_calls_func_for_each_partition PASSED
+test_partition_runner.py::test_run_passes_correct_kwargs PASSED
+test_partition_runner.py::test_run_gtf_data_is_gtf_data_type PASSED
+test_partition_runner.py::test_run_junction_corrector_is_junction_corrector_type PASSED
+test_partition_runner.py::test_partition_no_gtf PASSED
+test_partition_runner.py::test_partition_no_junction_corrector PASSED
+test_sample_info_tsv.py::test_sample_info_path_counts_tsv PASSED
+test_sample_info_tsv.py::test_sample_info_path_other_names PASSED
+test_sample_info_tsv.py::test_read_sample_info_round_trip PASSED
+test_sample_info_tsv.py::test_read_sample_info_allows_underscores PASSED
+test_sample_info_tsv.py::test_read_sample_info_falls_back_to_column_names PASSED
+test_sample_info_tsv.py::test_read_sample_info_must_match_counts_columns PASSED
+test_sample_info_tsv.py::test_sample_info_wrong_columns PASSED
+test_tsv_formats.py::test_read_map_round_trip PASSED
+test_tsv_formats.py::test_aaseq_round_trip PASSED
+test_tsv_formats.py::test_aaseq_pred_round_trip PASSED
+test_tsv_formats.py::test_allele_group_counts_round_trip PASSED
+test_tsv_formats.py::test_allele_group_counts_without_normal PASSED
+test_tsv_formats.py::test_iso_allele_counts_round_trip PASSED
+test_tsv_formats.py::test_combined_map_round_trip PASSED
+test_tsv_formats.py::test_deseq2_counts_round_trip PASSED
+test_tsv_formats.py::test_drimseq_counts_round_trip PASSED
+test_tsv_formats.py::test_formula_matrix_round_trip PASSED
+test_tsv_formats.py::test_formula_matrix_without_batch PASSED
+test_tsv_formats.py::test_es_events_round_trip PASSED
+test_tsv_formats.py::test_event_quant_round_trip PASSED
+test_tsv_formats.py::test_event_quant_rejects_other_columns PASSED
+test_tsv_formats.py::test_diffsplice_fishers_round_trip PASSED
+test_tsv_formats.py::test_gene_juncs_round_trip PASSED
+test_tsv_formats.py::test_gene_juncs_bad_junction PASSED
+test_tsv_formats.py::test_indel_vars_round_trip PASSED
+test_tsv_formats.py::test_region_vars_round_trip PASSED
+test_tsv_formats.py::test_iso_usage_change_round_trip PASSED
+test_tsv_formats.py::test_iso_usage_round_trip PASSED
+test_tsv_formats.py::test_marked_isoforms_round_trip PASSED
+test_tsv_formats.py::test_read_ends_round_trip PASSED
+test_tsv_formats.py::test_retained_introns_round_trip PASSED
+test_tsv_formats.py::test_seq_lengths_round_trip PASSED
+test_tsv_formats.py::test_seq_length_histogram_round_trip PASSED
+test_tsv_formats.py::test_splicing_events_round_trip PASSED
+test_tsv_formats.py::test_splicing_outliers_round_trip PASSED
+test_tsv_formats.py::test_transcript_counts_round_trip PASSED
+test_tsv_formats.py::test_tpm_round_trip PASSED
+test_tsv_formats.py::test_var_counts_round_trip PASSED
+test_tsv_formats.py::test_vargroup_counts_round_trip PASSED
+
+============================= 124 passed in 0.47s ==============================
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+diff_iso_usage input/basic.counts_matrix_diffexp.tsv MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 output/test-diff-iso-usage.tsv
+diff expected/test-diff-iso-usage.tsv output/test-diff-iso-usage.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+diff_iso_usage tmp-input/basic.counts_matrix_diffexp.tsv.gz MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 output/test-diff-iso-usage-compress.tsv
+diff expected/test-diff-iso-usage.tsv output/test-diff-iso-usage-compress.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+mkdir -p tmp-input/
+rm -f tmp-input/genome.fa.fai
+wget -nv https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr12.fa.gz
+
+Redirecting output to ‘wget-log’.
+wget -nv https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr17.fa.gz
+
+Redirecting output to ‘wget-log.1’.
+wget -nv https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr20.fa.gz
+
+Redirecting output to ‘wget-log.2’.
+zcat chr12.fa.gz chr17.fa.gz chr20.fa.gz > tmp-input/genome.fa
+rm chr12.fa.gz chr17.fa.gz chr20.fa.gz
+samtools faidx tmp-input/genome.fa
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair combine --manifest input/combine_manifest_bed-only.txt --genome tmp-input/genome.fa -o output/test-combine-multends-10pct --max_ends 10 --min_percent_usage 10
+diff expected/test-combine-multends-10pct.combined.isoforms.bed output/test-combine-multends-10pct.combined.isoforms.bed
+diff expected/test-combine-multends-10pct.combined.isoform.counts.tsv output/test-combine-multends-10pct.combined.isoform.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair combine --manifest input/combine_manifest_bed-only.txt --genome tmp-input/genome.fa -o output/test-combine-10pct --min_percent_usage 10
+diff expected/test-combine-10pct.combined.isoforms.bed output/test-combine-10pct.combined.isoforms.bed
+diff expected/test-combine-10pct.combined.isoform.counts.tsv output/test-combine-10pct.combined.isoform.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair combine --manifest input/combine_manifest_bed-only.txt --genome tmp-input/genome.fa -o output/test-combine-multends --max_ends 10
+diff expected/test-combine-multends.combined.isoforms.bed output/test-combine-multends.combined.isoforms.bed
+diff expected/test-combine-multends.combined.isoform.counts.tsv output/test-combine-multends.combined.isoform.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair combine --genome tmp-input/genome.fa -o output/test-combine-files --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
+diff expected/test-combine-files.combined.isoforms.bed output/test-combine-files.combined.isoforms.bed
+diff expected/test-combine-files.combined.isoform.counts.tsv output/test-combine-files.combined.isoform.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair combine --manifest input/combine_manifest_bed-only.txt --genome tmp-input/genome.fa -o output/test-combine-nose --remove_single_exon
+diff expected/test-combine-nose.combined.isoforms.bed output/test-combine-nose.combined.isoforms.bed
+diff expected/test-combine-nose.combined.isoform.counts.tsv output/test-combine-nose.combined.isoform.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair combine --manifest input/combine_manifest_bed-only.txt --genome tmp-input/genome.fa -o output/test-combine
+diff expected/test-combine.combined.isoforms.bed output/test-combine.combined.isoforms.bed
+diff expected/test-combine.combined.isoform.counts.tsv output/test-combine.combined.isoform.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair -z combine --genome tmp-input/genome.fa -o output/test-combine-compress --isoform_beds tmp-input/test-transcriptome.isoforms.bed.gz,tmp-input/test-transcriptome-mult-ends.isoforms.bed.gz,tmp-input/test-transcriptome-mutant-splice.isoforms.bed.gz,tmp-input/test-transcriptome-readthrough.isoforms.bed.gz,tmp-input/test-fusion.fusions.isoforms.bed.gz,tmp-input/test-transcriptome-seg1-badannot.isoforms.bed.gz,tmp-input/test-transcriptome-seg1-badannot-multends.isoforms.bed.gz,tmp-input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed.gz
+diff expected/test-combine-files.combined.isoform.counts.tsv <(zcat output/test-combine-compress.combined.isoform.counts.tsv.gz)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+awk 'BEGIN {print ">chr12_17_20"} /^>/ {next} {buf = buf $0; while (length(buf) >= 50) {print substr(buf, 1, 50); buf = substr(buf, 51)}} END {if (buf != "") print buf}' tmp-input/genome.fa > tmp-input/genome.onechrom.fa.tmp
+mv -f tmp-input/genome.onechrom.fa.tmp tmp-input/genome.onechrom.fa
+samtools faidx tmp-input/genome.onechrom.fa
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.3.fa | samtools view -hb - | samtools sort - > output/basic.reads.3.genomealigned.bam.tmp.bam
+[M::mm_idx_gen::4.623*1.50] collected minimizers
+[M::mm_idx_gen::6.973*1.99] sorted minimizers
+[M::main::6.973*1.99] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::7.672*1.90] mid_occ = 262
+[M::mm_idx_stat] kmer size: 15; skip: 5; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::8.133*1.85] distinct minimizers: 49293178 (70.30% are singletons); average occurrences: 1.945; average spacing: 2.930; total length: 280976917
+[M::worker_pipeline::8.323*1.87] mapped 91 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.3.fa
+[M::main] Real time: 8.448 sec; CPU: 15.684 sec; Peak RSS: 2.634 GB
+mv -f output/basic.reads.3.genomealigned.bam.tmp.bam output/basic.reads.3.genomealigned.bam
+samtools index output/basic.reads.3.genomealigned.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r input/DDX5_readthrough.badread40x.fastq \
+   --genome tmp-input/genome.fa -t 4 -o output/DDX5_readthrough_sim_badread40x  \
+   --min_fragment_size 40 --max_intron_len 350k
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+samtools view -h output/DDX5_readthrough_sim_badread40x.bam | grep -v -F -w -f input/DDX5_readthrough_bysupport_drop_reads.txt | samtools view -b -o output/DDX5_readthrough_bysupport.bam.tmp.bam -
+mv -f output/DDX5_readthrough_bysupport.bam.tmp.bam output/DDX5_readthrough_bysupport.bam
+samtools index output/DDX5_readthrough_bysupport.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.fastq \
+   --genome tmp-input/genome.fa -t 4 -o output/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB  \
+   --min_fragment_size 40 --max_intron_len 350k
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r input/seg1.cdna-ont.fastq --genome tmp-input/genome.fa -t 4 -o output/test-align-seg1
+bedtools bamtobed -i output/test-align-seg1.bam > output/test-align-seg1.bed
+diff expected/test-align-seg1.bed output/test-align-seg1.bed
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.1.fa | samtools view -hb - | samtools sort - > output/basic.reads.1.genomealigned.bam.tmp.bam
+[M::mm_idx_gen::5.290*1.49] collected minimizers
+[M::mm_idx_gen::7.881*1.96] sorted minimizers
+[M::main::7.881*1.96] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::8.621*1.87] mid_occ = 262
+[M::mm_idx_stat] kmer size: 15; skip: 5; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::8.995*1.84] distinct minimizers: 49293178 (70.30% are singletons); average occurrences: 1.945; average spacing: 2.930; total length: 280976917
+[M::worker_pipeline::9.184*1.86] mapped 102 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.1.fa
+[M::main] Real time: 9.244 sec; CPU: 17.128 sec; Peak RSS: 2.627 GB
+mv -f output/basic.reads.1.genomealigned.bam.tmp.bam output/basic.reads.1.genomealigned.bam
+samtools index output/basic.reads.1.genomealigned.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.5.fa | samtools view -hb - | samtools sort - > output/basic.reads.5.genomealigned.bam.tmp.bam
+[M::mm_idx_gen::5.261*1.43] collected minimizers
+[M::mm_idx_gen::7.912*1.93] sorted minimizers
+[M::main::7.912*1.93] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::8.726*1.84] mid_occ = 262
+[M::mm_idx_stat] kmer size: 15; skip: 5; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::9.140*1.80] distinct minimizers: 49293178 (70.30% are singletons); average occurrences: 1.945; average spacing: 2.930; total length: 280976917
+[M::worker_pipeline::9.206*1.81] mapped 38 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.5.fa
+[M::main] Real time: 9.303 sec; CPU: 16.752 sec; Peak RSS: 2.627 GB
+mv -f output/basic.reads.5.genomealigned.bam.tmp.bam output/basic.reads.5.genomealigned.bam
+samtools index output/basic.reads.5.genomealigned.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.2.fa | samtools view -hb - | samtools sort - > output/basic.reads.2.genomealigned.bam.tmp.bam
+[M::mm_idx_gen::5.556*1.44] collected minimizers
+[M::mm_idx_gen::8.095*1.91] sorted minimizers
+[M::main::8.095*1.91] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::8.786*1.84] mid_occ = 262
+[M::mm_idx_stat] kmer size: 15; skip: 5; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::9.202*1.80] distinct minimizers: 49293178 (70.30% are singletons); average occurrences: 1.945; average spacing: 2.930; total length: 280976917
+[M::worker_pipeline::9.424*1.83] mapped 109 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.2.fa
+[M::main] Real time: 9.539 sec; CPU: 17.343 sec; Peak RSS: 2.628 GB
+mv -f output/basic.reads.2.genomealigned.bam.tmp.bam output/basic.reads.2.genomealigned.bam
+samtools index output/basic.reads.2.genomealigned.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r input/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq \
+   --genome tmp-input/genome.fa -t 4 -o output/fusion_tests \
+   --min_fragment_size 40 --max_intron_len 350k
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.6.fa | samtools view -hb - | samtools sort - > output/basic.reads.6.genomealigned.bam.tmp.bam
+[M::mm_idx_gen::5.281*1.48] collected minimizers
+[M::mm_idx_gen::8.048*1.97] sorted minimizers
+[M::main::8.048*1.97] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::8.921*1.87] mid_occ = 262
+[M::mm_idx_stat] kmer size: 15; skip: 5; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::9.502*1.82] distinct minimizers: 49293178 (70.30% are singletons); average occurrences: 1.945; average spacing: 2.930; total length: 280976917
+[M::worker_pipeline::9.629*1.83] mapped 62 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.6.fa
+[M::main] Real time: 9.691 sec; CPU: 17.684 sec; Peak RSS: 2.628 GB
+mv -f output/basic.reads.6.genomealigned.bam.tmp.bam output/basic.reads.6.genomealigned.bam
+samtools index output/basic.reads.6.genomealigned.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/DDX5_readthrough_bysupport.bam -g tmp-input/genome.fa -f input/DDX5_POLG2_gencode38.gtf -o output/test-transcriptome-bysupport --sample_name test-transcriptome-bysupport --junction_bed=input/DDX5_readthrough_IPSJ.bed --sjc_support 2 \
+   --filter bysupport
+diff expected/test-transcriptome-bysupport.isoforms.bed output/test-transcriptome-bysupport.isoforms.bed
+diff expected/test-transcriptome-bysupport.isoforms.gtf output/test-transcriptome-bysupport.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/DDX5_readthrough_sim_badread40x.bam -g tmp-input/genome.fa -f output/DDX5_POLG2_gencode38.readthrough_gene.gtf -o output/test-transcriptome-readthrough-gene --sample_name test-transcriptome-readthrough-gene --junction_bed=input/DDX5_readthrough_IPSJ.bed --sjc_support 2
+diff expected/test-transcriptome-readthrough-gene.isoforms.bed output/test-transcriptome-readthrough-gene.isoforms.bed
+diff expected/test-transcriptome-readthrough-gene.isoforms.gtf output/test-transcriptome-readthrough-gene.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/DDX5_readthrough_sim_badread40x.bam -g tmp-input/genome.fa -f input/DDX5_POLG2_gencode38.gtf -o output/test-transcriptome-readthrough --sample_name test-transcriptome-readthrough --junction_bed=input/DDX5_readthrough_IPSJ.bed --sjc_support 2
+diff expected/test-transcriptome-readthrough.isoforms.bed output/test-transcriptome-readthrough.isoforms.bed
+diff expected/test-transcriptome-readthrough.isoforms.gtf output/test-transcriptome-readthrough.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.bam -g tmp-input/genome.fa \
+   --junction_bed=input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.sj.bed \
+   -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-mutant-splice --sample_name test-transcriptome-mutant-splice --sjc_support 2
+diff expected/test-transcriptome-mutant-splice.isoforms.bed output/test-transcriptome-mutant-splice.isoforms.bed
+diff expected/test-transcriptome-mutant-splice.isoforms.gtf output/test-transcriptome-mutant-splice.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.bam -g tmp-input/genome.fa \
+   --junction_bed=input/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.sj.bed \
+   -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-comprehensive --sample_name test-transcriptome-comprehensive --sjc_support 2 --filter comprehensive
+diff expected/test-transcriptome-comprehensive.isoforms.bed output/test-transcriptome-comprehensive.isoforms.bed
+diff expected/test-transcriptome-comprehensive.isoforms.gtf output/test-transcriptome-comprehensive.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r input/basic.reads.fa --genome tmp-input/genome.fa -t 4 -o output/test-align
+bedtools bamtobed -i output/test-align.bam > output/test-align.bed
+diff expected/test-align.bed output/test-align.bed
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+(samtools view -h output/test-align.bam chr12 chr17 && samtools view -F 0x900 output/test-align.bam chr20 | head -n 1) | samtools view -b -o output/test-align-onechr20.bam.tmp.bam -
+mv -f output/test-align-onechr20.bam.tmp.bam output/test-align-onechr20.bam
+samtools index output/test-align-onechr20.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.4.fa | samtools view -hb - | samtools sort - > output/basic.reads.4.genomealigned.bam.tmp.bam
+[M::mm_idx_gen::6.082*1.42] collected minimizers
+[M::mm_idx_gen::8.725*1.88] sorted minimizers
+[M::main::8.725*1.88] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::9.448*1.81] mid_occ = 262
+[M::mm_idx_stat] kmer size: 15; skip: 5; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::9.880*1.77] distinct minimizers: 49293178 (70.30% are singletons); average occurrences: 1.945; average spacing: 2.930; total length: 280976917
+[M::worker_pipeline::9.988*1.78] mapped 48 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -ax splice --secondary=no tmp-input/genome.fa input/basic.reads.4.fa
+[M::main] Real time: 10.117 sec; CPU: 17.947 sec; Peak RSS: 2.773 GB
+mv -f output/basic.reads.4.genomealigned.bam.tmp.bam output/basic.reads.4.genomealigned.bam
+samtools index output/basic.reads.4.genomealigned.bam
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-seg1.bam -g tmp-input/genome.fa -f input/basic.annotation.gtf -o output/test-transcriptome-seg1-badannot-multends --sample_name test-transcriptome-seg1-badannot-multends --max_ends 4 --single_exon_support 2 --filter ginormous
+diff expected/test-transcriptome-seg1-badannot-multends.isoforms.bed output/test-transcriptome-seg1-badannot-multends.isoforms.bed
+diff expected/test-transcriptome-seg1-badannot-multends.isoforms.gtf output/test-transcriptome-seg1-badannot-multends.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-seg1.bam -g tmp-input/genome.fa -f input/basic.annotation.gtf -o output/test-transcriptome-seg1-badannot --sample_name test-transcriptome-seg1-badannot
+diff expected/test-transcriptome-seg1-badannot.isoforms.bed output/test-transcriptome-seg1-badannot.isoforms.bed
+diff expected/test-transcriptome-seg1-badannot.isoforms.gtf output/test-transcriptome-seg1-badannot.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-seg1.bam -g tmp-input/genome.fa -f input/basic.annotation.gtf -o output/test-transcriptome-seg1-badannot-comprehensive --sample_name test-transcriptome-seg1-badannot-comprehensive --max_ends 4 --single_exon_support 2 --filter comprehensive
+diff expected/test-transcriptome-seg1-badannot-comprehensive.isoforms.bed output/test-transcriptome-seg1-badannot-comprehensive.isoforms.bed
+diff expected/test-transcriptome-seg1-badannot-comprehensive.isoforms.gtf output/test-transcriptome-seg1-badannot-comprehensive.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-seg1.bam -g tmp-input/genome.fa -t 4 -f input/seg1.gencodeV47.gtf -o output/test-transcriptome-seg1 --sample_name test-transcriptome-seg1
+diff expected/test-transcriptome-seg1.isoforms.bed output/test-transcriptome-seg1.isoforms.bed
+diff expected/test-transcriptome-seg1.isoforms.gtf output/test-transcriptome-seg1.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 ../src/flair/identify_vars.py --genome tmp-input/genome.fa --bam output/test-align.bam --identify_snvs no --identify_indels yes --output output/test-identifyvars-indels
+diff expected/test-identifyvars-indels.vcf output/test-identifyvars-indels.vcf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 ../src/flair/identify_vars.py --genome tmp-input/genome.fa --bam output/test-align.bam --identify_snvs yes --identify_indels no --output output/test-identifyvars-snvs
+diff expected/test-identifyvars-snvs.vcf output/test-identifyvars-snvs.vcf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 ../src/flair/identify_vars.py --genome tmp-input/genome.fa --bam output/test-align.bam --identify_snvs yes --identify_indels yes --output output/test-identifyvars-snvsindels
+diff expected/test-identifyvars-snvsindels.vcf output/test-identifyvars-snvsindels.vcf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r output/basic.reads.nopolyA.fa --genome tmp-input/genome.fa -t 4 -o output/test-align-nopolya
+bedtools bamtobed -i output/test-align-nopolya.bam > output/test-align-nopolya.bed
+diff expected/test-align-nopolya.bed output/test-align-nopolya.bed
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r output/basic.reads.polyT.fa --genome tmp-input/genome.fa -t 4 -o output/test-align-polyt
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair fusion -g tmp-input/genome.fa -f input/basic.annotation.ERGIC3only.gtf -b output/fusion_tests.bam --max_loci 4 -o output/test-fusion-nongenic --sample_name test-fusion-nongenic --min_support 2
+diff <(sort expected/test-fusion-nongenic.fusions.isoforms.bed) <(sort output/test-fusion-nongenic.fusions.isoforms.bed)
+diff <(sort expected/test-fusion-nongenic.fusions.isoforms.fa) <(sort output/test-fusion-nongenic.fusions.isoforms.fa)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+rm -rf output/test-quantify.intermediate
+flair quantify --manifest input/basic.reads_manifest_bam.txt --genome tmp-input/genome.fa --isoform_bed expected/test-transcriptome.isoforms.bed --generate_map --tpm -o output/test-quantify
+diff expected/test-quantify.counts.tsv output/test-quantify.counts.tsv
+diff expected/test-quantify.sample_info.tsv output/test-quantify.sample_info.tsv
+diff expected/test-quantify.tpm.tsv output/test-quantify.tpm.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair fusion -g tmp-input/genome.fa -f input/basic.annotation.gtf -b output/fusion_tests.bam --max_loci 4 -o output/test-fusion --sample_name test-fusion --min_support 2
+diff <(sort expected/test-fusion.fusions.isoforms.bed) <(sort output/test-fusion.fusions.isoforms.bed)
+diff <(sort expected/test-fusion.fusions.isoforms.fa) <(sort output/test-fusion.fusions.isoforms.fa)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+rm -rf output/test-quantify-normends.intermediate
+flair quantify --manifest input/basic.reads_manifest_bam.txt --genome tmp-input/genome.fa --isoform_bed expected/test-transcriptome.isoforms.bed --generate_map --tpm -o output/test-quantify-normends --normalize_ends
+diff expected/test-quantify-normends.counts.tsv output/test-quantify-normends.counts.tsv
+diff expected/test-quantify-normends.sample_info.tsv output/test-quantify-normends.sample_info.tsv
+diff expected/test-quantify-normends.tpm.tsv output/test-quantify-normends.tpm.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair fusion -g tmp-input/genome.fa -f input/parY.annotation.gtf -b output/fusion_tests.bam --max_loci 4 -o output/test-fusion-pary --sample_name test-fusion-pary --min_support 2
+diff <(sort expected/test-fusion-pary.fusions.isoforms.bed) <(sort output/test-fusion-pary.fusions.isoforms.bed)
+diff <(sort expected/test-fusion-pary.fusions.isoforms.fa) <(sort output/test-fusion-pary.fusions.isoforms.fa)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+rm -rf output/test-quantify-compress.intermediate
+flair --compress quantify --manifest tmp-input/basic.reads_manifest_bam.txt.gz --genome tmp-input/genome.fa \
+   --isoform_bed tmp-input/test-transcriptome.isoforms.bed.gz --generate_map --tpm -o output/test-quantify-compress
+diff expected/test-quantify.counts.tsv <(zcat output/test-quantify-compress.counts.tsv.gz)
+diff expected/test-quantify.sample_info.tsv <(zcat output/test-quantify-compress.sample_info.tsv.gz)
+diff expected/test-quantify.tpm.tsv <(zcat output/test-quantify-compress.tpm.tsv.gz)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+intron-prospector --genome-fasta=tmp-input/genome.fa --intron-bed6=output/test-transcriptome-noannot.IPjunctions.bed -C 0.0 output/test-align.bam
+flair transcriptome  -b output/test-align.bam -g tmp-input/genome.fa -t 4 -o output/test-transcriptome-noannot --sample_name test-transcriptome-noannot --junction_bed output/test-transcriptome-noannot.IPjunctions.bed --junction_support 2 --sjc_support 3
+diff expected/test-transcriptome-noannot.isoforms.bed output/test-transcriptome-noannot.isoforms.bed
+diff expected/test-transcriptome-noannot.isoforms.gtf output/test-transcriptome-noannot.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+intron-prospector --genome-fasta=tmp-input/genome.fa --intron-bed6=output/test-transcriptome-lowannot.IPjunctions.bed -C 0.0 output/test-align.bam
+flair transcriptome  -b output/test-align.bam -g tmp-input/genome.fa -t 4 -f input/basic.annotation.gtf --junction_bed output/test-transcriptome-lowannot.IPjunctions.bed --junction_support 2 -o output/test-transcriptome-lowannot --sample_name test-transcriptome-lowannot --no_align_to_annot --sjc_support 3
+diff expected/test-transcriptome-lowannot.isoforms.bed output/test-transcriptome-lowannot.isoforms.bed
+diff expected/test-transcriptome-lowannot.isoforms.gtf output/test-transcriptome-lowannot.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+longshot --force_overwrite --bam output/test-align.bam --ref tmp-input/genome.fa --out output/test-align.longshot.vcf --min_cov 3 --min_alt_count 3 --strand_bias_pvalue_cutoff 0.000001
+
+2026-10-11 21:40:44 Min read coverage set to 3.
+2026-10-11 21:40:44 Max read coverage set to 8000.
+2026-10-11 21:40:44 Estimating alignment parameters...
+2026-10-11 21:40:45 Done estimating alignment parameters.
+
+                    Transition Probabilities:
+                    match -> match:          0.994
+                    match -> insertion:      0.002
+                    match -> deletion:       0.004
+                    deletion -> match:       0.797
+                    deletion -> deletion:    0.203
+                    insertion -> match:      0.823
+                    insertion -> insertion:  0.177
+
+                    Emission Probabilities:
+                    match (equal):           0.998
+                    match (not equal):       0.001
+                    insertion:               1.000
+                    deletion:                1.000
+
+2026-10-11 21:40:45 Calling potential SNVs using pileup...
+2026-10-11 21:40:46 19 potential variants identified.
+2026-10-11 21:40:46 Generating haplotype fragments from reads...
+2026-10-11 21:40:46    20% of variants processed...
+2026-10-11 21:40:46    30% of variants processed...
+2026-10-11 21:40:46    50% of variants processed...
+2026-10-11 21:40:46    60% of variants processed...
+2026-10-11 21:40:46    80% of variants processed...
+2026-10-11 21:40:46    90% of variants processed...
+2026-10-11 21:40:46    100% of variants processed.
+2026-10-11 21:40:46 Calling initial genotypes using pair-HMM realignment...
+2026-10-11 21:40:46 Iteratively assembling haplotypes and refining genotypes...
+2026-10-11 21:40:46    Round 1 of haplotype assembly...
+2026-10-11 21:40:46    (Before HapCUT2) Total phased heterozygous SNVs: 15  Total likelihood (phred): 58330.80
+2026-10-11 21:40:46    (After HapCUT2)  Total phased heterozygous SNVs: 15  Total likelihood (phred): 3482.24
+2026-10-11 21:40:46    (After Greedy)   Total phased heterozygous SNVs: 15  Total likelihood (phred): 3482.24
+2026-10-11 21:40:46    Round 2 of haplotype assembly...
+2026-10-11 21:40:46    (Before HapCUT2) Total phased heterozygous SNVs: 15  Total likelihood (phred): 3482.24
+2026-10-11 21:40:46    (After HapCUT2)  Total phased heterozygous SNVs: 15  Total likelihood (phred): 3482.24
+2026-10-11 21:40:46    (After Greedy)   Total phased heterozygous SNVs: 15  Total likelihood (phred): 3482.24
+2026-10-11 21:40:46 Printing VCF file...
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-onechr20.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-no-firstpass --sample_name test-transcriptome-no-firstpass --generate_map --sjc_support 2
+diff expected/test-transcriptome-no-firstpass.isoforms.bed output/test-transcriptome-no-firstpass.isoforms.bed
+diff expected/test-transcriptome-no-firstpass.isoforms.gtf output/test-transcriptome-no-firstpass.isoforms.gtf
+diff expected/test-transcriptome-no-firstpass.isoform.read.map.txt output/test-transcriptome-no-firstpass.isoform.read.map.txt
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair isoalleles --allele_vcf expected/test-alleles-withbed.allelegroups.vcf --allele_read_map expected/test-alleles-withbed.allelegroups.tumor.read.map.txt --genome tmp-input/genome.fa \
+                 --isoform_bed expected/test-transcriptome.isoforms.bed --iso_read_map expected/test-transcriptome.isoform.read.map.txt -o output/test-isoalleles --tumor_bam output/test-align.bam --generate_map
+diff expected/test-isoalleles.isoalleles.bed output/test-isoalleles.isoalleles.bed
+diff expected/test-isoalleles.isoallele.counts.tsv output/test-isoalleles.isoallele.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+intron-prospector --genome-fasta=tmp-input/genome.fa --intron-bed6=output/test-transcriptome-polyt.IPjunctions.bed -C 0.0 output/test-align-polyt.bam
+flair transcriptome -b output/test-align-polyt.bam -g tmp-input/genome.fa -t 4 -o output/test-transcriptome-polyt --sample_name test-transcriptome-polyt --junction_bed output/test-transcriptome-polyt.IPjunctions.bed --junction_support 2 --sjc_support 3 \
+   --filter ginormous --single_exon_support 2
+diff expected/test-transcriptome-polyt.isoforms.bed output/test-transcriptome-polyt.isoforms.bed
+diff expected/test-transcriptome-polyt.isoforms.gtf output/test-transcriptome-polyt.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c output/test-align.longshot.vcf > tmp-input/align.longshot.vcf.gz
+flair -z variantquant --transcriptome_bam output/test-align.bam --vcf tmp-input/align.longshot.vcf.gz \
+   --isoform_bed tmp-input/test-transcriptome.isoforms.bed.gz -o output/test-variantquant-compress
+diff <(sort expected/test-variantquant.var.counts.tsv) <(sort <(zcat output/test-variantquant-compress.var.counts.tsv.gz))
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair variantquant --transcriptome_bam output/test-align.bam --vcf output/test-align.longshot.vcf --isoform_bed expected/test-transcriptome.isoforms.bed -o output/test-variantquant
+diff <(sort expected/test-variantquant.var.counts.tsv) <(sort output/test-variantquant.var.counts.tsv)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome --sample_name test-transcriptome --keep_intermediate --generate_map
+diff expected/test-transcriptome.isoforms.bed output/test-transcriptome.isoforms.bed
+diff expected/test-transcriptome.isoforms.gtf output/test-transcriptome.isoforms.gtf
+diff expected/test-transcriptome.isoforms.fa output/test-transcriptome.isoforms.fa
+diff expected/test-transcriptome.isoform.read.map.txt output/test-transcriptome.isoform.read.map.txt
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f output/basic.annotation.sharedjunc.gtf -o output/test-transcriptome-shared-junc --sample_name test-transcriptome-shared-junc
+diff expected/test-transcriptome-shared-junc.isoforms.bed output/test-transcriptome-shared-junc.isoforms.bed
+diff expected/test-transcriptome-shared-junc.isoforms.gtf output/test-transcriptome-shared-junc.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair -z transcriptome -b output/test-align.bam -g tmp-input/genome.fa --junction_star tmp-input/basic.shortread_junctions.tab.gz \
+   -t 4 -f tmp-input/basic.annotation.gtf.gz -o output/test-transcriptome-compress --sample_name test-transcriptome --generate_map
+diff expected/test-transcriptome.isoforms.fa output/test-transcriptome-compress.isoforms.fa
+diff expected/test-transcriptome.isoform.read.map.txt <(zcat output/test-transcriptome-compress.isoform.read.map.txt.gz)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair alleles --tumor_bam output/test-align.bam --vcf output/test-align.longshot.vcf -g tmp-input/genome.fa --isoform_bed expected/test-transcriptome.isoforms.bed -o output/test-alleles-bedonly --generate_map --annotate_bams
+diff expected/test-alleles-bedonly.allelegroups.counts.tsv output/test-alleles-bedonly.allelegroups.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair alleles --tumor_bam output/test-align.bam --vcf output/test-align.longshot.vcf -g tmp-input/genome.fa -f input/basic.annotation.gtf -o output/test-alleles --generate_map --annotate_bams
+diff expected/test-alleles.allelegroups.counts.tsv output/test-alleles.allelegroups.counts.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c output/test-align.longshot.vcf > tmp-input/align.longshot.vcf.gz
+flair -z alleles --tumor_bam output/test-align.bam --vcf tmp-input/align.longshot.vcf.gz -g tmp-input/genome.fa \
+   --isoform_bed tmp-input/test-transcriptome.isoforms.bed.gz -f tmp-input/basic.annotation.gtf.gz \
+   -o output/test-alleles-compress --generate_map --annotate_bams
+diff expected/test-alleles-withbed.allelegroups.counts.tsv <(zcat output/test-alleles-compress.allelegroups.counts.tsv.gz)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair alleles --tumor_bam output/test-align.bam --vcf output/test-align.longshot.vcf -g tmp-input/genome.fa --isoform_bed expected/test-transcriptome.isoforms.bed -f input/basic.annotation.gtf -o output/test-alleles-withbed --generate_map --annotate_bams
+diff expected/test-alleles-withbed.allelegroups.counts.tsv output/test-alleles-withbed.allelegroups.counts.tsv
+diff expected/test-alleles-withbed.allelegroups.vcf output/test-alleles-withbed.allelegroups.vcf
+diff expected/test-alleles-withbed.allelegroups.tumor.read.map.txt output/test-alleles-withbed.allelegroups.tumor.read.map.txt
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome  -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-partition --sample_name test-transcriptome-partition --parallel_mode byregion
+diff expected/test-transcriptome-partition.isoforms.bed output/test-transcriptome-partition.isoforms.bed
+diff expected/test-transcriptome-partition.isoforms.gtf output/test-transcriptome-partition.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align.bam -g tmp-input/genome.fa --junction_tab input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-trust-ends --sample_name test-transcriptome-trust-ends --trust_ends
+--junction_tab is deprecated, use --junction_star instead
+diff expected/test-transcriptome-trust-ends.isoforms.bed output/test-transcriptome-trust-ends.isoforms.bed
+diff expected/test-transcriptome-trust-ends.isoforms.gtf output/test-transcriptome-trust-ends.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome  -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-mult-ends --sample_name test-transcriptome-mult-ends --max_ends 5 --keep_intermediate
+diff expected/test-transcriptome-mult-ends.isoforms.bed output/test-transcriptome-mult-ends.isoforms.bed
+diff expected/test-transcriptome-mult-ends.isoforms.gtf output/test-transcriptome-mult-ends.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-normends --sample_name test-transcriptome-normends --keep_intermediate --generate_map --normalize_ends
+diff expected/test-transcriptome-normends.isoforms.bed output/test-transcriptome-normends.isoforms.bed
+diff expected/test-transcriptome-normends.isoforms.gtf output/test-transcriptome-normends.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome  -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-mult-ends-trust-ends --sample_name test-transcriptome-mult-ends-trust-ends --max_ends 5 --trust_ends
+diff expected/test-transcriptome-mult-ends-trust-ends.isoforms.bed output/test-transcriptome-mult-ends-trust-ends.isoforms.bed
+diff expected/test-transcriptome-mult-ends-trust-ends.isoforms.gtf output/test-transcriptome-mult-ends-trust-ends.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-comprehensive-basic --sample_name test-transcriptome-comprehensive-basic --filter comprehensive
+diff expected/test-transcriptome-comprehensive-basic.isoforms.bed output/test-transcriptome-comprehensive-basic.isoforms.bed
+diff expected/test-transcriptome-comprehensive-basic.isoforms.gtf output/test-transcriptome-comprehensive-basic.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 ../src/flair/flair_spliceevents.py -m input/spliceevents.manifest.tsv -g tmp-input/genome.fa -t 4 -f input/basic.annotation.gtf --annot_basic input/basic.annotation.gtf -o output/test-spliceevents-extraannot
+INFO:root:loading genome
+INFO:root:temp directory: output/test-spliceevents-extraannot.intermediate/
+INFO:root:input regions: 3
+INFO:root:loading annotation GTF
+INFO:root:building intron support database
+INFO:root:running regions with 4 threads
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 ../src/flair/flair_spliceevents.py -m input/spliceevents.manifest.tsv -g tmp-input/genome.fa -t 4 -f input/basic.annotation.gtf -o output/test-spliceevents
+INFO:root:loading genome
+INFO:root:temp directory: output/test-spliceevents.intermediate/
+INFO:root:input regions: 3
+INFO:root:loading annotation GTF
+INFO:root:building intron support database
+INFO:root:running regions with 4 threads
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-nopolya.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-nopolya-trust-strand --sample_name test-transcriptome-nopolya-trust-strand \
+   --filter ginormous --single_exon_support 2 --trust_strand
+diff expected/test-transcriptome-nopolya-trust-strand.isoforms.bed output/test-transcriptome-nopolya-trust-strand.isoforms.bed
+diff expected/test-transcriptome-nopolya-trust-strand.isoforms.gtf output/test-transcriptome-nopolya-trust-strand.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+bgzip -c tmp-input/genome.fa > tmp-input/genome.bgz.fa.gz.tmp
+mv -f tmp-input/genome.bgz.fa.gz.tmp tmp-input/genome.bgz.fa.gz
+samtools faidx tmp-input/genome.bgz.fa.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair transcriptome -b output/test-align-nopolya.bam -g tmp-input/genome.fa --junction_star input/basic.shortread_junctions.tab -t 4 -f input/basic.annotation.gtf -o output/test-transcriptome-nopolya --sample_name test-transcriptome-nopolya \
+   --filter ginormous --single_exon_support 2
+diff expected/test-transcriptome-nopolya.isoforms.bed output/test-transcriptome-nopolya.isoforms.bed
+diff expected/test-transcriptome-nopolya.isoforms.gtf output/test-transcriptome-nopolya.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair align -r input/basic.reads.fa --genome tmp-input/genome.onechrom.fa -t 4 -o output/test-align-onechrom
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+rm -rf output/test-quantify-bgzip-genome.intermediate
+flair quantify --manifest input/basic.reads_manifest_bam.txt --genome tmp-input/genome.bgz.fa.gz \
+   --isoform_bed expected/test-transcriptome.isoforms.bed --generate_map --tpm -o output/test-quantify-bgzip-genome
+diff expected/test-quantify.counts.tsv output/test-quantify-bgzip-genome.counts.tsv
+diff expected/test-quantify.tpm.tsv output/test-quantify-bgzip-genome.tpm.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+intron-prospector --genome-fasta=tmp-input/genome.onechrom.fa --intron-bed6=output/test-transcriptome-onechrom.IPjunctions.bed -C 0.0 output/test-align-onechrom.bam
+flair transcriptome -b output/test-align-onechrom.bam -g tmp-input/genome.onechrom.fa -t 4 -o output/test-transcriptome-onechrom --sample_name test-transcriptome-onechrom --junction_bed output/test-transcriptome-onechrom.IPjunctions.bed --junction_support 2 --sjc_support 3
+diff expected/test-transcriptome-onechrom.isoforms.bed output/test-transcriptome-onechrom.isoforms.bed
+diff expected/test-transcriptome-onechrom.isoforms.gtf output/test-transcriptome-onechrom.isoforms.gtf
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 ../src/flair/flair_spliceevents.py -m tmp-input/spliceevents.manifest.tsv.gz -g tmp-input/genome.fa -t 4 \
+   -f tmp-input/basic.annotation.gtf.gz -o output/test-spliceevents-compress
+INFO:root:loading genome
+INFO:root:temp directory: output/test-spliceevents-compress.intermediate/
+INFO:root:input regions: 3
+INFO:root:loading annotation GTF
+INFO:root:building intron support database
+INFO:root:running regions with 4 threads
+diff <(sort output/test-spliceevents.diffsplice.counts.tsv | bin/tsv-round-numeric) <(sort output/test-spliceevents-compress.diffsplice.counts.tsv | bin/tsv-round-numeric)
+diff <(sort output/test-spliceevents.diffsplice.bed | bin/tsv-round-numeric) <(sort output/test-spliceevents-compress.diffsplice.bed | bin/tsv-round-numeric)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+===== TESTS PASSED =====
+make[1]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[1]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make  diffexp-tests diffsplice-tests && echo "===== TESTS PASSED =====" >&2 || { echo "===== TESTS FAILED =====" >&2; exit 1; }
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/basic.isoforms_diffsplice.bed > tmp-input/basic.isoforms_diffsplice.bed.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/basic.counts_matrix_diffsplice.tsv > tmp-input/basic.counts_matrix_diffsplice.tsv.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+gzip -c input/basic.counts_matrix_diffexp.tsv > tmp-input/basic.counts_matrix_diffexp.tsv.gz
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair diffexp --help > output/test-diffexp-help.out
+diff expected/test-diffexp-help.out output/test-diffexp-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair diffsplice --help > output/test-diffsplice-help.out
+diff expected/test-diffsplice-help.out output/test-diffsplice-help.out
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair diffsplice --isoform_bed input/basic.isoforms_diffsplice.bed --counts_matrix input/basic.counts_matrix_diffsplice.tsv --test -o output/test-diffsplice --overwrite_output
+diff <(sort expected/test-diffsplice/diffsplice.alt3.events.quant.tsv) <(sort output/test-diffsplice/diffsplice.alt3.events.quant.tsv)
+diff <(sort expected/test-diffsplice/diffsplice.alt5.events.quant.tsv) <(sort output/test-diffsplice/diffsplice.alt5.events.quant.tsv)
+diff expected/test-diffsplice/diffsplice.es.events.quant.tsv output/test-diffsplice/diffsplice.es.events.quant.tsv
+diff <(sort expected/test-diffsplice/diffsplice.ir.events.quant.tsv) <(sort output/test-diffsplice/diffsplice.ir.events.quant.tsv)
+diff expected/test-diffsplice/drimseq_alt3_A_v_B.tsv output/test-diffsplice/drimseq_alt3_A_v_B.tsv
+diff expected/test-diffsplice/drimseq_es_A_v_B.tsv output/test-diffsplice/drimseq_es_A_v_B.tsv
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair -z diffsplice --isoform_bed tmp-input/basic.isoforms_diffsplice.bed.gz \
+   --counts_matrix tmp-input/basic.counts_matrix_diffsplice.tsv.gz --test -o output/test-diffsplice-compress --overwrite_output
+diff <(sort expected/test-diffsplice/diffsplice.alt3.events.quant.tsv) <(sort <(zcat output/test-diffsplice-compress/diffsplice.alt3.events.quant.tsv.gz))
+diff expected/test-diffsplice/diffsplice.es.events.quant.tsv <(zcat output/test-diffsplice-compress/diffsplice.es.events.quant.tsv.gz)
+diff expected/test-diffsplice/drimseq_es_A_v_B.tsv <(zcat output/test-diffsplice-compress/drimseq_es_A_v_B.tsv.gz)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair -z diffexp --counts_matrix tmp-input/basic.counts_matrix_diffexp.tsv.gz -o output/test-diffexp-compress --min_expression 1 \
+   --condition_a MCF7 --condition_b A549 --overwrite_output
+/cluster/home/markd/opt/miniforge3/envs/flair-mddev/lib/python3.12/site-packages/scipy/stats/_axis_nan_policy.py:601: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+  res = hypotest_fun_out(*samples, **kwds)
+null device 
+          1 
+null device 
+          1 
+diff <(sort expected/test-diffexp/genes_deseq2_MCF7_v_A549.tsv) <(sort <(zcat output/test-diffexp-compress/genes_deseq2_MCF7_v_A549.tsv.gz))
+diff <(sort expected/test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv) <(sort <(zcat output/test-diffexp-compress/isoforms_deseq2_MCF7_v_A549.tsv.gz))
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+flair diffexp --counts_matrix input/basic.counts_matrix_diffexp.tsv -o output/test-diffexp --min_expression 1 \
+   --condition_a MCF7 --condition_b A549 --overwrite_output
+/cluster/home/markd/opt/miniforge3/envs/flair-mddev/lib/python3.12/site-packages/scipy/stats/_axis_nan_policy.py:601: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+  res = hypotest_fun_out(*samples, **kwds)
+null device 
+          1 
+null device 
+          1 
+diff <(sort expected/test-diffexp/genes_deseq2_MCF7_v_A549.tsv) <(sort output/test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
+diff <(sort expected/test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv) <(sort output/test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
+diff <(sort expected/test-diffexp/isoforms_drimseq_MCF7_v_A549.tsv) <(sort output/test-diffexp/isoforms_drimseq_MCF7_v_A549.tsv)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+make[2]: Entering directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+python3 bin/tsv-condition-interleave input/basic.counts_matrix_diffexp.tsv output/test-diffexp-colorder.counts_matrix.tsv
+flair diffexp --counts_matrix output/test-diffexp-colorder.counts_matrix.tsv -o output/test-diffexp-colorder --min_expression 1 \
+   --condition_a MCF7 --condition_b A549 --overwrite_output
+/cluster/home/markd/opt/miniforge3/envs/flair-mddev/lib/python3.12/site-packages/scipy/stats/_axis_nan_policy.py:601: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+  res = hypotest_fun_out(*samples, **kwds)
+null device 
+          1 
+null device 
+          1 
+diff <(sort output/test-diffexp/genes_deseq2_MCF7_v_A549.tsv | bin/tsv-round-numeric) <(sort output/test-diffexp-colorder/genes_deseq2_MCF7_v_A549.tsv | bin/tsv-round-numeric)
+diff <(sort output/test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv | bin/tsv-round-numeric) <(sort output/test-diffexp-colorder/isoforms_deseq2_MCF7_v_A549.tsv | bin/tsv-round-numeric)
+diff <(sort output/test-diffexp/isoforms_drimseq_MCF7_v_A549.tsv | awk -F'\t' -v OFS='\t' '{print $1, $2, $(NF-1), $NF}' | bin/tsv-round-numeric) <(sort output/test-diffexp-colorder/isoforms_drimseq_MCF7_v_A549.tsv | awk -F'\t' -v OFS='\t' '{print $1, $2, $(NF-1), $NF}' | bin/tsv-round-numeric)
+make[2]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+===== TESTS PASSED =====
+make[1]: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'
+===== TESTS PASSED =====
+make: Leaving directory '/hive/users/markd/flair/projs/src/flair-mddev/test'

@@ -37,6 +37,14 @@ endif
 ##
 # all targets
 ##
+
+# A test target says how it ended on stderr, so that the tail of a
+# `make -j ... test -O >&log' says whether the run passed, rather than burying a
+# failure in the middle of the log behind the tests that finished after it.
+define run_tests
+	${MAKE} $(1) && echo "===== TESTS PASSED =====" >&2 || { echo "===== TESTS FAILED =====" >&2; exit 1; }
+endef
+
 default:
 	@echo "====="
 	@echo "===== to see all targets: make help"
@@ -70,14 +78,13 @@ help:
 	@echo "   " make make hub-check huburl=https://public.gi.ucsc.edu/~you/flair/test/hub/hub.txt >&2
 
 test:
-	${MAKE} test-base test-with-R
+	$(call run_tests, test-base test-with-R)
 
 test-base:
 	${MAKE} test-alignments quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests test-doc-cli \
-		test-diffsplice-strands
+		spliceevents-tests partition-tests lib-tests test-doc-cli
 
 test-no-align:
 	${MAKE} test-alignments quantify-tests bed-to-gtf-tests \
@@ -86,7 +93,7 @@ test-no-align:
 		spliceevents-tests partition-tests lib-tests test-diffsplice-strands
 
 test-with-R:
-	${MAKE} diffexp-tests diffsplice-tests
+	$(call run_tests, diffexp-tests diffsplice-tests)
 
 test-installed:
 	${MAKE} test use_installed_flair=yes
@@ -99,7 +106,7 @@ test-help:
 		test-quantify-help test-diffexp-help test-diffsplice-help \
 		test-diff-iso-usage-help \
 		test-plot-usage-help test-transcriptome-help test-fusion-help \
-		test-doc-cli
+		test-doc-cli)
 
 # the committed option pages must match what the parsers currently define
 test-doc-cli: mkdirs
@@ -108,9 +115,9 @@ test-doc-cli: mkdirs
 	diff -r ${root}/docs/source/cli $O/cli
 
 test-fast:
-	${MAKE} test-combine-bed-only \
+	$(call run_tests, test-combine-bed-only \
 		test-diff-iso-usage test-plot-usage test-transcriptome \
-		test-fusion
+		test-fusion)
 
 ##
 # Non-python programs FLAIR runs.  test-env-only reruns the tests with only the
@@ -263,16 +270,53 @@ KRAS_MUT_SPLICE_SJ_BB = $O/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.sj.
 KRAS_MUT_SPLICE_BED = $I/KRAS_sim_genomic_mut_driven_splicing.bed
 KRAS_MUT_SPLICE_BB = $O/KRAS_sim_genomic_mut_driven_splicing.bb
 
+##
+# fusion tests; these are above ALIGNED_TEST_BAMS, which names them
+##
+ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
+FUSION_TEST_SHARED_OUT = $O/fusion_tests
+FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
+# a 3-gene fusion, ERGIC3 (chr20 +) -- DDX5 (chr17 -) -- KRAS (chr12 -), joined at
+# annotated exon boundaries and simulated with badread at 30x, reads oriented 5' to 3'
+FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
+FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
+# the fusion test reads aligned to the test genome with RefSeq's sequence names
+REFSEQ_FUSION_TEST_BAM = $O/fusion_tests.refSeq.bam
+
 COMBINE_MANIFEST = $I/combine_manifest_bed-only.txt
 QUANTIFY_MANIFEST = $I/basic.reads_manifest_bam.txt
 SPLICEEVENTS_MANIFEST = $I/spliceevents.manifest.tsv
 
 TOME_ISOFORM_BED = $E/test-transcriptome.isoforms.bed
-TOME_READ_MAP = $E/test-transcriptome.isoform.read.map.txt
+TOME_READ_MAP = $E/test-transcriptome.isoform.read.map.tsv
 
 # The help test results vary on screen width.  This forces them to be consistent.
 # It might seem weird to see if help works, but some it did break in the past.
 export COLUMNS = 80
+
+##
+# Compressed copies of inputs, built on demand, so the compression tests read the
+# same data as the plain tests.  Every text input flair reads may be gzipped; BAM
+# is already compressed and never is.
+##
+${TI}/%.gz: $I/%
+	@mkdir -p ${TI}
+	gzip -c $< > $@
+
+##
+# A bgzip genome, indexed.  The genome is the one input that cannot be plain gzip:
+# the sequence reader needs random access, which only bgzip gives it.
+##
+BGZIP_GENOME_FA = ${TI}/genome.bgz.fa.gz
+
+${BGZIP_GENOME_FA}: ${GENOME_FA}
+	bgzip -c $< > $@.tmp
+	mv -f $@.tmp $@
+	samtools faidx $@
+
+${TI}/%.gz: $E/%
+	@mkdir -p ${TI}
+	gzip -c $< > $@
 
 ##
 # compare output, expected with result
@@ -293,6 +337,59 @@ endef
 define cmp_expect_sort
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff <(sort $E/${1}) <(sort $O/${1})
+endef
+
+##
+# compare a compression test's output against the expected file of the plain test,
+# which is what it must reproduce from gzipped input
+##
+define cmp_expect_named
+	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
+	diff $E/${2} $O/${1}
+endef
+
+define cmp_expect_sort_named
+	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
+	diff <(sort $E/${2}) <(sort $O/${1})
+endef
+
+##
+# compare a compressed output against the expected file of the plain test, reading
+# it through zcat and leaving it compressed
+##
+define cmp_expect_gz
+	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
+	diff $E/${2} <(zcat $O/${1}.gz)
+endef
+
+define cmp_expect_sort_gz
+	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
+	diff <(sort $E/${2}) <(sort <(zcat $O/${1}.gz))
+endef
+
+##
+# a compressed output that has no expected file of its own: it must be there and
+# must decompress
+##
+define check_gz
+	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
+	zcat $O/${1}.gz > /dev/null
+endef
+
+##
+# a compressed FASTA is bgzip rather than plain gzip so that it can be indexed,
+# which is what this checks; samtools faidx refuses a plain gzip file
+##
+define check_fasta_indexable
+	samtools faidx $O/${1}.gz
+endef
+
+##
+# a compressed VCF carries a tabix index, which this checks by fetching through it
+##
+define check_vcf_indexed
+	@test -e $O/${1}.gz.tbi || (echo Error: tabix index missing: $O/${1}.gz.tbi; exit 1)
+	tabix $O/${1}.gz ${2} > /dev/null
 endef
 
 ##
@@ -414,7 +511,7 @@ endef
 
 # resulting read map differs between run (see #443)
 # just check if it exists for now
-# should do: $(call cmp_expect_sort,$@.isoform.read.map.txt)
+# should do: $(call cmp_expect_sort,$@.isoform.read.map.tsv)
 define diff_bed_gtf_sort_read_map
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 endef
@@ -430,7 +527,7 @@ endef
 
 
 combine-tests: test-combine test-combine-files test-combine-nose test-combine-10pct test-combine-multends test-combine-multends-10pct \
-	test-combine-conflict test-combine-conflict-gtf test-combine-isoalleles
+	test-combine-conflict test-combine-conflict-gtf test-combine-isoalleles test-combine-compress
 
 update-combine-tests:
 	for tname in "test-combine" "test-combine-files" "test-combine-nose" "test-combine-10pct" "test-combine-multends" "test-combine-multends-10pct" "test-combine-conflict-gtf" "test-combine-isoalleles"; \
@@ -444,6 +541,21 @@ test-combine: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@
 # 	$(call cmp_expect_bed_simple,$@.combined.isoforms.bed)
 	$(combine_diff)
+
+# the same eight BEDs test-combine-files uses, gzipped
+COMBINE_BEDS_GZ = ${TI}/test-transcriptome.isoforms.bed.gz ${TI}/test-transcriptome-mult-ends.isoforms.bed.gz \
+	${TI}/test-transcriptome-mutant-splice.isoforms.bed.gz ${TI}/test-transcriptome-readthrough.isoforms.bed.gz \
+	${TI}/test-fusion.fusions.isoforms.bed.gz ${TI}/test-transcriptome-seg1-badannot.isoforms.bed.gz \
+	${TI}/test-transcriptome-seg1-badannot-multends.isoforms.bed.gz \
+	${TI}/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed.gz
+
+test-combine-compress: mkdirs ${GENOME_FA} ${COMBINE_BEDS_GZ}
+	flair -z combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds $(shell echo $(COMBINE_BEDS_GZ) | tr ' ' ',')
+	$(call cmp_expect_gz,$@.combined.isoform.counts.tsv,test-combine-files.combined.isoform.counts.tsv)
+	$(call cmp_expect_gz,$@.combined.isoforms.bed,test-combine-files.combined.isoforms.bed)
+	$(call check_gz,$@.combined.isoforms.gtf)
+	$(call check_gz,$@.combined.isoforms.fa)
+	$(call check_fasta_indexable,$@.combined.isoforms.fa)
 
 test-combine-files: mkdirs ${GENOME_FA}
 	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
@@ -491,21 +603,39 @@ test-combine-isoalleles: mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-normends test-quantify-help
+quantify-tests: test-quantify test-quantify-compress test-quantify-bgzip-genome test-quantify-normends test-quantify-help
 
 test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	rm -rf $O/$@.intermediate
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	rm -rf $O/$@.intermediate
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene --normalize_ends
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --normalize_ends
 	$(call cmp_expect,$@.counts.tsv)
 	$(call cmp_expect,$@.sample_info.tsv)
 	$(call cmp_expect,$@.tpm.tsv)
+
+# every text input gzipped: the isoform BED and the manifest
+test-quantify-compress: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} \
+		${TI}/test-transcriptome.isoforms.bed.gz ${TI}/basic.reads_manifest_bam.txt.gz
+	rm -rf $O/$@.intermediate
+	flair --compress quantify --manifest ${TI}/basic.reads_manifest_bam.txt.gz --genome ${GENOME_FA} \
+	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --generate_map --tpm -o $O/$@
+	$(call cmp_expect_gz,$@.counts.tsv,test-quantify.counts.tsv)
+	$(call cmp_expect_gz,$@.sample_info.tsv,test-quantify.sample_info.tsv)
+	$(call cmp_expect_gz,$@.tpm.tsv,test-quantify.tpm.tsv)
+
+# the genome bgzipped and indexed, every other input plain
+test-quantify-bgzip-genome: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${BGZIP_GENOME_FA}
+	rm -rf $O/$@.intermediate
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${BGZIP_GENOME_FA} \
+	   --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@
+	$(call cmp_expect_named,$@.counts.tsv,test-quantify.counts.tsv)
+	$(call cmp_expect_named,$@.tpm.tsv,test-quantify.tpm.tsv)
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out
@@ -514,7 +644,7 @@ test-quantify-help: mkdirs
 ###
 # FLAIR DIFFEXP
 ###
-diffexp-tests: test-diffexp test-diffexp-colorder test-diffexp-help
+diffexp-tests: test-diffexp test-diffexp-compress test-diffexp-colorder test-diffexp-help
 
 # the conditions are named, so which one is the reference does not depend on where
 # their columns fall in the counts matrix
@@ -528,6 +658,12 @@ test-diffexp : mkdirs
 # same counts, columns interleaved rather than grouped by condition, compared against
 # the same expected results.  Taking the conditions from the first and last column
 # got this wrong, and with an order like A,B,B,A filtered one condition twice.
+test-diffexp-compress: mkdirs ${TI}/basic.counts_matrix_diffexp.tsv.gz
+	flair -z diffexp --counts_matrix ${TI}/basic.counts_matrix_diffexp.tsv.gz -o $O/$@ --min_expression 1 \
+	   --condition_a MCF7 --condition_b A549 --overwrite_output
+	$(call cmp_expect_sort_gz,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_gz,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
+
 test-diffexp-colorder : mkdirs test-diffexp
 	${PYTHON} bin/tsv-condition-interleave $(BASIC_COUNTS_MATRIX) $O/$@.counts_matrix.tsv
 	flair diffexp --counts_matrix $O/$@.counts_matrix.tsv -o $O/$@ --min_expression 1 \
@@ -543,9 +679,8 @@ test-diffexp-help: mkdirs
 ###
 # FLAIR DIFFSPLICE
 ###
-diffsplice-tests: test-diffsplice test-diffsplice-cond test-diffsplice-strands test-diffsplice-help
+diffsplice-tests: test-diffsplice test-diffsplice-cond test-diffsplice-strands test-diffsplice-help test-diffsplice-compress
 
-# various output files not long produce due to changes in test cases
 test-diffsplice: mkdirs
 	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output
 	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
@@ -553,7 +688,17 @@ test-diffsplice: mkdirs
 	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
 	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
 	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect,$@/drimseq_alt5_A_v_B.tsv)
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect,$@/drimseq_ir_A_v_B.tsv)
+
+test-diffsplice-compress: mkdirs ${TI}/basic.isoforms_diffsplice.bed.gz ${TI}/basic.counts_matrix_diffsplice.tsv.gz
+	flair -z diffsplice --isoform_bed ${TI}/basic.isoforms_diffsplice.bed.gz \
+	   --counts_matrix ${TI}/basic.counts_matrix_diffsplice.tsv.gz --test -o $O/$@ --overwrite_output
+	$(call cmp_expect_sort_gz,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_gz,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_gz,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
+	$(call cmp_expect_gz,$@/drimseq_ir_A_v_B.tsv,test-diffsplice/drimseq_ir_A_v_B.tsv)
 
 # naming the two conditions gives what taking them in sorted order gives.  The
 # comparisons used to name test-diffsplice on both sides, so they re-checked that
@@ -584,11 +729,15 @@ test-diffsplice-help: mkdirs
 	$(call cmp_expect,$@.out)
 
 
-bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-extracols
+bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-compress test-bed-to-gtf-extracols
 
 test-bed-to-gtf : mkdirs
 	bed_to_gtf $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
+
+test-bed-to-gtf-compress : mkdirs ${TI}/test-collapse-annot.isoforms.bed.gz
+	bed_to_gtf ${TI}/test-collapse-annot.isoforms.bed.gz > $O/$@.gtf
+	$(call cmp_expect_named,$@.gtf,test-bed-to-gtf.gtf)
 
 test-bed-to-gtf-extracols : mkdirs
 	bed_to_gtf --is_flair_bed $(TOME_ISOFORM_BED) > $O/$@.gtf
@@ -598,11 +747,15 @@ test-bed-to-gtf-extracols : mkdirs
 ##
 # DIFF ISO USAGE
 ##
-diff-iso-usage-tests: test-diff-iso-usage test-diff-iso-usage-help
+diff-iso-usage-tests: test-diff-iso-usage test-diff-iso-usage-compress test-diff-iso-usage-help
 
 test-diff-iso-usage: mkdirs
 	diff_iso_usage $(BASIC_COUNTS_MATRIX) MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
 	$(call cmp_expect,$@.tsv)
+
+test-diff-iso-usage-compress: mkdirs ${TI}/basic.counts_matrix_diffexp.tsv.gz
+	diff_iso_usage ${TI}/basic.counts_matrix_diffexp.tsv.gz MCF7cdnar1r3_MCF7_batch1 MCF7cdnastrandr3r2_MCF7_batch1 $O/$@.tsv
+	$(call cmp_expect_named,$@.tsv,test-diff-iso-usage.tsv)
 
 test-diff-iso-usage-help: mkdirs
 	diff_iso_usage --help > $O/$@.out
@@ -611,13 +764,18 @@ test-diff-iso-usage-help: mkdirs
 # ##
 # # plot isoform usage
 # ##
-plot-usage-tests: test-plot-usage test-plot-usage-help
+plot-usage-tests: test-plot-usage test-plot-usage-compress test-plot-usage-help
 
-# only works with quantify output run with with-gene
 test-plot-usage: mkdirs
 	plot_isoform_usage $(TOME_ISOFORM_BED) $E/test-quantify.counts.tsv FLG00000002 --min_reads 1 -o $O/$@
 	file $O/test-plot-usage_FLG00000002_usage.pdf | grep 'PDF document' >/dev/null
 	file $O/test-plot-usage_FLG00000002_isoforms.pdf | grep 'PDF document' >/dev/null
+
+test-plot-usage-compress: mkdirs ${TI}/test-transcriptome.isoforms.bed.gz ${TI}/test-quantify.counts.tsv.gz
+	plot_isoform_usage ${TI}/test-transcriptome.isoforms.bed.gz ${TI}/test-quantify.counts.tsv.gz \
+	   FLG00000002 --min_reads 1 -o $O/$@
+	file $O/$@_FLG00000002_usage.pdf | grep 'PDF document' >/dev/null
+	file $O/$@_FLG00000002_isoforms.pdf | grep 'PDF document' >/dev/null
 
 test-plot-usage-help: mkdirs
 	plot_isoform_usage --help > $O/$@.out
@@ -631,7 +789,7 @@ transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-tr
                     test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-total-rna test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
 					test-transcriptome-keep-intermediate-needs-temp-dir test-transcriptome-trust-ends-removed \
-					test-transcriptome-total-rna-needs-trust-strand test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic
+					test-transcriptome-total-rna-needs-trust-strand test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic test-transcriptome-compress
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-nochecksplice" "test-transcriptome-nostringent" "test-transcriptome-nostringentsplice" "test-transcriptome-directrna" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-noannot-trust-junctions" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
@@ -645,40 +803,40 @@ update-transcriptome-tests:
 
 test-transcriptome: mkdirs ${BASIC_ALIGN_BAM}
 	rm -rf $O/$@.tmp
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate --temp_dir $O/$@.tmp --generate_map
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate --temp_dir $O/$@.tmp --generate_map
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoforms.fa)
-	$(call cmp_expect,$@.isoform.read.map.txt)
+	$(call cmp_expect,$@.isoform.read.map.tsv)
 
 test-transcriptome-nochecksplice: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_check_splice
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_check_splice
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-nostringent: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_stringent
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_stringent
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-nostringentsplice: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_stringent --no_check_splice
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_stringent --no_check_splice
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 # --directRNA: trusts read strand and does not tolerate large indels in terminal exons
 test-transcriptome-directrna: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --directRNA
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --directRNA
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 # --normalize_ends: spliced isoforms report the ends shared by the isoforms of
 # their gene with similar terminal splice sites, rather than their reads' ends
 test-transcriptome-normends: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --normalize_ends
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --normalize_ends
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
-	$(call cmp_expect,$@.isoform.read.map.txt)
+	$(call cmp_expect,$@.isoform.read.map.tsv)
 
 # test of --filter comprehensive, which keeps the subset isoforms that the
 # default nosubset filter drops from test-transcriptome-mutant-splice
@@ -692,18 +850,18 @@ test-transcriptome-comprehensive: mkdirs ${KRAS_MUT_SPLICE_BAM}
 # --filter comprehensive on the basic data, which has single-exon isoforms
 # contained in spliced exons
 test-transcriptome-comprehensive-basic: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --filter comprehensive
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --filter comprehensive
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-mult-ends: mkdirs ${BASIC_ALIGN_BAM}
 	rm -rf $O/$@.tmp
-	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 5 --keep_intermediate --temp_dir $O/$@.tmp
+	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 5 --keep_intermediate --temp_dir $O/$@.tmp
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-partition: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --parallel_mode byregion
+	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --parallel_mode byregion
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
@@ -801,13 +959,13 @@ ${DDX5_BYSUPPORT_BAM}: ${DDX5_READTHROUGH_BAM} ${DDX5_BYSUPPORT_DROP_READS}
 # basic reads with poly(A) trimmed, keeping single-exon isoforms.  Without poly(A),
 # single-exon reads can only be stranded with --trust_strand, so compare these two
 test-transcriptome-nopolya: mkdirs ${NOPOLYA_ALIGN_BAM}
-	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
 test-transcriptome-nopolya-trust-strand: mkdirs ${NOPOLYA_ALIGN_BAM}
-	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2 --trust_strand
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
@@ -824,6 +982,7 @@ test-transcriptome-polyt: mkdirs ${POLYT_ALIGN_BAM}
 # novel DDX5 isoforms use the intron shared with the synthetic SHAREDJ1 gene; SHAREDJ1
 # has fewer of their junctions, so gene assignment drops it and the results match
 # test-transcriptome
+# deliberately uses the deprecated --junction_tab, so that spelling stays covered
 test-transcriptome-shared-junc: mkdirs ${BASIC_ALIGN_BAM} ${SHARED_JUNC_ANNOTATION}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f ${SHARED_JUNC_ANNOTATION} -o $O/$@ --sample_name $@
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
@@ -832,10 +991,10 @@ test-transcriptome-shared-junc: mkdirs ${BASIC_ALIGN_BAM} ${SHARED_JUNC_ANNOTATI
 # the chr20 partition has one read, below --sjc_support 2, so it has no firstpass
 # isoforms; results should be the chr12 and chr17 isoforms of test-transcriptome
 test-transcriptome-no-firstpass: mkdirs ${ONECHR20_ALIGN_BAM}
-	flair transcriptome -b ${ONECHR20_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --sjc_support 2
+	flair transcriptome -b ${ONECHR20_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --sjc_support 2
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
-	$(call cmp_expect,$@.isoform.read.map.txt)
+	$(call cmp_expect,$@.isoform.read.map.tsv)
 
 # test-transcriptome-noannot with all loci on one chromosome, so KRAS and DDX5 (both
 # minus strand) are separate novel genes on the same strand of one partition
@@ -863,7 +1022,7 @@ test-transcriptome-keep-intermediate-needs-temp-dir: mkdirs ${BASIC_ALIGN_BAM}
 # --total_rna: single-exon reads ending in or before genomic A runs are kept rather
 # than removed as internally primed
 test-transcriptome-total-rna: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_strand --total_rna
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_strand --total_rna
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
@@ -871,7 +1030,7 @@ test-transcriptome-total-rna: mkdirs ${BASIC_ALIGN_BAM}
 # reads, though single-exon end variants still need SINGLE_EXON_END_MIN_FRAC of
 # their cluster's reads
 test-transcriptome-frac-support-0: mkdirs ${NOPOLYA_ALIGN_BAM}
-	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2 --trust_strand --frac_support 0
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
@@ -879,7 +1038,7 @@ test-transcriptome-frac-support-0: mkdirs ${NOPOLYA_ALIGN_BAM}
 # the basic test with --frac_support 0: spliced isoforms need only sjc_support reads,
 # 3 here, as the default 1 would keep every corrected junction chain
 test-transcriptome-frac-support-0-basic: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --frac_support 0 --sjc_support 3
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
@@ -923,7 +1082,8 @@ ${BASIC_LONGSHOT}: ${GENOME_FA} ${BASIC_ALIGN_BAM}
 # longshot is not currently include in the docker container, so tests needing
 # it are skipped with a warning rather than failing
 have_longshot := $(shell which longshot >/dev/null 2>&1 && echo yes || echo no)
-longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant
+longshot_tests = test-alleles test-alleles-withbed test-alleles-bedonly test-isoalleles test-variantquant \
+	test-alleles-compress test-isoalleles-compress test-variantquant-compress
 
 ifeq (${have_longshot},yes)
 variants-tests: ${longshot_tests}
@@ -941,7 +1101,7 @@ test-alleles-withbed: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 	flair alleles --tumor_bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -f $(BASIC_ANNOTATION) -o $O/$@ --generate_map --annotate_bams
 	$(call cmp_expect,$@.allelegroups.counts.tsv)
 	$(call cmp_expect,$@.allelegroups.vcf)
-	$(call cmp_expect,$@.allelegroups.tumor.read.map.txt)
+	$(call cmp_expect,$@.allelegroups.tumor.read.map.tsv)
 
 test-alleles-bedonly: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 	flair alleles --tumor_bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} -g ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@ --generate_map --annotate_bams
@@ -952,7 +1112,7 @@ test-alleles-bedonly: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 # 	$(call cmp_expect,$@.isoforms.allelegroups.bed)
 
 test-isoalleles: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
-	flair isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.txt --genome ${GENOME_FA} \
+	flair isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.tsv --genome ${GENOME_FA} \
 	                 --isoform_bed $(TOME_ISOFORM_BED) --iso_read_map $(TOME_READ_MAP) -o $O/$@ --tumor_bam ${BASIC_ALIGN_BAM} --generate_map
 	$(call cmp_expect,$@.isoalleles.bed)
 	$(call cmp_expect,$@.isoallele.counts.tsv)
@@ -977,18 +1137,9 @@ test-identifyvars-snvsindels: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
 ###
 # flair fusion
 ###
-ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
-FUSION_TEST_SHARED_OUT = $O/fusion_tests
-FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
-# a 3-gene fusion, ERGIC3 (chr20 +) -- DDX5 (chr17 -) -- KRAS (chr12 -), joined at
-# annotated exon boundaries and simulated with badread at 30x, reads oriented 5' to 3'
-FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
-FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
-# the fusion test reads aligned to the test genome with RefSeq's sequence names
-REFSEQ_FUSION_TEST_BAM = $O/fusion_tests.refSeq.bam
 
 fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf \
-	test-fusion-refseq test-fusion-help
+	test-fusion-refseq test-fusion-help test-fusion-compress
 
 update-fusion-tests:
 	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene" "test-fusion-refseq"; \
@@ -1003,11 +1154,19 @@ test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
-	$(call cmp_expect_sort,$@.fusions.isoform.counts.txt)
+	$(call cmp_expect_sort,$@.fusions.isoform.counts.tsv)
 	$(call cmp_expect,$@.fusions.aaseq.tsv)
-	test -s $O/$@.fusions.isoform.read.map.txt -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
+	test -s $O/$@.fusions.isoform.read.map.tsv -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 # 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
+
+# the sample name is the one test-fusion used, since it is written into the BED
+test-fusion-compress: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM} ${TI}/basic.annotation.gtf.gz
+	flair -z fusion -g ${GENOME_FA} -f ${TI}/basic.annotation.gtf.gz -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name test-fusion --min_support 2
+	$(call cmp_expect_sort_gz,$@.fusions.isoforms.bed,test-fusion.fusions.isoforms.bed)
+	$(call cmp_expect_sort_gz,$@.fusions.isoforms.fa,test-fusion.fusions.isoforms.fa)
+	$(call check_gz,$@.fusions.isoforms.gtf)
+	$(call check_fasta_indexable,$@.fusions.isoforms.fa)
 
 test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
@@ -1026,9 +1185,9 @@ test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
 	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
-	$(call cmp_expect_sort,$@.fusions.isoform.counts.txt)
+	$(call cmp_expect_sort,$@.fusions.isoform.counts.tsv)
 	$(call cmp_expect,$@.fusions.aaseq.tsv)
-	test -s $O/$@.fusions.isoform.read.map.txt -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
+	test -s $O/$@.fusions.isoform.read.map.tsv -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 
 ${FUSION3_TEST_BAM}: $I/ERGIC3_DDX5_KRAS_sim_fusion.badread30x.stranded.fastq ${GENOME_FA}
 	$(call minimap2_genome_align,$I/ERGIC3_DDX5_KRAS_sim_fusion.badread30x.stranded.fastq,${GENOME_FA},-s 40 -G 350k)
@@ -1075,7 +1234,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq
 ###
 # flair spliceevents
 ###
-spliceevents-tests: test-spliceevents test-spliceevents-extraannot
+spliceevents-tests: test-spliceevents test-spliceevents-compress test-spliceevents-extraannot
 
 test-spliceevents: mkdirs ${BASIC_ALIGN_BAM}
 	python3 ../src/flair/flair_spliceevents.py -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
@@ -1164,10 +1323,10 @@ HUB_OUT_DIR = $O/hg38
 
 HG38_CHROMS = https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chromAlias.bb
 
-TEST_TRANSCRIPOME_MUTANT_SPLICE_BB = output/test-transcripome-mutant-splice.isoforms.bb
+TEST_TRANSCRIPTOME_MUTANT_SPLICE_BB = output/test-transcriptome-mutant-splice.isoforms.bb
 TEST_TRANSCRIPTOME_SEG1_BB =  output/test-transcriptome-seg1.isoforms.bb
 
-test-hub:  ${KRAS_MUT_SPLICE_BB} ${KRAS_MUT_SPLICE_SJ_BB} ${TEST_TRANSCRIPOME_MUTANT_SPLICE_BB} \
+test-hub:  ${KRAS_MUT_SPLICE_BB} ${KRAS_MUT_SPLICE_SJ_BB} ${TEST_TRANSCRIPTOME_MUTANT_SPLICE_BB} \
 	${TEST_TRANSCRIPTOME_SEG1_BB}
 
 $O/%.bb: $O/%.bed
@@ -1194,3 +1353,49 @@ clean:
 
 real-clean : clean
 	rm -rf ${TI}
+
+##
+# Compression: every subcommand run with -z, its outputs compared against the
+# expected files of its plain test
+##
+
+test-transcriptome-compress: mkdirs ${BASIC_ALIGN_BAM} ${TI}/basic.annotation.gtf.gz ${TI}/basic.shortread_junctions.tab.gz
+	flair -z transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${TI}/basic.shortread_junctions.tab.gz \
+	   -t 4 -f ${TI}/basic.annotation.gtf.gz -o $O/$@ --sample_name test-transcriptome --generate_map
+	$(call cmp_expect_gz,$@.isoforms.bed,test-transcriptome.isoforms.bed)
+	$(call cmp_expect_gz,$@.isoforms.gtf,test-transcriptome.isoforms.gtf)
+	$(call cmp_expect_gz,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_gz,$@.isoform.read.map.tsv,test-transcriptome.isoform.read.map.tsv)
+	$(call check_fasta_indexable,$@.isoforms.fa)
+
+test-isoalleles-compress: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} ${TI}/test-transcriptome.isoforms.bed.gz
+	flair -z isoalleles --allele_vcf $E/test-alleles-withbed.allelegroups.vcf --allele_read_map $E/test-alleles-withbed.allelegroups.tumor.read.map.tsv --genome ${GENOME_FA} \
+	                 --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --iso_read_map $(TOME_READ_MAP) -o $O/$@ --tumor_bam ${BASIC_ALIGN_BAM} --generate_map
+	$(call cmp_expect_gz,$@.isoalleles.bed,test-isoalleles.isoalleles.bed)
+	$(call cmp_expect_gz,$@.isoallele.counts.tsv,test-isoalleles.isoallele.counts.tsv)
+	$(call check_fasta_indexable,$@.isoalleles.fa)
+
+test-variantquant-compress: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} \
+		${TI}/test-transcriptome.isoforms.bed.gz
+	gzip -c ${BASIC_LONGSHOT} > ${TI}/align.longshot.vcf.gz
+	flair -z variantquant --transcriptome_bam ${BASIC_ALIGN_BAM} --vcf ${TI}/align.longshot.vcf.gz \
+	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz -o $O/$@
+	$(call cmp_expect_sort_gz,$@.var.counts.tsv,test-variantquant.var.counts.tsv)
+
+test-alleles-compress: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} ${TI}/basic.annotation.gtf.gz \
+		${TI}/test-transcriptome.isoforms.bed.gz
+	gzip -c ${BASIC_LONGSHOT} > ${TI}/align.longshot.vcf.gz
+	flair -z alleles --tumor_bam ${BASIC_ALIGN_BAM} --vcf ${TI}/align.longshot.vcf.gz -g ${GENOME_FA} \
+	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz -f ${TI}/basic.annotation.gtf.gz \
+	   -o $O/$@ --generate_map --annotate_bams
+	$(call cmp_expect_gz,$@.allelegroups.counts.tsv,test-alleles-withbed.allelegroups.counts.tsv)
+	$(call cmp_expect_gz,$@.allelegroups.vcf,test-alleles-withbed.allelegroups.vcf)
+	$(call check_vcf_indexed,$@.allelegroups.vcf,chr12)
+
+test-spliceevents-compress: mkdirs ${BASIC_ALIGN_BAM} test-spliceevents \
+		${TI}/spliceevents.manifest.tsv.gz ${TI}/basic.annotation.gtf.gz
+	python3 ../src/flair/flair_spliceevents.py -m ${TI}/spliceevents.manifest.tsv.gz -g ${GENOME_FA} -t 4 \
+	   -f ${TI}/basic.annotation.gtf.gz -o $O/$@
+	$(call cmp_expect_sort_as,$@.diffsplice.counts.tsv,test-spliceevents.diffsplice.counts.tsv)
+	$(call cmp_expect_sort_as,$@.diffsplice.bed,test-spliceevents.diffsplice.bed)
+

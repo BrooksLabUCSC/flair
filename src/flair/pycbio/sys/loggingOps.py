@@ -1,6 +1,7 @@
 """
 Operations associated with logging
 """
+import argparse
 import logging
 import logging.config
 import os
@@ -118,12 +119,18 @@ def setupNullLogger(logger, level=logging.INFO):
     return setupLogger(logger, handler, level=level)
 
 
-def addCmdOptions(parser, *, defaultLevel=logging.WARNING, inclSyslog=False):
+def addCmdOptions(parser, *, defaultLevel=logging.WARNING, inclSyslog=False, subcommandCopy=False):
     """
     Add command line options related to logging.  None of these are defaulted,
     as one might need to determine if they were explicitly set. The use case
     being getting a value from a configuration file if it is not specified on
     the command line.
+
+    With subcommandCopy, these are added to a subparser as a second copy of the
+    options already on the main parser, so that they are accepted either before
+    or after the subcommand.  The copy is hidden from help and sets no defaults;
+    without that, a subparser would reset a value given before the subcommand
+    when the option is not repeated after it.
     """
     # want to validate name, but want to store the string in the arguments vector
     # rather than the numeric value.
@@ -134,18 +141,25 @@ def addCmdOptions(parser, *, defaultLevel=logging.WARNING, inclSyslog=False):
     def validateLevel(levelSpec):
         parseLevel(levelSpec)
         return levelSpec
+
+    def optDefault(value):
+        return argparse.SUPPRESS if subcommandCopy else value
+
+    def optHelp(helpStr):
+        return argparse.SUPPRESS if subcommandCopy else helpStr
+
     if inclSyslog:
-        parser.add_argument("--syslog-facility", type=validateFacility,
-                            help="Set syslog facility to case-insensitive symbolic value, if not specified, logging is not done to stderr, "
-                            " one of: " + ", ".join(getFacilityNames()))
-    parser.add_argument("--log-stderr", action="store_true",
-                        help="also log to stderr, even when logging to syslog")
-    parser.add_argument("--log-level", type=validateLevel, default=defaultLevel,
-                        help="Set level to integer or case-insensitive symbolic value, one of: " + ", ".join(getLevelNames()))
-    parser.add_argument("--log-conf",
-                        help="Python logging configuration file, see logging.config.fileConfig()")
-    parser.add_argument("--log-debug", action="store_true",
-                        help="short-cut that that sets --log-stderr and --log-level=DEBUG")
+        parser.add_argument("--syslog-facility", type=validateFacility, default=optDefault(None),
+                            help=optHelp("Set syslog facility to case-insensitive symbolic value, if not specified, logging is not done to stderr, "
+                                         " one of: " + ", ".join(getFacilityNames())))
+    parser.add_argument("--log-stderr", action="store_true", default=optDefault(False),
+                        help=optHelp("also log to stderr, even when logging to syslog"))
+    parser.add_argument("--log-level", type=validateLevel, default=optDefault(defaultLevel),
+                        help=optHelp("Set level to integer or case-insensitive symbolic value, one of: " + ", ".join(getLevelNames())))
+    parser.add_argument("--log-conf", default=optDefault(None),
+                        help=optHelp("Python logging configuration file, see logging.config.fileConfig()"))
+    parser.add_argument("--log-debug", action="store_true", default=optDefault(False),
+                        help=optHelp("short-cut that that sets --log-stderr and --log-level=DEBUG"))
 
 def haveCmdOptions(parser):
     """Check if an logging options have been added to this parser."""

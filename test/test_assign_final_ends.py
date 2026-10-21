@@ -1,13 +1,16 @@
 from types import SimpleNamespace
 from flair.isoform_data import Isoform, Junc
 from flair.flair_transcriptome import _iso_passes_support_filter, assign_final_ends, assign_single_exon_isoforms
+from flair.read_ends_tsv import COLUMNS as ENDS_COLUMNS
+
+ENDS_HEADER = '\t'.join(ENDS_COLUMNS) + '\n'
 
 JUNCS = (Junc(1200, 1300), Junc(1400, 1500))
 
 
 def _line(name, start, end):
     "count_sam_transcripts' ends line for a read aligned from start to end, in genomic coordinates"
-    return f'{name}\ttx\t0\t{1200 - start}\tNone\t1\t{end - 1500}\tNone\n'
+    return f'{name}\ttx\t0\t{1200 - start}\t\t1\t{end - 1500}\t\n'
 
 
 def _run(tmp_path, read_ends, max_ends, extra_lines=(), frac_support=0.05, normalize_ends=False):
@@ -17,12 +20,12 @@ def _run(tmp_path, read_ends, max_ends, extra_lines=(), frac_support=0.05, norma
     # the ends it shares with its gene's isoforms with similar terminal splice sites
     iso.unpadded_ends = (900, 2100)
     ends = tmp_path / 'ends.tsv'
-    ends.write_text(''.join(_line(f'r{i}', s, e) for i, (s, e) in enumerate(read_ends)) + ''.join(extra_lines))
+    ends.write_text(ENDS_HEADER + ''.join(_line(f'r{i}', s, e) for i, (s, e) in enumerate(read_ends)) + ''.join(extra_lines))
     read_map = tmp_path / 'map.txt'
     final = assign_final_ends({'tx': iso}, str(ends), str(read_map), normalize_ends=normalize_ends,
                               max_ends=max_ends, end_window=100, sjc_support=2, frac_support=frac_support)
     assigned = {}
-    for line in ends.read_text().splitlines():
+    for line in ends.read_text().splitlines()[1:]:  # past the header
         assigned.setdefault(line.split('\t')[1], set()).add(line.split('\t')[0])
     return final, assigned, read_map.read_text()
 
@@ -32,7 +35,7 @@ def test_one_end_variant_takes_the_densest_read_ends(tmp_path):
     (iso,) = final.values()
     assert iso.unpadded_ends == (1002, 2000)
     assert assigned == {iso.name: {'r0', 'r1', 'r2', 'r3'}}
-    assert read_map.split('\t')[0] == iso.name
+    assert read_map.splitlines()[1].split('\t')[0] == iso.name
 
 
 def test_read_ends_come_from_the_realignment(tmp_path):
@@ -50,7 +53,7 @@ def test_more_max_ends_splits_the_reads_between_end_groups(tmp_path):
 
 def test_a_line_without_distances_still_counts(tmp_path):
     final, assigned, _ = _run(tmp_path, [(1000, 2000), (1002, 2003)], max_ends=1,
-                              extra_lines=['odd\ttx\tNone\tNone\t10\tNone\tNone\t10\n'])
+                              extra_lines=['odd\ttx\t\t\t10\t\t\t10\n'])
     (name,) = final
     assert assigned[name] == {'r0', 'r1', 'odd'}
 
@@ -82,10 +85,10 @@ def test_single_exon_isoforms_are_left_for_assign_single_exon_isoforms(tmp_path)
     iso = Isoform('chr1', '-', (), 1000, 2000, reads=[SimpleNamespace(name='r', start=1000, end=2000)])
     iso.name = 'se'
     ends = tmp_path / 'ends.tsv'
-    ends.write_text('')
+    ends.write_text(ENDS_HEADER)
     final = assign_final_ends({'se': iso}, str(ends), None, normalize_ends=False, max_ends=1, end_window=100,
                               sjc_support=2, frac_support=0.05)
-    assert final == {'se': iso} and ends.read_text() == ''
+    assert final == {'se': iso} and ends.read_text() == ENDS_HEADER
 
 
 def _se_isoform(name, start, end, read_ends, cluster=None, gene='g'):

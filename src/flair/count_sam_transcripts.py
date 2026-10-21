@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 import pipettor
 import pysam
 from flair import FlairError, FlairInputDataError
+from flair.read_ends_tsv import ReadEndsWriter
+from flair.read_map_tsv import ReadMapWriter
+from flair.transcript_counts_tsv import TranscriptCountsWriter
 from flair.pycbio.hgdata.bed import BedReader
 
 
@@ -22,7 +25,7 @@ def parse_args():
             for each read is used''')
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-s', '--sam', type=argparse.FileType('r'), help='sam file or - for STDIN')
-    required.add_argument('-o', '--output', default='counts.txt', help='output file name')
+    required.add_argument('-o', '--output', default='counts.tsv', help='output file name')
     parser.add_argument('-i', '--isoforms', required=True,
                         help='isoforms bed file for the transcripts the reads are aligned to')
     parser.add_argument('--stringent', action='store_true',
@@ -659,25 +662,25 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
     return transcript_to_reads
 
 
-def _write_transcript_counts(transcripttoreads, countout, mapout, endout):
-    for t in transcripttoreads:
-        countout.write(t + '\t' + str(len(transcripttoreads[t])) + '\n')
+def _write_transcript_counts(transcript_to_reads, countout, mapout, endout):
+    for t in transcript_to_reads:
+        countout.writeRow((t, len(transcript_to_reads[t])))
         if mapout is not None:
-            mapout.write(t + '\t' + ','.join([x[0] for x in transcripttoreads[t]]) + '\n')
+            mapout.writeReads(t, [x[0] for x in transcript_to_reads[t]])
         if endout is not None:
-            for r, s, e in transcripttoreads[t]:
-                endout.write('\t'.join([str(x) for x in [r, t, s[0], s[1], s[2], e[0], e[1], e[2]]]) + '\n')
+            for r, s, e in transcript_to_reads[t]:
+                endout.writeRow((r, t, s[0], s[1], s[2], e[0], e[1], e[2]))
 
 
-def write_output(args, transcripttoreads):
+def write_output(args, transcript_to_reads):
     """The counts file is the primary output; all three handles are closed here rather
     than left to interpreter shutdown, where an exception in the loop left a partial
     file behind with no error."""
     with ExitStack() as stack:
-        countout = stack.enter_context(open(args.output, 'wt'))
-        mapout = stack.enter_context(open(args.generate_map, 'w')) if args.generate_map else None
-        endout = stack.enter_context(open(args.output_endpos, 'w')) if args.output_endpos else None
-        _write_transcript_counts(transcripttoreads, countout, mapout, endout)
+        countout = stack.enter_context(TranscriptCountsWriter(args.output))
+        mapout = stack.enter_context(ReadMapWriter(args.generate_map)) if args.generate_map else None
+        endout = stack.enter_context(ReadEndsWriter(args.output_endpos)) if args.output_endpos else None
+        _write_transcript_counts(transcript_to_reads, countout, mapout, endout)
 
 
 def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C901 - linear function okay

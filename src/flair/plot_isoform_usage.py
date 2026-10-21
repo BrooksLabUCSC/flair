@@ -10,7 +10,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mplpatches  # noqa: E402
 from flair import FlairInputDataError  # noqa: E402
-from flair.pycbio.sys import cli  # noqa: E402
+from flair.pycbio.sys import cli, fileOps  # noqa: E402
+from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noqa: E402
 
 def build_parser():
     desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
@@ -174,30 +175,23 @@ def plot_blocks(data, panel, names, iso_to_variant, upper, lower, strand, base_c
         di += 1
 
 
-def _add_counts_row(line, gray_bar, totals, proportions, sample_ids, min_reads):
+def _add_counts_row(row, gray_bar, totals, proportions, sample_ids, min_reads):
     """One counts-matrix row: an isoform below min_reads in every sample goes into the
     gray minor-isoform bar, the rest get their own bar."""
-    counts = [float(x) for x in line[1:]]
+    counts = [float(x) for x in row.counts]
     if all(x < min_reads for x in counts):
         for i in range(len(sample_ids)):
             gray_bar[0][i + 1] += counts[i]   # add to gray bar bc expression is too low
             totals[i] += counts[i]
     else:
         # a kept isoform's counts reach totals in the colour loop below
-        proportions += [[line[0].split('_')[0]] + counts + [sum(counts)]]
-
-
-def _id_is_for_gene(iso_id, gene_name):
-    """Is a counts-matrix id one of this gene's isoforms.  The ids are isoform_gene,
-    so the gene is the last field; a substring test pulled in any id that merely
-    contained the name, such as a longer gene id or a read name inside an isoform id."""
-    return (iso_id == gene_name) or iso_id.endswith('_' + gene_name)
+        proportions += [[row.isoform_id] + counts + [sum(counts)]]
 
 
 def read_color_palette(palette_file):
     """One color per line.  At least six are needed, since four of them also serve as
     the base colors."""
-    colors = [line.strip() for line in open(palette_file) if line.strip() != '']
+    colors = [line.strip() for line in fileOps.iterLines(palette_file) if line.strip() != '']
     if len(colors) < 6:
         raise FlairInputDataError(
             f"{palette_file}: found {len(colors)} colors, at least 6 are needed; "
@@ -206,7 +200,6 @@ def read_color_palette(palette_file):
 
 
 def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
-    counts_matrix = open(args.counts_matrix)
     if not args.o:
         args.o = args.gene_name
 
@@ -217,7 +210,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     base_colors = {'C': color_palette[0], 'A': color_palette[1], 'G': color_palette[4], 'T': color_palette[5]}
 
     keepiso = {}  # isoforms that they have a sufficient proportion of reads mapping to them
-    sample_ids = counts_matrix.readline().rstrip().split('\t')[1:]
+    sample_ids = read_sample_columns(args.counts_matrix)
     proportions = []
     totals = [0] * len(sample_ids)
 
@@ -234,10 +227,9 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
     gray_bar = [['lowexpr'] + [0] * len(sample_ids) + [gray]]  # the minor isoform bar is gray
 
-    for line in counts_matrix:
-        line = line.rstrip().split('\t')
-        if _id_is_for_gene(line[0], args.gene_name):
-            _add_counts_row(line, gray_bar, totals, proportions, sample_ids, args.min_reads)
+    for row in read_counts_rows(args.counts_matrix):
+        if row.gene_id == args.gene_name:
+            _add_counts_row(row, gray_bar, totals, proportions, sample_ids, args.min_reads)
 
     colori = 0
     proportions = sorted(proportions, key=lambda x: x[-1], reverse=True)  # sort by expression
@@ -311,7 +303,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
     iso_to_variant = {}
     if args.vcf:
-        for line in open(args.vcf):
+        for line in fileOps.iterLines(args.vcf):
             if line.startswith('#'):
                 continue
             line = line.rstrip().split('\t')

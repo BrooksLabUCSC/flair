@@ -8,7 +8,7 @@ from flair.read_correction import _correct_and_group_read
 
 HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 10000}]})
 # an annotated transcript with exons 1000-1100 and 1300-1700: one junction, 1100-1300
-ANNOTS = SimpleNamespace(transcript_to_exons={('TX', 'GENE'): (Exon(1000, 1100), Exon(1300, 1700))},
+ANNOTS = SimpleNamespace(transcript_to_gene={}, transcript_to_exons={('TX', 'GENE'): (Exon(1000, 1100), Exon(1300, 1700))},
                          gene_to_strand={'GENE': '+'})
 
 
