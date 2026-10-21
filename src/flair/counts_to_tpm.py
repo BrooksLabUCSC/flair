@@ -20,7 +20,10 @@ def parse_input():
                                   'if no isoform size file is provided, no length normalization will be done (just reads per million)\n')
     return counts_matrix, outfilename, sizefile
 
-def counts_to_tpm(counts_matrix, outfilename, sizefile=None):
+def counts_to_tpm(counts_matrix, outfilename, sizefile=None, empty_ok=False):
+    """Write a counts matrix as transcripts per million.  A sample with no counts in
+    any row has no TPM: an error, or with empty_ok, 0 in every row.  Returns the names
+    of such samples."""
     sizes = {}
     if sizefile:
         for line in sizefile:
@@ -43,9 +46,9 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None):
         matrix_data += [[isoform_id] + rpk]
 
     all_rpk = [rpk / 1e6 for rpk in all_rpk]
-    empty = [n for n, rpk in enumerate(all_rpk) if rpk == 0]
-    if len(empty) > 0:
-        raise FlairInputDataError(f"{outfilename}: samples in columns {empty} have no counts in any row, "
+    empty = [header[n + 1] for n, rpk in enumerate(all_rpk) if rpk == 0]
+    if len(empty) > 0 and not empty_ok:
+        raise FlairInputDataError(f"{outfilename}: samples {', '.join(empty)} have no counts in any row, "
                                   "so TPM cannot be computed; drop them from the counts matrix")
 
     with open(outfilename, 'wt') as outfile:
@@ -53,8 +56,9 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None):
         writer.writerow(matrix_data[0])
         for line in matrix_data[1:]:
             for n in range(num_samples):
-                line[n + 1] = round(line[n + 1] / all_rpk[n], 5)
+                line[n + 1] = round(line[n + 1] / all_rpk[n], 5) if all_rpk[n] > 0 else 0
             writer.writerow(line)
+    return empty
 
 
 def main():

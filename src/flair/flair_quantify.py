@@ -32,10 +32,18 @@ FUSION_MIN_CLIP = 40
 
 # the direct assignments' lookups over all genes (direct_assignment_chains,
 # single_exon_index), and per sample the reads counted for fusions (count_fusions),
-# set by quantify before the batch tasks fork, which share them
+# for the batch tasks (set_batch_lookups)
 _chains = {}
 _single_exon_index = {}
 _fusion_reads = []
+
+
+def set_batch_lookups(chains, se_index, fusion_reads):
+    """Give this process the lookups count_batch uses: quantify's own with one thread,
+    otherwise each pool worker's, as its initializer.  The pool forks, so they are
+    shared, not copied."""
+    global _chains, _single_exon_index, _fusion_reads
+    _chains, _single_exon_index, _fusion_reads = chains, se_index, fusion_reads
 
 def add_subparser(subparsers):
     desc = "Quantify the expression level of isoforms across samples"
@@ -112,6 +120,18 @@ def load_manifest(manifest):
                 raise FlairInputDataError(f"{manifest}: sample {sample}'s BAM {bamfile} has no index; make one with "
                                           'samtools index')
     return sample_data
+
+def check_bam_chromosomes(sample_data, gene_data, fusions, isoform_bed):
+    """Each sample's BAM has some of the isoforms' chromosomes, so names that differ, as
+    chr1 and 1, are an error, not a sample of no reads"""
+    chroms = {gene_info.chrom for gene_info in gene_data.values()}
+    chroms.update(piece.chrom for pieces in fusions.values() for piece in pieces)
+    for sample, group, batch, bamfile in sample_data:
+        with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
+            if chroms.isdisjoint(bam_file.references):
+                raise FlairInputDataError(f"sample {sample}'s BAM {bamfile} has none of the chromosomes of "
+                                          f"{isoform_bed}, such as {sorted(chroms)[0]}; its chromosomes are named "
+                                          f"as {', '.join(bam_file.references[:3])}")
 
 class GeneData():
     def __init__(self, gene_id, chrom, strand):
@@ -564,19 +584,19 @@ def write_outputs(results_iter, sample_data, gene_data, fusions, output, with_ge
         for name, gene_id in isoform_ids:
             iso_id = name + '_' + gene_id if with_gene else name
             fh.write('\t'.join([iso_id] + [str(x) for x in counts.get(name, [0] * len(sample_data))]) + '\n')
+    # each sample's total reads counted
+    return [sum(sample_counts) for sample_counts in zip(*counts.values())] if counts else [0] * len(sample_data)
 
 def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
              trust_ends, generate_map, with_gene, normalize_ends, temp_dir=None, keep_intermediate=False):
     logging.info('loading isos')
     sample_data = load_manifest(manifest)
     gene_data, fusions = load_isoform_data(isoform_bed)
+    check_bam_chromosomes(sample_data, gene_data, fusions, isoform_bed)
     if normalize_ends:
         normalize_isoform_ends(gene_data, genome)
-    # built before the batch tasks fork, which share them
-    global _chains, _single_exon_index, _fusion_reads
     all_beds = [bed for gene_info in gene_data.values() for bed in gene_info.isoform_beds]
-    _chains = direct_assignment_chains(all_beds)
-    _single_exon_index = single_exon_index(gene_data)
+    chains, se_index = direct_assignment_chains(all_beds), single_exon_index(gene_data)
     batches = make_batches(gene_data, threads * BATCHES_PER_THREAD)
 
     # a directory of this run's own, so no earlier run's files are read
@@ -585,26 +605,33 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
                  f'{f" and {len(fusions)} fusion isoforms" if fusions else ""}. '
                  f'Writing temporary files into {run_temp_dir}')
     try:
-        fusion_results, _fusion_reads = count_fusions(fusions, sample_data, run_temp_dir, genome, threads, trust_ends,
-                                                      generate_map, keep_intermediate)
+        fusion_results, fusion_reads = count_fusions(fusions, sample_data, run_temp_dir, genome, threads, trust_ends,
+                                                     generate_map, keep_intermediate)
+        lookups = (chains, se_index, fusion_reads)
         packed = [(batch, [bed for gene_id in batch['gene_ids'] for bed in gene_data[gene_id].isoform_beds],
                    sample_data, run_temp_dir, genome, trust_ends, generate_map, keep_intermediate)
                   for batch in batches]
         # minimap2 borrows threads left idle as the pool drains, more for batches of more isoforms
         thread_share.init(threads, len(packed), max((batch['isoforms'] for batch in batches), default=1))
         if threads == 1:
-            write_outputs(itertools.chain([fusion_results], map(_count_batch_task, packed)),
-                          sample_data, gene_data, fusions, output, with_gene, generate_map)
+            set_batch_lookups(*lookups)
+            totals = write_outputs(itertools.chain([fusion_results], map(_count_batch_task, packed)),
+                                   sample_data, gene_data, fusions, output, with_gene, generate_map)
         else:
             mp.set_start_method('fork', force=True)
-            with mp.Pool(threads) as pool:
-                write_outputs(itertools.chain([fusion_results], pool.imap(_count_batch_task, packed)),
-                              sample_data, gene_data, fusions, output, with_gene, generate_map)
+            with mp.Pool(threads, initializer=set_batch_lookups, initargs=lookups) as pool:
+                totals = write_outputs(itertools.chain([fusion_results], pool.imap(_count_batch_task, packed)),
+                                       sample_data, gene_data, fusions, output, with_gene, generate_map)
+        for (sample, *_), total in zip(sample_data, totals):
+            if total == 0:
+                logging.warning(f'sample {sample} has no reads counted for any isoform'
+                                f'{"; its TPM are 0" if tpm else ""}')
         write_sample_info(sample_info_path(output + '.counts.tsv'),
                           [SampleInfo(sample, condition, batch)
                            for sample, condition, batch, _ in sample_data])
         if tpm:
-            counts_to_tpm(open(output + '.counts.tsv'), output + '.tpm.tsv')
+            with open(output + '.counts.tsv') as counts_fh:
+                counts_to_tpm(counts_fh, output + '.tpm.tsv', empty_ok=True)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

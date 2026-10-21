@@ -1,10 +1,12 @@
+import io
 import pytest
 import pysam
 from flair import FlairInputDataError
 from flair.flair_bed import FlairBed
 from flair.pycbio.hgdata.bed import BedBlock
 from flair.io_utils import read_manifest_rows
-from flair.flair_quantify import load_manifest, load_isoform_data
+from flair.flair_quantify import load_manifest, load_isoform_data, check_bam_chromosomes
+from flair.counts_to_tpm import counts_to_tpm
 from flair.flair_spliceevents import read_manifest as spliceevents_manifest
 
 _HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 2000}]})
@@ -100,3 +102,21 @@ def test_plain_bed12_is_not_a_flair_isoform_bed(tmp_path):
     path.write_text('chr1\t100\t400\tT1\t0\t+\t100\t100\t0\t2\t100,100,\t0,200,\n')
     with pytest.raises(FlairInputDataError, match='is not a FLAIR isoform bed, of the 25 columns'):
         load_isoform_data(str(path))
+
+
+def test_bam_with_none_of_the_isoforms_chromosomes_is_an_error(tmp_path):
+    bam = _bam(tmp_path / 's1.bam')
+    gene_data, fusions = load_isoform_data(_bed(tmp_path, _iso('T1', 'G1')))
+    check_bam_chromosomes([('s1', 'A', 'b0', bam)], gene_data, fusions, 'isoforms.bed')
+    gene_data, fusions = load_isoform_data(_bed(tmp_path, _iso('T1', 'G1', chrom='1')))
+    with pytest.raises(FlairInputDataError, match="s1's BAM .* has none of the chromosomes of isoforms.bed, such as 1; "
+                                                  'its chromosomes are named as chr1'):
+        check_bam_chromosomes([('s1', 'A', 'b0', bam)], gene_data, fusions, 'isoforms.bed')
+
+
+def test_tpm_of_a_sample_with_no_counts(tmp_path):
+    counts = 'ids\ts1\ts2\nT1\t3\t0\nT2\t1\t0\n'
+    with pytest.raises(FlairInputDataError, match='samples s2 have no counts in any row'):
+        counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'))
+    assert counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'), empty_ok=True) == ['s2']
+    assert (tmp_path / 'tpm.tsv').read_text().splitlines() == ['ids\ts1\ts2', 'T1\t750000.0\t0', 'T2\t250000.0\t0']
