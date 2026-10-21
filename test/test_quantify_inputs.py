@@ -115,8 +115,9 @@ def test_bam_with_none_of_the_isoforms_chromosomes_is_an_error(tmp_path):
 
 
 def test_tpm_of_a_sample_with_no_counts(tmp_path):
-    counts = 'ids\ts1\ts2\nT1\t3\t0\nT2\t1\t0\n'
+    counts = 'gene_id\tisoform_id\ts1\ts2\nG1\tT1\t3\t0\nG1\tT2\t1\t0\n'
     with pytest.raises(FlairInputDataError, match='samples s2 have no counts in any row'):
         counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'))
     assert counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'), empty_ok=True) == ['s2']
-    assert (tmp_path / 'tpm.tsv').read_text().splitlines() == ['ids\ts1\ts2', 'T1\t750000.0\t0', 'T2\t250000.0\t0']
+    assert (tmp_path / 'tpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2', 'G1\tT1\t750000.0\t0',
+                                                               'G1\tT2\t250000.0\t0']

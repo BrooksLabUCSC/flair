@@ -1,39 +1,42 @@
 #!/usr/bin/env python3
+"""Attach counts to the skipped exon events es_as.py calls, writing the
+es events.quant.tsv."""
 
 import os
 import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402 - openblas setting must be before numpy import
+from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noqa: E402
+from flair.es_events_tsv import EsEventsReader  # noqa: E402
+from flair.event_quant_tsv import EventQuantWriter  # noqa: E402
+from flair.pycbio.sys import cli  # noqa: E402
 
-data = dict()
-with open(sys.argv[1]) as fin1:
-    header = next(fin1).rstrip().split()
-    nSamps = len(header) - 1
-    for line in fin1:
-        cols = line.rstrip().split()
-        tid, vals = cols[0], np.asarray(cols[1:], dtype=np.float32)
-        data[tid] = vals
+def side_counts(data, n_samps, isos):
+    "the counts of one side of an event, summed over its isoforms"
+    vals = np.asarray([data.get(iso, np.zeros(n_samps)) for iso in isos])
+    return np.sum(vals, axis=0)
 
-with open(sys.argv[2]) as fin2:
-    print('\t'.join(['feature_id', 'coordinate'] + header[1:] + ['isoform_ids']))
-    for line in fin2:
-        cols = line.rstrip().split()
-        if int(cols[3]) == 0:
-            continue
-        else:
-            exon, strand, _, exc, incIsos, excIsos = cols
-        incVals = np.asarray([data.get(x, np.zeros(nSamps)) for x in incIsos.split(",")])
-        excVals = np.asarray([data.get(x, np.zeros(nSamps)) for x in excIsos.split(",")])
+def write_es_events(counts_matrix_tsv, es_events_tsv):
+    sample_names = read_sample_columns(counts_matrix_tsv)
+    n_samps = len(sample_names)
+    data = {row.isoform_id: np.asarray(row.counts, dtype=np.float32)
+            for row in read_counts_rows(counts_matrix_tsv)}
 
-        incVals = np.sum(incVals, axis=0)
-        excVals = np.sum(excVals, axis=0)
-        # totVals = incVals + excVals
+    with EventQuantWriter(None, sample_names, outFh=sys.stdout) as writer:
+        for row in EsEventsReader(es_events_tsv):
+            # an exon needs an isoform on each side to be a skipping event
+            if row.inclusion_isos and row.exclusion_isos:
+                writer.writeSide('inclusion', row.exon, row.exon,
+                                 side_counts(data, n_samps, row.inclusion_isos),
+                                 row.inclusion_isos)
+                writer.writeSide('exclusion', row.exon, row.exon,
+                                 side_counts(data, n_samps, row.exclusion_isos),
+                                 row.exclusion_isos)
 
-        # must have at least 1 count to support the inc and exc of this exon
-        # if incVals.all() < 1 or excVals.all() < 1:
-        #     continue
+def main():
+    with cli.ErrorHandler():
+        write_es_events(sys.argv[1], sys.argv[2])
 
-        print("inclusion_%s" % exon, exon, "\t".join(str(x) for x in incVals), incIsos, sep="\t")
-        print("exclusion_%s" % exon, exon, "\t".join(str(x) for x in excVals), excIsos, sep="\t")
 
-        # print(exon,"\t".join("%.2f" % x for x in incVals/totVals))
+if __name__ == '__main__':
+    main()

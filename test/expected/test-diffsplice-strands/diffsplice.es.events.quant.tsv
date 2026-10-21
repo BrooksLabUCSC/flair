@@ -1,0 +1,5 @@
+feature_id	coordinate	A1_A_b0	A2_A_b0	A3_A_b0	B1_B_b0	B2_B_b0	B3_B_b0	isoform_ids
+inclusion_chr3:200-300(+)	chr3:200-300(+)	10.0	12.0	11.0	20.0	22.0	21.0	esInclFwd_GENEA
+exclusion_chr3:200-300(+)	chr3:200-300(+)	10.0	12.0	11.0	20.0	22.0	21.0	esExclFwd_GENEA
+inclusion_chr3:300-200(-)	chr3:300-200(-)	10.0	12.0	11.0	20.0	22.0	21.0	esInclRev_GENEB
+exclusion_chr3:300-200(-)	chr3:300-200(-)	10.0	12.0	11.0	20.0	22.0	21.0	esExclRev_GENEB

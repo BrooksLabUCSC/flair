@@ -5,14 +5,25 @@ import os.path as osp
 import sys
 import pipettor
 import logging
-from flair import FlairError, FlairInputDataError
-from flair.counts_matrix import read_sample_info, select_condition_pair, write_sample_info
+from flair import FlairInputDataError, FlairToolError
+from flair.conditions import select_condition_pair
+from flair.counts_matrix_tsv import read_isoform_ids, describe_ids
+from flair.drimseq_input import check_feature_ids_unique
+from flair.event_quant_tsv import EventQuantReader
+from flair.sample_info_tsv import read_sample_info, write_sample_info
+from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import fileOps
+from flair.pycbio.tsv import TsvWriter
+from flair.output_compress import compressed_path, output_compression
 
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffSplice_drimSeq = osp.join(pkgdir, "diffSplice_drimSeq.R")
 call_diffsplice_events = osp.join(pkgdir, "call_diffsplice_events.py")
 es_as = osp.join(pkgdir, "es_as.py")
 es_as_inc_excl_to_counts = osp.join(pkgdir, "es_as_inc_excl_to_counts.py")
+
+BED_NAME_COLUMN = 3
+FEATURE_ID_COLUMN = 0
 
 def add_subparser(subparsers):
     desc = "Call alternative splicing events from isoforms and test them for differential usage"
@@ -66,21 +77,35 @@ def diffsplice_cmd(args):
         # done no testing at all
         raise FlairInputDataError('--condition_a and --condition_b must both be given, '
                                   'or both left out to take the two conditions in sorted order')
-    diffSplice(isoform_bed=args.isoform_bed, counts_matrix=args.counts_matrix,
-               output=args.output, threads=args.threads, test=args.test,
-               min_samps_gene_expr=args.min_samps_gene_expr,
-               min_samps_feature_expr=args.min_samps_feature_expr,
-               min_gene_expr=args.min_gene_expr, min_feature_expr=args.min_feature_expr,
-               batch=args.batch, condition_a=args.condition_a, condition_b=args.condition_b,
-               overwrite_output=args.overwrite_output)
+    diff_splice(isoform_bed=args.isoform_bed, counts_matrix=args.counts_matrix,
+                output=args.output, threads=args.threads, test=args.test,
+                min_samps_gene_expr=args.min_samps_gene_expr,
+                min_samps_feature_expr=args.min_samps_feature_expr,
+                min_gene_expr=args.min_gene_expr, min_feature_expr=args.min_feature_expr,
+                batch=args.batch, condition_a=args.condition_a, condition_b=args.condition_b,
+                overwrite_output=args.overwrite_output)
 
-def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_gene_expr,  # noqa: C901 - FIXME: reduce complexity
-               min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
-               condition_a, condition_b, overwrite_output):
+def check_isoform_ids(isoform_bed, counts_matrix):
+    """Every counted isoform must have a BED record, since the events are called from
+    the BED and the counts attached to them by id.  Extra BED records are allowed; they
+    contribute no counts."""
+    bed_names = frozenset(bed.name for bed in BedReader(isoform_bed, fixScores=True))
+    missing = [iso_id for iso_id in read_isoform_ids(counts_matrix)
+               if iso_id not in bed_names]
+    if len(missing) > 0:
+        raise FlairInputDataError(
+            f"{len(missing)} isoform ids in counts matrix {counts_matrix} have no record in "
+            f"{isoform_bed}: {describe_ids(missing)}; pass the isoform BED that was quantified "
+            "to produce this counts matrix")
+
+def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_gene_expr,  # noqa: C901 - FIXME: reduce complexity
+                min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
+                condition_a, condition_b, overwrite_output):
     if not os.path.exists(counts_matrix):
         raise FlairInputDataError('Counts matrix file path does not exist')
     if not os.path.exists(isoform_bed):
         raise FlairInputDataError('Isoform bed file path does not exist')
+    check_isoform_ids(isoform_bed, counts_matrix)
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(output, 'workdir')
@@ -95,17 +120,20 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
             raise OSError("** ERROR cannot create directory %s" % (workdir)) from ex
     else:
         raise FlairInputDataError(f'** Error. Name {output} already exists. Choose another name for out_dir')
-    if isoform_bed.endswith('psl'):
-        raise FlairInputDataError('** Error. Flair no longer accepts PSL input. Please use psl_to_bed first.')
 
     filebase = os.path.join(output, 'diffsplice')
-    pipettor.run([sys.executable, call_diffsplice_events, isoform_bed, filebase, counts_matrix])
-    with open(filebase + '.es.events.tsv', 'w') as es_fh:
-        pipettor.run([sys.executable, es_as, isoform_bed], stdout=es_fh)
-    with open(filebase + '.es.events.quant.tsv', 'w') as quant_fh:
-        pipettor.run([sys.executable, es_as_inc_excl_to_counts, counts_matrix, filebase + '.es.events.tsv'],
-                     stdout=quant_fh)
-    os.unlink(filebase + '.es.events.tsv')
+    # the event callers are separate processes, so each is told whether to compress;
+    # the exon skipping one writes to stdout, so this process opens that file
+    call_args = [isoform_bed, filebase, counts_matrix]
+    if output_compression():
+        call_args.append('--compress')
+    call_events(call_diffsplice_events, call_args)
+    es_events_tsv = filebase + '.es.events.tsv'
+    with open(es_events_tsv, 'w') as es_fh:
+        call_events(es_as, [isoform_bed], stdout=es_fh)
+    with fileOps.opengz(compressed_path(filebase + '.es.events.quant.tsv'), 'w') as quant_fh:
+        call_events(es_as_inc_excl_to_counts, [counts_matrix, es_events_tsv], stdout=quant_fh)
+    os.unlink(es_events_tsv)
 
     if test or condition_a:
         logging.info('DRIMSeq testing for each AS event type')
@@ -125,30 +153,59 @@ def diffSplice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_g
                       '--min_samps_feature_expr', min_samps_feature_expr,
                       '--min_gene_expr', min_gene_expr,
                       '--min_feature_expr', min_feature_expr]
+        if output_compression():
+            ds_command.append('--compress')
         if batch:
             ds_command += ['--batch']
         with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:
             for event in ('es', 'alt5', 'alt3', 'ir'):
-                run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr)
+                run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr,
+                                  output, condition_a, condition_b, sample_infos)
     else:
         # workdir only necessary for drimseq output
         os.rmdir(workdir)
 
-def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr):
-    matrixfile = f'{filebase}.{event}.events.quant.tsv'
-    if emptyMatrix(matrixfile):
+def call_events(program, args, stdout=None):
+    """Run one of the event callers.  Its own message is already on stderr, so an
+    unhandled ProcessException would only add a traceback of the flair code that
+    started it."""
+    try:
+        pipettor.run([sys.executable, program] + args, stdout=stdout)
+    except pipettor.ProcessException as exc:
+        raise FlairToolError(f"{osp.basename(program)} failed, see the error above") from exc
+
+def drimseq_result_path(output, event, condition_a, condition_b):
+    "the result file for one event type, as diffSplice_drimSeq.R names it"
+    return compressed_path(osp.join(output, f'drimseq_{event}_{condition_a}_v_{condition_b}.tsv'))
+
+def write_empty_drimseq_result(output, event, condition_a, condition_b, sample_infos):
+    """The file DRIMSeq would have written had the event type called anything, so that
+    a run always writes the four results it declares.  The columns are the ones
+    diffSplice_drimSeq.R ends with: the two ids, the samples of this comparison in
+    formula order, then lr and adj_pvalue."""
+    samples = [si.sample_id for si in sample_infos
+               if si.condition in (condition_a, condition_b)]
+    columns = ['feature_id', 'gene_id'] + samples + ['lr', 'adj_pvalue']
+    with TsvWriter(drimseq_result_path(output, event, condition_a, condition_b),
+                   columns=columns, defaultColType=str):
+        pass
+
+def run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr,
+                      output, condition_a, condition_b, sample_infos):
+    matrixfile = compressed_path(f'{filebase}.{event}.events.quant.tsv')
+    if empty_matrix(matrixfile):
         logging.info(f'{event} event matrix file empty, not running DRIMSeq')
+        write_empty_drimseq_result(output, event, condition_a, condition_b, sample_infos)
     else:
+        check_feature_ids_unique(matrixfile)
         cur_command = ds_command + ['--matrix', matrixfile, '--prefix', event]
         try:
             pipettor.run(cur_command, stderr=ds_stderr)
         except pipettor.ProcessException as exc:
-            raise FlairError(f"DRIMSeq failed on `{event}' event. "
-                             f'Check {workdir}/ds.stderr.txt for details') from exc
+            raise FlairToolError(f"DRIMSeq failed on `{event}' event. "
+                                 f'Check {workdir}/ds.stderr.txt for details') from exc
 
-def emptyMatrix(infile):
-    '''Returns true if file has only a header line'''
-    with open(infile, 'r') as inf:
-        if len(inf.readlines()) <= 1:
-            return True
-    return False
+def empty_matrix(event_quant_tsv):
+    "true when an event type called no events, leaving a file of only its header"
+    with EventQuantReader(event_quant_tsv) as reader:
+        return next(iter(reader), None) is None

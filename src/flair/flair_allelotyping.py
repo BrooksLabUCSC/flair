@@ -5,12 +5,17 @@ import logging
 from flair.gtf_io import load_gtf_to_gene_data, GtfExon
 from copy import deepcopy
 # import graphviz
+from flair.allele_group_counts_tsv import allele_group_counts_writer
+from flair.read_map_tsv import ReadMapWriter
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
 import math
 from collections import OrderedDict
 import string
 from flair import FlairError, FlairInputDataError
+from flair.pycbio.sys import fileOps
+from flair.io_utils import check_genome_fasta, write_sorted_vcf
+from flair.output_compress import compressed_path
 
 # a read mismatch is credited to a known variant this many bases either side, to
 # tolerate a miscalled or misaligned position.  The comment here used to say 1 while
@@ -30,7 +35,7 @@ def add_subparser(subparsers):
     parser.add_argument('--normal_vcf', type=str,
                         help="normal vcf file, optional even when providing a normal bam")
     parser.add_argument('-g', '--genome', type=str, required=True,
-                        help='FastA of reference genome')
+                        help='FASTA of reference genome')
     parser.add_argument('-o', '--output', default='flair',
                         help="prefix for output files (default: %(default)s)")
     parser.add_argument('-f', '--gtf', type=str,
@@ -50,6 +55,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=alleles_cmd)
 
 def alleles_cmd(args):
+    check_genome_fasta(args.genome)
     if (args.gtf is None) and (args.isoform_bed is None):
         raise FlairInputDataError('specify at least one of --gtf and --isoform_bed')
     getvariants(tumor_bam=args.tumor_bam, normal_bam=args.normal_bam, vcf=args.vcf,
@@ -82,32 +88,32 @@ def _vcf_genotype(fields):
     return fields[9].split(':')[0] if len(fields) > 9 else None
 
 
-def _add_vcf_variant(fields, vartoalt, var_to_is_homo):
+def _add_vcf_variant(fields, var_to_alt, var_to_is_homo):
     "record the SNV alts of one VCF record; indels are not considered"
     ref, pos = fields[3], int(fields[1]) - 1
     if len(ref) == 1:
         genotype = _vcf_genotype(fields)
         for alt in fields[4].split(','):
             if len(alt) == 1:
-                vartoalt.setdefault((fields[0], pos), set()).add((ref, alt))
+                var_to_alt.setdefault((fields[0], pos), set()).add((ref, alt))
                 var_to_is_homo[(fields[0], pos, ref, alt)] = genotype
 
 
 def combine_vcf_files(vcffilelist):
-    vartoalt = {}
+    var_to_alt = {}
     var_to_is_homo = {}
     for samplevcf in vcffilelist:
-        for line in open(samplevcf):
+        for line in fileOps.iterLines(samplevcf):
             if line[0] != '#':
                 fields = line.rstrip('\n').split('\t')
                 if _vcf_variant_passed(fields[6]):
-                    _add_vcf_variant(fields, vartoalt, var_to_is_homo)
-    return vartoalt, var_to_is_homo
+                    _add_vcf_variant(fields, var_to_alt, var_to_is_homo)
+    return var_to_alt, var_to_is_homo
 
-def reorganize_vars(vartoalt):
+def reorganize_vars(var_to_alt):
     chrom_to_region_to_vars = {}
-    for chrom, pos in vartoalt:
-        vars = tuple(vartoalt[(chrom, pos)])
+    for chrom, pos in var_to_alt:
+        vars = tuple(var_to_alt[(chrom, pos)])
         region = math.floor(pos / (10 ** 5))
         if chrom not in chrom_to_region_to_vars:
             chrom_to_region_to_vars[chrom] = {}
@@ -199,8 +205,8 @@ def load_bam_read_vars(a, bam_label, my_vars, genome, insertions, deletions):
     add_indels_to_vars(insertions, deletions, a.reference_name, a.query_sequence, genome, my_vars)
     get_coverage_snvs_from_read(a, my_vars)
     if check_any_var_is_covered(my_vars):
-        posinfo, thisreadinfo = simplify_gene_vars(my_vars)
-        return (bam_label, a.query_name), thisreadinfo
+        posinfo, read_info = simplify_gene_vars(my_vars)
+        return (bam_label, a.query_name), read_info
     return None, None
 
 def create_gene_vars_dict(gene_vars):
@@ -219,11 +225,11 @@ def simplify_gene_vars(my_vars):
             info.append((pos, ref, alt, cov, var))
     info.sort()
     posinfo = [f'{x[0]};{x[1]};{x[2]}' for x in info]
-    thisreadinfo = []
+    read_info = []
     for index, (pos, ref, alt, cov, var) in enumerate(info):
         if cov == 1:
-            thisreadinfo.append((index, var))
-    return posinfo, tuple(thisreadinfo)
+            read_info.append((index, var))
+    return posinfo, tuple(read_info)
 
 def add_nodes(graph, readvarinfo_to_reads):
     tot_gene_reads = 0
@@ -245,15 +251,15 @@ def simplify_remove_nodes_with_single_parent(graph, readvarinfo_to_reads):
     moved_nodes = {}
     for node in graph:
         if len(list(graph.out_edges(node))) == 1:
-            thisnode, nextnode = list(graph.out_edges(node))[0]
+            from_node, nextnode = list(graph.out_edges(node))[0]
             while nextnode in moved_nodes:
                 nextnode = moved_nodes[nextnode]
             # update edges upstream
             for prev, this in list(graph.in_edges(node)):
                 g2.add_edge(prev, nextnode)
-            readvarinfo_to_reads[nextnode].update(readvarinfo_to_reads[thisnode])
-            readvarinfo_to_reads[thisnode] = set()
-            moved_nodes[thisnode] = nextnode
+            readvarinfo_to_reads[nextnode].update(readvarinfo_to_reads[from_node])
+            readvarinfo_to_reads[from_node] = set()
+            moved_nodes[from_node] = nextnode
             g2.remove_node(node)
     return g2
 
@@ -271,7 +277,7 @@ def remove_low_support_terminal_nodes(graph, readvarinfo_to_reads, tot_gene_read
 
 def get_terminal_node(graph, node, terminal_nodes):
     if len(list(graph.out_edges(node))) > 0:
-        for thisnode, nextnode in graph.out_edges(node):
+        for from_node, nextnode in graph.out_edges(node):
             terminal_nodes.update(get_terminal_node(graph, nextnode, terminal_nodes))
     else:
         terminal_nodes.add(node)
@@ -459,18 +465,18 @@ def split_when_node_paired_to_diff_alleles_same_ps(ps_graph, ps_ag_graph, edge_t
     for node in ps_ag_graph:
         if len(list(ps_ag_graph.edges(node))) > 1:
             seen_to_counts = {}
-            for thisnode, nextnode in list(ps_ag_graph.edges(node)):
+            for from_node, nextnode in list(ps_ag_graph.edges(node)):
                 if nextnode[0] not in seen_to_counts:
                     seen_to_counts[nextnode[0]] = 0
                 seen_to_counts[nextnode[0]] += 1
-            for thisnode, nextnode in list(ps_ag_graph.edges(node)):
+            for from_node, nextnode in list(ps_ag_graph.edges(node)):
                 if seen_to_counts[nextnode[0]] > 1:
-                    check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, thisnode, nextnode, moved_edge_nodes)
+                    check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, from_node, nextnode, moved_edge_nodes)
 
 def identify_connected_alleles(ps, ps_allele_groups, ps_ag_graph):
     all_connected_ps = {}
     for ag in ps_allele_groups:
-        for thisnode, nextnode in list(ps_ag_graph.edges((ps, ag))):
+        for from_node, nextnode in list(ps_ag_graph.edges((ps, ag))):
             if nextnode[0] not in all_connected_ps:
                 all_connected_ps[nextnode[0]] = 0
             all_connected_ps[nextnode[0]] += 1
@@ -486,9 +492,9 @@ def split_if_all_alleles_dont_connect_ps(ps_graph, ps_ag_graph, edge_to_reads, p
                 if ps_graph.has_edge(ps, ps2):
                     ps_graph.remove_edge(ps, ps2)
             for ag in phaseset_to_allele_groups[ps]:
-                for thisnode, nextnode in list(ps_ag_graph.edges((ps, ag))):
+                for from_node, nextnode in list(ps_ag_graph.edges((ps, ag))):
                     if nextnode[0] in bad_ps_conn:
-                        check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, nextnode, thisnode, moved_edge_nodes)
+                        check_remove_node(ps_graph, ps_ag_graph, edge_to_reads, nextnode, from_node, moved_edge_nodes)
 
 def combine_allele_groups_between_ps(ps_count, ag_count, ps_ag_set, all_reads_in_ps_ag, old_to_new, new_phaseset_to_allele_groups, new_index_to_allele_group_info, new_file_to_read_to_allele_group):
     new_ag = format_allele_group(ag_count)
@@ -580,61 +586,63 @@ def write_vcf_file(output, new_header, variant_to_allele_group_counts_info, norm
     for ps in phaseset_to_allele_groups:
         for ag in phaseset_to_allele_groups[ps]:
             allele_group_to_final_vars[(ps, ag)] = set()
-    with vcfpy.Writer.from_path(output + '.allelegroups.vcf', new_header) as writer:
-        format_strings = ['GT', 'PS', 'DP', 'AD']
-        for (chrom, pos, ref, alt), var_data in variant_to_allele_group_counts_info.items():
-            tot_cov = var_data['t_cov'] + var_data['n_cov']
-            tot_var = var_data['t_var'] + var_data['n_var']
-            # NEW: reporting homozygous variants + variants in all allele groups - more important for downstream vars
-            if tot_var != 0 and len(var_data['ag']) != 0:
-                my_ps = list(set([x[0] for x in var_data['ag']]))
-                if len(my_ps) > 1:
-                    # this can happen with overlapping genes/readthrough - I've decided right now that I don't want to try to combine phase sets originating from different genes
-                    logging.debug(f'WARNING:multiple phase sets for one variant {chrom} {pos} {ref} {alt} {my_ps}')
+    records = []
+    format_strings = ['GT', 'PS', 'DP', 'AD']
+    for (chrom, pos, ref, alt), var_data in variant_to_allele_group_counts_info.items():
+        tot_cov = var_data['t_cov'] + var_data['n_cov']
+        tot_var = var_data['t_var'] + var_data['n_var']
+        # NEW: reporting homozygous variants + variants in all allele groups - more important for downstream vars
+        if tot_var != 0 and len(var_data['ag']) != 0:
+            my_ps = list(set([x[0] for x in var_data['ag']]))
+            if len(my_ps) > 1:
+                # this can happen with overlapping genes/readthrough - I've decided right now that I don't want to try to combine phase sets originating from different genes
+                logging.debug(f'WARNING:multiple phase sets for one variant {chrom} {pos} {ref} {alt} {my_ps}')
 
-                # FIXME allow other types of alts
-                alt_type = 'SNV'
-                alt_desc = vcfpy.Substitution(alt_type, alt)
+            # FIXME allow other types of alts
+            alt_type = 'SNV'
+            alt_desc = vcfpy.Substitution(alt_type, alt)
 
-                for ps in my_ps:
-                    my_ag = sorted([x[1] for x in var_data['ag'] if x[0] == ps])
-                    gt = get_gt(tot_var, tot_cov, my_ag, phaseset_to_allele_groups[ps])
+            for ps in my_ps:
+                my_ag = sorted([x[1] for x in var_data['ag'] if x[0] == ps])
+                gt = get_gt(tot_var, tot_cov, my_ag, phaseset_to_allele_groups[ps])
 
-                    these_calls = [vcfpy.Call('tumor', {'GT': gt, 'PS': ps, 'DP': var_data['t_cov'], 'AD': [var_data['t_cov'] - var_data['t_var'], var_data['t_var']]})]
-                    if norm_bam is not None:
-                        these_calls.append(vcfpy.Call('normal', {'GT': gt, 'PS': ps, 'DP': var_data['n_cov'], 'AD': [var_data['n_cov'] - var_data['n_var'], var_data['n_var']]}))
-                    new_record = vcfpy.Record(chrom, int(pos) + 1, [], ref, [alt_desc], 100, ['PASS'], OrderedDict([('PS', ps), ('AG', my_ag)]), format_strings, these_calls)
-                    writer.write_record(new_record)
+                these_calls = [vcfpy.Call('tumor', {'GT': gt, 'PS': ps, 'DP': var_data['t_cov'], 'AD': [var_data['t_cov'] - var_data['t_var'], var_data['t_var']]})]
+                if norm_bam is not None:
+                    these_calls.append(vcfpy.Call('normal', {'GT': gt, 'PS': ps, 'DP': var_data['n_cov'], 'AD': [var_data['n_cov'] - var_data['n_var'], var_data['n_var']]}))
+                records.append(vcfpy.Record(chrom, int(pos) + 1, [], ref, [alt_desc], 100, ['PASS'], OrderedDict([('PS', ps), ('AG', my_ag)]), format_strings, these_calls))
 
-                for allele_group in var_data['ag']:
-                    # if allele_group not in allele_group_to_final_vars:
-                    #     allele_group_to_final_vars[allele_group] = set()
-                    allele_group_to_final_vars[allele_group].add((chrom, int(pos), ref, alt))
+            for allele_group in var_data['ag']:
+                # if allele_group not in allele_group_to_final_vars:
+                #     allele_group_to_final_vars[allele_group] = set()
+                allele_group_to_final_vars[allele_group].add((chrom, int(pos), ref, alt))
+    write_sorted_vcf(output + '.allelegroups.vcf', new_header, records)
     return allele_group_to_final_vars
 
 def write_allele_group_counts_read_map(index_to_allele_group_info, output, generate_map, norm_bam, read_support):
     """Read counts per allele group.  With --norm_bam, a group supported by fewer than
     read_support normal reads is called somatic; this is the only place that call is
     reported."""
-    with open(output + '.allelegroups.counts.tsv', 'w') as fh:
-        outline = ['phase_set', 'allele_group', 'tumor_counts']
-        if norm_bam is not None:
-            outline.extend(['normal_counts', 'somatic'])
-        fh.write('\t'.join(outline) + '\n')
+    with_normal = norm_bam is not None
+    with allele_group_counts_writer(compressed_path(output + '.allelegroups.counts.tsv'),
+                                    with_normal=with_normal) as writer:
         for (ps, ag), group_info in index_to_allele_group_info.items():
             ol = [str(ps), ag, str(len(group_info['t']))]
-            if norm_bam is not None:
+            if with_normal:
                 normal_counts = len(group_info['n'])
                 ol.extend([str(normal_counts), 'yes' if normal_counts < read_support else 'no'])
-            fh.write('\t'.join(ol) + '\n')
+            writer.writeRow(ol)
     if generate_map:
-        with open(output + '.allelegroups.tumor.read.map.txt', 'w') as fh:
-            for (ps, ag), group_info in index_to_allele_group_info.items():
-                fh.write(f'{ps}|{ag}\t{",".join(sorted(group_info["t"]))}\n')
-        if norm_bam is not None:
-            with open(output + '.allelegroups.normal.read.map.txt', 'w') as fh:
-                for (ps, ag), group_info in index_to_allele_group_info.items():
-                    fh.write(f'{ps}|{ag}\t{",".join(sorted(group_info["n"]))}\n')
+        write_allele_group_read_map(index_to_allele_group_info,
+                                    compressed_path(output + '.allelegroups.tumor.read.map.tsv'), 't')
+        if with_normal:
+            write_allele_group_read_map(index_to_allele_group_info,
+                                        compressed_path(output + '.allelegroups.normal.read.map.tsv'), 'n')
+
+def write_allele_group_read_map(index_to_allele_group_info, read_map_txt, which):
+    "the reads of each allele group in one BAM, tumor or normal"
+    with ReadMapWriter(read_map_txt) as writer:
+        for (ps, ag), group_info in index_to_allele_group_info.items():
+            writer.writeReads(f'{ps}|{ag}', sorted(group_info[which]))
 
 def make_allele_group_label(phaseset, allele_group_count):
     """Label of the next allele group in a phase set.  combine_phase_sets relabels
@@ -809,8 +817,8 @@ def getvariants(*, tumor_bam, normal_bam, vcf, normal_vcf, genome, output, gtf,
     logging.info('loading genes and variants')
     genome_fa = pysam.FastaFile(genome)
     my_vcfs = [vcf, normal_vcf] if normal_vcf is not None else [vcf]
-    vartoalt, var_to_is_homo = combine_vcf_files(my_vcfs)
-    chrom_to_region_to_vars = reorganize_vars(vartoalt)
+    var_to_alt, var_to_is_homo = combine_vcf_files(my_vcfs)
+    chrom_to_region_to_vars = reorganize_vars(var_to_alt)
     gene_to_all_exons, gene_to_all_juncs = load_isoform_data(gtf, isoform_bed)
 
     gene_to_all_exons, gene_to_all_juncs = combine_gene_region_subsets(gene_to_all_exons, gene_to_all_juncs)

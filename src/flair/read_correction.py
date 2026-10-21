@@ -24,6 +24,17 @@ def _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends
     add_corrected_read_to_groups(readrec, sj_to_ends)
 
 
+def _target_transcript_gene(tid, annots):
+    """The transcript and gene of an alignment target.  flair transcriptome names its
+    annotation targets transcript_gene, so the name is split with the composite id
+    heuristic, rather than on the last '_', which lands in the wrong place for a gene
+    id containing one.  flair spliceevents names them by the transcript alone, with
+    the gene in a column of its BED, so the annotation gives the gene there."""
+    gene = annots.transcript_to_gene.get(tid)
+    if gene is not None:
+        return tid, gene
+    return split_iso_gene(tid)
+
 def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
                             junction_corrector, sj_to_ends, genome,
                             keep_single_exon, trust_strand, check_motifs):
@@ -57,10 +68,7 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
     # is what it corrects
     if read.query_name in read_to_annot_transcript:
         tid, startindex, startdist, endindex, enddist = read_to_annot_transcript[read.query_name]
-        # the composite id heuristic, shared with bed_to_gtf and the rest, rather than
-        # a bare split on the last '_', which lands in the wrong place for any gene id
-        # containing one
-        transcript, gene = split_iso_gene(tid)
+        transcript, gene = _target_transcript_gene(tid, annots)
         exons = annots.transcript_to_exons[(transcript, gene)]
         annot_juncs = [(exons[x].end, exons[x + 1].start) for x in range(len(exons) - 1)]
         if len(annot_juncs) > 0 and not (trust_strand and annots.gene_to_strand[gene] != readrec.strand):

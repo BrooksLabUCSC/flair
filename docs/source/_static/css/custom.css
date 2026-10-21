@@ -1,0 +1,6 @@
+/* the rtd theme sets white-space:nowrap on table cells, so a long cell overflows
+   into a horizontal scrollbar instead of wrapping */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+    white-space: normal;
+}

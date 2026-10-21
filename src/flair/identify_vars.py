@@ -8,8 +8,9 @@ import shutil
 import multiprocessing as mp
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
-from flair.io_utils import make_temp_dir
+from flair.io_utils import check_genome_fasta, make_temp_dir, write_sorted_vcf
 from flair.pycbio.hgdata.bed import BedReader
+from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -18,7 +19,7 @@ def parse_args():
     parser.add_argument('-o', '--output', default='flair',
                         help="output prefix. default: 'flair'")
     parser.add_argument('-g', '--genome',
-                        type=str, required=True, help='FastA of reference genome')
+                        type=str, required=True, help='FASTA of reference genome')
     parser.add_argument('-t', '--threads', type=int,
                         action='store', default=4, help='minimap2 number of threads (4)')
 
@@ -293,9 +294,14 @@ def process_var_pos(pos, pos_to_var_filtered, pos_to_var, pos_to_cov, genome, ch
                                 genome, chrom, donor_counts, acceptor_counts, min_var_reads, min_vaf, min_sj_dist, num_repeats_for_filtering)
 
 
+def region_vars_path(temp_dir, region):
+    "the per region variants file; temp_dir ends in the separator"
+    return temp_dir + '-'.join([str(x) for x in region]) + '.tsv'
+
 def process_reads_for_region(args):
     temp_dir, bam_file, region, genome_file, min_cov, min_var_reads, min_vaf, min_read_end_dist, min_sj_dist, num_repeats_for_filtering, identify_indels, identify_snvs, density_dist, density_count = args
-    with pysam.FastaFile(genome_file) as genome, open(temp_dir + '-'.join([str(x) for x in region]) + '.txt', 'w') as out:
+    with pysam.FastaFile(genome_file) as genome, \
+            IndelVarsWriter(region_vars_path(temp_dir, region)) as out:
         pos_to_cov, pos_to_var, donor_counts, acceptor_counts = get_indels_from_bam(region, bam_file, genome, min_read_end_dist, min_sj_dist, identify_indels, identify_snvs)
         pos_to_var_filtered = {}
         for pos in pos_to_var:
@@ -310,7 +316,8 @@ def process_reads_for_region(args):
                     pos_to_var_filtered[pos][k][-1].append('dn')
             for k in pos_to_var_filtered[pos]:
                 chrom, pos, indel_type, ref_seq, var_seq, indel_reads, tot_cov, filters = pos_to_var_filtered[pos][k]
-                out.write('\t'.join([str(x) for x in (chrom, pos, indel_type, ref_seq, var_seq, indel_reads, tot_cov, ','.join(filters))]) + '\n')
+                out.writeRow((chrom, pos, indel_type, ref_seq, var_seq, indel_reads,
+                              tot_cov, filters))
 
 def get_regions_from_bed(region_bed):
     regions = []
@@ -345,24 +352,26 @@ def generate_new_vcf_header(genome):
 def write_output_vcf(genome_file, output, regions, temp_dir):
     with pysam.FastaFile(genome_file) as genome:
         vcf_header = generate_new_vcf_header(genome)
-        with vcfpy.Writer.from_path(output + '.vcf', vcf_header) as writer:
-            format_strings = ['GT', 'DP', 'AD']
-            for region in regions:
-                for line in open(temp_dir + '-'.join([str(x) for x in region]) + '.txt'):
-                    chrom, start_pos, indel_type, ref_seq, alt_seq, indel_reads, tot_cov, filters = line.rstrip('\n').split('\t')
-                    indel_reads, tot_cov = int(indel_reads), int(tot_cov)
-                    filters = [x for x in filters.split(',') if x != '']
-                    if len(filters) == 0:
-                        filters.append('PASS')
-                    alt_desc = vcfpy.Substitution(indel_type, alt_seq)
-                    indel_vaf = round(indel_reads / tot_cov, 3)
-                    gt = '0/1' if indel_vaf < 0.95 else '1/1'
-                    these_calls = [vcfpy.Call('SAMPLE', {'GT': gt, 'DP': tot_cov, 'AD': [tot_cov - indel_reads, indel_reads]})]
-                    new_record = vcfpy.Record(chrom, int(start_pos), [], ref_seq, [alt_desc], 100, filters, {}, format_strings, these_calls)
-                    writer.write_record(new_record)
+        records = []
+        format_strings = ['GT', 'DP', 'AD']
+        for region in regions:
+            for row in IndelVarsReader(region_vars_path(temp_dir, region)):
+                chrom, start_pos, indel_type = row.chrom, row.pos, row.indel_type
+                ref_seq, alt_seq = row.ref_seq, row.var_seq
+                indel_reads, tot_cov = row.indel_reads, row.tot_cov
+                filters = list(row.filters)
+                if len(filters) == 0:
+                    filters.append('PASS')
+                alt_desc = vcfpy.Substitution(indel_type, alt_seq)
+                indel_vaf = round(indel_reads / tot_cov, 3)
+                gt = '0/1' if indel_vaf < 0.95 else '1/1'
+                these_calls = [vcfpy.Call('SAMPLE', {'GT': gt, 'DP': tot_cov, 'AD': [tot_cov - indel_reads, indel_reads]})]
+                records.append(vcfpy.Record(chrom, int(start_pos), [], ref_seq, [alt_desc], 100, filters, {}, format_strings, these_calls))
+        write_sorted_vcf(output + '.vcf', vcf_header, records)
 
 def get_indels():
     args = parse_args()
+    check_genome_fasta(args.genome)
     temp_dir = make_temp_dir(args.output)
     if args.region_bed is not None:
         regions = get_regions_from_bed(args.region_bed)

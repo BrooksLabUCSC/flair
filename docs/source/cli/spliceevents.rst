@@ -6,6 +6,7 @@
 
    usage: flair spliceevents [-h] -m MANIFEST -g GENOME -f GTF [-o OUTPUT]
                              [-t THREADS] [--annot_basic ANNOT_BASIC]
+                             [--junction_star JUNCTION_STAR]
                              [--junction_tab JUNCTION_TAB]
                              [--junction_bed JUNCTION_BED]
                              [--junction_support JUNCTION_SUPPORT]
@@ -33,17 +34,21 @@
 
    GTF annotation file of full-length transcripts, such as GENCODE basic, whose first and last exons may also be used as internal ones in some reads and still count as first and last exons, and which unspliced reads are fragments of, rather than those of -f. A comprehensive annotation includes truncated transcripts, whose ends are not real first and last exons
 
+.. option:: --junction_star JUNCTION_STAR
+
+   splice junctions in STAR SJ.out.tab format, as STAR writes when it aligns reads
+
 .. option:: --junction_tab JUNCTION_TAB
 
-   short-read junctions in SJ.out.tab format. Use this option if you aligned your short-reads with STAR, STAR will automatically output this file
+   deprecated name for --junction_star
 
 .. option:: --junction_bed JUNCTION_BED
 
-   short-read junctions in bed format (can be generated from long-read alignment with intron-prospector)
+   splice junctions as BED6 to BED9 with the number of supporting reads in the score column, as intron-prospector writes from a BAM of either short or long reads. An alternative format to --junction_star, not a different kind of evidence
 
 .. option:: --junction_support JUNCTION_SUPPORT
 
-   if providing short-read junctions, minimum junction support required to keep junction. If your junctions file is in bed format, the score field will be used for read support (default: 2)
+   minimum number of supporting reads to keep a junction, from either --junction_star or --junction_bed; for bed the score column holds the count (default: 2)
 
 .. option:: --ss_window SS_WINDOW
 
@@ -105,7 +110,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of reference genome, can be minimap2 indexed
+   FASTA of reference genome, can be minimap2 indexed
 
 .. option:: -f GTF, --gtf GTF
 

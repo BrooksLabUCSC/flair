@@ -91,7 +91,7 @@ def generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, chro
     c = 0
     # use both soft and hard-clipping because some alignments (secondary, maybe supplementary) can be hard-clipped
     clipping_types = (pysam.CIGAR_OPS.CSOFT_CLIP, pysam.CIGAR_OPS.CHARD_CLIP)
-    with open(temp_prefix + '.reads.genomicclipping.txt', 'w') as clipping_fh:
+    with open(temp_prefix + '.reads.genomicclipping.tsv', 'w') as clipping_fh:
         for read in fetch_reads(bam_file, chrom, start, end, windows):
             if not read.is_secondary and not read.is_supplementary:
                 c += 1
@@ -103,4 +103,4 @@ def generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, chro
                 if cigar[-1][0] in clipping_types:
                     right_clipping = cigar[-1][1]
                 clipping_fh.write(name + '\t' + str(left_clipping) + '\t' + str(right_clipping) + '\n')
-    return c, temp_prefix + '.reads.genomicclipping.txt'
+    return c, temp_prefix + '.reads.genomicclipping.tsv'

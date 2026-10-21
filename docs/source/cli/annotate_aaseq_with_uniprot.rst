@@ -11,13 +11,13 @@
 
 .. option:: -i INPUT_AASEQ, --input_aaseq INPUT_AASEQ
 
-   protein sequence fasta file; sequence names should be aaseqID_geneID
+   protein sequence FASTA file; sequence names should be aaseqID_geneID
 
 .. option:: -r REFERENCE_SEQ, --reference_seq REFERENCE_SEQ
 
-   reference protein sequence fasta file; sequence names should be db|refID|geneName_organism, for example >sp|Q8NH21|OR4F5_HUMAN, from which the refID is extracted. This can be fasta or fasta.gz
+   reference protein sequence FASTA file; sequence names should be db|refID|geneName_organism, for example >sp|Q8NH21|OR4F5_HUMAN, from which the refID is extracted. This can be fasta or fasta.gz
 
 .. option:: -o OUTPUT, --output OUTPUT
 
-   output name, a fasta file
+   output name, a FASTA file
 

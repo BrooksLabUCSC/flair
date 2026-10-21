@@ -1,7 +1,9 @@
 Modules
 ^^^^^^^
 
-``flair`` is a program which implement the follow module sub-commands.
+Each FLAIR analysis is a sub-command of ``flair``.  See :ref:`running-label`
+for the options that come before the sub-command and for how compression
+works.
 
 If you want to compare multiple samples, there are two primary ways of doing this:
  - Combine the fastq or fasta reads of all samples and run FLAIR transcriptome on all samples together (will generate the most comprehensive transcriptome)
@@ -80,7 +82,7 @@ For when to count splicing events from reads with flair spliceevents instead, se
  - ``flair.isoforms.bed``
  - ``flair.isoforms.gtf``
  - ``flair.isoforms.fa``
- - ``flair.read.map.txt``
+ - ``flair.isoform.read.map.tsv``
 
 Options
 -------
@@ -143,9 +145,9 @@ sample.fusions.isoforms.gtf, sample.fusions.isoforms.bb
     The fusion transcriptome as GTF and bigBed
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.fusions.isoform.counts.txt
+sample.fusions.isoform.counts.tsv
     Read counts of the fusion isoforms, as flair transcriptome's isoform.counts.txt
-sample.fusions.isoform.read.map.txt
+sample.fusions.isoform.read.map.tsv
     read map of reads to fusion isoforms
 sample.fusions.aaseq.tsv
     Protein sequences of the productive fusion isoforms, by the aaseq_id of the bed
@@ -284,15 +286,17 @@ an isoform's ends were placed.
 
 **Output**
 
-``<output>.counts.tsv`` has a row per isoform, named by the isoform, or with
-``--with_gene`` by ``<isoform>_<gene id>``, and a column of read counts per sample,
-named by its id:
+``<output>.counts.tsv`` opens with the two id columns, the gene and the isoform, and
+has a column of read counts per sample, named by its id, a row per isoform of a gene:
 
 .. code:: text
 
-   ids	sample1	sample2	sample3	sample4
-   ENST00000225792.10_ENSG00000108654.15	21	12	10	10
-   ENST00000256078.9_ENSG00000133703.12	7	6	7	15
+   gene_id	isoform_id	sample1	sample2	sample3	sample4
+   FLG00000001	FLT00000001	21	12	10	10
+   FLG00000001	FLT00000002	7	6	7	15
+
+Each row is one isoform of one gene, named by the two leading id columns described
+in :ref:`ids-label`.  A fusion isoform's gene is the fusion's.
 
 The condition and batch of each column are in ``<output>.sample_info.tsv``, written
 beside the counts file, which ``flair diffexp`` and ``flair diffsplice`` read:
@@ -312,9 +316,9 @@ column name.
 
 With ``--tpm``, ``<output>.tpm.tsv`` has the counts as transcripts per million; a
 sample with no reads counted has 0 throughout, with a warning.  With
-``--generate_map``, ``<output>.<sample id>.read.map.txt`` lists each sample's reads by
-isoform, a line of an isoform's name and its reads' names, comma-separated; an isoform
-can have more than one line.
+``--generate_map``, ``<output>.<sample id>.read.map.tsv`` lists each sample's reads by
+isoform, under a header, a row of an isoform's name and its reads' names,
+comma-separated.  With ``--compress`` these are all written gzipped.
 
 **Temporary files**
 
@@ -437,6 +441,9 @@ If DRIMSeq was run, where ``A`` is ``--condition_a`` and ``B`` is ``--condition_
  - ``drimseq_ir_A_v_B.tsv``
  - ``workdir`` Temporary files including unfiltered output files.
 
+All four are written whichever events were called: an event type that called nothing, or
+whose events DRIMSeq found nothing significant in, leaves a file of only its header.
+
 Options
 -------
 
@@ -457,33 +464,33 @@ considered to include or exclude the each event:
 
 .. code::
 
-   a3ss_feature_id     coordinate                  sample1 sample2 ... isoform_ids
-   inclusion_chr1:80   chr1:80-400_chr1:80-450     75.0    35.0    ... a,e
-   exclusion_chr1:80   chr1:80-400_chr1:80-450     3.0     13.0    ... c
-   inclusion_chr1:500  chr1:500-650_chr1:500-700   4.0     18.0    ... d
-   exclusion_chr1:500  chr1:500-650_chr1:500-700   70.0    17.0    ... e
+   a3ss_feature_id       coordinate                    sample1 sample2 ... isoform_ids
+   inclusion_chr1:80(+)   chr1:80-400(+)_chr1:80-450(+)     75.0    35.0    ... a,e
+   exclusion_chr1:80(+)   chr1:80-400(+)_chr1:80-450(+)     3.0     13.0    ... c
+   inclusion_chr1:500(+)  chr1:500-650(+)_chr1:500-700(+)   4.0     18.0    ... d
+   exclusion_chr1:500(+)  chr1:500-650(+)_chr1:500-700(+)   70.0    17.0    ... e
 
 .. code::
 
-   ir_feature_id           coordinate      sample1 sample2 ... isoform_ids
-   inclusion_chr1:500-650  chr1:500-650    46.0    13.0    ... g
-   exclusion_chr1:500-650  chr1:500-650    4.0     18.0    ... d
-   inclusion_chr1:500-700  chr1:500-700    46.0    13.0    ... g
-   exclusion_chr1:500-700  chr1:500-700    70.0    17.0    ... e
-   inclusion_chr1:250-450  chr1:250-450    50.0    31.0    ... d,g
-   exclusion_chr1:250-450  chr1:250-450    80.0    17.0    ... b
+   ir_feature_id             coordinate        sample1 sample2 ... isoform_ids
+   inclusion_chr1:500-650(+)  chr1:500-650(+)    46.0    13.0    ... g
+   exclusion_chr1:500-650(+)  chr1:500-650(+)    4.0     18.0    ... d
+   inclusion_chr1:500-700(+)  chr1:500-700(+)    46.0    13.0    ... g
+   exclusion_chr1:500-700(+)  chr1:500-700(+)    70.0    17.0    ... e
+   inclusion_chr1:250-450(+)  chr1:250-450(+)    50.0    31.0    ... d,g
+   exclusion_chr1:250-450(+)  chr1:250-450(+)    80.0    17.0    ... b
 
 .. code::
 
-   es_feature_id           coordinate      sample1 sample2 ... isoform_ids
-   inclusion_chr1:450-500  chr1:450-500    83.0    30.0    ... b,c
-   exclusion_chr1:450-500  chr1:450-500    56.0    15.0    ... f
-   inclusion_chr1:200-250  chr1:200-250    80.0    17.0    ... b
-   exclusion_chr1:200-250  chr1:200-250    3.0     13.0    ... c
-   inclusion_chr1:200-500  chr1:200-500    4.0     18.0    ... d
-   exclusion_chr1:200-500  chr1:200-500    22.0    15.0    ... h
-   inclusion_chr1:400-500  chr1:400-500    75.0    35.0    ... e,a
-   exclusion_chr1:400-500  chr1:400-500    56.0    15.0    ... f
+   es_feature_id             coordinate        sample1 sample2 ... isoform_ids
+   inclusion_chr1:450-500(+)  chr1:450-500(+)    83.0    30.0    ... b,c
+   exclusion_chr1:450-500(+)  chr1:450-500(+)    56.0    15.0    ... f
+   inclusion_chr1:200-250(+)  chr1:200-250(+)    80.0    17.0    ... b
+   exclusion_chr1:200-250(+)  chr1:200-250(+)    3.0     13.0    ... c
+   inclusion_chr1:200-500(+)  chr1:200-500(+)    4.0     18.0    ... d
+   exclusion_chr1:200-500(+)  chr1:200-500(+)    22.0    15.0    ... h
+   inclusion_chr1:400-500(+)  chr1:400-500(+)    75.0    35.0    ... e,a
+   exclusion_chr1:400-500(+)  chr1:400-500(+)    56.0    15.0    ... f
 
 .. _spliceevents-label:
 

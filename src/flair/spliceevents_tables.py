@@ -3,6 +3,7 @@ their combination into a run's.  Used by flair spliceevents"""
 
 import shutil
 from flair.partition_runner import combine_temp_files_by_suffix
+from flair.io_utils import sort_bed_file
 from statistics import median
 from flair.pycbio.hgdata.bed import Bed, BedBlock
 from flair.spliceevents_events import EVENT_COLORS, row_introns, row_name
@@ -98,8 +99,9 @@ def write_with_header(output, prefixes, suffix, header):
 
 
 def combine_region_tables(output, prefixes, samples):
-    "the regions' tables as the run's, OUTPUT.spliceevents.*"
+    "the regions' tables as the run's, OUTPUT.spliceevents.*, the BED sorted by position as every final BED is"
     combine_temp_files_by_suffix(output, prefixes, ['.spliceevents.bed'])
+    sort_bed_file(output + '.spliceevents.bed')
     for suffix, columns in (('.spliceevents.counts.tsv', EVENT_ROW_COLUMNS), ('.spliceevents.PSIjunc.tsv', EVENT_ROW_COLUMNS),
                             ('.spliceevents.PSItot.tsv', EVENT_ROW_COLUMNS), ('.spliceevents.totals.tsv', EVENT_TOTALS_COLUMNS)):
         write_with_header(output, prefixes, suffix, columns + samples)

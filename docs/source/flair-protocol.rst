@@ -231,8 +231,8 @@ gene-level quantification.
 
   - ``flair quantify --manifest MANIFEST.tsv -g GENOME.fa --isoform_bed COMBINED.isoforms.bed -o OUTPUT``
   - Add ``--normalize_ends`` unless your reads' ends are reliable
-    (``--trust_ends``), and ``--with_gene`` to name each isoform with its
-    gene, as FLAIR diffexp expects
+    (``--trust_ends``).  The counts matrix names each isoform's gene in its own
+    column, as FLAIR diffexp expects
 
 Counting splicing events from reads
 -----------------------------------

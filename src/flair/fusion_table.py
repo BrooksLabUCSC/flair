@@ -4,6 +4,9 @@ read counts, its isoforms, and its best supported breakpoint and isoform, sorted
 final reads.
 """
 from collections import defaultdict
+from flair.output_compress import compressed_path, open_output
+from flair.read_map_tsv import ReadMapReader
+from flair.pycbio.sys import fileOps
 
 FUSION_TABLE_COLUMNS = ('fusion', 'gene_ids', 'prelim_reads', 'final_reads', 'isoforms',
                         'top_breakpoint', 'top_breakpoint_reads', 'top_isoform', 'top_isoform_reads')
@@ -12,7 +15,7 @@ FUSION_TABLE_COLUMNS = ('fusion', 'gene_ids', 'prelim_reads', 'final_reads', 'is
 def prelim_read_counts(prelim_bed):
     "fusion (its synthetic contig name) -> its reads in the preliminary fusions"
     counts = {}
-    for line in open(prelim_bed):
+    for line in fileOps.iterLines(prelim_bed):
         f = line.split('\t')
         # the reads are the last column, as the score is capped at 1000
         counts[f[3].split('__', 1)[1]] = int(f[-1])
@@ -22,7 +25,7 @@ def prelim_read_counts(prelim_bed):
 def isoform_contigs(synthetic_isoforms_bed):
     "isoform -> the synthetic fusion contig it is on"
     contigs = {}
-    for line in open(synthetic_isoforms_bed):
+    for line in fileOps.iterLines(synthetic_isoforms_bed):
         f = line.split('\t')
         contigs[f[3]] = f[0]
     return contigs
@@ -30,18 +33,14 @@ def isoform_contigs(synthetic_isoforms_bed):
 
 def isoform_read_counts(read_map):
     "isoform -> its number of reads"
-    counts = {}
-    for line in open(read_map):
-        iso, reads = line.rstrip('\n').split('\t')
-        counts[iso] = len(reads.split(','))
-    return counts
+    return {row.name: len(row.reads) for row in ReadMapReader(read_map)}
 
 
 def isoform_pieces(fusion_isoforms_bed):
     "isoform -> its pieces as (position in fusion, chrom, start, end, strand)"
     pieces = defaultdict(list)
-    for line in open(fusion_isoforms_bed):
-        f = line.rstrip('\n').split('\t')
+    for line in fileOps.iterLines(fusion_isoforms_bed):
+        f = line.split('\t')
         pieces[f[3]].append((int(f[20]), f[0], int(f[1]), int(f[2]), f[5]))
     return pieces
 
@@ -87,7 +86,7 @@ def fusion_rows(prelim_reads, iso_contig, iso_genes, iso_reads, iso_pieces, gene
 
 
 def write_table(rows, tsv):
-    with open(tsv, 'w') as out:
+    with open_output(tsv) as out:
         out.write('\t'.join(FUSION_TABLE_COLUMNS) + '\n')
         for row in rows:
             out.write('\t'.join(str(x) for x in row) + '\n')
@@ -98,7 +97,7 @@ def write_fusion_table(output, iso_genes, genetoname):
     iso_genes, isoform -> its final genes (convert_synthetic_isos)"""
     rows = fusion_rows(prelim_read_counts(output + '.prelimfusions.bed'),
                        isoform_contigs(output + '.syntheticAligned.flair.isoforms.bed'), iso_genes,
-                       isoform_read_counts(output + '.fusions.isoform.read.map.txt'),
-                       isoform_pieces(output + '.fusions.isoforms.bed'),
+                       isoform_read_counts(compressed_path(output + '.fusions.isoform.read.map.tsv')),
+                       isoform_pieces(compressed_path(output + '.fusions.isoforms.bed')),
                        genetoname)
     write_table(rows, output + '.fusions.tsv')

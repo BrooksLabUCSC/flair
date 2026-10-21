@@ -6,9 +6,8 @@
 
    usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
                          ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
-                         [--trust_ends] [--generate_map] [--with_gene]
-                         [--normalize_ends] [--temp_dir TEMP_DIR]
-                         [--keep_intermediate]
+                         [--trust_ends] [--generate_map] [--normalize_ends]
+                         [--temp_dir TEMP_DIR] [--keep_intermediate]
 
 .. rubric:: options
 
@@ -30,11 +29,7 @@
 
 .. option:: --generate_map
 
-   write each sample's reads by isoform, <output>.<sample id>.read.map.txt: a line of an isoform and its reads, comma-separated
-
-.. option:: --with_gene
-
-   name each counts row <isoform>_<gene id> rather than <isoform>, its isoform's name and gene id (column 13 of the isoform bed)
+   write each sample's reads by isoform, <output>.<sample id>.read.map.tsv: a row of an isoform and its reads, comma-separated, under a header
 
 .. option:: --normalize_ends
 
@@ -56,7 +51,7 @@
 
 .. option:: -g GENOME, --genome GENOME
 
-   FASTA of the genome the reads are aligned to, indexed with samtools faidx (a .fai is made beside it if missing and the directory is writable)
+   FASTA of the genome the reads are aligned to, plain or bgzip, indexed with samtools faidx (for a plain FASTA, a .fai is made beside it if missing and the directory is writable)
 
 .. option:: --isoform_bed ISOFORM_BED
 

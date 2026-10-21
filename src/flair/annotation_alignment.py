@@ -9,6 +9,7 @@ from flair import thread_share
 from flair.annotation_precheck import reads_skipping_annotation_alignment
 from flair.count_sam_transcripts import run_count_sam_transcripts, MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.isoform_data import Exon, get_bed_exons_from_exons, get_sequence_for_exons
+from flair.read_ends_tsv import ReadEndsReader
 from flair.terminal_exon_ends import TerminalExonEnds
 
 
@@ -69,7 +70,7 @@ def generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, a
 def generate_transcriptome_reference(temp_prefix, annots, chrom, genome):
     with (open(temp_prefix + '.annotated_transcripts.bed', 'w') as annot_bed_fh,
           open(temp_prefix + '.annotated_transcripts.fa', 'w') as annot_fa_fh,
-          open(temp_prefix + '.annotated_transcripts_uniquebound.txt', 'w') as annot_uniqueseq_fh):
+          open(temp_prefix + '.annotated_transcripts_uniquebound.tsv', 'w') as annot_uniqueseq_fh):
         return generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
 
 
@@ -90,7 +91,7 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
     """read -> (annotated transcript, start splice site index and distance, end splice
     site index and distance) of the reads in region that align well to an annotated
     transcript, of the reads in temp_prefix.reads.fasta, their genomic clipping in
-    temp_prefix.reads.genomicclipping.txt.  Reads whose correction the alignment can't
+    temp_prefix.reads.genomicclipping.tsv.  Reads whose correction the alignment can't
     change aren't aligned.  Given windows, ReadWindows, only the reads in them are
     checked for needing the alignment, as only they are in the fasta."""
     chrom = region.name
@@ -108,24 +109,23 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
         transcript_to_strand, transcript_to_new_exons = \
             generate_transcriptome_reference(temp_prefix, annots, chrom, genome)
         # FIXME: make a TSV
-        clipping_file = temp_prefix + '.reads.genomicclipping.txt'
+        clipping_file = temp_prefix + '.reads.genomicclipping.tsv'
         transcriptome_align_and_count(annot_reads,
                                       temp_prefix + '.annotated_transcripts.fa',
                                       temp_prefix + '.annotated_transcripts.bed',
-                                      temp_prefix + '.matchannot.counts.txt',
+                                      temp_prefix + '.matchannot.counts.tsv',
                                       None, True,
                                       clipping_file,
-                                      temp_prefix + '.annotated_transcripts_uniquebound.txt',
+                                      temp_prefix + '.annotated_transcripts_uniquebound.tsv',
                                       directRNA=directRNA, no_stringent=False, check_splice=check_splice,
                                       trust_strand=trust_strand, fusion_breakpoints=fusion_breakpoints)
-        for line in open(temp_prefix + '.matchannot.ends.tsv'):
-            line = line.rstrip().split('\t')
-            read, transcript = line[:2]
-            start_sj_index, start_sj_dist, start_tend_dist, end_sj_index, end_sj_dist, end_tend_dist = [int(x) if x != 'None' else None for x in line[2:]]
-            # is not None: the value was converted on the line above, so the old
-            # comparison with the string 'None' was always true
-            if start_sj_index is not None and end_sj_index is not None:  # not a single exon transcript
-                read_to_transcript[read] = (transcript, start_sj_index, start_sj_dist, end_sj_index, end_sj_dist)
+        for row in ReadEndsReader(temp_prefix + '.matchannot.ends.tsv'):
+            # an empty junction index means a single exon transcript, which has no
+            # splice junction to measure the read's ends from
+            if row.start_sj_index is not None and row.end_sj_index is not None:
+                read_to_transcript[row.read] = (row.transcript, row.start_sj_index,
+                                                row.start_sj_dist, row.end_sj_index,
+                                                row.end_sj_dist)
     return read_to_transcript
 
 
@@ -148,7 +148,7 @@ def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_
     # FIXME really need to go in and check on how count_sam_transcripts is working
     trimmedreads = clipping_file or None
     generate_map = map_file or None
-    output_endpos = output_name.split('.counts.txt')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
+    output_endpos = output_name.split('.counts.tsv')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
     stringent = (not is_annot) and (not no_stringent)
     unique_bound_path = unique_bound if unique_bound and (not no_stringent or is_annot) else None
 

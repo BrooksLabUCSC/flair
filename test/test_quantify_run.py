@@ -78,15 +78,17 @@ def _inputs(tmp_path):
     return str(manifest), str(genome), str(bed)
 
 
-def _run(tmp_path, threads, with_gene=False, trust_ends=False):
+def _run(tmp_path, threads, trust_ends=False):
     manifest, genome, bed = _inputs(tmp_path)
     output = str(tmp_path / 'out')
     quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=output, threads=threads, tpm=False,
-             trust_ends=trust_ends, generate_map=True, with_gene=with_gene, normalize_ends=False,
+             trust_ends=trust_ends, generate_map=True, normalize_ends=False,
              temp_dir=str(tmp_path / 'tmp'))
     counts = [line.rstrip('\n').split('\t') for line in open(output + '.counts.tsv')]
     read_map = {}
-    for line in open(output + '.s1.read.map.txt'):
+    lines = open(output + '.s1.read.map.tsv').read().splitlines()
+    assert lines[0] == 'name\treads'
+    for line in lines[1:]:
         name, reads = line.rstrip('\n').split('\t')
         read_map.setdefault(name, []).extend(reads.split(','))
     return counts, {name: sorted(reads) for name, reads in read_map.items()}
@@ -95,14 +97,10 @@ def _run(tmp_path, threads, with_gene=False, trust_ends=False):
 @pytest.mark.parametrize('threads', [1, 2])
 def test_each_read_counted_once_for_its_full_length_isoform(tmp_path, threads):
     counts, read_map = _run(tmp_path, threads)
-    assert counts == [['ids', 's1'], ['A1', '3'], ['B1', '1'], ['S1', '1'], ['S2', '1']]
+    assert counts == [['gene_id', 'isoform_id', 's1'], ['G1', 'A1', '3'], ['G2', 'B1', '1'], ['G3', 'S1', '1'],
+                      ['G4', 'S2', '1']]
     assert read_map == {'A1': ['a_full', 'a_realigned', 'a_short_start'], 'B1': ['b_full'],
                         'S1': ['s1_read'], 'S2': ['s2_read']}
-
-
-def test_rows_named_with_gene(tmp_path):
-    counts, _ = _run(tmp_path, 1, with_gene=True)
-    assert [row[0] for row in counts] == ['ids', 'A1_G1', 'B1_G2', 'S1_G3', 'S2_G4']
 
 
 def test_trust_ends_needs_ends_near_the_isoforms(tmp_path):

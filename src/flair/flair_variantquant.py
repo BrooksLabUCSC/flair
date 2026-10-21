@@ -18,6 +18,8 @@ from flair.pycbio.hgdata.bed import BedReader
 from flair.pycbio.sys import fileOps
 from flair.interval_index import IntervalIndex
 from flair.io_utils import make_run_temp_dir, read_manifest_rows
+from flair.output_compress import compressed_path
+from flair.var_counts_tsv import var_counts_writer
 from flair import FlairInputDataError
 
 # cigar operations aligning read bases to the genome (M, =, X), only of the read
@@ -35,8 +37,6 @@ VAR_BIN_SIZE = 10 ** 6
 
 # a read's allele at a site where it shows none of the site's alts
 NO_ALT = '.'
-# the columns of OUTPUT.var.counts.tsv before the samples', in every run
-VAR_COUNTS_COLUMNS = ['varpos', 'ref', 'alt', 'strand', 'phase_set', 'haplotype', 'gene']
 
 # a read's group, of the --trust_strand and --haplotypes it is counted in: its strand,
 # phase set and haplotype, of its HP and PS tags, each NO_GROUP when not trusted, given
@@ -275,7 +275,7 @@ def _warn_of_unshared_phase_sets(samplenames, phase_sets):
 def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars,
                                    haplotypes=False):
     """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv,
-    of VAR_COUNTS_COLUMNS and then the samples: per sample, the reads covering the
+    of var_counts_tsv.ID_COLUMNS and then the samples: per sample, the reads covering the
     site not showing the alt, and those showing it, so they add up to the site's
     coverage whatever its other alts.  Each group of reads (ReadGroup) at the site
     has a row of its own, of its strand, phase set and haplotype, NO_GROUP those of
@@ -289,8 +289,7 @@ def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold,
     if haplotypes:
         _warn_of_unshared_phase_sets(samplenames, phase_sets)
 
-    with open(f'{outprefix}.var.counts.tsv', 'w') as out:
-        out.write('\t'.join(VAR_COUNTS_COLUMNS + samplenames) + '\n')
+    with var_counts_writer(compressed_path(f'{outprefix}.var.counts.tsv'), samplenames) as out:
         groups_of_site = {}
         for (refname, pos, gene, group), sample_alleles in vartocounts.items():
             groups_of_site.setdefault((refname, pos, gene), []).append((group, sample_alleles))
@@ -302,8 +301,8 @@ def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold,
                 for group, sample_alleles in groups:
                     coverage = [sum(alleles.values()) for alleles in sample_alleles]
                     if any(cov >= threshold for cov in coverage):
-                        varcounts = [f'{cov - alleles[alt]};{alleles[alt]}' for cov, alleles in zip(coverage, sample_alleles)]
-                        out.write('\t'.join([f'{refname}:{pos}', ref, alt, *group, gene] + varcounts) + '\n')
+                        varcounts = [(cov - alleles[alt], alleles[alt]) for cov, alleles in zip(coverage, sample_alleles)]
+                        out.writeRow([f'{refname}:{pos}', ref, alt, *group, gene] + varcounts)
 
 
 def is_snv(ref, alt):

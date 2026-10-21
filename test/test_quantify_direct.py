@@ -101,17 +101,17 @@ def test_trust_ends_needs_ends_near_the_isoforms():
 
 
 def test_realigned_reads_added_to_direct_assignments(tmp_path):
-    counts, read_map = tmp_path / 'counts.txt', tmp_path / 'map.txt'
-    counts.write_text('main\t2\nupstream\t1\n')
-    read_map.write_text('main\tr1,r2\nupstream\tr3\n')
+    counts, read_map = tmp_path / 'counts.tsv', tmp_path / 'map.tsv'
+    counts.write_text('transcript\tcount\nmain\t2\nupstream\t1\n')
+    read_map.write_text('name\treads\nmain\tr1,r2\nupstream\tr3\n')
     assigned = {'main': ['r4'], 'third': ['r5', 'r6']}
     read_count_sam_results(counts, read_map, assigned)
     assert assigned == {'main': ['r4', 'r1', 'r2'], 'third': ['r5', 'r6'], 'upstream': ['r3']}
 
 
 def test_realigned_counts_added_without_a_map(tmp_path):
-    counts = tmp_path / 'counts.txt'
-    counts.write_text('main\t2\nupstream\t1\n')
+    counts = tmp_path / 'counts.tsv'
+    counts.write_text('transcript\tcount\nmain\t2\nupstream\t1\n')
     assigned = {'main': 1}
     read_count_sam_results(counts, None, assigned)
     assert assigned == {'main': 3, 'upstream': 1}

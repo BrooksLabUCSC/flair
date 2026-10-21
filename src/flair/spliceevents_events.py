@@ -103,9 +103,26 @@ def span(ranges):
     return min(r[0] for r in ranges), max(r[1] for r in ranges)
 
 
+# Bases of the flanking exons included either side of an event in the BED that
+# spliceevents writes for viewing, <output>.spliceevents.bed.
+#
+# An event is defined by its junctions, so its own extent is the intron: drawn
+# as it stands, the two sides of an event would be a bare gap with nothing to
+# anchor them, and the inclusion and exclusion rows would be hard to tell apart.
+# Each row therefore starts FLANK_STUB bases before the first junction and ends
+# FLANK_STUB after the last, and carries those two stubs as its outer blocks, so
+# inclusion shows as stub, exon, stub and exclusion as stub, stub with the
+# junction as the gap between them.
+#
+# It is display padding and nothing else: the value does not reach any count,
+# PSI or test, and the coordinates the event is named and reported by are the
+# junctions themselves, not these bounds.
+FLANK_STUB = 10
+
+
 def junction_blocks(junc, exons=()):
-    "the BED blocks of a junction: 10 bases each side of it, and the exons included between its ends"
-    return [(junc[0] - 10, junc[0]), *exons, (junc[1], junc[1] + 10)]
+    "the BED blocks of a junction: FLANK_STUB bases each side of it, and the exons included between its ends"
+    return [(junc[0] - FLANK_STUB, junc[0]), *exons, (junc[1], junc[1] + FLANK_STUB)]
 
 
 # the BED colors of each event type: first exons as starts, last exons as ends, and

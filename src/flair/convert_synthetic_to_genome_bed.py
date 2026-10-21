@@ -1,6 +1,8 @@
 import logging
 import re
+from flair.io_utils import open_sorted_bed
 from flair.pycbio.hgdata.bed import BedBlock, BedReader
+from flair.pycbio.sys import fileOps
 from flair.flair_bed import FlairBed
 from flair.isoform_data import Exon, Junc
 from flair.gene_identification import (get_genes_with_shared_juncs, genes_sharing_splice_sites,
@@ -16,7 +18,7 @@ def get_paralog_ref(paralogfile):
     grouptogenes = {}
     genetoparalogs = {}
     # 5  244     2       69321074        69338940        1       ENSG00000205572 SERF1B  small EDRK-rich factor 1B (centromeric) [Source:HGNC Symbol;Acc:10756]
-    for line in open(paralogfile):
+    for line in fileOps.iterLines(paralogfile):
         line = line.split('\t')
         group = line[1]
         gname = line[6]
@@ -298,7 +300,7 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist, annot
                     converted.append((bed, bedinfos, genes))
 
     name_nongenic_loci(converted)
-    out = open(outname, 'w')
+    out = open_sorted_bed(outname)
     gene_og_to_new = {}
     curr_gene_count = 1
     iso_genes = {}

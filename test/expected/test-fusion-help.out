@@ -98,7 +98,7 @@ options:
 
 required named arguments:
   -g GENOME, --genome GENOME
-                        FastA of reference genome
+                        FASTA of reference genome
   -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
                         to annotated isoforms and adjusting TSS/TESs
   -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM

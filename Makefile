@@ -23,13 +23,16 @@ default:
 # parsers and committed, so that building the docs needs none of the runtime
 # dependencies.  Regenerate with `make doc-cli' after changing any option.
 ##
+.PHONY: doc docs doc-cls
 doc: doc-cli
 	${MAKE} -C docs html
+docs: doc  # alias
 
 CLI_DOC_DIR = docs/source/cli
 
 doc-cli:
 	./dev/bin/flair-gen-cli-doc ${CLI_DOC_DIR}
+
 
 ##
 # test targets, the xx-installed test with the installed FLAIR rather than the

@@ -1,5 +1,5 @@
 import os
-from flair import FlairInputDataError
+from flair import resolve_deprecated_option
 import shutil
 import pysam
 import logging
@@ -7,7 +7,7 @@ from flair.partition_runner import PartitionRunner
 from flair import SeqRange
 from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
-from flair.io_utils import make_temp_dir, read_manifest_rows
+from flair.io_utils import make_temp_dir, read_manifest_rows, check_genome_fasta
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import BedReader
@@ -36,7 +36,7 @@ def add_subparser(subparsers):
                           help='tab-separated manifest of sample name and path to its sorted and indexed bam '
                                'file aligned to the genome, a line per sample')
     required.add_argument('-g', '--genome', required=True, type=str,
-                          help='FastA of reference genome, can be minimap2 indexed')
+                          help='FASTA of reference genome, can be minimap2 indexed')
     required.add_argument('-f', '--gtf', dest='annot', metavar='GTF', required=True,
                           help='GTF annotation file, used for correcting reads and assigning them to genes')
     parser.add_argument('-o', '--output', default='flair',
@@ -49,15 +49,16 @@ def add_subparser(subparsers):
                              'still count as first and last exons, and which unspliced reads are fragments of, '
                              'rather than those of -f.  A comprehensive annotation includes truncated '
                              'transcripts, whose ends are not real first and last exons')
-    parser.add_argument('--junction_tab', help='short-read junctions in SJ.out.tab format. '
-                                               'Use this option if you aligned your short-reads with STAR, '
-                                               'STAR will automatically output this file')
-    parser.add_argument('--junction_bed', help='short-read junctions in bed format '
-                                               '(can be generated from long-read alignment with intron-prospector)')
+    parser.add_argument('--junction_star', help='splice junctions in STAR SJ.out.tab format, as STAR writes '
+                                                'when it aligns reads')
+    parser.add_argument('--junction_tab', help='deprecated name for --junction_star')
+    parser.add_argument('--junction_bed', help='splice junctions as BED6 to BED9 with the number of supporting '
+                                               'reads in the score column, as intron-prospector writes from a BAM '
+                                               'of either short or long reads.  An alternative format to '
+                                               '--junction_star, not a different kind of evidence')
     parser.add_argument('--junction_support', type=int, default=2,
-                        help='if providing short-read junctions, minimum junction support required to keep junction. '
-                             'If your junctions file is in bed format, the score field will be used for read support '
-                             '(default: %(default)s)')
+                        help='minimum number of supporting reads to keep a junction, from either --junction_star '
+                             'or --junction_bed; for bed the score column holds the count (default: %(default)s)')
     parser.add_argument('--ss_window', type=int, default=10,
                         help='window size for correcting splice sites (default: %(default)s)')
     parser.add_argument('--partition', choices=('yes', 'no'), default=None,
@@ -108,8 +109,8 @@ def add_subparser(subparsers):
 
 
 def spliceevents_cmd(args):
-    if not os.path.exists(args.genome):
-        raise FlairInputDataError(f'Genome file path does not exist: {args.genome}')
+    resolve_deprecated_option(args, deprecated="junction_tab", current="junction_star")
+    check_genome_fasta(args.genome)
     spliceevents(args)
 
 
@@ -235,7 +236,7 @@ def spliceevents(args):
 
     logging.info('building intron support database')
     junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support, annot_gtf_data=plan.gtf_data,
-                                                    intron_beds=args.junction_bed, star_sj_tabs=args.junction_tab)
+                                                    intron_beds=args.junction_bed, star_sj_tabs=args.junction_star)
     terminal_exons, annot_afe_ss, annot_ale_ss = load_terminal_exons(args, plan.gtf_data,
                                                                      plan.regions if args.region_bed else None)
 

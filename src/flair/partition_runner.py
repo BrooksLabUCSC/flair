@@ -25,12 +25,21 @@ _shared_data = {}
 _run_kwargs = {}
 
 
-def combine_temp_files_by_suffix(output, temp_prefixes, suffixes):
+def _copy_part(in_fh, combined_fh, skip_header):
+    "one partition file, without its header when the joined file already has one"
+    if skip_header:
+        in_fh.readline()
+    shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
+
+def combine_temp_files_by_suffix(output, temp_prefixes, suffixes, *, headers=()):
+    """Join each partition file into one.  A suffix named in headers is a TSV whose
+    parts each carry the header, so only the first part keeps it."""
     for filesuffix in suffixes:
+        has_header = filesuffix in headers
         with open(output + filesuffix, 'wb') as combined_fh:
-            for temp_prefix in temp_prefixes:
+            for num, temp_prefix in enumerate(temp_prefixes):
                 with open(temp_prefix + filesuffix, 'rb') as in_fh:
-                    shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
+                    _copy_part(in_fh, combined_fh, has_header and (num > 0))
 
 
 def parallel_mode_parse(parallel_mode):
@@ -88,8 +97,7 @@ class Partition:
     @property
     def file_prefix(self):
         """Base path prefix for output files inside temp_dir."""
-        r = self.region
-        return self.temp_path(f"{r.name}-{r.start}-{r.end}")
+        return self.temp_path(region_file_name(self.region))
 
     def output_path(self, name):
         """Return the path for a named output file inside temp_dir.
@@ -237,8 +245,13 @@ def _count_chrom_reads(genome_aligned_bam, regions):
     return [mapped.get(r.name, 0) for r in regions]
 
 
+def region_file_name(region):
+    "the name a region's directory, and the files inside it, are built from"
+    return f"{region.name}-{region.start}-{region.end}"
+
+
 def _region_temp_dir(work_dir, region):
-    return os.path.join(work_dir, f"{region.name}-{region.start}-{region.end}")
+    return os.path.join(work_dir, region_file_name(region))
 
 
 def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, threads):
