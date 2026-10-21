@@ -270,6 +270,19 @@ KRAS_MUT_SPLICE_SJ_BB = $O/KRAS_sim_genomic_mut_driven_splicing.badreadsimPB.sj.
 KRAS_MUT_SPLICE_BED = $I/KRAS_sim_genomic_mut_driven_splicing.bed
 KRAS_MUT_SPLICE_BB = $O/KRAS_sim_genomic_mut_driven_splicing.bb
 
+##
+# fusion tests; these are above ALIGNED_TEST_BAMS, which names them
+##
+ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
+FUSION_TEST_SHARED_OUT = $O/fusion_tests
+FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
+# a 3-gene fusion, ERGIC3 (chr20 +) -- DDX5 (chr17 -) -- KRAS (chr12 -), joined at
+# annotated exon boundaries and simulated with badread at 30x, reads oriented 5' to 3'
+FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
+FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
+# the fusion test reads aligned to the test genome with RefSeq's sequence names
+REFSEQ_FUSION_TEST_BAM = $O/fusion_tests.refSeq.bam
+
 COMBINE_MANIFEST = $I/combine_manifest_bed-only.txt
 QUANTIFY_MANIFEST = $I/basic.reads_manifest_bam.txt
 SPLICEEVENTS_MANIFEST = $I/spliceevents.manifest.tsv
@@ -1124,15 +1137,6 @@ test-identifyvars-snvsindels: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
 ###
 # flair fusion
 ###
-ERGIC3_KRAS_SIM_FA_GZ = $O/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq.gz
-FUSION_TEST_SHARED_OUT = $O/fusion_tests
-FUSION_TEST_BAM = ${FUSION_TEST_SHARED_OUT}.bam
-# a 3-gene fusion, ERGIC3 (chr20 +) -- DDX5 (chr17 -) -- KRAS (chr12 -), joined at
-# annotated exon boundaries and simulated with badread at 30x, reads oriented 5' to 3'
-FUSION3_TEST_SHARED_OUT = $O/fusion3_tests
-FUSION3_TEST_BAM = ${FUSION3_TEST_SHARED_OUT}.bam
-# the fusion test reads aligned to the test genome with RefSeq's sequence names
-REFSEQ_FUSION_TEST_BAM = $O/fusion_tests.refSeq.bam
 
 fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf \
 	test-fusion-refseq test-fusion-help test-fusion-compress
