@@ -495,7 +495,8 @@ test-combine-isoalleles: mkdirs ${GENOME_FA}
 ###
 # FLAIR QUANTIFY
 ###
-quantify-tests: test-quantify test-quantify-normends test-quantify-onethread-keep test-quantify-help
+quantify-tests: test-quantify test-quantify-normends test-quantify-onethread-keep test-quantify-fusion \
+	test-quantify-fusion-3gene test-quantify-help
 
 test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --with_gene
@@ -516,6 +517,21 @@ test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GE
 	   -t 1 --temp_dir $O/$@.tmp --keep_intermediate
 	diff $E/test-quantify.counts.tsv $O/$@.counts.tsv
 	ls $O/$@.tmp/*.intermediate/*/isoforms.fa > /dev/null
+
+# combine's isoforms with a two-piece fusion, on opposite strands, with the fusion's simulated reads as a
+# sample: the fusion gets flair fusion's counts (test-fusion), and its reads no other isoform's
+test-quantify-fusion: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} $O/fusion_tests.bam
+	( cat $(QUANTIFY_MANIFEST) && printf 'fusion\tF\tb0\t%s\n' ${FUSION_TEST_BAM} ) > $O/$@.manifest.tsv
+	flair quantify --manifest $O/$@.manifest.tsv --genome ${GENOME_FA} --isoform_bed $E/test-combine-files.combined.isoforms.bed \
+	   --generate_map --with_gene -o $O/$@
+	$(call cmp_expect,$@.counts.tsv)
+
+# a three-piece fusion: flair fusion's counts (test-fusion-3gene)
+test-quantify-fusion-3gene: mkdirs ${GENOME_FA} $O/fusion3_tests.bam
+	printf 'fusion3\tF\tb0\t%s\n' ${FUSION3_TEST_BAM} > $O/$@.manifest.tsv
+	flair quantify --manifest $O/$@.manifest.tsv --genome ${GENOME_FA} --isoform_bed $E/test-fusion-3gene.fusions.isoforms.bed \
+	   --with_gene -o $O/$@
+	$(call cmp_expect,$@.counts.tsv)
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out

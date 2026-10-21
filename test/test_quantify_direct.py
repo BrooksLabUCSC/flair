@@ -1,8 +1,12 @@
+import pytest
 import pysam
+from flair import FlairInputDataError
+from flair.isoform_data import get_reverse_complement
 from flair.flair_bed import FlairBed
 from flair.pycbio.hgdata.bed import BedBlock
 from flair.flair_quantify import (direct_assignment_chains, direct_isoform, read_count_sam_results, make_batches, GeneData,
-                                  batch_reads, is_realigned_to, single_exon_index, single_exon_isoform)
+                                  batch_reads, is_realigned_to, single_exon_index, single_exon_isoform,
+                                  fused_transcript, load_isoform_data)
 
 GENOME_SEQ = ''.join('ACGT'[(i * 7 + i // 3) % 4] for i in range(2000))
 _HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 2000}]})
@@ -85,9 +89,8 @@ def test_chain_of_two_isoforms_is_realigned():
     assert _direct(_read(700, TSS_READ), [MAIN, other_ends]) is None
 
 
-def test_fusion_pieces_and_chimeric_reads_are_realigned():
-    piece = _iso('fusion', (500, 1000), (1200, 1400), pos_in_fusion=0, transcript_class='fusion')
-    assert direct_assignment_chains([piece]) == {}
+def test_chimeric_reads_are_realigned():
+    # a read with a supplementary alignment may be a fusion's
     assert _direct(_read(700, TSS_READ, sa=True), [MAIN]) is None
 
 
@@ -203,8 +206,48 @@ def test_unspliced_read_counted_for_one_gene_of_overlapping_genes():
     assert _assigned_se(_read(610, [(pysam.CMATCH, 330)]), *genes) == ('g2', 'G2')
 
 
-def test_spliced_and_fusion_isoforms_are_realigned_to():
-    piece = _iso('piece', (500, 1000), pos_in_fusion=0, transcript_class='fusion')
-    assert is_realigned_to(MAIN) and is_realigned_to(piece)
+def test_spliced_isoforms_are_realigned_to():
+    assert is_realigned_to(MAIN)
     assert not is_realigned_to(_iso('se', (500, 1000)))
-    assert _assigned_se(_read(510, [(pysam.CMATCH, 480)]), ('G1', [MAIN, piece])) is None
+    # a spliced isoform takes no unspliced read without the realignment
+    assert _assigned_se(_read(510, [(pysam.CMATCH, 480)]), ('G1', [MAIN])) is None
+
+
+def _piece(name, chrom, strand, exons, pos, gene_id='FUS'):
+    return FlairBed(chrom, exons[0][0], exons[-1][1], name, strand=strand, blocks=[BedBlock(s, e) for s, e in exons],
+                    gene_id=gene_id, pos_in_fusion=pos, transcript_class='fusion')
+
+
+def test_fused_transcript_joins_pieces_in_order_each_in_its_orientation():
+    pieces = [_piece('F', 'chr1', '+', [(100, 110), (120, 130)], 0), _piece('F', 'chr1', '-', [(300, 310), (320, 330)], 1)]
+    seq, sizes = fused_transcript(pieces, _Genome())
+    minus = get_reverse_complement(GENOME_SEQ[300:310] + GENOME_SEQ[320:330])
+    assert seq == GENOME_SEQ[100:110] + GENOME_SEQ[120:130] + minus
+    assert sizes == [10, 10, 10, 10]
+
+
+def _write_bed(path, beds):
+    with open(path, 'w') as fh:
+        for bed in beds:
+            bed.write(fh)
+    return str(path)
+
+
+def test_fusion_pieces_kept_apart_from_genes(tmp_path):
+    main = _iso('main', (500, 1000), (1200, 1400))
+    main.gene_id = 'G1'
+    # pieces on two strands, sharing the fusion's gene id, given out of order
+    pieces = [_piece('F', 'chr1', '-', [(1500, 1600)], 1), _piece('F', 'chr1', '+', [(100, 200), (300, 400)], 0)]
+    gene_data, fusions = load_isoform_data(_write_bed(tmp_path / 'iso.bed', [main] + pieces))
+    assert list(gene_data) == ['G1'] and [b.name for b in gene_data['G1'].isoform_beds] == ['main']
+    assert [(b.pos_in_fusion, b.strand) for b in fusions['F']] == [(0, '+'), (1, '-')]
+
+
+def test_fusion_needs_its_pieces_and_its_own_name(tmp_path):
+    with pytest.raises(FlairInputDataError, match='pos_in_fusion'):
+        load_isoform_data(_write_bed(tmp_path / 'a.bed', [_piece('F', 'chr1', '+', [(100, 200)], 1)]))
+    main = _iso('F', (500, 1000), (1200, 1400))
+    main.gene_id = 'G1'
+    pieces = [_piece('F', 'chr2', '+', [(100, 200)], 0), _piece('F', 'chr2', '-', [(300, 400)], 1)]
+    with pytest.raises(FlairInputDataError, match='both a fusion and another isoform'):
+        load_isoform_data(_write_bed(tmp_path / 'b.bed', [main] + pieces))
