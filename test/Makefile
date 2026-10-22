@@ -1209,6 +1209,50 @@ test-isoalleles-compress: mkdirs ${ISOALLELES_READ_MAP}
 	$(call check_fasta_indexable,$@.isoalleles.fa)
 	samtools view $O/$@.isoalleles.basic.bam | grep -q 'IA:Z:FLT00000003|H2'
 
+##
+# misc/flair_protocol.py, the protocol from one manifest: a prototype, so these
+# run only when asked for (make test-protocol), in no default suite.  The first
+# run of each is --force, so earlier outputs can't hide a failure, and a rerun
+# must find every step done
+##
+PROTOCOL = ../misc/flair_protocol.py
+
+test-protocol: test-protocol-unit test-protocol-patients test-protocol-haplotype
+
+test-protocol-unit:
+	FLAIR_PROTOCOL_TESTS=1 ${PYTEST_CMD} test_flair_protocol.py
+
+# a patient of a normal and a tumor, and a tumor-only patient, with splice events:
+# junctions from intron-prospector, and only the pair tested
+test-protocol-patients: mkdirs ${GENOME_FA} ${QUANTIFY_INPUT_BAMS}
+	printf 'sample\tbam\tpatient\ttissue\nP1N\t%s\tP1\tnormal\nP1T\t%s\tP1\ttumor\nP2T\t%s\tP2\ttumor\n' \
+	   $O/basic.reads.1.genomealigned.bam $O/basic.reads.2.genomealigned.bam $O/basic.reads.4.genomealigned.bam \
+	   > $O/$@.manifest.tsv
+	python3 ${PROTOCOL} -m $O/$@.manifest.tsv -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ -t 2 \
+	   --spliceevents --stat_test patients --force > $O/$@.out
+	test -s $O/$@/quantify/flair.counts.tsv
+	test -s $O/$@/spliceevents/flair.spliceevents.counts.tsv
+	test -s $O/$@/stats/P1.P1T.isoforms.usage.tsv
+	test -s $O/$@/stats/P1.P1T.spliceevents.usage.tsv
+	test ! -e $O/$@/stats/P2.P2T.isoforms.usage.tsv
+	grep -q 'tumor-only patients, reported but not tested: P2' $O/$@.out
+	python3 ${PROTOCOL} -m $O/$@.manifest.tsv -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ -t 2 \
+	   --spliceevents --stat_test patients > $O/$@.rerun.out
+	! grep -q '^\[run\]' $O/$@.rerun.out
+
+# --haplotype: the test reads, called by longshot, as a pair and as a tumor-only
+# patient: phasing, haplotagging, and isoalleles of each
+test-protocol-haplotype: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
+	printf 'sample\tbam\tpatient\ttissue\tvcf\nP1N\t%s\tP1\tnormal\t%s\nP1T\t%s\tP1\ttumor\t%s\nP2T\t%s\tP2\ttumor\t%s\n' \
+	   ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} \
+	   > $O/$@.manifest.tsv
+	python3 ${PROTOCOL} -m $O/$@.manifest.tsv -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ -t 2 \
+	   --stat_test patients --haplotype --force > $O/$@.out
+	test -s $O/$@/isoalleles/P1T.isoalleles.counts.tsv
+	test -s $O/$@/isoalleles/P2T.isoalleles.counts.tsv
+	test -s $O/$@/stats/P1.P1T.isoalleles.usage.tsv
+	head -1 $O/$@/isoalleles/P1T.isoalleles.counts.tsv | grep -q 'P1T	P1N'
+
 test-variantquant: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT}
 	flair variantquant --bam ${BASIC_ALIGN_BAM} --vcf ${BASIC_LONGSHOT} --isoform_bed $(TOME_ISOFORM_BED) -o $O/$@
 	$(call cmp_expect_sort,$@.var.counts.tsv)
