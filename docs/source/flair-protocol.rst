@@ -183,6 +183,33 @@ more.
 
   - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genomealigned.bam -o SAMPLE``
 
+Detecting gene fusions
+----------------------
+
+To study gene fusions alongside normal isoforms, run FLAIR fusion on the same
+BAM file as FLAIR transcriptome, with the same sample name and output prefix.
+Its fusion isoforms are then combined with the sample's normal isoforms and
+quantified with them, below.  FLAIR fusion needs stranded reads, and reads
+aligned with ``-s 40``, as in the recommended minimap2 command, to keep short
+partner pieces.
+
+- ``flair fusion -g GENOME.fa -f ANNOTATION.gtf -b SAMPLE.genomealigned.bam --sample_name SAMPLE -o SAMPLE``
+
+This writes ``SAMPLE.fusions.isoforms.bed`` beside FLAIR transcriptome's
+``SAMPLE.isoforms.bed``, and ``SAMPLE.fusions.tsv``, the fusions found.
+
+Use the same sample name for both runs.  The name only reaches FLAIR combine's
+outputs, its ``samples`` column and counts file, which then have one column per
+sample rather than one for its isoforms and another for its fusions.  FLAIR
+quantify names its columns from its own manifest.
+
+For the most fusion isoforms, as for reporting fusions, FLAIR fusion's
+``--filter comprehensive --frac_support 0`` keeps the isoforms of a fusion's
+5' truncated reads (see the FLAIR fusion documentation).  FLAIR combine filters
+fusion isoforms as it does normal ones, at ``--min_percent_usage`` of the
+fusion's reads and ``--min_reads``, so it drops the rarest of them again unless
+those are lowered, for all isoforms.  Report fusions from ``SAMPLE.fusions.tsv``.
+
 Combine transcriptomes between samples
 --------------------------------------
 
@@ -193,7 +220,9 @@ sample or batch of samples. Next, use FLAIR combine to combine the
 transcriptomes.
 
 - Make a manifest file pointing to your transcriptomes for all of your
-  samples (see FLAIR combine documentation for more details)
+  samples (see FLAIR combine documentation for more details).  With FLAIR
+  fusion, list each sample's ``SAMPLE.fusions.isoforms.bed`` as well as its
+  ``SAMPLE.isoforms.bed``
 - Run FLAIR combine (``-f ANNOTATION.gtf`` is optional, and gives each
   combined isoform its annotated gene and protein):
 
@@ -233,6 +262,9 @@ gene-level quantification.
   - Add ``--normalize_ends`` unless your reads' ends are reliable
     (``--trust_ends``).  The counts matrix names each isoform's gene in its own
     column, as FLAIR diffexp expects
+  - Fusion isoforms in the combined transcriptome are counted too, from the same
+    BAM files.  A read counted for a fusion is not counted again for an isoform
+    of either partner gene
 
 Counting splicing events from reads
 -----------------------------------
