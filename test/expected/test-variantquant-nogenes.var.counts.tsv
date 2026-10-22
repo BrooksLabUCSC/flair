@@ -1,19 +1,37 @@
-varpos	ref	alt	strand	phase_set	haplotype	gene	tumor
-chr12:25205716	A	T	.	.	.		87;72
-chr12:25205894	T	G	.	.	.		86;74
-chr12:25206009	T	C	.	.	.		87;74
-chr12:25206035	T	G	.	.	.		87;73
-chr12:25206394	A	T	.	.	.		86;54
-chr12:25206418	G	A	.	.	.		85;72
-chr12:25206907	T	C	.	.	.		84;65
-chr12:25207204	T	C	.	.	.		0;164
-chr12:25208140	G	A	.	.	.		77;82
-chr12:25208157	T	C	.	.	.		1;161
-chr12:25208208	A	G	.	.	.		77;84
-chr12:25208712	T	C	.	.	.		79;85
-chr12:25209283	A	G	.	.	.		81;78
-chr12:25209531	G	A	.	.	.		2;152
-chr12:25209618	A	C	.	.	.		84;76
-chr12:25209843	A	G	.	.	.		75;83
-chr17:64500016	C	T	.	.	.		378;353
-chr17:64506317	A	G	.	.	.		1;11
+var_name	is_var	varpos	ref	alt	strand	phase_set	haplotype	gene	tumor
+chr12:25205716:A>T	yes	chr12:25205716	A	T	.	.	.		72
+chr12:25205716:A>T	no	chr12:25205716	A	T	.	.	.		87
+chr12:25205894:T>G	yes	chr12:25205894	T	G	.	.	.		74
+chr12:25205894:T>G	no	chr12:25205894	T	G	.	.	.		86
+chr12:25206009:T>C	yes	chr12:25206009	T	C	.	.	.		74
+chr12:25206009:T>C	no	chr12:25206009	T	C	.	.	.		87
+chr12:25206035:T>G	yes	chr12:25206035	T	G	.	.	.		73
+chr12:25206035:T>G	no	chr12:25206035	T	G	.	.	.		87
+chr12:25206394:A>T	yes	chr12:25206394	A	T	.	.	.		54
+chr12:25206394:A>T	no	chr12:25206394	A	T	.	.	.		86
+chr12:25206418:G>A	yes	chr12:25206418	G	A	.	.	.		72
+chr12:25206418:G>A	no	chr12:25206418	G	A	.	.	.		85
+chr12:25206907:T>C	yes	chr12:25206907	T	C	.	.	.		65
+chr12:25206907:T>C	no	chr12:25206907	T	C	.	.	.		84
+chr12:25207204:T>C	yes	chr12:25207204	T	C	.	.	.		164
+chr12:25207204:T>C	no	chr12:25207204	T	C	.	.	.		0
+chr12:25208140:G>A	yes	chr12:25208140	G	A	.	.	.		82
+chr12:25208140:G>A	no	chr12:25208140	G	A	.	.	.		77
+chr12:25208157:T>C	yes	chr12:25208157	T	C	.	.	.		161
+chr12:25208157:T>C	no	chr12:25208157	T	C	.	.	.		1
+chr12:25208208:A>G	yes	chr12:25208208	A	G	.	.	.		84
+chr12:25208208:A>G	no	chr12:25208208	A	G	.	.	.		77
+chr12:25208712:T>C	yes	chr12:25208712	T	C	.	.	.		85
+chr12:25208712:T>C	no	chr12:25208712	T	C	.	.	.		79
+chr12:25209283:A>G	yes	chr12:25209283	A	G	.	.	.		78
+chr12:25209283:A>G	no	chr12:25209283	A	G	.	.	.		81
+chr12:25209531:G>A	yes	chr12:25209531	G	A	.	.	.		152
+chr12:25209531:G>A	no	chr12:25209531	G	A	.	.	.		2
+chr12:25209618:A>C	yes	chr12:25209618	A	C	.	.	.		76
+chr12:25209618:A>C	no	chr12:25209618	A	C	.	.	.		84
+chr12:25209843:A>G	yes	chr12:25209843	A	G	.	.	.		83
+chr12:25209843:A>G	no	chr12:25209843	A	G	.	.	.		75
+chr17:64500016:C>T	yes	chr17:64500016	C	T	.	.	.		353
+chr17:64500016:C>T	no	chr17:64500016	C	T	.	.	.		378
+chr17:64506317:A>G	yes	chr17:64506317	A	G	.	.	.		11
+chr17:64506317:A>G	no	chr17:64506317	A	G	.	.	.		1

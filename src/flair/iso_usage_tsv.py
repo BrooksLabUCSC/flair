@@ -2,8 +2,9 @@
 
 Columns, in order:
 
-  geneID                       the gene
-  isoID                        the isoform
+  geneID                       the gene, or of a spliceevents or variantquant table,
+                               the event or var_name
+  isoID                        the isoform, or event|alternative or var_name|is_var
   fisher_pval                  Fisher's exact p-value for this isoform against
                                the rest of its gene, NA when either sample has
                                no reads to test

@@ -3,17 +3,20 @@
 import argparse
 from flair import FlairInputDataError
 from flair.iso_usage_tsv import iso_usage_writer
-from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows
+from flair.counts_matrix_tsv import read_grouped_counts
 from flair.pycbio.sys import cli
 
 
 def build_parser():
     desc = """Calculates the usage of each isoform as a fraction of the total expression
-    of the gene and compares this between samples."""
+    of the gene and compares this between samples.  It reads a flair quantify counts
+    matrix, or the counts of flair spliceevents (each alternative of an event) or flair
+    variantquant (the reads showing and not showing each allele)."""
 
     parser = argparse.ArgumentParser(prog='diff_iso_usage', description=desc)
     parser.add_argument('counts_matrix_tsv',
-                        help='counts matrix TSV from flair-quantify')
+                        help='counts matrix TSV from flair quantify, OUTPUT.spliceevents.counts.tsv from '
+                        'flair spliceevents, or OUTPUT.var.counts.tsv from flair variantquant')
     parser.add_argument('colname1',
                         help='the name of the column of the first sample')
     parser.add_argument('colname2',
@@ -51,11 +54,14 @@ def other_isoform_counts(gene_counts, iso):
             other[1] += counts[1]
     return other
 
-def gene_usage_rows(gene, gene_counts, colname1, colname2):
-    "one row per isoform of a gene"
+def gene_usage_rows(gene, gene_counts, colname1, colname2, unreported=frozenset()):
+    """one row per isoform of a gene, but those of unreported, which count toward the
+    other isoforms of the rest"""
     import scipy.stats as sps
     rows = []
     for iso, iso_counts in gene_counts.items():
+        if iso in unreported:
+            continue
         other_counts = other_isoform_counts(gene_counts, iso)
         ctable = [iso_counts, other_counts]
         # an isoform with no expression of its gene in one sample cannot be tested
@@ -68,19 +74,19 @@ def gene_usage_rows(gene, gene_counts, colname1, colname2):
     return rows
 
 def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename):  # noqa: C901 - FIXME: reduce complexity
-    sample_columns = read_sample_columns(counts_matrix_tsv)
-    col1 = sample_column_index(sample_columns, colname1, counts_matrix_tsv)
-    col2 = sample_column_index(sample_columns, colname2, counts_matrix_tsv)
+    grouped = read_grouped_counts(counts_matrix_tsv)
+    col1 = sample_column_index(grouped.sample_columns, colname1, counts_matrix_tsv)
+    col2 = sample_column_index(grouped.sample_columns, colname2, counts_matrix_tsv)
 
     counts = {}
-    for row in read_counts_rows(counts_matrix_tsv):
+    for row in grouped.rows:
         if row.gene_id not in counts:
             counts[row.gene_id] = {}
         counts[row.gene_id][row.isoform_id] = [float(row.counts[col1]), float(row.counts[col2])]
 
     with iso_usage_writer(outfilename, colname1, colname2) as writer:
         for gene in sorted(counts.keys()):
-            for row in gene_usage_rows(gene, counts[gene], colname1, colname2):
+            for row in gene_usage_rows(gene, counts[gene], colname1, colname2, grouped.unreported):
                 writer.writeRow(row)
 
 

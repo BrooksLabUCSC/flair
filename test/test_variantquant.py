@@ -102,9 +102,11 @@ def test_each_allele_of_a_site_is_counted_of_the_reads_covering_it(tmp_path):
     output = str(tmp_path / 'out')
     read_vars_to_genome_pos_counts([str(tempdir / 'chr1.txt')], output, [['s1'], ['s2']], 1, False, vcfvars)
     rows = [line.rstrip('\n').split('\t') for line in open(output + '.var.counts.tsv')]
-    assert rows == [['varpos', 'ref', 'alt', 'strand', 'phase_set', 'haplotype', 'gene', 's1', 's2'],
-                    ['chr1:5', 'A', 'G', '.', '.', '.', 'G1', '1;1', '2;0'],
-                    ['chr1:5', 'A', 'T', '.', '.', '.', 'G1', '1;1', '1;1']]
+    assert rows == [['var_name', 'is_var', 'varpos', 'ref', 'alt', 'strand', 'phase_set', 'haplotype', 'gene', 's1', 's2'],
+                    ['chr1:5:A>G', 'yes', 'chr1:5', 'A', 'G', '.', '.', '.', 'G1', '1', '0'],
+                    ['chr1:5:A>G', 'no', 'chr1:5', 'A', 'G', '.', '.', '.', 'G1', '1', '2'],
+                    ['chr1:5:A>T', 'yes', 'chr1:5', 'A', 'T', '.', '.', '.', 'G1', '1', '1'],
+                    ['chr1:5:A>T', 'no', 'chr1:5', 'A', 'T', '.', '.', '.', 'G1', '1', '1']]
 
 
 def _bam(path, reads):
@@ -134,7 +136,10 @@ def test_a_rerun_to_the_same_output_counts_its_reads_once(tmp_path):
     # the first run's intermediate files are kept, where the second run puts its own
     temp_dir = str(tmp_path / 'tmp')
     first = _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir)
-    assert first.splitlines()[1:] == ['chr1:5\tA\tG\t.\t.\t.\t\t2;1', 'chr1:5\tA\tT\t.\t.\t.\t\t2;1']
+    assert first.splitlines()[1:] == ['chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t1',
+                                      'chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t2',
+                                      'chr1:5:A>T\tyes\tchr1:5\tA\tT\t.\t.\t.\t\t1',
+                                      'chr1:5:A>T\tno\tchr1:5\tA\tT\t.\t.\t.\t\t2']
     assert _quantvarpos(tmp_path, keep_intermediate=True, temp_dir=temp_dir) == first
 
 
@@ -252,8 +257,11 @@ def test_a_vcfs_sites_without_an_isoform_bed_have_no_genes(tmp_path):
     vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '5', '.', 'A', 'G,T'))
     quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
                 output_all=False, keep_intermediate=False)
-    assert open(tmp_path / 'out.var.counts.tsv').read().splitlines() == [
-        'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1', 'chr1:5\tA\tG\t.\t.\t.\t\t2;1', 'chr1:5\tA\tT\t.\t.\t.\t\t2;1']
+    assert open(tmp_path / 'out.var.counts.tsv').read().splitlines() == ['var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1',
+                                                                         'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t1',
+                                                                         'chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t2',
+                                                                         'chr1:5:A>T\tyes\tchr1:5\tA\tT\t.\t.\t.\t\t1',
+                                                                         'chr1:5:A>T\tno\tchr1:5\tA\tT\t.\t.\t.\t\t2']
 
 
 def test_records_of_kept_flags_are_sites_too(tmp_path):
@@ -411,10 +419,13 @@ def test_trusting_strand_counts_each_strand_of_reads_in_a_row_of_its_own(tmp_pat
                     output_all=False, keep_intermediate=False, **options)
         return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
 
-    assert counts() == ['chr1:5\tA\tG\t.\t.\t.\t\t3;3', 'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
-    assert counts(quality=1) == ['chr1:5\tA\tG\t.\t.\t.\t\t3;2', 'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
-    assert counts(quality=1, trust_strand=True) == ['chr1:5\tA\tG\t+\t.\t.\t\t1;1', 'chr1:5\tA\tG\t-\t.\t.\t\t2;1',
-                                                    'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    assert counts() == ['chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t3', 'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t3', 'var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    assert counts(quality=1) == ['chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t3', 'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t2', 'var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    assert counts(quality=1, trust_strand=True) == ['chr1:5:A>G(+)\tno\tchr1:5\tA\tG\t+\t.\t.\t\t1',
+                                                    'chr1:5:A>G(+)\tyes\tchr1:5\tA\tG\t+\t.\t.\t\t1',
+                                                    'chr1:5:A>G(-)\tno\tchr1:5\tA\tG\t-\t.\t.\t\t2',
+                                                    'chr1:5:A>G(-)\tyes\tchr1:5\tA\tG\t-\t.\t.\t\t1',
+                                                    'var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
 
 
 def _tagged_bam(path, reads):
@@ -445,12 +456,15 @@ def test_haplotypes_count_the_reads_of_each_phase_set_and_haplotype_in_a_row_of_
                     keep_intermediate=False, **options)
         return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
 
-    assert counts(haplotypes=True) == ['chr1:5\tA\tG\t.\t.\t.\t\t1;1', 'chr1:5\tA\tG\t.\t100\t1\t\t2;0',
-                                       'chr1:5\tA\tG\t.\t100\t2\t\t1;2', 'varpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
+    assert counts(haplotypes=True) == ['chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t1',
+                                       'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t1',
+                                       'chr1:5:A>G|100|1\tno\tchr1:5\tA\tG\t.\t100\t1\t\t2',
+                                       'chr1:5:A>G|100|1\tyes\tchr1:5\tA\tG\t.\t100\t1\t\t0',
+                                       'chr1:5:A>G|100|2\tno\tchr1:5\tA\tG\t.\t100\t2\t\t1',
+                                       'chr1:5:A>G|100|2\tyes\tchr1:5\tA\tG\t.\t100\t2\t\t2',
+                                       'var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
     # with strand, each strand of each haplotype
-    assert counts(haplotypes=True, trust_strand=True)[:3] == ['chr1:5\tA\tG\t+\t.\t.\t\t0;1',
-                                                              'chr1:5\tA\tG\t+\t100\t1\t\t1;0',
-                                                              'chr1:5\tA\tG\t+\t100\t2\t\t0;2']
+    assert counts(haplotypes=True, trust_strand=True)[:3] == ['chr1:5:A>G(+)\tno\tchr1:5\tA\tG\t+\t.\t.\t\t0', 'chr1:5:A>G(+)\tyes\tchr1:5\tA\tG\t+\t.\t.\t\t1', 'chr1:5:A>G(+)|100|1\tno\tchr1:5\tA\tG\t+\t100\t1\t\t1']
 
 
 def test_samples_sharing_no_phase_set_are_warned_of(tmp_path, caplog):

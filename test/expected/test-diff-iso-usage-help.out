@@ -3,10 +3,15 @@ usage: diff_iso_usage [-h] [--log-stderr] [--log-level LOG_LEVEL]
                       counts_matrix_tsv colname1 colname2 outfile
 
 Calculates the usage of each isoform as a fraction of the total expression of
-the gene and compares this between samples.
+the gene and compares this between samples. It reads a flair quantify counts
+matrix, or the counts of flair spliceevents (each alternative of an event) or
+flair variantquant (the reads showing and not showing each allele).
 
 positional arguments:
-  counts_matrix_tsv     counts matrix TSV from flair-quantify
+  counts_matrix_tsv     counts matrix TSV from flair quantify,
+                        OUTPUT.spliceevents.counts.tsv from flair
+                        spliceevents, or OUTPUT.var.counts.tsv from flair
+                        variantquant
   colname1              the name of the column of the first sample
   colname2              the name of the column of the second sample
   outfile               output filename containing the p-value associated with

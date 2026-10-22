@@ -681,7 +681,7 @@ test-quantify-help: mkdirs
 ###
 # FLAIR DIFFEXP
 ###
-diffexp-tests: test-diffexp test-diffexp-compress test-diffexp-colorder test-diffexp-help
+diffexp-tests: test-diffexp test-diffexp-compress test-diffexp-colorder test-diffexp-spliceevents test-diffexp-help
 
 # the conditions are named, so which one is the reference does not depend on where
 # their columns fall in the counts matrix
@@ -708,6 +708,17 @@ test-diffexp-colorder : mkdirs test-diffexp
 	$(call cmp_expect_sort_as,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort_as,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort_stats_as,$@/isoforms_drimseq_MCF7_v_A549.tsv,test-diffexp/isoforms_drimseq_MCF7_v_A549.tsv)
+
+# the basic counts as a flair spliceevents table, each gene an event, the last isoform of
+# a gene of three or more its other row: usage alone is tested, no DESeq2, and other rows
+# count toward their event but are not reported.  The other features' DRIMSeq results
+# are those of test-diffexp
+test-diffexp-spliceevents: mkdirs
+	flair diffexp --counts_matrix $I/basic.diffexp.spliceevents.counts.tsv -o $O/$@ --min_expression 1 \
+	   --condition_a MCF7 --condition_b A549 --overwrite_output
+	test ! -e $O/$@/genes_deseq2_MCF7_v_A549.tsv
+	! grep -q '|other' $O/$@/isoforms_drimseq_MCF7_v_A549.tsv $O/$@/isoforms_sig_exp_change_norm_by_gene.tsv
+	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help > $O/$@.out

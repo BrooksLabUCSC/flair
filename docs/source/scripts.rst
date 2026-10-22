@@ -17,6 +17,10 @@ diff_iso_usage
 .. include:: cli/diff_iso_usage.rst
 
 Calculates the usage of each isoform as a fraction of the total expression of the gene and compares this between samples.
+It also reads the counts of ``flair spliceevents`` and ``flair variantquant``, comparing
+an event's alternatives or an allele's reads against the rest of the event or site, as
+``flair diffexp`` does (see :ref:`diffexp-label`).  An event's ``other`` row counts
+toward the rest but has no row of its own.
 
 Identifies and calculates significance of alternative isoform usage between two
 samples using Fisher's exact tests. The more differentially used the isoforms are

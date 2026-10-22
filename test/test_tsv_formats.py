@@ -271,8 +271,9 @@ def test_tpm_round_trip(tmp_path):
 def test_var_counts_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'var.counts.tsv')
     with var_counts_writer(path, ['s1', 's2']) as writer:
-        writer.writeRow(['chr1:100', 'A', 'G', '+', '.', '.', 'gene1', (7, 3), (1, 0)])
+        writer.writeAllele('chr1:100', 'A', 'G', ('+', '.', '.'), 'gene1', [(7, 3), (1, 0)])
     with VarCountsReader(path) as reader:
         assert reader.sample_columns == ['s1', 's2']
         rows = list(reader)
-    assert (rows[0].alt, rows[0].strand, rows[0].s1, rows[0].s2) == ('G', '+', [7, 3], [1, 0])
+    assert [(r.var_name, r.is_var, r.alt, r.strand, r.s1, r.s2) for r in rows] == [
+        ('chr1:100:A>G(+)', 'yes', 'G', '+', 3, 0), ('chr1:100:A>G(+)', 'no', 'G', '+', 7, 1)]

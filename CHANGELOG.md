@@ -2,6 +2,15 @@
 
 ## [v3.x.xx]
 * General
+  * `flair diffexp` and `diff_iso_usage` also read the counts of `flair
+    spliceevents` and `flair variantquant`, testing an event's alternatives or an
+    allele's reads as an isoform's usage within its gene.  diffexp runs DRIMSeq and
+    its t-test alone on them, not DESeq2, and an event's `other` row counts toward
+    the event but is not reported.  Conditions come from a sample info TSV beside
+    the counts, as quantify writes one.
+  * `flair variantquant`'s `var.counts.tsv` has two rows per allele and group of
+    reads, `is_var` `yes` and `no`, named by a new `var_name` column, with one
+    integer per sample, in place of one row of `not_alt;alt` pairs.
   * Isoform and gene ids are never split at an underscore.  `flair transcriptome`
     failed with a KeyError on an annotation whose transcript and gene ids both
     hold one, such as a GTF of HLA alleles; it now names the annotated transcripts

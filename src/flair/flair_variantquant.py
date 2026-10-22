@@ -19,7 +19,7 @@ from flair.pycbio.sys import fileOps
 from flair.interval_index import IntervalIndex
 from flair.io_utils import make_run_temp_dir, read_manifest_rows
 from flair.output_compress import compressed_path
-from flair.var_counts_tsv import var_counts_writer
+from flair.var_counts_tsv import NO_GROUP, var_counts_writer
 from flair import FlairInputDataError
 
 # cigar operations aligning read bases to the genome (M, =, X), only of the read
@@ -42,7 +42,6 @@ NO_ALT = '.'
 # phase set and haplotype, of its HP and PS tags, each NO_GROUP when not trusted, given
 # or tagged
 ReadGroup = namedtuple('ReadGroup', ('strand', 'phase_set', 'haplotype'))
-NO_GROUP = '.'
 UNGROUPED = ReadGroup(NO_GROUP, NO_GROUP, NO_GROUP)
 
 # a temp record is pos, gene list, status; the gene list is itself a list, so the two
@@ -274,15 +273,15 @@ def _warn_of_unshared_phase_sets(samplenames, phase_sets):
 
 def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars,
                                    haplotypes=False):
-    """Write the counts of each allele of each site, a row of OUTPUT.var.counts.tsv,
-    of var_counts_tsv.ID_COLUMNS and then the samples: per sample, the reads covering the
-    site not showing the alt, and those showing it, so they add up to the site's
-    coverage whatever its other alts.  Each group of reads (ReadGroup) at the site
-    has a row of its own, of its strand, phase set and haplotype, NO_GROUP those of
-    reads not split by them, so the columns are those of every run.  Given
-    haplotypes, samples sharing no phase set are warned of.  An allele's rows are written if a sample has a read of any group showing
-    the alt, or output_all, so a haplotype or strand of none still has its row, and
-    each row if a sample has threshold reads of its group covering the site.
+    """Write the counts of each allele of each site, two rows of OUTPUT.var.counts.tsv
+    (var_counts_tsv): per sample, the reads showing the alt, and those covering the
+    site not showing it, so they add up to the site's coverage whatever its other
+    alts.  Each group of reads (ReadGroup) at the site has rows of its own, of its
+    strand, phase set and haplotype, NO_GROUP those of reads not split by them, so the
+    columns are those of every run.  Given haplotypes, samples sharing no phase set are
+    warned of.  An allele's rows are written if a sample has a read of any group
+    showing the alt, or output_all, so a haplotype or strand of none still has its
+    rows, and each pair if a sample has threshold reads of its group covering the site.
     temp_paths are the samples' temp files, from parse_all_bam_files"""
     samplenames = [x[0] for x in sampledata]
     vartocounts, phase_sets = _read_temp_counts(temp_paths, len(samplenames))
@@ -302,7 +301,7 @@ def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold,
                     coverage = [sum(alleles.values()) for alleles in sample_alleles]
                     if any(cov >= threshold for cov in coverage):
                         varcounts = [(cov - alleles[alt], alleles[alt]) for cov, alleles in zip(coverage, sample_alleles)]
-                        out.writeRow([f'{refname}:{pos}', ref, alt, *group, gene] + varcounts)
+                        out.writeAllele(f'{refname}:{pos}', ref, alt, group, gene, varcounts)
 
 
 def is_snv(ref, alt):

@@ -356,6 +356,33 @@ by running these R packages:
 
 If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`__ standalone script.
 
+**Splicing events and variants**
+
+``--counts_matrix`` may also be the counts of :ref:`flair spliceevents <spliceevents-label>`,
+``OUTPUT.spliceevents.counts.tsv``, or of :ref:`flair variantquant <variantquant-label>`,
+``OUTPUT.var.counts.tsv``.  Their rows are compared as an isoform's are within its gene:
+an event's alternatives (``event`` and ``alternative``), and the reads showing an allele
+and those not (``var_name`` and ``is_var``).  Only usage is tested, with DRIMSeq and the
+t-test normalized by gene, since an event's or a site's reads are not a gene's
+expression, so there are no DESeq2 tables.  An event's ``other`` row counts toward its
+total, but is not tested.  In the outputs, the ``gene_id`` column holds the event or
+``var_name`` and the ``feature_id`` or ``isoform_id`` column ``event|alternative`` or
+``var_name|is_var``.
+
+Neither module records conditions, so write the sample info file that ``flair
+quantify`` would beside the counts, named for them: ``OUTPUT.spliceevents.sample_info.tsv``
+or ``OUTPUT.var.sample_info.tsv``, a header and then a line per sample column, in the
+order of the columns:
+
+.. code:: text
+
+   sample_id	condition	batch
+   sample1	ctl	batch1
+   sample2	ctl	batch1
+   sample3	test	batch1
+
+Without it, the sample columns must be named ``sample_condition_batch``.
+
 If you have more than two sample condtions, either split your counts matrix ahead of time or run DESeq2 and DRIMSeq yourself. 
 
 **Outputs**
@@ -713,14 +740,19 @@ the first, sorted.
 
 **Outputs**
 
- - ``OUTPUT.var.counts.tsv``, a row per allele of a site, of each group of its reads,
-   of the columns ``varpos``, the site, ``CHROM:POS`` 1-based, ``ref``, ``alt``,
-   ``strand``, ``phase_set`` and ``haplotype``, ``.`` when the reads aren't split by
-   them, and ``gene``, then a column per sample of ``UNMODIFIED;MODIFIED``: the reads
-   covering the site not showing the alt, and those showing it, so the two add up to
-   the reads covering the site whatever its other alts.  An allele's rows are written
-   if a read of some sample shows the alt, or with ``--output_all``, each if some
-   sample has ``--min_coverage`` reads of its group covering the site
+ - ``OUTPUT.var.counts.tsv``, two rows per allele of a site, of each group of its
+   reads: ``is_var`` ``yes``, the reads showing the alt, and ``no``, those covering the
+   site not showing it, so the two add up to the reads covering the site whatever its
+   other alts.  ``var_name`` names the pair, ``CHROM:POS:REF>ALT``, then ``(STRAND)``
+   with ``--trust_strand`` and ``|PHASE_SET|HAPLOTYPE`` for phased reads.  Then the
+   columns ``varpos``, the site, ``CHROM:POS`` 1-based, ``ref``, ``alt``, ``strand``,
+   ``phase_set`` and ``haplotype``, ``.`` when the reads aren't split by them, and
+   ``gene``, then a column per sample of the reads.  An allele's rows are written if
+   a read of some sample shows the alt, or with ``--output_all``, each pair if some
+   sample has ``--min_coverage`` reads of its group covering the site.  ``flair
+   diffexp`` and ``diff_iso_usage`` read it, testing the change in each allele's share
+   of its site's reads (see :ref:`diffexp-label`)
+
 
 **Speed**
 
