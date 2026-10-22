@@ -48,7 +48,7 @@ Options to consider:
     fusion does not report: to find those, align with a smaller ``-G`` and lower flair
     fusion's ``--min_dist_between_breakpoints`` to match.
 ``--MD``
-    Adds the MD tags that flair alleles needs to find the reads' mismatches.
+    Adds the MD tags that ``identify_vars.py`` needs to find the reads' mismatches.
 ``--secondary=no``
     Leaves out secondary alignments.  FLAIR uses each read's primary alignment, and
     flair fusion its supplementary ones.
@@ -774,27 +774,140 @@ Options
 
 .. include:: cli/variantquant.rst
 
-.. _alleles-label:
-
-flair alleles
-=============
-
-Calls alleles from variants and groups the reads that carry them, writing a vcf of
-allele groups.  A normal bam and vcf may be given alongside the tumor ones to call
-variants as somatic or not.
-
-Options
--------
-
-.. include:: cli/alleles.rst
 
 .. _isoalleles-label:
 
 flair isoalleles
 ================
 
-Groups alleles by isoform, using the allele calls from flair alleles together with an
-isoform bed, and predicts the protein each isoform allele produces.
+Splits each isoform's reads by haplotype, and in a tumor and normal pair by the
+somatic variants they carry, and gives the sequence and protein of each group: for
+example, isoform 1's reads in the tumor on haplotype H1, on H2, and on H2 carrying
+a somatic KRAS G12V. The haplotypes come from an upstream phasing tool, such as
+WhatsHap, which tags each read with its haplotype; flair isoalleles does not call or
+phase variants itself.
+
+**Before running it**
+
+1. Build the isoforms and count the reads with FLAIR as usual. Every sample needs
+   a read map from ``flair quantify --generate_map``, made with the same isoform bed
+   given here (``<output>.<sample>.read.map.tsv``)::
+
+     flair quantify --manifest MANIFEST.tsv -g GENOME.fa --isoform_bed ISOFORMS.bed --generate_map -o QUANT
+
+2. Phase the germline variants and haplotag the reads, as with WhatsHap, giving a
+   phased VCF and a BAM whose reads carry HP (haplotype) and PS (phase set) tags.
+   In a pair, phase the normal's germline variants and haplotag both the tumor and the
+   normal reads with them, so H1 and H2 mean the same in both::
+
+     whatshap phase --ignore-read-groups -o NORMAL.phased.vcf.gz --reference GENOME.fa NORMAL.vcf.gz NORMAL.bam TUMOR.bam
+     tabix -p vcf NORMAL.phased.vcf.gz
+     whatshap haplotag --ignore-read-groups -o TUMOR.haplotagged.bam --reference GENOME.fa NORMAL.phased.vcf.gz TUMOR.bam
+     whatshap haplotag --ignore-read-groups -o NORMAL.haplotagged.bam --reference GENOME.fa NORMAL.phased.vcf.gz NORMAL.bam
+
+   The VCFs given to flair isoalleles must be bgzipped and indexed (``tabix -p vcf``).
+
+3. If only some of the germline variants were phased, as when the phasing tool was
+   given only the heterozygous calls, also give all of them, unphased, with
+   ``--germline_vcf``. Every passing call there is a germline variant, phased by
+   ``--phased_vcf`` where it can be. Without it, the homozygous variants would be
+   missing from the sequences, and in a pair a tumor call the normal makes but didn't
+   phase could be taken for somatic.
+
+**One sample**
+
+Each isoform's reads are split by haplotype, H1, H2 or untagged, and H1 and H2 each
+get a sequence with their germline variants::
+
+  flair isoalleles --isoform_bed ISOFORMS.bed -g GENOME.fa \
+      --bam SAMPLE.haplotagged.bam --read_map QUANT.SAMPLE.read.map.tsv \
+      --phased_vcf SAMPLE.phased.vcf.gz -o SAMPLE
+
+**A tumor and normal pair**
+
+``--bam`` and ``--read_map`` are the tumor's, ``--normal_bam`` and ``--normal_read_map``
+the normal's, and ``--phased_vcf`` the normal's phased germline variants. The tumor's
+reads are also split by the somatic variants they carry. The somatic variants come
+from exactly one of:
+
+``--tumor_vcf TUMOR.vcf.gz``
+    The tumor's own variant calls, from the same caller as the normal's. A passing
+    tumor call that the normal does not call is somatic if at least
+    ``--min_normal_depth`` (default 10) normal reads inform the site. With fewer, the
+    normal can't show the variant isn't germline, as in an exon the normal barely
+    expresses, so it is left out and listed in ``excluded.tsv``.
+``--somatic_vcf SOMATIC.vcf.gz``
+    The calls of a dedicated somatic caller, such as ClairS or DeepSomatic. Every
+    passing call is somatic, as the caller called it, with no further filter.
+``--variant CHROM:POS:REF>ALT`` (may be given more than once)
+    Only these variants are somatic, whatever the VCFs call. Use it for a known
+    driver that the normal also calls, as when tumor cells are in the normal sample,
+    which would otherwise be taken as germline. ``CHROM:POS`` alone takes every alt a
+    VCF has at that position. The sequences then hold no other somatic variant, and a
+    given variant with few normal reads is warned of.
+
+::
+
+  flair isoalleles --isoform_bed ISOFORMS.bed -g GENOME.fa \
+      --bam TUMOR.haplotagged.bam --read_map QUANT.TUMOR.read.map.tsv --sample_name TUMOR \
+      --normal_bam NORMAL.haplotagged.bam --normal_read_map QUANT.NORMAL.read.map.tsv --normal_name NORMAL \
+      --phased_vcf NORMAL.phased.vcf.gz --germline_vcf NORMAL.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR
+
+``--germline_vcf NORMAL.vcf.gz`` is only needed when ``NORMAL.phased.vcf.gz`` holds
+just some of the normal's calls (see above). With ``--tumor_vcf``, a tumor call is
+somatic only if it is none of the normal's germline calls.
+
+**How reads are grouped**
+
+- A read's haplotype is its HP tag, H1 or H2, or ``untagged`` when the phasing
+  couldn't place it.
+- Germline variants: homozygous ones are in every sequence, and phased hets on their
+  haplotype. An unphased het is put on the haplotype holding at least
+  ``--carrier_min`` (0.9) of the isoform's tagged reads that carry it, of at least
+  ``--min_tagged`` (10); otherwise the reference base is kept, with a warning.
+- Somatic sets, in a pair: the somatic variants a read carries make its set, numbered
+  per gene by reads, most first (S1, S2, ...), so variants on one molecule are one
+  set and those of different subclones different sets. A read's group is its
+  haplotype and set, such as ``H2-S1``. A read that doesn't inform every somatic site
+  defining its isoform's sets, by not reaching it or by a deletion over it, may carry
+  the one it misses, so its group is ``H2-S?``, which is counted but gets no sequence.
+- flair quantify assigns a read to a spliced isoform only if it reaches a few bases
+  into the first and last exons, so every assigned read covers the internal exons
+  but not all of the terminal exons, such as UTRs. Somatic sites in the internal exons
+  or next to the splice sites define the sets. A somatic site further into a terminal
+  exon is added to a group's sequence only if the group's reads that reach it all
+  carry it, and at least one does (``terminal_sites.tsv``). An isoform with no other
+  somatic site has its terminal ones define the sets.
+- Each sequence's CDS starts at the isoform's annotated start codon and runs to the
+  first stop in the variant sequence, so nonsense, frameshift and stop-lost variants
+  move its end. Its productivity follows flair transcriptome's rules. Its protein
+  keeps the isoform's own id if unchanged, and otherwise is named FLPV and a hash of
+  its sequence, the same in every run.
+- Only isoforms with reads get sequences. Fusion isoforms are left out.
+
+**Outputs**
+
+- ``OUTPUT.isoalleles.counts.tsv``: a counts matrix, a row per isoform and group,
+  ``gene_id`` the isoform and ``isoform_id`` ``isoform|group``, a column per sample, so
+  ``diff_iso_usage`` and ``flair diffexp`` compare groups' usage within an isoform
+- ``OUTPUT.isoalleles.fa``, ``.bed``, ``.bb``: the sequences, ``isoform|group``, as a
+  FASTA and a flair BED with each one's CDS, productivity, protein, reads and samples
+- ``OUTPUT.isoalleles.aaseq.tsv``: each protein once, by id
+- ``OUTPUT.isoalleles.sequences.tsv``: per sequence, its variants, productivity,
+  protein, its change from the isoform's own protein and, for a somatic group, from
+  the same haplotype's
+- ``OUTPUT.isoalleles.variants.tsv``, ``.somatic_sets.tsv``, ``.excluded.tsv``,
+  ``.terminal_sites.tsv``, ``.warnings.tsv``: the variants used, the somatic sets, the
+  tumor-only calls left out, the terminal-exon decisions, and the warnings
+- ``OUTPUT.isoalleles.genes.tsv``: per gene and sample, the share of its spliced reads
+  that flair quantify assigned, which is small in long genes of many 5'-truncated reads
+- with ``--generate_map``, ``OUTPUT.isoalleles.<sample>.read.map.tsv``, and with
+  ``--label_bams``, ``OUTPUT.isoalleles.<sample>.bam``, whose reads carry their isoform
+  and group in the ``IA`` tag (in IGV, group alignments by tag IA)
+
+The read maps are not loaded whole: each worker reads only the rows of its batch of
+genes, by their offsets, from a plain or bgzipped map (flair quantify writes them
+bgzipped under ``--compress``), or a copy of a gzipped one in ``--temp_dir``.
 
 Options
 -------

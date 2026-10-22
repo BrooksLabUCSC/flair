@@ -13,7 +13,7 @@ from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import check_genome_fasta, make_run_temp_dir, read_manifest_rows
-from flair.output_compress import compressed_path
+from flair.output_compress import compressed_path, open_seekable_output
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
@@ -564,8 +564,10 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
     this batch's loci but the isoform being another's, so those reads wait until that
     batch is written.  Returns each sample's total reads counted."""
     counts = {}
-    map_writers = ([ReadMapWriter(compressed_path(f'{output}.{sample}.read.map.tsv')) for sample, *_ in sample_data]
-                   if generate_map else [])
+    # bgzip when compressed, so flair isoalleles can read an isoform's row by its offset
+    map_paths = [f'{output}.{sample}.read.map.tsv' for sample, *_ in sample_data] if generate_map else []
+    map_fhs = [open_seekable_output(path) for path in map_paths]
+    map_writers = [ReadMapWriter(compressed_path(path), outFh=fh) for path, fh in zip(map_paths, map_fhs)]
     waiting = [{} for _ in sample_data]
     try:
         for own, results in zip(batch_isoforms, results_iter):
@@ -580,8 +582,9 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
             for name, reads in left.items():
                 writer.writeReads(name, reads)
     finally:
-        for writer in map_writers:
+        for writer, fh in zip(map_writers, map_fhs):
             writer.close()
+            fh.close()
     rows = [CountsRow(gene_id, bed.name, counts.get(bed.name, [0] * len(sample_data)))
             for gene_id, gene_info in gene_data.items() for bed in gene_info.isoform_beds]
     rows += [CountsRow(pieces[0].gene_id, name, counts.get(name, [0] * len(sample_data)))

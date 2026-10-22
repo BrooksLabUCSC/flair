@@ -1,5 +1,6 @@
 usage: flair spliceevents [-h] -m MANIFEST -g GENOME -f GTF [-o OUTPUT]
                           [-t THREADS] [--annot_basic ANNOT_BASIC]
+                          [--junction_star JUNCTION_STAR]
                           [--junction_tab JUNCTION_TAB]
                           [--junction_bed JUNCTION_BED]
                           [--junction_support JUNCTION_SUPPORT]
@@ -31,18 +32,21 @@ options:
                         fragments of, rather than those of -f. A comprehensive
                         annotation includes truncated transcripts, whose ends
                         are not real first and last exons
+  --junction_star JUNCTION_STAR
+                        splice junctions in STAR SJ.out.tab format, as STAR
+                        writes when it aligns reads
   --junction_tab JUNCTION_TAB
-                        short-read junctions in SJ.out.tab format. Use this
-                        option if you aligned your short-reads with STAR, STAR
-                        will automatically output this file
+                        deprecated name for --junction_star
   --junction_bed JUNCTION_BED
-                        short-read junctions in bed format (can be generated
-                        from long-read alignment with intron-prospector)
+                        splice junctions as BED6 to BED9 with the number of
+                        supporting reads in the score column, as intron-
+                        prospector writes from a BAM of either short or long
+                        reads. An alternative format to --junction_star, not a
+                        different kind of evidence
   --junction_support JUNCTION_SUPPORT
-                        if providing short-read junctions, minimum junction
-                        support required to keep junction. If your junctions
-                        file is in bed format, the score field will be used
-                        for read support (default: 2)
+                        minimum number of supporting reads to keep a junction,
+                        from either --junction_star or --junction_bed; for bed
+                        the score column holds the count (default: 2)
   --ss_window SS_WINDOW
                         window size for correcting splice sites (default: 10)
   --partition {yes,no}  whether to cut the regions reads are corrected and
@@ -100,6 +104,6 @@ required named arguments:
                         sorted and indexed bam file aligned to the genome, a
                         line per sample
   -g GENOME, --genome GENOME
-                        FastA of reference genome, can be minimap2 indexed
+                        FASTA of reference genome, can be minimap2 indexed
   -f GTF, --gtf GTF     GTF annotation file, used for correcting reads and
                         assigning them to genes

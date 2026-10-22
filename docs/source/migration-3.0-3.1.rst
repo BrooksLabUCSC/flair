@@ -29,7 +29,9 @@ Commands that moved
 - ``flair correct`` and ``flair collapse`` are gone. ``flair transcriptome`` does both,
   starting from a genome aligned BAM, with the junction evidence given by ``--gtf``,
   ``--junction_bed`` or ``--junction_star``.
-- ``flair variants`` is now ``flair alleles``, with a different interface.
+- ``flair variants`` is gone.  Its allele calling from reads is replaced by haplotyping
+  with an upstream tool, such as WhatsHap, whose haplotagged reads the new ``flair
+  isoalleles`` takes; see :ref:`isoalleles-label`.
 - ``flair isoalleles`` and ``flair variantquant`` are new.
 
 flair align
@@ -242,37 +244,11 @@ flair diffsplice
   nothing, or whose events DRIMSeq found nothing significant in, leaves a file of only
   its header.
 
-flair alleles
--------------
+flair variantquant
+------------------
 
-``flair variants`` under a new name and a new interface: it takes the tumor and normal
-BAMs and VCFs rather than a manifest and an isoform FASTA.
-
-**Renamed**
-
-- ``-o``, ``--output_prefix`` is ``-o``, ``--output``
-
-**Gone**
-
-- ``-m``, ``--manifest``
-- ``-i``, ``--isoforms``
-- ``-b``, ``--bedisoforms``
-
-**New**
-
-- ``--tumor_bam``, ``--normal_bam``, ``--vcf``, ``--normal_vcf``
-- ``--isoform_bed``, ``--frac_support``, ``--read_support``
-- ``--annotate_bams``, ``--generate_map``
-
-flair isoalleles and flair variantquant
----------------------------------------
-
-Both are new.
-
-- ``flair isoalleles`` builds allele labelled isoforms from the output of
-  ``flair alleles``; see :ref:`isoalleles-label`.
-- ``flair variantquant`` counts the reads carrying each variant, per sample; see
-  :ref:`variantquant-label`.
+New: ``flair variantquant`` counts the reads carrying each variant, per sample; see
+:ref:`variantquant-label`.
 
 Standalone programs
 -------------------

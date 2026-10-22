@@ -266,6 +266,68 @@ gene-level quantification.
     BAM files.  A read counted for a fusion is not counted again for an isoform
     of either partner gene
 
+Isoforms by haplotype and somatic variants
+------------------------------------------
+
+FLAIR isoalleles splits each isoform's reads by haplotype, and in a tumor and
+normal pair by the somatic variants they carry, and gives the sequence and protein
+of each group, such as an isoform's tumor reads on the haplotype carrying a KRAS
+G12V and on the other haplotype.  It does not call or phase variants itself: it
+takes the variants and haplotagged reads of upstream tools, and works with any
+variant caller whose VCF has genotypes.  See the FLAIR isoalleles documentation
+for every option and output.
+
+1. Build the isoforms and quantify every sample, as above, adding
+   ``--generate_map`` to FLAIR quantify for each sample's read map.  The read maps
+   must be made with the same isoform BED given to FLAIR isoalleles.
+
+2. Call variants from each sample's genome-aligned BAM.  Any caller writing a VCF
+   with genotypes works.  We recommend:
+
+   - DeepVariant, which calls SNVs and indels, with a model for long-read RNA
+     where one fits your data, such as its MAS-Seq model for PacBio Kinnex reads
+   - longshot or longcallR, if you don't need indels: both call SNVs only from long
+     reads.  For example
+     ``longshot --bam SAMPLE.bam --ref GENOME.fa --out SAMPLE.vcf``
+
+3. Phase the germline variants and haplotag the reads with WhatsHap.  In a pair,
+   phase the normal's variants, using both samples' reads, and haplotag both BAMs
+   with that phasing, so H1 and H2 mean the same in the tumor and the normal.
+   ``--ignore-read-groups`` is needed when a BAM's read groups don't name the VCF's
+   sample.
+
+   - ``whatshap phase --ignore-read-groups --reference GENOME.fa -o NORMAL.phased.vcf.gz NORMAL.vcf.gz NORMAL.bam TUMOR.bam``
+   - ``tabix -p vcf NORMAL.phased.vcf.gz``
+   - ``whatshap haplotag --ignore-read-groups --reference GENOME.fa -o TUMOR.haplotagged.bam NORMAL.phased.vcf.gz TUMOR.bam``,
+     then the same for the normal, and ``samtools index`` each
+
+   For one sample, phase and haplotag its own variants and reads the same way.
+   If you phase only some of the variants, as only the heterozygous ones, give FLAIR
+   isoalleles all of them with ``--germline_vcf`` too, or the homozygous variants
+   are left out of the sequences.
+
+4. Run FLAIR isoalleles.
+
+   - One sample: its reads by haplotype, H1, H2 or untagged
+
+     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam SAMPLE.haplotagged.bam --read_map OUTPUT.SAMPLE.read.map.tsv --phased_vcf SAMPLE.phased.vcf.gz -o SAMPLE``
+
+   - A tumor and normal pair: the tumor's reads by haplotype and somatic variants,
+     such as H2-S1, with the normal's as a control.  Give the normal's BAM and read
+     map, its phased VCF, and the somatic variants in one of three ways:
+
+     - ``--tumor_vcf TUMOR.vcf.gz``, the tumor's calls from the same caller as the
+       normal's: those the normal doesn't call are somatic, if at least 10 normal
+       reads cover the site (``--min_normal_depth``)
+     - ``--somatic_vcf SOMATIC.vcf.gz``, a somatic caller's calls, such as ClairS or
+       DeepSomatic, taken as they are
+     - ``--variant CHROM:POS:REF>ALT``, only the variants given, as a known driver
+       that the normal also calls because tumor cells are in it
+     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam TUMOR.haplotagged.bam --read_map OUTPUT.TUMOR.read.map.tsv --normal_bam NORMAL.haplotagged.bam --normal_read_map OUTPUT.NORMAL.read.map.tsv --phased_vcf NORMAL.phased.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR``
+
+   ``OUTPUT.isoalleles.counts.tsv`` is a counts matrix of each isoform's groups, so
+   ``diff_iso_usage`` compares their usage between the tumor and the normal.
+
 Counting splicing events from reads
 -----------------------------------
 

@@ -2,6 +2,16 @@
 
 ## [v3.x.xx]
 * General
+  * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
+    groups from the reads is replaced by haplotyping with an upstream tool, such as
+    WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
+    quantify's read maps, and splits each isoform's reads by haplotype, and in a tumor
+    and normal pair by the somatic variants they carry (from the tumor's calls, a
+    somatic caller's, or `--variant`), with the sequence and protein of each group
+    and a counts matrix of them.  Genes are processed in parallel batches, and the
+    read maps are read by offset rather than loaded.
+  * `flair quantify --compress` writes its read maps bgzipped, so they can be read by
+    offset; they are still read by any gzip reader.
   * `diff_iso_usage` writes a `fisher_adj_pval` column, its Fisher p-values
     adjusted for the isoforms tested by Benjamini-Hochberg, after `fisher_pval`.
     `--min_expression` leaves isoforms of few reads in the two samples untested.

@@ -5,7 +5,6 @@ this is the only thing that runs them.
 """
 import pytest
 from flair.aaseq_tsv import AaSeqReader, write_aaseqs
-from flair.allele_group_counts_tsv import AlleleGroupCountsReader, allele_group_counts_writer
 from flair.combined_map_tsv import CombinedMapReader, CombinedMapWriter
 from flair.deseq2_counts_tsv import Deseq2CountsReader, write_deseq2_counts
 from flair.diffsplice_fishers_tsv import DiffspliceFishersReader, diffsplice_fishers_writer
@@ -14,8 +13,8 @@ from flair.es_events_tsv import EsEventsReader, EsEventsWriter
 from flair.event_quant_tsv import EventQuantReader, columns as event_quant_columns, event_quant_writer
 from flair.formula_matrix_tsv import FormulaMatrixReader, FormulaRow, write_formula_matrix
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
-from flair.iso_allele_counts_tsv import IsoAlleleCountsReader, iso_allele_counts_writer
 from flair.iso_usage_change_tsv import IsoUsageChangeReader, iso_usage_change_writer
+from flair.isoalleles_tsv import TABLES as ISOALLELES_TABLES, IsoallelesTableReader, isoalleles_table_writer
 from flair.iso_usage_tsv import IsoUsageReader, iso_usage_writer
 from flair.marked_isoforms_bed import MarkedIsoformsReader, MarkedIsoformsWriter
 from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
@@ -63,29 +62,6 @@ def test_aaseq_round_trip(tmp_path):
     rows = list(AaSeqReader(path))
     assert [(r.aaseq_id, r.aaseq) for r in rows] == [('FLP00000001', 'MKV'),
                                                      ('FLP00000002', 'MKW')]
-
-def test_allele_group_counts_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'ag.counts.tsv')
-    with allele_group_counts_writer(path, with_normal=True) as writer:
-        writer.writeRow(('ps1', 'ag1', '7', '2', 'yes'))
-    with AlleleGroupCountsReader(path) as reader:
-        assert reader.with_normal
-        assert [r.somatic for r in reader] == ['yes']
-
-def test_allele_group_counts_without_normal(tmp_path):
-    path = tsv_path(tmp_path, 'ag.counts.tsv')
-    with allele_group_counts_writer(path, with_normal=False) as writer:
-        writer.writeRow(('ps1', 'ag1', '7'))
-    with AlleleGroupCountsReader(path) as reader:
-        assert not reader.with_normal
-
-def test_iso_allele_counts_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'ia.counts.tsv')
-    with iso_allele_counts_writer(path, with_normal=False) as writer:
-        writer.writeRow(('gene1', 'iso1', 'ps1', 'ag1', 'iso1|ag1', 'FLP00000001', '5'))
-    with IsoAlleleCountsReader(path) as reader:
-        assert not reader.with_normal
-        assert [r.aaseq_id for r in reader] == ['FLP00000001']
 
 def test_combined_map_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'map.tsv')
@@ -278,3 +254,12 @@ def test_var_counts_round_trip(tmp_path):
         rows = list(reader)
     assert [(r.var_name, r.is_var, r.alt, r.strand, r.s1, r.s2) for r in rows] == [
         ('chr1:100:A>G(+)', 'yes', 'G', '+', 3, 0), ('chr1:100:A>G(+)', 'no', 'G', '+', 7, 1)]
+
+@pytest.mark.parametrize('table', sorted(ISOALLELES_TABLES))
+def test_isoalleles_tables_round_trip(tmp_path, table):
+    path = tsv_path(tmp_path, f'x.isoalleles.{table}.tsv')
+    row = [f'{col}1' for col in ISOALLELES_TABLES[table]]
+    with isoalleles_table_writer(path, table) as writer:
+        writer.writeRow(row)
+    with IsoallelesTableReader(path, table) as reader:
+        assert [list(r) for r in reader] == [row]

@@ -8,8 +8,9 @@ What it covers:
 
 - the text files flair itself writes, which gain a .gz suffix: the tables, the
   isoform BED, the GTF and the FASTA
-- FASTA is bgzip rather than plain gzip, so that samtools faidx and pysam can
-  index what flair wrote
+- FASTA, and flair quantify's read maps, are bgzip rather than plain gzip, so that
+  samtools faidx and pysam can index what flair wrote, and flair isoalleles read a
+  read map's rows by offset
 - not BAM, which is compressed already, nor bigBed, nor the PDFs the R scripts
   write, none of which flair can gzip
 - not the intermediates under <output>.intermediate, which are joined and
@@ -46,10 +47,15 @@ def open_output(path):
     "writable text file under the name compressed_path gives it"
     return fileOps.opengz(compressed_path(path), 'w')
 
-def open_fasta_output(path):
-    """Writable FASTA under the name compressed_path gives it, bgzip compressed
-    rather than gzip when the run asked for compression."""
+def open_seekable_output(path):
+    """Writable text file under the name compressed_path gives it, bgzip compressed
+    rather than gzip when the run asked for compression, so it can be read from an
+    offset: a FASTA by samtools faidx, a read map by read_map_index."""
     return fileOps.opengz(compressed_path(path), 'w', bgzip=True)
+
+def open_fasta_output(path):
+    "Writable FASTA, bgzip compressed when the run asked for compression (open_seekable_output)"
+    return open_seekable_output(path)
 
 def resolved_input_path(path):
     """The file a derived input path names, when flair builds the name rather than
