@@ -4,7 +4,6 @@ reads back as the same values.  Most of these readers have no caller yet, so
 this is the only thing that runs them.
 """
 import pytest
-from flair.aaseq_pred_tsv import AaSeqPredReader, AaSeqPredWriter
 from flair.aaseq_tsv import AaSeqReader, write_aaseqs
 from flair.allele_group_counts_tsv import AlleleGroupCountsReader, allele_group_counts_writer
 from flair.combined_map_tsv import CombinedMapReader, CombinedMapWriter
@@ -64,12 +63,6 @@ def test_aaseq_round_trip(tmp_path):
     rows = list(AaSeqReader(path))
     assert [(r.aaseq_id, r.aaseq) for r in rows] == [('FLP00000001', 'MKV'),
                                                      ('FLP00000002', 'MKW')]
-
-def test_aaseq_pred_round_trip(tmp_path):
-    path = written(AaSeqPredWriter, tsv_path(tmp_path, 'pred.tsv'),
-                   [('iso1', 'PRO', ['5utr', '3utr'], 'MKV'), ('iso2', 'PTC', [], 'M')])
-    rows = list(AaSeqPredReader(path))
-    assert [r.utr_vars for r in rows] == [['5utr', '3utr'], []]
 
 def test_allele_group_counts_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'ag.counts.tsv')

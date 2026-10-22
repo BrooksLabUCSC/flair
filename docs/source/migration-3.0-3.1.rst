@@ -284,21 +284,23 @@ Standalone programs
 - ``predictProductivity``: ``flair transcriptome`` writes the productivity call in the
   isoform BED, and ``--predictCDS`` is gone with it
 - ``identify_annotated_gene``
-
-**New**
-
+- ``identify_gene_isoform``: it named isoforms transcript_gene for ``bed_to_gtf`` to
+  split, and FLAIR no longer splits names (:ref:`ids <ids-label>`)
 - ``annotate_aaseq_with_uniprot``
 
 **Changed**
 
 - ``bed_to_gtf``: ``--dontuseCDS`` is ``--no_cds``, ``--add_reference_transcript_id`` is
-  gone, and ``--is_flair_bed`` turns the extra BED columns into GTF attributes
+  gone, and ``--is_flair_bed`` turns the extra BED columns into GTF attributes.  A BED
+  not from FLAIR is refused unless given ``--force``, which uses each name as its gene
+  id too: names are no longer split into a transcript and gene at an underscore
+- ``plot_isoform_usage``: ``--vcf`` is gone
 - ``junctions_from_sam``, ``mark_intron_retention``, ``fasta_seq_lengths`` and
   ``diffsplice_fishers_exact`` take the same arguments as before, but now parse them
   with argparse, so each has ``--help``
 - ``flair_partition`` takes the ``--log-*`` options
 
-``gtf_to_bed``, ``identify_gene_isoform`` and ``plot_isoform_usage`` are unchanged.
+``gtf_to_bed`` is unchanged.
 ``diff_iso_usage`` takes the same arguments but writes three more columns, below.
 
 File formats

@@ -30,9 +30,6 @@ def build_parser():
                         help='prefix used for output files (default=gene_name)')
     parser.add_argument('--min_reads', action='store', dest='min_reads', type=int, default=6,
                         help='minimum number of total supporting reads for an isoform to be visualized (default=6)')
-    parser.add_argument('-v', '--vcf', action='store', dest='vcf',
-                        help='''VCF containing the isoform names that include each variant
-                        in the last sample column''')
     parser.add_argument('--palette', action='store', dest='palette',
                         help='''provide a palette file if you would like to visualize more than 7
                         isoforms at once or change the palette used. each line contains a hex color for each isoform''')
@@ -42,7 +39,6 @@ def build_parser():
 hex_colors = ['#ba748a', '#3498db', "#34495e"]
 name_colors = ['xkcd:windows blue', 'xkcd:faded green', 'xkcd:dusty purple', 'xkcd:amber']
 gray = "xkcd:greyish"
-reverse_complement = {'C': 'G', 'G': 'C', 'A': 'T', 'T': 'A'}
 
 
 def parse_bed(bedfile, keepiso, *, names=False):  # noqa: C901 - FIXME: reduce complexity
@@ -103,7 +99,7 @@ def pack(data, rev=True, color=False, tosort=True):
     return packed
 
 
-def plot_blocks(data, panel, names, iso_to_variant, upper, lower, strand, base_colors, height=.5, l=0.8):  # noqa: C901 - FIXME: reduce complexity
+def plot_blocks(data, panel, names, upper, lower, strand, height=.5, l=0.8):  # noqa: C901 - FIXME: reduce complexity
     panel.set_xlim(1, upper - lower + 2)
     if strand == '-':  # flip axes so that the isoforms are plotted 5' -> 3'
         panel.set_xlim(upper - lower + 2, 1)
@@ -162,16 +158,6 @@ def plot_blocks(data, panel, names, iso_to_variant, upper, lower, strand, base_c
                 if k > 0:
                     panel.plot([starts[k - 1] + sizes[k - 1], starts[k]], [i] * 2, 'k-', lw=l)
 
-            if iso_name in iso_to_variant:
-                for var in iso_to_variant[iso_name]:
-                    if strand != '+':
-                        basecol = base_colors[reverse_complement[var[3]]]
-                    else:
-                        basecol = base_colors[var[3]]
-                    rectangle = mplpatches.Rectangle([var[1], i - height / 2 - .2],
-                                                     (upper - lower) / 500, height + .4, facecolor=basecol, linewidth=0, zorder=10, alpha=.8)
-                    panel.add_patch(rectangle)
-
         di += 1
 
 
@@ -206,8 +192,6 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     color_palette = name_colors + hex_colors
     if args.palette:
         color_palette = read_color_palette(args.palette)
-    # after any --palette replacement, so a custom palette reaches the base colors too
-    base_colors = {'C': color_palette[0], 'A': color_palette[1], 'G': color_palette[4], 'T': color_palette[5]}
 
     keepiso = {}  # isoforms that they have a sufficient proportion of reads mapping to them
     sample_ids = read_sample_columns(args.counts_matrix)
@@ -301,23 +285,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     isoforms = sorted(isoforms, key=lambda x: x[3], reverse=True)  # sort by productivity
     packed = pack(isoforms, rev=False, tosort=False)
 
-    iso_to_variant = {}
-    if args.vcf:
-        for line in fileOps.iterLines(args.vcf):
-            if line.startswith('#'):
-                continue
-            line = line.rstrip().split('\t')
-            if args.gene_name not in line[-1]:
-                continue
-            variant_isos = ''.join(line[-1].split(':')[5:]).split(',')
-            for k in keepiso:
-                if ''.join(k.split(':')) in variant_isos:
-                    iso_name = k[:k.rfind('_')]
-                    if iso_name not in iso_to_variant:
-                        iso_to_variant[iso_name] = []
-                    iso_to_variant[iso_name] += [(line[0], int(line[1]) - lower, line[3], line[4])]
-
-    plot_blocks(packed, panel, names, iso_to_variant, upper, lower, strand, base_colors, l=1)
+    plot_blocks(packed, panel, names, upper, lower, strand, l=1)
 
     # plt.savefig(args.o+'_bars.pdf', transparent=True, dpi=600)  # uncomment to output as pdf
     plt.savefig(f'{args.o}_{args.gene_name}_isoforms.pdf', transparent=True)

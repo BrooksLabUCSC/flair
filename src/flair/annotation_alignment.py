@@ -50,11 +50,11 @@ def generate_transcriptome_reference_transcript(strand, transcript_to_strand, tr
     # FIXME: duplicated code
     exon_starts, exon_sizes = get_bed_exons_from_exons(exons, start)
     # FIXME: duplicated use BED class,
-    bed_line = [chrom, start, end, transcript_id + '_' + gene_id, '.', strand, start, end, '0', len(exons),
+    bed_line = [chrom, start, end, transcript_id, '.', strand, start, end, '0', len(exons),
                 ','.join([str(x) for x in exon_sizes]), ','.join([str(x) for x in exon_starts])]
     trans_seq = get_sequence_for_exons(genome, chrom, strand, exons)
     annot_bed_fh.write('\t'.join([str(x) for x in bed_line]) + '\n')
-    annot_fa_fh.write('>' + transcript_id + '_' + gene_id + '\n')
+    annot_fa_fh.write('>' + transcript_id + '\n')
     annot_fa_fh.write(''.join(trans_seq) + '\n')
 
 def generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh):

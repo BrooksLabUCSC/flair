@@ -49,6 +49,6 @@ one, is likewise its own column rather than part of the id.
 
 Releases before FLAIR 3 joined the two with an underscore,
 ``ENST00000225792.10_ENSG00000108654.15``. Splitting that needs a guess, since gene
-ids contain underscores of their own, so FLAIR no longer writes or reads it. The one
-exception is ``bed_to_gtf`` given a BED that FLAIR did not write, which has no column
-to read and so must guess.
+ids contain underscores of their own, so FLAIR no longer writes or reads it.
+``bed_to_gtf`` refuses a BED that FLAIR did not write, which has no gene column,
+unless given ``--force``, which uses each isoform name as its gene id too.

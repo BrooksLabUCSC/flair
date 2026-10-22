@@ -2,6 +2,13 @@
 
 ## [v3.x.xx]
 * General
+  * Isoform and gene ids are never split at an underscore.  `flair transcriptome`
+    failed with a KeyError on an annotation whose transcript and gene ids both
+    hold one, such as a GTF of HLA alleles; it now names the annotated transcripts
+    it aligns reads to by transcript id alone.  `bed_to_gtf` refuses a BED not from
+    flair unless given `--force`, which uses each name as its gene id too.
+    `identify_gene_isoform`, `annotate_aaseq_with_uniprot`, the uninstalled
+    `predict_aaseq_withvar.py` and `plot_isoform_usage --vcf` are gone.
   * fixed problems with some diffsplice_fishers_exact, and other
     auxiliary console script installs
   * flair now uses real subcommands, so `flair <subcommand> --help` and the

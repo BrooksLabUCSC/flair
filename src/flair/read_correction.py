@@ -3,7 +3,6 @@
 import logging
 
 from flair.annotation_precheck import splice_sites_cleanly_aligned
-from flair.iso_gene_id import split_iso_gene
 from flair.isoform_data import Junc, ReadRec
 from flair.read_processing import should_process_read, add_corrected_read_to_groups, fetch_reads
 
@@ -23,17 +22,6 @@ def _add_corrected_spliced_read(read, readrec, aligned_juncs, genome, sj_to_ends
         readrec.clean_splice_sites = splice_sites_cleanly_aligned(read, juncs, genome)
     add_corrected_read_to_groups(readrec, sj_to_ends)
 
-
-def _target_transcript_gene(tid, annots):
-    """The transcript and gene of an alignment target.  flair transcriptome names its
-    annotation targets transcript_gene, so the name is split with the composite id
-    heuristic, rather than on the last '_', which lands in the wrong place for a gene
-    id containing one.  flair spliceevents names them by the transcript alone, with
-    the gene in a column of its BED, so the annotation gives the gene there."""
-    gene = annots.transcript_to_gene.get(tid)
-    if gene is not None:
-        return tid, gene
-    return split_iso_gene(tid)
 
 def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
                             junction_corrector, sj_to_ends, genome,
@@ -68,8 +56,9 @@ def _correct_and_group_read(read, *, read_to_annot_transcript, annots,
     # is what it corrects
     if read.query_name in read_to_annot_transcript:
         tid, startindex, startdist, endindex, enddist = read_to_annot_transcript[read.query_name]
-        transcript, gene = _target_transcript_gene(tid, annots)
-        exons = annots.transcript_to_exons[(transcript, gene)]
+        # alignment targets are named by transcript id, unique across genes
+        gene = annots.transcript_to_gene[tid]
+        exons = annots.transcript_to_exons[(tid, gene)]
         annot_juncs = [(exons[x].end, exons[x + 1].start) for x in range(len(exons) - 1)]
         if len(annot_juncs) > 0 and not (trust_strand and annots.gene_to_strand[gene] != readrec.strand):
             newstart = annot_juncs[startindex][0] - startdist

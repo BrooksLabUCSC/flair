@@ -4,27 +4,6 @@ Additional programs
 When you ``conda install`` or ``pip install`` flair, the following helper programs will be in your $PATH.
 The options of each are generated from the program itself, so they are always what the program accepts.
 
-annotate_aaseq_with_uniprot
-===========================
-
-.. include:: cli/annotate_aaseq_with_uniprot.rst
-
-This is for aaseq predictions from FLAIR predictProductivity.
-
-To obtain a UniProt reference file:
- - First go to: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/
-     - README file has mapping of your organism name to the proteome directory
- - Navigate to your organism’s directory
-     - Human files are in: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/Eukaryota/UP000005640/
- - Download the fasta and additional.fasta files
-     - Human: download UP000005640_9606.fasta.gz (primary isoforms) and UP000005640_9606_additional.fasta.gz (alternative isoforms)
- - Cat together zipped files
-     - Ex: cat UP000005640_9606.fasta.gz UP000005640_9606_additional.fasta.gz > UniProt_human_withadditional_100925.fasta.gz
-
-**Output**
-
-A fasta file similar to the input but with aaidXX changed to UniProt ID when possible
-
 bed_to_gtf
 ==========
 
@@ -87,14 +66,6 @@ gtf_to_bed
 .. include:: cli/gtf_to_bed.rst
 
 Convert a GTF to a BED12 file.
-
-identify_gene_isoform
-=====================
-
-.. include:: cli/identify_gene_isoform.rst
-
-Identifies the most likely gene id associated with each isoform and renames the
-isoform.
 
 junctions_from_sam
 ==================

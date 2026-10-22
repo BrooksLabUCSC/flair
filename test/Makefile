@@ -766,19 +766,25 @@ test-diffsplice-help: mkdirs
 	$(call cmp_expect,$@.out)
 
 
-bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-compress test-bed-to-gtf-extracols
+bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-compress test-bed-to-gtf-extracols test-bed-to-gtf-no-genes
 
+# a bed not from flair, of names transcript_gene, which are not split: each name is its gene id too
 test-bed-to-gtf : mkdirs
-	bed_to_gtf $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
+	bed_to_gtf --force $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
 
 test-bed-to-gtf-compress : mkdirs ${TI}/test-collapse-annot.isoforms.bed.gz
-	bed_to_gtf ${TI}/test-collapse-annot.isoforms.bed.gz > $O/$@.gtf
+	bed_to_gtf --force ${TI}/test-collapse-annot.isoforms.bed.gz > $O/$@.gtf
 	$(call cmp_expect_named,$@.gtf,test-bed-to-gtf.gtf)
 
 test-bed-to-gtf-extracols : mkdirs
 	bed_to_gtf --is_flair_bed $(TOME_ISOFORM_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
+
+# without --force, a bed not from flair, of no gene ids, is refused
+test-bed-to-gtf-no-genes : mkdirs
+	! bed_to_gtf $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf 2> $O/$@.err
+	grep -q 'has no gene ids' $O/$@.err
 
 
 ##
