@@ -4,7 +4,8 @@
 
 .. code-block:: text
 
-   usage: diff_iso_usage [-h] counts_matrix_tsv colname1 colname2 outfile
+   usage: diff_iso_usage [-h] [--min_expression MIN_EXPRESSION]
+                         counts_matrix_tsv colname1 colname2 outfile
 
 .. rubric:: positional arguments
 
@@ -22,5 +23,11 @@
 
 .. option:: outfile
 
-   output filename containing the p-value associated with differential isoform usage for each isoform
+   output filename containing the p-value associated with differential isoform usage for each isoform, and that p-value adjusted for the isoforms tested (Benjamini-Hochberg)
+
+.. rubric:: options
+
+.. option:: --min_expression MIN_EXPRESSION
+
+   an isoform with fewer than this many reads in the two samples together is not tested, its p-values NA, though its reads count toward its gene's other isoforms. Filtering on the total, not on each sample, leaves the adjusted p-values valid, and testing fewer isoforms that could never be significant gives more power (default: 0)
 

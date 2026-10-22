@@ -31,10 +31,26 @@ given on the command line, so the direction of ``delta_PSI`` can be read from th
 
  - gene name
  - isoform name
- - p-value
+ - p-value, ``fisher_pval``
+ - the p-value adjusted for the number of isoforms tested, ``fisher_adj_pval``, by
+   Benjamini-Hochberg, so a cutoff on it bounds the false discovery rate.  Filter on
+   this one: with thousands of isoforms tested, a raw p-value below 0.05 is expected
+   by chance alone for one in twenty of them.  An isoform that can't be tested is NA
+   in both
  - this isoform's count in each of the two samples
  - the gene's other isoforms' counts in each of the two samples
  - each sample's PSI, and the difference between them
+
+For a large input, ``--min_expression N`` cuts what is tested without biasing the
+adjusted p-values.  It leaves an isoform of fewer than N reads in the two samples
+together untested, as ``flair diffexp --min_expression`` leaves out isoforms of few
+reads.  The filter is on the total, which Fisher's test conditions on, so it is
+independent of the p-value when nothing changed: the isoforms left out could not
+have been significant, and the rest gain power from fewer tests.  Filtering on
+each sample's reads, or on the change, would not be independent: a filter on the
+change would make the adjusted p-values too small, since the change and the
+p-value come from the same counts.  To report only large changes, filter the
+output on ``delta_PSI`` after the run.
 
 diffsplice_fishers_exact
 ========================

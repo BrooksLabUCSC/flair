@@ -2,6 +2,11 @@
 
 ## [v3.x.xx]
 * General
+  * `diff_iso_usage` writes a `fisher_adj_pval` column, its Fisher p-values
+    adjusted for the isoforms tested by Benjamini-Hochberg, after `fisher_pval`.
+    `--min_expression` leaves isoforms of few reads in the two samples untested.
+    Each isoform's other isoforms' counts are its gene's total less its own, rather
+    than summed again per isoform, so genes and events of many isoforms are fast.
   * `flair diffexp` and `diff_iso_usage` also read the counts of `flair
     spliceevents` and `flair variantquant`, testing an event's alternatives or an
     allele's reads as an isoform's usage within its gene.  diffexp runs DRIMSeq and
