@@ -8,12 +8,14 @@ FLAIR protocol
 - Choose an analysis: isoforms, or splicing events counted from reads
 - For isoforms:
 
-  - Generate transcriptomes
+  - Generate transcriptomes, and detect gene fusions if wanted
   - Combine transcriptomes between samples
   - Quantify splicing relative to the combined transcriptome
+  - Optionally, split each isoform's reads by haplotype and somatic variants
   - Test for differences with FLAIR diffexp and diffsplice
 
-- For splicing events counted from reads: run FLAIR spliceevents
+- For splicing events counted from reads: run FLAIR spliceevents, and test
+  for differences with FLAIR diffexp
 
 Aligning reads to the genome
 ----------------------------
@@ -25,29 +27,30 @@ than 10M reads. In that case, you may want to combine replicates for
 better coverage. However, we have tested and obtained good results with
 ~1M reads.
 
+- Minimap2 (recommended)
+
+  - This is the basal aligner the other methods wrap, run directly
+  - Pros: maximum flexibility and control in terms of alignment options
+  - Raw reads in a BAM file, as PacBio and ONT deliver them, keep their tags,
+    such as UMIs and base modifications: ``samtools fastq -T '*'`` writes every
+    tag into each read's FASTQ comment, and minimap2's ``-y`` copies the
+    comments back into the alignments as tags
+  - Recommended alignment command, from a BAM of raw reads:
+
+    - ``samtools fastq -T '*' SAMPLE.reads.bam | minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no -y GENOME.fa - | samtools sort -o SAMPLE.genomealigned.bam - && samtools index SAMPLE.genomealigned.bam``
+    - From a FASTA or FASTQ of reads, give it to minimap2 in place of ``-``,
+      without ``samtools fastq`` and ``-y``
+    - If your library is stranded, you may want to add ``-uf`` to the
+      minimap2 command (forces splice junctions to be on the same strand
+      as the read)
+
 - Pbmm2 / Dorado align
 
   - These are the minimap2 wrappers developed by PacBio and ONT
   - Pros: will align raw BAM files directly and preserve tags, UMIs, and
     modification information
   - Cons: minimal flexibility in terms of alignment options, less stable
-    than minimap (more frequent updates)
-
-- Minimap2
-
-  - This is the basal aligner used by all of these methods, which can
-    also be run directly
-  - Pros: maximum flexibility and control in terms of alignment options
-  - Cons: this requires FASTA/FASTQ read files, so if your raw reads are
-    provided as BAM files, you would need to convert them to
-    FASTA/FASTQ, losing information stored in the BAM tags. Also, if
-    your reads are already aligned, realigning is cumbersome.
-  - Recommended alignment command:
-
-    - ``minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no GENOME.fa SAMPLE.fa | samtools view -hb - | samtools sort - > SAMPLE.genomealigned.bam; samtools index SAMPLE.genomealigned.bam``
-    - If your library is stranded, you may want to add ``-uf`` to the
-      minimap2 command (forces splice junctions to be on the same strand
-      as the read)
+    than minimap2 (more frequent updates)
 
 Obtaining novel splice junction reference
 -----------------------------------------
@@ -81,11 +84,11 @@ long-read data
 
     - Preferred: align short-reads with STAR. STAR will output a
       SJ.out.tab file by default; you can use this file directly with
-      the –junction_tab option in FLAIR transcriptome
+      the ``--junction_star`` option in FLAIR transcriptome
     - If your short-reads have already been aligned with another
-      aligner, you can extract the junctions with the junctions_from_sam
-      script included with FLAIR or using
-      `intron-prospector <https://github.com/diekhans/intron-prospector>`__.
+      aligner, you can extract the junctions with
+      `intron-prospector <https://github.com/diekhans/intron-prospector>`__,
+      as for long reads below, and give them with ``--junction_bed``.
 
 - Using long-read junctions:
 
@@ -141,10 +144,10 @@ depends mostly on how complete your reads are.
     exons the transcript it comes from has, events overlap, one read counts
     toward several, and events aren't tied to an isoform or protein.  It
     doesn't take advantage of long-read technology: it only uses what a
-    short read spanning the same junctions could show.  It has no
-    differential test between conditions; its tables of counts and PSIs
-    can be tested with your own statistics, and outlier samples can be found
-    with the spliceevents_outliers script.  Unspliced reads only count toward
+    short read spanning the same junctions could show.  Its counts are
+    tested between conditions by FLAIR diffexp and diff_iso_usage as an
+    isoform's usage is, and outlier samples can be found with the
+    spliceevents_outliers script.  Unspliced reads only count toward
     starts and ends, as fragments of an annotated first or last exon.
 
 Their outputs are only comparable at the end: FLAIR spliceevents' events
@@ -177,11 +180,14 @@ more.
 
 - With short-read orthogonal support:
 
-  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_tab SHORTREAD.SJ.out.tab -b SAMPLE.genomealigned.bam -o SAMPLE``
+  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_star SHORTREAD.SJ.out.tab -b SAMPLE.genomealigned.bam --sample_name SAMPLE -o SAMPLE``
 
 - With junctions from long reads:
 
-  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genomealigned.bam -o SAMPLE``
+  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genomealigned.bam --sample_name SAMPLE -o SAMPLE``
+
+- The sample name labels the sample's isoforms and reads in the outputs, and
+  FLAIR combine's columns, so give each sample its own
 
 Detecting gene fusions
 ----------------------
@@ -310,7 +316,7 @@ for every option and output.
 
    - One sample: its reads by haplotype, H1, H2 or untagged
 
-     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam SAMPLE.haplotagged.bam --read_map OUTPUT.SAMPLE.read.map.tsv --phased_vcf SAMPLE.phased.vcf.gz -o SAMPLE``
+     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam SAMPLE.haplotagged.bam --read_map OUTPUT.SAMPLE.read.map.tsv --phased_vcf SAMPLE.phased.vcf.gz --sample_name SAMPLE -o SAMPLE``
 
    - A tumor and normal pair: the tumor's reads by haplotype and somatic variants,
      such as H2-S1, with the normal's as a control.  Give the normal's BAM and read
@@ -323,10 +329,37 @@ for every option and output.
        DeepSomatic, taken as they are
      - ``--variant CHROM:POS:REF>ALT``, only the variants given, as a known driver
        that the normal also calls because tumor cells are in it
-     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam TUMOR.haplotagged.bam --read_map OUTPUT.TUMOR.read.map.tsv --normal_bam NORMAL.haplotagged.bam --normal_read_map OUTPUT.NORMAL.read.map.tsv --phased_vcf NORMAL.phased.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR``
+     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam TUMOR.haplotagged.bam --read_map OUTPUT.TUMOR.read.map.tsv --sample_name TUMOR --normal_bam NORMAL.haplotagged.bam --normal_read_map OUTPUT.NORMAL.read.map.tsv --normal_name NORMAL --phased_vcf NORMAL.phased.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR``
 
    ``OUTPUT.isoalleles.counts.tsv`` is a counts matrix of each isoform's groups, so
    ``diff_iso_usage`` compares their usage between the tumor and the normal.
+
+Testing for differences between conditions
+------------------------------------------
+
+FLAIR quantify writes the conditions and batches of its manifest beside the counts
+matrix, in ``OUTPUT.sample_info.tsv``, which FLAIR diffexp and diffsplice read.
+Name the two conditions to compare; the first is the reference that changes are
+measured against.  FLAIR diffexp needs at least 3 replicates of each condition,
+and FLAIR diffsplice by default tests only events covered in 6 samples
+(``--min_samps_gene_expr``), as with 3 of each.
+
+- Differential gene and isoform expression, and isoform usage (DESeq2 and
+  DRIMSeq):
+
+  - ``flair diffexp --counts_matrix OUTPUT.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFEXP``
+
+- Differential splicing events, derived from the isoforms and their counts, and
+  tested with DRIMSeq when the conditions are named (or with ``--test``, which
+  takes the only two conditions in sorted order); otherwise only the events'
+  counts are written:
+
+  - ``flair diffsplice --isoform_bed COMBINED.isoforms.bed --counts_matrix OUTPUT.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFSPLICE``
+
+- Without replicates, compare isoform usage between two samples with Fisher's
+  exact test, with p-values adjusted for the isoforms tested:
+
+  - ``diff_iso_usage OUTPUT.counts.tsv SAMPLE1 SAMPLE2 OUTPUT.usage.tsv``
 
 Counting splicing events from reads
 -----------------------------------
@@ -341,3 +374,12 @@ reference.
   and annotation are used.
 - To find samples whose PSI of an event is far from the others':
   ``spliceevents_outliers -i OUTPUT -o OUTPUT``
+- To test events between conditions, FLAIR diffexp reads
+  ``OUTPUT.spliceevents.counts.tsv`` and tests each event's alternatives as it
+  does an isoform's usage (DRIMSeq only).  Write each sample's condition and
+  batch beside it in ``OUTPUT.spliceevents.sample_info.tsv``, a header of
+  ``sample_id``, ``condition`` and ``batch`` and a line per sample, in the order
+  of its columns:
+
+  - ``flair diffexp --counts_matrix OUTPUT.spliceevents.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFEXP``
+  - Without replicates: ``diff_iso_usage OUTPUT.spliceevents.counts.tsv SAMPLE1 SAMPLE2 OUTPUT.usage.tsv``
