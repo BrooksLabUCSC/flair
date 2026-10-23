@@ -1,0 +1,6 @@
+s1	output/spliceevents-s1.bam
+s2	output/spliceevents-s2.bam
+s3	output/spliceevents-s3.bam
+s4	output/spliceevents-s4.bam
+s5	output/spliceevents-intron-retention.bam
+s6	output/spliceevents-exon-inclusion.bam

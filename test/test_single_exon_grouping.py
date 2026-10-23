@@ -106,7 +106,7 @@ def _annots(strand, exons, single=()):
     "an annotation with one spliced transcript, and single-exon ones"
     return SimpleNamespace(transcripts=[('tx', 'gene', strand)],
                            transcript_to_exons={('tx', 'gene'): [Exon(s, e) for s, e in exons]},
-                           all_annot_SE={'+': [], '-': [], strand: [Exon(s, e, 'single_gene') for s, e in single]})
+                           all_annot_se={'+': [], '-': [], strand: [Exon(s, e, 'single_gene') for s, e in single]})
 
 
 COMPREHENSIVE = SimpleNamespace(filter='comprehensive', sjc_support=1, end_window=100, ss_window=10)

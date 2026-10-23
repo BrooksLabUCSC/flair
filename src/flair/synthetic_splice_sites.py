@@ -8,6 +8,7 @@ from collections import Counter
 import pysam
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.hgdata.bed import Bed
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -163,7 +164,7 @@ def write_splice_juncs(outfilename, splice_junc_support, min_support=2):
     with open(outfilename, 'w') as out:
         for (chrom, start, end, strand), support in splice_junc_support.items():
             if support >= min_support:
-                out.write('\t'.join([chrom, str(start), str(end), '.', str(support), strand]) + '\n')
+                Bed(chrom, start, end, name='.', score=support, strand=strand).write(out)
 
 
 def synthetic_splice_sites(alignedbed, referencegtf, outfile, refbp, sjwiggle, readcov, refgenome):

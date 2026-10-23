@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import argparse
-import csv
-import os
 from flair.pycbio.sys import cli
+from flair.seq_lengths_tsv import SeqLengthsWriter, SeqLengthHistogramWriter
+from flair.pycbio.sys import fileOps
 
 def _write_seq_length(writer, length_frequencies, name, seqlen):
     "one sequence's length row, and its contribution to the histogram"
     if name is not None:
-        writer.writerow([name, seqlen])
+        writer.writeRow((name, seqlen))
         length_frequencies[seqlen] = length_frequencies.get(seqlen, 0) + 1
 
 
@@ -21,12 +21,11 @@ def build_parser():
     return parser
 
 def fasta_seq_lengths(fasta_file, lengths_tsv, histogram_tsv):
-    fasta = open(fasta_file)
+    fasta = fileOps.opengz(fasta_file)
     outfilename = lengths_tsv
     outfilename2 = histogram_tsv
     length_frequencies = {}
-    with open(outfilename, 'wt') as outfile:
-        writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+    with SeqLengthsWriter(outfilename) as writer:
         seqlen = 0
         name = None
         for line in fasta:
@@ -43,10 +42,9 @@ def fasta_seq_lengths(fasta_file, lengths_tsv, histogram_tsv):
 
     if outfilename2:
         alllengths = sorted(length_frequencies.keys())
-        with open(outfilename2, 'wt') as outfile:
-            writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
+        with SeqLengthHistogramWriter(outfilename2) as writer:
             for length in alllengths:
-                writer.writerow([length, length_frequencies[length]])
+                writer.writeRow((length, length_frequencies[length]))
 
 
 def main():

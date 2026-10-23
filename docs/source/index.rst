@@ -51,22 +51,17 @@ See  :ref:`flair-protocol-label` for an outline of the approaches to running FLA
 If you have multiple samples and want to compare them on a single
 transcriptome, you have two options:
 
-Run flair correct and collapse individually on each sample, then combine your
-transcriptomes using ``flair combine``. This method
-will be faster and easier, but you may miss some low-expression transcripts.
+Run ``flair transcriptome`` on each sample, then combine the transcriptomes with
+``flair combine``, and count every sample's reads on the combined transcriptome
+with ``flair quantify``.  This is the recommended approach: it is faster, and
+each sample's isoforms keep their own support.
 
-Your other option is to merge your samples before running FLAIR. If using
-PacBio reads, be careful doing this, as the reads may not have unique IDs. You
-may need to label each read with its sample ID to keep the read IDs
-unique. You can either merge the FASTA/FASTQ files before running FLAIR
-(simplest, recommended), or merge the bed files after running FLAIR correct,
-making sure to run FLAIR collapse with a list of all of your read files.
-            
-It is recommended to combine all samples together prior to running
-``flair collapse`` for isoform assembly by concatenating corrected read ``BED``
-files together. Following the creation of an isoform reference from
-``flair collapse``, consequent steps will assign reads from each sample
-individually to isoforms of the combined assembly for downstream analyses.
+Your other option, for samples of few reads, is to merge replicates before
+running ``flair transcriptome``, as one BAM, so low-expression transcripts gain
+the reads to be assembled.  If using PacBio reads, be careful doing this, as the
+reads may not have unique IDs: you may need to label each read with its sample
+ID to keep the read IDs unique.  Either way, ``flair quantify`` then assigns the
+reads of each sample individually to the isoforms for downstream analyses.
 
 .. toctree::
    :maxdepth: 2
@@ -74,9 +69,11 @@ individually to isoforms of the combined assembly for downstream analyses.
 
    installing.rst
    flair-protocol.rst
+   running.rst
+   migration-3.0-3.1.rst
    modules.rst
+   ids.rst
    scripts.rst
-   testrun.rst
    faqs.rst
    cite.rst
 

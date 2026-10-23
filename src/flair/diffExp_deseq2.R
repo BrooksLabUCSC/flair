@@ -5,6 +5,9 @@ library(argparse)
 # quit(status=1): an error handler that only prints leaves Rscript exiting 0, so
 # every failure here was invisible to flair and the run looked like it finished
 options(error = function() {traceback(2); quit(status = 1, save = "no")})
+source(file.path(dirname(sub("^--file=", "",
+                            grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))),
+                 "tsv_io.R"))
 
 # Function for parsing command line arguments
 parse_arguments <- function() {
@@ -16,6 +19,8 @@ parse_arguments <- function() {
   parser$add_argument("--out_dir", required = TRUE, help = "Write to specified output directory.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
   parser$add_argument("--formula", required = TRUE, help = "Formula design matrix.")
+  parser$add_argument("--compress", action = "store_true", default = FALSE,
+                      help = "Compress the output tables with gzip.")
 
   args <- parser$parse_args()
   return(args)
@@ -53,9 +58,9 @@ run_deseq_analysis <- function(args) {
     dir.create(workdir, recursive = TRUE)
   }
   
-  lfcOut <- file.path(workdir, sprintf("%s_%s_v_%s_results_shrinkage.tsv", prefix, condition_a, condition_b))
-  resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b))
-  cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b))
+  lfcOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results_shrinkage.tsv", prefix, condition_a, condition_b)), args$compress)
+  resOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b)), args$compress)
+  cleanOut <- tsvCompressedPath(file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b)), args$compress)
   
   # check.names=FALSE: make.names() rewrites a sample column whose name holds
   # anything but letters, digits, dot and underscore, or that starts with a digit.
@@ -78,13 +83,13 @@ run_deseq_analysis <- function(args) {
 
   res <- results(dds, name = name)
   resLFC <- lfcShrink(dds, coef = name)
-  write.table(as.data.frame(res), file = resOut, quote = FALSE, sep = "\t")
-  write.table(as.data.frame(resLFC), file = lfcOut, quote = FALSE, sep = "\t")
+  tsvWriteTable(as.data.frame(res), resOut)
+  tsvWriteTable(as.data.frame(resLFC), lfcOut)
   
   resLFC <- na.omit(resLFC[order(resLFC$padj), ])
   resLFC <- as.data.frame(resLFC[resLFC$padj < 0.05, ])
   outdf <- data.frame(sample = rownames(resLFC), round(resLFC[, 1:3], 2), signif(resLFC[, 4:5], 3))
-  write.table(outdf, file = cleanOut, row.names = FALSE, quote = FALSE, sep = "\t")
+  tsvWriteTable(outdf, cleanOut, row.names = FALSE)
   
   return(dds)
 }

@@ -124,11 +124,11 @@ def get_genes_with_shared_juncs(juncs, strand, annots, extra_sites=()):
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
     gene_hits = {}
     exon = iso_readrec.exons[0]
-    index = binary_search(exon, annots.all_annot_SE[strand])
-    # FIXME: how does this ever work? all_annot_SE is [(start, end, strand, gene_id), ...]
+    index = binary_search(exon, annots.all_annot_se[strand])
+    # FIXME: how does this ever work? all_annot_se is [(start, end, strand, gene_id), ...]
     # max(0, ...): a negative slice start would be read as an offset from the end of
     # the list, which for a long list gives an empty window
-    for annot_exon_info in annots.all_annot_SE[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
+    for annot_exon_info in annots.all_annot_se[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
         # FIXME: make overlap a function
         overlap = min(exon.end, annot_exon_info.end) - max(exon.start, annot_exon_info.start)
         if overlap > 0:
@@ -171,7 +171,7 @@ def get_unspliced_exon_overlaps(strand, exons, annots):
     """Genes on the strand whose single-exon (unspliced) annotated transcripts cover
     more than half of the exons' length, as [bases covered, gene_id, strand]"""
     gene_to_intervals = {}
-    for annot_exon in annots.all_annot_SE[strand]:
+    for annot_exon in annots.all_annot_se[strand]:
         gene_to_intervals.setdefault(annot_exon.name, []).append((annot_exon.start, annot_exon.end))
     exon_len = sum(e.end - e.start for e in exons)
     gene_hits = []
@@ -388,28 +388,34 @@ def _attach_single_exon_isos(single, groups, firstpass):
             unattached.append(k)
     return unattached
 
-def _group_novel_by_splicing(novel, firstpass):
-    """Spliced isoforms sharing a junction or splice site are grouped, and groups
-    whose junction spans overlap are merged, all without read ends.  A single-exon
-    isoform joins the spliced group whose exons it overlaps most; single-exon
-    isoforms overlapping no spliced group are grouped by their read-end spans."""
+def group_by_splicing(novel, firstpass, merge_overlapping=True):
+    """Spliced isoforms sharing a junction or splice site are grouped, and, with
+    merge_overlapping, groups whose junction spans overlap are merged, all without
+    read ends.  A single-exon isoform joins the spliced group whose exons it overlaps
+    most; single-exon isoforms overlapping no spliced group are grouped by their
+    read-end spans."""
     spliced = [k for k in novel if firstpass[k].juncs]
     single = [k for k in novel if not firstpass[k].juncs]
-    comp_spans = []
-    for members in _splice_site_components(spliced, firstpass):
-        spans = [_junction_span(firstpass[k]) for k in members]
-        comp_spans.append((min(s for s, e in spans), max(e for s, e in spans), tuple(members)))
-    groups = [[k for members in merged for k in members] for merged in _sweep_overlap_groups(comp_spans)]
+    components = _splice_site_components(spliced, firstpass)
+    if merge_overlapping:
+        comp_spans = []
+        for members in components:
+            spans = [_junction_span(firstpass[k]) for k in members]
+            comp_spans.append((min(s for s, e in spans), max(e for s, e in spans), tuple(members)))
+        groups = [[k for members in merged for k in members] for merged in _sweep_overlap_groups(comp_spans)]
+    else:
+        groups = [list(members) for members in components]
     unattached = _attach_single_exon_isos(single, groups, firstpass)
     return groups + _group_by_read_span(unattached, firstpass)
 
-def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
-    """Group the strand's isoforms that have no annotated gene into novel genes, by
-    _group_novel_by_splicing, and create their Gene objects.  A novel gene is named
-    for the span of its isoforms."""
-    novel = [iso_key for start, end, iso_key in novel_gene_isos_to_group[strand]]
+def novel_genes(novel, firstpass, chrom, strand):
+    """The novel genes of isoforms of one strand with no annotated gene, keys of
+    firstpass, grouped by group_by_splicing: (gene id, isoform keys) pairs.
+    A novel gene is named for the span of its isoforms.  Used by flair transcriptome
+    and flair spliceevents"""
     used_ids = set()
-    for group in _group_novel_by_splicing(novel, firstpass):
+    named = []
+    for group in group_by_splicing(novel, firstpass):
         group_start = min(firstpass[k].start for k in group)
         group_end = max(firstpass[k].end for k in group)
         gene_id = f'{chrom}:{group_start}-{group_end}:{strand}'
@@ -419,5 +425,14 @@ def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand,
             suffix += 1
             gene_id = f'{chrom}:{group_start}-{group_end}:{strand}.{suffix}'
         used_ids.add(gene_id)
+        named.append((gene_id, group))
+    return named
+
+
+def generate_non_gene_iso_groups_strand(genes, novel_gene_isos_to_group, strand, chrom, firstpass):
+    """Group the strand's isoforms that have no annotated gene into novel genes
+    (novel_genes), and create their Gene objects."""
+    novel = [iso_key for start, end, iso_key in novel_gene_isos_to_group[strand]]
+    for gene_id, group in novel_genes(novel, firstpass, chrom, strand):
         for k in group:
             add_gene_isoform(genes, gene_id, firstpass[k], strand, is_novel=True)

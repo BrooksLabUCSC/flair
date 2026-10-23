@@ -6,49 +6,36 @@ import os
 import sys
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402 - openblas setting must be before numpy import
+from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noqa: E402
+from flair.es_events_tsv import EsEventsReader  # noqa: E402
+from flair.event_quant_tsv import EventQuantWriter  # noqa: E402
 from flair.pycbio.sys import cli  # noqa: E402
 
+def side_counts(data, n_samps, isos):
+    "the counts of one side of an event, summed over its isoforms"
+    vals = np.asarray([data.get(iso, np.zeros(n_samps)) for iso in isos])
+    return np.sum(vals, axis=0)
 
-def read_counts(counts_matrix_tsv):
-    "the counts of each isoform, and the sample column names"
-    counts = {}
-    with open(counts_matrix_tsv) as fh:
-        header = next(fh).rstrip().split()
-        for line in fh:
-            cols = line.rstrip().split()
-            counts[cols[0]] = np.asarray(cols[1:], dtype=np.float32)
-    return counts, header[1:]
+def write_es_events(counts_matrix_tsv, es_events_tsv):
+    sample_names = read_sample_columns(counts_matrix_tsv)
+    n_samps = len(sample_names)
+    data = {row.isoform_id: np.asarray(row.counts, dtype=np.float32)
+            for row in read_counts_rows(counts_matrix_tsv)}
 
-
-def event_counts(counts, isos, num_samples):
-    "the counts of an event, summed over the isoforms supporting it"
-    return np.sum(np.asarray([counts.get(iso, np.zeros(num_samples))
-                              for iso in isos.split(',')]), axis=0)
-
-
-def write_event(exon, counts, inc_isos, exc_isos, num_samples):
-    for label, isos in (('inclusion', inc_isos), ('exclusion', exc_isos)):
-        values = event_counts(counts, isos, num_samples)
-        print(f'{label}_{exon}', exon, '\t'.join(str(v) for v in values), isos, sep='\t')
-
-
-def write_events(es_events_tsv, counts, sample_names):
-    print('\t'.join(['feature_id', 'coordinate'] + sample_names + ['isoform_ids']))
-    with open(es_events_tsv) as fh:
-        for line in fh:
-            # split on tabs, not on whitespace: an empty isoform list is an empty
-            # field, which a whitespace split drops, leaving a short row
-            exon, _, _, _, inc_isos, exc_isos = line.rstrip('\n').split('\t')
+    with EventQuantWriter(None, sample_names, outFh=sys.stdout) as writer:
+        for row in EsEventsReader(es_events_tsv):
             # an exon needs an isoform on each side to be a skipping event
-            if inc_isos and exc_isos:
-                write_event(exon, counts, inc_isos, exc_isos, len(sample_names))
-
+            if row.inclusion_isos and row.exclusion_isos:
+                writer.writeSide('inclusion', row.exon, row.exon,
+                                 side_counts(data, n_samps, row.inclusion_isos),
+                                 row.inclusion_isos)
+                writer.writeSide('exclusion', row.exon, row.exon,
+                                 side_counts(data, n_samps, row.exclusion_isos),
+                                 row.exclusion_isos)
 
 def main():
-    counts_matrix_tsv, es_events_tsv = sys.argv[1], sys.argv[2]
     with cli.ErrorHandler():
-        counts, sample_names = read_counts(counts_matrix_tsv)
-        write_events(es_events_tsv, counts, sample_names)
+        write_es_events(sys.argv[1], sys.argv[2])
 
 
 if __name__ == '__main__':

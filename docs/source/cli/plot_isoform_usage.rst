@@ -4,7 +4,7 @@
 
 .. code-block:: text
 
-   usage: plot_isoform_usage [-h] [-o O] [--min_reads MIN_READS] [-v VCF]
+   usage: plot_isoform_usage [-h] [-o O] [--min_reads MIN_READS]
                              [--palette PALETTE]
                              isoforms counts_matrix gene_name
 
@@ -31,10 +31,6 @@
 .. option:: --min_reads MIN_READS
 
    minimum number of total supporting reads for an isoform to be visualized (default=6)
-
-.. option:: -v VCF, --vcf VCF
-
-   VCF containing the isoform names that include each variant in the last sample column
 
 .. option:: --palette PALETTE
 

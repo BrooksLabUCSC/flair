@@ -5,7 +5,7 @@ usage: flair fusion [-h] -g GENOME -f GTF -b GENOME_ALIGNED_BAM --sample_name
                     [--max_dist_to_tss MAX_DIST_TO_TSS]
                     [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
                     [--max_partners MAX_PARTNERS] [--quality QUALITY]
-                    [--frac_support FRAC_SUPPORT]
+                    [--frac_support FRAC_SUPPORT] [--filter FILTER]
                     [--no_transcriptome_alignment] [--keep_intermediate]
 
 Identify gene fusions and generate a fusion transcriptome. Reads must be
@@ -70,8 +70,17 @@ options:
   --frac_support FRAC_SUPPORT
                         minimum fraction of a fusion's reads for a fusion
                         isoform to be reported; a fusion with one dominant
-                        isoform hides its minor ones below this. Set to 0 for
-                        max recall (default: 0.05)
+                        isoform hides its minor ones below this. For the most
+                        recall, give 0 with --filter comprehensive (default:
+                        0.05)
+  --filter FILTER       which subset fusion isoforms, a contiguous part of
+                        another, to keep, as flair transcriptome's --filter:
+                        nosubset, comprehensive, ginormous or <N>X. A fusion's
+                        reads are often 5' truncated, and with nosubset its
+                        isoforms take only its few full-length reads: for the
+                        most recall, give comprehensive, every spliced subset
+                        isoform kept, with --frac_support 0 (default:
+                        nosubset)
   --no_transcriptome_alignment
                         find fusions from the chimeric reads of the genome
                         alignment only, without aligning reads to annotated
@@ -89,7 +98,7 @@ options:
 
 required named arguments:
   -g GENOME, --genome GENOME
-                        FastA of reference genome
+                        FASTA of reference genome
   -f GTF, --gtf GTF     GTF annotation file, used for renaming FLAIR isoforms
                         to annotated isoforms and adjusting TSS/TESs
   -b GENOME_ALIGNED_BAM, --genome_aligned_bam GENOME_ALIGNED_BAM

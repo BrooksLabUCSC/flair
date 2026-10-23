@@ -3,6 +3,10 @@ import argparse
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed, BedBlock
+from flair.io_utils import open_sorted_bed
+
+# with --include_gene, the column after the twelve standard ones holds the gene
+GENE_ID_EXTRA_COL = 0
 
 
 def build_parser():
@@ -13,7 +17,7 @@ def build_parser():
     required.add_argument('gtf', type=str, help='annotated gtf')
     required.add_argument('bed', type=str, help='bed file')
     parser.add_argument('--include_gene', action='store_true',
-                        help='include gene name in the isoform name')
+                        help='add a column naming the gene of each isoform')
     return parser
 
 def main():
@@ -28,19 +32,23 @@ def write_bed_row(include_gene, name_sep, iso_to_cds, prev_transcript, blockstar
         blockstarts = blockstarts[::-1]
 
     tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
-    if include_gene:
-        qname = prev_transcript + name_sep + prev_gene
-    else:
-        qname = prev_transcript
-
-    # iso_to_cds is keyed by transcript id; qname may also carry the gene
     if prev_transcript in iso_to_cds:
         cds_start, cds_end = iso_to_cds[prev_transcript]
     else:
         cds_start, cds_end = tstart, tend
     blocks = [BedBlock(blockstarts[i], blockstarts[i] + blocksizes[i]) for i in range(blockcount)]
-    Bed(prev_chrom, tstart, tend, name=qname, score=1000, strand=prev_strand,
-        thickStart=cds_start, thickEnd=cds_end, itemRgb='0', blocks=blocks).write(fh)
+    # the gene goes in a column of its own rather than into the name, which could only
+    # be split again with a heuristic that is wrong for a gene id containing '_'.  One
+    # extra column rather than a full FLAIR BED: bedtools rejects the empty fields of
+    # the columns a FLAIR BED would add.  A caller that needs the gene in the name
+    # instead, because it splits it back out itself, passes the separator to join with
+    if include_gene and (name_sep is not None):
+        name, extra_cols = prev_transcript + name_sep + prev_gene, ()
+    else:
+        name, extra_cols = prev_transcript, ((prev_gene,) if include_gene else ())
+    Bed(prev_chrom, tstart, tend, name=name, score=1000, strand=prev_strand,
+        thickStart=cds_start, thickEnd=cds_end, itemRgb='0', blocks=blocks,
+        extraCols=extra_cols).write(fh)
 
 
 def get_iso_info(gtf):
@@ -81,23 +89,23 @@ def iso_info_from_gtf_data(gtf_data):
 
 
 def write_bed(outputfile, iso_info, include_gene, name_sep):
-    with open(outputfile, 'wt') as outfile:
+    with open_sorted_bed(outputfile) as outfile:
         iso_to_info, iso_to_exons, iso_to_cds = iso_info
 
-        for this_transcript in iso_to_exons:
-            chrom, strand, gene = iso_to_info[this_transcript]
-            exons = sorted(iso_to_exons[this_transcript])
+        for transcript in iso_to_exons:
+            chrom, strand, gene = iso_to_info[transcript]
+            exons = sorted(iso_to_exons[transcript])
             blockstarts = [x[0] for x in exons]
             blocksizes = [x[1] - x[0] for x in exons]
 
-            write_bed_row(include_gene, name_sep, iso_to_cds, this_transcript, blockstarts, blocksizes, gene, chrom, strand, outfile)
+            write_bed_row(include_gene, name_sep, iso_to_cds, transcript, blockstarts, blocksizes, gene, chrom, strand, outfile)
 
 
-def gtf_to_bed(outputfile, gtf, include_gene=False, name_sep='_'):
+def gtf_to_bed(outputfile, gtf, include_gene=False, name_sep=None):
     write_bed(outputfile, get_iso_info(gtf), include_gene, name_sep)
 
 
-def gtf_data_to_bed(outputfile, gtf_data, include_gene=False, name_sep='_'):
+def gtf_data_to_bed(outputfile, gtf_data, include_gene=False, name_sep=None):
     """gtf_to_bed of an already parsed GTF (GtfData) holding exon records.  Without
     CDS records, each transcript's thickStart and thickEnd are its ends"""
     write_bed(outputfile, iso_info_from_gtf_data(gtf_data), include_gene, name_sep)

@@ -2,7 +2,7 @@
 tests of flair_bed module
 """
 import pytest
-from flair.flair_bed import FlairBed, FlairBedReader, parseStrOrNone
+from flair.flair_bed import FlairBed, FlairBedReader, parse_str_or_none
 from flair.pycbio.hgdata.bed import BedException
 
 
@@ -24,11 +24,11 @@ def _make_bed(**overrides):
 
 
 def test_parse_str_or_none_empty():
-    assert parseStrOrNone("") is None
+    assert parse_str_or_none("") is None
 
 
 def test_parse_str_or_none_value():
-    assert parseStrOrNone("foo") == "foo"
+    assert parse_str_or_none("foo") == "foo"
 
 
 def test_to_row_no_frac_support():
@@ -158,3 +158,20 @@ def test_reader(tmp_path):
     assert beds[0].chrom == "chr1"
     assert beds[0].gene_id == "geneA"
     assert beds[0].productivity == "PRO"
+
+
+class _Genome:
+    references = ["chr1"]
+
+    def get_reference_length(self, chrom):
+        return 10000
+
+
+def test_big_bed_of_an_isoform_in_many_samples(tmp_path):
+    # a combined isoform's sample list, over autoSql's 255 character limit for a string
+    from flair.isoform_data import make_big_bed
+    samples = [f"sample_number_{i:02d}" for i in range(40)]
+    with open(tmp_path / "combined.bed", "w") as fh:
+        _make_bed(samples=samples).write(fh)
+    make_big_bed(_Genome(), str(tmp_path / "chrom.sizes"), str(tmp_path / "combined"))
+    assert (tmp_path / "combined.bb").stat().st_size > 0

@@ -14,7 +14,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../src"))
 
-from flair.counts_matrix import parse_sample_fields  # noqa: E402
+from flair.counts_matrix_tsv import ID_COLUMNS  # noqa: E402
+from flair.sample_info_tsv import parse_sample_fields  # noqa: E402
 
 def parse_args():
     desc = "reorder counts matrix sample columns so the first and last share a condition"
@@ -34,15 +35,16 @@ def interleaved_order(conditions):
     return [a[0]] + b + a[1:]
 
 def reorder_row(row, order):
-    "the id column, then the sample columns in the new order"
-    return [row[0]] + [row[1 + i] for i in order]
+    "the id columns, then the sample columns in the new order"
+    ids = row[:len(ID_COLUMNS)]
+    return ids + [row[len(ID_COLUMNS) + i] for i in order]
 
 def reorder_counts_matrix(counts_matrix_tsv, out_tsv):
     with open(counts_matrix_tsv) as in_fh, open(out_tsv, 'w') as out_fh:
         reader = csv.reader(in_fh, delimiter='\t')
         writer = csv.writer(out_fh, delimiter='\t', dialect='unix', quoting=csv.QUOTE_NONE)
         header = next(reader)
-        conditions, _ = parse_sample_fields(header[1:], counts_matrix_tsv)
+        conditions, _ = parse_sample_fields(header[len(ID_COLUMNS):], counts_matrix_tsv)
         order = interleaved_order(conditions)
         writer.writerow(reorder_row(header, order))
         for row in reader:

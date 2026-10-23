@@ -4,30 +4,40 @@
 
 .. code-block:: text
 
-   usage: flair variantquant [-h] [--manifest MANIFEST]
-                             [--transcriptome_bam TRANSCRIPTOME_BAM]
-                             [--pos_ref POS_REF] [--vcf VCF] [-o OUTPUT]
-                             [--isoform_bed ISOFORM_BED]
-                             [--min_coverage MIN_COVERAGE] [--output_all]
+   usage: flair variantquant [-h] (--bam BAM | --manifest MANIFEST) [--vcf VCF]
+                             [-g GENOME] [--keep_flags FLAGS]
+                             [--sample_name SAMPLE_NAME] [-o OUTPUT]
+                             [--isoform_bed ISOFORM_BED] [-f GTF]
+                             [--min_coverage MIN_COVERAGE] [--quality QUALITY]
+                             [--trust_strand] [--haplotypes] [--output_all]
+                             [-t THREADS] [--temp_dir TEMP_DIR]
                              [--keep_intermediate]
 
 .. rubric:: options
 
+.. option:: --bam BAM
+
+   bam file of one sample, aligned to the genome; or give --manifest
+
 .. option:: --manifest MANIFEST
 
-   used instead of --transcriptome_bam and --vcf: path to manifest file that points to sample names, bam files aligned to transcriptome, and vcf vars for that sample called on the genome. Each line of file should be tab separated. If you are using just one reference vcf file, just include it in the third column for the first sample and leave that column blank for the rest.
-
-.. option:: --transcriptome_bam TRANSCRIPTOME_BAM
-
-   used instead of --manifest: path to bam file for an individual sample
-
-.. option:: --pos_ref POS_REF
-
-   either this, --vcf or --manifest: path to reference file of sites to check for variants
+   tab-separated manifest of the samples, a line each: sample name and bam file, aligned to the genome, with --vcf for the sites, or sample name, bam file and vcf file of the sample's own variants, on every line, whose sites are merged, every sample counted at all of them
 
 .. option:: --vcf VCF
 
-   either this, --pos_ref or --manifest: path to reference vcf file of sites to check for variants
+   vcf file, plain or gzipped, of the sites to count, for all samples; only its first five columns are needed. Its records must be of the genome's strand, their REF the genome's base, as a minus strand A-to-I edit is T>C, not A>G: --genome checks it. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
+
+.. option:: -g GENOME, --genome GENOME
+
+   FastA of the genome the reads are aligned to, with its .fai index: each site's REF is checked to be the genome's base, and a site whose REF is not, as of a record of the transcript's strand or another genome, is left out with a warning, rather than every read of the genome's base counted as showing its alt
+
+.. option:: --keep_flags FLAGS
+
+   comma-separated vcf FILTER flags whose records are counted too, as RefCall, or all, every record; a record of more than one flag is counted if all of them are given
+
+.. option:: --sample_name SAMPLE_NAME
+
+   the sample's name, with --bam (default: the bam file's name, less .bam)
 
 .. option:: -o OUTPUT, --output OUTPUT
 
@@ -35,17 +45,41 @@
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   path to transcriptome bed file
+   bed file of isoforms whose exons name the sites of a vcf by their genes: a site is of the genes of the exons over it. An isoform's gene is its 13th column, as of a flair isoform bed, or, for a BED12 or an isoform with it empty, that of the --gtf gene its exons overlap most, else it names none. Without it or --gtf the gene column is empty
+
+.. option:: -f GTF, --gtf GTF
+
+   GTF annotation file, plain or gzipped, whose exons name the sites of a vcf by their gene_ids, or, with --isoform_bed, the genes of its isoforms without them
 
 .. option:: --min_coverage MIN_COVERAGE
 
-   minimum total read coverage required to output a site (default: 5)
+   minimum reads covering a site, in at least one sample, for its alleles to be written (default: 5)
+
+.. option:: --quality QUALITY
+
+   minimum mapping quality of the alignments counted (default: 0)
+
+.. option:: --trust_strand
+
+   trust the stranding of the reads, as of oriented reads or direct RNA: each read is of its alignment's strand, and the counts of each strand of reads at a site are a row of their own, of the strand column, the + and - reads of an allele two rows; without it the strand column is .
+
+.. option:: --haplotypes
+
+   count the reads of each haplotype apart, of haplotagged bams, as WhatsHap haplotag writes: each read is of the haplotype of its HP tag in the phase set of its PS tag, and the counts of each phase set and haplotype at a site are a row of their own, of the phase_set and haplotype columns, the reads without an HP tag a row of . and . (as every row without --haplotypes). Haplotypes are comparable only within a phase set and of one phasing, as the samples of one patient haplotagged with its phased variants: a warning is given of samples sharing no phase set
 
 .. option:: --output_all
 
-   output read counts for all putative RNA editing sites that pass the coverage threshold, regardless of whether any reads are edited
+   write the alleles of every site with --min_coverage, whether or not any read shows them
+
+.. option:: -t THREADS, --threads THREADS
+
+   number of samples to read at once, each in its own process (default: 4)
+
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it, with a file per sample of its reads covering the sites (default: $TMPDIR or the system temporary directory)
 
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging
+   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given
 

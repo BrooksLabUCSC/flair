@@ -21,14 +21,25 @@ from flair.pycbio.hgdata.bed import BedReader
 # rather than the main process subsetting and pickling every region up front,
 # which took minutes, or pickling the full data into every task
 _shared_data = {}
+# the keyword arguments of the run() in progress, shared by all its tasks
+_run_kwargs = {}
 
 
-def combine_temp_files_by_suffix(output, temp_prefixes, suffixes):
+def _copy_part(in_fh, combined_fh, skip_header):
+    "one partition file, without its header when the joined file already has one"
+    if skip_header:
+        in_fh.readline()
+    shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
+
+def combine_temp_files_by_suffix(output, temp_prefixes, suffixes, *, headers=()):
+    """Join each partition file into one.  A suffix named in headers is a TSV whose
+    parts each carry the header, so only the first part keeps it."""
     for filesuffix in suffixes:
+        has_header = filesuffix in headers
         with open(output + filesuffix, 'wb') as combined_fh:
-            for temp_prefix in temp_prefixes:
+            for num, temp_prefix in enumerate(temp_prefixes):
                 with open(temp_prefix + filesuffix, 'rb') as in_fh:
-                    shutil.copyfileobj(in_fh, combined_fh, 1024 * 1024 * 10)
+                    _copy_part(in_fh, combined_fh, has_header and (num > 0))
 
 
 def parallel_mode_parse(parallel_mode):
@@ -86,8 +97,7 @@ class Partition:
     @property
     def file_prefix(self):
         """Base path prefix for output files inside temp_dir."""
-        r = self.region
-        return self.temp_path(f"{r.name}-{r.start}-{r.end}")
+        return self.temp_path(region_file_name(self.region))
 
     def output_path(self, name):
         """Return the path for a named output file inside temp_dir.
@@ -102,7 +112,8 @@ class Partition:
 
 
 def _call_partition_func(packed):
-    partition, weight, func, func_kwargs = packed
+    partition, weight, func, item = packed
+    func_kwargs = _run_kwargs if item is None else dict(_run_kwargs, item=item[0])
     thread_share.task_start(weight)
     try:
         func(partition=partition,
@@ -179,7 +190,7 @@ class PartitionRunner:
     def __len__(self):
         return len(self.partitions)
 
-    def run(self, func, **kwargs):
+    def run(self, func, *, items=None, **kwargs):
         """Run func for each partition, in parallel if threads > 1 (set at construction).
 
         func is called with the following keyword arguments:
@@ -189,13 +200,23 @@ class PartitionRunner:
             junction_corrector -- JunctionCorrector subset for the region, or None
             **kwargs       -- any additional keyword arguments passed to run()
 
+        Given items, such as samples, func runs once for each partition and item,
+        given that one as item, so the items of one partition run in parallel too.
+
         Side effects (e.g. writing files to partition.temp_dir) are the
         expected pattern; return values from func are discarded.
         """
         # largest partitions first, handed out one at a time, so the big ones don't
         # end up running alone at the end; programs run by the partitions, such as
         # minimap2, borrow threads left idle, more for larger partitions
-        packed = sorted(((p, w, func, kwargs) for p, w in zip(self.partitions, self.weights)),
+        # the arguments every task shares reach the forked workers as a global, not
+        # pickled into each task, which for a genome cut into hundreds of partitions
+        # took longer than the partitions themselves
+        global _run_kwargs
+        _run_kwargs = kwargs
+        # an item goes in a tuple, so None is no item
+        packed = sorted(((p, w, func, item) for p, w in zip(self.partitions, self.weights)
+                         for item in ([(i,) for i in items] if items is not None else [None])),
                         key=lambda x: x[1], reverse=True)
         thread_share.init(self.threads, len(packed), max(self.weights, default=1))
 
@@ -224,8 +245,13 @@ def _count_chrom_reads(genome_aligned_bam, regions):
     return [mapped.get(r.name, 0) for r in regions]
 
 
+def region_file_name(region):
+    "the name a region's directory, and the files inside it, are built from"
+    return f"{region.name}-{region.start}-{region.end}"
+
+
 def _region_temp_dir(work_dir, region):
-    return os.path.join(work_dir, f"{region.name}-{region.start}-{region.end}")
+    return os.path.join(work_dir, region_file_name(region))
 
 
 def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, threads):

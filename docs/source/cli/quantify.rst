@@ -6,8 +6,8 @@
 
    usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
                          ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
-                         [--trust_ends] [--generate_map] [--with_gene]
-                         [--normalize_ends]
+                         [--trust_ends] [--generate_map] [--normalize_ends]
+                         [--temp_dir TEMP_DIR] [--keep_intermediate]
 
 .. rubric:: options
 
@@ -17,39 +17,43 @@
 
 .. option:: -t THREADS, --threads THREADS
 
-   minimap2 number of threads (default: 4)
+   number of threads: batches of genes counted at once, with minimap2 given any left idle (default: 4)
 
 .. option:: --tpm
 
-   convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv
+   also write the counts as transcripts per million, <output>.tpm.tsv
 
 .. option:: --trust_ends
 
-   specify if reads are generated from a long read method with minimal fragmentation
+   count a read for a spliced isoform only if its ends are within 50 bp of the isoform's, for reads of full-length molecules, as from a protocol with little fragmentation
 
 .. option:: --generate_map
 
-   create read-to-isoform assignment files for each sample
-
-.. option:: --with_gene
-
-   output lines with isoform_gene
+   write each sample's reads by isoform, <output>.<sample id>.read.map.tsv: a row of an isoform and its reads, comma-separated, under a header
 
 .. option:: --normalize_ends
 
-   normalize transcript ends; recommended when not using --trust_ends and different transcript ends do not matter
+   give each spliced isoform, for counting, the furthest ends of its gene's isoforms with terminal exons like its own, so reads are counted whatever their ends; recommended without --trust_ends when the isoforms of a gene differ only in their ends
+
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it, with the reads and isoforms of each batch of genes realigned (default: $TMPDIR or the system temporary directory)
+
+.. option:: --keep_intermediate
+
+   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given
 
 .. rubric:: required named arguments
 
 .. option:: --manifest MANIFEST
 
-   Tab delimited file containing sample id, condition, batch, and the path to that sample's reads aligned to the genome as a sorted, indexed BAM
+   tab-separated file of the samples, a line each of four fields: sample id, condition, batch, and the sample's reads aligned to the genome as a sorted, indexed BAM. Blank lines and lines starting with '#' are skipped; each sample id once
 
 .. option:: -g GENOME, --genome GENOME
 
-   FastA of genome
+   FASTA of the genome the reads are aligned to, plain or bgzip, indexed with samtools faidx (for a plain FASTA, a .fai is made beside it if missing and the directory is writable)
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   isoform .bed file
+   the isoforms to count, a FLAIR isoform bed (the 25 columns of flair transcriptome, flair combine and flair fusion), whose fusion isoforms are counted too
 

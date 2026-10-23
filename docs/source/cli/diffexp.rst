@@ -35,7 +35,7 @@
 
 .. option:: --counts_matrix COUNTS_MATRIX
 
-   tab-delimited isoform count matrix from flair quantify
+   tab-delimited isoform count matrix from flair quantify, or the counts of flair spliceevents (OUTPUT.spliceevents.counts.tsv) or flair variantquant (OUTPUT.var.counts.tsv), whose usage only is tested. Conditions and batches are read from the sample info TSV beside it
 
 .. option:: -o OUTPUT, --output OUTPUT
 

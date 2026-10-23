@@ -4,6 +4,11 @@ import logging
 import pysam
 from flair import FlairError
 from flair.bed_to_gtf import bed_to_gtf
+from flair.combined_map_tsv import CombinedMapWriter
+from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
+from flair.io_utils import check_genome_fasta, open_sorted_bed
+from flair.output_compress import compressed_path, open_fasta_output, open_output, resolved_input_path
+from flair.pycbio.sys import fileOps
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from statistics import median
@@ -11,7 +16,7 @@ from flair.isoform_data import make_big_bed, get_sequence_for_exons, Gene, Isofo
 from flair.predictProductivity import predict_productivity, translate
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import AnnotsByChrom
-from flair.gene_identification import get_gene_name_firstpass, _group_novel_by_splicing
+from flair.gene_identification import get_gene_name_firstpass, group_by_splicing
 from flair.convert_synthetic_to_genome_bed import piece_gene
 
 def add_subparser(subparsers):
@@ -27,7 +32,7 @@ def add_subparser(subparsers):
     mutexc.add_argument('--isoform_beds', type=str,
                         help="comma separated list of paths to flair bed files to combine")
     parser.add_argument('-g', '--genome', required=True,
-                        help='genome fasta, required to generate an isoform fasta file and/or a bigbed file')
+                        help='genome FASTA, required to generate an isoform FASTA file and/or a bigBed file')
     parser.add_argument('-f', '--gtf', default=None,
                         help='an annotation GTF.  With it, each combined isoform is given its gene, reference transcript, '
                         'CDS, productivity and protein from this annotation, as flair transcriptome gives them, whatever '
@@ -53,6 +58,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=combine_cmd)
 
 def combine_cmd(args):
+    check_genome_fasta(args.genome)
     # the option is a percentage, the code compares against fractional usage
     combine(manifest=args.manifest, prefixes=args.prefixes, isoform_beds=args.isoform_beds,
             genome=args.genome, annotation=args.gtf, output=args.output, end_window=args.end_window,
@@ -106,11 +112,11 @@ def parse_input(manifest, prefixes, input_beds):
     # assumes that only one input is not None
     sampledata = []
     if manifest is not None:
-        for line in open(manifest):
-            sampledata.append(line.rstrip())
+        for line in fileOps.iterLines(manifest):
+            sampledata.append(line)
     elif prefixes is not None:
         for prefix in prefixes.rstrip(',').split(','):
-            sampledata.append(prefix + '.isoforms.bed')
+            sampledata.append(resolved_input_path(prefix + '.isoforms.bed'))
     elif input_beds is not None:
         for bed_path in input_beds.rstrip(',').split(','):
             sampledata.append(bed_path)
@@ -247,7 +253,7 @@ def _check_ref_transcripts(bed_list_group):
 def _novel_gene_keys(combined, novel):
     """gene keys for the combined isoforms without an annotated gene, by their
     indexes in combined: grouped into novel genes as flair transcriptome groups
-    them (_group_novel_by_splicing), on each chromosome and strand"""
+    them (group_by_splicing), on each chromosome and strand"""
     by_chrom_strand = {}
     for i in novel:
         bed = combined[i][0][0]
@@ -255,7 +261,7 @@ def _novel_gene_keys(combined, novel):
             Isoform(bed.chrom, bed.strand, tuple(Junc(gap.start, gap.end) for gap in bed.getGaps()), bed.start, bed.end)
     keys = {}
     for (chrom, strand), isoforms in by_chrom_strand.items():
-        for group in _group_novel_by_splicing(sorted(isoforms), isoforms):
+        for group in group_by_splicing(sorted(isoforms), isoforms):
             key = ('novel', min(group))
             for i in group:
                 keys[i] = key
@@ -457,8 +463,9 @@ def write_combined(combined, genome, output, number_aaseqs=False):
             key_to_new[key] = f'FLG{len(key_to_new) + 1:08d}'
         return key_to_new[key]
 
-    new_iso_to_og, iso_to_samples_to_counts, aaseq_to_id = {}, {}, {}
-    with open(output + '.combined.isoforms.bed', 'w') as bed_fh, open(output + '.combined.isoforms.fa', 'w') as fa_fh:
+    new_iso_to_og, iso_to_samples_to_counts, aaseq_to_id, iso_to_gene = {}, {}, {}, {}
+    with open_sorted_bed(compressed_path(output + '.combined.isoforms.bed')) as bed_fh, \
+         open_fasta_output(output + '.combined.isoforms.fa') as fa_fh:
         for i, (bed_list_group, (gene_key, partner_keys)) in enumerate(zip(combined, gene_keys)):
             new_gene_id = new_gene(gene_key)
             new_fused_genes = [new_gene(key) for key in partner_keys]
@@ -469,38 +476,36 @@ def write_combined(combined, genome, output, number_aaseqs=False):
                     # a sample's protein id: each sample numbers its own, so they
                     # don't name the same protein across samples
                     bed.aaseq_id = None
+            iso_to_gene[f'FLT{i + 1:08d}'] = new_gene_id
             correct_bed_fields_write_out(bed_list_group, f'FLT{i + 1:08d}', new_gene_id, new_fused_genes, new_iso_to_og,
                                          genome, bed_fh, fa_fh, iso_to_samples_to_counts)
     if number_aaseqs:
-        with open(output + '.combined.aaseq.tsv', 'w') as fh:
+        with open_output(output + '.combined.aaseq.tsv') as fh:
             fh.write('aaseq_id\taaseq\n')
             for aaseq, aaseq_id in aaseq_to_id.items():
                 fh.write(f'{aaseq_id}\t{aaseq}\n')
     new_gene_to_og = {new_id: key_to_og.get(key, set()) for key, new_id in key_to_new.items()}
-    return new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts
+    return new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts, iso_to_gene
 
+
+def write_map_file(combined_map_tsv, new_to_og):
+    with CombinedMapWriter(combined_map_tsv) as writer:
+        for new_id, sources in new_to_og.items():
+            writer.writeSources(new_id, [','.join(x[0]) + ':' + x[1] for x in sources])
 
 def write_map_files(output, new_iso_to_og, new_gene_to_og):
-    with open(output + '.combined.isoform.map.txt', 'w') as fh:
-        for new_id in new_iso_to_og:
-            og_names = sorted(','.join(x[0]) + ':' + x[1] for x in new_iso_to_og[new_id])
-            fh.write(new_id + '\t' + '; '.join(og_names) + '\n')
-    with open(output + '.combined.gene.map.txt', 'w') as fh:
-        for new_id in new_gene_to_og:
-            og_names = sorted(','.join(x[0]) + ':' + x[1] for x in new_gene_to_og[new_id])
-            fh.write(new_id + '\t' + '; '.join(og_names) + '\n')
+    write_map_file(compressed_path(output + '.combined.isoform.map.tsv'), new_iso_to_og)
+    write_map_file(compressed_path(output + '.combined.gene.map.tsv'), new_gene_to_og)
 
-def write_counts_file(output, allsamples, iso_to_samples_to_counts):
-    with open(output + '.combined.isoform.counts.tsv', 'w') as fh:
-        fh.write('\t'.join(['isoform_id'] + allsamples) + '\n')
-        for new_id in iso_to_samples_to_counts:
-            outline = [new_id]
-            for sample in allsamples:
-                if sample in iso_to_samples_to_counts[new_id]:
-                    outline.append(str(iso_to_samples_to_counts[new_id][sample]))
-                else:
-                    outline.append('0')
-            fh.write('\t'.join(outline) + '\n')
+def iso_counts_row(new_id, gene_id, all_samples, samples_to_counts):
+    counts = [str(samples_to_counts.get(sample, 0)) for sample in all_samples]
+    return CountsRow(gene_id, new_id, counts)
+
+def write_counts_file(output, all_samples, iso_to_samples_to_counts, iso_to_gene):
+    "the counts matrix names the gene of each isoform in a column of its own"
+    rows = [iso_counts_row(new_id, iso_to_gene[new_id], all_samples, samples_to_counts)
+            for new_id, samples_to_counts in iso_to_samples_to_counts.items()]
+    write_counts_matrix(compressed_path(output + '.combined.isoform.counts.tsv'), all_samples, rows)
 
 def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
             min_frac_usage, remove_single_exon, max_ends, min_reads, annotation=None):
@@ -553,7 +558,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
                     num_regened += set_genes_from_annotation(bed_list_group, annots_by_chrom, genome_fa)
                 combined.append(bed_list_group)
 
-    new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts = write_combined(
+    new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts, iso_to_gene = write_combined(
         combined, genome_fa, output, number_aaseqs=annots_by_chrom is not None)
 
     if annots_by_chrom is not None:
@@ -561,9 +566,10 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
                      f'one or more samples\' (listed with flair --log-level DEBUG)')
     write_map_files(output, new_iso_to_og, new_gene_to_og)
 
-    write_counts_file(output, allsamples, iso_to_samples_to_counts)
+    write_counts_file(output, allsamples, iso_to_samples_to_counts, iso_to_gene)
 
-    bed_to_gtf(output + '.combined.isoforms.bed', output + '.combined.isoforms.gtf', is_flair_bed=True)
+    bed_to_gtf(compressed_path(output + '.combined.isoforms.bed'),
+               compressed_path(output + '.combined.isoforms.gtf'), is_flair_bed=True)
 
     make_big_bed(genome_fa, output + '.chrom.sizes', output + '.combined.isoforms')
     genome_fa.close()

@@ -10,7 +10,7 @@
 
 .. option:: --include_gene
 
-   include gene name in the isoform name
+   add a column naming the gene of each isoform
 
 .. rubric:: required named arguments
 

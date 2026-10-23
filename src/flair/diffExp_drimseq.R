@@ -5,6 +5,9 @@ library(BiocParallel)
 # quit(status=1): an error handler that only prints leaves Rscript exiting 0, so
 # every failure here was invisible to flair and the run looked like it finished
 options(error = function() {traceback(2); quit(status = 1, save = "no")})
+source(file.path(dirname(sub("^--file=", "",
+                            grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))),
+                 "tsv_io.R"))
 
 # CommandLine
 parse_args <- function() {
@@ -23,6 +26,9 @@ parse_args <- function() {
   parser$add_argument('--min_samps_feature_expr', type="integer", default=3, help='Minimum number of samples expressing a feature (3).')
   parser$add_argument('--min_gene_expr', type="integer", default=15, help='Minimum number of reads covering a gene (15).')
   parser$add_argument('--min_feature_expr', type="integer", default=5, help='Minimum number of reads covering a feature (5).')
+  parser$add_argument("--compress", action="store_true", default=FALSE, help='Compress the output tables with gzip.')
+  parser$add_argument("--unreported", default=NULL,
+                      help='File of feature ids, one a line, counted in their gene but left out of the results, as flair spliceevents other rows.')
   
   args <- parser$parse_args()
   return(args)
@@ -40,11 +46,13 @@ main <- function() {
   threads <- args$threads
   
   rundrimseq(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
-             args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr, args$min_feature_expr)
+             args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr,
+             args$min_feature_expr, args$compress, args$unreported)
 }
 
 rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
-                       min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr) {
+                       min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr,
+                       compress, unreported = NULL) {
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
   # create output working directory if it doesn't exist
@@ -54,8 +62,8 @@ rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula
     dir.create(workdir, recursive=TRUE)
   }
   
-  resOut <- file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b))
-  cleanOut <- file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b))
+  resOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b)), compress)
+  cleanOut <- tsvCompressedPath(file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b)), compress)
   
   # Import data
   quantDF <- read.table(matrix, header=TRUE, sep='\t', row.names=1, check.names=FALSE)
@@ -95,9 +103,13 @@ rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula
   
   d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=MulticoreParam(threads))
   res <- merge(proportions(d), results(d, level="feature"), by=c("feature_id","gene_id"))
+  # features that are part of their gene's total, but not themselves an alternative to test
+  if (!is.null(unreported) && file.size(unreported) > 0) {
+    res <- res[!(res$feature_id %in% readLines(unreported)),]
+  }
   
   # Write raw output
-  write.table(res, file=resOut, sep="\t", quote=FALSE, row.names=FALSE)
+  tsvWriteTable(res, resOut, row.names=FALSE)
 
   # Order by adjusted p-value and keep only significant
   res <- res[order(res[,"adj_pvalue"]),]
@@ -107,7 +119,7 @@ rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula
   fina <- ncol(res) - 4
   outdf <- data.frame(res[1:2], round(res[3:fina],3), lr = round(res[["lr"]],2), adj_pvalue = signif(res[["adj_pvalue"]],3))
   
-  write.table(outdf, file=cleanOut, row.names=FALSE, quote=FALSE, sep="\t")
+  tsvWriteTable(outdf, cleanOut, row.names=FALSE)
 }
 
 main()

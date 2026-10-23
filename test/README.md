@@ -14,21 +14,11 @@ If this is the first time, make will download some sequences from
 [the UCSC Genome Browser download page](https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/)
 and store them as test_input/genome.fa.
 
-To test modules and other programs:
+To see all test targets, including the groups that can be run one at a time and
+the ones needing R, run:
 
 ```
-make test
-```
-
-If the diffexp dependencies have been install,
-```
-make test-diffexpress
-```
-
-To run both:
-
-```
-make test-all
+make help
 ```
 
 `make` outputs a lot of information. If a test fails, it will stop with an error and not run any additional tests.

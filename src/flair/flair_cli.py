@@ -4,10 +4,11 @@ from datetime import timedelta
 import argparse
 import logging
 from flair import VERSION
+from flair.output_compress import set_output_compression
 from flair.pycbio.sys import cli, loggingOps
-from flair import (flair_allelotyping, flair_combine, flair_diffExp,
-                   flair_diffSplice, flair_fusion, flair_isoalleles, flair_quantify,
-                   flair_transcriptome, flair_variantquant)
+from flair import (flair_combine, flair_diffExp, flair_diffSplice, flair_fusion,
+                   flair_isoalleles, flair_quantify, flair_spliceevents, flair_transcriptome,
+                   flair_variantquant)
 
 # Modules in pipeline order.  Each one adds and then owns its own subparser and
 # records its entry point with set_defaults(entry=), so no parser is filled in by
@@ -21,11 +22,11 @@ SUBCOMMAND_MODULES = (
     flair_quantify,
     flair_combine,
     flair_variantquant,
+    flair_isoalleles,
     flair_fusion,
     flair_diffExp,
     flair_diffSplice,
-    flair_allelotyping,
-    flair_isoalleles,
+    flair_spliceevents,
 )
 
 class MisplacedGlobalOptionAction(argparse.Action):
@@ -58,6 +59,12 @@ def build_parser():
     parser = argparse.ArgumentParser(prog='flair', description=desc)
     parser.add_argument('--version', action='version', version='FLAIR ' + VERSION,
                         help="print FLAIR version")
+    parser.add_argument('-z', '--compress', action='store_true',
+                        help="gzip the text files this run writes, adding .gz to their "
+                             "names, FASTA with bgzip so it can be indexed.  BAM, bigBed "
+                             "and PDFs are not gzipped, nor are intermediate files.  "
+                             "Compressed input is read with or without this option, "
+                             "detected by file extension")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARNING)
     subparsers = parser.add_subparsers(title="subcommands", dest="subcommand",
                                        metavar="<subcommand>", required=True)
@@ -74,6 +81,7 @@ def run_subcommand(args):
 
 def main():
     args = cli.parseArgsWithLogging(build_parser())
+    set_output_compression(args.compress)
     with cli.ErrorHandler():
         run_subcommand(args)
 

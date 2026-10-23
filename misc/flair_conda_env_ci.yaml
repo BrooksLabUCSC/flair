@@ -15,6 +15,9 @@ dependencies:
   # flair fusion and the junction tests; make test-base runs both
   - ucsc-bedtobigbed
   - intron-prospector >=1.5
+  # variant calling and phasing of the variantquant and isoalleles tests
+  - longshot >=1.0
+  - whatshap >=2.8
   - pip
   - pip:
       - matplotlib>=3.10.0,<4.0.0

@@ -4,27 +4,6 @@ Additional programs
 When you ``conda install`` or ``pip install`` flair, the following helper programs will be in your $PATH.
 The options of each are generated from the program itself, so they are always what the program accepts.
 
-annotate_aaseq_with_uniprot
-===========================
-
-.. include:: cli/annotate_aaseq_with_uniprot.rst
-
-This is for aaseq predictions from FLAIR predictProductivity.
-
-To obtain a UniProt reference file:
- - First go to: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/
-     - README file has mapping of your organism name to the proteome directory
- - Navigate to your organism’s directory
-     - Human files are in: https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/reference_proteomes/Eukaryota/UP000005640/
- - Download the fasta and additional.fasta files
-     - Human: download UP000005640_9606.fasta.gz (primary isoforms) and UP000005640_9606_additional.fasta.gz (alternative isoforms)
- - Cat together zipped files
-     - Ex: cat UP000005640_9606.fasta.gz UP000005640_9606_additional.fasta.gz > UniProt_human_withadditional_100925.fasta.gz
-
-**Output**
-
-A fasta file similar to the input but with aaidXX changed to UniProt ID when possible
-
 bed_to_gtf
 ==========
 
@@ -38,6 +17,10 @@ diff_iso_usage
 .. include:: cli/diff_iso_usage.rst
 
 Calculates the usage of each isoform as a fraction of the total expression of the gene and compares this between samples.
+It also reads the counts of ``flair spliceevents`` and ``flair variantquant``, comparing
+an event's alternatives or an allele's reads against the rest of the event or site, as
+``flair diffexp`` does (see :ref:`diffexp-label`).  An event's ``other`` row counts
+toward the rest but has no row of its own.
 
 Identifies and calculates significance of alternative isoform usage between two
 samples using Fisher's exact tests. The more differentially used the isoforms are
@@ -48,10 +31,26 @@ given on the command line, so the direction of ``delta_PSI`` can be read from th
 
  - gene name
  - isoform name
- - p-value
+ - p-value, ``fisher_pval``
+ - the p-value adjusted for the number of isoforms tested, ``fisher_adj_pval``, by
+   Benjamini-Hochberg, so a cutoff on it bounds the false discovery rate.  Filter on
+   this one: with thousands of isoforms tested, a raw p-value below 0.05 is expected
+   by chance alone for one in twenty of them.  An isoform that can't be tested is NA
+   in both
  - this isoform's count in each of the two samples
  - the gene's other isoforms' counts in each of the two samples
  - each sample's PSI, and the difference between them
+
+For a large input, ``--min_expression N`` cuts what is tested without biasing the
+adjusted p-values.  It leaves an isoform of fewer than N reads in the two samples
+together untested, as ``flair diffexp --min_expression`` leaves out isoforms of few
+reads.  The filter is on the total, which Fisher's test conditions on, so it is
+independent of the p-value when nothing changed: the isoforms left out could not
+have been significant, and the rest gain power from fewer tests.  Filtering on
+each sample's reads, or on the change, would not be independent: a filter on the
+change would make the adjusted p-values too small, since the change and the
+p-value come from the same counts.  To report only large changes, filter the
+output on ``delta_PSI`` after the run.
 
 diffsplice_fishers_exact
 ========================
@@ -88,21 +87,6 @@ gtf_to_bed
 
 Convert a GTF to a BED12 file.
 
-identify_annotated_gene
-=======================
-
-.. include:: cli/identify_annotated_gene.rst
-
-Names isoforms after the annotated gene whose splice junctions they match.
-
-identify_gene_isoform
-=====================
-
-.. include:: cli/identify_gene_isoform.rst
-
-Identifies the most likely gene id associated with each isoform and renames the
-isoform.
-
 junctions_from_sam
 ==================
 
@@ -117,12 +101,11 @@ Assumes the bed has the correct strand information.
 
 **Outputs**
 
- - an extended ``BED`` with an additional column containing either values 0 or 1 classifying the isoform as either spliced or intron-retaining, respectively
- - ``txt`` file of intron retentions with format ``isoform name`` ``chromosome`` ``intron 5' coordinate`` ``intron 3' coordinate``.
-
-Note: A bed file with more additional
-columns will not be displayed in the UCSC genome browser, but can be
-displayed in IGV.
+ - the input BED with a ``retains_intron`` column added, 1 when another isoform of the
+   locus has an exon where this one has an intron, 0 otherwise.  A header line names the
+   columns, so the file is a TSV rather than a BED.
+ - a TSV of the retained introns, with columns ``chrom``, ``start``, ``end`` and
+   ``strand``.  An intron appears once however many isoforms retain it.
 
 plot_isoform_usage
 ==================
@@ -154,3 +137,31 @@ For example:
 .. figure:: img/toy_diu_isoforms.svg
 
 .. figure:: img/toy_diu_usage.svg
+
+spliceevents_outliers
+=====================
+
+.. include:: cli/spliceevents_outliers.rst
+
+Finds outlier samples of the splicing events from flair spliceevents: samples
+whose PSI of an event is far from the median of all samples', at least 0.1 from
+it and more than 3 deviations (half the interquartile range), of events where at
+least 5 samples have ``--event_support`` reads.  It reads
+``OUTPUT.spliceevents.counts.tsv`` and ``OUTPUT.spliceevents.totals.tsv``, and
+calls outliers of either PSI: ``--psi junc``, of the event's reads, which is more
+sensitive, or ``--psi tot``, of the reads covering the event's locus, which finds
+strong overall events.
+
+**Outputs**
+
+ - ``OUTPUT.spliceevents.outliers.tsv``, every outlier
+ - ``OUTPUT.spliceevents.outliers.filtered.tsv``, the outliers more than 6
+   deviations from the median that a simpler event of the same junctions doesn't
+   explain as well: a complex exon skip by an exon skip, and an alternative
+   splice site by an exon skip or a complex exon skip
+
+.. note::
+
+   Starts and ends (tss and tts) are left out of the filtered outliers on
+   purpose.  Their events, from read ends, give far too many false positive
+   outliers for now.  They are still in ``OUTPUT.spliceevents.outliers.tsv``.
