@@ -19,6 +19,8 @@ from flair.flair_bed import FlairBed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 from flair.fusion_table import write_fusion_table, write_table
+from flair.io_utils import check_genome_fasta
+from flair.output_compress import compressed_path, open_output, open_fasta_output
 
 def add_subparser(subparsers):
     desc = ("Identify gene fusions and generate a fusion transcriptome.  Reads must be stranded, each "
@@ -28,7 +30,7 @@ def add_subparser(subparsers):
     parser = subparsers.add_parser('fusion', help="Identify gene fusions", description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-g', '--genome', type=str, required=True,
-                          help='FastA of reference genome')
+                          help='FASTA of reference genome')
     required.add_argument('-f', '--gtf', type=str, required=True,
                           help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
     required.add_argument('-b', '--genome_aligned_bam', type=str, required=True,
@@ -95,6 +97,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=fusion_cmd)
 
 def fusion_cmd(args):
+    check_genome_fasta(args.genome)
     for what, path in (('genome fasta', args.genome), ('GTF annotation', args.gtf)):
         if not os.path.exists(path):
             raise FlairInputDataError(f'{what} file does not exist: {path}')
@@ -111,11 +114,16 @@ def fusion_cmd(args):
 
 def report_nofusions(outputprefix):
     logging.info('no fusions detected. Exiting')
-    for file in [outputprefix + '.fusions.isoforms.bed', outputprefix + '.fusions.isoforms.fa',
-                 outputprefix + '.fusions.isoform.counts.txt', outputprefix + '.fusions.isoform.read.map.txt']:
-        f = open(file, 'w')
-        f.close()
-    with open(outputprefix + '.fusions.aaseq.tsv', 'w') as fh:
+    # written through the openers, so that a compressed run gets an empty gzip file
+    # rather than an empty file wearing a .gz name
+    with open_output(outputprefix + '.fusions.isoforms.bed'):
+        pass
+    with open_fasta_output(outputprefix + '.fusions.isoforms.fa'):
+        pass
+    for tsv in ('.fusions.isoform.counts.tsv', '.fusions.isoform.read.map.tsv'):
+        with open_output(outputprefix + tsv):
+            pass
+    with open_output(outputprefix + '.fusions.aaseq.tsv') as fh:
         fh.write('aaseq_id\taaseq\n')
     write_table([], outputprefix + '.fusions.tsv')
 
@@ -449,7 +457,7 @@ def run_synthetic_transcriptome(output, sample_name, threads, frac_support):
 
 def filter_fasta(in_fa, out_fa, names):
     "the records of in_fa named in names, to out_fa"
-    with open(out_fa, 'w') as out:
+    with open_fasta_output(out_fa) as out:
         good = False
         for line in open(in_fa):
             if line[0] == '>':
@@ -460,7 +468,7 @@ def filter_fasta(in_fa, out_fa, names):
 
 def filter_by_first_column(in_tsv, out_tsv, names, header=False):
     "the lines of in_tsv whose first column is in names, to out_tsv, after its header line if it has one"
-    with open(out_tsv, 'w') as out:
+    with open_output(out_tsv) as out:
         for i, line in enumerate(open(in_tsv)):
             if (header and i == 0) or line.split('\t', 1)[0] in names:
                 out.write(line)
@@ -471,21 +479,23 @@ def write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname
     isoforms: bed, sequences, counts, reads, proteins, GTF and bigBed"""
     logging.info('converting coordinates from synthetic to genomic')
     iso_genes = convert_synthetic_isos(output + '.syntheticAligned.flair.isoforms.bed', output + '-syntheticBreakpointLoc.bed',
-                                       output + '.fusions.isoforms.bed', min_dist_between_breakpoints, AnnotsByChrom(gtf_data))
+                                       compressed_path(output + '.fusions.isoforms.bed'), min_dist_between_breakpoints,
+                                       AnnotsByChrom(gtf_data))
 
-    fusion_beds = list(BedReader(output + '.fusions.isoforms.bed', fixScores=True, bedClass=FlairBed))
+    fusion_beds = list(BedReader(compressed_path(output + '.fusions.isoforms.bed'), fixScores=True, bedClass=FlairBed))
     goodisos = {bed.name for bed in fusion_beds}
     filter_fasta(output + '.syntheticAligned.flair.isoforms.fa', output + '.fusions.isoforms.fa', goodisos)
-    filter_by_first_column(output + '.syntheticAligned.flair.isoform.counts.txt',
-                           output + '.fusions.isoform.counts.txt', goodisos)
-    filter_by_first_column(output + '.syntheticAligned.flair.isoform.read.map.txt',
-                           output + '.fusions.isoform.read.map.txt', goodisos)
+    filter_by_first_column(output + '.syntheticAligned.flair.isoform.counts.tsv',
+                           output + '.fusions.isoform.counts.tsv', goodisos, header=True)
+    filter_by_first_column(output + '.syntheticAligned.flair.isoform.read.map.tsv',
+                           output + '.fusions.isoform.read.map.tsv', goodisos, header=True)
     filter_by_first_column(output + '.syntheticAligned.flair.aaseq.tsv', output + '.fusions.aaseq.tsv',
                            {bed.aaseq_id for bed in fusion_beds if bed.aaseq_id is not None}, header=True)
 
     write_fusion_table(output, iso_genes, genetoname)
 
-    bed_to_gtf(output + '.fusions.isoforms.bed', output + '.fusions.isoforms.gtf', is_flair_bed=True)
+    bed_to_gtf(compressed_path(output + '.fusions.isoforms.bed'),
+               compressed_path(output + '.fusions.isoforms.gtf'), is_flair_bed=True)
 
     with pysam.FastaFile(genome) as genome_fa:
         make_big_bed(genome_fa, output + '.syntheticAligned.flair.chrom.sizes', output + '.fusions.isoforms')

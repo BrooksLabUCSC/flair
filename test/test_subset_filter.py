@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from flair.isoform_data import Exon, Gene, Isoform, Junc
 from flair.flair_transcriptome import filter_spliced_iso, promote_backup_subsets
 from flair.annotation_data import AnnotData, _save_transcript_ends
+from flair.read_ends_tsv import ReadEndsWriter
 
 # the candidate: exons 1000-1200, 1300-1400 and 1500-1700
 JUNCS = (Junc(1200, 1300), Junc(1400, 1500))
@@ -154,7 +155,9 @@ def _backup_case(superset_reads, subset_reads=12, assigned=(), unique_seq=()):
 
 def _promote(tmp_path, final, counts, gene_to_tot, removed, assigned=()):
     ends = tmp_path / 'ends.tsv'
-    ends.write_text(''.join(f'{name}\tsup\n' for name in assigned))
+    with ReadEndsWriter(str(ends)) as writer:
+        for name in assigned:
+            writer.writeRow((name, 'sup', None, None, None, None, None, None))
     promote_backup_subsets(BACKUP_ARGS, removed, final, counts, gene_to_tot, str(ends))
     return [iso for iso in final.values() if iso.backup_subset]
 

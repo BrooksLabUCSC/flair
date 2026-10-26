@@ -124,11 +124,11 @@ def get_genes_with_shared_juncs(juncs, strand, annots, extra_sites=()):
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
     gene_hits = {}
     exon = iso_readrec.exons[0]
-    index = binary_search(exon, annots.all_annot_SE[strand])
-    # FIXME: how does this ever work? all_annot_SE is [(start, end, strand, gene_id), ...]
+    index = binary_search(exon, annots.all_annot_se[strand])
+    # FIXME: how does this ever work? all_annot_se is [(start, end, strand, gene_id), ...]
     # max(0, ...): a negative slice start would be read as an offset from the end of
     # the list, which for a long list gives an empty window
-    for annot_exon_info in annots.all_annot_SE[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
+    for annot_exon_info in annots.all_annot_se[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
         # FIXME: make overlap a function
         overlap = min(exon.end, annot_exon_info.end) - max(exon.start, annot_exon_info.start)
         if overlap > 0:
@@ -171,7 +171,7 @@ def get_unspliced_exon_overlaps(strand, exons, annots):
     """Genes on the strand whose single-exon (unspliced) annotated transcripts cover
     more than half of the exons' length, as [bases covered, gene_id, strand]"""
     gene_to_intervals = {}
-    for annot_exon in annots.all_annot_SE[strand]:
+    for annot_exon in annots.all_annot_se[strand]:
         gene_to_intervals.setdefault(annot_exon.name, []).append((annot_exon.start, annot_exon.end))
     exon_len = sum(e.end - e.start for e in exons)
     gene_hits = []

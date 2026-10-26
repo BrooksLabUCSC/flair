@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import csv
-import os
+from flair.marked_isoforms_bed import MarkedIsoformsWriter, bed_column_count
+from flair.io_utils import bed_row_sort_key
 from flair.pycbio.sys import cli
+from flair.retained_introns_tsv import RetainedIntronsWriter
 from flair.pycbio.hgdata.bed import BedReader
 
 def overlap(coords0, coords1):
@@ -21,11 +22,10 @@ def build_parser():
     return parser
 
 def mark_intron_retention(isoform_bed, marked_bed, intron_txt):  # noqa C901
-    bedfh = open(isoform_bed)
     outfilename = marked_bed
     txtout = intron_txt
     isoforms = {}
-    for bed in BedReader(bedfh, fixScores=True):
+    for bed in BedReader(isoform_bed, fixScores=True):
         chrom, name, start, end, strand = bed.chrom, bed.name, bed.chromStart, bed.chromEnd, bed.strand
         blockstarts = [blk.start for blk in bed.blocks]
         blocksizes = [len(blk) for blk in bed.blocks]
@@ -63,19 +63,17 @@ def mark_intron_retention(isoform_bed, marked_bed, intron_txt):  # noqa C901
                             introncoords.add((chrom, str(prev5), (start1), isoforms[chrom][iname0]['strand']))
                     prev5 = start1 + size1
 
-    with open(outfilename, 'wt') as outfile:
-        writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-        for chrom in isoforms:
-            for name in isoforms[chrom]:
-                if isoforms[chrom][name]['ir']:
-                    writer.writerow(isoforms[chrom][name]['entry'] + [1])
-                else:
-                    writer.writerow(isoforms[chrom][name]['entry'] + [0])
+    marked = sorted([(isoforms[chrom][name]['entry'], isoforms[chrom][name]['ir'])
+                     for chrom in isoforms for name in isoforms[chrom]],
+                    key=lambda entry_ir: bed_row_sort_key(entry_ir[0]))
+    with MarkedIsoformsWriter(outfilename, bed_column_count([e for e, _ in marked])) as writer:
+        for entry, retains_intron in marked:
+            writer.writeIsoform(entry, retains_intron)
 
-    with open(txtout, 'wt') as outfile:
-        writer = csv.writer(outfile, delimiter='\t', lineterminator=os.linesep)
-        for intron in introncoords:
-            writer.writerow(intron)
+    # sorted, since introncoords is a set and an unordered file cannot be diffed
+    with RetainedIntronsWriter(txtout) as writer:
+        for intron in sorted(introncoords):
+            writer.writeRow(intron)
 
 
 def main():

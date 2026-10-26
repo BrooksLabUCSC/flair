@@ -15,6 +15,9 @@ and they had already diverged: two had an '_R2_' branch and one did not.
 # accession prefixes a gene id may start with, each preceded by '_' in the composite id
 _GENE_ID_PREFIXES = ('_chr', '_XM', '_XR', '_NM', '_NR', '_R2_')
 
+ISOFORM_GENE_ID_ADVICE = ("run flair quantify with --with_gene, which names each counts row "
+                          "isoform_gene rather than isoform alone")
+
 
 def split_iso_gene(iso_gene):
     "the transcript and gene halves of a composite id"

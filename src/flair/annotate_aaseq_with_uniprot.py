@@ -7,13 +7,13 @@ def build_parser():
     desc = "annotate FLAIR aaseq predictions with UniProt names"
     parser = argparse.ArgumentParser(prog='annotate_aaseq_with_uniprot', description=desc)
     parser.add_argument('-i', '--input_aaseq', required=True,
-                        help='protein sequence fasta file; sequence names should be aaseqID_geneID')
+                        help='protein sequence FASTA file; sequence names should be aaseqID_geneID')
     parser.add_argument('-r', '--reference_seq', required=True,
-                        help='reference protein sequence fasta file; sequence names should be '
+                        help='reference protein sequence FASTA file; sequence names should be '
                              'db|refID|geneName_organism, for example >sp|Q8NH21|OR4F5_HUMAN, from '
                              'which the refID is extracted. This can be fasta or fasta.gz')
     parser.add_argument('-o', '--output', required=True,
-                        help='output name, a fasta file')
+                        help='output name, a FASTA file')
     return parser
 
 def parse_args():
@@ -22,7 +22,9 @@ def parse_args():
 
 def parse_fasta(filename):
     last, seq = None, []
-    for line in fileOps.opengz(filename):
+    # iterLines, not opengz: iterating the pipe a compressed file opens drops the
+    # last reference to it, which closes it part way through
+    for line in fileOps.iterLines(filename):
         if line[0] == '>':
             if last:
                 yield last, ''.join(seq)

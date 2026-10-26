@@ -118,13 +118,12 @@ def unassignable_reads(corrected_reads, isoforms, window):
             if _juncs_key(read.juncs) not in kept and not _could_extend_into(read, by_junction, window)}
 
 
-def write_direct_assignments(assignments, ends_fh):
+def write_direct_assignments(assignments, ends_writer):
     """Write the reads assigned without the realignment as count_sam_transcripts
     writes its ends: in genomic order, each end's junction index, distance from
     that junction, and distance from the transcript's end"""
     for name, (isoform, read) in assignments.items():
         last = len(isoform.juncs) - 1
-        fields = (name, isoform.name,
-                  0, isoform.juncs[0].start - read.start, max(read.start - isoform.start, 0),
-                  last, read.end - isoform.juncs[-1].end, max(isoform.end - read.end, 0))
-        ends_fh.write('\t'.join(str(x) for x in fields) + '\n')
+        ends_writer.writeRow((name, isoform.name,
+                              0, isoform.juncs[0].start - read.start, max(read.start - isoform.start, 0),
+                              last, read.end - isoform.juncs[-1].end, max(isoform.end - read.end, 0)))

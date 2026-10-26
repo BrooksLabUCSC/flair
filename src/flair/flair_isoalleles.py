@@ -7,8 +7,13 @@ from copy import deepcopy
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
 from flair.predictProductivity import translate_from_bed
+from flair.aaseq_tsv import write_aaseqs
+from flair.iso_allele_counts_tsv import IsoAlleleCountsWriter
+from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.isoform_data import make_big_bed, get_reverse_complement, translate_codon, COMPBASE
 from flair import FlairInputDataError
+from flair.io_utils import check_genome_fasta, open_sorted_bed
+from flair.output_compress import compressed_path, open_fasta_output
 
 
 def add_subparser(subparsers):
@@ -22,7 +27,7 @@ def add_subparser(subparsers):
     parser.add_argument('--allele_read_map_normal', type=str,
                         help="optional normal read map file from flair alleles")
     parser.add_argument('-g', '--genome', type=str, required=True,
-                        help='genome fasta file (used for making big bed)')
+                        help='genome FASTA file (used for making bigBed)')
     parser.add_argument('-o', '--output', default='flair',
                         help="prefix for output files (default: %(default)s)")
     parser.add_argument('--isoform_bed', type=str, required=True,
@@ -40,6 +45,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=isoalleles_cmd)
 
 def isoalleles_cmd(args):
+    check_genome_fasta(args.genome)
     if (args.iso_read_map_normal is None) != (args.allele_read_map_normal is None):
         raise FlairInputDataError('for a normal sample, specify both --iso_read_map_normal and --allele_read_map_normal')
     getvariants(allele_vcf=args.allele_vcf, allele_read_map=args.allele_read_map,
@@ -82,18 +88,12 @@ def get_bedisoform_info(bedisofile):
 
 def load_read_maps(read_map_files, read_to_data, index):
     for label, mapfile in read_map_files:
-        for line in open(mapfile):
-            data, reads = line.rstrip().split('\t', 1)
-            for read in reads.split(','):
+        for row in ReadMapReader(mapfile):
+            data, reads = row.name, row.reads
+            for read in reads:
                 if (label, read) not in read_to_data:
                     read_to_data[(label, read)] = [None, None]
                 read_to_data[(label, read)][index] = data
-
-def write_file_header(fh_counts, has_norm):
-    outline = ['gene', 'source_isoform', 'phase_set', 'allele_group', 'allele_labeled_isoform', 'aaseq_id', 'tumor_counts']
-    if has_norm is not None:
-        outline.append('normal_counts')
-    fh_counts.write('\t'.join(outline) + '\n')
 
 def identify_cds_pos(isoform):
     cds_start_genomic, new_cds_start = None, 0
@@ -167,7 +167,7 @@ def adjust_seq_with_vars(block, strand, block_vars, block_new_seq_complex, cds_s
     return block_new_seq_complex, new_cds_start, new_nmd_pos
 
 def get_iso_seq_with_vars(isoform, allele_group_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos):
-    this_iso_vars = []
+    iso_vars = []
     new_seq_complex = []
     for block in isoform.blocks:
         block_vars = get_vars_overlapping_block(block, allele_group_vars)
@@ -176,14 +176,14 @@ def get_iso_seq_with_vars(isoform, allele_group_vars, genome, cds_start_genomic,
 
         block_new_seq_complex, new_cds_start, new_nmd_pos = adjust_seq_with_vars(block, isoform.strand, block_vars, block_new_seq_complex, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
 
-        this_iso_vars.extend(block_vars)
+        iso_vars.extend(block_vars)
         new_seq_complex.extend(block_new_seq_complex)
     if isoform.strand == '-':
         new_seq_complex = new_seq_complex[::-1]
         for i in range(len(new_seq_complex)):
             new_seq_complex[i][0] = COMPBASE[new_seq_complex[i][0]]
 
-    return this_iso_vars, new_seq_complex, new_cds_start, new_nmd_pos
+    return iso_vars, new_seq_complex, new_cds_start, new_nmd_pos
 
 def identify_aaseq_with_vars(new_seq_complex, new_cds_start):
     aaseq = ''
@@ -193,18 +193,18 @@ def identify_aaseq_with_vars(new_seq_complex, new_cds_start):
         # often the stop, which the old bound dropped
         if i + 3 > len(new_seq_complex):
             break
-        this_codon = ''.join([x[0] for x in new_seq_complex[i:i + 3]])
+        codon = ''.join([x[0] for x in new_seq_complex[i:i + 3]])
         # i == new_cds_start, not i == 0: i is 0 only for a transcript with no 5' UTR,
         # so every other transcript skipped the start codon requirement
-        if i == new_cds_start and this_codon != 'ATG':
+        if i == new_cds_start and codon != 'ATG':
             break
-        this_aa = translate_codon(this_codon)
-        if this_aa == '_':
+        aa = translate_codon(codon)
+        if aa == '_':
             stop_index = i + 2
             break
-        aaseq += this_aa
+        aaseq += aa
         for j in range(i, i + 3):
-            new_seq_complex[j][2] = this_aa
+            new_seq_complex[j][2] = aa
     return aaseq, stop_index
 
 def update_isoform_productivity_aaseq(new_isoform, aaseq, new_seq_complex, stop_index, new_nmd_pos, aaseq_to_id, aaseq_count):
@@ -274,12 +274,12 @@ def write_counts_map(ol_base, out_name, iso_allele_reads, fh_counts, fh_map, fh_
     ol_base.append(str(len(iso_allele_reads['t'])))
     if fh_map_norm is not None:
         ol_base.append(str(len(iso_allele_reads['n'])))
-    fh_counts.write('\t'.join(ol_base) + '\n')
+    fh_counts.writeRow(ol_base)
 
     if fh_map is not None:
-        fh_map.write(f'{out_name}\t{",".join(sorted(iso_allele_reads["t"]))}\n')
+        fh_map.writeReads(out_name, sorted(iso_allele_reads["t"]))
         if fh_map_norm is not None:
-            fh_map_norm.write(f'{out_name}\t{",".join(sorted(iso_allele_reads["n"]))}\n')
+            fh_map_norm.writeReads(out_name, sorted(iso_allele_reads["n"]))
 
 def write_iso_allele_counts_map(new_isoform, allele_group, iso_allele_reads, fh_counts, fh_map, fh_map_norm):
     ol_aaseq = new_isoform.aaseq_id if new_isoform.aaseq_id is not None else ''
@@ -332,7 +332,7 @@ def write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoform
                     allele_vars = allele_to_vars[allele]
                     cds_start_genomic, new_cds_start = identify_cds_pos(isoform)
                     nmd_pos_genomic, new_nmd_pos = identify_nmd_pos(isoform)
-                    this_iso_vars, new_seq_complex, new_cds_start, new_nmd_pos = get_iso_seq_with_vars(isoform, allele_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
+                    iso_vars, new_seq_complex, new_cds_start, new_nmd_pos = get_iso_seq_with_vars(isoform, allele_vars, genome, cds_start_genomic, new_cds_start, nmd_pos_genomic, new_nmd_pos)
                     # a non-coding isoform has no ORF; '' makes it NGO below rather
                     # than leaving the previous isoform's protein in scope
                     aaseq, stop_index = '', None
@@ -350,10 +350,7 @@ def write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoform
     return aaseq_to_id
 
 def write_aaseq_key(output, aaseq_to_id):
-    with open(output + '.aaseq.allelegroups.tsv', 'w') as fh:
-        fh.write('aaseq_id\taaseq\n')
-        for aaseq, id in aaseq_to_id.items():
-            fh.write(f'{id}\t{aaseq}\n')
+    write_aaseqs(compressed_path(output + '.aaseq.allelegroups.tsv'), aaseq_to_id)
 
 def load_iso_allele_read_maps(iso_read_map, iso_read_map_norm, allele_read_map, allele_read_map_norm):
     iso_read_maps, allele_read_maps = [('t', iso_read_map)], [('t', allele_read_map)]
@@ -426,15 +423,15 @@ def getvariants(*, allele_vcf, allele_read_map, allele_read_map_normal, genome, 
 
     logging.info('grouping alleles by isoform and getting protein predictions')
     with pysam.FastaFile(genome) as genome_fa:
-        with open(output + '.isoalleles.bed', 'w') as fh_bed, \
-             open(output + '.isoalleles.fa', 'w') as fh_fa, \
-             open(output + '.isoallele.counts.tsv', 'w') as fh_counts:
+        with open_sorted_bed(compressed_path(output + '.isoalleles.bed')) as fh_bed, \
+             open_fasta_output(output + '.isoalleles.fa') as fh_fa, \
+             IsoAlleleCountsWriter(compressed_path(output + '.isoallele.counts.tsv'),
+                                   with_normal=iso_read_map_normal is not None) as fh_counts:
             fh_map, fh_map_norm = None, None
             if generate_map:
-                fh_map = open(output + '.isoallele.tumor.read.map.txt', 'w')
+                fh_map = ReadMapWriter(compressed_path(output + '.isoallele.tumor.read.map.tsv'))
                 if iso_read_map_normal is not None:
-                    fh_map_norm = open(output + '.isoallele.normal.read.map.txt', 'w')
-            write_file_header(fh_counts, iso_read_map_normal)
+                    fh_map_norm = ReadMapWriter(compressed_path(output + '.isoallele.normal.read.map.tsv'))
             aaseq_to_id = write_out_isoform_allele_groups(iso_allele_to_reads, allele_to_vars, isoforms, gene_to_tot_reads, genome_fa,
                                                           fh_bed, fh_fa, fh_counts, fh_map, fh_map_norm)
             if generate_map:

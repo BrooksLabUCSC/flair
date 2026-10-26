@@ -13,7 +13,7 @@ def _annots():
     return SimpleNamespace(
         spliced_exons={'+': {'G1': {Exon(s, e) for s, e in G1_EXONS}}, '-': {}},
         # an unspliced lncRNA on each strand
-        all_annot_SE={'+': [Exon(20000, 22000, 'LNC')], '-': [Exon(20000, 22000, 'LNC-MINUS')]})
+        all_annot_se={'+': [Exon(20000, 22000, 'LNC')], '-': [Exon(20000, 22000, 'LNC-MINUS')]})
 
 
 def test_fixed_end_exons():

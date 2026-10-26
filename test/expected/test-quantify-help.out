@@ -1,7 +1,6 @@
 usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
                       ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
-                      [--trust_ends] [--generate_map] [--with_gene]
-                      [--normalize_ends]
+                      [--trust_ends] [--generate_map] [--normalize_ends]
 
 Quantify the expression level of isoforms across samples
 
@@ -18,7 +17,6 @@ options:
                         with minimal fragmentation
   --generate_map        create read-to-isoform assignment files for each
                         sample
-  --with_gene           output lines with isoform_gene
   --normalize_ends      normalize transcript ends; recommended when not using
                         --trust_ends and different transcript ends do not
                         matter
@@ -28,6 +26,7 @@ required named arguments:
                         batch, and the path to that sample's reads aligned to
                         the genome as a sorted, indexed BAM
   -g GENOME, --genome GENOME
-                        FastA of genome
+                        FASTA of genome; a compressed genome must be bgzip and
+                        indexed with samtools faidx
   --isoform_bed ISOFORM_BED
                         isoform .bed file

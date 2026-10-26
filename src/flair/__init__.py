@@ -1,3 +1,4 @@
+import logging
 from collections import namedtuple
 from types import NoneType
 from flair.pycbio import NoStackError
@@ -71,3 +72,14 @@ class SeqRange(namedtuple("SeqRange",
 def range_overlap(a, b):
     """Return the overlap length between two ranges with .start/.end attributes. Returns 0 if no overlap."""
     return max(0, min(a.end, b.end) - max(a.start, b.start))
+
+def resolve_deprecated_option(args, *, deprecated, current):
+    """Fold a deprecated option into the one that replaced it, warning that it is
+    deprecated.  Names are the argparse dest, without the leading dashes."""
+    value = getattr(args, deprecated)
+    if value is not None:
+        if getattr(args, current) is not None:
+            raise FlairInputDataError(f"--{deprecated} is the deprecated name for --{current}; "
+                                      f"specify one of them, not both")
+        logging.warning("--%s is deprecated, use --%s instead", deprecated, current)
+        setattr(args, current, value)
