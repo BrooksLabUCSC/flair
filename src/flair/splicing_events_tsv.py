@@ -1,43 +1,50 @@
-"""Alternative splicing events called by flair spliceevents, one row per event.
+"""Splicing events of flair spliceevents, one row per alternative of an event.
 
 Columns, in order:
 
-  eventname            the event, <type>-(<strand>)-<gene>
-  eventtype            the kind of event
-  gene                 the gene it was called in
-  junctions_included   junctions supporting inclusion, as chrom:position
-  junctions_excluded   junctions supporting exclusion
-  outer_junctions      the junctions flanking the event
-  exons                the exons it involves
+  event                  the event, <type>|<chrom>:<start>-<end>(<strand>)|<gene>
+  alternative            the alternative of the event the row counts, or 'other' for
+                         the event's reads of none of its alternatives
+  event_type             the kind of event
+  gene                   the gene the event was found in
+  gene_name              its name
+  additional_genes       other genes sharing the event's junctions
+  additional_gene_names  their names
+  junctions_included     the junctions of the alternative, chrom:start-end
+  junctions_excluded     the junctions the alternative skips
+  outer_junctions        the junctions flanking the event
+  exons                  the exons the alternative includes, chrom:start-end, or the
+                         ends of a start or end event, chrom:position
+  novel_junctions        the alternative's junctions that aren't annotated
+  <sample>               one column per sample
 
-The four coordinate columns are comma separated in the file and lists on the
-row.
-  <sample>             one column per sample
+The four gene columns and the five coordinate columns hold several values, comma
+separated in the file and a list on the row.  The 'other' row's coordinate
+columns are empty.
 
-Coordinates are zero based and half open, as they come from a BED.
+Coordinates are one based and inclusive, as the event names are.
 
 Three files share these columns and differ only in what the sample columns hold:
 
-  .diffsplice.counts.tsv    reads supporting the event
-  .diffsplice.PSIjunc.tsv   its share of the reads over its own junctions
-  .diffsplice.PSItot.tsv    its share of the reads over the whole locus
+  .spliceevents.counts.tsv    reads of the alternative
+  .spliceevents.PSIjunc.tsv   its share of the event's reads
+  .spliceevents.PSItot.tsv    its share of the reads covering the event's locus
 
-A PSI column is empty when the sample has too few reads to take a fraction from,
-rather than 0, which would read as "never included".
+A PSI column is empty when the sample has fewer than --event_support reads to take a
+fraction from, rather than 0, which would read as "never included".  The sample
+columns stay strings on the row for that reason.
 
-spliceevents writes one headerless file per partition and concatenates them, so
-the header is written once when the parts are joined.
+Each partition writes its part of a file with the header, so a part is a valid TSV,
+and only the first part's header is kept when they are joined.
 """
 from flair.pycbio.tsv import TsvReader, TsvWriter
 from flair.tsv_column_types import commaListType
 
-EVENT_COLUMNS = ('eventname', 'eventtype', 'gene', 'junctions_included',
-                 'junctions_excluded', 'outer_junctions', 'exons')
-
-# the four coordinate columns each hold a list of chrom:position values
-COORDINATE_COLUMNS = ('junctions_included', 'junctions_excluded', 'outer_junctions',
-                      'exons')
-TYPE_MAP = {col: commaListType for col in COORDINATE_COLUMNS}
+GENE_COLUMNS = ('gene', 'gene_name', 'additional_genes', 'additional_gene_names')
+COORDINATE_COLUMNS = ('junctions_included', 'junctions_excluded', 'outer_junctions', 'exons',
+                      'novel_junctions')
+EVENT_COLUMNS = ('event', 'alternative', 'event_type', *GENE_COLUMNS, *COORDINATE_COLUMNS)
+TYPE_MAP = {col: commaListType for col in GENE_COLUMNS + COORDINATE_COLUMNS}
 
 def columns(sample_columns):
     return list(EVENT_COLUMNS) + list(sample_columns)
@@ -53,10 +60,6 @@ class SplicingEventsReader(TsvReader):
         return self.columns[len(EVENT_COLUMNS):]
 
 class SplicingEventsWriter(TsvWriter):
-    def __init__(self, splicing_events_tsv, sample_columns, *, outFh=None, writeHeader=True):
+    def __init__(self, splicing_events_tsv, sample_columns, *, outFh=None):
         super().__init__(splicing_events_tsv, columns=columns(sample_columns),
-                         defaultColType=str, typeMap=TYPE_MAP, outFh=outFh,
-                         writeHeader=writeHeader)
-
-    def writeEvent(self, event_fields, sample_values):
-        self.writeRow(list(event_fields) + list(sample_values))
+                         defaultColType=str, typeMap=TYPE_MAP, outFh=outFh)

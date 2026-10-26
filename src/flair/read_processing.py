@@ -2,9 +2,39 @@
 
 import logging
 import os
+from collections import namedtuple
 import pysam
 import pipettor
 from flair.isoform_data import Isoform
+
+
+# the windows of a region to fetch its reads from: ranges, sorted SeqRanges that don't
+# overlap, and starts_only, whether only the reads starting in them or all overlapping them
+ReadWindows = namedtuple('ReadWindows', ('ranges', 'starts_only'))
+
+
+def fetch_reads(bam_file, chrom, start, end, windows=None):
+    """The alignments of bam_file overlapping chrom:start-end, or given windows,
+    ReadWindows, only those of its ranges, each once, fetched over the ranges alone so
+    the reads of the rest of the region are never read"""
+    if windows is None:
+        yield from bam_file.fetch(chrom, start, end)
+        return
+    for i, window in enumerate(windows.ranges):
+        if windows.starts_only:
+            # a partition's window: the reads starting in it, which no other window has
+            min_start = window.start
+        elif i > 0:
+            # report regions' windows: the reads not fetched with the previous window.  The
+            # windows are sorted and apart, so a read reaching this one that starts before
+            # the previous one's end overlaps it, and was fetched with it, or with an earlier
+            # window it also reaches
+            min_start = windows.ranges[i - 1].end
+        else:
+            min_start = None
+        for read in bam_file.fetch(window.name, window.start, window.end):
+            if min_start is None or read.reference_start >= min_start:
+                yield read
 
 
 def should_process_read(read, region, min_quality, keep_sup, allow_outside_range=False):
@@ -55,12 +85,14 @@ def add_corrected_read_to_groups(corrected_read, sj_to_ends):
     sj_to_ends[junc_key].reads.append(corrected_read)
 
 
-def generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, chrom, start, end):
+def generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, chrom, start, end, windows=None):
+    """write each primary alignment's clipping at its two ends, given windows, ReadWindows,
+    only of the reads in them (fetch_reads)"""
     c = 0
     # use both soft and hard-clipping because some alignments (secondary, maybe supplementary) can be hard-clipped
     clipping_types = (pysam.CIGAR_OPS.CSOFT_CLIP, pysam.CIGAR_OPS.CHARD_CLIP)
     with open(temp_prefix + '.reads.genomicclipping.tsv', 'w') as clipping_fh:
-        for read in bam_file.fetch(chrom, start, end):
+        for read in fetch_reads(bam_file, chrom, start, end, windows):
             if not read.is_secondary and not read.is_supplementary:
                 c += 1
                 name = read.query_name

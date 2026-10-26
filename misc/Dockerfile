@@ -58,9 +58,11 @@ RUN \
    wget -nv -O /tmp/libhts3t64.deb ${DEB_URL}/h/htslib/libhts3t64_1.22.1%2Bds2-1_amd64.deb && \
    apt-get install -y /tmp/libhts3t64.deb /tmp/samtools.deb
 
-# bedToBigBed, used by flair transcriptome, combine, fusion and isoalleles, and
-# intron-prospector, used by flair fusion.  Both come from bioconda, as they do in
-# misc/flair_conda_env.yaml, so the image and the documented conda install agree.
+# bedToBigBed, used by flair transcriptome, combine and fusion, intron-prospector,
+# used by flair fusion, and longshot and whatshap, which call and phase the variants
+# of the variantquant and isoalleles tests, as users phase reads for flair
+# isoalleles.  They come from bioconda, as they do in misc/flair_conda_env.yaml, so
+# the image and the documented conda install agree.
 # They go in their own environment and are linked into /usr/local/bin, which keeps
 # conda's python off PATH; the image uses the system python.
 RUN \
@@ -69,10 +71,12 @@ RUN \
     tar -xj -C /usr/local/bin --strip-components=1 -f /tmp/micromamba.tar.bz2 bin/micromamba && \
     rm -f /tmp/micromamba.tar.bz2 && \
     micromamba create -y -p /opt/bioconda-tools -c conda-forge -c bioconda \
-        ucsc-bedtobigbed 'intron-prospector>=1.5' && \
+        ucsc-bedtobigbed 'intron-prospector>=1.5' 'longshot>=1.0' 'whatshap>=2.8' && \
     micromamba clean -ay && \
     ln -s /opt/bioconda-tools/bin/bedToBigBed /usr/local/bin/bedToBigBed && \
-    ln -s /opt/bioconda-tools/bin/intron-prospector /usr/local/bin/intron-prospector
+    ln -s /opt/bioconda-tools/bin/intron-prospector /usr/local/bin/intron-prospector && \
+    ln -s /opt/bioconda-tools/bin/longshot /usr/local/bin/longshot && \
+    ln -s /opt/bioconda-tools/bin/whatshap /usr/local/bin/whatshap
 
 FROM base AS unix_base
 

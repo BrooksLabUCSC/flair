@@ -2,6 +2,37 @@
 
 ## [v3.x.xx]
 * General
+  * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
+    groups from the reads is replaced by haplotyping with an upstream tool, such as
+    WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
+    quantify's read maps, and splits each isoform's reads by haplotype, and in a tumor
+    and normal pair by the somatic variants they carry (from the tumor's calls, a
+    somatic caller's, or `--variant`), with the sequence and protein of each group
+    and a counts matrix of them.  Genes are processed in parallel batches, and the
+    read maps are read by offset rather than loaded.
+  * `flair quantify --compress` writes its read maps bgzipped, so they can be read by
+    offset; they are still read by any gzip reader.
+  * `diff_iso_usage` writes a `fisher_adj_pval` column, its Fisher p-values
+    adjusted for the isoforms tested by Benjamini-Hochberg, after `fisher_pval`.
+    `--min_expression` leaves isoforms of few reads in the two samples untested.
+    Each isoform's other isoforms' counts are its gene's total less its own, rather
+    than summed again per isoform, so genes and events of many isoforms are fast.
+  * `flair diffexp` and `diff_iso_usage` also read the counts of `flair
+    spliceevents` and `flair variantquant`, testing an event's alternatives or an
+    allele's reads as an isoform's usage within its gene.  diffexp runs DRIMSeq and
+    its t-test alone on them, not DESeq2, and an event's `other` row counts toward
+    the event but is not reported.  Conditions come from a sample info TSV beside
+    the counts, as quantify writes one.
+  * `flair variantquant`'s `var.counts.tsv` has two rows per allele and group of
+    reads, `is_var` `yes` and `no`, named by a new `var_name` column, with one
+    integer per sample, in place of one row of `not_alt;alt` pairs.
+  * Isoform and gene ids are never split at an underscore.  `flair transcriptome`
+    failed with a KeyError on an annotation whose transcript and gene ids both
+    hold one, such as a GTF of HLA alleles; it now names the annotated transcripts
+    it aligns reads to by transcript id alone.  `bed_to_gtf` refuses a BED not from
+    flair unless given `--force`, which uses each name as its gene id too.
+    `identify_gene_isoform`, `annotate_aaseq_with_uniprot`, the uninstalled
+    `predict_aaseq_withvar.py` and `plot_isoform_usage --vcf` are gone.
   * fixed problems with some diffsplice_fishers_exact, and other
     auxiliary console script installs
   * flair now uses real subcommands, so `flair <subcommand> --help` and the
@@ -146,7 +177,12 @@
     reads first: the genes, the reads of the preliminary fusion and of its final
     isoforms, the number of isoforms, and the best supported breakpoint and isoform
     with their reads.  A breakpoint is each junction between consecutive loci, as
-    chrom:pos(strand)--chrom:pos(strand), comma-separated for 3 or more loci.
+    chrom:pos(strand)--chrom:pos(strand), comma-separated for 3 or more loci.  Its preliminary reads aren't capped at 1000, as the score of
+    OUTPUT.prelimfusions.bed is, whose last column now has them.
+  * `flair fusion --filter`, as flair transcriptome's, keeps the subset fusion
+    isoforms of truncated reads, by default none (nosubset).  For the most recall,
+    give `--filter comprehensive --frac_support 0`: of a KIF5B--RET fusion's 123
+    reads, mostly 5' truncated, its isoforms had 6, then 111.
   * `flair fusion` found no fusions with a RefSeq or Ensembl reference: it took only
     chromosomes named chr... as nuclear, to leave out unplaced scaffolds, so rejected
     every fusion on NC_000012.12 or 12.  Chromosomes are now recognised as UCSC,
@@ -206,6 +242,11 @@
   `make test-alignments` checks their alignments, so a minimap2 that aligns them
   differently shows there first.
 * flair transcriptome
+  * With `--filter comprehensive` or `ginormous`, the reads are realigned to the
+    firstpass isoforms with 50 secondary alignments rather than 4: a truncated read
+    aligns alike to its own subset isoform and every isoform containing it, and with
+    4 its own was often not among them, so it was assigned to none.  Of a KIF5B--RET
+    fusion's 123 reads, 74 were assigned among its isoforms, now 117.
   * Isoforms of the same coordinates on different sequences got the same isoform
     id: an isoform's name, by which ids are given, hashed its exons but not its
     chromosome.  In LRGASP WTC11 with spike-ins, single-exon ERCCs starting at 1
@@ -282,6 +323,280 @@
     them, so samples that gave a fusion isoform different genes no longer stop
     combine, and their proteins, translated from flair fusion's coding region, are
     written to `combined.aaseq.tsv`, which left them out.
+  * An isoform found in many samples no longer stops combine making
+    `combined.isoforms.bb`: its sample list, like its genes, can be longer than 255
+    characters, bedToBigBed's limit for a string.
+* flair spliceevents
+  * Is a flair subcommand, `flair spliceevents`, documented with the other modules;
+    it was only runnable as `python flair_spliceevents.py`.  Its options are named
+    as flair transcriptome's: `-f/--gtf` (was `--annot`), `--keep_supplementary`
+    (`--keep_sup`) and `--no_align_to_annot` (`--noaligntoannot`).
+    `--junc_support`, easily confused with `--junction_support`, is
+    `--feature_support`: the reads a junction, splice site or end of an event needs.
+    `--quality` sets the minimum mapping quality, which was fixed at 0.  Its defaults
+    are flair transcriptome's: `--ss_window` 10 (was 15), `--junction_support` 2
+    (was 1), `--quality` 1 and `--threads` 12 (was 4).
+  * Corrects reads as flair transcriptome does, with the same code: the alignment to
+    annotated transcripts (with transcriptome's reference, whose terminal exons reach
+    their gene's furthest ends, and without aligning reads it couldn't change), then
+    junction correction using the genome's splice motifs for strand.  It adds
+    transcriptome's `--trust_strand` and `--trust_junctions`.  Single-exon reads are
+    still left out.
+  * With `--region_bed`, only events inside its regions are reported: those whose
+    junctions and exons all lie in a region, and the start, end, first and last exon
+    events of genes whose annotated junctions all lie in one.  A gene the region only
+    clipped got events from only its reads overlapping the region.  Reads overlapping
+    a region are corrected over their whole length: a region's annotation and
+    junctions now cover the reads it fetches, so reads running past its end are not
+    dropped.
+  * A chromosome or region without annotated genes no longer stops the run when the
+    regions' tables are combined.
+  * A complex exon skip's (ces) inclusion counts every read including its exons.
+    Reads counted before the first read skipping them were left out, so samples
+    listed early in the manifest, or without skipping, had too low an inclusion,
+    and some events were lost.
+  * An event in only one sample with enough reads for a PSI is reported, if its PSI
+    is at least `--junc_frac_of_event` from 0 and 1, as in a run of one sample.  It
+    was left out, as its PSI couldn't differ from another sample's.
+  * A complex exon skip's BED line of more than one included exon has the right
+    number of blocks, which was always 3.  Its rows are written in the same order in
+    every run.
+  * Events and rows are named consistently, and every coordinate is 1-based.  An event
+    is `TYPE|CHROM:START-END(STRAND)`, its locus being the skipped exon for es
+    and otherwise the outer bounds of its introns (was, for example,
+    `es-of-chr1:300-400`, without strand, or `alt3-relTo-chr1:200(+)-G1`).
+    The tables have separate `event` and `alternative` columns (were `eventname`,
+    the row joined to the event, and `event`), and `event_type` (was `eventtype`); a
+    row's alternative is `inc`, `exc`, `retained`, `spliced` or `other`, the exons
+    included of a ces row, or the introns, as STAR writes them, of an alternative
+    splice site or first or last exon.  The coordinate columns are 1-based too, and
+    AFE and ALE are afe and ale.  The BED lines are named `EVENT|ALTERNATIVE`.  spliceevents_outliers
+    reads and writes the new columns.  Tables of earlier versions aren't read.
+  * A tss or tts taken from the reads' starts (tss on +, tts on -) was placed one
+    base before them.
+  * `--output_read_ends` and its OUTPUT.spliceevents.readends.bed are gone.  Each
+    sample's corrected reads are handed from correction to event calling as a line
+    per junction chain with its reads' ends, rather than a line per read with its
+    name, a sixth of the size.
+  * Alternative first and last exons (afe, ale) are told from truncated reads over
+    all samples together: an exon is a first exon only if at most 5% of the reads
+    of its junctions have an exon before it (25% for a first exon of
+    `--annot_basic`), and its reads are the event's only then.  An internal exon
+    whose reads were all truncated in any one sample was taken for a first exon,
+    and every truncated read of a gene was in its afe and ale totals.
+  * Reads are given genes by flair transcriptome's gene identification, rather than
+    spliceevents' own: by their junction chain, the junctions and splice sites they
+    share with genes, then exon overlap, a gene's strand resolving a read of unknown
+    strand.  Overlapping genes are told apart as transcriptome tells them, so on PC9
+    reads of EEF1G and BSCL2 are no longer given an overlapping unnamed gene or a
+    readthrough.  A read through two genes is given both, its events those of the
+    gene `G1,G2`, and reads of no annotated gene, which were left out, are grouped
+    over all samples into novel genes named for their locus, as transcriptome names
+    them.
+  * Events of splicing (es, ces, alt5, alt3, ir) are found among the junction
+    chains linked by shared splice sites, not per gene, so overlapping genes and
+    readthroughs no longer split an event's reads between genes.  A read's first
+    exon and start (afe, tss) count with the gene it starts in, and its last exon
+    and end (ale, tts) with the gene it ends in.  An event's PSItot is over all the
+    strand's reads covering it.
+  * Each splicing event is given its own gene: the one annotated with most of the
+    introns of all its alternatives, each intron scoring 2 for a gene annotated with
+    it, or failing that 1 for each of its splice sites the gene has, weighted by its
+    share of the event's intron reads, a tie going to
+    the gene of more annotated transcripts, or, sharing none, the gene of most of
+    its reads.  Genes still tied are listed.  An event's gene had been
+    the genes of all its reads, a list for 495 events of PC9's chr19.  The tables have a
+    `novel_junctions` column, a row's introns that aren't annotated, a `gene_name`
+    column, the annotation's name of the gene, and `additional_genes` and
+    `additional_gene_names`, the other genes sharing an intron or splice site with a
+    splicing event, as do the outliers.
+  * Unspliced reads that are fragments of an annotated first or last exon count
+    toward starts and ends (tss, tts): a read whose 5' end is in a last exon, or
+    within 100 bases before it, adds its end to its gene's transcript ends, and one
+    whose 3' end is in a first exon adds its start, with first and last exons of
+    `--annot_basic` if given.  A read overlapping several genes' exons belongs to
+    the one whose exons share the most bases with it, of its own strand with
+    `--trust_strand`, else of either.  They were all left out.
+  * Whole chromosomes are cut into pieces in intergenic gaps of the annotation, about
+    5000 annotated exons each, and each piece's reads are corrected and its events
+    found in parallel.  A piece owns the reads starting in it, however far they run,
+    and reports the events starting in it, so an event near a cut can miss reads
+    starting in the piece before.  Reads are aligned to the annotated transcripts of
+    their piece rather than of their chromosome.  On PC9's chr19 this takes 8 minutes
+    rather than 63, and 0.8 rather than 2.6 GB, and 95% of events are unchanged, the
+    other 5% from the alignment to fewer transcripts: without it, 99.9% are.
+    `--partition no` corrects whole chromosomes, and `--partition yes` cuts
+    `--region_bed` regions, which are not cut by default.
+  * The genome-wide annotation of first and last exons was pickled into every
+    region's task, 1.7 seconds each, which kept the threads waiting on the main
+    process.  A 1% sample of PC9 over the whole genome now takes under 5 minutes
+    rather than 18.
+  * `--annot_basic` first and last exons were matched by position on any
+    chromosome, so a first exon's splice site counted as annotated if another
+    chromosome had one at the same position.
+  * spliceevents_outliers compares an outlier with those of the events sharing its
+    junctions, not of its gene, and reads only tables with `novel_junctions`.
+    Starts and ends (tss, tts) are left out of its filtered outliers, as before,
+    which is now documented: their outliers are mostly false positives.
+  * spliceevents_outliers filters an alternative splice site's outlier that any of
+    the events that may explain it explains as well.  It was kept when it beat one
+    of them, so a complex exon skip without an outlier of the sample kept an alt5
+    or alt3 that an exon skip explained.
+    A complex exon skip is compared with an exon skip's inclusion row, the row it
+    matches, not its exclusion row, which differ with `--psi tot`.
+  * An event is found from its alternatives that are alternative, their part of the
+    event's reads at least `--junc_frac_of_event` in some sample and at most 1 minus it
+    in some sample, whatever the number of samples, and `--junc_frac_of_event` is 0.05
+    (was 0.02).
+    With more than one sample, an alternative had to differ across them by
+    `--junc_frac_of_event`, however few its reads: 2 against 3 reads made an event,
+    and an exon skipped in half the reads of every sample was none.  Whether an
+    alternative differs between samples is left to what reads the tables, as
+    spliceevents_outliers, whose outliers of the MET samples are the same.  On PC9's
+    chr19 and chr17, 6949 events are now 7391: those of rare forms are gone and those
+    alike in both samples found.
+  * The skipping junctions of an exon skip, and the junctions of a first or last exon
+    event, are picked as the event's alternatives are, alternative or main in the
+    samples of `--event_support` reads.  They needed a PSI away from 0 and 1 in one
+    sample, of any reads, so an exon included in every read of one sample and none of
+    another was written with no junctions, and a first exon used alone in each sample
+    stopped the run.  An event's main alternative is a row only for its part of the
+    reads of a sample of `--event_support` reads, not of a sample of a few.  A first
+    or last exon whose reads are spread over junctions too small alone includes them
+    all, as its row's name has them; its included junctions were empty.
+  * An event is written when its reads are at least `--event_frac_of_tot` of its locus
+    reads in some sample.  It also needed a row, not counting an exon skip's
+    exclusion, alternative as a part of the locus reads, which only ever dropped exon
+    skips whose inclusion was under 5% of the locus reads, however many its reads, as
+    an exon included in 92 and 37 reads.  On PC9's chr19 and chr17, 100 es and 40 ces
+    events more.
+  * An ir event's `other` row is the reads of the junctions both of whose splice sites
+    are within 100 bases of its own, which don't retain it either and were left out of
+    its total, so a junction sharing a site with a stronger one showed retention of
+    45% for 8%.  A junction with under `--junc_frac_of_event` of all the reads over it
+    in every sample, those of every junction overlapping it too, is no ir event: a
+    copy of an intron shifted by a few bases, or a junction of few reads nested in a
+    long intron, took the reads retaining its region as its own.  On PC9's chr19 and
+    chr17, 922 ir events are now 850, and those of a junction under a tenth of an
+    overlapping one's reads went from 96 to 38.
+  * An event's main alternative is a row of its own when it has a tenth of the event's
+    reads in some sample.  It was in the `other` row, as much as 97% of the event's
+    reads.  On PC9's chr19 and chr17, 392 events had more than half their reads in
+    `other`, now 11, all tss and tts, whose `other` gathers many small ends.
+  * alt5, alt3, alt5ss and alt3ss alternatives need `--feature_support` reads, as
+    other events' do: a junction of one read could make an event.
+  * The starts, ends, first and last exons of an annotated gene of one exon, whose
+    reads splice inside it, were reported only when its chromosome was neither cut
+    nor given by `--region_bed`: the gene had no junctions to place it.  It is
+    placed by its reads' junctions, as a novel gene.
+  * Event calling is faster: on PC9's chr19, 63 rather than 71 seconds.  Each read's
+    chain was compared with every other chain of its gene, for a filter of
+    truncated read ends that was no longer applied.
+  * With `--region_bed`, only the annotation of the regions is loaded, from `-f` and
+    `--annot_basic`: for one locus of GENCODE, in 10 seconds and 0.2 GB rather than
+    75 seconds and 3.5 GB.
+  * `--annot_basic` is read as a GTF, not converted to BED and cut per region with
+    bedtools.  A gene id containing `_`, as in older GENCODE releases' `_PAR_Y`
+    genes, lost its annotated first and last exons, as the gene was taken from the
+    transcript name.
+  * The samples of a region are corrected in parallel, within the `--threads` budget,
+    not one after another: a run on one gene used a single thread.
+  * Its outputs are named OUTPUT.spliceevents.*, not OUTPUT.diffsplice.*, which
+    were easily taken for flair diffsplice's.  The counts and PSI tables have an
+    `event` column, the event each row belongs to, and OUTPUT.spliceevents.totals.tsv
+    has each event's reads and the reads covering its locus per sample, the
+    denominators of PSIjunc and PSItot.
+  * An event's name ends with its gene, `TYPE|CHROM:START-END(STRAND)|GENE`, the
+    genes comma-separated if tied, as the `gene` column.  The ends of a gene and a
+    readthrough of it, as SEPTIN5's and SEPTIN5-GP1BB's, were two events of one
+    name, which stopped the run.
+  * With `--region_bed`, a region's reads are fetched only where they overlap its
+    regions, not over the whole region extended over its reads, which a few reads
+    running past a gene could stretch over a highly expressed neighbour: NUTM2B,
+    stretched over SFTPA1, SFTPA2 and SFTPD in lung, took 30 seconds rather than 7.3
+    hours.  The reads extending the regions are found in parallel.
+  * Outlier calling moved out of flair spliceevents into the console script
+    `spliceevents_outliers`, which reads OUTPUT.spliceevents.counts.tsv and
+    totals.tsv, so its outliers can be called of either PSI (`--psi junc` or `tot`)
+    without rerunning spliceevents.  `--check_outliers` is removed.  A sample's PSI
+    is used when it has at least `--event_support` reads, as in the PSI tables,
+    rather than more than that.
+* flair variantquant
+  * OUTPUT.var.counts.tsv has a row per allele of a site, with new `ref` and `alt`
+    columns, and without the `transcript` column, which was always empty.  Its
+    columns are the same in every run, `varpos ref alt strand phase_set haplotype
+    gene` and then the samples, `strand`, `phase_set` and `haplotype` `.` when the
+    reads aren't split by them (`--trust_strand`, `--haplotypes`): a sample's `unmodified;modified` counts are the reads covering the site
+    not showing the row's alt, and those showing it.  Multi-allelic vcf sites were
+    never counted, their ALT compared whole, as `G,T`, with one read base; each alt
+    is now its own row.
+  * Only SNVs are counted: indels and substitutions of more than one base, which a
+    read base can't show and so were never counted, are left out with a warning.
+  * A site's alts are merged across the vcfs whatever their IDs, and vcfs giving a
+    site different ref bases are an error, as they aren't of one genome.
+  * OUTPUT.vargroup.counts.tsv, an experiment, is removed.  It grouped the reads
+    covering the same sites, but kept only how many sites each read was modified at
+    and pooled the samples, so it couldn't tell which variants were on a read
+    together; `flair alleles` groups the reads carrying variants.
+  * A rerun to the same output no longer counts every read twice: the temporary
+    files were appended to, in OUTPUT.intermediate, kept by `--keep_intermediate`
+    or a failed run.  As flair transcriptome, each run has a directory of its own in
+    `--temp_dir`, by default $TMPDIR, removed also when the run fails, and
+    `--keep_intermediate` requires `--temp_dir`.
+  * `-t/--threads` reads that many samples at once (default 4).
+  * Reads are aligned to the genome: `--transcriptome_bam` is now `--bam`, and the
+    sample of `--bam` is named for its file, or by the new `--sample_name`, not
+    `sample`.  The transcriptome-aligned path was removed earlier.
+  * A manifest is either of sample names and bam files, with the sites from `--vcf`,
+    or of sample names, bam files and each sample's own vcf.  One vcf on the first line for all samples, as
+    before, is an error that says to give `--vcf`, as are duplicate sample names and
+    missing files.
+  * Only the records of a vcf whose FILTER is PASS or `.` are sites, so a
+    DeepVariant RefCall is not; a vcf of only its first five columns, as REDIportal's,
+    has all its records counted.  `--keep_flags` counts the records of the FILTER
+    flags given too, as `RefCall`, or `all` every record, as before.  Gzipped vcfs
+    are read.
+  * `--isoform_bed` is optional: without it the gene column is empty.
+  * The bases of the reads at the sites come from their cigars, not their MD tags,
+    which variantquant no longer needs, 6 times faster with the 15.6M sites of
+    REDIportal.  A read is modified where its base is one of the site's alts.
+  * Supplementary alignments are counted, but no longer secondary alignments, which
+    counted a read's bases again.
+  * A site's genes are those of the isoform exons over it.  The scan of each gene's
+    isoforms it replaces compared the 1-based site with the exons' 0-based starts, so a
+    site on an exon's last base wasn't of its gene and one just before an exon was:
+    of 1M REDIportal sites, 38.
+  * `-f/--gtf` names sites by the gene_ids of a GTF's exons.  With `--isoform_bed`,
+    an isoform whose gene, its 13th column, is empty or missing, as of a BED12, gets
+    the GTF gene its exons overlap most on its strand, so a site in a novel exon of a
+    known gene is named; a flair bed's genes are its own.  `--isoform_bed` reads any
+    bed, a BED12 alone naming no sites.
+  * Sites load several times faster and in a fifth of the memory: the 15.6M REDIportal
+    sites of a vcf in 37 seconds and 2.2 GB, with an isoform bed's genes in 43 seconds,
+    with GENCODE's in 57; it was 3 to 9 minutes and about 12 GB.  Genes are found in
+    one sweep of each chromosome's sorted sites and exons.
+  * `-g/--genome` checks that each site's REF is the genome's base, and leaves out
+    the sites whose REF isn't, with a warning: the vcf must be of the genome's
+    strand.  The match of the complements, replaced by the bases of the reads' cigars,
+    counted the 41,442 REDIportal records of the transcript's strand, as A>G of a
+    minus strand gene, now left out; its 247 records matching neither strand counted
+    every read of the genome's base as edited.
+  * `--quality` is the minimum mapping quality of the alignments counted (default 0,
+    every alignment, as before).
+  * `--trust_strand` trusts the stranding of the reads, as of oriented reads or
+    direct RNA: each read is of its alignment's strand, and the counts of each strand
+    of reads at a site are a row of their own, of its strand column, so an antisense
+    transcript's reads aren't counted with the sense transcript's.
+  * `--haplotypes` counts the reads of each haplotype of haplotagged bams apart, as
+    WhatsHap haplotag writes them: each phase set (PS) and haplotype (HP) of reads at
+    a site is a row of its own, of its phase_set and haplotype columns, the reads without
+    an HP tag a row of their own, so a somatic variant's reads on one germline
+    haplotype show against the other's.  Samples sharing no phase set, so not of one
+    phasing, are warned of.  With `--trust_strand` and `--haplotypes`, an allele any
+    of whose rows has a read showing it has every row written, of the haplotype or
+    strand without one too.
+  * `--pos_ref` is removed, and annotate_group_vcf_vars.py, which wrote its files:
+    a vcf with `--isoform_bed` or `--gtf` now loads nearly as fast as they did.
 * Incompatibles
   * `gtf_to_bed --include_gene` adds a column naming the gene instead of appending
     it to the isoform name.  The annotation BED and FASTA that flair transcriptome
@@ -306,6 +621,8 @@
     that ordering meant.
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.
+  * flair variantquant: `--pos_ref` is removed, give the vcf with `--vcf` and the
+    genes with `--isoform_bed` or `--gtf`; `--transcriptome_bam` is now `--bam`.
   * Removed the identify_annotated_gene script.  It read and wrote PSL, which no
     flair command produces or accepts any more.
   * Remove flair align options that are no longer need without flair correct.

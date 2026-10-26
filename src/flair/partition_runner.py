@@ -21,6 +21,8 @@ from flair.pycbio.hgdata.bed import BedReader
 # rather than the main process subsetting and pickling every region up front,
 # which took minutes, or pickling the full data into every task
 _shared_data = {}
+# the keyword arguments of the run() in progress, shared by all its tasks
+_run_kwargs = {}
 
 
 def _copy_part(in_fh, combined_fh, skip_header):
@@ -110,7 +112,8 @@ class Partition:
 
 
 def _call_partition_func(packed):
-    partition, weight, func, func_kwargs = packed
+    partition, weight, func, item = packed
+    func_kwargs = _run_kwargs if item is None else dict(_run_kwargs, item=item[0])
     thread_share.task_start(weight)
     try:
         func(partition=partition,
@@ -187,7 +190,7 @@ class PartitionRunner:
     def __len__(self):
         return len(self.partitions)
 
-    def run(self, func, **kwargs):
+    def run(self, func, *, items=None, **kwargs):
         """Run func for each partition, in parallel if threads > 1 (set at construction).
 
         func is called with the following keyword arguments:
@@ -197,13 +200,23 @@ class PartitionRunner:
             junction_corrector -- JunctionCorrector subset for the region, or None
             **kwargs       -- any additional keyword arguments passed to run()
 
+        Given items, such as samples, func runs once for each partition and item,
+        given that one as item, so the items of one partition run in parallel too.
+
         Side effects (e.g. writing files to partition.temp_dir) are the
         expected pattern; return values from func are discarded.
         """
         # largest partitions first, handed out one at a time, so the big ones don't
         # end up running alone at the end; programs run by the partitions, such as
         # minimap2, borrow threads left idle, more for larger partitions
-        packed = sorted(((p, w, func, kwargs) for p, w in zip(self.partitions, self.weights)),
+        # the arguments every task shares reach the forked workers as a global, not
+        # pickled into each task, which for a genome cut into hundreds of partitions
+        # took longer than the partitions themselves
+        global _run_kwargs
+        _run_kwargs = kwargs
+        # an item goes in a tuple, so None is no item
+        packed = sorted(((p, w, func, item) for p, w in zip(self.partitions, self.weights)
+                         for item in ([(i,) for i in items] if items is not None else [None])),
                         key=lambda x: x[1], reverse=True)
         thread_share.init(self.threads, len(packed), max(self.weights, default=1))
 

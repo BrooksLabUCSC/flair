@@ -27,6 +27,8 @@ parse_args <- function() {
   parser$add_argument('--min_gene_expr', type="integer", default=15, help='Minimum number of reads covering a gene (15).')
   parser$add_argument('--min_feature_expr', type="integer", default=5, help='Minimum number of reads covering a feature (5).')
   parser$add_argument("--compress", action="store_true", default=FALSE, help='Compress the output tables with gzip.')
+  parser$add_argument("--unreported", default=NULL,
+                      help='File of feature ids, one a line, counted in their gene but left out of the results, as flair spliceevents other rows.')
   
   args <- parser$parse_args()
   return(args)
@@ -45,12 +47,12 @@ main <- function() {
   
   rundrimseq(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
              args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr,
-             args$min_feature_expr, args$compress)
+             args$min_feature_expr, args$compress, args$unreported)
 }
 
 rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
                        min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr,
-                       compress) {
+                       compress, unreported = NULL) {
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
   # create output working directory if it doesn't exist
@@ -101,6 +103,10 @@ rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula
   
   d <- dmTest(d, coef = contrast, verbose = 1, BPPARAM=MulticoreParam(threads))
   res <- merge(proportions(d), results(d, level="feature"), by=c("feature_id","gene_id"))
+  # features that are part of their gene's total, but not themselves an alternative to test
+  if (!is.null(unreported) && file.size(unreported) > 0) {
+    res <- res[!(res$feature_id %in% readLines(unreported)),]
+  }
   
   # Write raw output
   tsvWriteTable(res, resOut, row.names=FALSE)

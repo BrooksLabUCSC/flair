@@ -4,9 +4,7 @@ reads back as the same values.  Most of these readers have no caller yet, so
 this is the only thing that runs them.
 """
 import pytest
-from flair.aaseq_pred_tsv import AaSeqPredReader, AaSeqPredWriter
 from flair.aaseq_tsv import AaSeqReader, write_aaseqs
-from flair.allele_group_counts_tsv import AlleleGroupCountsReader, allele_group_counts_writer
 from flair.combined_map_tsv import CombinedMapReader, CombinedMapWriter
 from flair.deseq2_counts_tsv import Deseq2CountsReader, write_deseq2_counts
 from flair.diffsplice_fishers_tsv import DiffspliceFishersReader, diffsplice_fishers_writer
@@ -14,25 +12,23 @@ from flair.drimseq_counts_tsv import DrimSeqCountsReader, drimseq_counts_writer
 from flair.es_events_tsv import EsEventsReader, EsEventsWriter
 from flair.event_quant_tsv import EventQuantReader, columns as event_quant_columns, event_quant_writer
 from flair.formula_matrix_tsv import FormulaMatrixReader, FormulaRow, write_formula_matrix
-from flair.gene_juncs_tsv import GeneJuncsReader, GeneJuncsWriter
-from flair.isoform_data import Junc
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
-from flair.iso_allele_counts_tsv import IsoAlleleCountsReader, iso_allele_counts_writer
 from flair.iso_usage_change_tsv import IsoUsageChangeReader, iso_usage_change_writer
+from flair.isoalleles_tsv import TABLES as ISOALLELES_TABLES, IsoallelesTableReader, isoalleles_table_writer
 from flair.iso_usage_tsv import IsoUsageReader, iso_usage_writer
 from flair.marked_isoforms_bed import MarkedIsoformsReader, MarkedIsoformsWriter
 from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
-from flair.region_vars_tsv import RegionVarsReader, RegionVarsWriter
 from flair.retained_introns_tsv import RetainedIntronsReader, RetainedIntronsWriter
 from flair.seq_lengths_tsv import (SeqLengthHistogramReader, SeqLengthHistogramWriter,
                                    SeqLengthsReader, SeqLengthsWriter)
 from flair.splicing_events_tsv import SplicingEventsReader, SplicingEventsWriter
+from flair.splicing_totals_tsv import SplicingTotalsReader, SplicingTotalsWriter
+from flair.read_chains_tsv import ReadChainsReader, read_chains_writer
 from flair.splicing_outliers_tsv import SplicingOutliersReader, SplicingOutliersWriter
 from flair.tpm_tsv import CountsRow, TpmReader, tpm_writer
 from flair.transcript_counts_tsv import TranscriptCountsReader, TranscriptCountsWriter
 from flair.var_counts_tsv import VarCountsReader, var_counts_writer
-from flair.vargroup_counts_tsv import VarGroupCountsReader, vargroup_counts_writer
 
 def chained_messages(ex):
     "every message on an exception chain, for checking why a row was refused"
@@ -66,35 +62,6 @@ def test_aaseq_round_trip(tmp_path):
     rows = list(AaSeqReader(path))
     assert [(r.aaseq_id, r.aaseq) for r in rows] == [('FLP00000001', 'MKV'),
                                                      ('FLP00000002', 'MKW')]
-
-def test_aaseq_pred_round_trip(tmp_path):
-    path = written(AaSeqPredWriter, tsv_path(tmp_path, 'pred.tsv'),
-                   [('iso1', 'PRO', ['5utr', '3utr'], 'MKV'), ('iso2', 'PTC', [], 'M')])
-    rows = list(AaSeqPredReader(path))
-    assert [r.utr_vars for r in rows] == [['5utr', '3utr'], []]
-
-def test_allele_group_counts_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'ag.counts.tsv')
-    with allele_group_counts_writer(path, with_normal=True) as writer:
-        writer.writeRow(('ps1', 'ag1', '7', '2', 'yes'))
-    with AlleleGroupCountsReader(path) as reader:
-        assert reader.with_normal
-        assert [r.somatic for r in reader] == ['yes']
-
-def test_allele_group_counts_without_normal(tmp_path):
-    path = tsv_path(tmp_path, 'ag.counts.tsv')
-    with allele_group_counts_writer(path, with_normal=False) as writer:
-        writer.writeRow(('ps1', 'ag1', '7'))
-    with AlleleGroupCountsReader(path) as reader:
-        assert not reader.with_normal
-
-def test_iso_allele_counts_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'ia.counts.tsv')
-    with iso_allele_counts_writer(path, with_normal=False) as writer:
-        writer.writeRow(('gene1', 'iso1', 'ps1', 'ag1', 'iso1|ag1', 'FLP00000001', '5'))
-    with IsoAlleleCountsReader(path) as reader:
-        assert not reader.with_normal
-        assert [r.aaseq_id for r in reader] == ['FLP00000001']
 
 def test_combined_map_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'map.tsv')
@@ -168,33 +135,10 @@ def test_diffsplice_fishers_round_trip(tmp_path):
         assert reader.pval_column == 's1-s2_pval'
         assert [r.isoform_ids for r in reader] == [['isoA', 'isoB']]
 
-def test_gene_juncs_round_trip(tmp_path):
-    path = written(GeneJuncsWriter, tsv_path(tmp_path, 'gj.tsv'),
-                   [('gene1', (Junc(100, 200), Junc(300, 400)), 50, 500, '+', 'readA')])
-    rows = list(GeneJuncsReader(path))
-    assert rows[0].juncs == (Junc(100, 200), Junc(300, 400))
-    assert rows[0].juncs[0].start == 100
-    assert len(rows[0].juncs[0]) == 100
-
-def test_gene_juncs_bad_junction(tmp_path):
-    path = tsv_path(tmp_path, 'gj.tsv')
-    with open(path, 'w') as fh:
-        fh.write('gene\tjuncs\tstart\tend\tstrand\tread\n')
-        fh.write('gene1\t100.200\t50\t500\t+\treadA\n')
-    with pytest.raises(Exception) as caught:
-        list(GeneJuncsReader(path))
-    # the reader wraps the column error twice over, so the reason is on the chain
-    assert "is not start-end" in chained_messages(caught.value)
-
 def test_indel_vars_round_trip(tmp_path):
     path = written(IndelVarsWriter, tsv_path(tmp_path, 'indels.tsv'),
                    [('chr1', 100, 'insertion', 'A', 'AT', 3, 10, ['dn'])])
     assert [r.filters for r in IndelVarsReader(path)] == [['dn']]
-
-def test_region_vars_round_trip(tmp_path):
-    path = written(RegionVarsWriter, tsv_path(tmp_path, 'vars.tsv'),
-                   [('chr1', 'r1', 100, 'A', ['T', 'G'], 'rs1')])
-    assert [r.alts for r in RegionVarsReader(path)] == [['T', 'G']]
 
 def test_iso_usage_change_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'usage.tsv')
@@ -207,9 +151,10 @@ def test_iso_usage_change_round_trip(tmp_path):
 def test_iso_usage_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'iso_usage.tsv')
     with iso_usage_writer(path, 'sA', 'sB') as writer:
-        writer.writeRow(['gene1', 'iso1', 'NA', 1, 2, 3, 4, 'NA', 'NA', 'NA'])
+        writer.writeRow(['gene1', 'iso1', 'NA', 'NA', 1, 2, 3, 4, 'NA', 'NA', 'NA'])
     rows = list(IsoUsageReader(path))
     assert rows[0].geneID == 'gene1'
+    assert rows[0].fisher_adj_pval == 'NA'
     assert rows[0].sA_PSI == 'NA'
 
 def test_marked_isoforms_round_trip(tmp_path):
@@ -250,22 +195,42 @@ def test_seq_length_histogram_round_trip(tmp_path):
 def test_splicing_events_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'events.tsv')
     with SplicingEventsWriter(path, ['s1', 's2']) as writer:
-        writer.writeEvent(['e1', 'skipped_exons', 'gene1',
-                           ['chr1:100-200'], [], ['chr1:50-300'], ['chr1:100-200']],
-                          ['3', '4'])
+        writer.writeRow(['es|chr1:201-300(+)|G1', 'inclusion', 'es', ['G1'], ['NAME1'], ['G2', 'G3'], [],
+                         ['chr1:101-200', 'chr1:301-400'], [], ['chr1:101-400'], ['chr1:201-300'], [],
+                         '3', ''])
     with SplicingEventsReader(path) as reader:
         assert reader.sample_columns == ['s1', 's2']
         rows = list(reader)
-    assert rows[0].junctions_included == ['chr1:100-200']
+    assert rows[0].junctions_included == ['chr1:101-200', 'chr1:301-400']
     assert rows[0].junctions_excluded == []
+    assert (rows[0].additional_genes, rows[0].s1, rows[0].s2) == (['G2', 'G3'], '3', '')
+
+def test_splicing_totals_round_trip(tmp_path):
+    path = tsv_path(tmp_path, 'totals.tsv')
+    with SplicingTotalsWriter(path, ['s1', 's2']) as writer:
+        writer.writeRow(['es|chr1:201-300(+)|G1', 'es', ['G1'], ['NAME1'], [], [], 'event_reads', 40, 0])
+    with SplicingTotalsReader(path) as reader:
+        assert reader.sample_columns == ['s1', 's2']
+        rows = list(reader)
+    assert (rows[0].total, rows[0].gene, rows[0].s1, rows[0].s2) == ('event_reads', ['G1'], 40, 0)
 
 def test_splicing_outliers_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'outliers.tsv')
     with SplicingOutliersWriter(path) as writer:
-        writer.writeRow(['e1', 'skipped_exons', 'gene1', 's1', 0.5, 0.1, 0.9, 3,
-                         [7, 20], 0.4, 4.0])
+        writer.writeRow(['es|chr1:201-300(+)|G1', 'inclusion', 'es', ['G1'], ['NAME1'], [], [], 's1',
+                         0.5, 0.1, 0.9, 3, [7, 20], 0.4, 4.0])
     rows = list(SplicingOutliersReader(path))
     assert rows[0]['event_reads;total_locus_reads'] == [7, 20]
+    assert (rows[0].gene, rows[0].sample) == (['G1'], 's1')
+
+def test_read_chains_round_trip(tmp_path):
+    path = tsv_path(tmp_path, 'read_chains.tsv')
+    with read_chains_writer(path) as writer:
+        writer.writeRow([['A', 'B'], 'chr1', ((200, 300), (600, 1000)), '+', ((150, 1300),), ''])
+        writer.writeRow([[], 'chr1', (), '-', ((10, 50),), 'last'])
+    rows = list(ReadChainsReader(path))
+    assert (rows[0].genes, rows[0].juncs, rows[0].ends) == (['A', 'B'], ((200, 300), (600, 1000)), ((150, 1300),))
+    assert (rows[1].genes, rows[1].juncs, rows[1].fragment) == ([], (), 'last')
 
 def test_transcript_counts_round_trip(tmp_path):
     path = written(TranscriptCountsWriter, tsv_path(tmp_path, 'counts.tsv'),
@@ -283,16 +248,18 @@ def test_tpm_round_trip(tmp_path):
 def test_var_counts_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'var.counts.tsv')
     with var_counts_writer(path, ['s1', 's2']) as writer:
-        writer.writeRow(['chr1:100', 'gene1', '', [7, 3], [1, 0]])
+        writer.writeAllele('chr1:100', 'A', 'G', ('+', '.', '.'), 'gene1', [(7, 3), (1, 0)])
     with VarCountsReader(path) as reader:
         assert reader.sample_columns == ['s1', 's2']
         rows = list(reader)
-    assert (rows[0].s1, rows[0].s2) == ([7, 3], [1, 0])
+    assert [(r.var_name, r.is_var, r.alt, r.strand, r.s1, r.s2) for r in rows] == [
+        ('chr1:100:A>G(+)', 'yes', 'G', '+', 3, 0), ('chr1:100:A>G(+)', 'no', 'G', '+', 7, 1)]
 
-def test_vargroup_counts_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'vargroup.counts.tsv')
-    with vargroup_counts_writer(path) as writer:
-        writer.writeRow(('chr1', 'gene1', 2, 3, [1, 2], ['100', '200', '300']))
-    rows = list(VarGroupCountsReader(path))
-    assert rows[0].mods_per_read == [1, 2]
-    assert rows[0].varpos == ['100', '200', '300']
+@pytest.mark.parametrize('table', sorted(ISOALLELES_TABLES))
+def test_isoalleles_tables_round_trip(tmp_path, table):
+    path = tsv_path(tmp_path, f'x.isoalleles.{table}.tsv')
+    row = [f'{col}1' for col in ISOALLELES_TABLES[table]]
+    with isoalleles_table_writer(path, table) as writer:
+        writer.writeRow(row)
+    with IsoallelesTableReader(path, table) as reader:
+        assert [list(r) for r in reader] == [row]

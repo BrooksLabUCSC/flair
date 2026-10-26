@@ -1,7 +1,6 @@
 """Filesystem / I/O helpers shared across FLAIR pipelines."""
 
 import os
-import shutil
 import tempfile
 import pipettor
 import pysam
@@ -23,7 +22,7 @@ os.environ['LC_NUMERIC'] = 'C'
 def make_temp_dir(out_prefix):
     """The intermediate directory of a run, kept if it is already there, so a stage
     can reuse what an earlier run left.  A stage whose results depend on what the
-    directory holds wants make_clean_temp_dir instead."""
+    directory holds wants make_run_temp_dir instead, a new directory each run."""
     # FIXME: use TMPDIR unless directory explicitly specified
     temp_dir = out_prefix + ".intermediate"
     try:
@@ -45,14 +44,36 @@ def make_run_temp_dir(out_prefix, temp_dir=None):
         raise OSError(f"Creation of a temporary directory in `{base}' failed") from exc
     return run_dir + '/'
 
-def make_clean_temp_dir(out_prefix):
-    """The intermediate directory of a run, emptied first.  For a stage that reads
-    back every file it finds there: a file left by an earlier run, which a crash or
-    --keep_intermediate can leave behind, would otherwise be counted as this run's."""
-    temp_dir = out_prefix + ".intermediate"
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    return make_temp_dir(out_prefix)
+
+def read_manifest_rows(path, field_counts, line_format, file_fields):
+    """A manifest's rows, each a list of its tab-separated fields, for a line each but
+    blank lines and '#' comments.  A line has one of field_counts fields, none of them
+    empty, as line_format describes for errors; the fields at the indexes of
+    file_fields, index -> what the file is, name files that must exist; and the first
+    field, the sample's name, is unique."""
+    rows = []
+    # plain or compressed, as every flair text input may be
+    with fileOps.opengz(path) as fh:
+        for lineno, line in enumerate(fh, 1):
+            line = line.rstrip('\r\n')
+            if line.strip() == '' or line.startswith('#'):
+                continue
+            fields = line.split('\t')
+            where = f'{path}:{lineno}'
+            if len(fields) not in field_counts or '' in fields:
+                spaces = '; fields are separated by tabs, not spaces' if len(fields) == 1 and ' ' in line.strip() else ''
+                raise FlairInputDataError(f'{where}: a manifest line is {line_format}, tab-separated{spaces}: {line!r}')
+            for index, what in file_fields.items():
+                if index < len(fields) and not os.path.exists(fields[index]):
+                    raise FlairInputDataError(f'{where}: {what} {fields[index]} does not exist')
+            rows.append(fields)
+    if len(rows) == 0:
+        raise FlairInputDataError(f'{path}: manifest has no samples')
+    names = [row[0] for row in rows]
+    duplicated = sorted({name for name in names if names.count(name) > 1})
+    if duplicated:
+        raise FlairInputDataError(f'{path}: samples named more than once: {", ".join(duplicated)}')
+    return rows
 
 
 # a bgzip file is gzip with an extra field whose two id bytes are BC

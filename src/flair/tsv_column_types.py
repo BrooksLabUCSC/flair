@@ -33,6 +33,14 @@ semicolonIntListType = separated_int_list_type(';')
 # comma separated counts
 commaIntListType = separated_int_list_type(',')
 
+# comma separated start-end ranges, as junctions or read ends; the row carries a tuple
+# of (start, end) pairs
+def _parse_ranges(value):
+    return () if value == '' else tuple(tuple(int(x) for x in pair.split('-')) for pair in value.split(','))
+
+
+rangeListType = (_parse_ranges, lambda ranges: ','.join(f'{start}-{end}' for start, end in ranges))
+
 
 def read_header_columns(tsv):
     """The column names of a TSV, for a format whose columns are not known until

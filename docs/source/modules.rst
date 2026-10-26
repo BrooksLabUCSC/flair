@@ -48,8 +48,7 @@ Options to consider:
     fusion does not report: to find those, align with a smaller ``-G`` and lower flair
     fusion's ``--min_dist_between_breakpoints`` to match.
 ``--MD``
-    Adds the MD tags that flair alleles and flair variantquant need to find the reads'
-    mismatches.
+    Adds the MD tags that ``identify_vars.py`` needs to find the reads' mismatches.
 ``--secondary=no``
     Leaves out secondary alignments.  FLAIR uses each read's primary alignment, and
     flair fusion its supplementary ones.
@@ -74,6 +73,8 @@ flair transcriptome
 
 This module generates a transcriptome of high confidence isoforms (bed, gtf, and fasta files) directly from a bam file of
 reads aligned to the genome, as :ref:`aligning reads to the genome <alignment-label>` describes.
+For when to count splicing events from reads with flair spliceevents instead, see
+:ref:`choosing-analysis-label`.
 
 
 **Outputs**
@@ -113,6 +114,15 @@ counting its splice sites at the fusion junctions, so a piece of only a gene's f
 exon has its donor, and never by where reads end.  A piece with neither keeps the gene
 of the preliminary fusion.  An isoform two of whose pieces are of one gene is left
 out: flair fusion does not call rearrangements within a gene.
+
+The fusion isoforms are built by flair transcriptome from the fusion reads, which are
+often 5' truncated.  By default, as transcriptome's ``--filter nosubset``, an isoform
+that is a part of another is dropped, and a truncated read counts for no isoform, so a
+fusion can have many fewer final reads than preliminary ones: of a KIF5B--RET fusion's
+123 reads, mostly 5' truncated, 6 were in its isoforms.  For the most recall, as for
+reporting fusions, give ``--filter comprehensive``, every spliced subset isoform kept,
+and ``--frac_support 0``, every isoform however few of the fusion's reads it has: that
+fusion's isoforms then had 111 of its reads.
 
 flair fusion is configured for human genomes: its paralog table and its filters of
 immunoglobulin genes and mitochondrial fusions are human.  It has been tested with
@@ -213,66 +223,115 @@ Options
 flair quantify
 ==============
 
-**Read assignment**
+Counts the reads of each isoform in each sample, from the samples' reads aligned to
+the genome, for a set of isoforms such as ``flair combine``'s.  Each read is counted
+for at most one isoform, one it is full-length for, so the counts of different
+samples, and of the isoforms of a gene, can be compared.
 
-A read is assigned to the isoform it best matches, by alignment quality, the fraction of
-the read aligned and the fraction of the transcript aligned. Two further requirements
-always apply, where earlier FLAIR releases made them optional:
+**Samples**
 
-- the read matches the isoform at every splice site, what ``--check_splice`` used to ask
-  for;
-- the read covers at least 25 bp of the first and last exons, what ``--stringent`` used
-  to ask for.
+``--manifest`` is a tab-separated file of a line per sample, of four fields: its id, its
+condition, its batch, and its reads aligned to the genome as a sorted, indexed BAM::
 
-Options
--------
+   sample1	condition1	batch1	mydata/sample1.bam
+   sample2	condition1	batch1	mydata/sample2.bam
+   sample3	condition2	batch1	mydata/sample3.bam
+   sample4	condition2	batch1	mydata/sample4.bam
 
-Manifest example (we suggest using absolute file paths to point to your files though):
+Lines starting with ``#`` and blank lines are skipped.  A line of other than four
+fields, fields separated by spaces, a sample id given twice, a missing or unindexed
+BAM, and a BAM with none of the isoforms' chromosomes (as ``chr1`` against ``1``) are
+errors.  Absolute paths are safest.
+
+**Isoforms**
+
+``--isoform_bed`` is a FLAIR isoform bed, the 25 columns ``flair transcriptome``,
+``flair combine`` and ``flair fusion`` write: an isoform's gene id is its 13th column.
+A gene's isoforms must be on one chromosome and strand, and an isoform's name used
+once on a chromosome.  A set from an older ``flair combine`` can have a gene on both
+strands: combine its samples again.  The pieces of a fusion isoform, sharing its name,
+are counted as the fusion.
+
+**How reads are counted**
+
+A read counts for an isoform it is full-length for: aligned across all of the
+isoform's splice junctions, with few mismatches and indels within 5 bases of each, and
+into its first and last exons.  A read whose junctions are a contiguous run of a longer
+isoform's is the shorter isoform's, not the longer one's, which it doesn't cover.
+
+- A read whose junctions are exactly those of one isoform, aligned cleanly at its
+  splice sites, is counted for it without realignment.
+- Other spliced reads are aligned with minimap2 to the sequences of the isoforms of
+  their locus and counted for the isoform their best alignment is full-length for.  A
+  large deletion in an isoform's first or last exon, as reverse transcriptase skipping
+  across double-stranded RNA leaves in a 3' UTR, is tolerated, unless it is on a GT-AG,
+  GC-AG or AT-AC splice motif: a read spliced where the isoform isn't is another
+  isoform's.
+- An unspliced read is counted for the single-exon isoform it covers more than half
+  of whose ends are nearest its own, and never for a spliced isoform, as in ``flair
+  transcriptome``.  An unspliced read's strand isn't known, so a single-exon isoform of
+  either strand can take it.
+- A fusion's reads are its chimeric reads, those with a supplementary alignment or 40
+  or more bases clipped at an end, aligned to its fused transcript, its pieces' exons
+  in order: a read must be full-length across the fusion junctions too.  They aren't
+  counted for the fusion's partner genes as well.
+
+Genes that overlap are counted together, and each read is considered once, so a read
+fitting the isoforms of two overlapping genes is counted for the one it fits best,
+not for both.  With ``--trust_ends``, a read also needs its ends within 50 bases of a
+spliced isoform's, for protocols giving full-length molecules.  With
+``--normalize_ends``, each spliced isoform is given, for counting, the furthest ends
+of its gene's isoforms with terminal exons like its own, so reads aren't lost to where
+an isoform's ends were placed.
+
+**Output**
+
+``<output>.counts.tsv`` opens with the two id columns, the gene and the isoform, and
+has a column of read counts per sample, named by its id, a row per isoform of a gene:
 
 .. code:: text
 
-   sample1      condition1      batch1  mydata/sample1.bam
-   sample2      condition1      batch1  mydata/sample2.bam
-   sample3      condition1      batch1  mydata/sample3.bam
-   sample4      condition2      batch1  mydata/sample4.bam
-   sample5      condition2      batch1  mydata/sample5.bam
-   sample6      condition2      batch1  mydata/sample6.bam
-
-
-.. include:: cli/quantify.rst
-
-
-Other info
-----------
-The counts file opens with the two id columns and names each later column after the
-sample it holds:
-
-.. code:: text
-
-   gene_id      isoform_id      sample1 sample2 sample3 sample4 sample5 sample6
-   FLG00000001  FLT00000001     21.0    12.0    10.0    10.0    14.0    13.0
-   FLG00000001  FLT00000002     7.0     6.0     7.0     15.0    12.0    7.0
+   gene_id	isoform_id	sample1	sample2	sample3	sample4
+   FLG00000001	FLT00000001	21	12	10	10
+   FLG00000001	FLT00000002	7	6	7	15
 
 Each row is one isoform of one gene, named by the two leading id columns described
-in :ref:`ids-label`.
+in :ref:`ids-label`.  A fusion isoform's gene is the fusion's.
 
 The condition and batch of each column are in ``<output>.sample_info.tsv``, written
-beside the counts file, which `flair diffexp` and `flair diffsplice` read:
+beside the counts file, which ``flair diffexp`` and ``flair diffsplice`` read:
 
 .. code:: text
 
-   sample_id    condition       batch
-   sample1      condition1      batch1
-   sample2      condition1      batch1
-   sample3      condition1      batch1
-   sample4      condition2      batch1
-   sample5      condition2      batch1
-   sample6      condition2      batch1
+   sample_id	condition	batch
+   sample1	condition1	batch1
+   sample2	condition1	batch1
+   sample3	condition2	batch1
+   sample4	condition2	batch1
 
 Because these are columns of their own, the id, condition and batch fields may
 contain any characters. A counts matrix from an earlier FLAIR, whose columns are
 named ``sample_condition_batch``, is still read by taking the fields back out of the
 column name.
+
+With ``--tpm``, ``<output>.tpm.tsv`` has the counts as transcripts per million; a
+sample with no reads counted has 0 throughout, with a warning.  With
+``--generate_map``, ``<output>.<sample id>.read.map.tsv`` lists each sample's reads by
+isoform, under a header, a row of an isoform's name and its reads' names,
+comma-separated.  With ``--compress`` these are all written gzipped.
+
+**Temporary files**
+
+The reads realigned and minimap2's alignments are written to a directory of the
+run's own in ``--temp_dir``, by default ``$TMPDIR`` or the system temporary directory,
+which is best on a local disk, and removed when the run ends, even on failure, unless
+``--keep_intermediate``.  ``-t`` sets how many batches of genes are counted at once,
+and minimap2 is given the threads left idle as the run finishes.
+
+Options
+-------
+
+.. include:: cli/quantify.rst
 
 
 
@@ -296,6 +355,33 @@ by running these R packages:
  - `DRIMSeq <https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.
 
 If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`__ standalone script.
+
+**Splicing events and variants**
+
+``--counts_matrix`` may also be the counts of :ref:`flair spliceevents <spliceevents-label>`,
+``OUTPUT.spliceevents.counts.tsv``, or of :ref:`flair variantquant <variantquant-label>`,
+``OUTPUT.var.counts.tsv``.  Their rows are compared as an isoform's are within its gene:
+an event's alternatives (``event`` and ``alternative``), and the reads showing an allele
+and those not (``var_name`` and ``is_var``).  Only usage is tested, with DRIMSeq and the
+t-test normalized by gene, since an event's or a site's reads are not a gene's
+expression, so there are no DESeq2 tables.  An event's ``other`` row counts toward its
+total, but is not tested.  In the outputs, the ``gene_id`` column holds the event or
+``var_name`` and the ``feature_id`` or ``isoform_id`` column ``event|alternative`` or
+``var_name|is_var``.
+
+Neither module records conditions, so write the sample info file that ``flair
+quantify`` would beside the counts, named for them: ``OUTPUT.spliceevents.sample_info.tsv``
+or ``OUTPUT.var.sample_info.tsv``, a header and then a line per sample column, in the
+order of the columns:
+
+.. code:: text
+
+   sample_id	condition	batch
+   sample1	ctl	batch1
+   sample2	ctl	batch1
+   sample3	test	batch1
+
+Without it, the sample columns must be named ``sample_condition_batch``.
 
 If you have more than two sample condtions, either split your counts matrix ahead of time or run DESeq2 and DRIMSeq yourself. 
 
@@ -406,68 +492,422 @@ considered to include or exclude the each event:
 .. code::
 
    a3ss_feature_id       coordinate                    sample1 sample2 ... isoform_ids
-   inclusion_chr1:80:+   chr1:80-400_chr1:80-450:+     75.0    35.0    ... a,e
-   exclusion_chr1:80:+   chr1:80-400_chr1:80-450:+     3.0     13.0    ... c
-   inclusion_chr1:500:+  chr1:500-650_chr1:500-700:+   4.0     18.0    ... d
-   exclusion_chr1:500:+  chr1:500-650_chr1:500-700:+   70.0    17.0    ... e
+   inclusion_chr1:80(+)   chr1:80-400(+)_chr1:80-450(+)     75.0    35.0    ... a,e
+   exclusion_chr1:80(+)   chr1:80-400(+)_chr1:80-450(+)     3.0     13.0    ... c
+   inclusion_chr1:500(+)  chr1:500-650(+)_chr1:500-700(+)   4.0     18.0    ... d
+   exclusion_chr1:500(+)  chr1:500-650(+)_chr1:500-700(+)   70.0    17.0    ... e
 
 .. code::
 
    ir_feature_id             coordinate        sample1 sample2 ... isoform_ids
-   inclusion_chr1:500-650:+  chr1:500-650:+    46.0    13.0    ... g
-   exclusion_chr1:500-650:+  chr1:500-650:+    4.0     18.0    ... d
-   inclusion_chr1:500-700:+  chr1:500-700:+    46.0    13.0    ... g
-   exclusion_chr1:500-700:+  chr1:500-700:+    70.0    17.0    ... e
-   inclusion_chr1:250-450:+  chr1:250-450:+    50.0    31.0    ... d,g
-   exclusion_chr1:250-450:+  chr1:250-450:+    80.0    17.0    ... b
+   inclusion_chr1:500-650(+)  chr1:500-650(+)    46.0    13.0    ... g
+   exclusion_chr1:500-650(+)  chr1:500-650(+)    4.0     18.0    ... d
+   inclusion_chr1:500-700(+)  chr1:500-700(+)    46.0    13.0    ... g
+   exclusion_chr1:500-700(+)  chr1:500-700(+)    70.0    17.0    ... e
+   inclusion_chr1:250-450(+)  chr1:250-450(+)    50.0    31.0    ... d,g
+   exclusion_chr1:250-450(+)  chr1:250-450(+)    80.0    17.0    ... b
 
 .. code::
 
    es_feature_id             coordinate        sample1 sample2 ... isoform_ids
-   inclusion_chr1:450-500:+  chr1:450-500:+    83.0    30.0    ... b,c
-   exclusion_chr1:450-500:+  chr1:450-500:+    56.0    15.0    ... f
-   inclusion_chr1:200-250:+  chr1:200-250:+    80.0    17.0    ... b
-   exclusion_chr1:200-250:+  chr1:200-250:+    3.0     13.0    ... c
-   inclusion_chr1:200-500:+  chr1:200-500:+    4.0     18.0    ... d
-   exclusion_chr1:200-500:+  chr1:200-500:+    22.0    15.0    ... h
-   inclusion_chr1:400-500:+  chr1:400-500:+    75.0    35.0    ... e,a
-   exclusion_chr1:400-500:+  chr1:400-500:+    56.0    15.0    ... f
+   inclusion_chr1:450-500(+)  chr1:450-500(+)    83.0    30.0    ... b,c
+   exclusion_chr1:450-500(+)  chr1:450-500(+)    56.0    15.0    ... f
+   inclusion_chr1:200-250(+)  chr1:200-250(+)    80.0    17.0    ... b
+   exclusion_chr1:200-250(+)  chr1:200-250(+)    3.0     13.0    ... c
+   inclusion_chr1:200-500(+)  chr1:200-500(+)    4.0     18.0    ... d
+   exclusion_chr1:200-500(+)  chr1:200-500(+)    22.0    15.0    ... h
+   inclusion_chr1:400-500(+)  chr1:400-500(+)    75.0    35.0    ... e,a
+   exclusion_chr1:400-500(+)  chr1:400-500(+)    56.0    15.0    ... f
+
+.. _spliceevents-label:
+
+flair spliceevents
+==================
+
+For when to count splicing events from reads rather than build isoforms, see
+:ref:`choosing-analysis-label`.
+
+This module counts alternative splicing events in each sample directly from its
+reads aligned to the genome, without building isoforms first, so it suits
+fragmented or degraded libraries and datasets of variable quality, which flair
+transcriptome handles less well.  Its events resemble flair diffsplice's, but they are
+counted from reads, while diffsplice derives them from isoforms and their counts, so
+the two are separate analyses, not steps of one.  Reads are corrected against the annotation, and
+optionally short-read junctions, as flair transcriptome corrects them, and assigned to
+genes as flair transcriptome assigns them: to annotated genes, a read through two genes
+to both, and reads of no annotated gene, over all samples, to novel genes named for
+their locus.  Unspliced reads count only as fragments, for starts and ends: one
+whose 5' end lies in an annotated last exon, or within 100 bases before it, is a 3'
+fragment, whose end counts as one of the gene's transcript ends, and one whose 3' end
+lies in an annotated first exon is a 5' fragment, whose start counts as a start.  A
+read overlapping several genes' exons is the fragment of the one whose exons share the
+most bases with it, if it's at that gene's first or last exon; a tie leaves it out.
+Without ``--trust_strand``, the genes of both strands count, as an unspliced read's
+strand isn't known.  The first and last exons are those of ``--annot_basic``, if given.  Other unspliced reads are left out.  It finds these
+events:
+
+ - exon skipping (es), and complex exon skipping (ces): a skipping junction against
+   every way the reads include the exons between its ends, several exons, or one
+   exon with alternative splice sites
+ - alternative 5' and 3' splice sites (alt5, alt3), and alternative 5' and 3'
+   splice sites shared by a group of junctions (alt5ss, alt3ss)
+ - intron retention (ir): a junction's reads against the reads with an exon across it,
+   and in its ``other`` row the reads of junctions both of whose splice sites are
+   within 100 bases of its own, which don't retain it either.  A junction with under
+   ``--junc_frac_of_event`` of all the reads over it in every sample, those of every
+   junction overlapping it too, is none, as a shifted copy of an intron or a junction
+   of few reads nested in a long one, whose retained reads are the long intron's
+ - alternative first and last exons (afe, ale): only exons whose junction reads,
+   over all samples together, rarely have an exon before (or after) them count, as
+   a truncated read makes an internal exon look like a first or last one
+ - alternative transcription starts and ends (tss, tts)
+
+Each event has a row for each of its alternatives, such as an exon's inclusion and
+exclusion, and an ``other`` row for its reads that fit none of them.  An event is
+found from its alternatives of at least ``--feature_support`` reads in some sample
+that are alternative: their part of the event's reads at least
+``--junc_frac_of_event`` in some sample, and at most 1 minus it in some sample, the
+same one or another, so one used alone in a sample and not at all in another is.
+How that part differs between samples is left to what reads the tables, as
+spliceevents_outliers.  An event's main
+alternative, too common to be alternative, is a row too when it has a tenth of the
+event's reads in some sample, and the reads of the rest are its ``other`` row.
+
+The events of splicing (es, ces, alt5, alt3, alt5ss, alt3ss, ir) are found among
+reads linked by shared splice sites, whatever their genes, so overlapping genes and
+readthroughs don't split an event's reads.  Each is then given the gene annotated
+with most of its introns, those of all its alternatives, the ``other`` row's too:
+each intron scores 2 for a gene annotated with it, or failing that 1 for each of its
+splice sites the gene has, weighted by the intron's share of the reads of all the
+event's introns, so a rare alternative counts little.  A tie goes to the gene of more annotated transcripts, so
+a gene rather than a readthrough of it.  Genes still tied are all given, comma-separated.
+An event sharing no intron or splice site with the annotation, as in a novel gene,
+gets the gene of most of its reads.  First and last exons and starts and ends are
+found per gene: a read's first exon and start with the gene it starts in, its last
+exon and end with the gene it ends in.
+
+An event is named ``TYPE|CHROM:START-END(STRAND)|GENE``, its locus, 1-based, being
+its skipped exon for es, and otherwise the outer bounds of its introns, so it can be
+pasted into a genome browser, and its gene, as the ``gene`` column, the genes
+comma-separated if tied, so the events of two genes of one locus, as the ends of a gene
+and a readthrough of it, are told apart.  Each row is one alternative of its event, named by
+what sets it apart from the event's other rows: ``inc`` and ``exc`` for es and
+``exc`` for ces, the exons
+included of a ces's other rows, ``retained`` and ``spliced`` for ir, the introns of
+each alternative of alt5, alt3, alt5ss, alt3ss, afe and ale, the position of each
+end of tss and tts, and ``other``.  Introns are written as STAR writes them, from
+their first base to their last, and exons from their first base to their last.
+For example, an exon skip and an alternative 3' splice site::
+
+   es|chr12:25215437-25215560(-)|ENSG00000133703.12    inc
+   alt3|chr1:201-350(+)|G1                             201-300
+
+The tables' coordinate columns use the same 1-based coordinates.  An event's PSI
+is computed two ways: of the event's reads (PSIjunc), which is more sensitive, and of
+all reads covering the event's locus (PSItot), which favours events that are strong
+overall.  A sample needs ``--event_support`` reads of an event for a PSI.
+
+With ``--region_bed``, only events inside its regions are reported: those whose
+junctions and exons all lie in a region, whose reads all overlap it, and the start,
+end, first and last exon events of genes whose annotated junctions (a novel gene's
+reads' junctions) all lie in one, so a region around a gene's annotated exons, or only
+its spliced part, reports them.
+Reads overlapping a region are corrected over their whole length, wherever the region
+ends.  The samples of a region are corrected in parallel.
+
+Without ``--region_bed``, each chromosome is cut in intergenic gaps of the annotation
+into pieces of about 5000 annotated exons, which are corrected and searched for events
+in parallel.  A piece owns the reads starting in it, corrected over their whole length,
+and reports the events starting in it, so an event close to a cut can miss the reads
+of the piece before.  Reads are aligned to their piece's annotated transcripts, not
+the whole chromosome's.  ``--partition no`` keeps chromosomes whole, slower but
+without those losses, and ``--partition yes`` cuts ``--region_bed`` regions too.
+
+The manifest is a tab-separated file of a sample name and the path to its sorted and
+indexed bam file, a line per sample::
+
+   sample1	sample1.genomealigned.bam
+   sample2	sample2.genomealigned.bam
+
+**Outputs**
+
+ - ``OUTPUT.spliceevents.counts.tsv``, the reads of each event row in each sample,
+   with the row's ``event``, ``alternative``, ``event_type``, ``gene`` and
+   ``gene_name``, the annotation's name of the gene, empty if it has none,
+   ``additional_genes`` and ``additional_gene_names``, the other annotated genes
+   sharing an intron or splice site with a splicing event, best scoring first, to
+   find all the events that could be a gene's, and its
+   ``junctions_included``, ``junctions_excluded``, ``outer_junctions`` and
+   ``exons``, and ``novel_junctions``, the row's introns that aren't annotated:
+   those its reads splice, the skipping junctions of an exon skip's exclusion.  An
+   event of an annotated gene can have novel alternatives, so these, rather than
+   the gene, find novel splicing
+ - ``OUTPUT.spliceevents.PSIjunc.tsv`` and ``OUTPUT.spliceevents.PSItot.tsv``, the
+   rows' PSIs, empty where a sample has too few reads
+ - ``OUTPUT.spliceevents.totals.tsv``, each event's reads (``event_reads``) and the
+   reads covering its locus (``locus_reads``) in each sample, the PSIs' denominators
+ - ``OUTPUT.spliceevents.bed``, the event rows for a genome browser, named
+   ``EVENT|ALTERNATIVE`` and scored by their median PSIjunc
+
+Outlier samples, whose PSI of an event is far from the other samples', can be found
+from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__
+script.
+
+Options
+-------
+
+.. include:: cli/spliceevents.rst
 
 .. _variantquant-label:
 
 flair variantquant
 ==================
 
-Quantifies variants at genome positions using reads aligned to the transcriptome.
-Sites to check are named either with a vcf, with a reference position file, or per
-sample through a manifest.
+Counts, in each sample, the reads showing each SNV allele at the sites of a vcf,
+from reads aligned to the genome.  It was built to quantify RNA editing at the sites
+of a database such as REDIportal, and counts the variants called in the samples as
+well, by haplotype too, for the allele bias of a somatic variant.
+
+**Samples**
+
+A sample is given by ``--bam``, named by ``--sample_name`` or else for its bam file,
+or several by ``--manifest``, a tab-separated file of a line per sample, either of a
+sample name and its bam file, with the sites from ``--vcf``::
+
+   tumor	tumor.genomealigned.bam
+   normal	normal.genomealigned.bam
+
+or of a sample name, its bam file and the vcf of its own variants, on every line::
+
+   tumor	tumor.genomealigned.bam	tumor.vcf.gz
+   normal	normal.genomealigned.bam	normal.vcf.gz
+
+whose sites are merged, every sample counted at all of them, so a site called in one
+sample has the reads of the others too.  Lines starting with ``#`` and blank lines are
+skipped; a vcf on some lines only, duplicate sample names and missing files are
+errors.  The bam files are read whole, so they needn't be sorted or indexed, and
+``-t`` of them are read at once, each in its own process.
+
+**Sites**
+
+The vcf may be plain or gzipped, and only its first five columns are needed, so a
+database's list of sites can be given as a vcf of them.  Only SNVs are counted: an
+indel or a substitution of more than one base, which a read's base can't show, is
+left out with a warning.  Each alt of a multi-allelic site is an allele of its own.
+Only records whose FILTER is ``PASS`` or ``.``, or that have no FILTER, are sites, so a
+DeepVariant ``RefCall`` isn't; ``--keep_flags`` counts the records of other flags too,
+as ``--keep_flags RefCall``, or ``all`` of them.  A site in more than one vcf has the
+alts of all of them, and two vcfs giving it different REFs are an error.
+
+The vcf must be of the genome's strand: a record's REF is the genome's base, so an
+A-to-I edit of a minus strand gene is T>C, not A>G.  A record of the transcript's
+strand is never counted, and one whose REF is neither the genome's base nor its
+complement counts every read of the genome's base as showing its alt.  Given the
+genome, ``-g``, variantquant checks each site's REF and leaves out those that aren't
+the genome's base, with a warning of how many, how many are the complement, and a few
+of them.  Of REDIportal's 15.6 million A-to-I sites, 41,442 are of the transcript's
+strand and 247 of neither, all left out by ``-g``.
+
+**Reads**
+
+A read's primary and supplementary alignments are counted, not its secondary ones,
+which would count its bases again, and only alignments of at least ``--quality``
+mapping quality (0, all, by default).  A read's base at a site is found from its
+cigar, so MD tags aren't needed; a site in a read's deletion or intron isn't covered by
+it.  A read showing one of a site's alts is counted as showing it, and any other base
+as not.
+
+With ``--trust_strand``, as for oriented reads or direct RNA, each read is of its
+alignment's strand, and each strand of reads at a site is counted in a row of its
+own, so the reads of an antisense transcript aren't counted with the sense
+transcript's.  With ``--haplotypes``, the reads of a haplotagged bam, as WhatsHap
+haplotag writes it, are counted by their phase set and haplotype, their ``PS`` and
+``HP`` tags, a row each, and the reads without an ``HP`` tag in a row of their own: at
+a somatic variant, the haplotype carrying it shows its alt reads against the other's,
+and the normal's haplotypes both show the reference.  A haplotype is comparable only
+within a phase set and one phasing, so a run's samples should be one patient's,
+haplotagged with its phased variants; samples sharing no phase set are warned of.
+
+**Genes**
+
+A site is named by the genes of the exons over it, of ``--isoform_bed``, ``--gtf`` or
+both, and is of no gene without them.  An isoform's gene is its bed's 13th column, as
+a flair isoform bed gives it.  An isoform without one, as of a BED12, given a GTF, is
+of the GTF gene its exons overlap most on its strand, so a site in a novel exon of a
+known gene is named by it; with no GTF it names no site.  Given a GTF alone, its
+exons name the sites by their ``gene_id``.  A site of more than one gene is named by
+the first, sorted.
+
+**Outputs**
+
+ - ``OUTPUT.var.counts.tsv``, two rows per allele of a site, of each group of its
+   reads: ``is_var`` ``yes``, the reads showing the alt, and ``no``, those covering the
+   site not showing it, so the two add up to the reads covering the site whatever its
+   other alts.  ``var_name`` names the pair, ``CHROM:POS:REF>ALT``, then ``(STRAND)``
+   with ``--trust_strand`` and ``|PHASE_SET|HAPLOTYPE`` for phased reads.  Then the
+   columns ``varpos``, the site, ``CHROM:POS`` 1-based, ``ref``, ``alt``, ``strand``,
+   ``phase_set`` and ``haplotype``, ``.`` when the reads aren't split by them, and
+   ``gene``, then a column per sample of the reads.  An allele's rows are written if
+   a read of some sample shows the alt, or with ``--output_all``, each pair if some
+   sample has ``--min_coverage`` reads of its group covering the site.  ``flair
+   diffexp`` and ``diff_iso_usage`` read it, testing the change in each allele's share
+   of its site's reads (see :ref:`diffexp-label`)
+
+
+**Speed**
+
+Each bam is read once, whatever the number of sites, about 3 minutes for 15 million
+reads with a few hundred sites and 36 with REDIportal's 15.6 million, and ``-t``
+samples at once.  For 100,000 REDIportal sites across the genome, in a bam of 15.5
+million reads, it takes 5 minutes, against 3.2 hours for ``samtools mpileup -l`` and
+about 9 hours for pysam's ``pileup``, their counts the same.  ``samtools mpileup`` is
+faster for sites packed in a small region, which it reads alone: 1 minute, against 3,
+for 100,000 sites in 10 Mb.  The sites are loaded once: REDIportal's in 37 seconds
+and about 2.2 GB from its vcf, 43 seconds with a flair isoform bed's genes, 57 with
+GENCODE's, and 7 seconds more to check them against the genome with ``-g``.
+Temporary files, a file per sample of its reads covering the sites, are written in a
+directory of each run's own in ``--temp_dir``, by default ``$TMPDIR``, and removed
+when it ends unless ``--keep_intermediate``.
 
 Options
 -------
 
 .. include:: cli/variantquant.rst
 
-.. _alleles-label:
-
-flair alleles
-=============
-
-Calls alleles from variants and groups the reads that carry them, writing a vcf of
-allele groups.  A normal bam and vcf may be given alongside the tumor ones to call
-variants as somatic or not.
-
-Options
--------
-
-.. include:: cli/alleles.rst
 
 .. _isoalleles-label:
 
 flair isoalleles
 ================
 
-Groups alleles by isoform, using the allele calls from flair alleles together with an
-isoform bed, and predicts the protein each isoform allele produces.
+Splits each isoform's reads by haplotype, and in a tumor and normal pair by the
+somatic variants they carry, and gives the sequence and protein of each group: for
+example, isoform 1's reads in the tumor on haplotype H1, on H2, and on H2 carrying
+a somatic KRAS G12V. The haplotypes come from an upstream phasing tool, such as
+WhatsHap, which tags each read with its haplotype; flair isoalleles does not call or
+phase variants itself.
+
+**Before running it**
+
+1. Build the isoforms and count the reads with FLAIR as usual. Every sample needs
+   a read map from ``flair quantify --generate_map``, made with the same isoform bed
+   given here (``<output>.<sample>.read.map.tsv``)::
+
+     flair quantify --manifest MANIFEST.tsv -g GENOME.fa --isoform_bed ISOFORMS.bed --generate_map -o QUANT
+
+2. Phase the germline variants and haplotag the reads, as with WhatsHap, giving a
+   phased VCF and a BAM whose reads carry HP (haplotype) and PS (phase set) tags.
+   In a pair, phase the normal's germline variants and haplotag both the tumor and the
+   normal reads with them, so H1 and H2 mean the same in both::
+
+     whatshap phase --ignore-read-groups -o NORMAL.phased.vcf.gz --reference GENOME.fa NORMAL.vcf.gz NORMAL.bam TUMOR.bam
+     tabix -p vcf NORMAL.phased.vcf.gz
+     whatshap haplotag --ignore-read-groups -o TUMOR.haplotagged.bam --reference GENOME.fa NORMAL.phased.vcf.gz TUMOR.bam
+     whatshap haplotag --ignore-read-groups -o NORMAL.haplotagged.bam --reference GENOME.fa NORMAL.phased.vcf.gz NORMAL.bam
+
+   The VCFs given to flair isoalleles must be bgzipped and indexed (``tabix -p vcf``).
+
+3. If only some of the germline variants were phased, as when the phasing tool was
+   given only the heterozygous calls, also give all of them, unphased, with
+   ``--germline_vcf``. Every passing call there is a germline variant, phased by
+   ``--phased_vcf`` where it can be. Without it, the homozygous variants would be
+   missing from the sequences, and in a pair a tumor call the normal makes but didn't
+   phase could be taken for somatic.
+
+**One sample**
+
+Each isoform's reads are split by haplotype, H1, H2 or untagged, and H1 and H2 each
+get a sequence with their germline variants::
+
+  flair isoalleles --isoform_bed ISOFORMS.bed -g GENOME.fa \
+      --bam SAMPLE.haplotagged.bam --read_map QUANT.SAMPLE.read.map.tsv \
+      --phased_vcf SAMPLE.phased.vcf.gz -o SAMPLE
+
+**A tumor and normal pair**
+
+``--bam`` and ``--read_map`` are the tumor's, ``--normal_bam`` and ``--normal_read_map``
+the normal's, and ``--phased_vcf`` the normal's phased germline variants. The tumor's
+reads are also split by the somatic variants they carry. The somatic variants come
+from exactly one of:
+
+``--tumor_vcf TUMOR.vcf.gz``
+    The tumor's own variant calls, from the same caller as the normal's. A passing
+    tumor call that the normal does not call is somatic if at least
+    ``--min_normal_depth`` (default 10) normal reads inform the site. With fewer, the
+    normal can't show the variant isn't germline, as in an exon the normal barely
+    expresses, so it is left out and listed in ``excluded.tsv``.
+``--somatic_vcf SOMATIC.vcf.gz``
+    The calls of a dedicated somatic caller, such as ClairS or DeepSomatic. Every
+    passing call is somatic, as the caller called it, with no further filter.
+``--variant CHROM:POS:REF>ALT`` (may be given more than once)
+    Only these variants are somatic, whatever the VCFs call. Use it for a known
+    driver that the normal also calls, as when tumor cells are in the normal sample,
+    which would otherwise be taken as germline. ``CHROM:POS`` alone takes every alt a
+    VCF has at that position. The sequences then hold no other somatic variant, and a
+    given variant with few normal reads is warned of.
+
+::
+
+  flair isoalleles --isoform_bed ISOFORMS.bed -g GENOME.fa \
+      --bam TUMOR.haplotagged.bam --read_map QUANT.TUMOR.read.map.tsv --sample_name TUMOR \
+      --normal_bam NORMAL.haplotagged.bam --normal_read_map QUANT.NORMAL.read.map.tsv --normal_name NORMAL \
+      --phased_vcf NORMAL.phased.vcf.gz --germline_vcf NORMAL.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR
+
+``--germline_vcf NORMAL.vcf.gz`` is only needed when ``NORMAL.phased.vcf.gz`` holds
+just some of the normal's calls (see above). With ``--tumor_vcf``, a tumor call is
+somatic only if it is none of the normal's germline calls.
+
+**How reads are grouped**
+
+- A read's haplotype is its HP tag, H1 or H2, or ``untagged`` when the phasing
+  couldn't place it.
+- Germline variants: homozygous ones are in every sequence, and phased hets on their
+  haplotype. An unphased het is put on the haplotype holding at least
+  ``--carrier_min`` (0.9) of the isoform's tagged reads that carry it, of at least
+  ``--min_tagged`` (10); otherwise the reference base is kept, with a warning.
+- Somatic sets, in a pair: the somatic variants a read carries make its set, numbered
+  per gene by reads, most first (S1, S2, ...), so variants on one molecule are one
+  set and those of different subclones different sets. A read's group is its
+  haplotype and set, such as ``H2-S1``. A read that doesn't inform every somatic site
+  defining its isoform's sets, by not reaching it or by a deletion over it, may carry
+  the one it misses, so its group is ``H2-S?``, which is counted but gets no sequence.
+- flair quantify assigns a read to a spliced isoform only if it reaches a few bases
+  into the first and last exons, so every assigned read covers the internal exons
+  but not all of the terminal exons, such as UTRs. Somatic sites in the internal exons
+  or next to the splice sites define the sets. A somatic site further into a terminal
+  exon is added to a group's sequence only if the group's reads that reach it all
+  carry it, and at least one does (``terminal_sites.tsv``). An isoform with no other
+  somatic site has its terminal ones define the sets.
+- Each sequence's CDS starts at the isoform's annotated start codon and runs to the
+  first stop in the variant sequence, so nonsense, frameshift and stop-lost variants
+  move its end. Its productivity follows flair transcriptome's rules. Its protein
+  keeps the isoform's own id if unchanged, and otherwise is named FLPV and a hash of
+  its sequence, the same in every run.
+- Only isoforms with reads get sequences. Fusion isoforms are left out.
+
+**Outputs**
+
+- ``OUTPUT.isoalleles.counts.tsv``: a counts matrix, a row per isoform and group,
+  ``gene_id`` the isoform and ``isoform_id`` ``isoform|group``, a column per sample, so
+  ``diff_iso_usage`` and ``flair diffexp`` compare groups' usage within an isoform
+- ``OUTPUT.isoalleles.fa``, ``.bed``, ``.bb``: the sequences, ``isoform|group``, as a
+  FASTA and a flair BED with each one's CDS, productivity, protein, reads and samples
+- ``OUTPUT.isoalleles.aaseq.tsv``: each protein once, by id
+- ``OUTPUT.isoalleles.sequences.tsv``: per sequence, its variants, productivity,
+  protein, its change from the isoform's own protein and, for a somatic group, from
+  the same haplotype's
+- ``OUTPUT.isoalleles.variants.tsv``, ``.somatic_sets.tsv``, ``.excluded.tsv``,
+  ``.terminal_sites.tsv``, ``.warnings.tsv``: the variants used, the somatic sets, the
+  tumor-only calls left out, the terminal-exon decisions, and the warnings
+- ``OUTPUT.isoalleles.genes.tsv``: per gene and sample, the share of its spliced reads
+  that flair quantify assigned, which is small in long genes of many 5'-truncated reads
+- with ``--generate_map``, ``OUTPUT.isoalleles.<sample>.read.map.tsv``, and with
+  ``--label_bams``, ``OUTPUT.isoalleles.<sample>.bam``, whose reads carry their isoform
+  and group in the ``IA`` tag (in IGV, group alignments by tag IA)
+
+The read maps are not loaded whole: each worker reads only the rows of its batch of
+genes, by their offsets, from a plain or bgzipped map (flair quantify writes them
+bgzipped under ``--compress``), or a copy of a gzipped one in ``--temp_dir``.
 
 Options
 -------

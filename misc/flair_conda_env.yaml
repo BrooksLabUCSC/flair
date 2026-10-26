@@ -10,8 +10,16 @@ dependencies:
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1
+  # flair's own range: whatshap needs pysam too, and conda would otherwise pick a
+  # newer one than flair accepts
+  - pysam >=0.23.0,<0.24.0
   - intron-prospector >=1.5
   - ucsc-bedtobigbed
+  # longshot calls the variants of the variantquant tests; whatshap phases them and
+  # haplotags the reads of the isoalleles tests, as it does users' reads before flair
+  # isoalleles
+  - longshot >=1.0
+  - whatshap >=2.8
   - pip
   # R dependencies of flair diffexp and diffsplice
   - r-argparse
