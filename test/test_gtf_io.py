@@ -230,3 +230,20 @@ def test_unsplit_start_codon(tmp_path):
     gtf_data = gtf_data_parser(_write_split_start_codon_gtf(tmp_path / 'one.gtf', '+', [(1100, 1102)]))
     start_codon = gtf_data.get_transcript('ENST1').start_codon
     assert (start_codon.start, start_codon.end) == (1099, 1102)
+
+
+def test_gtf_data_parser_keeps_the_whole_transcripts_overlapping_regions(tmp_path):
+    gtf = tmp_path / 'regions.gtf'
+    rows = []
+    for chrom, tid, exons in (('chr1', 'T1', [(100, 200), (900, 1000)]),    # one exon in the region
+                              ('chr1', 'T2', [(2000, 2100), (2300, 2400)]),  # outside it
+                              ('chr2', 'T3', [(100, 200), (300, 400)])):     # another chromosome
+        attrs = f'gene_id "G{tid}"; transcript_id "{tid}";'
+        rows.append(f'{chrom}\ttest\ttranscript\t{exons[0][0] + 1}\t{exons[-1][1]}\t.\t+\t.\t{attrs}')
+        rows += [f'{chrom}\ttest\texon\t{s + 1}\t{e}\t.\t+\t.\t{attrs}' for s, e in exons]
+    gtf.write_text('\n'.join(rows) + '\n')
+    gtf_data = gtf_data_parser(str(gtf), regions=[SeqRange('chr1', 150, 500)])
+    assert [t.transcript_id for t in gtf_data.transcripts] == ['T1']
+    assert [(e.start, e.end) for e in gtf_data.transcripts[0].exons] == [(100, 200), (900, 1000)]
+    # no transcript in the regions is an empty annotation, not a GTF without transcript lines
+    assert len(gtf_data_parser(str(gtf), regions=[SeqRange('chr3', 0, 100)]).transcripts) == 0

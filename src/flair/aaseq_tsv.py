@@ -7,8 +7,7 @@ Columns, in order:
 
 One row per distinct sequence; isoforms that translate alike share an id, so the
 sequence is written once however many isoforms carry it.  flair transcriptome
-writes <output>.aaseq.tsv and flair alleles writes
-<output>.aaseq.allelegroups.tsv.
+writes <output>.aaseq.tsv.
 """
 from contextlib import contextmanager
 from flair.pycbio.sys import fileOps

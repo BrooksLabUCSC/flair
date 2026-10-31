@@ -2,11 +2,16 @@
 
 Columns, in order:
 
-  geneID                       the gene
-  isoID                        the isoform
+  geneID                       the gene, or of a spliceevents or variantquant table,
+                               the event or var_name
+  isoID                        the isoform, or event|alternative or var_name|is_var
   fisher_pval                  Fisher's exact p-value for this isoform against
                                the rest of its gene, NA when either sample has
                                no reads to test
+  fisher_adj_pval              fisher_pval adjusted for the number of isoforms
+                               tested, by Benjamini-Hochberg, so a cutoff on it
+                               bounds the false discovery rate; NA where
+                               fisher_pval is
   this_iso_<sample1>_count     reads on this isoform in each sample
   this_iso_<sample2>_count
   other_isos_<sample1>_count   reads on the gene's other isoforms
@@ -23,7 +28,7 @@ from flair.pycbio.sys import fileOps
 from flair.pycbio.tsv import TsvReader, TsvWriter
 
 def columns(colname1, colname2):
-    return ('geneID', 'isoID', 'fisher_pval',
+    return ('geneID', 'isoID', 'fisher_pval', 'fisher_adj_pval',
             f'this_iso_{colname1}_count', f'this_iso_{colname2}_count',
             f'other_isos_{colname1}_count', f'other_isos_{colname2}_count',
             f'{colname1}_PSI', f'{colname2}_PSI', 'delta_PSI')

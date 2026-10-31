@@ -3,7 +3,6 @@ import argparse
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli, fileOps
 from flair.gtf_io import gtf_write_row
-from flair.iso_gene_id import split_iso_gene
 from flair.pycbio.hgdata.bed import BedReader, Bed
 from flair.flair_bed import FlairBed
 
@@ -13,7 +12,8 @@ def build_parser():
     parser = argparse.ArgumentParser(prog='bed_to_gtf', description=desc)
     parser.add_argument('inputfile', type=str, help='isoforms in bed format')
     parser.add_argument('--force', action='store_true',
-                        help='do not split the isoform name by underscore into isoform and gene ids')
+                        help='convert a bed of no gene ids, one not from flair, using each isoform name as both its '
+                             'transcript and gene id')
     parser.add_argument('--no_cds', action='store_true',
                         help='do not carry forward CDS from the bed file (thickstart and thickend) to the gtf')
     parser.add_argument('--is_flair_bed', action='store_true',
@@ -74,22 +74,17 @@ def _collect_gene_records(query, force, use_cds, is_flair_bed):  # noqa: C901 - 
     my_bed_class = FlairBed if is_flair_bed else Bed
     for bed in BedReader(query, bedClass=my_bed_class):
         name = bed.name
-        if '_' not in name and not force and not is_flair_bed:
-            raise FlairInputDataError('Entry name should contain underscore-delimited transcriptid and geneid like so: \n'
-                                      'ENST00000318842.11_ENSG00000156313.12 or a4bab8a3-1d28_chr8:232000\n'
-                                      'So no GTF conversion was done. Please run identify_gene_isoform first\n'
-                                      'for best results, or run with --force')
-
         if ';' in name:
             name = name.replace(';', ':')
 
         if is_flair_bed:
             transcript_id = name
             gene_id = bed.gene_id
-        elif force is True:
+        elif force:
             transcript_id, gene_id = name, name
         else:
-            transcript_id, gene_id = split_iso_gene(name)
+            raise FlairInputDataError(f'{query} has no gene ids: give --is_flair_bed for a bed from flair, whose gene '
+                                      'ids are in column 13, or --force to use each isoform name as its gene id too')
 
         if gene_id not in gene_to_records:
             gene_to_records[gene_id] = []

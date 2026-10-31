@@ -12,6 +12,7 @@
 ########################################################################
 
 
+import logging
 import os
 import os.path as osp
 import errno
@@ -21,7 +22,7 @@ import pipettor
 
 from flair import FlairInputDataError, FlairToolError
 from flair.conditions import condition_column_indexes, select_condition_pair
-from flair.counts_matrix_tsv import read_counts_rows, CountsRow, write_counts_matrix
+from flair.counts_matrix_tsv import QUANTIFY_COUNTS, CountsRow, read_grouped_counts, write_counts_matrix
 from flair.deseq2_counts_tsv import write_deseq2_counts
 from flair.drimseq_counts_tsv import drimseq_counts_writer
 from flair.drimseq_input import check_feature_ids_unique
@@ -145,12 +146,16 @@ def row_ttest(ttest_ind, row, genetot, ref_cols, test_cols):
     # ranksums() wast too strict for small replicates
     return deltausage, ttest_ind(wtcounts, varcounts).pvalue
 
-def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols):
+def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
+    """the t-test of each row but those of unreported, whose counts are in their
+    gene's total all the same"""
     # imported here rather than at module scope; scipy takes 0.7s to import and
     # this is the only use of it, which would be paid by every flair command
     from scipy.stats import ttest_ind
     allids, allpval, alldeltas = [], [], []
     for row in rows:
+        if row.isoform_id in unreported:
+            continue
         tested = row_ttest(ttest_ind, row, gene_to_tot_counts[row.gene_id], ref_cols, test_cols)
         if tested is not None:
             deltausage, pval = tested
@@ -169,7 +174,7 @@ def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols):
     return allids, alldeltas, corrpval
 
 
-def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols):
+def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols, unreported):
     """
     This function runs t-tests with multiple testing correction on isoform counts normalized by gene
     This method essentially does differential isoform usage testing, but accounts for differences in gene expression
@@ -177,7 +182,7 @@ def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols):
     """
 
     gene_to_tot_counts = get_gene_to_counts(norm_rows)
-    allids, alldeltas, corrpval = do_mtc_ttest(norm_rows, gene_to_tot_counts, ref_cols, test_cols)
+    allids, alldeltas, corrpval = do_mtc_ttest(norm_rows, gene_to_tot_counts, ref_cols, test_cols, unreported)
 
     with iso_usage_change_writer(outname) as out:
         for i in range(len(allids)):
@@ -291,14 +296,16 @@ def run_deseq2(prefix, workdir, condition_a, condition_b, matrix_file, out_dir, 
     except pipettor.ProcessException as exc:
         raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
 
-def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
+def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file,
+                unreported_file):
     check_feature_ids_unique(matrix_file)
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--condition_a", condition_a, "--condition_b", condition_b,
                           "--matrix", matrix_file, "--out_dir", out_dir,
-                          "--prefix", prefix, "--formula", formula_matrix_file] + r_compress_option(),
+                          "--prefix", prefix, "--formula", formula_matrix_file,
+                          "--unreported", unreported_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
@@ -311,7 +318,8 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     s_filter = min_expression
     force_dir = overwrite_output
 
-    counts_rows = read_counts_rows(quant_table_tsv)
+    grouped = read_grouped_counts(quant_table_tsv)
+    counts_rows = grouped.rows
     if len(counts_rows) == 0:
         raise FlairInputDataError(f"counts matrix {quant_table_tsv} has no isoform rows")
 
@@ -359,7 +367,7 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     # indexes apply to them
     norm_rows = calc_gene_norm_sig(workdir, counts_rows, samples)
     get_sig_from_norm_by_gene(compressed_path(out_dir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
-                              norm_rows, a_cols, b_cols)
+                              norm_rows, a_cols, b_cols, grouped.unreported)
 
     # Convert count tables to dataframe and update isoform objects.
     genes, isoforms = separate_tables(counts_rows, s_filter, samples, a_cols, b_cols, workdir)
@@ -379,12 +387,20 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     gene_matrix_file = workdir + "/filtered_gene_counts_ds2.tsv"
     drim_matrix_file = workdir + "/filtered_iso_counts_drim.tsv"
 
-    # DESeq2 genes & isoforms
-    run_deseq2("genes_deseq2", workdir, condition_a, condition_b, gene_matrix_file, out_dir, formula_matrix_file)
-    run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, iso_matrix_file, out_dir, formula_matrix_file)
+    # DESeq2 genes & isoforms.  An event's or a site's reads are not the expression of
+    # a gene, so of flair spliceevents and variantquant counts only usage is tested
+    if grouped.format is QUANTIFY_COUNTS:
+        run_deseq2("genes_deseq2", workdir, condition_a, condition_b, gene_matrix_file, out_dir, formula_matrix_file)
+        run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, iso_matrix_file, out_dir, formula_matrix_file)
+    else:
+        logging.info(f'{quant_table_tsv} is of {grouped.format.program}: testing usage only, not expression with DESeq2')
 
-    # DIRMSeq
-    run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir, formula_matrix_file)
+    # DIRMSeq, its results of the rows that are not tested left out
+    unreported_file = workdir + "/unreported_features.txt"
+    with open(unreported_file, 'w') as fh:
+        fh.writelines(feature_id + '\n' for feature_id in sorted(grouped.unreported))
+    run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir, formula_matrix_file,
+                unreported_file)
 
 def add_subparser(subparsers):
     desc = "Differential expression and differential usage analysis"
@@ -392,7 +408,10 @@ def add_subparser(subparsers):
                                    description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--counts_matrix', type=str, required=True,
-                          help='tab-delimited isoform count matrix from flair quantify')
+                          help='tab-delimited isoform count matrix from flair quantify, or the counts of flair '
+                          'spliceevents (OUTPUT.spliceevents.counts.tsv) or flair variantquant (OUTPUT.var.counts.tsv), '
+                          'whose usage only is tested.  Conditions and batches are read from the sample info TSV '
+                          'beside it')
     required.add_argument('-o', '--output', type=str, required=True,
                           help='output directory for tables and plots')
     parser.add_argument('-t', '--threads', type=int, default=4,

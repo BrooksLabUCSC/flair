@@ -488,10 +488,13 @@ def _format_gtf_columns(chrom, source, feature, start, end, score, strand, frame
               _format_attrs(attrs)]
     return '\t'.join(fields)
 
-def _gtf_record_iter(gtf_file: str, include_features, attrs_parser):
-    """Internal: iterate parsed GTF records using an attribute parser callable."""
+def _gtf_record_iter(gtf_file: str, include_features, attrs_parser, chroms=None):
+    """Internal: iterate parsed GTF records using an attribute parser callable,
+    given chroms, only those on them, skipping the others' lines before parsing"""
     with fileOps.opengz(gtf_file) as fh:
         for line_num, line in enumerate(fh, start=1):
+            if (chroms is not None) and (line.split('\t', 1)[0] not in chroms):
+                continue
             try:
                 rec = _parse_gtf_line(line, include_features, attrs_parser)
                 if rec is not None:
@@ -542,10 +545,20 @@ def load_gtf_to_gene_data(gtf_file):
     return gene_to_exons, gene_to_juncs
 
 
-def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons, include_features, attrs_parser):
-    for rec in _gtf_record_iter(gtf_file, include_features, attrs_parser):
+def _overlaps_regions(rec, regions_by_chrom):
+    return any(rec.start < region.end and region.start < rec.end for region in regions_by_chrom[rec.chrom])
+
+
+def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons, include_features, attrs_parser,
+                      regions_by_chrom=None):
+    "load the records into gtf_data and the dicts; returns the number of transcript records read"
+    chroms = None if regions_by_chrom is None else set(regions_by_chrom)
+    transcripts_read = 0
+    for rec in _gtf_record_iter(gtf_file, include_features, attrs_parser, chroms):
         if isinstance(rec, GtfTranscript):
-            gtf_data.add_transcript(rec)
+            transcripts_read += 1
+            if (regions_by_chrom is None) or _overlaps_regions(rec, regions_by_chrom):
+                gtf_data.add_transcript(rec)
         elif isinstance(rec, GtfExon):
             transcript_id_to_exons[rec.transcript_id].append(rec)
         elif isinstance(rec, GtfCDS):
@@ -553,6 +566,7 @@ def _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_
         elif isinstance(rec, GtfStartCodon):
             transcript_id_to_start_codons[rec.transcript_id] = _five_prime_start_codon(
                 transcript_id_to_start_codons[rec.transcript_id], rec)
+    return transcripts_read
 
 
 def _five_prime_start_codon(kept, rec):
@@ -586,26 +600,35 @@ def _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_
                       transcript_id_to_cds_recs.get(transcript.transcript_id),
                       transcript_id_to_start_codons.get(transcript.transcript_id))
 
-def _check_transcripts_found(gtf_file, gtf_data, transcript_id_to_exons, include_features):
+def _check_transcripts_found(gtf_file, transcripts_read, transcript_id_to_exons, include_features):
     """A GTF holding exons but no transcript features parses to an empty GtfData, and
     everything downstream then behaves as though the annotation were empty."""
     wanted_transcripts = (include_features is None) or ('transcript' in include_features)
-    if wanted_transcripts and (len(transcript_id_to_exons) > 0) and (len(gtf_data.transcripts) == 0):
+    if wanted_transcripts and (len(transcript_id_to_exons) > 0) and (transcripts_read == 0):
         raise GtfParseError(f"{gtf_file}: {len(transcript_id_to_exons)} transcript ids appear on exon lines "
                             "but the file has no transcript feature lines; add them, or build the GTF with a "
                             "tool that writes them")
 
 
-def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: GtfAttrsSet = GtfAttrsSet.FLAIR):
+def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: GtfAttrsSet = GtfAttrsSet.FLAIR,
+                    regions=None):
     """parse a GTF file into a GtfData object.  Use attrs=GtfAttrsSet.FLAIR
-    to only parse the four attributes used by flair for faster loading."""
+    to only parse the four attributes used by flair for faster loading.  Given
+    regions, SeqRanges, only the transcripts overlapping one are kept, whole, and
+    other chromosomes' lines aren't parsed, much faster for a few loci."""
     # must save up exons and CDS, as sorting of GTF files is not required
     gtf_data = GtfData()
     transcript_id_to_exons = defaultdict(list)
     transcript_id_to_cds_recs = defaultdict(list)
     transcript_id_to_start_codons = defaultdict(lambda: None)
-    _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons, include_features, _ATTRS_SET_TO_PARSER[attrs])
-    _check_transcripts_found(gtf_file, gtf_data, transcript_id_to_exons, include_features)
+    regions_by_chrom = None
+    if regions is not None:
+        regions_by_chrom = defaultdict(list)
+        for region in regions:
+            regions_by_chrom[region.name].append(region)
+    transcripts_read = _load_gtf_records(gtf_file, gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons,
+                                         include_features, _ATTRS_SET_TO_PARSER[attrs], regions_by_chrom)
+    _check_transcripts_found(gtf_file, transcripts_read, transcript_id_to_exons, include_features)
     _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_recs, transcript_id_to_start_codons)
     return gtf_data
 

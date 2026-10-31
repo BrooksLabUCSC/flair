@@ -17,7 +17,7 @@ directly when:
     junction at an end of the read's alignment can be a read running unspliced
     past the transcript's splice site;
   * its ends cover the isoform's unique sequence, as count_sam_transcripts
-    requires of a subset of another isoform (firstpass.uniquebound.txt).
+    requires of a subset of another isoform (firstpass.uniquebound.tsv).
 
 A spliced read whose chain isn't a kept isoform's can't be assigned by the
 realignment, which needs a read to span all of an isoform's junctions, unless its

@@ -8,7 +8,7 @@ from flair.read_correction import _correct_and_group_read
 
 HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 10000}]})
 # an annotated transcript with exons 1000-1100 and 1300-1700: one junction, 1100-1300
-ANNOTS = SimpleNamespace(transcript_to_gene={}, transcript_to_exons={('TX', 'GENE'): (Exon(1000, 1100), Exon(1300, 1700))},
+ANNOTS = SimpleNamespace(transcript_to_gene={'TX': 'GENE'}, transcript_to_exons={('TX', 'GENE'): (Exon(1000, 1100), Exon(1300, 1700))},
                          gene_to_strand={'GENE': '+'})
 
 
@@ -32,10 +32,11 @@ class _Corrector:
         return self.supported
 
 
-def _correct(read, corrector):
+def _correct(read, corrector, annots=ANNOTS):
     sj_to_ends = {}
-    # matched to TX from its first junction to its first, 100 bases before it and 400 past
-    _correct_and_group_read(read, read_to_annot_transcript={'r': ('TX_GENE', 0, 100, 0, 400)}, annots=ANNOTS,
+    (tid, _), = annots.transcript_to_exons
+    # matched to the transcript from its first junction to its first, 100 bases before it and 400 past
+    _correct_and_group_read(read, read_to_annot_transcript={'r': (tid, 0, 100, 0, 400)}, annots=annots,
                             junction_corrector=corrector, sj_to_ends=sj_to_ends, genome=None,
                             keep_single_exon=True, trust_strand=False, check_motifs=False)
     ((chrom, juncs), isoform), = sj_to_ends.items()
@@ -52,6 +53,15 @@ def test_a_supported_intron_inside_an_annotated_exon_is_kept():
 
 def test_an_unsupported_extra_junction_takes_the_annotation():
     juncs, ends = _correct(_read('100M200N100M200N100M'), _Corrector(supported=False))
+    assert juncs == ((1100, 1300),) and ends == (1000, 1700)
+
+
+def test_ids_containing_underscores():
+    # an HLA allele GTF: the transcript and gene ids alike, each with a '_'
+    hla = 'HLA00934_E01010101'
+    annots = SimpleNamespace(transcript_to_gene={hla: hla}, transcript_to_exons={(hla, hla): ANNOTS.transcript_to_exons[('TX', 'GENE')]},
+                             gene_to_strand={hla: '+'})
+    juncs, ends = _correct(_read('100M200N100M200N100M'), _Corrector(supported=False), annots)
     assert juncs == ((1100, 1300),) and ends == (1000, 1700)
 
 
@@ -84,7 +94,7 @@ def _genome_read(cigar, mismatches=()):
 
 def _flags(read, annotated, all_flags=False):
     sj_to_ends = {}
-    _correct_and_group_read(read, read_to_annot_transcript={'r': ('TX_GENE', 0, 100, 0, 400)} if annotated else {},
+    _correct_and_group_read(read, read_to_annot_transcript={'r': ('TX', 0, 100, 0, 400)} if annotated else {},
                             annots=ANNOTS, junction_corrector=_Corrector(supported=True), sj_to_ends=sj_to_ends,
                             genome=GENOME, keep_single_exon=True, trust_strand=False, check_motifs=False)
     read_rec = next(iter(sj_to_ends.values())).reads[0]

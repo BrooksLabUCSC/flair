@@ -15,18 +15,19 @@ from collections import Counter
 from flair import FlairError, FlairInputDataError, resolve_deprecated_option
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
-from flair.annotation_precheck import reads_skipping_annotation_alignment
+from flair.annotation_alignment import (_exon_bounds, _write_reads_subset,
+                                        identify_good_match_to_annot, normalize_gene_terminal_exons,
+                                        transcriptome_align_and_count)
+from flair.count_sam_transcripts import MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.io_utils import check_genome_fasta, make_run_temp_dir, open_sorted_bed
 from flair.bed_to_gtf import bed_to_gtf
-from flair.isoform_data import (Exon, Isoform, ReadRec, get_bed_exons_from_exons,
-                                get_sequence_for_exons, convert_to_bed12, convert_to_flair_bed, make_big_bed)
+from flair.isoform_data import (Exon, Isoform, ReadRec, convert_to_bed12, convert_to_flair_bed, make_big_bed)
 from flair.gene_identification import build_genes, _gene_span
 from flair.read_processing import generate_genomic_alignment_read_to_clipping_file
 from flair.read_correction import filter_correct_group_reads
-from flair.count_sam_transcripts import run_count_sam_transcripts
 from flair.annotation_data import annot_data_from_gtf
 from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_productivity
@@ -39,7 +40,6 @@ from flair.output_compress import compressed_path, open_fasta_output
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
-from flair import thread_share
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -57,6 +57,13 @@ MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 # the reads of the isoforms it is a subset of
 FILTER_MODES = ('nosubset', 'comprehensive', 'ginormous')
 DEFAULT_FILTER = 'nosubset'
+# the --filter modes keeping every subset isoform, so a truncated read is aligned alike
+# to its own isoform and every isoform containing it, and the secondary alignments to
+# them minimap2 reports in the realignment, for the read's own to be among them: with
+# the default 4, of a KIF5B--RET fusion's 123 reads, mostly 5' truncated, 74 were
+# assigned among its 20 isoforms, and 117 with 50
+KEEP_SUBSET_FILTERS = ('comprehensive', 'ginormous')
+KEEP_SUBSET_SECONDARY_ALIGNMENTS = 50
 _SUPPORT_RATIO_FILTER_RE = re.compile(r'^(\d+(?:\.\d+)?)[xX]$')
 
 
@@ -307,50 +314,6 @@ SINGLE_EXON_EXPRESSION_RATIO = 1.2
 ####
 # transcriptome alignment
 ####
-def transcriptome_align_and_count(args, input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound, directRNA):  # noqa: C901 - FIXME: reduce complexity
-    # minimap (results are piped into count_sam_transcripts.py)
-    # '--split-prefix', 'minimap2transcriptomeindex', doesn't work with MD tag
-    if isinstance(input_reads, str):
-        input_reads = [input_reads]
-    mm2_cmd = ['minimap2', '-a', '-N', '4', '--MD'] + [align_ref_fasta] + input_reads
-
-    # FIXME add in step to filter out chimeric reads here
-    # FIXME really need to go in and check on how count_sam_transcripts is working
-    trimmedreads = clipping_file or None
-    generate_map = map_file or None
-    output_endpos = output_name.split('.counts.tsv')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
-    stringent = (not is_annot) and (not args.no_stringent)
-    check_splice = not args.no_check_splice
-    unique_bound_path = unique_bound if unique_bound and (not args.no_stringent or is_annot) else None
-
-    # minimap2 borrows threads left idle in the thread budget while it runs
-    with thread_share.program_threads() as mm2_threads:
-        run_count_sam_transcripts(
-            mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
-            output=output_name,
-            trimmedreads=trimmedreads,
-            generate_map=generate_map,
-            output_endpos=output_endpos,
-            stringent=stringent,
-            allow_UTR_indels=not directRNA,
-            check_splice=check_splice,
-            isoforms=ref_bed,
-            trust_ends=False,
-            unique_bound=unique_bound_path,
-            fusion_breakpoints=args.fusion_breakpoints,
-            # reads come from samtools fasta in their sequenced orientation, and
-            # transcript sequences are sense, so an antisense read aligns reversed
-            stranded=args.trust_strand,
-            # in the annotation pass, an alignment clipped where the read runs past the
-            # transcript's end would cut the read's corrected ends short; without its
-            # match the read keeps its own ends through junction correction.  The final
-            # realignment is to padded transcripts, and an alignment clipped past the
-            # read's genomic clipping is a read whose sequence the transcript doesn't
-            # have; it also gives the reported ends, which would stop at the
-            # transcript's end
-            no_extra_clipping=True)
-
-
 ##
 # Transcript end assignment
 ##
@@ -605,121 +568,12 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
     # a removed subset's boundaries are kept for promote_backup_subsets
     return False, unique_seq_bound
 
-####
-# terminal exon normalization
-####
-def _exon_bounds(exons):
-    return [(e.start, e.end) for e in exons]
-
-def max_terminal_exons_ends_from_annots(annots):
-    max_terminal_exons_ends = TerminalExonEnds()
-    for transcript_id, gene_id, strand in annots.transcripts:
-        exons = annots.transcript_to_exons[(transcript_id, gene_id)]
-        max_terminal_exons_ends.add_transcript(gene_id, strand, _exon_bounds(exons))
-    return max_terminal_exons_ends
-
 def max_terminal_exons_ends_from_iso_infos(iso_to_info):
     max_terminal_exons_ends = TerminalExonEnds()
     for iso_name in iso_to_info:
         isoform = iso_to_info[iso_name]
         max_terminal_exons_ends.add_transcript(isoform.gene_id, isoform.strand, _exon_bounds(isoform.exons))
     return max_terminal_exons_ends
-
-####
-# transcriptome reference
-####
-def normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons, chrom_len):
-    "updates terminal exons ends"
-    start, end = max_terminal_exons_ends.normalized_ends(gene_id, strand, _exon_bounds(exons), chrom_len)
-    exons[0] = Exon(start, exons[0].end)
-    exons[-1] = Exon(exons[-1].start, end)
-    return exons
-
-def generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, max_terminal_exons_ends,
-                                                transcript_to_new_exons, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh):
-    transcript_to_strand[(transcript_id, gene_id)] = strand
-    exons = list(annots.transcript_to_exons[(transcript_id, gene_id)])
-    assert isinstance(exons[0], Exon)  # FIXME tmp debugging
-    if len(exons) > 1:
-        normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons, genome.get_reference_length(chrom))
-        transcript_to_new_exons[(transcript_id, gene_id)] = tuple(exons)
-    exons = tuple(exons)
-    start, end = exons[0].start, exons[-1].end
-
-    # FIXME: duplicated code
-    exon_starts, exon_sizes = get_bed_exons_from_exons(exons, start)
-    # FIXME: duplicated use BED class,
-    bed_line = [chrom, start, end, transcript_id + '_' + gene_id, '.', strand, start, end, '0', len(exons),
-                ','.join([str(x) for x in exon_sizes]), ','.join([str(x) for x in exon_starts])]
-    trans_seq = get_sequence_for_exons(genome, chrom, strand, exons)
-    annot_bed_fh.write('\t'.join([str(x) for x in bed_line]) + '\n')
-    annot_fa_fh.write('>' + transcript_id + '_' + gene_id + '\n')
-    annot_fa_fh.write(''.join(trans_seq) + '\n')
-
-def generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh):
-    transcript_to_strand = {}
-    transcript_to_new_exons = {}
-    max_terminal_exons_ends = max_terminal_exons_ends_from_annots(annots)
-
-    for transcript_id, gene_id, strand in annots.transcripts:
-        generate_transcriptome_reference_transcript(strand, transcript_to_strand, transcript_id, gene_id, annots, max_terminal_exons_ends,
-                                                    transcript_to_new_exons, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
-    return transcript_to_strand, transcript_to_new_exons
-
-def generate_transcriptome_reference(temp_prefix, annots, chrom, genome):
-    with (open(temp_prefix + '.annotated_transcripts.bed', 'w') as annot_bed_fh,
-          open(temp_prefix + '.annotated_transcripts.fa', 'w') as annot_fa_fh,
-          open(temp_prefix + '.annotated_transcripts_uniquebound.tsv', 'w') as annot_uniqueseq_fh):
-        return generate_transcriptome_reference_guts(annots, chrom, genome, annot_bed_fh, annot_fa_fh, annot_uniqueseq_fh)
-
-
-def _write_reads_subset(in_fasta, out_fasta, skip):
-    "write the reads of a FASTA not named in skip; returns the number written"
-    nwritten, keep = 0, False
-    with open(in_fasta) as in_fh, open(out_fasta, 'w') as out_fh:
-        for line in in_fh:
-            if line.startswith('>'):
-                keep = line[1:].split()[0] not in skip
-                nwritten += keep
-            if keep:
-                out_fh.write(line)
-    return nwritten
-
-def identify_good_match_to_annot(args, temp_prefix, region, annots, genome, bam_file):
-    # FIXME: refactor
-    chrom = region.name
-    read_to_transcript = {}
-    if not args.no_align_to_annot and len(annots.transcripts) > 0:
-        # reads whose correction aligning to the annotation can't change go straight
-        # to junction correction
-        skip = reads_skipping_annotation_alignment(bam_file, region, annots, genome)
-        annot_reads = temp_prefix + '.annotreads.fasta'
-        nreads = _write_reads_subset(temp_prefix + '.reads.fasta', annot_reads, skip)
-        logging.info(f'aligning {nreads} reads to the annotated transcripts; {len(skip)} need no alignment')
-        if nreads == 0:
-            return read_to_transcript
-        # this part generates the fasta file for the annotation
-        transcript_to_strand, transcript_to_new_exons = \
-            generate_transcriptome_reference(temp_prefix, annots, chrom, genome)
-        # FIXME: make a TSV
-        clipping_file = temp_prefix + '.reads.genomicclipping.tsv'
-        transcriptome_align_and_count(args, annot_reads,
-                                      temp_prefix + '.annotated_transcripts.fa',
-                                      temp_prefix + '.annotated_transcripts.bed',
-                                      temp_prefix + '.matchannot.counts.tsv',
-                                      None, True,
-                                      clipping_file,
-                                      temp_prefix + '.annotated_transcripts_uniquebound.tsv',
-                                      args.directRNA)
-        for row in ReadEndsReader(temp_prefix + '.matchannot.ends.tsv'):
-            # an empty junction index means a single exon transcript, which has no
-            # splice junction to measure the read's ends from
-            if row.start_sj_index is not None and row.end_sj_index is not None:
-                read_to_transcript[row.read] = (row.transcript, row.start_sj_index,
-                                                row.start_sj_dist, row.end_sj_index,
-                                                row.end_sj_dist)
-    return read_to_transcript
-
 
 def rank_end_variants(isoforms):
     """Sort a junction chain's or single-exon cluster's end variants, best first;
@@ -1651,7 +1505,10 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
         # with filter_transcriptome_align
         if not args.no_align_to_annot:
             logging.info('aligning to transcriptome reference')
-        read_to_annot_transcript = identify_good_match_to_annot(args, partition.file_prefix, region, annots, genome, bam_file)
+        read_to_annot_transcript = identify_good_match_to_annot(
+            partition.file_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
+            directRNA=args.directRNA, check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
+            fusion_breakpoints=args.fusion_breakpoints)
 
         logging.info('correcting and grouping reads, filtering isoforms')
 
@@ -1705,14 +1562,19 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             num_realigned = _write_reads_subset(partition.output_path('reads.fasta'), partition.output_path('realign.reads.fasta'),
                                                 {read.name for read in se_reads} | direct.keys() | unassignable)
             if num_realigned > 0 and any(isoform.juncs != () for isoform in firstpass.values()):
-                transcriptome_align_and_count(args, partition.output_path('realign.reads.fasta'),
+                transcriptome_align_and_count(partition.output_path('realign.reads.fasta'),
                                               partition.output_path('firstpass.fa'),
                                               partition.output_path('firstpass.bed'),
                                               partition.output_path('isoform.counts.tsv'),
                                               read_map_file, False,  # say is not annot, requires stringent, returns different end values
                                               partition.output_path('reads.genomicclipping.tsv'),
                                               partition.output_path('firstpass.uniquebound.tsv'),
-                                              args.directRNA)
+                                              directRNA=args.directRNA, no_stringent=args.no_stringent,
+                                              check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
+                                              fusion_breakpoints=args.fusion_breakpoints,
+                                              secondary_alignments=(KEEP_SUBSET_SECONDARY_ALIGNMENTS
+                                                                    if args.filter in KEEP_SUBSET_FILTERS
+                                                                    else MINIMAP2_SECONDARY_ALIGNMENTS))
             else:
                 generate_empty_intermediate_files(partition.file_prefix, ['.isoform.counts.tsv', '.countsam.read.map.tsv', '.isoform.ends.tsv'])
             with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh:

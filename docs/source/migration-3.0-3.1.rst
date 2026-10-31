@@ -29,7 +29,9 @@ Commands that moved
 - ``flair correct`` and ``flair collapse`` are gone. ``flair transcriptome`` does both,
   starting from a genome aligned BAM, with the junction evidence given by ``--gtf``,
   ``--junction_bed`` or ``--junction_star``.
-- ``flair variants`` is now ``flair alleles``, with a different interface.
+- ``flair variants`` is gone.  Its allele calling from reads is replaced by haplotyping
+  with an upstream tool, such as WhatsHap, whose haplotagged reads the new ``flair
+  isoalleles`` takes; see :ref:`isoalleles-label`.
 - ``flair isoalleles`` and ``flair variantquant`` are new.
 
 flair align
@@ -108,14 +110,17 @@ flair quantify
 
 **Gone**
 
-- ``--output_bam``, ``--sample_id_only``, ``--temp_dir``
+- ``--output_bam``, ``--sample_id_only``
 - ``--quality``
 - ``--stringent`` and ``--check_splice``: both requirements now always apply to read
   assignment, so there is nothing to turn on
+- ``--with_gene``: the counts matrix always names the gene, in its own column
 
 **New**
 
 - ``--normalize_ends``
+- ``--temp_dir`` is the directory a run makes its own temporary directory in, by
+  default ``$TMPDIR``, and ``--keep_intermediate`` keeps it
 
 **Outputs**
 
@@ -231,44 +236,19 @@ flair diffsplice
 **Outputs**
 
 - Event names carry the strand, so ``inclusion_chr1:500-650`` is
-  ``inclusion_chr1:500-650(+)``, the form ``flair spliceevents`` uses. The same goes for
-  the ``coordinate`` column. Without it, an event called on both strands at one locus
+  ``inclusion_chr1:500-650(+)``, the strand written as ``flair spliceevents`` writes it,
+  though its coordinates differ: spliceevents names an event with one-based coordinates
+  in ascending order. The same goes for the ``coordinate`` column. Without it, an event called on both strands at one locus
   appeared twice under one name and DRIMSeq refused the file.
 - All four ``drimseq_<event>_A_v_B.tsv`` are always written. An event type that called
   nothing, or whose events DRIMSeq found nothing significant in, leaves a file of only
   its header.
 
-flair alleles
--------------
+flair variantquant
+------------------
 
-``flair variants`` under a new name and a new interface: it takes the tumor and normal
-BAMs and VCFs rather than a manifest and an isoform FASTA.
-
-**Renamed**
-
-- ``-o``, ``--output_prefix`` is ``-o``, ``--output``
-
-**Gone**
-
-- ``-m``, ``--manifest``
-- ``-i``, ``--isoforms``
-- ``-b``, ``--bedisoforms``
-
-**New**
-
-- ``--tumor_bam``, ``--normal_bam``, ``--vcf``, ``--normal_vcf``
-- ``--isoform_bed``, ``--frac_support``, ``--read_support``
-- ``--annotate_bams``, ``--generate_map``
-
-flair isoalleles and flair variantquant
----------------------------------------
-
-Both are new.
-
-- ``flair isoalleles`` builds allele labelled isoforms from the output of
-  ``flair alleles``; see :ref:`isoalleles-label`.
-- ``flair variantquant`` counts the reads carrying each variant, per sample; see
-  :ref:`variantquant-label`.
+New: ``flair variantquant`` counts the reads carrying each variant, per sample; see
+:ref:`variantquant-label`.
 
 Standalone programs
 -------------------
@@ -280,21 +260,23 @@ Standalone programs
 - ``predictProductivity``: ``flair transcriptome`` writes the productivity call in the
   isoform BED, and ``--predictCDS`` is gone with it
 - ``identify_annotated_gene``
-
-**New**
-
+- ``identify_gene_isoform``: it named isoforms transcript_gene for ``bed_to_gtf`` to
+  split, and FLAIR no longer splits names (:ref:`ids <ids-label>`)
 - ``annotate_aaseq_with_uniprot``
 
 **Changed**
 
 - ``bed_to_gtf``: ``--dontuseCDS`` is ``--no_cds``, ``--add_reference_transcript_id`` is
-  gone, and ``--is_flair_bed`` turns the extra BED columns into GTF attributes
+  gone, and ``--is_flair_bed`` turns the extra BED columns into GTF attributes.  A BED
+  not from FLAIR is refused unless given ``--force``, which uses each name as its gene
+  id too: names are no longer split into a transcript and gene at an underscore
+- ``plot_isoform_usage``: ``--vcf`` is gone
 - ``junctions_from_sam``, ``mark_intron_retention``, ``fasta_seq_lengths`` and
   ``diffsplice_fishers_exact`` take the same arguments as before, but now parse them
   with argparse, so each has ``--help``
 - ``flair_partition`` takes the ``--log-*`` options
 
-``gtf_to_bed``, ``identify_gene_isoform`` and ``plot_isoform_usage`` are unchanged.
+``gtf_to_bed`` is unchanged.
 ``diff_iso_usage`` takes the same arguments but writes three more columns, below.
 
 File formats

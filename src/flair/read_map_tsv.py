@@ -2,11 +2,10 @@
 
 Columns, in order:
 
-  name         the isoform, allele group or allele the reads support
+  name         the isoform the reads support
   reads        the read names, comma separated in the file and a list on the row
 
-Written by flair transcriptome, quantify, alleles and isoalleles, each with its
-own file name.
+Written by flair transcriptome and quantify, each with its own file name.
 """
 from flair.pycbio.tsv import TsvReader, TsvWriter
 from flair.tsv_column_types import commaListType

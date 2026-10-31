@@ -19,6 +19,7 @@ from flair.flair_bed import FlairBed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import make_big_bed
 from flair.fusion_table import write_fusion_table, write_table
+from flair.flair_transcriptome import DEFAULT_FILTER, parse_filter
 from flair.io_utils import check_genome_fasta
 from flair.output_compress import compressed_path, open_output, open_fasta_output
 
@@ -82,8 +83,14 @@ def add_subparser(subparsers):
                              'overlapping isoforms has a low MAPQ regardless (default: %(default)s)')
     parser.add_argument('--frac_support', type=float, default=0.05,
                         help='minimum fraction of a fusion\'s reads for a fusion isoform to be reported; '
-                             'a fusion with one dominant isoform hides its minor ones below this. Set to 0 '
-                             'for max recall (default: %(default)s)')
+                             'a fusion with one dominant isoform hides its minor ones below this.  For the most '
+                             'recall, give 0 with --filter comprehensive (default: %(default)s)')
+    parser.add_argument('--filter', default=DEFAULT_FILTER,
+                        help='which subset fusion isoforms, a contiguous part of another, to keep, as flair '
+                             'transcriptome\'s --filter: nosubset, comprehensive, ginormous or <N>X.  A fusion\'s '
+                             'reads are often 5\' truncated, and with nosubset its isoforms take only its few '
+                             'full-length reads: for the most recall, give comprehensive, every spliced subset '
+                             'isoform kept, with --frac_support 0 (default: %(default)s)')
     parser.add_argument('--no_transcriptome_alignment', action='store_true',
                         help='find fusions from the chimeric reads of the genome alignment only, without '
                              'aligning reads to annotated transcripts.  About half the time and a third of the '
@@ -97,6 +104,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=fusion_cmd)
 
 def fusion_cmd(args):
+    parse_filter(args.filter)
     check_genome_fasta(args.genome)
     for what, path in (('genome fasta', args.genome), ('GTF annotation', args.gtf)):
         if not os.path.exists(path):
@@ -109,8 +117,9 @@ def fusion_cmd(args):
                   # -1 turns the TSS distance check off
                   max_dist_to_tss=None if args.max_dist_to_tss == -1 else args.max_dist_to_tss,
                   min_dist_between_breakpoints=args.min_dist_between_breakpoints,
-                  frac_support=args.frac_support, quality=args.quality, max_partners=args.max_partners,
-                  transcriptome_alignment=not args.no_transcriptome_alignment, keep_intermediate=args.keep_intermediate)
+                  frac_support=args.frac_support, subset_filter=args.filter, quality=args.quality,
+                  max_partners=args.max_partners, transcriptome_alignment=not args.no_transcriptome_alignment,
+                  keep_intermediate=args.keep_intermediate)
 
 def report_nofusions(outputprefix):
     logging.info('no fusions detected. Exiting')
@@ -318,7 +327,8 @@ def read_annotation(gtf_data):
 
 
 def write_prelim_fusions(combchim, bedfile):
-    "write the preliminary fusions' loci to bedfile, and return their reads"
+    """write the preliminary fusions' loci to bedfile, their reads the score, capped at 1000 as
+    a BED score is, and the last column, and return their reads"""
     fusionreads = set()
     with open(bedfile, 'w') as bedout:
         for f in combchim:
@@ -330,7 +340,8 @@ def write_prelim_fusions(combchim, bedfile):
                 positions = sorted(combchim[f][g][1:])
                 Bed(combchim[f][g][0], positions[0], positions[1],
                     name=g + '__' + '--'.join(genes), score=len(combchim[f]['reads']), strand=strand,
-                    extraCols=[startdiststr]).write(bedout)
+                    # the reads again, as a BED score is capped at 1000
+                    extraCols=[startdiststr, str(len(combchim[f]['reads']))]).write(bedout)
     return fusionreads
 
 
@@ -421,7 +432,7 @@ def write_synthetic_junctions(output):
             out.write('\t'.join(line) + '\n')
 
 
-def run_synthetic_transcriptome(output, sample_name, threads, frac_support):
+def run_synthetic_transcriptome(output, sample_name, threads, frac_support, subset_filter=DEFAULT_FILTER):
     "flair transcriptome on the reads aligned to the synthetic fusion genome"
     # NOTE: only the chimeric reads supporting a fusion (fusionreads above) are
     # aligned to the synthetic genome, and this transcriptome call would throw out
@@ -436,6 +447,8 @@ def run_synthetic_transcriptome(output, sample_name, threads, frac_support):
                              '--generate_map',
                              '--quality', '0',
                              '--sjc_support', '2',
+                             # comprehensive keeps the subset isoforms of a fusion's often 5' truncated reads
+                             '--filter', subset_filter,
                              '--end_window', '300',
                              '--frac_support', str(frac_support),
                              # '--no_check_splice',
@@ -517,7 +530,7 @@ def remove_intermediates(output):
 
 def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threads,
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
-                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, quality=10,
+                  min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, subset_filter=DEFAULT_FILTER, quality=10,
                   transcriptome_alignment=True, max_partners=1000):
     # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
     # are ordered 5' to 3' by their position in the read
@@ -540,7 +553,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     fusionreads = write_prelim_fusions(prelim_fusions, output + '.prelimfusions.bed')
     if os.path.getsize(output + '.prelimfusions.bed') > 0:
         find_fusion_isoforms(fusionreads, gtf, gtf_data, genome, output, sample_name, threads, min_fragment_size,
-                             min_dist_between_breakpoints, frac_support, transcriptome_alignment, annot.genetoname)
+                             min_dist_between_breakpoints, frac_support, subset_filter, transcriptome_alignment,
+                             annot.genetoname)
     else:
         report_nofusions(output)
     if not keep_intermediate:
@@ -548,7 +562,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
 
 
 def find_fusion_isoforms(fusionreads, gtf, gtf_data, genome, output, sample_name, threads, min_fragment_size,
-                         min_dist_between_breakpoints, frac_support, transcriptome_alignment, genetoname):
+                         min_dist_between_breakpoints, frac_support, subset_filter, transcriptome_alignment, genetoname):
     "the fusion isoforms of the preliminary fusions' reads, from the synthetic fusion genome"
     logging.info('obtaining fusion reads')
     freadsname = output + '.fusionreads.prelim.fa'
@@ -562,5 +576,5 @@ def find_fusion_isoforms(fusionreads, gtf, gtf_data, genome, output, sample_name
         return
     align_to_synthetic_genome(output, freadsname, min_fragment_size, threads)
     write_synthetic_junctions(output)
-    run_synthetic_transcriptome(output, sample_name, threads, frac_support)
+    run_synthetic_transcriptome(output, sample_name, threads, frac_support, subset_filter)
     write_final_fusions(output, genome, min_dist_between_breakpoints, genetoname, gtf_data)

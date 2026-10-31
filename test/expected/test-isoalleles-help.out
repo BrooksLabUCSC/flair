@@ -1,0 +1,98 @@
+usage: flair isoalleles [-h] --isoform_bed ISOFORM_BED -g GENOME --bam BAM
+                        --read_map READ_MAP --phased_vcf PHASED_VCF
+                        [--germline_vcf GERMLINE_VCF]
+                        [--sample_name SAMPLE_NAME] [--normal_bam NORMAL_BAM]
+                        [--normal_read_map NORMAL_READ_MAP]
+                        [--normal_name NORMAL_NAME]
+                        [--tumor_vcf TUMOR_VCF | --somatic_vcf SOMATIC_VCF | --variant VARIANT]
+                        [--min_normal_depth MIN_NORMAL_DEPTH]
+                        [--carrier_min CARRIER_MIN] [--min_tagged MIN_TAGGED]
+                        [-o OUTPUT] [-t THREADS] [--generate_map]
+                        [--label_bams] [--temp_dir TEMP_DIR]
+
+Each isoform's reads by haplotype, and in a tumor and normal pair by somatic
+variants, with the sequence and protein of each, from reads haplotagged by a
+phasing tool (such as WhatsHap) and the read map of flair quantify. One
+sample: --bam, --read_map and --phased_vcf. A pair adds --normal_bam and
+--normal_read_map, --phased_vcf being the normal's, and one way of choosing
+the somatic variants: --tumor_vcf, --somatic_vcf or --variant
+
+options:
+  -h, --help            show this help message and exit
+  --germline_vcf GERMLINE_VCF
+                        the germline variant calls, of the sample, or in a
+                        pair the normal, when --phased_vcf holds only some of
+                        them, as when only hets were phased: every passing
+                        call is a germline variant, phased by --phased_vcf.
+                        bgzipped and indexed (default: --phased_vcf)
+  --sample_name SAMPLE_NAME
+                        the name of --bam's sample in the outputs (default:
+                        its file name)
+  --carrier_min CARRIER_MIN
+                        an unphased germline het is put on the haplotype
+                        holding at least this share of an isoform's tagged
+                        reads carrying it (default: 0.9)
+  --min_tagged MIN_TAGGED
+                        the tagged reads carrying an unphased germline het
+                        needed to place it (default: 10)
+  -o OUTPUT, --output OUTPUT
+                        output file name base (default: flair)
+  -t THREADS, --threads THREADS
+                        batches of genes processed at once (default: 4)
+  --generate_map        write each sample's reads by isoform and group,
+                        <output>.isoalleles.<sample>.read.map.tsv
+  --label_bams          write each sample's assigned reads with their isoform
+                        and group in the IA tag,
+                        <output>.isoalleles.<sample>.bam (in IGV, group by tag
+                        IA)
+  --temp_dir TEMP_DIR   directory for temporary files, in a directory of the
+                        run's own (default: $TMPDIR)
+
+required named arguments:
+  --isoform_bed ISOFORM_BED
+                        the isoforms, the flair isoform bed the read maps were
+                        made with by flair quantify; its CDS gives each
+                        isoform's start codon. Fusion isoforms are left out
+  -g GENOME, --genome GENOME
+                        FASTA of the genome, indexed with samtools faidx
+  --bam BAM             the sample's (in a pair, the tumor's) reads aligned to
+                        the genome, sorted and indexed, haplotagged (HP and PS
+                        tags) by the phasing of --phased_vcf
+  --read_map READ_MAP   the read map flair quantify --generate_map wrote for
+                        --bam's sample, <output>.<sample>.read.map.tsv, plain,
+                        bgzip or gzip
+  --phased_vcf PHASED_VCF
+                        the germline variants, phased: the VCF the phasing
+                        tool wrote and haplotagged --bam with, the sample's
+                        own, or in a pair the normal's. bgzipped and indexed
+
+tumor and normal pair:
+  --normal_bam NORMAL_BAM
+                        the normal's reads, haplotagged by the same phasing as
+                        --bam; makes the run a pair, whose tumor reads, of
+                        --bam, are grouped by somatic variants too
+  --normal_read_map NORMAL_READ_MAP
+                        the read map of --normal_bam's sample, from the same
+                        flair quantify
+  --normal_name NORMAL_NAME
+                        the name of the normal in the outputs (default: its
+                        file name)
+  --tumor_vcf TUMOR_VCF
+                        the tumor's variant calls: its passing calls that
+                        --phased_vcf, the normal's, does not call are somatic
+                        if at least --min_normal_depth normal reads inform the
+                        site, and are otherwise left out, in excluded.tsv.
+                        bgzipped and indexed
+  --somatic_vcf SOMATIC_VCF
+                        the somatic variants, every passing call of a somatic
+                        caller's VCF (such as ClairS or DeepSomatic), as it
+                        calls them. bgzipped and indexed
+  --variant VARIANT     a somatic variant, CHROM:POS:REF>ALT, or CHROM:POS for
+                        every alt the VCFs have there; may be given more than
+                        once. Only the variants given are somatic, whatever
+                        the VCFs call, as for a known driver the normal calls
+                        because tumor cells are in it
+  --min_normal_depth MIN_NORMAL_DEPTH
+                        with --tumor_vcf, the normal reads informing a site
+                        for a tumor-only call there to be somatic (default:
+                        10)

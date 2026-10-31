@@ -1,0 +1,9 @@
+var_name	is_var	varpos	ref	alt	strand	phase_set	haplotype	gene	basic-reads
+chr12:25205716:A>G	yes	chr12:25205716	A	G	.	.	.		0
+chr12:25205716:A>G	no	chr12:25205716	A	G	.	.	.		159
+chr12:25205716:A>T	yes	chr12:25205716	A	T	.	.	.		72
+chr12:25205716:A>T	no	chr12:25205716	A	T	.	.	.		87
+chr12:25205894:T>G	yes	chr12:25205894	T	G	.	.	.		74
+chr12:25205894:T>G	no	chr12:25205894	T	G	.	.	.		86
+chr12:25206009:T>C	yes	chr12:25206009	T	C	.	.	.		74
+chr12:25206009:T>C	no	chr12:25206009	T	C	.	.	.		87

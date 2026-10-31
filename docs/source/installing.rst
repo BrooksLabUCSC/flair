@@ -67,11 +67,20 @@ Pip install
 ~~~~~~~~~~~
 
 To install with pip, you must first install these packages. This can be done
-with Conda, yes system package manager or by downloading and compiling,
+with Conda, your system package manager or by downloading and compiling,
 
 - `bedtools <https://github.com/arq5x/bedtools2/>`_
 - `samtools <https://github.com/samtools/samtools/releases>`_
 - `minimap2 <https://github.com/lh3/minimap2>`_
+- bedToBigBed, from the `UCSC tools <https://hgdownload.soe.ucsc.edu/admin/exe/>`_,
+  which writes the bigBed of flair transcriptome, combine and fusion
+- `intron-prospector <https://github.com/diekhans/intron-prospector>`_, for flair
+  fusion and for junctions from long reads
+
+The conda environment also has `longshot <https://github.com/pjedge/longshot>`_ and
+`WhatsHap <https://whatshap.readthedocs.io>`_, which call and phase the variants of
+FLAIR's tests.  FLAIR doesn't run them itself, but WhatsHap, or another phasing
+tool, prepares the haplotagged reads that flair isoalleles takes.
 
 .. code:: sh
 

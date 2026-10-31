@@ -75,7 +75,7 @@ def get_bed_exons_from_exons(exons, start):
 
 
 # the standard genetic code; '_' is a stop.  Two copies of this table were in the
-# tree, in flair_isoalleles and predictProductivity, and they were identical
+# tree, in the former flair_isoalleles and predictProductivity, and they were identical
 CODON_TABLE = {
     'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
     'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',

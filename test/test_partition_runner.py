@@ -169,3 +169,16 @@ def test_partition_no_junction_corrector(tmp_path):
     runner = PartitionRunner(regions, str(tmp_path))
     part = list(runner)[0]
     assert part.load_junction_corrector() is None
+
+
+def _record_item(*, partition, gtf_data, junction_corrector, item):
+    with open(partition.output_path(f'{item}.done'), 'w'):
+        pass
+
+
+def test_run_with_items_runs_once_per_partition_and_item(tmp_path):
+    # in a pool, as spliceevents runs its samples
+    runner = PartitionRunner([CHR12_REGION, CHR20_REGION], str(tmp_path), threads=2)
+    runner.run(_record_item, items=['s1', 's2', 's3'])
+    assert sorted(os.path.basename(f) for p in runner for f in os.listdir(p.temp_dir)) == \
+        sorted(f'{p.region.name}-{p.region.start}-{p.region.end}.{s}.done' for p in runner for s in ('s1', 's2', 's3'))

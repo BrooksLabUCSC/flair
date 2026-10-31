@@ -16,7 +16,7 @@
 
 .. option:: --force
 
-   do not split the isoform name by underscore into isoform and gene ids
+   convert a bed of no gene ids, one not from flair, using each isoform name as both its transcript and gene id
 
 .. option:: --no_cds
 

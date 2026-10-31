@@ -50,6 +50,9 @@ class AnnotData(object):
         # map of gene_id -> strand
         self.gene_to_strand = {}
 
+        # map of gene_id -> gene_name, of the genes the annotation names
+        self.gene_to_name = {}
+
         # map of gene_id -> tuple of sorted exon coordinate tuples
         # union of all exons across all transcripts in the gene
         self.gene_to_exons = {}
@@ -149,6 +152,8 @@ def _process_transcript(annots, region, region_map, trans):
     sorted_exons = sorted(exons)
     t_start = sorted_exons[0].start
     t_end = sorted_exons[-1].end
+    if trans.gene_name:
+        annots.gene_to_name[trans.gene_id] = trans.gene_name
     _save_transcript_annot(trans.transcript_id, trans.gene_id, region,
                            region_map, t_start, t_end, trans.strand, sorted_exons,
                            trans.attrs['tag'], trans.start_codon)
