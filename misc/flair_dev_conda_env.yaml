@@ -11,6 +11,9 @@ dependencies:
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1
+  # mappy and ncls publish no linux wheel above python 3.12, so pip builds them
+  # from source; mappy needs the zlib headers, which libzlib alone does not carry
+  - zlib
   - longshot >=1.0
   - poetry
   - sphinx

@@ -13,6 +13,9 @@
   * dropped the unused setuptools dependency, which was the last one carrying
     an open advisory (GHSA-h35f-9h28-mq5c)
   * updated certifi, pillow, urllib3 and httpx2 in the lock file
+  * the conda environments carry `zlib`.  mappy and ncls publish no linux wheel
+    above python 3.12, so pip builds them from source, and mappy needs the zlib
+    headers, which the `libzlib` that came in by itself does not have
 * FLAIR fusion
   * keep the 500 base gene padding inside the sequence.  A gene starting within
     500 bases of a sequence start failed with `ValueError: start out of range`,
