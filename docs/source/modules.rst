@@ -797,6 +797,7 @@ phase variants itself.
 
 2. Phase the germline variants and haplotag the reads, as with WhatsHap, giving a
    phased VCF and a BAM whose reads carry HP (haplotype) and PS (phase set) tags.
+   WhatsHap is not in the conda environment; see :ref:`whatshap-install-label`.
    In a pair, phase the normal's germline variants and haplotag both the tumor and the
    normal reads with them, so H1 and H2 mean the same in both::
 

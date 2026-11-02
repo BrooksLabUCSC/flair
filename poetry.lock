@@ -2316,5 +2316,5 @@ dev = ["bump-my-version", "flake8", "pytest", "pytest-xdist", "sphinx", "sphinx-
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.12,<3.16"
-content-hash = "cf459efeabeb89ea06476162d165ca38e4a222c8447071d409d33c5e1ff672ef"
+python-versions = ">=3.12,<3.15"
+content-hash = "34eaaf02940a361effd8af15960b06cfb5fa7ab85ad5e7e81439444cdd91f75c"

@@ -1,0 +1,51 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##source=Longshot v0.4.3
+##contig=<ID=chr12,length=133275309>
+##contig=<ID=chr17,length=83257441>
+##contig=<ID=chr20,length=64444167>
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth of reads passing MAPQ filter">
+##INFO=<ID=AM,Number=1,Type=Integer,Description="Number of Ambiguous Allele Observations">
+##INFO=<ID=MC,Number=1,Type=Integer,Description="Minimum Error Correction (MEC) for this single variant">
+##INFO=<ID=MF,Number=1,Type=Float,Description="Minimum Error Correction (MEC) Fraction for this variant.">
+##INFO=<ID=MB,Number=1,Type=Float,Description="Minimum Error Correction (MEC) Fraction for this variant's haplotype block.">
+##INFO=<ID=AQ,Number=1,Type=Float,Description="Mean Allele Quality value (PHRED-scaled).">
+##INFO=<ID=GM,Number=1,Type=Integer,Description="Phased genotype matches unphased genotype (boolean).">
+##INFO=<ID=DA,Number=1,Type=Integer,Description="Total Depth of reads at any MAPQ (but passing samtools filter 0xF00).">
+##INFO=<ID=MQ10,Number=1,Type=Float,Description="Fraction of reads (passing 0xF00) with MAPQ>=10.">
+##INFO=<ID=MQ20,Number=1,Type=Float,Description="Fraction of reads (passing 0xF00) with MAPQ>=20.">
+##INFO=<ID=MQ30,Number=1,Type=Float,Description="Fraction of reads (passing 0xF00) with MAPQ>=30.">
+##INFO=<ID=MQ40,Number=1,Type=Float,Description="Fraction of reads (passing 0xF00) with MAPQ>=40.">
+##INFO=<ID=MQ50,Number=1,Type=Float,Description="Fraction of reads (passing 0xF00) with MAPQ>=50.">
+##INFO=<ID=PH,Number=G,Type=Float,Description="PHRED-scaled Probabilities of Phased Genotypes">
+##INFO=<ID=SC,Number=1,Type=String,Description="Reference Sequence in 21-bp window around variant.">
+##FILTER=<ID=dn,Description="In a dense cluster of variants">
+##FILTER=<ID=dp,Description="Exceeds maximum depth">
+##FILTER=<ID=sb,Description="Allelic strand bias">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=PS,Number=1,Type=Integer,Description="Phase Set">
+##FORMAT=<ID=UG,Number=1,Type=String,Description="Unphased Genotype (pre-haplotype-assembly)">
+##FORMAT=<ID=UQ,Number=1,Type=Float,Description="Unphased Genotype Quality (pre-haplotype-assembly)">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Observed allele depths">
+##commandline="(whatshap 2.8) phase --ignore-read-groups --reference tmp-input/genome.fa -o input/basic-reads.phased.vcf output/basic-reads.longshot.vcf output/basic-reads.bam"
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE
+chr12	25205716	.	A	T	500	PASS	DP=162;AM=3;MC=0;MF=0;MB=0;AQ=22.61;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=CCCTCAACATATCTGCAGATA	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:162:87,72:25205716:0/1:147.24
+chr12	25205894	.	T	G	500	PASS	DP=162;AM=2;MC=0;MF=0;MB=0;AQ=22.51;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=AGCTATTCAGTTTCTCAATGC	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:162:86,74:25205716:0/1:147.24
+chr12	25206009	.	T	C	500	PASS	DP=161;AM=0;MC=0;MF=0;MB=0;AQ=31.89;GM=1;DA=161;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=TATCAAGAAATCATTACTTTT	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:161:87,74:25205716:0/1:147.24
+chr12	25206035	.	T	G	500	PASS	DP=161;AM=1;MC=0;MF=0;MB=0;AQ=24.18;GM=1;DA=161;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=AATGGAAATCTTCAGATAGTT	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:161:86,74:25205716:0/1:147.24
+chr12	25206394	.	A	T	500	PASS	DP=159;AM=18;MC=0;MF=0;MB=0;AQ=12.53;GM=1;DA=159;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=AGCTTTTTTTAAAAAAACTTC	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:159:79,61:25205716:0/1:147.24
+chr12	25206418	.	G	A	500	PASS	DP=159;AM=1;MC=0;MF=0;MB=0;AQ=24.2;GM=1;DA=159;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=AAGGATTTTTGTCTTTAAGGC	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:159:85,72:25205716:0/1:147.24
+chr12	25206907	.	T	C	500	PASS	DP=155;AM=4;MC=0;MF=0;MB=0;AQ=20.65;GM=1;DA=155;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=GTAATTGTCCTAAAAGAATCA	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:155:82,68:25205716:0/1:147.24
+chr12	25207204	.	T	C	500	PASS	DP=166;AM=0;MC=0;MF=0;MB=0;AQ=31.89;GM=1;DA=166;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,500,-0;SC=GTGCCTTGTGTGGTGACTGGC	GT:GQ:DP:AD:PS:UG:UQ	1/1:500:166:0,166:.:1/1:500
+chr12	25208140	.	G	A	500	PASS	DP=162;AM=1;MC=0;MF=0;MB=0;AQ=24.05;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,-0,500;SC=GTATCCTTATGTAAATGGAAT	GT:GQ:DP:AD:PS:UG:UQ	1|0:500:162:77,84:25205716:0/1:147.24
+chr12	25208157	.	T	C	500	PASS	DP=162;AM=0;MC=0;MF=0;MB=0;AQ=31.94;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,500,-0;SC=GAATATAAATTACATAGTTGT	GT:GQ:DP:AD:PS:UG:UQ	1/1:500:162:0,162:.:1/1:500
+chr12	25208208	.	A	G	500	PASS	DP=162;AM=1;MC=0;MF=0;MB=0;AQ=24.31;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,-0,500;SC=TTCTTTTAACATGAAGAAATG	GT:GQ:DP:AD:PS:UG:UQ	1|0:500:162:77,84:25205716:0/1:147.24
+chr12	25208712	.	T	C	500	PASS	DP=165;AM=1;MC=0;MF=0;MB=0;AQ=24.37;GM=1;DA=165;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,-0,500;SC=GACTAACCAATGCATGACAAC	GT:GQ:DP:AD:PS:UG:UQ	1|0:500:165:79,85:25205716:0/1:147.24
+chr12	25209283	.	A	G	500	PASS	DP=160;AM=1;MC=0;MF=0;MB=0;AQ=24.81;GM=1;DA=160;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=CTTTACATTCATCAGGGATGA	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:160:81,78:25205716:0/1:147.24
+chr12	25209531	.	G	A	500	PASS	DP=161;AM=0;MC=0;MF=0;MB=0;AQ=24.12;GM=1;DA=161;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,500,-0;SC=TGCACCAAAAGCCCCAAGACA	GT:GQ:DP:AD:PS:UG:UQ	1/1:500:161:0,161:.:1/1:500
+chr12	25209618	.	A	C	500	PASS	DP=160;AM=0;MC=0;MF=0;MB=0;AQ=32.03;GM=1;DA=160;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=ACTGGCACTTAGAGGAAAAAA	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:160:84,76:25205716:0/1:147.24
+chr12	25209843	.	A	G	500	PASS	DP=158;AM=0;MC=0;MF=0;MB=0;AQ=31.98;GM=1;DA=158;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,500,-0,500;SC=TCTTTTTACCATCTTTGCTCA	GT:GQ:DP:AD:PS:UG:UQ	1|0:500:158:75,83:25205716:0/1:147.24
+chr17	64500016	.	C	T	500	PASS	DP=736;AM=1;MC=0;MF=0;MB=0;AQ=29.94;GM=1;DA=736;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,258.35,500;SC=TACCATTGTGCATATTTGGAA	GT:GQ:DP:AD:PS:UG:UQ	1|0:500:736:378,356:64500016:0/1:500
+chr17	64506317	.	A	G	217	PASS	DP=19;AM=0;MC=0;MF=0;MB=0;AQ=31.78;GM=1;DA=19;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=216.59,0,258.36,32.03;SC=AGCCGCTTTTATAGTCTGGAC	GT:GQ:DP:AD:PS:UG:UQ	1|0:33:19:1,8:64500016:0/1:8.63

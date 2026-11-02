@@ -7,14 +7,17 @@ channels:
 # python 3.13 and later needed for the --help test comparisons, which are
 # skipped on 3.12: argparse changed its help layout in 3.13
 dependencies:
-  - python >=3.12,<3.16
+  - python >=3.12,<3.15
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1
-  - pysam >=0.23.0,<0.24.0
-  # variant calling and phasing of the variantquant and isoalleles tests
+  - pysam >=0.24.1,<0.25.0
+  # longshot calls the variants of the variantquant tests.  whatshap is not here:
+  # bioconda builds it for python 3.12 alone, which would hold every environment
+  # built from this file at 3.12, and its isoalleles output is committed under
+  # test/input.  `make -C test regen-isoalleles-inputs' needs it, so install it
+  # separately, or use an environment built from misc/flair_conda_env.yaml.
   - longshot >=1.0
-  - whatshap >=2.8
   - intron-prospector >=1.5
   - ucsc-bedtobigbed
   - ucsc-hubcheck

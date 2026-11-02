@@ -20,9 +20,8 @@ variable in quality for flair transcriptome
 
 options:
   -h, --help            show this help message and exit
-  -o OUTPUT, --output OUTPUT
-                        output file name base (default: flair)
-  -t THREADS, --threads THREADS
+  -o, --output OUTPUT   output file name base (default: flair)
+  -t, --threads THREADS
                         number of threads to run with (default: 12)
   --annot_basic ANNOT_BASIC
                         GTF annotation file of full-length transcripts, such
@@ -99,11 +98,10 @@ options:
   --keep_intermediate   keep intermediate and temporary files for debugging
 
 required named arguments:
-  -m MANIFEST, --manifest MANIFEST
+  -m, --manifest MANIFEST
                         tab-separated manifest of sample name and path to its
                         sorted and indexed bam file aligned to the genome, a
                         line per sample
-  -g GENOME, --genome GENOME
-                        FASTA of reference genome, can be minimap2 indexed
-  -f GTF, --gtf GTF     GTF annotation file, used for correcting reads and
+  -g, --genome GENOME   FASTA of reference genome, can be minimap2 indexed
+  -f, --gtf GTF         GTF annotation file, used for correcting reads and
                         assigning them to genes

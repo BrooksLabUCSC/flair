@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""
+Copy a BAM, adding the HP and PS tags of a `whatshap haplotag --output-haplotag-list'
+table.  This stands in for running whatshap over the alignments, so that the isoalleles
+tests need only the committed table; bioconda builds whatshap for python 3.12 alone,
+and the tests run on every version FLAIR supports.
+
+whatshap also writes a PC tag, which the table does not carry and FLAIR does not read.
+"""
+import argparse
+import pysam
+
+HEADER = ['#readname', 'haplotype', 'phaseset', 'chromosome']
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('in_bam', help='alignments to tag')
+    parser.add_argument('haplotag_list', help='whatshap haplotag list TSV')
+    parser.add_argument('out_bam', help='BAM to write')
+    return parser.parse_args()
+
+
+def parse_row(haplotag_list, line_num, line):
+    "a tagged read's name, haplotype number and phase set, or None if whatshap left it untagged"
+    row = line.split('\t')
+    if len(row) != len(HEADER):
+        raise Exception(f"{haplotag_list}:{line_num}: expected {len(HEADER)} columns, got {len(row)}: "
+                        f"is this a `whatshap haplotag --output-haplotag-list' table?")
+    name, haplotype, phase_set = row[0], row[1], row[2]
+    if haplotype == 'none':
+        return None
+    if not haplotype.startswith('H'):
+        raise Exception(f"{haplotag_list}:{line_num}: expected haplotype H1, H2, ... or none, got '{haplotype}'")
+    return (name, int(haplotype[1:]), int(phase_set))
+
+
+def read_haplotags(haplotag_list):
+    "map of read name to (HP, PS), skipping the reads whatshap could not tag"
+    with open(haplotag_list) as fh:
+        lines = fh.read().splitlines()
+    if not lines or lines[0].split('\t') != HEADER:
+        raise Exception(f"{haplotag_list}: expected the header {'/'.join(HEADER)}")
+    rows = (parse_row(haplotag_list, num, line) for num, line in enumerate(lines[1:], start=2))
+    return {row[0]: row[1:] for row in rows if row is not None}
+
+
+def tag_alignment(aln, haplotags):
+    haplotag = haplotags.get(aln.query_name)
+    if haplotag is not None:
+        aln.set_tag('HP', haplotag[0], value_type='i')
+        aln.set_tag('PS', haplotag[1], value_type='i')
+
+
+def tag_bam(in_bam, haplotags, out_bam):
+    with pysam.AlignmentFile(in_bam) as in_fh:
+        with pysam.AlignmentFile(out_bam, 'wb', template=in_fh) as out_fh:
+            for aln in in_fh.fetch(until_eof=True):
+                tag_alignment(aln, haplotags)
+                out_fh.write(aln)
+
+
+def main():
+    args = parse_args()
+    tag_bam(args.in_bam, read_haplotags(args.haplotag_list), args.out_bam)
+
+
+main()

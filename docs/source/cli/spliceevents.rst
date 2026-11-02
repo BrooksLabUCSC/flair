@@ -22,11 +22,11 @@
 
 .. rubric:: options
 
-.. option:: -o OUTPUT, --output OUTPUT
+.. option:: -o, --output OUTPUT
 
    output file name base (default: flair)
 
-.. option:: -t THREADS, --threads THREADS
+.. option:: -t, --threads THREADS
 
    number of threads to run with (default: 12)
 
@@ -104,15 +104,15 @@
 
 .. rubric:: required named arguments
 
-.. option:: -m MANIFEST, --manifest MANIFEST
+.. option:: -m, --manifest MANIFEST
 
    tab-separated manifest of sample name and path to its sorted and indexed bam file aligned to the genome, a line per sample
 
-.. option:: -g GENOME, --genome GENOME
+.. option:: -g, --genome GENOME
 
    FASTA of reference genome, can be minimap2 indexed
 
-.. option:: -f GTF, --gtf GTF
+.. option:: -f, --gtf GTF
 
    GTF annotation file, used for correcting reads and assigning them to genes
 

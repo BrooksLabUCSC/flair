@@ -60,12 +60,12 @@ test-env-only:
 # shared, so they are built before any version starts.
 #
 #   make test-pyversions            every version requires-python spans
-#   make test-pyversion-3.15        one version
+#   make test-pyversion-3.14        one version
 #
 # To run the tests of the active environment in a directory of its own, without
 # building an environment, pass the suffix to the ordinary targets:
 #
-#   make test outsuffix=-py3.15
+#   make test outsuffix=-py3.14
 ##
 PYVERSIONS = $(shell ./dev/bin/flair-test-python-versions --list)
 

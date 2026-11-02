@@ -27,7 +27,7 @@
 
    vcf file, plain or gzipped, of the sites to count, for all samples; only its first five columns are needed. Its records must be of the genome's strand, their REF the genome's base, as a minus strand A-to-I edit is T>C, not A>G: --genome checks it. Only SNVs of records whose FILTER is PASS or . are counted, or one of --keep_flags
 
-.. option:: -g GENOME, --genome GENOME
+.. option:: -g, --genome GENOME
 
    FastA of the genome the reads are aligned to, with its .fai index: each site's REF is checked to be the genome's base, and a site whose REF is not, as of a record of the transcript's strand or another genome, is left out with a warning, rather than every read of the genome's base counted as showing its alt
 
@@ -47,7 +47,7 @@
 
    bed file of isoforms whose exons name the sites of a vcf by their genes: a site is of the genes of the exons over it. An isoform's gene is its 13th column, as of a flair isoform bed, or, for a BED12 or an isoform with it empty, that of the --gtf gene its exons overlap most, else it names none. Without it or --gtf the gene column is empty
 
-.. option:: -f GTF, --gtf GTF
+.. option:: -f, --gtf GTF
 
    GTF annotation file, plain or gzipped, whose exons name the sites of a vcf by their gene_ids, or, with --isoform_bed, the genes of its isoforms without them
 
@@ -71,7 +71,7 @@
 
    write the alleles of every site with --min_coverage, whether or not any read shows them
 
-.. option:: -t THREADS, --threads THREADS
+.. option:: -t, --threads THREADS
 
    number of samples to read at once, each in its own process (default: 4)
 

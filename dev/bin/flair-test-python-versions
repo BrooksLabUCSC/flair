@@ -16,6 +16,8 @@ are printed instead.  A version that fails is either code that needs fixing or a
 version to drop from requires-python and the conda environment files.
 """
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -131,15 +133,28 @@ def reuse_env(args, log_fh):
                         f"`{env_name(args)}'; drop --reuse-env to create it")
     log_fh.write(f"\n===== reusing environment {env_name(args)}\n")
 
+@contextlib.contextmanager
+def env_build_lock(args, log_fh):
+    """conda unpacks downloads into one package cache for the whole installation, and
+    two `conda env create' at once lose each other's partial files there, so the
+    versions take turns at this stage; the tests that follow are what run in parallel"""
+    lock_path = os.path.join(args.log_dir, "env-build.lock")
+    with open(lock_path, 'w') as lock_fh:
+        log_fh.write(f"\n===== waiting for {lock_path}\n")
+        log_fh.flush()
+        fcntl.flock(lock_fh, fcntl.LOCK_EX)
+        yield
+
 def build_env(args, log_fh):
     "a fresh environment, unless an existing one is being reused"
-    if args.reuse_env:
-        reuse_env(args, log_fh)
-    else:
-        if env_exists(args):
-            remove_env(args, log_fh)
-        create_env(args, log_fh)
-    run_stage(in_env(args, "pip", "install", "-e", ".[dev]"), log_fh)
+    with env_build_lock(args, log_fh):
+        if args.reuse_env:
+            reuse_env(args, log_fh)
+        else:
+            if env_exists(args):
+                remove_env(args, log_fh)
+            create_env(args, log_fh)
+        run_stage(in_env(args, "pip", "install", "-e", ".[dev]"), log_fh)
 
 def run_tests(args, log_fh):
     "the full suite, with only the environment and the system directories in PATH"

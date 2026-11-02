@@ -230,7 +230,9 @@ def _check_tools(args, which):
         tools += ['whatshap', 'samtools']
     missing = [t for t in tools if not which(t)]
     if missing and not args.dry_run:
-        raise ProtocolError(f'not in PATH: {", ".join(missing)}')
+        hint = (' (whatshap is not in the FLAIR conda environment, see docs/source/installing.rst)'
+                if 'whatshap' in missing else '')
+        raise ProtocolError(f'not in PATH: {", ".join(missing)}{hint}')
 
 
 def check(args, samples, which=shutil.which):

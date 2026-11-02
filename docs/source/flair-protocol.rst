@@ -296,7 +296,8 @@ for every option and output.
      reads.  For example
      ``longshot --bam SAMPLE.bam --ref GENOME.fa --out SAMPLE.vcf``
 
-3. Phase the germline variants and haplotag the reads with WhatsHap.  In a pair,
+3. Phase the germline variants and haplotag the reads with WhatsHap, which is not
+   in the conda environment; see :ref:`whatshap-install-label`.  In a pair,
    phase the normal's variants, using both samples' reads, and haplotag both BAMs
    with that phasing, so H1 and H2 mean the same in the tumor and the normal.
    ``--ignore-read-groups`` is needed when a BAM's read groups don't name the VCF's

@@ -4,18 +4,19 @@
 
 .. code-block:: text
 
-   usage: flair quantify [-h] --manifest MANIFEST -g GENOME --isoform_bed
-                         ISOFORM_BED [-o OUTPUT] [-t THREADS] [--tpm]
-                         [--trust_ends] [--generate_map] [--normalize_ends]
-                         [--temp_dir TEMP_DIR] [--keep_intermediate]
+   usage: flair quantify [-h] --manifest MANIFEST -g GENOME
+                         --isoform_bed ISOFORM_BED [-o OUTPUT] [-t THREADS]
+                         [--tpm] [--trust_ends] [--generate_map]
+                         [--normalize_ends] [--temp_dir TEMP_DIR]
+                         [--keep_intermediate]
 
 .. rubric:: options
 
-.. option:: -o OUTPUT, --output OUTPUT
+.. option:: -o, --output OUTPUT
 
    output file name base for FLAIR quantify (default: flair.quantify)
 
-.. option:: -t THREADS, --threads THREADS
+.. option:: -t, --threads THREADS
 
    number of threads: batches of genes counted at once, with minimap2 given any left idle (default: 4)
 
@@ -49,7 +50,7 @@
 
    tab-separated file of the samples, a line each of four fields: sample id, condition, batch, and the sample's reads aligned to the genome as a sorted, indexed BAM. Blank lines and lines starting with '#' are skipped; each sample id once
 
-.. option:: -g GENOME, --genome GENOME
+.. option:: -g, --genome GENOME
 
    FASTA of the genome the reads are aligned to, plain or bgzip, indexed with samtools faidx (for a plain FASTA, a .fai is made beside it if missing and the directory is writable)
 

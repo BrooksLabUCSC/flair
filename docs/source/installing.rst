@@ -77,10 +77,8 @@ with Conda, your system package manager or by downloading and compiling,
 - `intron-prospector <https://github.com/diekhans/intron-prospector>`_, for flair
   fusion and for junctions from long reads
 
-The conda environment also has `longshot <https://github.com/pjedge/longshot>`_ and
-`WhatsHap <https://whatshap.readthedocs.io>`_, which call and phase the variants of
-FLAIR's tests.  FLAIR doesn't run them itself, but WhatsHap, or another phasing
-tool, prepares the haplotagged reads that flair isoalleles takes.
+The conda environment also has `longshot <https://github.com/pjedge/longshot>`_,
+which calls the variants of FLAIR's tests.  FLAIR doesn't run it itself.
 
 .. code:: sh
 
@@ -109,6 +107,33 @@ with these ``R`` packages. Some of these do not work on Apple Silicon.
 - `qqman <https://cran.r-project.org/web/packages/qqman/index.html>`__
 - `DRIMSeq <https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__
 - `stageR <https://bioconductor.org/packages/release/bioc/html/stageR.html>`__
+
+
+.. _whatshap-install-label:
+
+WhatsHap
+~~~~~~~~
+
+`WhatsHap <https://whatshap.readthedocs.io>`_, or another phasing tool, prepares
+the phased VCF and the haplotagged reads that ``flair isoalleles`` takes; see
+:ref:`isoalleles-label`.  FLAIR doesn't run it itself.
+
+It isn't in the conda environment, as bioconda builds it for python 3.12 alone,
+which would hold the whole environment at that version.  The docker image has it.
+Install it when you need it, into an environment of its own so that it doesn't
+constrain FLAIR's:
+
+.. code:: sh
+
+   conda create -n whatshap -c bioconda -c conda-forge 'whatshap>=2.8'
+   conda activate whatshap
+
+or with pip, which has wheels through python 3.13 and compiles from source above
+that:
+
+.. code:: sh
+
+   pip install 'whatshap>=2.8'
 
 
 Running from GitHub clone

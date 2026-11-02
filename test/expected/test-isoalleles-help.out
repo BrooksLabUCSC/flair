@@ -3,8 +3,8 @@ usage: flair isoalleles [-h] --isoform_bed ISOFORM_BED -g GENOME --bam BAM
                         [--germline_vcf GERMLINE_VCF]
                         [--sample_name SAMPLE_NAME] [--normal_bam NORMAL_BAM]
                         [--normal_read_map NORMAL_READ_MAP]
-                        [--normal_name NORMAL_NAME]
-                        [--tumor_vcf TUMOR_VCF | --somatic_vcf SOMATIC_VCF | --variant VARIANT]
+                        [--normal_name NORMAL_NAME] [--tumor_vcf TUMOR_VCF |
+                        --somatic_vcf SOMATIC_VCF | --variant VARIANT]
                         [--min_normal_depth MIN_NORMAL_DEPTH]
                         [--carrier_min CARRIER_MIN] [--min_tagged MIN_TAGGED]
                         [-o OUTPUT] [-t THREADS] [--generate_map]
@@ -35,9 +35,8 @@ options:
   --min_tagged MIN_TAGGED
                         the tagged reads carrying an unphased germline het
                         needed to place it (default: 10)
-  -o OUTPUT, --output OUTPUT
-                        output file name base (default: flair)
-  -t THREADS, --threads THREADS
+  -o, --output OUTPUT   output file name base (default: flair)
+  -t, --threads THREADS
                         batches of genes processed at once (default: 4)
   --generate_map        write each sample's reads by isoform and group,
                         <output>.isoalleles.<sample>.read.map.tsv
@@ -53,8 +52,7 @@ required named arguments:
                         the isoforms, the flair isoform bed the read maps were
                         made with by flair quantify; its CDS gives each
                         isoform's start codon. Fusion isoforms are left out
-  -g GENOME, --genome GENOME
-                        FASTA of the genome, indexed with samtools faidx
+  -g, --genome GENOME   FASTA of the genome, indexed with samtools faidx
   --bam BAM             the sample's (in a pair, the tumor's) reads aligned to
                         the genome, sorted and indexed, haplotagged (HP and PS
                         tags) by the phasing of --phased_vcf

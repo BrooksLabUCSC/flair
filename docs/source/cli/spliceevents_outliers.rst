@@ -9,11 +9,11 @@
 
 .. rubric:: options
 
-.. option:: -i INPUT, --input INPUT
+.. option:: -i, --input INPUT
 
    output prefix of flair spliceevents: reads its OUTPUT.spliceevents.counts.tsv and OUTPUT.spliceevents.totals.tsv
 
-.. option:: -o OUTPUT, --output OUTPUT
+.. option:: -o, --output OUTPUT
 
    output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and OUTPUT.spliceevents.outliers.filtered.tsv, those more than 6 deviations from the median and not explained by a simpler event, without starts and ends (tss, tts), whose outliers are mostly false positives
 

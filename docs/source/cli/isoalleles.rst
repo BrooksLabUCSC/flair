@@ -9,8 +9,8 @@
                            [--germline_vcf GERMLINE_VCF]
                            [--sample_name SAMPLE_NAME] [--normal_bam NORMAL_BAM]
                            [--normal_read_map NORMAL_READ_MAP]
-                           [--normal_name NORMAL_NAME]
-                           [--tumor_vcf TUMOR_VCF | --somatic_vcf SOMATIC_VCF | --variant VARIANT]
+                           [--normal_name NORMAL_NAME] [--tumor_vcf TUMOR_VCF |
+                           --somatic_vcf SOMATIC_VCF | --variant VARIANT]
                            [--min_normal_depth MIN_NORMAL_DEPTH]
                            [--carrier_min CARRIER_MIN] [--min_tagged MIN_TAGGED]
                            [-o OUTPUT] [-t THREADS] [--generate_map]
@@ -34,11 +34,11 @@
 
    the tagged reads carrying an unphased germline het needed to place it (default: 10)
 
-.. option:: -o OUTPUT, --output OUTPUT
+.. option:: -o, --output OUTPUT
 
    output file name base (default: flair)
 
-.. option:: -t THREADS, --threads THREADS
+.. option:: -t, --threads THREADS
 
    batches of genes processed at once (default: 4)
 
@@ -60,7 +60,7 @@
 
    the isoforms, the flair isoform bed the read maps were made with by flair quantify; its CDS gives each isoform's start codon. Fusion isoforms are left out
 
-.. option:: -g GENOME, --genome GENOME
+.. option:: -g, --genome GENOME
 
    FASTA of the genome, indexed with samtools faidx
 

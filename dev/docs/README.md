@@ -113,14 +113,16 @@ make test-pyversions
 Each version gets a conda environment built from `misc/flair_dev_conda_env.yaml`
 with python repinned, FLAIR installed into it with `pip install -e .[dev]`, and
 `test-env-only` run with its output in `test/output-py<version>`.  The versions
-run at the same time; the generated inputs under `test/tmp-input` are the same
-for every version, so `make test-inputs` builds them first.  The per-version
-logs are left in `pyver-test-logs/`.
+test at the same time, but build their environments one at a time, as conda has
+one package cache for the whole installation and two `conda env create` at once
+lose each other's downloads in it.  The generated inputs under `test/tmp-input`
+are the same for every version, so `make test-inputs` builds them first.  The
+per-version logs are left in `pyver-test-logs/`.
 
 One version at a time:
 ```
-make test-pyversion-3.15
-./dev/bin/flair-test-python-versions --reuse-env 3.15
+make test-pyversion-3.14
+./dev/bin/flair-test-python-versions --reuse-env 3.14
 ```
 `--reuse-env` installs into the existing environment rather than recreating it,
 which is what to use when iterating on a failure.
@@ -128,7 +130,24 @@ which is what to use when iterating on a failure.
 Any test target can write to its own directory, which is how the versions keep
 out of each other's way:
 ```
-make test outsuffix=-py3.15
+make test outsuffix=-py3.14
+```
+
+## whatshap inputs of the isoalleles tests
+
+bioconda builds whatshap for python 3.12 alone, so the isoalleles tests do not
+run it.  Its output is committed instead:
+
+* `test/input/basic-reads.phased.vcf`, the longshot variants phased
+* `test/input/basic-reads.haplotag-list.tsv`, whatshap's read-to-haplotype table,
+  which `test/bin/bam-add-haplotags` applies to the alignments in place of
+  `whatshap haplotag`
+
+Both are frozen against the reads, the aligner and longshot.  When any of those
+change, regenerate them with whatshap on PATH; it is in none of the conda
+environment files, so install it as `docs/source/installing.rst` describes:
+```
+make -C test regen-isoalleles-inputs
 ```
 
 # Releasing flair

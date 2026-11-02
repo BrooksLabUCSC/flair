@@ -7,7 +7,7 @@ Differential expression and differential usage analysis
 
 options:
   -h, --help            show this help message and exit
-  -t THREADS, --threads THREADS
+  -t, --threads THREADS
                         number of threads for parallel DRIMSeq (default: 4)
   --min_expression MIN_EXPRESSION
                         read count expression threshold; isoforms in which
@@ -30,5 +30,4 @@ required named arguments:
                         (OUTPUT.var.counts.tsv), whose usage only is tested.
                         Conditions and batches are read from the sample info
                         TSV beside it
-  -o OUTPUT, --output OUTPUT
-                        output directory for tables and plots
+  -o, --output OUTPUT   output directory for tables and plots
