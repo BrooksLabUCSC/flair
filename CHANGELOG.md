@@ -78,6 +78,15 @@
     `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
     The BioConda package still does not carry them; `installing.rst` gives the
     `conda install` command to add them.
+  * WhatsHap is no longer in the conda environment files.  bioconda builds it
+    for python 3.12 alone, which held every environment built from them at that
+    version; `installing.rst` says how to install it for preparing the
+    haplotagged reads and phased VCF that `flair isoalleles` takes.  The conda
+    `pysam` is now 0.24, matching what FLAIR requires.
+  * Reverse complement takes every IUPAC nucleotide code, with U and the gap
+    characters, so a genome carrying degenerate bases no longer stops FLAIR
+    with `KeyError: 'R'` (#715).  A character that is not a nucleotide now
+    reports itself rather than raising KeyError.
   * `flair fusion` rejects fusions between paralogs with a GENCODE annotation.
     The bundled paralog table has unversioned Ensembl gene ids, so the
     versioned GENCODE ids never matched it and the check did nothing.
