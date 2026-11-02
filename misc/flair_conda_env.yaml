@@ -4,10 +4,10 @@ channels:
   - bioconda
   - conda
 
-# python 3.12: the --help test expectations are in the pre-3.13 argparse
-# format, and pysam <0.24 has no wheel for 3.14
+# python as pyproject.toml requires.  The --help test expectations are in the
+# 3.13 argparse format, which test/Makefile compares only on 3.13 and later
 dependencies:
-  - python =3.12
+  - python >=3.12,<3.15
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1

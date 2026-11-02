@@ -119,6 +119,23 @@ define cmp_expect
 endef
 
 ##
+# compare --help output.  argparse writes "-o, --output OUTPUT" from python 3.13
+# on, where 3.12 wrote "-o OUTPUT, --output OUTPUT", and wraps usage lines at
+# different points.  The expected files are in the 3.13 form, so an older python
+# skips the comparison rather than reporting a difference that is not a defect.
+##
+HELP_FORMAT_313 := $(shell python3 -c 'import sys; sys.stdout.write("yes" if sys.version_info >= (3, 13) else "")')
+PYTHON_VERSION := $(shell python3 -c 'import platform; print(platform.python_version())')
+
+define skip_help_cmp
+	@echo "Warning: $@ not compared: python ${PYTHON_VERSION} writes argparse help in the pre-3.13 format, the expected output is in the 3.13 format" >&2
+endef
+
+define cmp_expect_help
+	$(if ${HELP_FORMAT_313},diff $E/$(1) $O/$(1),$(call skip_help_cmp))
+endef
+
+##
 # Expected and output are sorted in cases where the order is not stable.  In
 # this case, we first test for the file as sorted input subsitution failure
 # isn't propigate by shell.
@@ -135,7 +152,7 @@ endef
 
 test-main-help: mkdirs
 	flair --help | fgrep -v Version> $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ###
 # FLAIR ALIGN
@@ -164,7 +181,7 @@ test-align-seg1 : mkdirs ${GENOME_FA}
 
 test-align-help: mkdirs
 	flair align --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ###
 # FLAIR CORRECT
@@ -188,7 +205,7 @@ test-correct-blocksize: mkdirs ${GENOME_FA}
 
 test-correct-help: mkdirs
 	flair correct --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ###
 # FLAIR COLLAPSE
@@ -271,7 +288,7 @@ test-collapse-support-annot: mkdirs ${GENOME_FA}
 
 test-collapse-help: mkdirs
 	flair collapse --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 
 ###
@@ -332,7 +349,7 @@ test-quantify-nobam : mkdirs
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ###
 # FLAIR DIFFEXP
@@ -347,7 +364,7 @@ test-diffexp : mkdirs
 
 test-diffexp-help: mkdirs
 	flair diffexp --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ###
 # FLAIR DIFFSPLICE
@@ -375,7 +392,7 @@ test-diffsplice-cond: mkdirs
 
 test-diffsplice-help: mkdirs
 	flair diffsplice --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 
 ##
@@ -390,7 +407,7 @@ test-predict-productivity : mkdirs ${GENOME_FA}
 
 test-predict-productivity-help: mkdirs
 	predictProductivity --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ##
 # DIFF ISO USAGE
@@ -403,7 +420,7 @@ test-diff-iso-usage: mkdirs
 
 test-diff-iso-usage-help: mkdirs
 	diff_iso_usage --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ##
 # plot isoform usage
@@ -417,7 +434,7 @@ test-plot-usage: mkdirs
 
 test-plot-usage-help: mkdirs
 	plot_isoform_usage --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 ###
 # flair transcriptome
@@ -450,7 +467,7 @@ test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 
 test-transcriptome-help: mkdirs
 	flair transcriptome --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 
 ###
@@ -481,7 +498,7 @@ endif
 
 test-variants-help: mkdirs
 	flair variants --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 
 ###
@@ -504,7 +521,7 @@ test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ}
 
 test-fusion-help: mkdirs
 	flair fusion  --help > $O/$@.out
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_help,$@.out)
 
 
 ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread20x.stranded.fastq

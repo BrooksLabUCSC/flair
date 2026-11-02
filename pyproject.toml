@@ -12,10 +12,10 @@ authors = [
 ]
 license = {text = "BSD 3-clause"}
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.15"
 
 dependencies = [
-    "pysam (>=0.23.0,<0.24.0)",
+    "pysam (>=0.24.1,<0.25.0)",
     "pipettor (>=1.1.0,<2.0.0)",
     "ncls (>=0.0.70,<0.1.0)",
     "mappy (>=2.28,<3.0)",
