@@ -6,12 +6,6 @@ import re
 import logging
 import os
 
-basetocomp = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N'}
-def revcomp(seq):
-    seq = list(seq.upper())[::-1]
-    return ''.join([basetocomp[x] for x in seq])
-
-
 def addOtherJuncs(juncs, filetype, bedJuncs, minsup, chromosomes, printErrFname, known, verbose, printErr):
     # guess what kind of bedFile
     if os.path.getsize(bedJuncs) == 0:

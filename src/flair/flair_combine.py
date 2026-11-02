@@ -9,7 +9,6 @@ import pysam
 import math
 from flair import FlairInputDataError
 from flair.bed_to_gtf import bed_to_gtf
-from flair.flair_transcriptome import revcomp
 from statistics import mode
 
 def bedReadToIntronChain(line): # line is a list of strings from a tab separated line

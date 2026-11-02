@@ -2,7 +2,7 @@
 import sys, csv, os, argparse, pysam, subprocess
 import pysam
 import logging
-from flair.flair_transcriptome import revcomp
+from flair import reverse_complement
 from flair import FlairInputDataError
 
 def main():
@@ -106,7 +106,7 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
         for block in range(len(blockstarts)):
             pulled_seq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
         if strand == '-':
-            pulled_seq = revcomp(pulled_seq)
+            pulled_seq = reverse_complement(pulled_seq)
         return pulled_seq
 
     def add_variants_to_seq(variant_list, no_variant_sequence, starts, sizes, strand = '+', chrom='chr1', iso_name=''):
@@ -181,7 +181,7 @@ def bed_to_sequence(query, genome, outfilename, isoform_haplotypes=False, vcfinp
             names = [name]
 
         if strand == '-':
-            pulled_seq = [revcomp(x) for x in pulled_seq]
+            pulled_seq = [reverse_complement(x) for x in pulled_seq]
 
         return names, pulled_seq
 

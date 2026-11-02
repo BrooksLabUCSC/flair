@@ -15,7 +15,7 @@ from flair.ssPrep import buildIntervalTree, ssCorrect, juncsToBed12
 import multiprocessing as mp
 import time
 from collections import Counter
-from flair import FlairInputDataError
+from flair import FlairInputDataError, reverse_complement
 
 
 # export PATH="/private/groups/brookslab/cafelton/git-flair/flair/bin:/private/groups/brookslab/cafelton/git-flair/flair/src/flair:$PATH"
@@ -331,7 +331,7 @@ class BedRead(object):
         for i in range(len(exons)):
             thisexonseq = genome.fetch(self.refchrom, exons[i][0], exons[i][1])
             if self.strand == '-':
-                thisexonseq = revcomp(thisexonseq)
+                thisexonseq = reverse_complement(thisexonseq)
             exonseq.append(thisexonseq)
         return ''.join(exonseq)
 
@@ -585,7 +585,7 @@ def identify_good_match_to_annot(args, tempprefix, thischrom, annottranscripttoe
                 for i in range(len(exons)):
                     thisexonseq = genome.fetch(thischrom, exons[i][0], exons[i][1])
                     if strand == '-':
-                        thisexonseq = revcomp(thisexonseq)
+                        thisexonseq = reverse_complement(thisexonseq)
                     exonseq.append(thisexonseq)
                 annotbed.write('\t'.join([str(x) for x in bedline]) + '\n')
                 annotfa.write('>' + transcript + '_' + gene + '\n')
@@ -960,15 +960,6 @@ def processdetectedisos(args, mapfile, bedfile, marker, genetojuncstoends):
     return genetojuncstoends
 
 
-def revcomp(seq):
-    compbase = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', 
-                'R':'Y', 'Y':'R','K':'M','M':'K','S':'S','W':'W', 'B':'V','V':'B','D':'H','H':'D'}
-    seq = seq.upper()
-    newseq = []
-    for base in seq: newseq.append(compbase[base])
-    return ''.join(newseq[::-1])
-
-
 def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
     start, end, isoid, readnames = endinfo
     score = min(len(readnames), 1000)
@@ -989,7 +980,7 @@ def getbedgtfoutfrominfo(endinfo, chrom, strand, juncs, gene, genome):
                          'gene_id "' + gene + '"; transcript_id "' + iso + '"; exon_number ' + str(i + 1)])
         thisexonseq = genome.fetch(chrom, exons[i][0], exons[i][1])
         if strand == '-':
-            thisexonseq = revcomp(thisexonseq)
+            thisexonseq = reverse_complement(thisexonseq)
         exonseq.append(thisexonseq)
     return '\t'.join([str(x) for x in bedline]) + '\n', gtflines, ''.join(exonseq)
 

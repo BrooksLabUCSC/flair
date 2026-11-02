@@ -10,8 +10,6 @@ import numpy as np
 import shutil
 from flair import FlairInputDataError
 
-compbase = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
-
 def getStarts(gtf):
     starts = list()
     with open(gtf) as lines:
