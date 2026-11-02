@@ -14,9 +14,12 @@ import pysam
 import pipettor
 import os.path as osp
 
-COMPBASE = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N',
-            'R': 'Y', 'Y': 'R', 'K': 'M', 'M': 'K', 'S': 'S',
-            'W': 'W', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D'}
+# the IUPAC nucleotide codes to their complements, with U and the gap characters:
+# https://www.bioinformatics.org/sms/iupac.html
+COMPBASE = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'U': 'A',
+            'R': 'Y', 'Y': 'R', 'S': 'S', 'W': 'W', 'K': 'M', 'M': 'K',
+            'B': 'V', 'D': 'H', 'H': 'D', 'V': 'B', 'N': 'N',
+            '.': '.', '-': '-'}
 
 POLYA_MIN_FRAC = 0.6
 POLYA_SEARCH_WINDOW = 5
@@ -123,12 +126,17 @@ def translate(seq):
     return ''.join(translate_codon(seq[i:i + 3]) for i in range(0, len(seq), 3))
 
 
+def complement_base(base):
+    try:
+        return COMPBASE[base]
+    except KeyError as ex:
+        raise FlairInputDataError(f"not a nucleotide: '{base}'; sequences must be the IUPAC "
+                                  f"codes ACGTURYSWKMBDHVN or a gap (. or -)") from ex
+
+
 def get_reverse_complement(seq):
-    seq = seq.upper()
-    new_seq = []
-    for base in seq:
-        new_seq.append(COMPBASE[base])
-    return ''.join(new_seq[::-1])
+    "the reverse complement, upper case, of a sequence of IUPAC nucleotide codes"
+    return ''.join([complement_base(base) for base in reversed(seq.upper())])
 
 
 def get_sequence_for_exons(genome, chrom, strand, exons):
