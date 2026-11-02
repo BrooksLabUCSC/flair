@@ -1,5 +1,32 @@
 # Major user-visible changes
 
+## [unreleased]
+* General
+  * supported Python versions are 3.12 through 3.14 in both the pip and Conda
+    installs.  pysam is now 0.24, the first release with wheels above 3.12
+  * the `--help` tests no longer fail on Python 3.12.  Their expected files are
+    in the 3.13 argparse format, and the comparison is skipped, naming the
+    python version, on anything older
+  * reverse complement takes every IUPAC nucleotide code, so a genome with
+    degenerate bases no longer stops FLAIR fusion with `KeyError: 'R'` (#715).
+    A character that is not a nucleotide now reports itself
+  * dropped the unused setuptools dependency, which was the last one carrying
+    an open advisory (GHSA-h35f-9h28-mq5c)
+  * updated certifi, pillow, urllib3 and httpx2 in the lock file
+* FLAIR fusion
+  * keep the 500 base gene padding inside the sequence.  A gene starting within
+    500 bases of a sequence start failed with `ValueError: start out of range`,
+    and the far end truncated silently, leaving coordinates that claimed a
+    longer span than the sequence held (#674)
+  * error out naming the sequence and both files when the annotation names a
+    sequence the genome does not have, rather than failing later
+  * an exon starting exactly on a synthetic locus boundary is no longer lost,
+    and an isoform whose exons cannot all be placed in one locus is skipped
+    with a message rather than written with the wrong blocks
+* Documentation
+  * corrected the v3.0.0 release date in this file to 2026-01-30
+  * installing.rst no longer shows a release version for a `+master` tree
+
 ## [v3.0.1] 2026-08-10
 * General
   * fixed problems with some diffsplice_fishers_exact, and other
