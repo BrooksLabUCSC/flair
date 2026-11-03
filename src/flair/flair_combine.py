@@ -494,8 +494,8 @@ def write_map_file(combined_map_tsv, new_to_og):
             writer.writeSources(new_id, [','.join(x[0]) + ':' + x[1] for x in sources])
 
 def write_map_files(output, new_iso_to_og, new_gene_to_og):
-    write_map_file(compressed_path(output + '.combined.isoform.map.tsv'), new_iso_to_og)
-    write_map_file(compressed_path(output + '.combined.gene.map.tsv'), new_gene_to_og)
+    write_map_file(compressed_path(output + '.combined.isoforms.map.tsv'), new_iso_to_og)
+    write_map_file(compressed_path(output + '.combined.genes.map.tsv'), new_gene_to_og)
 
 def iso_counts_row(new_id, gene_id, all_samples, samples_to_counts):
     counts = [str(samples_to_counts.get(sample, 0)) for sample in all_samples]
@@ -505,7 +505,7 @@ def write_counts_file(output, all_samples, iso_to_samples_to_counts, iso_to_gene
     "the counts matrix names the gene of each isoform in a column of its own"
     rows = [iso_counts_row(new_id, iso_to_gene[new_id], all_samples, samples_to_counts)
             for new_id, samples_to_counts in iso_to_samples_to_counts.items()]
-    write_counts_matrix(compressed_path(output + '.combined.isoform.counts.tsv'), all_samples, rows)
+    write_counts_matrix(compressed_path(output + '.combined.isoforms.counts.tsv'), all_samples, rows)
 
 def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
             min_frac_usage, remove_single_exon, max_ends, min_reads, annotation=None):

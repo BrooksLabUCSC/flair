@@ -70,12 +70,12 @@ def add_subparser(subparsers):
                         help='number of threads: batches of genes counted at once, with minimap2 given any '
                              'left idle (default: %(default)s)')
     parser.add_argument('--tpm', action='store_true',
-                        help='also write the counts as transcripts per million, <output>.tpm.tsv')
+                        help='also write the counts as transcripts per million, <output>.isoforms.tpm.tsv')
     parser.add_argument('--trust_ends', action='store_true',
                         help="count a read for a spliced isoform only if its ends are within 50 bp of the isoform's, "
                              'for reads of full-length molecules, as from a protocol with little fragmentation')
     parser.add_argument('--generate_map', action='store_true',
-                        help="write each sample's reads by isoform, <output>.<sample id>.read.map.tsv: a row of "
+                        help="write each sample's reads by isoform, <output>.isoforms.<sample id>.read.map.tsv: a row of "
                              'an isoform and its reads, comma-separated, under a header')
     parser.add_argument('--normalize_ends', action='store_true',
                         help="give each spliced isoform, for counting, the furthest ends of its gene's isoforms with "
@@ -421,14 +421,14 @@ def count_batch(batch, batch_beds, sample_data, temp_dir, genome_file, trust_end
                     # isoform's, not given to neither: it is not full-length for the longer one.
                     # The batch's isoforms of all its genes are realigned to together, so a read
                     # fitting isoforms of two overlapping genes is ranked against both, once.
-                    read_map_file = prefix + '.isoform.read.map.tsv' if generate_map else None
+                    read_map_file = prefix + '.isoforms.read.map.tsv' if generate_map else None
                     mm2_cmd = ['minimap2', '-a', '-N', str(MINIMAP2_SECONDARY_ALIGNMENTS), '--MD', temp_prefix + 'isoforms.fa',
                                prefix + '.reads.fasta']
                     # minimap2 borrows threads left idle in the thread budget while it runs
                     with thread_share.program_threads() as mm2_threads:
                         run_count_sam_transcripts(
                             mm2_cmd=mm2_cmd[:1] + ['-t', str(mm2_threads)] + mm2_cmd[1:],
-                            output=prefix + '.isoform.counts.tsv',
+                            output=prefix + '.isoforms.counts.tsv',
                             trimmedreads=prefix + '.reads.genomicclipping.tsv',
                             generate_map=read_map_file,
                             stringent=True,
@@ -438,7 +438,7 @@ def count_batch(batch, batch_beds, sample_data, temp_dir, genome_file, trust_end
                             isoforms=temp_prefix + 'isoforms.bed',
                             trust_ends=trust_ends,
                         )
-                    read_count_sam_results(prefix + '.isoform.counts.tsv', read_map_file, assigned)
+                    read_count_sam_results(prefix + '.isoforms.counts.tsv', read_map_file, assigned)
                 results.append(assigned)
     finally:
         if not keep_intermediate:
@@ -529,9 +529,9 @@ def count_fusions(fusions, sample_data, temp_dir, genome_file, threads, trust_en
                 run_count_sam_transcripts(
                     mm2_cmd=['minimap2', '-a', '-N', str(MINIMAP2_SECONDARY_ALIGNMENTS), '--MD', '-t', str(threads),
                              temp_prefix + 'fusions.fa', prefix + '.reads.fasta'],
-                    output=prefix + '.isoform.counts.tsv',
+                    output=prefix + '.isoforms.counts.tsv',
                     trimmedreads=prefix + '.reads.genomicclipping.tsv',
-                    generate_map=prefix + '.isoform.read.map.tsv',
+                    generate_map=prefix + '.isoforms.read.map.tsv',
                     stringent=True,
                     allow_UTR_indels=True,
                     transcript_fasta=temp_prefix + 'fusions.fa',
@@ -539,7 +539,7 @@ def count_fusions(fusions, sample_data, temp_dir, genome_file, threads, trust_en
                     isoforms=temp_prefix + 'fusions.bed',
                     trust_ends=trust_ends,
                 )
-                read_count_sam_results(prefix + '.isoform.counts.tsv', prefix + '.isoform.read.map.tsv', assigned)
+                read_count_sam_results(prefix + '.isoforms.counts.tsv', prefix + '.isoforms.read.map.tsv', assigned)
             counted.append(frozenset(read for reads in assigned.values() for read in reads))
             results.append(assigned if generate_map else {name: len(reads) for name, reads in assigned.items()})
     finally:
@@ -565,7 +565,7 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
     batch is written.  Returns each sample's total reads counted."""
     counts = {}
     # bgzip when compressed, so flair isoalleles can read an isoform's row by its offset
-    map_paths = [f'{output}.{sample}.read.map.tsv' for sample, *_ in sample_data] if generate_map else []
+    map_paths = [f'{output}.isoforms.{sample}.read.map.tsv' for sample, *_ in sample_data] if generate_map else []
     map_fhs = [open_seekable_output(path) for path in map_paths]
     map_writers = [ReadMapWriter(compressed_path(path), outFh=fh) for path, fh in zip(map_paths, map_fhs)]
     waiting = [{} for _ in sample_data]
@@ -589,7 +589,7 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
             for gene_id, gene_info in gene_data.items() for bed in gene_info.isoform_beds]
     rows += [CountsRow(pieces[0].gene_id, name, counts.get(name, [0] * len(sample_data)))
              for name, pieces in fusions.items()]
-    write_counts_matrix(compressed_path(output + '.counts.tsv'), [sample for sample, *_ in sample_data], rows)
+    write_counts_matrix(compressed_path(output + '.isoforms.counts.tsv'), [sample for sample, *_ in sample_data], rows)
     return [sum(sample_counts) for sample_counts in zip(*counts.values())] if counts else [0] * len(sample_data)
 
 def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
@@ -633,13 +633,13 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
             if total == 0:
                 logging.warning(f'sample {sample} has no reads counted for any isoform'
                                 f'{"; its TPM are 0" if tpm else ""}')
-        counts_tsv = compressed_path(output + '.counts.tsv')
+        counts_tsv = compressed_path(output + '.isoforms.counts.tsv')
         write_sample_info(sample_info_path(counts_tsv),
                           [SampleInfo(sample, condition, batch)
                            for sample, condition, batch, _ in sample_data])
         if tpm:
             with fileOps.opengz(counts_tsv) as counts_fh:
-                counts_to_tpm(counts_fh, compressed_path(output + '.tpm.tsv'), empty_ok=True)
+                counts_to_tpm(counts_fh, compressed_path(output + '.isoforms.tpm.tsv'), empty_ok=True)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

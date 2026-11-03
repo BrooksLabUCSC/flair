@@ -57,8 +57,9 @@ required named arguments:
                         the genome, sorted and indexed, haplotagged (HP and PS
                         tags) by the phasing of --phased_vcf
   --read_map READ_MAP   the read map flair quantify --generate_map wrote for
-                        --bam's sample, <output>.<sample>.read.map.tsv, plain,
-                        bgzip or gzip
+                        --bam's sample,
+                        <output>.isoforms.<sample>.read.map.tsv, plain, bgzip
+                        or gzip
   --phased_vcf PHASED_VCF
                         the germline variants, phased: the VCF the phasing
                         tool wrote and haplotagged --bam with, the sample's

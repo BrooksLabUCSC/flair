@@ -14,14 +14,15 @@ options:
                         number of threads: batches of genes counted at once,
                         with minimap2 given any left idle (default: 4)
   --tpm                 also write the counts as transcripts per million,
-                        <output>.tpm.tsv
+                        <output>.isoforms.tpm.tsv
   --trust_ends          count a read for a spliced isoform only if its ends
                         are within 50 bp of the isoform's, for reads of full-
                         length molecules, as from a protocol with little
                         fragmentation
-  --generate_map        write each sample's reads by isoform, <output>.<sample
-                        id>.read.map.tsv: a row of an isoform and its reads,
-                        comma-separated, under a header
+  --generate_map        write each sample's reads by isoform,
+                        <output>.isoforms.<sample id>.read.map.tsv: a row of
+                        an isoform and its reads, comma-separated, under a
+                        header
   --normalize_ends      give each spliced isoform, for counting, the furthest
                         ends of its gene's isoforms with terminal exons like
                         its own, so reads are counted whatever their ends;

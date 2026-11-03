@@ -409,7 +409,7 @@ def add_subparser(subparsers):
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--counts_matrix', type=str, required=True,
                           help='tab-delimited isoform count matrix from flair quantify, or the counts of flair '
-                          'spliceevents (OUTPUT.spliceevents.counts.tsv) or flair variantquant (OUTPUT.var.counts.tsv), '
+                          'spliceevents (OUTPUT.spliceevents.counts.tsv) or flair variantquant (OUTPUT.variants.counts.tsv), '
                           'whose usage only is tested.  Conditions and batches are read from the sample info TSV '
                           'beside it')
     required.add_argument('-o', '--output', type=str, required=True,

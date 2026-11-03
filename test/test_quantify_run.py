@@ -84,9 +84,9 @@ def _run(tmp_path, threads, trust_ends=False):
     quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=output, threads=threads, tpm=False,
              trust_ends=trust_ends, generate_map=True, normalize_ends=False,
              temp_dir=str(tmp_path / 'tmp'))
-    counts = [line.rstrip('\n').split('\t') for line in open(output + '.counts.tsv')]
+    counts = [line.rstrip('\n').split('\t') for line in open(output + '.isoforms.counts.tsv')]
     read_map = {}
-    lines = open(output + '.s1.read.map.tsv').read().splitlines()
+    lines = open(output + '.isoforms.s1.read.map.tsv').read().splitlines()
     assert lines[0] == 'name\treads'
     for line in lines[1:]:
         name, reads = line.rstrip('\n').split('\t')

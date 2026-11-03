@@ -160,16 +160,16 @@ def write_fusion(outs, fusion, labels, sequence, allstartloc, finalisochunks, is
 def make_synthetic_reference(gtf_data, anno_path, genome_path, chimbp, prefix):
     """The synthetic fusion genome of the preliminary fusions in chimbp, its
     annotation from gtf_data (a GtfData, parsed from anno_path) and its breakpoints,
-    as prefix-syntheticFusionGenome.fa, -syntheticReferenceAnno.gtf and
-    -syntheticBreakpointLoc.bed"""
+    as prefix.synthetic_fusion_genome.fa, .synthetic_reference_anno.gtf and
+    .synthetic_breakpoint_loc.bed"""
     allBP, fgenes, transcripts = read_breakpoints(chimbp)
     genome = pysam.FastaFile(genome_path)
     chrom_sizes = ChromSizes(genome, genome_path, anno_path)
     read_transcripts(gtf_data, fgenes, transcripts, chrom_sizes)
 
-    with open(prefix + '-syntheticFusionGenome.fa', 'w') as out, \
-            open(prefix + '-syntheticReferenceAnno.gtf', 'w') as annoOut, \
-            open(prefix + '-syntheticBreakpointLoc.bed', 'w') as bpOut:
+    with open(prefix + '.synthetic_fusion_genome.fa', 'w') as out, \
+            open(prefix + '.synthetic_reference_anno.gtf', 'w') as annoOut, \
+            open(prefix + '.synthetic_breakpoint_loc.bed', 'w') as bpOut:
         isocount = 1
         for fusion in allBP:
             labels, sequence, allstartloc, allisochunks = build_fusion(allBP[fusion], fgenes, transcripts, genome, chrom_sizes)

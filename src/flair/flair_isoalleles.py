@@ -53,7 +53,7 @@ def add_subparser(subparsers):
                                'indexed, haplotagged (HP and PS tags) by the phasing of --phased_vcf')
     required.add_argument('--read_map', required=True,
                           help='the read map flair quantify --generate_map wrote for --bam\'s sample, '
-                               '<output>.<sample>.read.map.tsv, plain, bgzip or gzip')
+                               '<output>.isoforms.<sample>.read.map.tsv, plain, bgzip or gzip')
     required.add_argument('--phased_vcf', required=True,
                           help='the germline variants, phased: the VCF the phasing tool wrote and haplotagged '
                                '--bam with, the sample\'s own, or in a pair the normal\'s.  bgzipped and indexed')

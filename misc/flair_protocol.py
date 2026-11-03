@@ -42,8 +42,8 @@ Examples:
   (intron-prospector), from a manifest of sample and bam:
 
     sample   bam
-    s1       s1.genomealigned.bam
-    s2       s2.genomealigned.bam
+    s1       s1.genome_aligned.bam
+    s2       s2.genome_aligned.bam
 
     flair_protocol.py -m manifest.tsv -g genome.fa -f annotation.gtf -o run
 
@@ -51,9 +51,9 @@ Examples:
   tested with flair diffexp (a condition column), with short-read junctions:
 
     sample   bam                    condition
-    ctl1     ctl1.genomealigned.bam ctl
+    ctl1     ctl1.genome_aligned.bam ctl
     ...
-    trt3     trt3.genomealigned.bam trt
+    trt3     trt3.genome_aligned.bam trt
 
     flair_protocol.py -m manifest.tsv -g genome.fa -f annotation.gtf -o run \\
         --junction_star SJ.out.tab --fusion --spliceevents \\
@@ -365,7 +365,7 @@ def combine_quantify_steps(args, samples):
             Step('combine', [args.flair, 'combine', '--manifest', combine_manifest, '-g', args.genome, '-f', args.gtf,
                              '-o', _out(args, 'combine', PREFIX)], [combined_bed(args)]),
             Step('quantify.manifest', None, [quantify_manifest], _write_lines(quantify_manifest, quantify_rows)),
-            Step('quantify', quantify, [_out(args, 'quantify', PREFIX + '.counts.tsv')])]
+            Step('quantify', quantify, [_out(args, 'quantify', PREFIX + '.isoforms.counts.tsv')])]
 
 
 def spliceevents_counts(args):
@@ -392,7 +392,7 @@ def spliceevents_steps(args, samples):
 
 
 def read_map(args, sample):
-    return _out(args, 'quantify', f'{PREFIX}.{sample}.read.map.tsv')
+    return _out(args, 'quantify', f'{PREFIX}.isoforms.{sample}.read.map.tsv')
 
 
 def _phase_and_tag(args, phased, vcf, phasing_bams, tagged):
@@ -452,7 +452,7 @@ def haplotype_steps(args, patients):
 
 def _diffexp_steps(args):
     "flair diffexp of the isoform counts, and of the event counts with --spliceevents"
-    tables = [('isoforms', _out(args, 'quantify', PREFIX + '.counts.tsv'))]
+    tables = [('isoforms', _out(args, 'quantify', PREFIX + '.isoforms.counts.tsv'))]
     if args.spliceevents:
         tables.append(('spliceevents', spliceevents_counts(args)))
     steps = []
@@ -473,7 +473,7 @@ def _usage_steps(args, patients):
         if normal is None:
             continue
         for t in tumors:
-            tables = [('isoforms', _out(args, 'quantify', PREFIX + '.counts.tsv'))]
+            tables = [('isoforms', _out(args, 'quantify', PREFIX + '.isoforms.counts.tsv'))]
             if args.spliceevents:
                 tables.append(('spliceevents', spliceevents_counts(args)))
             if args.haplotype:
@@ -533,7 +533,7 @@ def run(args, steps, out=sys.stdout):
 
 def summary(args, patients):
     lines = [f'combined isoforms: {combined_bed(args)}',
-             f'isoform counts: {_out(args, "quantify", PREFIX + ".counts.tsv")}']
+             f'isoform counts: {_out(args, "quantify", PREFIX + ".isoforms.counts.tsv")}']
     if args.spliceevents:
         lines.append(f'event counts: {spliceevents_counts(args)}')
     if args.stat_test == 'conditions':

@@ -27,8 +27,8 @@ Coordinates are one based and inclusive, as the event names are.
 Three files share these columns and differ only in what the sample columns hold:
 
   .spliceevents.counts.tsv    reads of the alternative
-  .spliceevents.PSIjunc.tsv   its share of the event's reads
-  .spliceevents.PSItot.tsv    its share of the reads covering the event's locus
+  .spliceevents.psi_junc.tsv   its share of the event's reads
+  .spliceevents.psi_tot.tsv    its share of the reads covering the event's locus
 
 A PSI column is empty when the sample has fewer than --event_support reads to take a
 fraction from, rather than 0, which would read as "never included".  The sample

@@ -70,7 +70,7 @@
 
 .. option:: --read_map READ_MAP
 
-   the read map flair quantify --generate_map wrote for --bam's sample, <output>.<sample>.read.map.tsv, plain, bgzip or gzip
+   the read map flair quantify --generate_map wrote for --bam's sample, <output>.isoforms.<sample>.read.map.tsv, plain, bgzip or gzip
 
 .. option:: --phased_vcf PHASED_VCF
 

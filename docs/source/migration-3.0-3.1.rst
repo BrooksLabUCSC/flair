@@ -17,7 +17,7 @@ Everywhere
   before the subcommand: ``flair -z transcriptome ...``. Compressed input is read
   whether or not it is given.
 - The TSVs FLAIR writes are named ``.tsv``, not ``.txt``: ``flair.read.map.txt`` is
-  ``flair.isoform.read.map.tsv``.
+  ``flair.isoforms.read.map.tsv``.
 - Genes, isoforms and protein sequences carry FLAIR identifiers, and the gene is a
   column of its own rather than part of the isoform name. See :ref:`ids-label`.
 - ``--quiet`` is gone. Logging is set by the global ``--log-level``, ``--log-stderr``,
@@ -89,7 +89,7 @@ flair transcriptome
 **Outputs**
 
 - ``flair.isoforms.bed``, ``flair.isoforms.gtf``, ``flair.isoforms.fa`` as before
-- ``flair.read.map.txt`` is ``flair.isoform.read.map.tsv``, written with
+- ``flair.read.map.txt`` is ``flair.isoforms.read.map.tsv``, written with
   ``--generate_map``
 
 flair quantify

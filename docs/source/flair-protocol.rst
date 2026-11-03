@@ -37,7 +37,7 @@ better coverage. However, we have tested and obtained good results with
     comments back into the alignments as tags
   - Recommended alignment command, from a BAM of raw reads:
 
-    - ``samtools fastq -T '*' SAMPLE.reads.bam | minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no -y GENOME.fa - | samtools sort -o SAMPLE.genomealigned.bam - && samtools index SAMPLE.genomealigned.bam``
+    - ``samtools fastq -T '*' SAMPLE.reads.bam | minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no -y GENOME.fa - | samtools sort -o SAMPLE.genome_aligned.bam - && samtools index SAMPLE.genome_aligned.bam``
     - From a FASTA or FASTQ of reads, give it to minimap2 in place of ``-``,
       without ``samtools fastq`` and ``-y``
     - If your library is stranded, you may want to add ``-uf`` to the
@@ -100,7 +100,7 @@ long-read data
 
     - After genomic alignment of your reads (have indexed BAM file), use
       intron-prospector to generate a junctions.bed file:
-    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.IPjunctions.bed -C 0.0 SAMPLE.genomealigned.bam``
+    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.IPjunctions.bed -C 0.0 SAMPLE.genome_aligned.bam``
 
 .. _choosing-analysis-label:
 
@@ -180,11 +180,11 @@ more.
 
 - With short-read orthogonal support:
 
-  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_star SHORTREAD.SJ.out.tab -b SAMPLE.genomealigned.bam --sample_name SAMPLE -o SAMPLE``
+  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_star SHORTREAD.SJ.out.tab -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
 
 - With junctions from long reads:
 
-  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genomealigned.bam --sample_name SAMPLE -o SAMPLE``
+  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
 
 - The sample name labels the sample's isoforms and reads in the outputs, and
   FLAIR combine's columns, so give each sample its own
@@ -199,7 +199,7 @@ quantified with them, below.  FLAIR fusion needs stranded reads, and reads
 aligned with ``-s 40``, as in the recommended minimap2 command, to keep short
 partner pieces.
 
-- ``flair fusion -g GENOME.fa -f ANNOTATION.gtf -b SAMPLE.genomealigned.bam --sample_name SAMPLE -o SAMPLE``
+- ``flair fusion -g GENOME.fa -f ANNOTATION.gtf -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
 
 This writes ``SAMPLE.fusions.isoforms.bed`` beside FLAIR transcriptome's
 ``SAMPLE.isoforms.bed``, and ``SAMPLE.fusions.tsv``, the fusions found.
@@ -339,7 +339,7 @@ Testing for differences between conditions
 ------------------------------------------
 
 FLAIR quantify writes the conditions and batches of its manifest beside the counts
-matrix, in ``OUTPUT.sample_info.tsv``, which FLAIR diffexp and diffsplice read.
+matrix, in ``OUTPUT.isoforms.sample_info.tsv``, which FLAIR diffexp and diffsplice read.
 Name the two conditions to compare; the first is the reference that changes are
 measured against.  FLAIR diffexp needs at least 3 replicates of each condition,
 and FLAIR diffsplice by default tests only events covered in 6 samples
@@ -348,19 +348,19 @@ and FLAIR diffsplice by default tests only events covered in 6 samples
 - Differential gene and isoform expression, and isoform usage (DESeq2 and
   DRIMSeq):
 
-  - ``flair diffexp --counts_matrix OUTPUT.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFEXP``
+  - ``flair diffexp --counts_matrix OUTPUT.isoforms.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFEXP``
 
 - Differential splicing events, derived from the isoforms and their counts, and
   tested with DRIMSeq when the conditions are named (or with ``--test``, which
   takes the only two conditions in sorted order); otherwise only the events'
   counts are written:
 
-  - ``flair diffsplice --isoform_bed COMBINED.isoforms.bed --counts_matrix OUTPUT.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFSPLICE``
+  - ``flair diffsplice --isoform_bed COMBINED.isoforms.bed --counts_matrix OUTPUT.isoforms.counts.tsv --condition_a CONTROL --condition_b TREATED -o DIFFSPLICE``
 
 - Without replicates, compare isoform usage between two samples with Fisher's
   exact test, with p-values adjusted for the isoforms tested:
 
-  - ``diff_iso_usage OUTPUT.counts.tsv SAMPLE1 SAMPLE2 OUTPUT.usage.tsv``
+  - ``diff_iso_usage OUTPUT.isoforms.counts.tsv SAMPLE1 SAMPLE2 OUTPUT.usage.tsv``
 
 Counting splicing events from reads
 -----------------------------------

@@ -29,7 +29,7 @@ def test_an_events_other_row_counts_toward_its_alternatives_but_is_not_tested(tm
 
 
 def test_an_alleles_share_of_its_sites_reads(tmp_path):
-    counts = str(tmp_path / 'x.var.counts.tsv')
+    counts = str(tmp_path / 'x.variants.counts.tsv')
     with var_counts_tsv.var_counts_writer(counts, ['s1', 's2']) as writer:
         writer.writeAllele('chr1:5', 'A', 'G', ('.', '.', '.'), 'G1', [(9, 1), (2, 8)])
     out = str(tmp_path / 'usage.tsv')

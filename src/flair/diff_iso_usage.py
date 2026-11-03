@@ -16,7 +16,7 @@ def build_parser():
     parser = argparse.ArgumentParser(prog='diff_iso_usage', description=desc)
     parser.add_argument('counts_matrix_tsv',
                         help='counts matrix TSV from flair quantify, OUTPUT.spliceevents.counts.tsv from '
-                        'flair spliceevents, or OUTPUT.var.counts.tsv from flair variantquant')
+                        'flair spliceevents, or OUTPUT.variants.counts.tsv from flair variantquant')
     parser.add_argument('colname1',
                         help='the name of the column of the first sample')
     parser.add_argument('colname2',

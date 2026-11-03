@@ -22,7 +22,7 @@
 
 .. option:: --tpm
 
-   also write the counts as transcripts per million, <output>.tpm.tsv
+   also write the counts as transcripts per million, <output>.isoforms.tpm.tsv
 
 .. option:: --trust_ends
 
@@ -30,7 +30,7 @@
 
 .. option:: --generate_map
 
-   write each sample's reads by isoform, <output>.<sample id>.read.map.tsv: a row of an isoform and its reads, comma-separated, under a header
+   write each sample's reads by isoform, <output>.isoforms.<sample id>.read.map.tsv: a row of an isoform and its reads, comma-separated, under a header
 
 .. option:: --normalize_ends
 

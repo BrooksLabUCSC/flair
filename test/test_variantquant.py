@@ -101,7 +101,7 @@ def test_each_allele_of_a_site_is_counted_of_the_reads_covering_it(tmp_path):
     vcfvars = add_vcf_var({}, 'chr1', 'A', ['G', 'T'], 5, 'G1')
     output = str(tmp_path / 'out')
     read_vars_to_genome_pos_counts([str(tempdir / 'chr1.txt')], output, [['s1'], ['s2']], 1, False, vcfvars)
-    rows = [line.rstrip('\n').split('\t') for line in open(output + '.var.counts.tsv')]
+    rows = [line.rstrip('\n').split('\t') for line in open(output + '.variants.counts.tsv')]
     assert rows == [['var_name', 'is_var', 'varpos', 'ref', 'alt', 'strand', 'phase_set', 'haplotype', 'gene', 's1', 's2'],
                     ['chr1:5:A>G', 'yes', 'chr1:5', 'A', 'G', '.', '.', '.', 'G1', '1', '0'],
                     ['chr1:5:A>G', 'no', 'chr1:5', 'A', 'G', '.', '.', '.', 'G1', '1', '2'],
@@ -129,7 +129,7 @@ def _sites_vcf(path):
 def _quantvarpos(tmp_path, **kwargs):
     quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=_sites_vcf(tmp_path / 'sites.vcf'),
                 output=str(tmp_path / 'out'), min_coverage=1, output_all=False, **kwargs)
-    return open(tmp_path / 'out.var.counts.tsv').read()
+    return open(tmp_path / 'out.variants.counts.tsv').read()
 
 
 def test_a_rerun_to_the_same_output_counts_its_reads_once(tmp_path):
@@ -257,11 +257,11 @@ def test_a_vcfs_sites_without_an_isoform_bed_have_no_genes(tmp_path):
     vcf = _vcf(tmp_path / 'sites.vcf', ('chr1', '5', '.', 'A', 'G,T'))
     quantvarpos(bam=_bam(tmp_path / 's1.bam', SITES_READS), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
                 output_all=False, keep_intermediate=False)
-    assert open(tmp_path / 'out.var.counts.tsv').read().splitlines() == ['var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1',
-                                                                         'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t1',
-                                                                         'chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t2',
-                                                                         'chr1:5:A>T\tyes\tchr1:5\tA\tT\t.\t.\t.\t\t1',
-                                                                         'chr1:5:A>T\tno\tchr1:5\tA\tT\t.\t.\t.\t\t2']
+    assert open(tmp_path / 'out.variants.counts.tsv').read().splitlines() == ['var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1',
+                                                                              'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t1',
+                                                                              'chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t2',
+                                                                              'chr1:5:A>T\tyes\tchr1:5\tA\tT\t.\t.\t.\t\t1',
+                                                                              'chr1:5:A>T\tno\tchr1:5\tA\tT\t.\t.\t.\t\t2']
 
 
 def test_records_of_kept_flags_are_sites_too(tmp_path):
@@ -417,7 +417,7 @@ def test_trusting_strand_counts_each_strand_of_reads_in_a_row_of_its_own(tmp_pat
     def counts(**options):
         quantvarpos(bam=str(tmp_path / 's1.bam'), vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1,
                     output_all=False, keep_intermediate=False, **options)
-        return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
+        return sorted(open(tmp_path / 'out.variants.counts.tsv').read().splitlines())
 
     assert counts() == ['chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t3', 'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t3', 'var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
     assert counts(quality=1) == ['chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t3', 'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t2', 'var_name\tis_var\tvarpos\tref\talt\tstrand\tphase_set\thaplotype\tgene\ts1']
@@ -454,7 +454,7 @@ def test_haplotypes_count_the_reads_of_each_phase_set_and_haplotype_in_a_row_of_
         # an allele's rows are of every group, haplotype 1, of no read showing G, too
         quantvarpos(bam=bam, vcf=vcf, output=str(tmp_path / 'out'), min_coverage=1, output_all=False,
                     keep_intermediate=False, **options)
-        return sorted(open(tmp_path / 'out.var.counts.tsv').read().splitlines())
+        return sorted(open(tmp_path / 'out.variants.counts.tsv').read().splitlines())
 
     assert counts(haplotypes=True) == ['chr1:5:A>G\tno\tchr1:5\tA\tG\t.\t.\t.\t\t1',
                                        'chr1:5:A>G\tyes\tchr1:5\tA\tG\t.\t.\t.\t\t1',

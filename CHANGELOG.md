@@ -2,6 +2,35 @@
 
 ## [v3.x.xx]
 * General
+  * Output files are named consistently: lowercase, dots between the parts of a
+    name, underscores within a part, plural `isoforms` wherever a file is about
+    isoforms, and every counts matrix naming what it counts.  The renames, by
+    module:
+
+    | module | was | is |
+    |---|---|---|
+    | transcriptome | `OUT.isoform.counts.tsv` | `OUT.isoforms.counts.tsv` |
+    | transcriptome | `OUT.isoform.read.map.tsv` | `OUT.isoforms.read.map.tsv` |
+    | combine | `OUT.combined.isoform.counts.tsv` | `OUT.combined.isoforms.counts.tsv` |
+    | combine | `OUT.combined.isoform.map.tsv` | `OUT.combined.isoforms.map.tsv` |
+    | combine | `OUT.combined.gene.map.tsv` | `OUT.combined.genes.map.tsv` |
+    | quantify | `OUT.counts.tsv` | `OUT.isoforms.counts.tsv` |
+    | quantify | `OUT.tpm.tsv` | `OUT.isoforms.tpm.tsv` |
+    | quantify | `OUT.sample_info.tsv` | `OUT.isoforms.sample_info.tsv` |
+    | quantify | `OUT.SAMPLE.read.map.tsv` | `OUT.isoforms.SAMPLE.read.map.tsv` |
+    | fusion | `OUT.fusions.isoform.counts.tsv` | `OUT.fusions.isoforms.counts.tsv` |
+    | fusion | `OUT.fusions.isoform.read.map.tsv` | `OUT.fusions.isoforms.read.map.tsv` |
+    | fusion | `OUT.prelimfusions.bed` | `OUT.fusions.prelim.bed` |
+    | fusion | `OUT.genomealigned.chim.bam` | `OUT.genome_aligned.chim.bam` |
+    | fusion | `OUT.transcriptomealigned.chim.bam` | `OUT.transcriptome_aligned.chim.bam` |
+    | fusion | `OUT.syntheticAligned.*` | `OUT.synthetic_aligned.*` |
+    | fusion | `OUT-syntheticFusionGenome.fa` | `OUT.synthetic_fusion_genome.fa` |
+    | fusion | `OUT-syntheticReferenceAnno.gtf` | `OUT.synthetic_reference_anno.gtf` |
+    | fusion | `OUT-syntheticBreakpointLoc.bed` | `OUT.synthetic_breakpoint_loc.bed` |
+    | spliceevents | `OUT.spliceevents.PSIjunc.tsv` | `OUT.spliceevents.psi_junc.tsv` |
+    | spliceevents | `OUT.spliceevents.PSItot.tsv` | `OUT.spliceevents.psi_tot.tsv` |
+    | variantquant | `OUT.var.counts.tsv` | `OUT.variants.counts.tsv` |
+    | variantquant | `OUT.var.sample_info.tsv` | `OUT.variants.sample_info.tsv` |
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
@@ -23,7 +52,7 @@
     its t-test alone on them, not DESeq2, and an event's `other` row counts toward
     the event but is not reported.  Conditions come from a sample info TSV beside
     the counts, as quantify writes one.
-  * `flair variantquant`'s `var.counts.tsv` has two rows per allele and group of
+  * `flair variantquant`'s `variants.counts.tsv` has two rows per allele and group of
     reads, `is_var` `yes` and `no`, named by a new `var_name` column, with one
     integer per sample, in place of one row of `not_alt;alt` pairs.
   * Isoform and gene ids are never split at an underscore.  `flair transcriptome`

@@ -73,7 +73,8 @@ def split_compress_suffix(path):
     return path, ''
 
 def sample_info_path(counts_matrix_tsv):
-    """flair quantify writes <prefix>.counts.tsv beside <prefix>.sample_info.tsv.  A
+    """flair quantify writes <prefix>.counts.tsv beside <prefix>.sample_info.tsv, as
+    isoforms.counts.tsv beside isoforms.sample_info.tsv.  A
     compressed matrix names a compressed sample info file, since quantify writes the
     pair the same way."""
     base, compress = split_compress_suffix(counts_matrix_tsv)

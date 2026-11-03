@@ -273,7 +273,7 @@ def _warn_of_unshared_phase_sets(samplenames, phase_sets):
 
 def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold, output_all, vcfvars,
                                    haplotypes=False):
-    """Write the counts of each allele of each site, two rows of OUTPUT.var.counts.tsv
+    """Write the counts of each allele of each site, two rows of OUTPUT.variants.counts.tsv
     (var_counts_tsv): per sample, the reads showing the alt, and those covering the
     site not showing it, so they add up to the site's coverage whatever its other
     alts.  Each group of reads (ReadGroup) at the site has rows of its own, of its
@@ -288,7 +288,7 @@ def read_vars_to_genome_pos_counts(temp_paths, outprefix, sampledata, threshold,
     if haplotypes:
         _warn_of_unshared_phase_sets(samplenames, phase_sets)
 
-    with var_counts_writer(compressed_path(f'{outprefix}.var.counts.tsv'), samplenames) as out:
+    with var_counts_writer(compressed_path(f'{outprefix}.variants.counts.tsv'), samplenames) as out:
         groups_of_site = {}
         for (refname, pos, gene, group), sample_alleles in vartocounts.items():
             groups_of_site.setdefault((refname, pos, gene), []).append((group, sample_alleles))

@@ -18,7 +18,7 @@
 
 .. option:: -o, --output OUTPUT
 
-   output file name base for FLAIR isoforms, defaults to --sample_name. The chimeric reads bams OUTPUT.genomealigned.chim.bam and OUTPUT.transcriptomealigned.chim.bam from an earlier run with this -o are reused, whatever -b and --min_fragment_size are
+   output file name base for FLAIR isoforms, defaults to --sample_name. The chimeric reads bams OUTPUT.genome_aligned.chim.bam and OUTPUT.transcriptome_aligned.chim.bam from an earlier run with this -o are reused, whatever -b and --min_fragment_size are
 
 .. option:: -t, --threads THREADS
 
@@ -66,7 +66,7 @@
 
 .. option:: --keep_intermediate
 
-   keep the intermediate files: the annotated transcripts, the preliminary fusion reads, and the synthetic fusion genome with its annotation, breakpoints, alignments and flair transcriptome output, where the fusion isoforms can be viewed. The chimeric reads bams and OUTPUT.prelimfusions.bed are always kept
+   keep the intermediate files: the annotated transcripts, the preliminary fusion reads, and the synthetic fusion genome with its annotation, breakpoints, alignments and flair transcriptome output, where the fusion isoforms can be viewed. The chimeric reads bams and OUTPUT.fusions.prelim.bed are always kept
 
 .. rubric:: required named arguments
 
@@ -80,7 +80,7 @@
 
 .. option:: -b, --genome_aligned_bam GENOME_ALIGNED_BAM
 
-   bam file of reads aligned to the genome with minimap2 -ax splice. All reads, not only the chimeric ones: reads are also aligned to annotated transcripts, which finds partner pieces the genome alignment leaves clipped. The chimeric reads taken from it are kept as OUTPUT.genomealigned.chim.bam and OUTPUT.transcriptomealigned.chim.bam, and reused if they exist: with a different bam, use a new -o or remove them first
+   bam file of reads aligned to the genome with minimap2 -ax splice. All reads, not only the chimeric ones: reads are also aligned to annotated transcripts, which finds partner pieces the genome alignment leaves clipped. The chimeric reads taken from it are kept as OUTPUT.genome_aligned.chim.bam and OUTPUT.transcriptome_aligned.chim.bam, and reused if they exist: with a different bam, use a new -o or remove them first
 
 .. option:: --sample_name SAMPLE_NAME
 

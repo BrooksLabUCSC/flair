@@ -1057,10 +1057,10 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
             return (count >= args.single_exon_support) and (exempt or frac >= args.frac_support), frac
 
 
-EMPTY_TSV_WRITERS = {'.isoform.counts.tsv': IsoformCountsWriter,
-                     '.isoform.read.map.tsv': ReadMapWriter,
+EMPTY_TSV_WRITERS = {'.isoforms.counts.tsv': IsoformCountsWriter,
+                     '.isoforms.read.map.tsv': ReadMapWriter,
                      '.countsam.read.map.tsv': ReadMapWriter,
-                     '.isoform.ends.tsv': ReadEndsWriter}
+                     '.isoforms.ends.tsv': ReadEndsWriter}
 
 def generate_empty_intermediate_files(file_prefix, suffixes):
     for s in suffixes:
@@ -1448,8 +1448,8 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
 
     with open(partition.output_path('isoforms.bed'), 'w') as iso_fh, \
          open(partition.output_path('isoforms.fa'), 'w') as seq_fh, \
-         IsoformCountsWriter(partition.output_path('isoform.counts.tsv')) as counts_fh, \
-         ReadMapWriter(partition.output_path('isoform.read.map.tsv')) as map_fh:
+         IsoformCountsWriter(partition.output_path('isoforms.counts.tsv')) as counts_fh, \
+         ReadMapWriter(partition.output_path('isoforms.read.map.tsv')) as map_fh:
         for tname in final_transcript_objs:
             # spliced isos checked against spliced total, single exon checked against full-length total
             isoform = final_transcript_objs[tname]
@@ -1491,7 +1491,7 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
         _run_region_reads(partition=partition, region=region, gtf_data=gtf_data,
                           junction_corrector=junction_corrector, args=args)
     else:
-        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.bed', '.isoform.counts.tsv', '.isoform.read.map.tsv', '.isoforms.bed', '.isoforms.fa', '.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed'])
+        generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.bed', '.isoforms.counts.tsv', '.isoforms.read.map.tsv', '.isoforms.bed', '.isoforms.fa', '.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed'])
 
 
 def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
@@ -1576,7 +1576,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                 transcriptome_align_and_count(partition.output_path('realign.reads.fasta'),
                                               partition.output_path('firstpass.fa'),
                                               partition.output_path('firstpass.bed'),
-                                              partition.output_path('isoform.counts.tsv'),
+                                              partition.output_path('isoforms.counts.tsv'),
                                               read_map_file, False,  # say is not annot, requires stringent, returns different end values
                                               partition.output_path('reads.genomicclipping.tsv'),
                                               partition.output_path('firstpass.uniquebound.tsv'),
@@ -1587,37 +1587,37 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                                                     if args.filter in KEEP_SUBSET_FILTERS
                                                                     else MINIMAP2_SECONDARY_ALIGNMENTS))
             else:
-                generate_empty_intermediate_files(partition.file_prefix, ['.isoform.counts.tsv', '.countsam.read.map.tsv', '.isoform.ends.tsv'])
-            with open(partition.output_path('isoform.ends.tsv'), 'a') as ends_fh:
+                generate_empty_intermediate_files(partition.file_prefix, ['.isoforms.counts.tsv', '.countsam.read.map.tsv', '.isoforms.ends.tsv'])
+            with open(partition.output_path('isoforms.ends.tsv'), 'a') as ends_fh:
                 write_direct_assignments(direct, ReadEndsWriter(None, outFh=ends_fh, writeHeader=False))
         else:
             logging.info('no firstpass isoforms found')
-            generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoform.counts.tsv', '.countsam.read.map.tsv', '.isoform.ends.tsv'])
+            generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoforms.counts.tsv', '.countsam.read.map.tsv', '.isoforms.ends.tsv'])
 
         # every spliced isoform's ends, from the reads assigned to it; this also writes
         # the read map, for every way spliced reads were assigned, from the ends
-        final_transcript_objs = assign_final_ends(firstpass, partition.output_path('isoform.ends.tsv'),
+        final_transcript_objs = assign_final_ends(firstpass, partition.output_path('isoforms.ends.tsv'),
                                                   partition.output_path('countsam.read.map.tsv') if args.generate_map else None,
                                                   normalize_ends=args.normalize_ends,
                                                   max_ends=args.max_ends, end_window=args.end_window,
                                                   sjc_support=args.sjc_support, frac_support=args.frac_support)
-        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoform.ends.tsv'), final_transcript_objs, args.no_stringent)
+        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoforms.ends.tsv'), final_transcript_objs, args.no_stringent)
         # single-exon isoforms after the spliced reads are counted, which their support is a fraction of
         single_exon = assign_single_exon_isoforms([isoform for isoform in final_transcript_objs.values() if isoform.juncs == ()],
                                                   iso_to_counts, gene_to_tot,
                                                   se_support=args.single_exon_support, frac_support=args.frac_support)
         final_transcript_objs = _with_single_exon_isoforms(final_transcript_objs, single_exon)
         promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_counts, gene_to_tot,
-                               partition.output_path('isoform.ends.tsv'))
+                               partition.output_path('isoforms.ends.tsv'))
         write_final_isoform_output(partition, args, final_transcript_objs, iso_to_counts, gene_to_tot, annots, genome, args.generate_map)
 
 
-TSV_SUFFIXES = ('.isoform.counts.tsv', '.isoform.read.map.tsv')
+TSV_SUFFIXES = ('.isoforms.counts.tsv', '.isoforms.read.map.tsv')
 
 def combine_chunks(args, output, partitions):
-    files_to_combine = ['.isoforms.bed', '.isoforms.fa', '.isoform.counts.tsv']
+    files_to_combine = ['.isoforms.bed', '.isoforms.fa', '.isoforms.counts.tsv']
     if args.generate_map:
-        files_to_combine.append('.isoform.read.map.tsv')
+        files_to_combine.append('.isoforms.read.map.tsv')
     if args.keep_intermediate:
         files_to_combine.extend(['.firstpass.reallyunfiltered.bed', '.firstpass.unfiltered.bed', '.firstpass.bed'])
     combine_temp_files_by_suffix(output, [p.file_prefix for p in partitions], files_to_combine,
@@ -1689,14 +1689,14 @@ def move_into_place(renamed, joined):
 
 def fix_iso_labels(output, generate_map):
     iso_hash_to_id = get_new_ids(output)
-    rename_ids_into_place(iso_hash_to_id, output + '.isoform.counts.tsv',
-                          compressed_path(output + '.isoform.counts.tsv'))
+    rename_ids_into_place(iso_hash_to_id, output + '.isoforms.counts.tsv',
+                          compressed_path(output + '.isoforms.counts.tsv'))
     fix_ids_fa_file(iso_hash_to_id, output + '.isoforms.fa', output + '.isoforms.newids.fa')
     move_into_place(output + '.isoforms.newids.bed', output + '.isoforms.bed')
     move_into_place(output + '.isoforms.newids.fa', output + '.isoforms.fa')
     if generate_map:
-        rename_ids_into_place(iso_hash_to_id, output + '.isoform.read.map.tsv',
-                              compressed_path(output + '.isoform.read.map.tsv'))
+        rename_ids_into_place(iso_hash_to_id, output + '.isoforms.read.map.tsv',
+                              compressed_path(output + '.isoforms.read.map.tsv'))
 
 ####
 # main

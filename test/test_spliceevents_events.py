@@ -42,8 +42,8 @@ def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac
                           {}, Thresholds(feature_support, event_frac_of_tot, junc_frac_of_event, event_support),
                           annot_afe_ss or {}, annot_ale_ss or {}, [SeqRange(CHROM, 0, 10 ** 9)], gene_juncs, annotated)
     tables = {}
-    for table in ('counts', 'PSIjunc', 'PSItot'):
-        with open(f'{prefix}.spliceevents.{table}.tsv') as fh:
+    for table, suffix in (('counts', 'counts'), ('PSIjunc', 'psi_junc'), ('PSItot', 'psi_tot')):
+        with open(f'{prefix}.spliceevents.{suffix}.tsv') as fh:
             # a region's part of a table carries the header
             assert fh.readline().rstrip('\n').split('\t') == columns(samples)
             tables[table] = {f"{row['event']}|{row['alternative']}": row

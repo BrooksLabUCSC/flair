@@ -29,7 +29,7 @@ The simplest protocol is to align with `minimap2 <https://github.com/lh3/minimap
 
 .. code:: sh
 
-   minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no genome.fa sample.fastq | samtools sort -o sample.genomealigned.bam - && samtools index sample.genomealigned.bam
+   minimap2 -ax splice -s 40 -G 350k -t 25 --MD --secondary=no genome.fa sample.fastq | samtools sort -o sample.genome_aligned.bam - && samtools index sample.genome_aligned.bam
 
 The reads can be FASTA or FASTQ, gzipped or not. We recommend input with stranded reads without polyA tails trimmed, but unstranded and trimmed reads will work as well.
 
@@ -82,7 +82,7 @@ For when to count splicing events from reads with flair spliceevents instead, se
  - ``flair.isoforms.bed``
  - ``flair.isoforms.gtf``
  - ``flair.isoforms.fa``
- - ``flair.isoform.read.map.tsv``
+ - ``flair.isoforms.read.map.tsv``
 
 Options
 -------
@@ -145,20 +145,20 @@ sample.fusions.isoforms.gtf, sample.fusions.isoforms.bb
     The fusion transcriptome as GTF and bigBed
 sample.fusions.isoforms.fa
     Fasta file of fusion transcriptome
-sample.fusions.isoform.counts.tsv
-    Read counts of the fusion isoforms, as flair transcriptome's isoform.counts.txt
-sample.fusions.isoform.read.map.tsv
+sample.fusions.isoforms.counts.tsv
+    Read counts of the fusion isoforms, as flair transcriptome's isoforms.counts.tsv
+sample.fusions.isoforms.read.map.tsv
     read map of reads to fusion isoforms
 sample.fusions.aaseq.tsv
     Protein sequences of the productive fusion isoforms, by the aaseq_id of the bed
-sample.prelimfusions.bed
+sample.fusions.prelim.bed
     The preliminary fusions' loci, with their reads and distances to a TSS
-sample.genomealigned.chim.bam, sample.transcriptomealigned.chim.bam
+sample.genome_aligned.chim.bam, sample.transcriptome_aligned.chim.bam
     The chimeric reads of the genome alignment and of the alignment to annotated
     transcripts, reused by a later run with the same output name
 
-With ``--keep_intermediate``, the synthetic fusion genome (sample-syntheticFusionGenome.fa),
-its annotation, the reads aligned to it (sample.syntheticAligned.bam) and the other
+With ``--keep_intermediate``, the synthetic fusion genome (sample.synthetic_fusion_genome.fa),
+its annotation, the reads aligned to it (sample.synthetic_aligned.bam) and the other
 intermediate files are kept as well, for viewing fusion isoforms on the synthetic genome.
 
 Options
@@ -286,7 +286,7 @@ an isoform's ends were placed.
 
 **Output**
 
-``<output>.counts.tsv`` opens with the two id columns, the gene and the isoform, and
+``<output>.isoforms.counts.tsv`` opens with the two id columns, the gene and the isoform, and
 has a column of read counts per sample, named by its id, a row per isoform of a gene:
 
 .. code:: text
@@ -298,7 +298,7 @@ has a column of read counts per sample, named by its id, a row per isoform of a 
 Each row is one isoform of one gene, named by the two leading id columns described
 in :ref:`ids-label`.  A fusion isoform's gene is the fusion's.
 
-The condition and batch of each column are in ``<output>.sample_info.tsv``, written
+The condition and batch of each column are in ``<output>.isoforms.sample_info.tsv``, written
 beside the counts file, which ``flair diffexp`` and ``flair diffsplice`` read:
 
 .. code:: text
@@ -314,9 +314,9 @@ contain any characters. A counts matrix from an earlier FLAIR, whose columns are
 named ``sample_condition_batch``, is still read by taking the fields back out of the
 column name.
 
-With ``--tpm``, ``<output>.tpm.tsv`` has the counts as transcripts per million; a
+With ``--tpm``, ``<output>.isoforms.tpm.tsv`` has the counts as transcripts per million; a
 sample with no reads counted has 0 throughout, with a warning.  With
-``--generate_map``, ``<output>.<sample id>.read.map.tsv`` lists each sample's reads by
+``--generate_map``, ``<output>.isoforms.<sample id>.read.map.tsv`` lists each sample's reads by
 isoform, under a header, a row of an isoform's name and its reads' names,
 comma-separated.  With ``--compress`` these are all written gzipped.
 
@@ -360,7 +360,7 @@ If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`_
 
 ``--counts_matrix`` may also be the counts of :ref:`flair spliceevents <spliceevents-label>`,
 ``OUTPUT.spliceevents.counts.tsv``, or of :ref:`flair variantquant <variantquant-label>`,
-``OUTPUT.var.counts.tsv``.  Their rows are compared as an isoform's are within its gene:
+``OUTPUT.variants.counts.tsv``.  Their rows are compared as an isoform's are within its gene:
 an event's alternatives (``event`` and ``alternative``), and the reads showing an allele
 and those not (``var_name`` and ``is_var``).  Only usage is tested, with DRIMSeq and the
 t-test normalized by gene, since an event's or a site's reads are not a gene's
@@ -371,7 +371,7 @@ total, but is not tested.  In the outputs, the ``gene_id`` column holds the even
 
 Neither module records conditions, so write the sample info file that ``flair
 quantify`` would beside the counts, named for them: ``OUTPUT.spliceevents.sample_info.tsv``
-or ``OUTPUT.var.sample_info.tsv``, a header and then a line per sample column, in the
+or ``OUTPUT.variants.sample_info.tsv``, a header and then a line per sample column, in the
 order of the columns:
 
 .. code:: text
@@ -626,8 +626,8 @@ without those losses, and ``--partition yes`` cuts ``--region_bed`` regions too.
 The manifest is a tab-separated file of a sample name and the path to its sorted and
 indexed bam file, a line per sample::
 
-   sample1	sample1.genomealigned.bam
-   sample2	sample2.genomealigned.bam
+   sample1	sample1.genome_aligned.bam
+   sample2	sample2.genome_aligned.bam
 
 **Outputs**
 
@@ -642,7 +642,7 @@ indexed bam file, a line per sample::
    those its reads splice, the skipping junctions of an exon skip's exclusion.  An
    event of an annotated gene can have novel alternatives, so these, rather than
    the gene, find novel splicing
- - ``OUTPUT.spliceevents.PSIjunc.tsv`` and ``OUTPUT.spliceevents.PSItot.tsv``, the
+ - ``OUTPUT.spliceevents.psi_junc.tsv`` and ``OUTPUT.spliceevents.psi_tot.tsv``, the
    rows' PSIs, empty where a sample has too few reads
  - ``OUTPUT.spliceevents.totals.tsv``, each event's reads (``event_reads``) and the
    reads covering its locus (``locus_reads``) in each sample, the PSIs' denominators
@@ -674,13 +674,13 @@ A sample is given by ``--bam``, named by ``--sample_name`` or else for its bam f
 or several by ``--manifest``, a tab-separated file of a line per sample, either of a
 sample name and its bam file, with the sites from ``--vcf``::
 
-   tumor	tumor.genomealigned.bam
-   normal	normal.genomealigned.bam
+   tumor	tumor.genome_aligned.bam
+   normal	normal.genome_aligned.bam
 
 or of a sample name, its bam file and the vcf of its own variants, on every line::
 
-   tumor	tumor.genomealigned.bam	tumor.vcf.gz
-   normal	normal.genomealigned.bam	normal.vcf.gz
+   tumor	tumor.genome_aligned.bam	tumor.vcf.gz
+   normal	normal.genome_aligned.bam	normal.vcf.gz
 
 whose sites are merged, every sample counted at all of them, so a site called in one
 sample has the reads of the others too.  Lines starting with ``#`` and blank lines are
@@ -740,7 +740,7 @@ the first, sorted.
 
 **Outputs**
 
- - ``OUTPUT.var.counts.tsv``, two rows per allele of a site, of each group of its
+ - ``OUTPUT.variants.counts.tsv``, two rows per allele of a site, of each group of its
    reads: ``is_var`` ``yes``, the reads showing the alt, and ``no``, those covering the
    site not showing it, so the two add up to the reads covering the site whatever its
    other alts.  ``var_name`` names the pair, ``CHROM:POS:REF>ALT``, then ``(STRAND)``
@@ -791,7 +791,7 @@ phase variants itself.
 
 1. Build the isoforms and count the reads with FLAIR as usual. Every sample needs
    a read map from ``flair quantify --generate_map``, made with the same isoform bed
-   given here (``<output>.<sample>.read.map.tsv``)::
+   given here (``<output>.isoforms.<sample>.read.map.tsv``)::
 
      flair quantify --manifest MANIFEST.tsv -g GENOME.fa --isoform_bed ISOFORMS.bed --generate_map -o QUANT
 
@@ -821,7 +821,7 @@ Each isoform's reads are split by haplotype, H1, H2 or untagged, and H1 and H2 e
 get a sequence with their germline variants::
 
   flair isoalleles --isoform_bed ISOFORMS.bed -g GENOME.fa \
-      --bam SAMPLE.haplotagged.bam --read_map QUANT.SAMPLE.read.map.tsv \
+      --bam SAMPLE.haplotagged.bam --read_map QUANT.isoforms.SAMPLE.read.map.tsv \
       --phased_vcf SAMPLE.phased.vcf.gz -o SAMPLE
 
 **A tumor and normal pair**
@@ -850,8 +850,8 @@ from exactly one of:
 ::
 
   flair isoalleles --isoform_bed ISOFORMS.bed -g GENOME.fa \
-      --bam TUMOR.haplotagged.bam --read_map QUANT.TUMOR.read.map.tsv --sample_name TUMOR \
-      --normal_bam NORMAL.haplotagged.bam --normal_read_map QUANT.NORMAL.read.map.tsv --normal_name NORMAL \
+      --bam TUMOR.haplotagged.bam --read_map QUANT.isoforms.TUMOR.read.map.tsv --sample_name TUMOR \
+      --normal_bam NORMAL.haplotagged.bam --normal_read_map QUANT.isoforms.NORMAL.read.map.tsv --normal_name NORMAL \
       --phased_vcf NORMAL.phased.vcf.gz --germline_vcf NORMAL.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR
 
 ``--germline_vcf NORMAL.vcf.gz`` is only needed when ``NORMAL.phased.vcf.gz`` holds

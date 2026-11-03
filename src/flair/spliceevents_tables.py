@@ -50,7 +50,7 @@ class EventTables:
     def _write_row(self, columns, counts, event):
         "a row's counts and PSIs; returns its PSIjuncs, of the samples with event_support reads"
         self.tables['.spliceevents.counts.tsv'].writeRow(columns + [str(counts[s]) for s in self.samples])
-        for suffix, totals in (('.spliceevents.PSIjunc.tsv', event.totjunc), ('.spliceevents.PSItot.tsv', event.totoverlap)):
+        for suffix, totals in (('.spliceevents.psi_junc.tsv', event.totjunc), ('.spliceevents.psi_tot.tsv', event.totoverlap)):
             self.tables[suffix].writeRow(columns + [str(round(counts[s] / totals[s], 4)) if totals[s] >= self.event_support
                                                     else '' for s in self.samples])
         return [counts[s] / event.totjunc[s] for s in self.samples if event.totjunc[s] >= self.event_support]
@@ -81,7 +81,7 @@ class EventTables:
 # the tables each region writes, combined into the run's: a file of events
 # (splicing_events_tsv) per kind of sample column, their totals (splicing_totals_tsv)
 # and their BED
-EVENT_TABLE_SUFFIXES = ('.spliceevents.counts.tsv', '.spliceevents.PSIjunc.tsv', '.spliceevents.PSItot.tsv')
+EVENT_TABLE_SUFFIXES = ('.spliceevents.counts.tsv', '.spliceevents.psi_junc.tsv', '.spliceevents.psi_tot.tsv')
 TOTALS_SUFFIX = '.spliceevents.totals.tsv'
 REGION_OUTPUT_SUFFIXES = ('.spliceevents.bed', *EVENT_TABLE_SUFFIXES, TOTALS_SUFFIX)
 
