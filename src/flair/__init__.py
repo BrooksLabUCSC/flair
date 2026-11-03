@@ -73,6 +73,16 @@ def range_overlap(a, b):
     """Return the overlap length between two ranges with .start/.end attributes. Returns 0 if no overlap."""
     return max(0, min(a.end, b.end) - max(a.start, b.start))
 
+def combine_regions(regions):
+    "regions sorted, with those overlapping or touching merged"
+    merged = []
+    for region in sorted(regions):
+        if merged and merged[-1].name == region.name and region.start <= merged[-1].end:
+            merged[-1] = SeqRange(region.name, merged[-1].start, max(merged[-1].end, region.end))
+        else:
+            merged.append(SeqRange(region.name, region.start, region.end))
+    return merged
+
 def resolve_deprecated_option(args, *, deprecated, current):
     """Fold a deprecated option into the one that replaced it, warning that it is
     deprecated.  Names are the argparse dest, without the leading dashes."""

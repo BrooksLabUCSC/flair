@@ -6,6 +6,7 @@ and the annotation data for its region, and runs a user-supplied function on
 each partition.
 """
 import gc
+import logging
 import os
 import re
 import shutil
@@ -124,13 +125,17 @@ def _call_partition_func(packed):
         thread_share.task_done()
 
 
-def _run_flair_partition(genome_aligned_bam, annot_gtf, threads):
+def _run_flair_partition(genome_aligned_bam, annot_gtf, threads, region_bed=None):
     """Run flair_partition and return a list of SeqRanges and a list of the number
-    of input items in each."""
+    of input items in each.  Given region_bed, only the partitions overlapping one of
+    its regions, which flair_partition grows to hold every read and annotation
+    reaching them.  A minimum number of items per partition is not asked for then, as
+    it would count only what was read in the regions, so each partition is one
+    cluster of overlapping reads and transcripts"""
     cmd = ['flair_partition',
-           '--min_partition_items=1000',
            f'--threads={threads}',
            f'--bam={genome_aligned_bam}']
+    cmd += [f'--region_bed={region_bed}'] if region_bed is not None else ['--min_partition_items=1000']
     if annot_gtf is not None:
         cmd += [f'--gtf={annot_gtf}']
     cmd += ['/dev/stdout']
@@ -254,11 +259,17 @@ def _region_temp_dir(work_dir, region):
     return os.path.join(work_dir, region_file_name(region))
 
 
-def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, threads):
+def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, threads, region_bed=None):
     """Divide the genome into regions to run in parallel, choosing bychrom or byregion
     based on parallel_mode, a tuple as returned by parallel_mode_parse:
         ('bychrom', None) | ('byregion', None) | ('auto', size_gb)
+    Given region_bed, only the regions of its ranges, by region whatever parallel_mode
+    says, as whole chromosomes would restrict nothing.
     Returns a list of SeqRanges and a list of their sizes, for PartitionRunner."""
+    if region_bed is not None:
+        if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
+            logging.info("--region_bed partitions by region, not by chromosome")
+        return _run_flair_partition(genome_aligned_bam, annot_gtf, threads, region_bed)
     if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
         regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))
                    for chrom in genome.references]

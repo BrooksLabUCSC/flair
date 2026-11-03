@@ -4,7 +4,7 @@ import shutil
 import pysam
 import logging
 from flair.partition_runner import PartitionRunner
-from flair import SeqRange
+from flair import SeqRange, combine_regions
 from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
 from flair.io_utils import make_temp_dir, read_manifest_rows, check_genome_fasta
@@ -15,7 +15,7 @@ from flair.spliceevents_events import thresholds_of
 from flair.spliceevents_genes import AnnotatedSplicing, gene_junctions, novel_genes_of_chains, process_region_events
 from flair.spliceevents_reads import (annotated_terminal_exons, annotated_terminal_splice_sites,
                                       get_juncs_single_sample, read_chains_path, read_read_chains)
-from flair.spliceevents_regions import (combine_regions, correction_regions, intergenic_cuts, partition_regions,
+from flair.spliceevents_regions import (correction_regions, intergenic_cuts, partition_regions,
                                         read_windows, region_key)
 from flair.spliceevents_tables import EventTables, combine_region_tables
 

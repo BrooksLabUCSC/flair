@@ -5,7 +5,7 @@ reports.  Used by flair spliceevents"""
 from bisect import bisect_right
 import multiprocessing as mp
 import pysam
-from flair import SeqRange
+from flair import SeqRange, combine_regions
 from flair.read_processing import ReadWindows
 
 
@@ -164,14 +164,3 @@ def event_in_regions(event, regions, gene_span, owned=None):
     if owned is not None and not owned.start <= low < owned.end:
         return False
     return any(region.name == event.chrom and region.start <= low and high <= region.end for region in regions)
-
-
-def combine_regions(regions):
-    "regions sorted, with those overlapping or touching merged"
-    merged = []
-    for region in sorted(regions):
-        if merged and merged[-1].name == region.name and region.start <= merged[-1].end:
-            merged[-1] = SeqRange(region.name, merged[-1].start, max(merged[-1].end, region.end))
-        else:
-            merged.append(SeqRange(region.name, region.start, region.end))
-    return merged

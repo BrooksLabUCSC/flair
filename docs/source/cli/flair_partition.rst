@@ -7,8 +7,9 @@
    usage: flair_partition [-h] [--min_partition_items MIN_PARTITION_ITEMS]
                           [--part_merge_dist PART_MERGE_DIST] [--threads THREADS]
                           [--bed BED_FILES] [--bam BAM_FILES] [--gtf GTF_FILES]
-                          [--log-stderr] [--log-level LOG_LEVEL]
-                          [--log-conf LOG_CONF] [--log-debug]
+                          [--region_bed REGION_BED] [--log-stderr]
+                          [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
+                          [--log-debug]
                           ranges_bed
 
 .. rubric:: positional arguments
@@ -42,6 +43,10 @@
 .. option:: --gtf GTF_FILES
 
    Input GTF file. Maybe repeated.
+
+.. option:: --region_bed REGION_BED
+
+   BED of regions to restrict the partitions to, such as the genes of interest. Only input items overlapping a region are read, an indexed BAM by random access, and the regions are then grown over the items reaching them until they stop growing, so each partition holds every item that a partition of the whole input would. Not used with --min_partition_items
 
 .. option:: --log-stderr
 

@@ -251,6 +251,13 @@
   `make test-alignments` checks their alignments, so a minimap2 that aligns them
   differently shows there first.
 * flair transcriptome
+  * `--region_bed` builds transcripts only in the regions of a BED, such as the genes
+    of interest, reading only those parts of the BAM.  Each region is grown over the
+    reads and annotated transcripts reaching it, and over those reaching them, until
+    it holds everything a whole-genome run would put with it, so its transcripts are
+    that run's.  A grown region can take in a neighboring gene, whose transcripts are
+    reported too, and isoform ids are numbered within the run.  `flair_partition
+    --region_bed` does the same for a partition run on its own.
   * With `--filter comprehensive` or `ginormous`, the reads are realigned to the
     firstpass isoforms with 50 secondary alignments rather than 4: a truncated read
     aligns alike to its own subset isoform and every isoform containing it, and with

@@ -1,6 +1,9 @@
 import io
 import os
-from flair.flair_partition import gtf_to_file, read_ranges, convert_inputs, bam_chroms, bam_to_file
+import pytest
+from flair import FlairInputDataError, SeqRange
+from flair.flair_partition import (gtf_to_file, read_ranges, convert_inputs, bam_chroms, bam_to_file,
+                                   check_bam_indexed, closed_partitions, scan_partitions, RegionSet)
 from flair.gtf_to_bed import gtf_to_bed
 
 
@@ -63,3 +66,64 @@ def test_thread_slots_limit_concurrency():
         for f in [executor.submit(slots.run, n, job, n) for n in (1, 2, 2, 2, 1, 2, 1, 1)]:
             f.result()
     assert peak[0] <= 4
+
+
+def _partition_spans(partitions):
+    return sorted((bed.chrom, bed.chromStart, bed.chromEnd, count) for bed, count in partitions)
+
+
+def test_region_set_merges_and_finds_overlaps():
+    regions = RegionSet([SeqRange('chr1', 100, 200), SeqRange('chr1', 150, 300), SeqRange('chr2', 1, 5)])
+    assert regions.regions == [SeqRange('chr1', 100, 300), SeqRange('chr2', 1, 5)]
+    assert regions.overlaps('chr1', 250, 260)
+    assert not regions.overlaps('chr1', 300, 400)
+    assert not regions.overlaps('chr3', 100, 200)
+
+
+def test_region_grows_over_a_chain_of_items(tmp_path):
+    # the region grows over the items reaching it, then over the items reaching
+    # those, so it ends as the partition of the whole input, 100-400
+    chain_bed = tmp_path / 'chain.bed'
+    chain_bed.write_text('chr1\t100\t200\nchr1\t190\t300\nchr1\t290\t400\nchr1\t1000\t1100\n')
+    work_dir = tmp_path / 'work'
+    work_dir.mkdir()
+    regions = RegionSet([SeqRange('chr1', 100, 110)])
+    partitions = closed_partitions([str(chain_bed)], [], [], 1, 0, regions, str(work_dir))
+    assert _partition_spans(partitions) == [('chr1', 100, 400, 3)]
+
+
+def test_region_partitions_are_those_of_the_whole_input(tmp_path, make_output_dir):
+    # a region inside a gene gives the partition, and its item count, that
+    # partitioning the whole BAM gives
+    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    full_dir, region_dir = tmp_path / 'full', tmp_path / 'region'
+    full_dir.mkdir()
+    region_dir.mkdir()
+    full = _partition_spans(scan_partitions([], [bam], [], 2, 0, 0, None, str(full_dir)))
+    regions = RegionSet([SeqRange('chr17', 64490000, 64490100)])
+    partitions = closed_partitions([], [bam], [], 2, 0, regions, str(region_dir))
+    assert _partition_spans(partitions) == [part for part in full if part[0] == 'chr17']
+
+
+def test_region_with_no_items_gives_no_partitions(tmp_path, make_output_dir):
+    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    regions = RegionSet([SeqRange('chr12', 60000000, 60010000)])
+    assert closed_partitions([], [bam], [], 2, 0, regions, str(tmp_path)) == []
+
+
+def test_bam_regions_hold_the_alignments_overlapping_them(tmp_path, make_output_dir):
+    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    regions = RegionSet([SeqRange('chr20', 35550000, 35551000)])
+    regions_bed = str(tmp_path / 'regions.bed')
+    regions.write_bed(regions_bed)
+    bam_to_file(bam, str(tmp_path / 'regions.out.bed'), None, regions_bed)
+    bam_to_file(bam, str(tmp_path / 'whole.bed'))
+    with open(tmp_path / 'whole.bed') as fh:
+        wanted = sorted(tuple(line.split('\t')[:3]) for line in fh
+                        if regions.overlaps(line.split('\t')[0], int(line.split('\t')[1]), int(line.split('\t')[2])))
+    assert _bed3(tmp_path / 'regions.out.bed') == wanted
+
+
+def test_unindexed_bam_cannot_be_read_by_region():
+    with pytest.raises(FlairInputDataError, match="indexed BAM or CRAM"):
+        check_bam_indexed('input/tiny.sam')

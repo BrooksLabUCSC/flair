@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from statistics import median
 from collections import Counter
-from flair import FlairError, FlairInputDataError, resolve_deprecated_option
+from flair import FlairError, FlairInputDataError, SeqRange, resolve_deprecated_option
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.junction_correct import junction_corrector_factory
 from flair.annotation_alignment import (_exon_bounds, _write_reads_subset,
@@ -118,6 +118,7 @@ class TranscriptomeOpts:
     quality: int
     threads: int
     parallel_mode: tuple
+    region_bed: str
     fusion_breakpoints: str
     keep_intermediate: bool
     temp_dir: str
@@ -231,6 +232,15 @@ def add_subparser(subparsers):
                              'bychrom, byregion, auto:xGB; for the auto threshold, the size must be in units '
                              'of GB (default: %(default)s)')
 
+    parser.add_argument('--region_bed',
+                        help='bed file of the regions to build transcripts in, such as the genes of interest; '
+                             'if not specified, the whole genome is used.  Each region is grown over the reads '
+                             'and annotated transcripts reaching it, until it holds everything a run of the '
+                             'whole genome would put with it, so its transcripts are those of a whole-genome '
+                             'run.  A grown region can take in a neighboring gene, whose transcripts are '
+                             'reported too.  Isoform and gene ids are numbered within a run, so they '
+                             'are not the ids a whole-genome run gives the same transcripts')
+
     parser.add_argument('--fusion_breakpoints',
                         help='for fusion detection only: bed file containing locations of fusion breakpoints '
                              'on the synthetic genome')
@@ -283,6 +293,7 @@ def transcriptome_cmd(args):
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
                         quality=args.quality, threads=args.threads,
                         parallel_mode=parallel_mode_parse(args.parallel_mode),
+                        region_bed=args.region_bed,
                         fusion_breakpoints=args.fusion_breakpoints,
                         keep_intermediate=args.keep_intermediate, temp_dir=args.temp_dir,
                         normalize_ends=args.normalize_ends, generate_map=args.generate_map)
@@ -1691,13 +1702,26 @@ def fix_iso_labels(output, generate_map):
 # main
 ####
 
+def region_chromosomes(region_bed, genome_fa):
+    """The whole chromosomes of the regions of --region_bed, which the annotation is
+    loaded for: the regions themselves grow over the reads and transcripts reaching
+    them, and the annotation is subset per partition after that"""
+    chroms = sorted({bed.chrom for bed in BedReader(region_bed)})
+    genome_seqs = set(genome_fa.references)
+    missing = [chrom for chrom in chroms if chrom not in genome_seqs]
+    if missing:
+        raise FlairInputDataError(f"--region_bed names {', '.join(missing)}, which the genome does not "
+                                  f"have; the regions must name sequences of {genome_fa.filename.decode()}")
+    return [SeqRange(chrom, 0, genome_fa.get_reference_length(chrom)) for chrom in chroms]
+
+
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_star, junction_bed, junction_support, ss_window, end_window,
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand, total_rna,
                         trust_junctions, no_stringent, no_check_splice, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map,
-                        subset_backup_support=10):
+                        region_bed=None, subset_backup_support=10):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
                              sample_name=sample_name, output=output, annot_gtf=annot_gtf,
                              junction_star=junction_star, junction_bed=junction_bed,
@@ -1711,7 +1735,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,
                              quality=quality, threads=threads, parallel_mode=parallel_mode,
-                             fusion_breakpoints=fusion_breakpoints,
+                             region_bed=region_bed, fusion_breakpoints=fusion_breakpoints,
                              keep_intermediate=keep_intermediate, temp_dir=temp_dir, normalize_ends=normalize_ends,
                              generate_map=generate_map)
 
@@ -1730,13 +1754,16 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
         # partitioning, mostly flair_partition, runs while the annotation is parsed; it
         # gets one thread fewer, since the parsing uses one
         logging.info('partitioning genome')
+        # with --region_bed, only the annotation of the regions' chromosomes is parsed
+        annot_regions = region_chromosomes(args.region_bed, genome_fa) if args.region_bed else None
         with ThreadPoolExecutor(max_workers=1) as executor:
             partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
-                                           args.annot_gtf, max(1, args.threads - 1))
+                                           args.annot_gtf, max(1, args.threads - 1), args.region_bed)
             annot_gtf_data = None
             if args.annot_gtf:
                 logging.info('loading annotation GTF')
-                annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+                annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR,
+                                                 include_features=TRANSCRIPT_EXON_FEATURES, regions=annot_regions)
 
             logging.info('building intron support database')
             junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,

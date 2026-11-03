@@ -3,7 +3,7 @@ flair spliceevents: the gene each read's junction chain is counted for, and the
 regions reads are corrected in
 """
 import pysam
-from flair import SeqRange
+from flair import SeqRange, combine_regions
 from flair.annotation_data import annot_data_from_gtf
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.isoform_data import Isoform, Junc
@@ -13,7 +13,7 @@ from flair.spliceevents_reads import (annotated_genes, ReadEnds, ReadChain, read
                                       annotated_terminal_exons, annotated_terminal_splice_sites, AnnotatedFragmentExons,
                                       AnnotatedTerminalExon, fragment_chains)
 from flair.read_processing import fetch_reads, generate_genomic_alignment_read_to_clipping_file
-from flair.spliceevents_regions import (combine_regions, correction_regions, partition_regions, gene_clusters,
+from flair.spliceevents_regions import (correction_regions, partition_regions, gene_clusters,
                                         intergenic_cuts, event_in_regions, read_windows)
 
 # on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle

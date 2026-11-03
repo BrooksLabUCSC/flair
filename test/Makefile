@@ -891,7 +891,7 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-partition test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
+transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-partition test-transcriptome-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
                     test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-total-rna test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
 					test-transcriptome-keep-intermediate-needs-temp-dir test-transcriptome-trust-ends-removed \
@@ -970,6 +970,15 @@ test-transcriptome-partition: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --parallel_mode byregion
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
+
+# --region_bed builds transcripts in one region, grown to the partition holding every
+# read and annotation that reaches it, so they are the whole-genome run's transcripts
+# for that gene; the sample name is that run's, as the output is compared to its
+# expected files, and the second region of the BED has no reads, which is a warning
+test-transcriptome-region: mkdirs ${BASIC_ALIGN_BAM}
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name test-transcriptome --region_bed $I/transcriptome-region.bed
+	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.bed) $O/$@.isoforms.bed
+	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.gtf) $O/$@.isoforms.gtf
 
 test-transcriptome-lowannot: mkdirs ${BASIC_ALIGN_BAM}
 	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.IPjunctions.bed -C 0.0 ${BASIC_ALIGN_BAM}
@@ -1580,7 +1589,7 @@ $O/spliceevents-%.bam: $I/spliceevents.%.reads.txt ${BASIC_ALIGN_BAM}
 # flair_partition command
 ##
 partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads \
-	test-partition-sam
+	test-partition-sam test-partition-region
 
 test-partition-basic: mkdirs
 	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed $O/$@.ranges.bed >& $O/$@.out
@@ -1596,6 +1605,14 @@ test-partition-adjacent: mkdirs
 # minimum reads per partition
 test-partition-min-reads: mkdirs
 	flair_partition --threads=2 --min_partition_items=3  --log-level=info --bed=input/partition-test.bed $O/$@.ranges.bed >& $O/$@.out
+	$(call cmp_expect,$@.ranges.bed)
+	$(call cmp_expect,$@.out)
+
+# --region_bed grows each region over the items reaching it, so the partitions are
+# those of the whole input that the regions fall in
+test-partition-region: mkdirs
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed --region_bed=input/partition-region.bed \
+	    $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
 

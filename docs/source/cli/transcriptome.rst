@@ -21,6 +21,7 @@
                               [--filter FILTER] [--keep_supplementary]
                               [--quality QUALITY] [-t THREADS]
                               [--parallel_mode PARALLEL_MODE]
+                              [--region_bed REGION_BED]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
                               [--normalize_ends] [--generate_map]
@@ -126,6 +127,10 @@
 .. option:: --parallel_mode PARALLEL_MODE
 
    parallelization mode. auto:1GB is an automatic threshold where, if the file is less than 1GB, parallelization is done by chromosome, and if it is larger, parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion, auto:xGB; for the auto threshold, the size must be in units of GB (default: auto:1GB)
+
+.. option:: --region_bed REGION_BED
+
+   bed file of the regions to build transcripts in, such as the genes of interest; if not specified, the whole genome is used. Each region is grown over the reads and annotated transcripts reaching it, until it holds everything a run of the whole genome would put with it, so its transcripts are those of a whole-genome run. A grown region can take in a neighboring gene, whose transcripts are reported too. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
 
 .. option:: --fusion_breakpoints FUSION_BREAKPOINTS
 
