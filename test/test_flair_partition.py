@@ -13,7 +13,7 @@ def _bed3(path):
 
 
 def test_gtf_spans_match_gtf_to_bed(tmp_path):
-    gtf = 'input/seg1.gencodeV47.gtf'
+    gtf = 'input/seg1.gencode_v47.gtf'
     gtf_to_bed(str(tmp_path / 'full.bed'), gtf, include_gene=True)
     gtf_to_file(gtf, str(tmp_path / 'spans.bed'))
     assert _bed3(tmp_path / 'spans.bed') == _bed3(tmp_path / 'full.bed')
@@ -27,7 +27,7 @@ def test_read_ranges_only_needs_three_columns():
 
 def test_indexed_bam_split_by_chrom(tmp_path, make_output_dir):
     # converting by chrom gives the same alignments as converting the whole BAM
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     assert sorted(bam_chroms(bam)) == ['chr12', 'chr17', 'chr20']
     split = convert_inputs([], [bam], [], 3, str(tmp_path))
     assert len(split) == 3
@@ -43,7 +43,7 @@ def test_unindexed_sam_converted_whole(tmp_path):
 
 def test_single_thread_converts_bam_whole(tmp_path, make_output_dir):
     # one bamtobed process, rather than samtools view and bamtobed per chrom
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     assert len(convert_inputs([], [bam], [], 1, str(tmp_path))) == 1
 
 
@@ -95,7 +95,7 @@ def test_region_grows_over_a_chain_of_items(tmp_path):
 def test_region_partitions_are_those_of_the_whole_input(tmp_path, make_output_dir):
     # a region inside a gene gives the partition, and its item count, that
     # partitioning the whole BAM gives
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     full_dir, region_dir = tmp_path / 'full', tmp_path / 'region'
     full_dir.mkdir()
     region_dir.mkdir()
@@ -106,13 +106,13 @@ def test_region_partitions_are_those_of_the_whole_input(tmp_path, make_output_di
 
 
 def test_region_with_no_items_gives_no_partitions(tmp_path, make_output_dir):
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     regions = RegionSet([SeqRange('chr12', 60000000, 60010000)])
     assert closed_partitions([], [bam], [], 2, 0, regions, str(tmp_path)) == []
 
 
 def test_bam_regions_hold_the_alignments_overlapping_them(tmp_path, make_output_dir):
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     regions = RegionSet([SeqRange('chr20', 35550000, 35551000)])
     regions_bed = str(tmp_path / 'regions.bed')
     regions.write_bed(regions_bed)

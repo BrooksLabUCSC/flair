@@ -29,7 +29,7 @@
 ##FORMAT=<ID=UQ,Number=1,Type=Float,Description="Unphased Genotype Quality (pre-haplotype-assembly)">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
 ##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Observed allele depths">
-##commandline="(whatshap 2.8) phase --ignore-read-groups --reference tmp-input/genome.fa -o input/basic-reads.phased.vcf output/basic-reads.longshot.vcf output/basic-reads.bam"
+##commandline="(whatshap 2.8) phase --ignore-read-groups --reference tmp-input/genome.fa -o input/basic.reads.phased.vcf output/basic.reads.longshot.vcf output/basic.reads.bam"
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE
 chr12	25205716	.	A	T	500	PASS	DP=162;AM=3;MC=0;MF=0;MB=0;AQ=22.61;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=CCCTCAACATATCTGCAGATA	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:162:87,72:25205716:0/1:147.24
 chr12	25205894	.	T	G	500	PASS	DP=162;AM=2;MC=0;MF=0;MB=0;AQ=22.51;GM=1;DA=162;MQ10=1;MQ20=1;MQ30=1;MQ40=1;MQ50=1;PH=500,-0,500,500;SC=AGCTATTCAGTTTCTCAATGC	GT:GQ:DP:AD:PS:UG:UQ	0|1:500:162:86,74:25205716:0/1:147.24

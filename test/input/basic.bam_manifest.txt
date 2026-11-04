@@ -1,0 +1,6 @@
+A1	A	b0	output/basic.reads.1.genome_aligned.bam
+A2	A	b0	output/basic.reads.2.genome_aligned.bam
+A3	A	b0	output/basic.reads.3.genome_aligned.bam
+B1	B	b0	output/basic.reads.4.genome_aligned.bam
+B2	B	b0	output/basic.reads.5.genome_aligned.bam
+B3	B	b0	output/basic.reads.6.genome_aligned.bam

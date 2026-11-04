@@ -1,5 +1,5 @@
 # synthetic DDX5-POLG2 readthrough gene, from the readthrough isoform found by
-# test-transcriptome-readthrough, appended to DDX5_POLG2_gencode38.gtf
+# test-transcriptome-readthrough, appended to DDX5_POLG2.gencode38.gtf
 chr17	SYNTH	gene	64477785	64506289	.	-	.	gene_id "DDX5POLG2RT"; gene_type "protein_coding"; gene_name "DDX5-POLG2";
 chr17	SYNTH	transcript	64477785	64506289	.	-	.	gene_id "DDX5POLG2RT"; gene_type "protein_coding"; gene_name "DDX5-POLG2"; transcript_id "DDX5POLG2RT-T1"; transcript_type "protein_coding"; transcript_name "DDX5-POLG2-201";
 chr17	SYNTH	exon	64506076	64506289	.	-	.	gene_id "DDX5POLG2RT"; gene_type "protein_coding"; gene_name "DDX5-POLG2"; transcript_id "DDX5POLG2RT-T1"; transcript_type "protein_coding"; transcript_name "DDX5-POLG2-201"; exon_number 1;

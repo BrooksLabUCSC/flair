@@ -100,7 +100,7 @@ long-read data
 
     - After genomic alignment of your reads (have indexed BAM file), use
       intron-prospector to generate a junctions.bed file:
-    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.IPjunctions.bed -C 0.0 SAMPLE.genome_aligned.bam``
+    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.ip_junctions.bed -C 0.0 SAMPLE.genome_aligned.bam``
 
 .. _choosing-analysis-label:
 
@@ -184,7 +184,7 @@ more.
 
 - With junctions from long reads:
 
-  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
+  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.ip_junctions.bed --junction_support 2 -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
 
 - The sample name labels the sample's isoforms and reads in the outputs, and
   FLAIR combine's columns, so give each sample its own
@@ -376,7 +376,7 @@ genome-aligned BAM files directly, with a manifest of each sample's name and
 BAM file, tab-separated.  As with FLAIR transcriptome, include a junction
 reference.
 
-- ``flair spliceevents -m MANIFEST.tsv -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed -o OUTPUT``
+- ``flair spliceevents -m MANIFEST.tsv -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.ip_junctions.bed -o OUTPUT``
 - For a few loci, add ``--region chr12:25,205,001-25,210,000`` or
   ``--region_bed REGIONS.bed``; only the regions' reads and annotation are used,
   and an event reaching past a region is left out rather than counted from part
