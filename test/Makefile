@@ -218,10 +218,7 @@ REFSEQ_GENOME_FA = ${TI}/genome.refseq.fa
 ##
 BASIC_READS_FA = $I/basic.reads.fa
 BASIC_ANNOTATION = $I/basic.annotation.gtf
-BASIC_ANNOTATION_INCOMPLETE = $I/basic.annotation.incomplete.gtf
 BASIC_SHORTREAD_JUNCTIONS = $I/basic.shortread_junctions.tab
-BASIC_PROMOTER_REGIONS = $I/basic.promoter_regions.bed
-BASIC_READS_MANIFEST = $I/basic.reads_manifest.txt
 
 # FIXME: test are based on old test data, however flair quantify
 # does not produce sufficient pvalues to work diffexpr
@@ -268,7 +265,6 @@ ONECHROM_ALIGN_BAM = $O/basic.reads.onechrom.bam
 ###
 SEG1_READS_FQ = $I/seg1.cdna_ont.fastq
 SEG1_ANNOTATION = $I/seg1.gencode_v47.gtf
-SEG1_PROMOTER_REGIONS = $I/seg1.promoter_regions.bed
 
 SEG1_ALIGN_BAM = $O/seg1.reads.bam
 
@@ -562,10 +558,6 @@ endef
 define diff_bed_gtf
 	$(call cmp_expect,$@.isoforms.bed)
 	$(call cmp_expect,$@.isoforms.gtf)
-endef
-
-define collapse_promoter_diff
-	$(call cmp_expect_sort,$@.promoter_supported.bed)
 endef
 
 # resulting read map differs between run (see #443)
@@ -1688,8 +1680,6 @@ $O/%.genome_aligned.bam: $I/%.fa ${GENOME_FA} | mkdirs
 # 
 #  make hub-check huburl=https://hgwdev.gi.ucsc.edu/~markd/flair/flair-mddev/test/hub/hub.txt
 ##
-HUB_OUT_DIR = $O/hg38
-
 HG38_CHROMS = https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chromAlias.bb
 
 TEST_TRANSCRIPTOME_MUTANT_SPLICE_BB = $O/test-transcriptome-mutant-splice.isoforms.bb
@@ -1717,7 +1707,7 @@ mkdirs:
 	@mkdir -p $O
 
 clean:
-	rm -rf $O $D __pycache__
+	rm -rf $O __pycache__
 	rm -rf [0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*
 
 real-clean : clean
