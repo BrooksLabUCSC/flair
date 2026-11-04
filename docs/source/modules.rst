@@ -84,6 +84,29 @@ For when to count splicing events from reads with flair spliceevents instead, se
  - ``flair.isoforms.fa``
  - ``flair.isoforms.read.map.tsv``
 
+Building in regions
+-------------------
+
+``--region`` and ``--region_bed`` build transcripts only in the given regions, such
+as the genes of interest, rather than over the whole genome.
+
+- A region is given to ``--region`` either as one-based and closed,
+  ``chr12:25,205,001-25,210,000``, as a genome browser writes it, or as zero-based and
+  half-open, ``chr12 25205000 25210000``, as a BED line.  The option may be repeated,
+  and its regions are added to those of ``--region_bed``.
+- A region is expanded to include all the reads and annotated transcripts that overlap
+  it, then expanded again over the ones those reach, until it stops growing.  It then
+  holds everything a whole-genome run would put with it, so the transcripts of the
+  genes the region covers are those of a whole-genome run.
+- The expansion can reach into a gene next to the region.  Its transcripts are reported
+  too, but may be wrong: the reads supporting them that do not overlap the expanded
+  region are never read.  Use only the transcripts of the genes the regions were chosen
+  for.
+- Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome
+  run gives the same transcripts.
+- Only the reads overlapping the regions are read, by random access, so the BAM must be
+  indexed, and only the annotation of the regions' chromosomes is loaded.
+
 Options
 -------
 
@@ -607,21 +630,27 @@ is computed two ways: of the event's reads (PSIjunc), which is more sensitive, a
 all reads covering the event's locus (PSItot), which favours events that are strong
 overall.  A sample needs ``--event_support`` reads of an event for a PSI.
 
-With ``--region_bed``, only events inside its regions are reported: those whose
-junctions and exons all lie in a region, whose reads all overlap it, and the start,
-end, first and last exon events of genes whose annotated junctions (a novel gene's
-reads' junctions) all lie in one, so a region around a gene's annotated exons, or only
-its spliced part, reports them.
-Reads overlapping a region are corrected over their whole length, wherever the region
-ends.  The samples of a region are corrected in parallel.
+With ``--region`` or ``--region_bed``, only events inside the regions are reported:
+those whose junctions and exons all lie in a region, whose reads all overlap it, and
+the start, end, first and last exon events of genes whose annotated junctions (a novel
+gene's reads' junctions) all lie in one, so a region around a gene's annotated exons,
+or only its spliced part, reports them.  An event reaching past a region is left out,
+not reported from part of its reads, so nothing next to a region is wrong, only
+missing.
+A region is expanded to include all the reads and annotated transcripts that overlap
+it, and its reads are corrected over their whole length, wherever the region ends.
+The samples of a region are corrected in parallel.
+``--region`` takes a region as one-based and closed, ``chr12:25,205,001-25,210,000``,
+or zero-based and half-open, ``chr12 25205000 25210000``, and may be repeated.
 
-Without ``--region_bed``, each chromosome is cut in intergenic gaps of the annotation
+Without a region, each chromosome is cut in intergenic gaps of the annotation
 into pieces of about 5000 annotated exons, which are corrected and searched for events
 in parallel.  A piece owns the reads starting in it, corrected over their whole length,
 and reports the events starting in it, so an event close to a cut can miss the reads
 of the piece before.  Reads are aligned to their piece's annotated transcripts, not
 the whole chromosome's.  ``--partition no`` keeps chromosomes whole, slower but
-without those losses, and ``--partition yes`` cuts ``--region_bed`` regions too.
+without those losses, and ``--partition yes`` cuts the regions of ``--region`` and
+``--region_bed`` too.
 
 The manifest is a tab-separated file of a sample name and the path to its sorted and
 indexed bam file, a line per sample::

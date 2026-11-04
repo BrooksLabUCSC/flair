@@ -139,7 +139,7 @@ depends mostly on how complete your reads are.
     every event it covers, whether or not it spans a whole transcript, so
     fragmented and degraded samples keep most of their reads, and samples
     of different quality can be compared.  It also runs quickly on a few
-    loci of interest, with ``--region_bed``.
+    loci of interest, with ``--region`` or ``--region_bed``.
   - Cons: harder to interpret.  An event says nothing about which other
     exons the transcript it comes from has, events overlap, one read counts
     toward several, and events aren't tied to an isoform or protein.  It
@@ -188,6 +188,12 @@ more.
 
 - The sample name labels the sample's isoforms and reads in the outputs, and
   FLAIR combine's columns, so give each sample its own
+- For a few loci, add ``--region chr12:25,205,001-25,210,000``, repeated per
+  locus, or ``--region_bed REGIONS.bed``.  The regions are expanded over the reads
+  and annotated transcripts overlapping them, so the transcripts of the genes they
+  cover are those of a whole-genome run.  The expansion can reach into a gene next
+  to a region, whose transcripts are reported but may be built from only part of
+  its reads
 
 Detecting gene fusions
 ----------------------
@@ -371,8 +377,10 @@ BAM file, tab-separated.  As with FLAIR transcriptome, include a junction
 reference.
 
 - ``flair spliceevents -m MANIFEST.tsv -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed -o OUTPUT``
-- For a few loci, add ``--region_bed REGIONS.bed``; only the regions' reads
-  and annotation are used.
+- For a few loci, add ``--region chr12:25,205,001-25,210,000`` or
+  ``--region_bed REGIONS.bed``; only the regions' reads and annotation are used,
+  and an event reaching past a region is left out rather than counted from part
+  of its reads.
 - To find samples whose PSI of an event is far from the others':
   ``spliceevents_outliers -i OUTPUT -o OUTPUT``
 - To test events between conditions, FLAIR diffexp reads

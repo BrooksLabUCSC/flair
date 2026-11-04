@@ -21,7 +21,7 @@
                               [--filter FILTER] [--keep_supplementary]
                               [--quality QUALITY] [-t THREADS]
                               [--parallel_mode PARALLEL_MODE]
-                              [--region_bed REGION_BED]
+                              [--region_bed REGION_BED] [--region REGIONS]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
                               [--normalize_ends] [--generate_map]
@@ -130,7 +130,11 @@
 
 .. option:: --region_bed REGION_BED
 
-   bed file of the regions to build transcripts in, such as the genes of interest; if not specified, the whole genome is used. Each region is grown over the reads and annotated transcripts reaching it, until it holds everything a run of the whole genome would put with it, so its transcripts are those of a whole-genome run. A grown region can take in a neighboring gene, whose transcripts are reported too. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
+   bed file of the regions to build transcripts in, such as the genes of interest. If no region is given, the whole genome is used. A region is expanded to include all the reads and annotated transcripts that overlap it, repeatedly, until it stops growing, so it holds everything a whole-genome run would put with it and the transcripts of the genes in the region are those of a whole-genome run. The expansion can reach into a gene next to the region, whose transcripts are reported too; those may be wrong, as the reads supporting them that do not overlap the expanded region are never read. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
+
+.. option:: --region REGIONS
+
+   region to build transcripts in, with everything --region_bed says. A region is either one-based and closed, as a genome browser writes it, `chr1:1,000-2,000', or zero-based and half-open, as a BED line, `chr1 999 2000'. Maybe repeated, and maybe used with --region_bed, whose regions are added to it
 
 .. option:: --fusion_breakpoints FUSION_BREAKPOINTS
 

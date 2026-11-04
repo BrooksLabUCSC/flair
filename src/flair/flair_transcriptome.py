@@ -22,6 +22,7 @@ from flair.count_sam_transcripts import MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions_bed
 from flair.io_utils import check_genome_fasta, make_run_temp_dir, open_sorted_bed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Isoform, ReadRec, convert_to_bed12, convert_to_flair_bed, make_big_bed)
@@ -118,12 +119,24 @@ class TranscriptomeOpts:
     quality: int
     threads: int
     parallel_mode: tuple
-    region_bed: str
+    regions: list
     fusion_breakpoints: str
     keep_intermediate: bool
     temp_dir: str
     normalize_ends: bool
     generate_map: bool
+
+
+# shared by the --region_bed and --region help: what restricting the run does to the
+# transcripts in the regions and next to them
+REGION_RESTRICT_HELP = (
+    'If no region is given, the whole genome is used.  A region is expanded to include all the reads '
+    'and annotated transcripts that overlap it, repeatedly, until it stops growing, so it holds '
+    'everything a whole-genome run would put with it and the transcripts of the genes in the region '
+    'are those of a whole-genome run.  The expansion can reach into a gene next to the region, whose '
+    'transcripts are reported too; those may be wrong, as the reads supporting them that do not '
+    'overlap the expanded region are never read.  Isoform and gene ids are numbered within a run, so '
+    'they are not the ids a whole-genome run gives the same transcripts')
 
 def add_subparser(subparsers):
     desc = ('generates confident transcript models directly from a bam file '
@@ -233,13 +246,11 @@ def add_subparser(subparsers):
                              'of GB (default: %(default)s)')
 
     parser.add_argument('--region_bed',
-                        help='bed file of the regions to build transcripts in, such as the genes of interest; '
-                             'if not specified, the whole genome is used.  Each region is grown over the reads '
-                             'and annotated transcripts reaching it, until it holds everything a run of the '
-                             'whole genome would put with it, so its transcripts are those of a whole-genome '
-                             'run.  A grown region can take in a neighboring gene, whose transcripts are '
-                             'reported too.  Isoform and gene ids are numbered within a run, so they '
-                             'are not the ids a whole-genome run gives the same transcripts')
+                        help='bed file of the regions to build transcripts in, such as the genes of '
+                             'interest.  ' + REGION_RESTRICT_HELP)
+    parser.add_argument('--region', dest='regions', action='append', default=[],
+                        help='region to build transcripts in, with everything --region_bed says.  '
+                             + REGION_FORMAT_HELP)
 
     parser.add_argument('--fusion_breakpoints',
                         help='for fusion detection only: bed file containing locations of fusion breakpoints '
@@ -293,7 +304,7 @@ def transcriptome_cmd(args):
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
                         quality=args.quality, threads=args.threads,
                         parallel_mode=parallel_mode_parse(args.parallel_mode),
-                        region_bed=args.region_bed,
+                        regions=parse_regions(args.regions, args.region_bed),
                         fusion_breakpoints=args.fusion_breakpoints,
                         keep_intermediate=args.keep_intermediate, temp_dir=args.temp_dir,
                         normalize_ends=args.normalize_ends, generate_map=args.generate_map)
@@ -1702,16 +1713,17 @@ def fix_iso_labels(output, generate_map):
 # main
 ####
 
-def region_chromosomes(region_bed, genome_fa):
-    """The whole chromosomes of the regions of --region_bed, which the annotation is
-    loaded for: the regions themselves grow over the reads and transcripts reaching
+def region_chromosomes(regions, genome_fa):
+    """The whole chromosomes of the --region/--region_bed regions, which the annotation
+    is loaded for: the regions themselves grow over the reads and transcripts reaching
     them, and the annotation is subset per partition after that"""
-    chroms = sorted({bed.chrom for bed in BedReader(region_bed)})
+    chroms = sorted({region.name for region in regions})
     genome_seqs = set(genome_fa.references)
     missing = [chrom for chrom in chroms if chrom not in genome_seqs]
     if missing:
-        raise FlairInputDataError(f"--region_bed names {', '.join(missing)}, which the genome does not "
-                                  f"have; the regions must name sequences of {genome_fa.filename.decode()}")
+        raise FlairInputDataError(f"--region/--region_bed names {', '.join(missing)}, which the genome "
+                                  f"does not have; the regions must name sequences of "
+                                  f"{genome_fa.filename.decode()}")
     return [SeqRange(chrom, 0, genome_fa.get_reference_length(chrom)) for chrom in chroms]
 
 
@@ -1721,7 +1733,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                         trust_junctions, no_stringent, no_check_splice, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map,
-                        region_bed=None, subset_backup_support=10):
+                        regions=None, subset_backup_support=10):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
                              sample_name=sample_name, output=output, annot_gtf=annot_gtf,
                              junction_star=junction_star, junction_bed=junction_bed,
@@ -1735,7 +1747,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,
                              quality=quality, threads=threads, parallel_mode=parallel_mode,
-                             region_bed=region_bed, fusion_breakpoints=fusion_breakpoints,
+                             regions=regions, fusion_breakpoints=fusion_breakpoints,
                              keep_intermediate=keep_intermediate, temp_dir=temp_dir, normalize_ends=normalize_ends,
                              generate_map=generate_map)
 
@@ -1754,11 +1766,13 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
         # partitioning, mostly flair_partition, runs while the annotation is parsed; it
         # gets one thread fewer, since the parsing uses one
         logging.info('partitioning genome')
-        # with --region_bed, only the annotation of the regions' chromosomes is parsed
-        annot_regions = region_chromosomes(args.region_bed, genome_fa) if args.region_bed else None
+        # with regions, only the annotation of their chromosomes is parsed, and the
+        # regions go to flair_partition as a BED
+        annot_regions = region_chromosomes(args.regions, genome_fa) if args.regions else None
+        region_bed = write_regions_bed(args.regions, os.path.join(temp_dir, 'regions.bed')) if args.regions else None
         with ThreadPoolExecutor(max_workers=1) as executor:
             partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
-                                           args.annot_gtf, max(1, args.threads - 1), args.region_bed)
+                                           args.annot_gtf, max(1, args.threads - 1), region_bed)
             annot_gtf_data = None
             if args.annot_gtf:
                 logging.info('loading annotation GTF')

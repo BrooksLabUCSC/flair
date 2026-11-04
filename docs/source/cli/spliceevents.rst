@@ -11,7 +11,7 @@
                              [--junction_bed JUNCTION_BED]
                              [--junction_support JUNCTION_SUPPORT]
                              [--ss_window SS_WINDOW] [--partition {yes,no}]
-                             [--region_bed REGION_BED]
+                             [--region_bed REGION_BED] [--region REGIONS]
                              [--feature_support FEATURE_SUPPORT]
                              [--event_support EVENT_SUPPORT]
                              [--event_frac_of_tot EVENT_FRAC_OF_TOT]
@@ -56,11 +56,15 @@
 
 .. option:: --partition {yes,no}
 
-   whether to cut the regions reads are corrected and events found in, in intergenic gaps of the annotation, into pieces of about 5000 annotated exons, each owning the reads that start in it. By default, yes for whole chromosomes and no for --region_bed regions
+   whether to cut the regions reads are corrected and events found in, in intergenic gaps of the annotation, into pieces of about 5000 annotated exons, each owning the reads that start in it. By default, yes for whole chromosomes and no for --region/--region_bed regions
 
 .. option:: --region_bed REGION_BED
 
-   bed file of the regions to report events in, such as the genes of interest; if not specified, all chromosomes are used. Reads overlapping a region are corrected over their whole length, and the events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions
+   bed file of the regions to report events in, such as the genes of interest. If no region is given, all chromosomes are used. A region is expanded to include all the reads and annotated transcripts that overlap it, and its reads are corrected over their whole length. The events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions. An event reaching past a region is left out, not reported from part of its reads
+
+.. option:: --region REGIONS
+
+   region to report events in, with everything --region_bed says. A region is either one-based and closed, as a genome browser writes it, `chr1:1,000-2,000', or zero-based and half-open, as a BED line, `chr1 999 2000'. Maybe repeated, and maybe used with --region_bed, whose regions are added to it
 
 .. option:: --feature_support FEATURE_SUPPORT
 

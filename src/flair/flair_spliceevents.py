@@ -4,25 +4,33 @@ import shutil
 import pysam
 import logging
 from flair.partition_runner import PartitionRunner
-from flair import SeqRange, combine_regions
+from flair import SeqRange
 from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
 from flair.io_utils import make_temp_dir, read_manifest_rows, check_genome_fasta
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
-from flair.pycbio.hgdata.bed import BedReader
 from flair.spliceevents_events import thresholds_of
 from flair.spliceevents_genes import AnnotatedSplicing, gene_junctions, novel_genes_of_chains, process_region_events
 from flair.spliceevents_reads import (annotated_terminal_exons, annotated_terminal_splice_sites,
                                       get_juncs_single_sample, read_chains_path, read_read_chains)
 from flair.spliceevents_regions import (correction_regions, intergenic_cuts, partition_regions,
                                         read_windows, region_key)
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions
 from flair.spliceevents_tables import EventTables, combine_region_tables
 
 
 # with --partition, the annotated exons to put in each piece, so a chromosome is cut
 # by its number of genes, and the same way whatever the number of threads
 PARTITION_EXONS = 5000
+
+# shared by the --region_bed and --region help: what restricting the run to regions does
+REGION_RESTRICT_HELP = (
+    'If no region is given, all chromosomes are used.  A region is expanded to include all the reads '
+    'and annotated transcripts that overlap it, and its reads are corrected over their whole length.  '
+    'The events reported are those inside a region: all their junctions and exons, or, for the start, '
+    'end, first and last exon events, which count all of a gene\'s reads, all its annotated junctions.  '
+    'An event reaching past a region is left out, not reported from part of its reads')
 
 
 def add_subparser(subparsers):
@@ -64,14 +72,14 @@ def add_subparser(subparsers):
     parser.add_argument('--partition', choices=('yes', 'no'), default=None,
                         help='whether to cut the regions reads are corrected and events found in, in intergenic '
                              'gaps of the annotation, into pieces of about %d annotated exons, each owning the reads '
-                             'that start in it.  By default, yes for whole chromosomes and no for --region_bed '
-                             'regions' % PARTITION_EXONS)
+                             'that start in it.  By default, yes for whole chromosomes and no for '
+                             '--region/--region_bed regions' % PARTITION_EXONS)
     parser.add_argument('--region_bed',
-                        help='bed file of the regions to report events in, such as the genes of interest; if not '
-                             'specified, all chromosomes are used.  Reads overlapping a region are corrected over '
-                             'their whole length, and the events reported are those inside a region: all their '
-                             'junctions and exons, or, for the start, end, first and last exon events, which count '
-                             'all of a gene\'s reads, all its annotated junctions')
+                        help='bed file of the regions to report events in, such as the genes of '
+                             'interest.  ' + REGION_RESTRICT_HELP)
+    parser.add_argument('--region', dest='regions', action='append', default=[],
+                        help='region to report events in, with everything --region_bed says.  '
+                             + REGION_FORMAT_HELP)
     parser.add_argument('--feature_support', type=int, default=2,
                         help='minimum number of reads of a junction, splice site or end of an event in some '
                              'sample (default: %(default)s)')
@@ -176,19 +184,20 @@ def chromosomes(genome, names):
 CorrectionPlan = namedtuple('CorrectionPlan', ('regions', 'reports', 'read_starts', 'weights', 'gtf_data'))
 
 
-def partitioned(args):
-    "whether to cut the regions: --partition, by default yes for whole chromosomes and no for --region_bed"
+def partitioned(args, restricted):
+    """whether to cut the regions: --partition, by default yes for whole chromosomes and
+    no for --region/--region_bed regions"""
     if args.partition is None:
-        return not args.region_bed
+        return not restricted
     return args.partition == 'yes'
 
 
-def plan_correction(args, genome, report_regions, bamfiles):
+def plan_correction(args, genome, report_regions, bamfiles, restricted):
     """The CorrectionPlan of the regions events are reported in: cut in intergenic gaps
     of the annotation, by default for whole chromosomes, else extended over their
-    reads, for --region_bed, or whole chromosomes as they are"""
-    if partitioned(args):
-        if args.region_bed:
+    reads, for --region/--region_bed, or whole chromosomes as they are"""
+    if partitioned(args, restricted):
+        if restricted:
             # the annotation of the regions' whole chromosomes, to cut them in their gaps
             gtf_data = load_gtf(args.annot, chromosomes(genome, sorted({r.name for r in report_regions})))
         else:
@@ -201,7 +210,7 @@ def plan_correction(args, genome, report_regions, bamfiles):
             plan.read_starts[region_key(region)] = owned
             plan.weights.append(nreads)
         return plan
-    if args.region_bed:
+    if restricted:
         regions, reports = correction_regions(report_regions, bamfiles, args.threads)
         # only the annotation of the regions reads are corrected in
         return CorrectionPlan(regions, reports, {}, None, load_gtf(args.annot, regions))
@@ -226,19 +235,17 @@ def spliceevents(args):
     allsamples = read_manifest(args.manifest)
     bamfiles = [bamfile for _, bamfile in allsamples]
 
+    regions = parse_regions(args.regions, args.region_bed)
     with pysam.FastaFile(args.genome) as genome:
-        if args.region_bed:
-            report_regions = combine_regions([SeqRange(bed.chrom, bed.chromStart, bed.chromEnd) for bed in BedReader(args.region_bed)])
-        else:
-            report_regions = chromosomes(genome, genome.references)
-        plan = plan_correction(args, genome, report_regions, bamfiles)
+        report_regions = regions if regions is not None else chromosomes(genome, genome.references)
+        plan = plan_correction(args, genome, report_regions, bamfiles, regions is not None)
     logging.info(f'input regions: {len(plan.regions)}')
 
     logging.info('building intron support database')
     junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support, annot_gtf_data=plan.gtf_data,
                                                     intron_beds=args.junction_bed, star_sj_tabs=args.junction_star)
     terminal_exons, annot_afe_ss, annot_ale_ss = load_terminal_exons(args, plan.gtf_data,
-                                                                     plan.regions if args.region_bed else None)
+                                                                     plan.regions if regions is not None else None)
 
     logging.info(f'correcting reads of {len(allsamples)} samples in {len(plan.regions)} regions, then finding events, '
                  f'with {args.threads} threads')

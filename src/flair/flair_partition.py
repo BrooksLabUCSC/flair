@@ -17,6 +17,7 @@ import pipettor
 import pysam
 from flair import FlairInputDataError, SeqRange, combine_regions
 from flair.interval_index import IntervalIndex
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions
 from flair.pycbio.sys import cli, fileOps, loggingOps
 from flair.pycbio.hgdata.bed import Bed
 
@@ -49,6 +50,9 @@ def build_parser():
                         "by random access, and the regions are then grown over the items reaching "
                         "them until they stop growing, so each partition holds every item that a "
                         "partition of the whole input would.  Not used with --min_partition_items")
+    parser.add_argument("--region", dest="regions", action="append", default=[],
+                        help="region to restrict the partitions to, with everything --region_bed says.  "
+                        + REGION_FORMAT_HELP)
     parser.add_argument("ranges_bed",
                         help="Output ranges BED file, will be compressed if it ends in .gz.  "
                         "It is a BED4 with the number of input items in each partition as a fifth column")
@@ -61,10 +65,10 @@ def parse_args():
     loggingOps.setupFromCmd(args)
     if (len(args.bed_files) + len(args.bam_files) + len(args.gtf_files)) == 0:
         parser.error("No input files specified; must have at least one --bam=, --bed= or --gtf= option")
-    if (args.region_bed is not None) and (args.min_partition_items > 0):
-        parser.error("--min_partition_items does not work with --region_bed: it would count only the "
-                     "items read in the regions, not those of the whole input, and so merge partitions "
-                     "across the genome between the regions; drop --min_partition_items")
+    if ((args.region_bed is not None) or args.regions) and (args.min_partition_items > 0):
+        parser.error("--min_partition_items does not work with --region or --region_bed: it would count "
+                     "only the items read in the regions, not those of the whole input, and so merge "
+                     "partitions across the genome between the regions; drop --min_partition_items")
     return args
 
 class PartitionCounts:
@@ -111,11 +115,10 @@ class RegionSet:
                 fh.write(f"{region.name}\t{region.start}\t{region.end}\n")
 
 
-def read_region_bed(region_bed):
-    "the regions of a BED, merged"
-    with fileOps.opengz(region_bed) as fh:
-        return RegionSet([SeqRange(item.chrom, item.chromStart, item.chromEnd)
-                          for item in read_ranges(fh)])
+def build_region_set(region_bed, region_specs):
+    "the RegionSet of the --region_bed and --region options, or None if neither was given"
+    regions = parse_regions(region_specs, region_bed)
+    return None if regions is None else RegionSet(regions)
 
 
 def check_region_seqs(regions, bam_files):
@@ -125,8 +128,8 @@ def check_region_seqs(regions, bam_files):
         with pysam.AlignmentFile(bam_file) as bam:
             missing = sorted(region_seqs - set(bam.references))
         if missing:
-            raise FlairInputDataError(f"--region_bed names {', '.join(missing)}, which {bam_file} does "
-                                      f"not have; the regions must name sequences the alignments are on")
+            raise FlairInputDataError(f"--region/--region_bed names {', '.join(missing)}, which {bam_file} "
+                                      f"does not have; the regions must name sequences the alignments are on")
 
 
 def sort_beds(nthreads, in_files, sorted_bed):
@@ -184,10 +187,10 @@ def bam_chroms(bam_file):
     return [s.contig for s in sorted(stats, key=lambda s: s.mapped, reverse=True)]
 
 def check_bam_indexed(bam_file):
-    "--region_bed reads only the regions of a BAM, which needs its index"
+    "--region/--region_bed reads only the regions of a BAM, which needs its index"
     if bam_chroms(bam_file) is None:
-        raise FlairInputDataError(f"--region_bed needs an indexed BAM or CRAM to read the regions of "
-                                  f"{bam_file}; index it with `samtools index', or drop --region_bed")
+        raise FlairInputDataError(f"--region/--region_bed needs an indexed BAM or CRAM to read the regions "
+                                  f"of {bam_file}; index it with `samtools index', or drop the option")
 
 
 _TRANSCRIPT_ID_RE = re.compile(r'transcript_id\s+"?([^";]+)"?')
@@ -424,20 +427,19 @@ def report_stats(part_counts):
         logging.info(f"Mean items per partition: {part_counts.item_count / part_counts.part_count:.1f}")
 
 def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_partition_items,
-                    part_merge_dist, region_bed=None):
+                    part_merge_dist, region_bed=None, region_specs=()):
     part_counts = PartitionCounts()
-    regions = None
-    if region_bed is not None:
-        regions = read_region_bed(region_bed)
+    regions = build_region_set(region_bed, region_specs)
+    if regions is not None:
         check_region_seqs(regions, bam_files)
 
     with fileOps.opengz(ranges_bed, 'w') as part_fh:
         build_partitions(bed_files, bam_files, gtf_files, nthreads, min_partition_items,
                          part_merge_dist, regions, part_fh, part_counts)
     if (regions is not None) and (part_counts.part_count == 0):
-        raise FlairInputDataError(f"no input items in any of the regions in {region_bed}; "
-                                  f"check that they name sequences of the input and are in the "
-                                  f"zero-based, half-open coordinates of a BED")
+        raise FlairInputDataError("no input items in any of the regions of --region/--region_bed; "
+                                  "check that they name sequences of the input and cover the genes "
+                                  "of interest")
     report_stats(part_counts)
 
 
@@ -447,7 +449,8 @@ def main():
         # inside the handler, so a missing input file is reported as one line
         check_input_files(args.bed_files, args.bam_files, args.gtf_files, args.region_bed)
         flair_partition(args.bed_files, args.bam_files, args.gtf_files, args.ranges_bed, args.threads,
-                        args.min_partition_items, args.part_merge_dist, region_bed=args.region_bed)
+                        args.min_partition_items, args.part_merge_dist, region_bed=args.region_bed,
+                        region_specs=args.regions)
 
 
 if __name__ == "__main__":

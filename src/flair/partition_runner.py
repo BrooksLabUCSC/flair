@@ -268,7 +268,7 @@ def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, thre
     Returns a list of SeqRanges and a list of their sizes, for PartitionRunner."""
     if region_bed is not None:
         if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
-            logging.info("--region_bed partitions by region, not by chromosome")
+            logging.info("a region restriction partitions by region, not by chromosome")
         return _run_flair_partition(genome_aligned_bam, annot_gtf, threads, region_bed)
     if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
         regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))

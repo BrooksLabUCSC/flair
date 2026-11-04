@@ -974,9 +974,11 @@ test-transcriptome-partition: mkdirs ${BASIC_ALIGN_BAM}
 # --region_bed builds transcripts in one region, grown to the partition holding every
 # read and annotation that reaches it, so they are the whole-genome run's transcripts
 # for that gene; the sample name is that run's, as the output is compared to its
-# expected files, and the second region of the BED has no reads, which is a warning
+# expected files, and the second region of the BED has no reads, which is a warning.
+# --region repeats the first region of the BED, in one-based coordinates, so the
+# regions of the two options merge back to the regions of the BED
 test-transcriptome-region: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name test-transcriptome --region_bed $I/transcriptome-region.bed
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name test-transcriptome --region_bed $I/transcriptome-region.bed --region=chr12:25205001-25210000
 	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.bed) $O/$@.isoforms.bed
 	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.gtf) $O/$@.isoforms.gtf
 
@@ -1552,10 +1554,10 @@ test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
 
-# --region_bed regions cut in intergenic gaps, as whole chromosomes are by default,
-# give the region's events
+# --region regions, the same as the --region_bed ones of test-spliceevents-region, cut
+# in intergenic gaps, as whole chromosomes are by default, give the region's events
 test-spliceevents-region-partition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
-	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras-part.bed --partition yes -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25200001-25235000 --region='chr12 60000000 60010000' --partition yes -o $O/$@
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
 
@@ -1589,7 +1591,7 @@ $O/spliceevents-%.bam: $I/spliceevents.%.reads.txt ${BASIC_ALIGN_BAM}
 # flair_partition command
 ##
 partition-tests: test-partition-basic test-partition-adjacent test-partition-min-reads \
-	test-partition-sam test-partition-region
+	test-partition-sam test-partition-region test-partition-region-opt
 
 test-partition-basic: mkdirs
 	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed $O/$@.ranges.bed >& $O/$@.out
@@ -1615,6 +1617,15 @@ test-partition-region: mkdirs
 	    $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
 	$(call cmp_expect,$@.out)
+
+# --region, in either coordinate form, gives the partitions of the same --region_bed
+# regions, so the comparison is with that test's expected files
+test-partition-region-opt: mkdirs
+	flair_partition --threads=2 --log-level=info --bed=input/partition-test.bed \
+	    --region=chr19:368001-368100 --region='chr6 74285000 74285100' \
+	    $O/$@.ranges.bed >& $O/$@.out
+	diff $E/test-partition-region.ranges.bed $O/$@.ranges.bed
+	diff $E/test-partition-region.out $O/$@.out
 
 # with bed, sam, and gtf
 test-partition-sam: mkdirs

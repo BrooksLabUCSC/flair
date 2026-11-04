@@ -9,8 +9,8 @@ import multiprocessing as mp
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
 from flair.io_utils import check_genome_fasta, make_temp_dir, write_sorted_vcf
-from flair.pycbio.hgdata.bed import BedReader
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -44,6 +44,8 @@ def parse_args():
     #                     help='Maximum read depth allowed to search for indels at locus (lower values will miss some genes, but will run substantially faster)')
     parser.add_argument('--region_bed', type=str,
                         help='bed (3+) file of regions on which to call indels')
+    parser.add_argument('--region', dest='regions', action='append', default=[],
+                        help='region on which to call indels, as --region_bed does.  ' + REGION_FORMAT_HELP)
     parser.add_argument('--identify_indels', type=str, default='yes',
                         help="[yes/no], default:yes - specify yes if you want this caller to identify SNVs")
     parser.add_argument('--identify_snvs', type=str, default='no',
@@ -319,11 +321,12 @@ def process_reads_for_region(args):
                 out.writeRow((chrom, pos, indel_type, ref_seq, var_seq, indel_reads,
                               tot_cov, filters))
 
-def get_regions_from_bed(region_bed):
-    regions = []
-    for bed in BedReader(region_bed):
-        regions.append((bed.chrom, bed.chromStart, bed.chromEnd))
-    return regions
+def get_regions(region_specs, region_bed, genome_file):
+    "the regions to call in, as (chrom, start, end): --region/--region_bed, or all chromosomes"
+    regions = parse_regions(region_specs, region_bed)
+    if regions is None:
+        return get_regions_by_chrom(genome_file)
+    return [(region.name, region.start, region.end) for region in regions]
 
 def get_regions_by_chrom(genome_file):
     regions = []
@@ -373,10 +376,7 @@ def get_indels():
     args = parse_args()
     check_genome_fasta(args.genome)
     temp_dir = make_temp_dir(args.output)
-    if args.region_bed is not None:
-        regions = get_regions_from_bed(args.region_bed)
-    else:
-        regions = get_regions_by_chrom(args.genome)
+    regions = get_regions(args.regions, args.region_bed, args.genome)
 
     packed = []
     for region in regions:

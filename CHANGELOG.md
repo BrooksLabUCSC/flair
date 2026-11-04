@@ -31,6 +31,12 @@
     | spliceevents | `OUT.spliceevents.PSItot.tsv` | `OUT.spliceevents.psi_tot.tsv` |
     | variantquant | `OUT.var.counts.tsv` | `OUT.variants.counts.tsv` |
     | variantquant | `OUT.var.sample_info.tsv` | `OUT.variants.sample_info.tsv` |
+  * `--region` gives a region on the command line, wherever `--region_bed` takes a BED
+    of them: flair transcriptome, flair spliceevents, flair_partition and
+    identify_vars.  A region is written either one-based and closed, as a genome
+    browser writes it, `chr12:25,205,001-25,210,000`, or zero-based and half-open, as
+    a BED line, `chr12 25205000 25210000`.  The option may be repeated, and its
+    regions are added to those of `--region_bed`.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
@@ -280,13 +286,16 @@
   `make test-alignments` checks their alignments, so a minimap2 that aligns them
   differently shows there first.
 * flair transcriptome
-  * `--region_bed` builds transcripts only in the regions of a BED, such as the genes
-    of interest, reading only those parts of the BAM.  Each region is grown over the
-    reads and annotated transcripts reaching it, and over those reaching them, until
-    it holds everything a whole-genome run would put with it, so its transcripts are
-    that run's.  A grown region can take in a neighboring gene, whose transcripts are
-    reported too, and isoform ids are numbered within the run.  `flair_partition
-    --region_bed` does the same for a partition run on its own.
+  * `--region_bed` and `--region` build transcripts only in the given regions, such as
+    the genes of interest, reading only those parts of the BAM.  Each region is
+    expanded to include all the reads and annotated transcripts that overlap it, and
+    then those overlapping the expanded region, until it stops growing, so it holds
+    everything a whole-genome run would put with it and the transcripts of the genes
+    it covers are that run's.  The expansion can reach into a gene next to the region,
+    whose transcripts are reported too but may be wrong, as the reads supporting them
+    that do not overlap the expanded region are never read.  Isoform ids are numbered
+    within the run.  `flair_partition --region_bed/--region` does the same for a
+    partition run on its own.
   * With `--filter comprehensive` or `ginormous`, the reads are realigned to the
     firstpass isoforms with 50 secondary alignments rather than 4: a truncated read
     aligns alike to its own subset isoform and every isoform containing it, and with
@@ -387,13 +396,13 @@
     junction correction using the genome's splice motifs for strand.  It adds
     transcriptome's `--trust_strand` and `--trust_junctions`.  Single-exon reads are
     still left out.
-  * With `--region_bed`, only events inside its regions are reported: those whose
-    junctions and exons all lie in a region, and the start, end, first and last exon
-    events of genes whose annotated junctions all lie in one.  A gene the region only
-    clipped got events from only its reads overlapping the region.  Reads overlapping
-    a region are corrected over their whole length: a region's annotation and
-    junctions now cover the reads it fetches, so reads running past its end are not
-    dropped.
+  * With `--region_bed` or `--region`, only events inside the regions are reported:
+    those whose junctions and exons all lie in a region, and the start, end, first
+    and last exon events of genes whose annotated junctions all lie in one.  A gene
+    the region only clipped got events from only its reads overlapping the region.
+    Reads overlapping a region are corrected over their whole length: a region's
+    annotation and junctions now cover the reads it fetches, so reads running past
+    its end are not dropped.
   * A chromosome or region without annotated genes no longer stops the run when the
     regions' tables are combined.
   * A complex exon skip's (ces) inclusion counts every read including its exons.
