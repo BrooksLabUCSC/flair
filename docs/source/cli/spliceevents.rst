@@ -57,7 +57,7 @@
 
 .. option:: --partition_items PARTITION_ITEMS
 
-   run the reads in partitions of at least this many input items, reads of all the samples and annotated transcripts (default: 100), or of a whole chromosome with 0. A partition is one or more clusters of items that overlap, and a cluster is corrected and searched for events on its own, so this sets how much work a task is and changes no result
+   run the reads in partitions of at least this many input items, reads of all the samples and annotated transcripts (default: 1000), or of a whole chromosome with 0. A partition is one or more clusters of items that overlap, and a cluster is corrected and searched for events on its own, so this sets how much work a task is and changes no result
 
 .. option:: --region_bed REGION_BED
 
