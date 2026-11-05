@@ -4,3 +4,14 @@
 .wy-table-responsive table th {
     white-space: normal;
 }
+
+/* a module's detail section, sized between the module heading and the Options and
+   Notes subsections it sits with */
+.module-detail > h3 {
+    font-size: 137%;
+}
+
+/* the rule between module sections; the theme's own is #e1e4e5, nearly invisible */
+hr.docutils {
+    border-top: 1px solid #9b9b9b;
+}

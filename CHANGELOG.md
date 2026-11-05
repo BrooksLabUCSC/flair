@@ -37,6 +37,9 @@
     browser writes it, `chr12:25,205,001-25,210,000`, or zero-based and half-open, as
     a BED line, `chr12 25205000 25210000`.  The option may be repeated, and its
     regions are added to those of `--region_bed`.
+  * flair transcriptome writes `OUT.regions.bed`, the regions it built transcripts in:
+    with `--region`/`--region_bed`, the given regions after they were expanded over the
+    reads and transcripts that overlap them.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair

@@ -64,7 +64,7 @@
 
 .. option:: --region REGIONS
 
-   region to report events in, with everything --region_bed says. A region is either one-based and closed, as a genome browser writes it, `chr1:1,000-2,000', or zero-based and half-open, as a BED line, `chr1 999 2000'. Maybe repeated, and maybe used with --region_bed, whose regions are added to it
+   region to report events in, with everything --region_bed says. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
 
 .. option:: --feature_support FEATURE_SUPPORT
 

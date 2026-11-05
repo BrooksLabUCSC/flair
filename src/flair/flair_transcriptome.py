@@ -22,7 +22,7 @@ from flair.count_sam_transcripts import MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
 from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
-from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions_bed
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions, write_regions_bed
 from flair.io_utils import check_genome_fasta, make_run_temp_dir, open_sorted_bed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Isoform, ReadRec, convert_to_bed12, convert_to_flair_bed, make_big_bed)
@@ -37,7 +37,7 @@ from flair.aaseq_tsv import write_aaseqs
 from flair.isoform_counts_tsv import IsoformCountsWriter
 from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
-from flair.output_compress import compressed_path, open_fasta_output
+from flair.output_compress import compressed_path, open_fasta_output, open_output
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
@@ -130,13 +130,12 @@ class TranscriptomeOpts:
 # shared by the --region_bed and --region help: what restricting the run does to the
 # transcripts in the regions and next to them
 REGION_RESTRICT_HELP = (
-    'If no region is given, the whole genome is used.  A region is expanded to include all the reads '
-    'and annotated transcripts that overlap it, repeatedly, until it stops growing, so it holds '
-    'everything a whole-genome run would put with it and the transcripts of the genes in the region '
-    'are those of a whole-genome run.  The expansion can reach into a gene next to the region, whose '
-    'transcripts are reported too; those may be wrong, as the reads supporting them that do not '
-    'overlap the expanded region are never read.  Isoform and gene ids are numbered within a run, so '
-    'they are not the ids a whole-genome run gives the same transcripts')
+    'If no region is given, the whole genome is used.  A region is expanded over the reads and '
+    'annotated transcripts that overlap it, until nothing more overlaps, so the transcripts reported '
+    'are the same as a whole-genome run\'s.  The expansion can reach a gene next to the region, '
+    'which is reported too.  The expanded regions are written to <output>.regions.bed.  Isoform and '
+    'gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same '
+    'transcripts')
 
 def add_subparser(subparsers):
     desc = ('generates confident transcript models directly from a bam file '
@@ -1715,8 +1714,8 @@ def fix_iso_labels(output, generate_map):
 
 def region_chromosomes(regions, genome_fa):
     """The whole chromosomes of the --region/--region_bed regions, which the annotation
-    is loaded for: the regions themselves grow over the reads and transcripts reaching
-    them, and the annotation is subset per partition after that"""
+    is loaded for: the regions themselves are expanded over the reads and transcripts
+    that overlap them, and the annotation is subset per partition after that"""
     chroms = sorted({region.name for region in regions})
     genome_seqs = set(genome_fa.references)
     missing = [chrom for chrom in chroms if chrom not in genome_seqs]
@@ -1725,6 +1724,14 @@ def region_chromosomes(regions, genome_fa):
                                   f"does not have; the regions must name sequences of "
                                   f"{genome_fa.filename.decode()}")
     return [SeqRange(chrom, 0, genome_fa.get_reference_length(chrom)) for chrom in chroms]
+
+
+def write_partition_regions(regions, output):
+    """The regions transcripts were built in, as an output: with --region/--region_bed,
+    the given regions after they were expanded over the reads and transcripts that
+    overlap them"""
+    with open_output(output + '.regions.bed') as fh:
+        write_regions(regions, fh)
 
 
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
@@ -1785,6 +1792,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                                                             intron_beds=args.junction_bed,
                                                             star_sj_tabs=args.junction_star)
             regions, weights = partitioning.result()
+        write_partition_regions(regions, args.output)
 
         runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
                                  threads=args.threads, weights=weights)

@@ -66,6 +66,8 @@ If you're using human sequences, the best reference genome is
 If your input sequences are Oxford nanopore reads, please use `Pychopper <https://github.com/epi2me-labs/pychopper>`__ before aligning them.
 
 
+----
+
 .. _transcriptome-label:
 
 flair transcriptome
@@ -83,35 +85,35 @@ For when to count splicing events from reads with flair spliceevents instead, se
  - ``flair.isoforms.gtf``
  - ``flair.isoforms.fa``
  - ``flair.isoforms.read.map.tsv``
-
-Building in regions
--------------------
-
-``--region`` and ``--region_bed`` build transcripts only in the given regions, such
-as the genes of interest, rather than over the whole genome.
-
-- A region is given to ``--region`` either as one-based and closed,
-  ``chr12:25,205,001-25,210,000``, as a genome browser writes it, or as zero-based and
-  half-open, ``chr12 25205000 25210000``, as a BED line.  The option may be repeated,
-  and its regions are added to those of ``--region_bed``.
-- A region is expanded to include all the reads and annotated transcripts that overlap
-  it, then expanded again over the ones those reach, until it stops growing.  It then
-  holds everything a whole-genome run would put with it, so the transcripts of the
-  genes the region covers are those of a whole-genome run.
-- The expansion can reach into a gene next to the region.  Its transcripts are reported
-  too, but may be wrong: the reads supporting them that do not overlap the expanded
-  region are never read.  Use only the transcripts of the genes the regions were chosen
-  for.
-- Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome
-  run gives the same transcripts.
-- Only the reads overlapping the regions are read, by random access, so the BAM must be
-  indexed, and only the annotation of the regions' chromosomes is loaded.
+ - ``flair.regions.bed``, the regions the transcripts were built in
 
 Options
 -------
 
 .. include:: cli/transcriptome.rst
 
+.. rst-class:: module-detail
+
+Restricting to specific regions
+-------------------------------
+
+``--region`` and ``--region_bed`` build transcripts only in the given regions, such
+as the genes of interest, rather than over the whole genome.
+
+- A region is one-based and closed, ``chr12:25,205,001-25,210,000``, or zero-based and
+  half-open, ``chr12 25205000 25210000``.  ``--region`` may be repeated, and its
+  regions are added to those of ``--region_bed``.
+- A region is expanded over the reads and annotated transcripts that overlap it, until
+  nothing more overlaps, so the transcripts reported are the same as a whole-genome
+  run's.  The expansion can reach a gene next to the region, which is reported too; a
+  gene that no overlaps connect to the regions is not reported.
+- The expanded regions are written to ``<output>.regions.bed``.
+- Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome
+  run gives the same transcripts.
+- The BAM must be indexed.
+
+
+----
 
 .. _fusions-label:
 
@@ -190,6 +192,8 @@ Options
 .. include:: cli/fusion.rst
 
 
+----
+
 .. _combine-label:
 
 flair combine
@@ -239,6 +243,8 @@ Options
 
 .. include:: cli/combine.rst
 
+
+----
 
 .. _quantify-label:
 
@@ -358,6 +364,8 @@ Options
 
 
 
+----
+
 .. _diffexp-label:
 
 flair diffexp
@@ -448,6 +456,8 @@ Gene A has an average expression of 1 in group s, and 2 in group v but the total
 Flair does not remove low count genes as long as they are expressed in all samples of at least one group so please be careful when interpreting results.
 
 Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. Unfiltered tables can be found in ``workdir``
+
+----
 
 .. _diffsplice-label:
 
@@ -541,6 +551,8 @@ considered to include or exclude the each event:
    exclusion_chr1:200-500(+)  chr1:200-500(+)    22.0    15.0    ... h
    inclusion_chr1:400-500(+)  chr1:400-500(+)    75.0    35.0    ... e,a
    exclusion_chr1:400-500(+)  chr1:400-500(+)    56.0    15.0    ... f
+
+----
 
 .. _spliceevents-label:
 
@@ -687,6 +699,8 @@ Options
 
 .. include:: cli/spliceevents.rst
 
+----
+
 .. _variantquant-label:
 
 flair variantquant
@@ -803,6 +817,8 @@ Options
 
 .. include:: cli/variantquant.rst
 
+
+----
 
 .. _isoalleles-label:
 

@@ -880,7 +880,7 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-partition test-transcriptome-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
+transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-partition test-transcriptome-region test-transcriptome-readthrough-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
                     test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-total-rna test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
 					test-transcriptome-keep-intermediate-needs-temp-dir test-transcriptome-trust-ends-removed \
@@ -903,6 +903,7 @@ test-transcriptome: mkdirs ${BASIC_ALIGN_BAM}
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoforms.fa)
 	$(call cmp_expect,$@.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.regions.bed)
 
 test-transcriptome-nochecksplice: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_check_splice
@@ -970,6 +971,15 @@ test-transcriptome-region: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name test-transcriptome --region_bed $I/transcriptome.region.bed --region=chr12:25205001-25210000
 	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.bed) $O/$@.isoforms.bed
 	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.gtf) $O/$@.isoforms.gtf
+	$(call cmp_expect,$@.regions.bed)
+
+# a 1kb region inside DDX5 is expanded over the readthrough reads into POLG2, the gene
+# next to it, so the region reproduces a whole-genome run, POLG2's transcripts included
+test-transcriptome-readthrough-region: mkdirs ${DDX5_READTHROUGH_BAM}
+	flair transcriptome -b ${DDX5_READTHROUGH_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name test-transcriptome-readthrough --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 --region chr17:64500001-64501000
+	diff $E/test-transcriptome-readthrough.isoforms.bed $O/$@.isoforms.bed
+	diff $E/test-transcriptome-readthrough.isoforms.gtf $O/$@.isoforms.gtf
+	$(call cmp_expect,$@.regions.bed)
 
 test-transcriptome-lowannot: mkdirs ${BASIC_ALIGN_BAM}
 	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.ip_junctions.bed -C 0.0 ${BASIC_ALIGN_BAM}
@@ -1725,6 +1735,7 @@ test-transcriptome-compress: mkdirs ${BASIC_ALIGN_BAM} ${TI}/basic.annotation.gt
 	$(call cmp_expect_gz,$@.isoforms.gtf,test-transcriptome.isoforms.gtf)
 	$(call cmp_expect_gz,$@.isoforms.fa,test-transcriptome.isoforms.fa)
 	$(call cmp_expect_gz,$@.isoforms.read.map.tsv,test-transcriptome.isoforms.read.map.tsv)
+	$(call cmp_expect_gz,$@.regions.bed,test-transcriptome.regions.bed)
 	$(call check_fasta_indexable,$@.isoforms.fa)
 
 test-variantquant-compress: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT} \

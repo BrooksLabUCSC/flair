@@ -130,11 +130,11 @@
 
 .. option:: --region_bed REGION_BED
 
-   bed file of the regions to build transcripts in, such as the genes of interest. If no region is given, the whole genome is used. A region is expanded to include all the reads and annotated transcripts that overlap it, repeatedly, until it stops growing, so it holds everything a whole-genome run would put with it and the transcripts of the genes in the region are those of a whole-genome run. The expansion can reach into a gene next to the region, whose transcripts are reported too; those may be wrong, as the reads supporting them that do not overlap the expanded region are never read. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
+   bed file of the regions to build transcripts in, such as the genes of interest. If no region is given, the whole genome is used. A region is expanded over the reads and annotated transcripts that overlap it, until nothing more overlaps, so the transcripts reported are the same as a whole-genome run's. The expansion can reach a gene next to the region, which is reported too. The expanded regions are written to <output>.regions.bed. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
 
 .. option:: --region REGIONS
 
-   region to build transcripts in, with everything --region_bed says. A region is either one-based and closed, as a genome browser writes it, `chr1:1,000-2,000', or zero-based and half-open, as a BED line, `chr1 999 2000'. Maybe repeated, and maybe used with --region_bed, whose regions are added to it
+   region to build transcripts in, with everything --region_bed says. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
 
 .. option:: --fusion_breakpoints FUSION_BREAKPOINTS
 
