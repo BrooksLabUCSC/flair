@@ -40,6 +40,10 @@
   * flair transcriptome writes `OUT.regions.bed`, the regions it built transcripts in:
     with `--region`/`--region_bed`, the given regions after they were expanded over the
     reads and transcripts that overlap them.
+  * flair spliceevents writes `OUT.spliceevents.regions.bed`, the regions it corrected
+    reads in.  A `--region`/`--region_bed` region is now expanded over the reads that
+    overlap it until nothing more overlaps, rather than once, so a gene's reads are all
+    in one region however far they reach.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair

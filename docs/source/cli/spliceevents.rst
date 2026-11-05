@@ -60,7 +60,7 @@
 
 .. option:: --region_bed REGION_BED
 
-   bed file of the regions to report events in, such as the genes of interest. If no region is given, all chromosomes are used. A region is expanded to include all the reads and annotated transcripts that overlap it, and its reads are corrected over their whole length. The events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions. An event reaching past a region is left out, not reported from part of its reads
+   bed file of the regions to report events in, such as the genes of interest. If no region is given, all chromosomes are used. A region is expanded over the reads that overlap it, until nothing more overlaps, and its reads are corrected over their whole length. The events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions. An event reaching past a region is left out, not reported from part of its reads. The regions reads were corrected in are written to <output>.spliceevents.regions.bed
 
 .. option:: --region REGIONS
 

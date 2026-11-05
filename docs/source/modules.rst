@@ -649,8 +649,10 @@ gene's reads' junctions) all lie in one, so a region around a gene's annotated e
 or only its spliced part, reports them.  An event reaching past a region is left out,
 not reported from part of its reads, so nothing next to a region is wrong, only
 missing.
-A region is expanded to include all the reads and annotated transcripts that overlap
-it, and its reads are corrected over their whole length, wherever the region ends.
+A region is expanded over the reads that overlap it, then over the reads that overlap
+those, until nothing more overlaps, so a gene's reads are all in one region however
+far they reach.  Its reads are corrected over their whole length, wherever the region
+ends, and the expanded regions are written to ``OUTPUT.spliceevents.regions.bed``.
 The samples of a region are corrected in parallel.
 ``--region`` takes a region as one-based and closed, ``chr12:25,205,001-25,210,000``,
 or zero-based and half-open, ``chr12 25205000 25210000``, and may be repeated.
@@ -689,6 +691,7 @@ indexed bam file, a line per sample::
    reads covering its locus (``locus_reads``) in each sample, the PSIs' denominators
  - ``OUTPUT.spliceevents.bed``, the event rows for a genome browser, named
    ``EVENT|ALTERNATIVE`` and scored by their median PSIjunc
+ - ``OUTPUT.spliceevents.regions.bed``, the regions reads were corrected in
 
 Outlier samples, whose PSI of an event is far from the other samples', can be found
 from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__

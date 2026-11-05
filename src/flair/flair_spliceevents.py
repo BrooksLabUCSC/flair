@@ -16,7 +16,7 @@ from flair.spliceevents_reads import (annotated_terminal_exons, annotated_termin
                                       get_juncs_single_sample, read_chains_path, read_read_chains)
 from flair.spliceevents_regions import (correction_regions, intergenic_cuts, partition_regions,
                                         read_windows, region_key)
-from flair.region_spec import REGION_FORMAT_HELP, parse_regions
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions_bed
 from flair.spliceevents_tables import EventTables, combine_region_tables
 
 
@@ -26,11 +26,12 @@ PARTITION_EXONS = 5000
 
 # shared by the --region_bed and --region help: what restricting the run to regions does
 REGION_RESTRICT_HELP = (
-    'If no region is given, all chromosomes are used.  A region is expanded to include all the reads '
-    'and annotated transcripts that overlap it, and its reads are corrected over their whole length.  '
+    'If no region is given, all chromosomes are used.  A region is expanded over the reads that '
+    'overlap it, until nothing more overlaps, and its reads are corrected over their whole length.  '
     'The events reported are those inside a region: all their junctions and exons, or, for the start, '
     'end, first and last exon events, which count all of a gene\'s reads, all its annotated junctions.  '
-    'An event reaching past a region is left out, not reported from part of its reads')
+    'An event reaching past a region is left out, not reported from part of its reads.  The regions '
+    'reads were corrected in are written to <output>.spliceevents.regions.bed')
 
 
 def add_subparser(subparsers):
@@ -240,6 +241,7 @@ def spliceevents(args):
         report_regions = regions if regions is not None else chromosomes(genome, genome.references)
         plan = plan_correction(args, genome, report_regions, bamfiles, regions is not None)
     logging.info(f'input regions: {len(plan.regions)}')
+    write_regions_bed(plan.regions, args.output + '.spliceevents.regions.bed')
 
     logging.info('building intron support database')
     junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support, annot_gtf_data=plan.gtf_data,

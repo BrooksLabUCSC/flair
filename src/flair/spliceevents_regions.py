@@ -68,20 +68,35 @@ def _extended_region(region, bamfiles):
     return SeqRange(region.name, start, end)
 
 
+def _closed_regions(regions, bamfiles, threads):
+    """regions extended over the reads overlapping them, then over the reads
+    overlapping those, until nothing more overlaps, so a gene's reads are all in one
+    region however far they reach.  Regions only grow, so this terminates"""
+    while True:
+        tasks = [(region, bamfiles) for region in regions]
+        extended = combine_regions(_map_tasks(_extended_region, tasks, threads))
+        if extended == regions:
+            return regions
+        regions = extended
+
+
+def _containing_region(regions, report):
+    return next(region for region in regions if region.name == report.name
+                and region.start <= report.start and report.end <= region.end)
+
+
 def correction_regions(report_regions, bamfiles, threads=1):
-    """The regions to correct reads in, for the regions events are reported in: each
-    report region extended over the reads overlapping it in any sample, so a read
-    running past its end is corrected with the annotation and junctions it reaches,
-    as anywhere else.  Extended regions that overlap are merged.  Returns the
-    regions, and a map of each one's key to the report regions in it."""
-    tasks = [(region, bamfiles) for region in report_regions]
-    extended = list(zip(_map_tasks(_extended_region, tasks, threads), report_regions))
-    merged = combine_regions([ext for ext, _ in extended])
-    reports = {region_key(region): [] for region in merged}
-    for ext, region in extended:
-        container = next(m for m in merged if m.name == ext.name and m.start <= ext.start and ext.end <= m.end)
-        reports[region_key(container)].append(region)
-    return merged, reports
+    """The regions to correct reads in, for the regions events are reported in: the
+    report regions extended over the reads overlapping them, until nothing more
+    overlaps, so a read running past a report region is corrected with the annotation
+    and junctions it reaches, as anywhere else.  Extended regions that overlap are
+    merged.  Returns the regions, and a map of each one's key to the report regions
+    in it."""
+    regions = _closed_regions(combine_regions(report_regions), bamfiles, threads)
+    reports = {region_key(region): [] for region in regions}
+    for report in report_regions:
+        reports[region_key(_containing_region(regions, report))].append(report)
+    return regions, reports
 
 
 def _piece_extents(region, bamfiles, bounds):

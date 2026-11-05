@@ -1496,7 +1496,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq
 ###
 # flair spliceevents
 ###
-spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region \
+spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region test-spliceevents-region-extend \
 		test-spliceevents-region-partition test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
 		test-spliceevents-help
 
@@ -1514,6 +1514,7 @@ define spliceevents_diff
 	$(call cmp_expect_sort,$(1).spliceevents.psi_junc.tsv)
 	$(call cmp_expect_sort,$(1).spliceevents.psi_tot.tsv)
 	$(call cmp_expect_sort,$(1).spliceevents.totals.tsv)
+	$(call cmp_expect,$(1).spliceevents.regions.bed)
 endef
 
 test-spliceevents: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
@@ -1542,6 +1543,13 @@ test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras_part.bed -o $O/$@
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
+	$(call cmp_expect,$@.spliceevents.regions.bed)
+
+# a region at KRAS's 5' end: expanding it once over the reads that overlap it reaches
+# 25251072, and over the reads that overlap those, 25251120, the whole gene
+test-spliceevents-region-extend: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25205001-25205500 -o $O/$@
+	$(call cmp_expect,$@.spliceevents.regions.bed)
 
 # --region regions, the same as the --region_bed ones of test-spliceevents-region, cut
 # in intergenic gaps, as whole chromosomes are by default, give the region's events
