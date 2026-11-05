@@ -662,7 +662,7 @@ transcripts that overlap each other, so no read and no transcript crosses one.  
 cluster's reads are aligned to its annotated transcripts, not the chromosome's, and
 every read of an event is counted in the cluster that reports it.
 
-Clusters are grouped into partitions of about 20000 reads and annotated transcripts,
+Clusters are grouped into partitions of about 100 reads and annotated transcripts,
 run in parallel, one task each.  ``--partition_items`` sets the count, and 0 gives a
 partition per chromosome.  It sets how much work a task is and changes no result.
 

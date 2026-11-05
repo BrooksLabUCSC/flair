@@ -20,10 +20,11 @@ from flair.spliceevents_tables import EventTables, combine_region_tables
 
 
 # the input items, reads of all the samples and annotated transcripts, a partition is
-# grouped up to: enough that a task is worth its fork and its annotation subsetting,
-# few enough to keep the threads fed.  On A498's chr19, 328k reads and 18k transcripts
-# in 1140 clusters, a task per cluster costs 9% more CPU than 16 partitions
-PARTITION_ITEMS = 20000
+# grouped up to.  On A498 over hg19, 6.3M reads in 34094 clusters, 32 threads, this
+# takes 10m11s in 6429 partitions against 16m30s in 323, and the CPU time is the same
+# to within the noise at every size, so the cost of a task is small and the threads
+# are what matter.  Sizes from 1 to 1000 are within a minute of each other
+PARTITION_ITEMS = 100
 
 # shared by the --region_bed and --region help: what restricting the run to regions does
 REGION_RESTRICT_HELP = (
