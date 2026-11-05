@@ -649,22 +649,21 @@ gene's reads' junctions) all lie in one, so a region around a gene's annotated e
 or only its spliced part, reports them.  An event reaching past a region is left out,
 not reported from part of its reads, so nothing next to a region is wrong, only
 missing.
-A region is expanded over the reads that overlap it, then over the reads that overlap
-those, until nothing more overlaps, so a gene's reads are all in one region however
-far they reach.  Its reads are corrected over their whole length, wherever the region
-ends, and the expanded regions are written to ``OUTPUT.spliceevents.regions.bed``.
-The samples of a region are corrected in parallel.
-``--region`` takes a region as one-based and closed, ``chr12:25,205,001-25,210,000``,
-or zero-based and half-open, ``chr12 25205000 25210000``, and may be repeated.
+A region is expanded over the reads and annotated transcripts that overlap it, until
+nothing more overlaps, so a gene's reads are all in one region however far they reach.
+Its reads are corrected over their whole length, wherever the region ends, and the
+expanded regions are written to ``OUTPUT.spliceevents.regions.bed``.  The samples of a
+region are corrected in parallel.  ``--region`` takes a region as one-based and closed,
+``chr12:25,205,001-25,210,000``, or zero-based and half-open, ``chr12 25205000
+25210000``, and may be repeated.
 
-Without a region, each chromosome is cut in intergenic gaps of the annotation
-into pieces of about 5000 annotated exons, which are corrected and searched for events
-in parallel.  A piece owns the reads starting in it, corrected over their whole length,
-and reports the events starting in it, so an event close to a cut can miss the reads
-of the piece before.  Reads are aligned to their piece's annotated transcripts, not
-the whole chromosome's.  ``--partition no`` keeps chromosomes whole, slower but
-without those losses, and ``--partition yes`` cuts the regions of ``--region`` and
-``--region_bed`` too.
+Without a region, each chromosome is cut into partitions of about 1000 reads and
+annotated transcripts, corrected and searched for events in parallel.  A partition is a
+cluster of reads and transcripts that overlap, merged with the next until the count is
+reached, so no read and no transcript crosses one: an event is found by the one
+partition its reads are in, and where the cuts fall changes nothing.  Reads are aligned
+to their partition's annotated transcripts, not the whole chromosome's.
+``--partition_items`` sets the count, and 0 keeps chromosomes whole.
 
 The manifest is a tab-separated file of a sample name and the path to its sorted and
 indexed bam file, a line per sample::

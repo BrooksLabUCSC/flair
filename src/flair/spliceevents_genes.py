@@ -228,14 +228,14 @@ def cluster_events(caller, cluster_chains, terminal_juncs, annotated, chain_gene
 
 
 def process_region_events(temp_prefix, chrom, samples, sample_chains, novel_gene, thresholds, annot_afe_ss, annot_ale_ss,
-                          report_regions, gene_juncs, annotated=None, owned=None):
+                          report_regions, gene_juncs, annotated=None):
     """A region's events, from each sample's ReadChains, written to its tables.  The
     events of splicing are found per cluster of junction chains linked by shared
     splice sites, without genes (cluster_events); the alternative first exons and
     starts per each chain's 5'-most gene, and the last exons and ends per its 3'-most
     gene, so a readthrough's reads count with the gene each end lies in.  An event's
     locus reads are all the strand's reads covering it.  Only the events inside
-    report_regions, and given owned, starting in it, are written (event_in_regions)"""
+    report_regions are written (event_in_regions)"""
     annotated = annotated or AnnotatedSplicing()
     views, key_strand, chain_genes, coverage = group_chains(chrom, samples, sample_chains, novel_gene)
     callers = {strand: EventCaller(chrom, strand, samples, thresholds, coverage[strand]) for strand in ('+', '-')}
@@ -257,7 +257,7 @@ def process_region_events(temp_prefix, chrom, samples, sample_chains, novel_gene
     reported = {}
     for event, gene_span in events:
         event.name = named_with_gene(event.name, event.gene)
-        if event_in_regions(event, report_regions, gene_span, owned):
+        if event_in_regions(event, report_regions, gene_span):
             if event.name in reported:
                 raise AssertionError(f'two events named {event.name}, of {reported[event.name].gene} and {event.gene}')
             reported[event.name] = event

@@ -1497,7 +1497,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq
 # flair spliceevents
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region test-spliceevents-region-extend \
-		test-spliceevents-region-partition test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
+		test-spliceevents-region-partition test-spliceevents-smallparts test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
 		test-spliceevents-help
 
 test-spliceevents-help: mkdirs
@@ -1551,16 +1551,26 @@ test-spliceevents-region-extend: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFE
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25205001-25205500 -o $O/$@
 	$(call cmp_expect,$@.spliceevents.regions.bed)
 
-# --region regions, the same as the --region_bed ones of test-spliceevents-region, cut
-# in intergenic gaps, as whole chromosomes are by default, give the region's events
+# --region regions, the same as the --region_bed ones of test-spliceevents-region,
+# give the region's events whatever --partition_items says, as a region is expanded
+# over its reads and transcripts into one cluster
 test-spliceevents-region-partition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
-	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25200001-25235000 --region='chr12 60000000 60010000' --partition yes -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25200001-25235000 --region='chr12 60000000 60010000' --partition_items 1 -o $O/$@
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
 
+# one partition per cluster of overlapping reads and transcripts, the most a
+# chromosome can be cut into, gives the events of the default partitions: no read
+# crosses a partition, so where the cuts fall changes nothing
+test-spliceevents-smallparts: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition_items 1 -o $O/$@
+	for s in bed counts.tsv psi_junc.tsv psi_tot.tsv totals.tsv; do \
+	    diff <(sort $E/test-spliceevents.spliceevents.$$s) <(sort $O/$@.spliceevents.$$s) || exit 1; done
+	$(call cmp_expect,$@.spliceevents.regions.bed)
+
 # whole chromosomes, not cut, give the events of the cut ones
 test-spliceevents-nopartition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
-	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition no -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition_items 0 -o $O/$@
 	for s in bed counts.tsv psi_junc.tsv psi_tot.tsv totals.tsv; do \
 	    diff <(sort $E/test-spliceevents.spliceevents.$$s) <(sort $O/$@.spliceevents.$$s) || exit 1; done
 

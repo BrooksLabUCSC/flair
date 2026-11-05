@@ -44,6 +44,15 @@
     reads in.  A `--region`/`--region_bed` region is now expanded over the reads that
     overlap it until nothing more overlaps, rather than once, so a gene's reads are all
     in one region however far they reach.
+  * flair spliceevents partitions with `flair_partition`, as flair transcriptome does,
+    rather than cutting a chromosome in the intergenic gaps of the annotation.  A
+    partition is a cluster of reads and annotated transcripts that overlap, merged with
+    the next until `--partition_items` of them, so no read crosses a partition: an event
+    is found by the one partition its reads are in, and an event near a cut no longer
+    misses the reads of the piece before.  `--partition_items` replaces `--partition`,
+    and 0 keeps chromosomes whole.  A `--region`/`--region_bed` region is expanded over
+    the reads and the annotated transcripts that overlap it, rather than the reads
+    alone, and a region with no reads or transcripts is reported and dropped.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
@@ -478,16 +487,13 @@
     `--annot_basic` if given.  A read overlapping several genes' exons belongs to
     the one whose exons share the most bases with it, of its own strand with
     `--trust_strand`, else of either.  They were all left out.
-  * Whole chromosomes are cut into pieces in intergenic gaps of the annotation, about
-    5000 annotated exons each, and each piece's reads are corrected and its events
-    found in parallel.  A piece owns the reads starting in it, however far they run,
-    and reports the events starting in it, so an event near a cut can miss reads
-    starting in the piece before.  Reads are aligned to the annotated transcripts of
-    their piece rather than of their chromosome.  On PC9's chr19 this takes 8 minutes
-    rather than 63, and 0.8 rather than 2.6 GB, and 95% of events are unchanged, the
-    other 5% from the alignment to fewer transcripts: without it, 99.9% are.
-    `--partition no` corrects whole chromosomes, and `--partition yes` cuts
-    `--region_bed` regions, which are not cut by default.
+  * Whole chromosomes are cut into partitions, and each partition's reads are
+    corrected and its events found in parallel.  Reads are aligned to the annotated
+    transcripts of their partition rather than of their chromosome.  On PC9's chr19
+    this takes 8 minutes rather than 63, and 0.8 rather than 2.6 GB, and 95% of events
+    are unchanged, the other 5% from the alignment to fewer transcripts: without it,
+    99.9% are.  (The cuts were first placed in the intergenic gaps of the annotation,
+    which reads crossed; see `--partition_items` above for how they are placed now.)
   * The genome-wide annotation of first and last exons was pickled into every
     region's task, 1.7 seconds each, which kept the threads waiting on the main
     process.  A 1% sample of PC9 over the whole genome now takes under 5 minutes

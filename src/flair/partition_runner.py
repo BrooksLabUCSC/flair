@@ -17,6 +17,10 @@ from flair import SeqRange, FlairInputDataError
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader
 
+# the input items a whole-genome partition is merged up to, so the partitions are
+# work units rather than one per cluster of overlapping reads
+WHOLE_GENOME_PARTITION_ITEMS = 1000
+
 # the full annotation data of each PartitionRunner, keyed by its work_dir.  The
 # pool workers are forked, so they inherit this and subset their own region,
 # rather than the main process subsetting and pickling every region up front,
@@ -125,17 +129,18 @@ def _call_partition_func(packed):
         thread_share.task_done()
 
 
-def _run_flair_partition(genome_aligned_bam, annot_gtf, threads, region_bed=None):
-    """Run flair_partition and return a list of SeqRanges and a list of the number
-    of input items in each.  Given region_bed, only the partitions overlapping one of
-    its regions, which flair_partition grows to hold every read and annotation
-    reaching them.  A minimum number of items per partition is not asked for then, as
-    it would count only what was read in the regions, so each partition is one
-    cluster of overlapping reads and transcripts"""
+def run_flair_partition(bam_files, annot_gtf, threads, *, region_bed=None, min_partition_items=0):
+    """Run flair_partition and return a list of SeqRanges and a list of the number of
+    input items in each.  No read and no annotated transcript crosses a partition, as
+    a partition is a cluster of items that overlap.  Given region_bed, only the
+    partitions over its regions, which flair_partition expands over the reads and
+    transcripts that overlap them; min_partition_items is not used then, as it would
+    count only the items read in the regions"""
     cmd = ['flair_partition',
-           f'--threads={threads}',
-           f'--bam={genome_aligned_bam}']
-    cmd += [f'--region_bed={region_bed}'] if region_bed is not None else ['--min_partition_items=1000']
+           f'--threads={threads}']
+    cmd += [f'--bam={bam_file}' for bam_file in bam_files]
+    cmd += ([f'--region_bed={region_bed}'] if region_bed is not None
+            else [f'--min_partition_items={min_partition_items}'])
     if annot_gtf is not None:
         cmd += [f'--gtf={annot_gtf}']
     cmd += ['/dev/stdout']
@@ -269,10 +274,11 @@ def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, thre
     if region_bed is not None:
         if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
             logging.info("a region restriction partitions by region, not by chromosome")
-        return _run_flair_partition(genome_aligned_bam, annot_gtf, threads, region_bed)
+        return run_flair_partition([genome_aligned_bam], annot_gtf, threads, region_bed=region_bed)
     if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
         regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))
                    for chrom in genome.references]
         return regions, _count_chrom_reads(genome_aligned_bam, regions)
     else:
-        return _run_flair_partition(genome_aligned_bam, annot_gtf, threads)
+        return run_flair_partition([genome_aligned_bam], annot_gtf, threads,
+                                   min_partition_items=WHOLE_GENOME_PARTITION_ITEMS)
