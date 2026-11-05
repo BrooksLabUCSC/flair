@@ -54,7 +54,6 @@ flair transcriptome
 **Renamed**
 
 - ``--genomealignedbam`` is ``-b``, ``--genome_aligned_bam``
-- ``--parallelmode`` is ``--parallel_mode``
 - ``--keep_sup`` is ``--keep_supplementary``
 - ``--noaligntoannot`` is ``--no_align_to_annot``
 - ``--junction_tab`` is ``--junction_star``; the old name still works and warns
@@ -75,6 +74,8 @@ flair transcriptome
 
 - ``-n``, ``--no_redundant``
 - ``--predictCDS``
+- ``--parallelmode``, ``--parallel_mode``: the input is always partitioned into
+  clusters of overlapping reads and annotated transcripts
 - ``--trust_ends``: each isoform's ends come from the ends of the reads assigned to it,
   and passing it is an error that says so
 

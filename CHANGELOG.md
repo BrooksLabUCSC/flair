@@ -56,6 +56,16 @@
     at a cut.  A `--region`/`--region_bed` region is expanded over the reads and the
     annotated transcripts that overlap it, rather than the reads alone, and a region
     with no reads or transcripts is reported and dropped.
+  * flair transcriptome partitions the input into clusters of overlapping reads and
+    annotated transcripts, and `--parallel_mode` is removed.  `bychrom` aligned a
+    chromosome's reads to every transcript on it and `byregion` aligned a partition's
+    to the partition's, so the two gave different isoforms: one of 2559 on A498's
+    chr19, and six read counts.  A cluster holds every transcript its reads can reach,
+    so the isoforms no longer depend on how the work is divided, and `--region` gives
+    the whole-genome run's transcripts for the region.  bychrom was also the slower
+    path: chr19 took 4m05s, against 49 seconds by cluster.  An isoform whose cluster
+    has no annotated start codon now has no `productivity`, where a whole-chromosome
+    partition would give it one from a gene megabases away.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair

@@ -113,7 +113,10 @@ class AnnotData(object):
 
 
 def annot_data_from_gtf(gtf_data, region):
-    """Build AnnotData for a region from a pre-partitioned GtfData object."""
+    """Build AnnotData for a region from a pre-partitioned GtfData object.  Every
+    transcript of gtf_data is kept, whatever region says, so a caller that needs the
+    annotation of a cluster must pass gtf_data.subset_for_region() for it; see
+    dev/design/clusters-and-partitions.md"""
     annots = AnnotData()
     if gtf_data is None:
         return annots

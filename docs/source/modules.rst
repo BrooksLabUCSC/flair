@@ -94,6 +94,17 @@ Options
 
 .. rst-class:: module-detail
 
+Partitioning
+------------
+
+Transcripts are built a cluster at a time, a cluster being the reads and annotated
+transcripts that overlap each other, so no read and no transcript crosses one.  A
+cluster's reads are aligned to its annotated transcripts, and its isoforms are built
+from its reads alone, so the isoforms do not depend on how the work was divided over
+the threads.  The clusters are written to ``<output>.regions.bed``.
+
+.. rst-class:: module-detail
+
 Restricting to specific regions
 -------------------------------
 

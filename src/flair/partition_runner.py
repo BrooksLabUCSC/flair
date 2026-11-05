@@ -1,25 +1,20 @@
 """
-Genome partitioning and parallel execution.
+Genome partitioning and parallel execution.  A partition is a unit of work, a cluster
+is a unit of meaning; dev/design/clusters-and-partitions.md says what may depend on
+which.
 
 Manages per-region Partition objects, each with a temporary working directory
 and the annotation data for its region, and runs a user-supplied function on
 each partition.
 """
 import gc
-import logging
 import os
-import re
 import shutil
 import multiprocessing as mp
 import pipettor
-import pysam
-from flair import SeqRange, FlairInputDataError
+from flair import SeqRange
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader
-
-# the input items a whole-genome transcriptome partition is merged up to, so the
-# partitions are work units rather than one per cluster of overlapping reads
-TRANSCRIPTOME_PARTITION_ITEMS = 1000
 
 # the full annotation data of each PartitionRunner, keyed by its work_dir.  The
 # pool workers are forked, so they inherit this and subset their own region,
@@ -45,24 +40,6 @@ def combine_temp_files_by_suffix(output, temp_prefixes, suffixes, *, headers=())
             for num, temp_prefix in enumerate(temp_prefixes):
                 with open(temp_prefix + filesuffix, 'rb') as in_fh:
                     _copy_part(in_fh, combined_fh, has_header and (num > 0))
-
-
-def parallel_mode_parse(parallel_mode):
-    """Parse --parallel_mode option string into a tuple.
-
-    Valid values: auto:10GB, bychrom, byregion
-    Returns ('auto', size_gb), ('bychrom', None), or ('byregion', None).
-    """
-    match = re.match(r'^(auto):(\d+)GB$|^(bychrom|byregion)$', parallel_mode)
-    if match is None:
-        raise FlairInputDataError(f"Invalid value for --parallel_mode: '{parallel_mode}', expected auto:10GB, bychrom, or byregion")
-    if match.group(1) is not None:
-        size = int(match.group(2))
-        if size < 1:
-            raise FlairInputDataError("auto parallel_mode must have a size greater than zero")
-        return (match.group(1), size)
-    else:
-        return (match.group(3), None)
 
 
 class Partition:
@@ -152,16 +129,6 @@ def run_flair_partition(bam_files, annot_gtf, threads, *, region_bed=None, min_p
     return regions, item_counts
 
 
-def _decide_parallel_mode(parallel_mode, genome_aligned_bam):
-    # FIXME: remove by-chrom, decide based on really just need a size
-    # if size exceeds chromosome, it still works.
-    if parallel_mode[0] in ('bychrom', 'byregion'):
-        return parallel_mode[0]
-    # auto: choose based on BAM file size
-    file_size_gb = os.path.getsize(genome_aligned_bam) / 1e9
-    return 'byregion' if file_size_gb > parallel_mode[1] else 'bychrom'
-
-
 class PartitionRunner:
     """A set of genome partitions, each with a temporary directory.
 
@@ -248,13 +215,6 @@ class PartitionRunner:
                 gc.unfreeze()
 
 
-def _count_chrom_reads(genome_aligned_bam, regions):
-    "number of mapped reads on each whole-chromosome region, from the BAM index"
-    with pysam.AlignmentFile(genome_aligned_bam, 'rb') as bam:
-        mapped = {s.contig: s.mapped for s in bam.get_index_statistics()}
-    return [mapped.get(r.name, 0) for r in regions]
-
-
 def region_file_name(region):
     "the name a region's directory, and the files inside it, are built from"
     return f"{region.name}-{region.start}-{region.end}"
@@ -264,21 +224,9 @@ def _region_temp_dir(work_dir, region):
     return os.path.join(work_dir, region_file_name(region))
 
 
-def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, threads, region_bed=None):
-    """Divide the genome into regions to run in parallel, choosing bychrom or byregion
-    based on parallel_mode, a tuple as returned by parallel_mode_parse:
-        ('bychrom', None) | ('byregion', None) | ('auto', size_gb)
-    Given region_bed, only the regions of its ranges, by region whatever parallel_mode
-    says, as whole chromosomes would restrict nothing.
+def partition_regions(genome_aligned_bam, annot_gtf, threads, region_bed=None):
+    """The regions to run in parallel, each a cluster of reads and annotated transcripts
+    that overlap, so no read and no transcript crosses one and a partition is the same
+    whatever else is run.  Given region_bed, only the clusters its ranges reach.
     Returns a list of SeqRanges and a list of their sizes, for PartitionRunner."""
-    if region_bed is not None:
-        if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
-            logging.info("a region restriction partitions by region, not by chromosome")
-        return run_flair_partition([genome_aligned_bam], annot_gtf, threads, region_bed=region_bed)
-    if _decide_parallel_mode(parallel_mode, genome_aligned_bam) == 'bychrom':
-        regions = [SeqRange(chrom, 0, genome.get_reference_length(chrom))
-                   for chrom in genome.references]
-        return regions, _count_chrom_reads(genome_aligned_bam, regions)
-    else:
-        return run_flair_partition([genome_aligned_bam], annot_gtf, threads,
-                                   min_partition_items=TRANSCRIPTOME_PARTITION_ITEMS)
+    return run_flair_partition([genome_aligned_bam], annot_gtf, threads, region_bed=region_bed)

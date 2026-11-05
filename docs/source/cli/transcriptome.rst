@@ -20,7 +20,6 @@
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
                               [--filter FILTER] [--keep_supplementary]
                               [--quality QUALITY] [-t THREADS]
-                              [--parallel_mode PARALLEL_MODE]
                               [--region_bed REGION_BED] [--region REGIONS]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
@@ -122,11 +121,7 @@
 
 .. option:: -t, --threads THREADS
 
-   number of threads to run with, related to --parallel_mode (default: 12)
-
-.. option:: --parallel_mode PARALLEL_MODE
-
-   parallelization mode. auto:1GB is an automatic threshold where, if the file is less than 1GB, parallelization is done by chromosome, and if it is larger, parallelization is done by region of non-overlapping reads. Other modes: bychrom, byregion, auto:xGB; for the auto threshold, the size must be in units of GB (default: auto:1GB)
+   number of threads to run with (default: 12)
 
 .. option:: --region_bed REGION_BED
 

@@ -232,7 +232,7 @@ def _work_units(clusters, counts, items):
     """The clusters grouped into partitions of at least items input items each, or a
     partition per chromosome when items is 0.  A cluster is never split and is
     corrected on its own, so the grouping changes no result; it only sets how much work
-    a task is"""
+    a task is (dev/design/clusters-and-partitions.md)"""
     limit = float('inf') if items <= 0 else items
     units, group, group_counts = [], [], []
     for cluster, count in zip(clusters, counts):

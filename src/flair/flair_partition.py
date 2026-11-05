@@ -2,6 +2,10 @@
 
 # Program that partitions a BED file into non-overlapping regions.
 # This is based on the UCSC Browser utility bedPartition.
+#
+# A partition here is a cluster: a maximal set of items that overlap, which no read
+# and no annotated transcript crosses.  What that is for, and why flair must scope a
+# read's annotation and junctions to it, is in dev/design/clusters-and-partitions.md
 
 import argparse
 import functools

@@ -880,14 +880,14 @@ test-plot-usage-help: mkdirs
 # flair transcriptome
 ###
 
-transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-partition test-transcriptome-region test-transcriptome-readthrough-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
+transcriptome-tests: test-transcriptome test-transcriptome-nochecksplice test-transcriptome-nostringent test-transcriptome-nostringentsplice test-transcriptome-directrna test-transcriptome-region test-transcriptome-readthrough-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
                     test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-total-rna test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
 					test-transcriptome-keep-intermediate-needs-temp-dir test-transcriptome-trust-ends-removed \
 					test-transcriptome-total-rna-needs-trust-strand test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic test-transcriptome-compress
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-nochecksplice" "test-transcriptome-nostringent" "test-transcriptome-nostringentsplice" "test-transcriptome-directrna" "test-transcriptome-partition" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-noannot-trust-junctions" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
+	for tname in "test-transcriptome" "test-transcriptome-nochecksplice" "test-transcriptome-nostringent" "test-transcriptome-nostringentsplice" "test-transcriptome-directrna" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-noannot-trust-junctions" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
 	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-nosubset" "test-transcriptome-filter-1.2X" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-total-rna" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
 	"test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends" "test-transcriptome-seg1-badannot-comprehensive" "test-transcriptome-frac-support-0" "test-transcriptome-frac-support-0-basic"; \
 	do \
@@ -953,11 +953,6 @@ test-transcriptome-comprehensive-basic: mkdirs ${BASIC_ALIGN_BAM}
 test-transcriptome-mult-ends: mkdirs ${BASIC_ALIGN_BAM}
 	rm -rf $O/$@.tmp
 	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 5 --keep_intermediate --temp_dir $O/$@.tmp
-# 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
-	$(diff_bed_gtf)
-
-test-transcriptome-partition: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --parallel_mode byregion
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 

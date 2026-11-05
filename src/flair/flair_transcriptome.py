@@ -21,7 +21,7 @@ from flair.annotation_alignment import (_exon_bounds, _write_reads_subset,
 from flair.count_sam_transcripts import MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
-from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
+from flair.partition_runner import PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions, write_regions_bed
 from flair.io_utils import check_genome_fasta, make_run_temp_dir, open_sorted_bed
 from flair.bed_to_gtf import bed_to_gtf
@@ -118,7 +118,6 @@ class TranscriptomeOpts:
     keep_supplementary: bool
     quality: int
     threads: int
-    parallel_mode: tuple
     regions: list
     fusion_breakpoints: str
     keep_intermediate: bool
@@ -236,13 +235,7 @@ def add_subparser(subparsers):
                              'defining transcripts (default: %(default)s)')
 
     parser.add_argument('-t', '--threads', type=int, default=12,
-                        help='number of threads to run with, related to --parallel_mode (default: %(default)s)')
-    parser.add_argument('--parallel_mode', default='auto:1GB',
-                        help='parallelization mode. auto:1GB is an automatic threshold where, if the file '
-                             'is less than 1GB, parallelization is done by chromosome, and if it is larger, '
-                             'parallelization is done by region of non-overlapping reads. Other modes: '
-                             'bychrom, byregion, auto:xGB; for the auto threshold, the size must be in units '
-                             'of GB (default: %(default)s)')
+                        help='number of threads to run with (default: %(default)s)')
 
     parser.add_argument('--region_bed',
                         help='bed file of the regions to build transcripts in, such as the genes of '
@@ -302,7 +295,6 @@ def transcriptome_cmd(args):
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
                         quality=args.quality, threads=args.threads,
-                        parallel_mode=parallel_mode_parse(args.parallel_mode),
                         regions=parse_regions(args.regions, args.region_bed),
                         fusion_breakpoints=args.fusion_breakpoints,
                         keep_intermediate=args.keep_intermediate, temp_dir=args.temp_dir,
@@ -1507,6 +1499,9 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
 def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
     # FIXME confusing name if taking gtf_data,
     # FIXME: should only have region, so why take region arg
+    # a partition is one cluster, so gtf_data, the junctions and the firstpass isoforms
+    # reads are realigned to are all the cluster's; nothing here may be given more than
+    # that (dev/design/clusters-and-partitions.md)
     annots = annot_data_from_gtf(gtf_data, region)
 
     # then align reads to transcriptome and run count_sam_transcripts
@@ -1738,7 +1733,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                         junction_star, junction_bed, junction_support, ss_window, end_window,
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand, total_rna,
                         trust_junctions, no_stringent, no_check_splice, no_align_to_annot,
-                        max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
+                        max_ends, filter, keep_supplementary, quality, threads,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map,
                         regions=None, subset_backup_support=10):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
@@ -1753,7 +1748,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              no_stringent=no_stringent, no_check_splice=no_check_splice,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,
-                             quality=quality, threads=threads, parallel_mode=parallel_mode,
+                             quality=quality, threads=threads,
                              regions=regions, fusion_breakpoints=fusion_breakpoints,
                              keep_intermediate=keep_intermediate, temp_dir=temp_dir, normalize_ends=normalize_ends,
                              generate_map=generate_map)
@@ -1778,7 +1773,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
         annot_regions = region_chromosomes(args.regions, genome_fa) if args.regions else None
         region_bed = write_regions_bed(args.regions, os.path.join(temp_dir, 'regions.bed')) if args.regions else None
         with ThreadPoolExecutor(max_workers=1) as executor:
-            partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
+            partitioning = executor.submit(partition_regions, args.genome_aligned_bam,
                                            args.annot_gtf, max(1, args.threads - 1), region_bed)
             annot_gtf_data = None
             if args.annot_gtf:
