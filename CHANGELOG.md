@@ -44,15 +44,18 @@
     reads in.  A `--region`/`--region_bed` region is now expanded over the reads that
     overlap it until nothing more overlaps, rather than once, so a gene's reads are all
     in one region however far they reach.
-  * flair spliceevents partitions with `flair_partition`, as flair transcriptome does,
-    rather than cutting a chromosome in the intergenic gaps of the annotation.  A
-    partition is a cluster of reads and annotated transcripts that overlap, merged with
-    the next until `--partition_items` of them, so no read crosses a partition: an event
-    is found by the one partition its reads are in, and an event near a cut no longer
-    misses the reads of the piece before.  `--partition_items` replaces `--partition`,
-    and 0 keeps chromosomes whole.  A `--region`/`--region_bed` region is expanded over
-    the reads and the annotated transcripts that overlap it, rather than the reads
-    alone, and a region with no reads or transcripts is reported and dropped.
+  * flair spliceevents corrects reads a cluster at a time, a cluster being the reads and
+    annotated transcripts that overlap each other, from `flair_partition`, rather than
+    cutting a chromosome in the intergenic gaps of the annotation, where reads crossed
+    the cuts and their events past a cut were lost.  A cluster's reads are aligned to
+    its own annotated transcripts, so results no longer depend on how the work is
+    divided: `--partition_items`, which replaces `--partition` and groups clusters into
+    tasks, gives the same tables at every setting, and 0 gives a task per chromosome.
+    On A498's chr19, 328k reads and a GENCODE lift, this takes 48 seconds rather than
+    72, reports every event row the intergenic cuts did, and adds the two rows they lost
+    at a cut.  A `--region`/`--region_bed` region is expanded over the reads and the
+    annotated transcripts that overlap it, rather than the reads alone, and a region
+    with no reads or transcripts is reported and dropped.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair

@@ -57,7 +57,7 @@
 
 .. option:: --partition_items PARTITION_ITEMS
 
-   cut a chromosome into partitions of at least this many input items, reads of all the samples and annotated transcripts, each corrected and searched for events on its own (default: 1000). A partition is a cluster of items that overlap, merged with the next until the count is reached, so no read and no transcript crosses one. 0 corrects whole chromosomes. --region/--region_bed regions are one cluster each, however this is set
+   run the reads in partitions of at least this many input items, reads of all the samples and annotated transcripts (default: 20000), or of a whole chromosome with 0. A partition is one or more clusters of items that overlap, and a cluster is corrected and searched for events on its own, so this sets how much work a task is and changes no result
 
 .. option:: --region_bed REGION_BED
 

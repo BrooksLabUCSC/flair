@@ -657,13 +657,14 @@ region are corrected in parallel.  ``--region`` takes a region as one-based and 
 ``chr12:25,205,001-25,210,000``, or zero-based and half-open, ``chr12 25205000
 25210000``, and may be repeated.
 
-Without a region, each chromosome is cut into partitions of about 1000 reads and
-annotated transcripts, corrected and searched for events in parallel.  A partition is a
-cluster of reads and transcripts that overlap, merged with the next until the count is
-reached, so no read and no transcript crosses one: an event is found by the one
-partition its reads are in, and where the cuts fall changes nothing.  Reads are aligned
-to their partition's annotated transcripts, not the whole chromosome's.
-``--partition_items`` sets the count, and 0 keeps chromosomes whole.
+Reads are corrected a cluster at a time, a cluster being the reads and annotated
+transcripts that overlap each other, so no read and no transcript crosses one.  A
+cluster's reads are aligned to its annotated transcripts, not the chromosome's, and
+every read of an event is counted in the cluster that reports it.
+
+Clusters are grouped into partitions of about 20000 reads and annotated transcripts,
+run in parallel, one task each.  ``--partition_items`` sets the count, and 0 gives a
+partition per chromosome.  It sets how much work a task is and changes no result.
 
 The manifest is a tab-separated file of a sample name and the path to its sorted and
 indexed bam file, a line per sample::

@@ -14,6 +14,7 @@ from flair.spliceevents_reads import (annotated_genes, ReadEnds, ReadChain, read
                                       AnnotatedTerminalExon, fragment_chains)
 from flair.read_processing import fetch_reads, generate_genomic_alignment_read_to_clipping_file
 from flair.spliceevents_regions import read_windows
+from flair.flair_spliceevents import _overlapping_reports
 
 # on chr1, 0-based starts: genes A and B on +, B with a transcript skipping its middle
 # exon, and D and E on -
@@ -141,6 +142,24 @@ def test_a_partition_fetches_only_the_reads_reaching_a_report_region(tmp_path):
     windows = read_windows([SeqRange('chr1', 6000, 7000), SeqRange('chr1', 1000, 5000)])
     assert _names(bam, windows) == ['r1', 'r2', 'r3']
     assert _names(bam, None) == ['r0', 'r1', 'r2', 'r3', 'r4']
+
+
+def test_a_partition_fetches_only_its_own_reads(tmp_path):
+    # the report region is a whole chromosome, so without clipping to the partition
+    # every partition of it would fetch all its reads
+    bam = _bam(tmp_path / 's1.bam', [(1000, '200M'), (8000, '200M')])
+    chrom = SeqRange('chr1', 0, 100000)
+    partition = SeqRange('chr1', 900, 1300)
+    reports = _overlapping_reports(partition, [chrom])
+    assert reports == [partition]
+    assert _names(bam, read_windows(reports)) == ['r0']
+
+
+def test_report_regions_are_clipped_to_the_partition():
+    partition = SeqRange('chr1', 1000, 2000)
+    assert _overlapping_reports(partition, [SeqRange('chr1', 1500, 5000)]) == [SeqRange('chr1', 1500, 2000)]
+    assert _overlapping_reports(partition, [SeqRange('chr1', 2000, 5000)]) == []
+    assert _overlapping_reports(partition, [SeqRange('chr2', 0, 5000)]) == []
 
 
 def test_the_clipping_of_only_the_reads_to_correct_is_written(tmp_path):

@@ -17,9 +17,9 @@ from flair import SeqRange, FlairInputDataError
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader
 
-# the input items a whole-genome partition is merged up to, so the partitions are
-# work units rather than one per cluster of overlapping reads
-WHOLE_GENOME_PARTITION_ITEMS = 1000
+# the input items a whole-genome transcriptome partition is merged up to, so the
+# partitions are work units rather than one per cluster of overlapping reads
+TRANSCRIPTOME_PARTITION_ITEMS = 1000
 
 # the full annotation data of each PartitionRunner, keyed by its work_dir.  The
 # pool workers are forked, so they inherit this and subset their own region,
@@ -281,4 +281,4 @@ def partition_regions(parallel_mode, genome, genome_aligned_bam, annot_gtf, thre
         return regions, _count_chrom_reads(genome_aligned_bam, regions)
     else:
         return run_flair_partition([genome_aligned_bam], annot_gtf, threads,
-                                   min_partition_items=WHOLE_GENOME_PARTITION_ITEMS)
+                                   min_partition_items=TRANSCRIPTOME_PARTITION_ITEMS)

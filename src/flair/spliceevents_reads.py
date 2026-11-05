@@ -132,13 +132,14 @@ def fragment_chains(reads, fragment_exons, trust_strand):
     return [ReadChain((gene,), (), strand, ends, kind) for (kind, gene, strand), ends in sorted(by_fragment.items())]
 
 
-def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_corrector, annots, terminal_exons,
-                            windows=None):
-    """correct a sample's reads in region, give their junction chains annotated genes,
-    and write them to path, with the unspliced reads that are fragments of one gene's
+def sample_read_chains(args, region, work_dir, bamfile_name, genome, junction_corrector, annots, terminal_exons,
+                       windows=None):
+    """A sample's reads in region, corrected and grouped into junction chains with
+    their annotated genes, and the unspliced reads that are fragments of one gene's
     first or last exons, terminal_exons; the chains of no annotated gene get novel
-    genes in event calling, over all samples"""
-    sj_to_ends = correct_sample_reads(args, region, path + '.correction', bamfile_name, genome, annots, junction_corrector,
+    genes in event calling, over all samples.  The alignment's intermediates go in
+    work_dir"""
+    sj_to_ends = correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, junction_corrector,
                                       windows)
     fragment_exons = AnnotatedFragmentExons(terminal_exons, annots)
     chains = []
@@ -151,7 +152,7 @@ def get_juncs_single_sample(args, region, path, bamfile_name, genome, junction_c
             chains.append(ReadChain(genes, tuple((j.start, j.end) for j in juncs), strand, isoform.reads))
         else:
             chains.extend(fragment_chains(isoform.reads, fragment_exons, args.trust_strand))
-    write_read_chains(path, region.name, chains)
+    return chains
 
 
 # an exon's first or last exon by kind: 'first' or 'last', strand, start, end, gene
