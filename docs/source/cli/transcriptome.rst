@@ -16,7 +16,6 @@
                               [--subset_backup_support SUBSET_BACKUP_SUPPORT]
                               [--frac_support FRAC_SUPPORT] [--directRNA]
                               [--trust_strand] [--total_rna] [--trust_junctions]
-                              [--no_stringent] [--no_check_splice]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
                               [--filter FILTER] [--keep_supplementary]
                               [--quality QUALITY] [-t THREADS]
@@ -90,14 +89,6 @@
 .. option:: --trust_junctions
 
    trust the strand of every input splice junction for read correction, without checking splice motifs. By default, an unannotated junction without a GT-AG motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded only by such junctions gets its strand from gene identification, or is dropped
-
-.. option:: --no_stringent
-
-   do not require all supporting reads to be full-length, that is aligned to the first and last exons of the transcript. Use this for fragmented libraries, with an understanding that it will impact precision
-
-.. option:: --no_check_splice
-
-   do not enforce accurate alignment around splice sites. Specify this for libraries with high error rates, but it will reduce precision
 
 .. option:: --no_align_to_annot
 

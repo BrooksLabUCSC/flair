@@ -87,7 +87,7 @@ def _write_reads_subset(in_fasta, out_fasta, skip):
     return nwritten
 
 def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, *, no_align_to_annot, directRNA,
-                                 check_splice, trust_strand, fusion_breakpoints, windows=None):
+                                 trust_strand, fusion_breakpoints, windows=None):
     """read -> (annotated transcript, start splice site index and distance, end splice
     site index and distance) of the reads in region that align well to an annotated
     transcript, of the reads in temp_prefix.reads.fasta, their genomic clipping in
@@ -117,7 +117,7 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
                                       None, True,
                                       clipping_file,
                                       temp_prefix + '.annotated_transcripts_uniquebound.tsv',
-                                      directRNA=directRNA, no_stringent=False, check_splice=check_splice,
+                                      directRNA=directRNA,
                                       trust_strand=trust_strand, fusion_breakpoints=fusion_breakpoints)
         for row in ReadEndsReader(temp_prefix + '.matchannot.ends.tsv'):
             # an empty junction index means a single exon transcript, which has no
@@ -130,7 +130,7 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
 
 
 def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_name, map_file, is_annot, clipping_file, unique_bound,  # noqa: C901 - FIXME: reduce complexity
-                                  *, directRNA, no_stringent, check_splice, trust_strand, fusion_breakpoints,
+                                  *, directRNA, trust_strand, fusion_breakpoints,
                                   secondary_alignments=MINIMAP2_SECONDARY_ALIGNMENTS):
     """Align reads to transcripts with minimap2 and assign each to its best
     transcript with count_sam_transcripts: to the annotated transcripts (is_annot),
@@ -149,8 +149,10 @@ def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_
     trimmedreads = clipping_file or None
     generate_map = map_file or None
     output_endpos = output_name.split('.counts.tsv')[0] + '.ends.tsv'  # if (args.output_endpos or is_annot) else None)
-    stringent = (not is_annot) and (not no_stringent)
-    unique_bound_path = unique_bound if unique_bound and (not no_stringent or is_annot) else None
+    # the annotation pass keeps a read that matches a transcript's junctions, wherever
+    # it starts and ends; the isoform pass counts a read for an isoform only if it is
+    # full-length on it
+    stringent = not is_annot
 
     # minimap2 borrows threads left idle in the thread budget while it runs
     with thread_share.program_threads() as mm2_threads:
@@ -163,10 +165,10 @@ def transcriptome_align_and_count(input_reads, align_ref_fasta, ref_bed, output_
             stringent=stringent,
             allow_UTR_indels=not directRNA,
             transcript_fasta=align_ref_fasta,
-            check_splice=check_splice,
+            check_splice=True,
             isoforms=ref_bed,
             trust_ends=False,
-            unique_bound=unique_bound_path,
+            unique_bound=unique_bound or None,
             fusion_breakpoints=fusion_breakpoints,
             # reads come from samtools fasta in their sequenced orientation, and
             # transcript sequences are sense, so an antisense read aligns reversed

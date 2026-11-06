@@ -60,8 +60,9 @@ flair transcriptome
 
 **Defaults flipped**
 
-- ``--stringent`` is now the default; ``--no_stringent`` turns it off
-- ``--check_splice`` is now the default; ``--no_check_splice`` turns it off
+- ``--stringent`` and ``--check_splice`` always apply, and ``--no_stringent`` and
+  ``--no_check_splice`` are gone: they counted reads that don't support an isoform
+  toward it
 
 **Split**
 
@@ -178,8 +179,7 @@ flair fusion
 
 **Defaults flipped**
 
-- ``--stringent`` and ``--check_splice`` are the default; ``--no_stringent`` and
-  ``--no_check_splice`` turn them off
+- ``--stringent`` and ``--check_splice`` always apply; neither can be turned off
 
 **Gone**
 
