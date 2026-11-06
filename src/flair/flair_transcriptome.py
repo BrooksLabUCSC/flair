@@ -110,8 +110,6 @@ class TranscriptomeOpts:
     trust_strand: bool
     total_rna: bool
     trust_junctions: bool
-    no_stringent: bool
-    no_check_splice: bool
     no_align_to_annot: bool
     max_ends: int
     filter: str
@@ -203,13 +201,9 @@ def add_subparser(subparsers):
     # removed: each isoform's ends come from the reads assigned to it
     parser.add_argument('--trust_ends', action='store_true', help=argparse.SUPPRESS)
 
-    parser.add_argument('--no_stringent', action='store_true',
-                        help="do not require all supporting reads to be full-length, that is aligned to the "
-                             "first and last exons of the transcript. Use this for fragmented libraries, "
-                             "with an understanding that it will impact precision")
-    parser.add_argument('--no_check_splice', action='store_true',
-                        help="do not enforce accurate alignment around splice sites. Specify this for "
-                             "libraries with high error rates, but it will reduce precision")
+    # removed: both let reads that don't support an isoform count toward it
+    parser.add_argument('--no_stringent', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--no_check_splice', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--no_align_to_annot', action='store_true',
                         help="skip the initial alignment to the annotated sequences and detect transcripts "
                              "only from the genomic alignment. Slightly faster but less accurate when the "
@@ -272,6 +266,10 @@ def transcriptome_cmd(args):
     if args.trust_ends:
         raise FlairInputDataError("--trust_ends has been removed: each isoform's ends come from the ends "
                                   "of the reads assigned to it")
+    if args.no_stringent or args.no_check_splice:
+        raise FlairInputDataError("--no_stringent and --no_check_splice have been removed: they counted reads "
+                                  "that don't support an isoform toward it.  Drop them, or quantify the reads "
+                                  "against an isoform set with flair quantify")
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     if args.total_rna and not (args.trust_strand or args.directRNA):
@@ -290,8 +288,7 @@ def transcriptome_cmd(args):
                         single_exon_support=args.single_exon_support,
                         subset_backup_support=args.subset_backup_support,
                         frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand, total_rna=args.total_rna,
-                        trust_junctions=args.trust_junctions, no_stringent=args.no_stringent,
-                        no_check_splice=args.no_check_splice,
+                        trust_junctions=args.trust_junctions,
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
                         quality=args.quality, threads=args.threads,
@@ -1351,7 +1348,7 @@ def _with_single_exon_isoforms(final, single_exon):
             out[final_isoform.name] = final_isoform
     return out
 
-def calc_final_iso_support(read_ends_file, final_transcript_objs, no_stringent):
+def calc_final_iso_support(read_ends_file, final_transcript_objs):
     iso_to_counts = {}
     gene_to_tot = {}
     for row in ReadEndsReader(read_ends_file):
@@ -1363,9 +1360,9 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, no_stringent):
             gene_to_tot[gene] = [0, 0, 0]
         if transcript not in iso_to_counts:
             iso_to_counts[transcript] = [0, 0]
-        # only spliced isoforms' reads have ends lines (assign_single_exon_isoforms);
-        # either reads are full-length or the user has explicitly specified no_stringent
-        if (start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1) or no_stringent:
+        # only spliced isoforms' reads have ends lines (assign_single_exon_isoforms),
+        # and a read is counted for an isoform only if it is full-length on it
+        if start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1:
             iso_to_counts[transcript][0] += 1
             gene_to_tot[gene][0] += 1
             gene_to_tot[gene][1] += 1
@@ -1523,7 +1520,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             logging.info('aligning to transcriptome reference')
         read_to_annot_transcript = identify_good_match_to_annot(
             partition.file_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
-            directRNA=args.directRNA, check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
+            directRNA=args.directRNA, trust_strand=args.trust_strand,
             fusion_breakpoints=args.fusion_breakpoints)
 
         logging.info('correcting and grouping reads, filtering isoforms')
@@ -1585,8 +1582,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                               read_map_file, False,  # say is not annot, requires stringent, returns different end values
                                               partition.output_path('reads.genomicclipping.tsv'),
                                               partition.output_path('firstpass.uniquebound.tsv'),
-                                              directRNA=args.directRNA, no_stringent=args.no_stringent,
-                                              check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
+                                              directRNA=args.directRNA, trust_strand=args.trust_strand,
                                               fusion_breakpoints=args.fusion_breakpoints,
                                               secondary_alignments=(KEEP_SUBSET_SECONDARY_ALIGNMENTS
                                                                     if args.filter in KEEP_SUBSET_FILTERS
@@ -1606,7 +1602,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                                   normalize_ends=args.normalize_ends,
                                                   max_ends=args.max_ends, end_window=args.end_window,
                                                   sjc_support=args.sjc_support, frac_support=args.frac_support)
-        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoforms.ends.tsv'), final_transcript_objs, args.no_stringent)
+        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoforms.ends.tsv'), final_transcript_objs)
         # single-exon isoforms after the spliced reads are counted, which their support is a fraction of
         single_exon = assign_single_exon_isoforms([isoform for isoform in final_transcript_objs.values() if isoform.juncs == ()],
                                                   iso_to_counts, gene_to_tot,
@@ -1732,7 +1728,7 @@ def write_partition_regions(regions, output):
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_star, junction_bed, junction_support, ss_window, end_window,
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand, total_rna,
-                        trust_junctions, no_stringent, no_check_splice, no_align_to_annot,
+                        trust_junctions, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map,
                         regions=None, subset_backup_support=10):
@@ -1745,7 +1741,6 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              subset_backup_support=subset_backup_support,
                              directRNA=directRNA, trust_strand=trust_strand or directRNA, total_rna=total_rna,
                              trust_junctions=trust_junctions,
-                             no_stringent=no_stringent, no_check_splice=no_check_splice,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,
                              quality=quality, threads=threads,

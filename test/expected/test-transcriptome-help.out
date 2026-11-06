@@ -10,7 +10,6 @@ usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME
                            [--subset_backup_support SUBSET_BACKUP_SUPPORT]
                            [--frac_support FRAC_SUPPORT] [--directRNA]
                            [--trust_strand] [--total_rna] [--trust_junctions]
-                           [--no_stringent] [--no_check_splice]
                            [--no_align_to_annot] [--max_ends MAX_ENDS]
                            [--filter FILTER] [--keep_supplementary]
                            [--quality QUALITY] [-t THREADS]
@@ -83,13 +82,6 @@ options:
                         motif, such as GC-AG or AT-AC, is only weak evidence
                         of strand: a read stranded only by such junctions gets
                         its strand from gene identification, or is dropped
-  --no_stringent        do not require all supporting reads to be full-length,
-                        that is aligned to the first and last exons of the
-                        transcript. Use this for fragmented libraries, with an
-                        understanding that it will impact precision
-  --no_check_splice     do not enforce accurate alignment around splice sites.
-                        Specify this for libraries with high error rates, but
-                        it will reduce precision
   --no_align_to_annot   skip the initial alignment to the annotated sequences
                         and detect transcripts only from the genomic
                         alignment. Slightly faster but less accurate when the

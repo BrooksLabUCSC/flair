@@ -38,7 +38,7 @@ def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, j
                                                          windows)
         read_to_transcript = identify_good_match_to_annot(
             temp_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
-            directRNA=False, check_splice=True, trust_strand=args.trust_strand, fusion_breakpoints=None,
+            directRNA=False, trust_strand=args.trust_strand, fusion_breakpoints=None,
             windows=windows)
         filter_correct_group_reads(bam_file=bam_file, region=region,
                                    read_to_annot_transcript=read_to_transcript,

@@ -451,8 +451,6 @@ def run_synthetic_transcriptome(output, sample_name, threads, frac_support, subs
                              '--filter', subset_filter,
                              '--end_window', '300',
                              '--frac_support', str(frac_support),
-                             # '--no_check_splice',
-                             # '--no_stringent',
                              '--no_align_to_annot',
                              '--fusion_breakpoints', output + '.synthetic_breakpoint_loc.bed',
                              '--sample_name', sample_name,

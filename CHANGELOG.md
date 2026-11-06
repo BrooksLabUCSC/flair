@@ -56,6 +56,11 @@
     at a cut.  A `--region`/`--region_bed` region is expanded over the reads and the
     annotated transcripts that overlap it, rather than the reads alone, and a region
     with no reads or transcripts is reported and dropped.
+  * `flair transcriptome --no_stringent` and `--no_check_splice` are removed, and
+    passing either is an error that says so (issue #706).  They let a read count
+    toward an isoform it does not support, the first by dropping the requirement that
+    the read be full-length on it, the second by dropping the check that it aligns
+    accurately at the splice sites, which the rest of the module's logic assumes.
   * flair transcriptome partitions the input into clusters of overlapping reads and
     annotated transcripts, and `--parallel_mode` is removed.  `bychrom` aligned a
     chromosome's reads to every transcript on it and `byregion` aligned a partition's
