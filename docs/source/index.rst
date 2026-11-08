@@ -70,10 +70,10 @@ reads of each sample individually to the isoforms for downstream analyses.
    installing.rst
    flair-protocol.rst
    running.rst
-   migration-3.0-3.1.rst
    modules.rst
    ids.rst
    scripts.rst
+   migration-3.0-3.1.rst
    faqs.rst
    cite.rst
 

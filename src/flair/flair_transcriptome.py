@@ -174,12 +174,16 @@ def add_subparser(subparsers):
     parser.add_argument('--single_exon_support', type=int, default=3,
                         help='minimum number of supporting reads for a single exon isoform (default: %(default)s)')
     parser.add_argument('--keep_internally_primed', action='store_true',
-                        help='keep single-exon reads ending in or before a genomic A run, which are '
-                             'removed by default as oligo-dT primed on that run rather than on a '
-                             "transcript's poly(A) tail.  For reads that were not primed on poly(A), "
-                             'such as a random primed total RNA library: nothing is then mispriming, '
-                             'and the check only drops reads of real transcript ends that lie at '
-                             'genomic A runs, non-polyadenylated transcripts among them')
+                        help="keep single-exon reads whose 3' end looks oligo-dT primed on the "
+                             "genome's own A rather than on a transcript's poly(A) tail, which are "
+                             'removed by default.  Primed is either of:\n'
+                             '- at least 60%% A in the 20 genome bases after the end, with no poly(A) '
+                             'tail clipped there\n'
+                             '- at least 80%% A in the last 20 bases the read aligns to\n'
+                             'Keep them for reads that were not primed on poly(A), such as a random '
+                             'primed total RNA library: nothing is then mispriming, and the check only '
+                             'drops reads of real transcript ends in A-rich sequence, '
+                             'non-polyadenylated transcripts among them')
     parser.add_argument('--subset_backup_support', type=int, default=10,
                         help='a spliced isoform removed as a subset of other isoforms is reported after all, '
                              'with its reads, if every isoform it is a subset of fails support and it has at '
@@ -757,7 +761,7 @@ def _se_read_groups(reads, se_support, trust_strand, keep_internally_primed=Fals
     primed reads are left out first (_internally_primed): with oligo-dT priming they
     are reads of no transcript end, which would otherwise make single-exon isoforms in
     introns and UTRs.  With keep_internally_primed they are kept, for reads not primed
-    on poly(A), where the check only drops real ends that lie at genomic A runs."""
+    on poly(A), where the check only drops real ends in A-rich sequence."""
     if not keep_internally_primed:
         reads = [read for read in reads if not _internally_primed(read, trust_strand)]
     if trust_strand:

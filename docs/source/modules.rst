@@ -13,9 +13,6 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 .. figure:: img/flair_workflow_compartmentalized.svg
 
 
-.. figure:: img/flair_workflow_compartmentalized.svg
-
-
 .. _alignment-label:
 
 Aligning reads to the genome

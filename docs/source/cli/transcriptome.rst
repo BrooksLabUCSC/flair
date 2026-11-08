@@ -70,7 +70,12 @@
 
 .. option:: --keep_internally_primed
 
-   keep single-exon reads ending in or before a genomic A run, which are removed by default as oligo-dT primed on that run rather than on a transcript's poly(A) tail. For reads that were not primed on poly(A), such as a random primed total RNA library: nothing is then mispriming, and the check only drops reads of real transcript ends that lie at genomic A runs, non-polyadenylated transcripts among them
+   keep single-exon reads whose 3' end looks oligo-dT primed on the genome's own A rather than on a transcript's poly(A) tail, which are removed by default. Primed is either of:
+
+   - at least 60% A in the 20 genome bases after the end, with no poly(A) tail clipped there
+   - at least 80% A in the last 20 bases the read aligns to
+
+   Keep them for reads that were not primed on poly(A), such as a random primed total RNA library: nothing is then mispriming, and the check only drops reads of real transcript ends in A-rich sequence, non-polyadenylated transcripts among them
 
 .. option:: --subset_backup_support SUBSET_BACKUP_SUPPORT
 

@@ -23,10 +23,11 @@ run already works one cluster at a time, reading that cluster's reads from the B
 
 3. flair transcriptome reports single exon isoforms inside introns of genes.
 -----------------------------------------------------------------------------
-Most of those reads are oligo-dT primed on a run of A in the genome rather than on a
-transcript's poly(A) tail.  Such reads are removed by default, and
-``--keep_internally_primed`` keeps them, for libraries whose reads were not primed on
-poly(A).
+Most of those reads are oligo-dT primed on the genome's own A rather than on a
+transcript's poly(A) tail: 60% A in the 20 genome bases after the read's 3' end with
+no poly(A) tail clipped there, or 80% A in its last 20 aligned bases.  Such reads are
+removed by default, and ``--keep_internally_primed`` keeps them, for libraries whose
+reads were not primed on poly(A).
 
 What survives still has to clear two bars:
 

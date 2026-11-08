@@ -379,12 +379,13 @@
     junction's strand instead.
   * `--trust_strand` applies to spliced reads too; `--directRNA` declares direct
     RNA input (it implies `--trust_strand` and allows no large UTR deletions).
-  * Single-exon reads ending in or before a genomic A run are removed as oligo-dT
-    primed on that run rather than on a poly(A) tail, which would otherwise make
-    single-exon isoforms in introns and UTRs.  `--keep_internally_primed` keeps them,
-    for reads not primed on poly(A), such as a random primed total RNA library: there
-    is no mispriming to remove, and the check only drops reads of real transcript ends
-    at genomic A runs, non-polyadenylated transcripts among them.
+  * Single-exon reads whose 3' end is in A-rich genome, 60% A in the 20 bases after
+    it or 80% A in its last 20 aligned bases, are removed as oligo-dT primed on that
+    A rather than on a poly(A) tail, which would otherwise make single-exon isoforms
+    in introns and UTRs.  `--keep_internally_primed` keeps them, for reads not primed
+    on poly(A), such as a random primed total RNA library: there is no mispriming to
+    remove, and the check only drops reads of real transcript ends in A-rich sequence,
+    non-polyadenylated transcripts among them.
   * Temporary files go in `--temp_dir`, by default $TMPDIR.
 * flair combine
   * `-f/--gtf` gives each combined isoform its gene, reference transcript, CDS,
