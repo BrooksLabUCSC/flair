@@ -44,10 +44,12 @@ a Conda environment from a release in GitHub, use:
 
 .. code:: sh
 
-   conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/download/v3.0.0+dev/flair_conda_env.yaml
+   conda env create -n flair --file https://github.com/BrooksLabUCSC/flair/releases/latest/download/flair_conda_env.yaml
    conda activate flair
 
 This environment includes the ``R`` packages that ``diffexp`` and ``diffsplice`` need.
+For an older release, put its tag in place of ``latest/download``, as
+``download/v3.0.1``.
 
 Running FLAIR with Docker
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,8 +60,11 @@ FLAIR Docker with:
 
 .. code:: sh
 
-    docker pull brookslab/flair:3.0.0+dev
-    docker run -v [your_path_to_data]:/data brookslab/flair:3.0.0+dev flair [transcriptome/quantify/...]
+    docker pull brookslab/flair:latest
+    docker run -v [your_path_to_data]:/data brookslab/flair:latest flair [transcriptome/quantify/...]
+
+``latest`` is the newest release; an older one is named by its version, as
+``brookslab/flair:3.0.1``.
 
 .. _pip-install-label:
 

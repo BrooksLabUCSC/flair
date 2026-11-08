@@ -55,13 +55,6 @@ filename = "misc/flair_conda_env.yaml"
 search = "flair-brookslab==v{current_version}"
 replace = "flair-brookslab==v{new_version}"
 
-[[tool.bumpversion.files]]
-filename = "docs/source/installing.rst"
-search = "download/v{current_version}/"
-replace = "download/v{new_version}/"
-
-[[tool.bumpversion.files]]
-filename = "docs/source/installing.rst"
-search = "/flair:{current_version}"
-replace = "/flair:{new_version}"
+# docs/source/installing.rst names no version: it points at the latest release's
+# asset and at the docker latest tag, so nothing there is bumped
 
