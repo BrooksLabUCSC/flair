@@ -339,14 +339,22 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
 
     group_counts = Counter(groups)
     if len(list(group_counts.keys())) != 2:
-        raise FlairInputDataError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
+        raise FlairInputDataError(f"flair diffexp compares two conditions, but the sample info of "
+                                  f"{quant_table_tsv} names {len(group_counts)}: "
+                                  f"{', '.join(sorted(group_counts))}.  Cut the counts matrix and its "
+                                  f"sample info down to the two conditions to compare")
     elif min(list(group_counts.values())) < 3:
         raise FlairInputDataError("flair diffexp needs at least 3 samples of each condition; "
                                   "with fewer, compare two samples with the diff_iso_usage program")
     elif set(groups).intersection(set(batches)):
-        raise FlairInputDataError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
+        raise FlairInputDataError(f"a condition and a batch have the same name, "
+                                  f"{', '.join(sorted(set(groups) & set(batches)))}, which the model "
+                                  f"formula cannot tell apart; rename the batch in the sample info of "
+                                  f"{quant_table_tsv}")
     elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
-        raise FlairInputDataError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
+        raise FlairInputDataError(f"condition and batch names must not be numbers, which are read as "
+                                  f"numbers rather than as groups; name them in the sample info of "
+                                  f"{quant_table_tsv}, batch1 rather than 1")
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(out_dir, 'workdir')
@@ -362,7 +370,8 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
             if e.errno != errno.EEXIST:
                 raise
     else:
-        raise FlairInputDataError(f"** Error. Name {out_dir} already exists. Choose another name for out_dir")
+        raise FlairInputDataError(f"output directory {out_dir} already exists; give another -o, or "
+                                  f"--overwrite_output to write into this one")
 
     # the normalized rows keep the counts matrix column order, so the same column
     # indexes apply to them
