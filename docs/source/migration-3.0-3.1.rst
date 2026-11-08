@@ -153,7 +153,7 @@ flair quantify
 - Each sample's condition and batch are in ``<output>.sample_info.tsv`` rather than
   packed into the counts matrix column names, which now hold the sample id alone.
   ``flair diffexp`` and ``flair diffsplice`` read that file.
-- Read maps are ``<output>.<sample>.read.map.tsv``.
+- Read maps are ``<output>.isoforms.<sample>.read.map.tsv``.
 
 flair combine
 -------------

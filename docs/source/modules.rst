@@ -78,11 +78,12 @@ For when to count splicing events from reads with flair spliceevents instead, se
 
 **Outputs**
 
- - ``flair.isoforms.bed``
- - ``flair.isoforms.gtf``
- - ``flair.isoforms.fa``
- - ``flair.isoforms.read.map.tsv``
- - ``flair.regions.bed``, the regions the transcripts were built in
+ - ``<output>.isoforms.bed``, ``<output>.isoforms.gtf`` and ``<output>.isoforms.fa``,
+   the transcriptome, with ``<output>.isoforms.bb``, the BED as a bigBed
+ - ``<output>.isoforms.counts.tsv``, each isoform's reads in this sample
+ - ``<output>.aaseq.tsv``, each protein sequence once, by the id the isoforms carry
+ - ``<output>.isoforms.read.map.tsv``, each isoform's read names, with ``--generate_map``
+ - ``<output>.regions.bed``, the regions the transcripts were built in
 
 Options
 -------
@@ -245,6 +246,16 @@ of the samples.
 
 Flair combine will generate a counts file, but for the most accurate quantification, we recommend
 running FLAIR quantify using all samples against the combined transcriptome
+
+**Outputs**
+
+ - ``<output>.combined.isoforms.bed``, ``.gtf``, ``.fa`` and ``.bb``, the combined
+   transcriptome
+ - ``<output>.combined.isoforms.counts.tsv``, each sample's reads for each combined
+   isoform, as that sample's transcriptome counted them
+ - ``<output>.combined.isoforms.map.tsv`` and ``<output>.combined.genes.map.tsv``,
+   each combined id against the sample ids it came from, ``sample:id``
+ - ``<output>.combined.aaseq.tsv``, the proteins, numbered anew; written with ``-f``
 
 Options
 -------
