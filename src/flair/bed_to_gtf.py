@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli, fileOps
 from flair.gtf_io import gtf_write_row
@@ -9,7 +10,7 @@ from flair.flair_bed import FlairBed
 
 def build_parser():
     desc = "converts isoforms in bed format to a gtf, written to stdout"
-    parser = argparse.ArgumentParser(prog='bed_to_gtf', description=desc)
+    parser = argparse.ArgumentParser(prog='bed_to_gtf', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('inputfile', type=str, help='isoforms in bed format')
     parser.add_argument('--force', action='store_true',
                         help='convert a bed of no gene ids, one not from flair, using each isoform name as both its '

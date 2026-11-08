@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from flair.marked_isoforms_bed import MarkedIsoformsWriter, bed_column_count
 from flair.io_utils import bed_row_sort_key
 from flair.pycbio.sys import cli
@@ -15,7 +16,7 @@ def overlap(coords0, coords1):
 
 def build_parser():
     desc = "Mark isoforms that retain an intron of another isoform of the same locus"
-    parser = argparse.ArgumentParser(prog='mark_intron_retention', description=desc)
+    parser = argparse.ArgumentParser(prog='mark_intron_retention', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('isoform_bed', help='isoforms in bed format')
     parser.add_argument('marked_bed', help='output bed, with intron retention marked in an extra column')
     parser.add_argument('intron_txt', help='output text file of the retained introns')

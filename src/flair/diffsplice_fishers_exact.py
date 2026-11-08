@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from flair import FlairInputDataError
 from flair.diffsplice_fishers_tsv import diffsplice_fishers_writer
 from flair.event_quant_tsv import EventQuantReader
@@ -8,7 +9,7 @@ from flair.pycbio.sys import cli
 
 def build_parser():
     desc = "Fisher's exact test of two samples' inclusion and exclusion counts for each splicing event"
-    parser = argparse.ArgumentParser(prog='diffsplice_fishers_exact', description=desc)
+    parser = argparse.ArgumentParser(prog='diffsplice_fishers_exact', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('events_quant_tsv', help='event inclusion/exclusion counts from flair diffsplice')
     parser.add_argument('colname1', help='column name of the first sample to compare')
     parser.add_argument('colname2', help='column name of the second sample to compare')

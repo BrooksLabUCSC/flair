@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from flair import FlairInputDataError
 from flair.iso_usage_tsv import iso_usage_writer
 from flair.counts_matrix_tsv import read_grouped_counts
@@ -13,7 +14,7 @@ def build_parser():
     matrix, or the counts of flair spliceevents (each alternative of an event) or flair
     variantquant (the reads showing and not showing each allele)."""
 
-    parser = argparse.ArgumentParser(prog='diff_iso_usage', description=desc)
+    parser = argparse.ArgumentParser(prog='diff_iso_usage', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('counts_matrix_tsv',
                         help='counts matrix TSV from flair quantify, OUTPUT.spliceevents.counts.tsv from '
                         'flair spliceevents, or OUTPUT.variants.counts.tsv from flair variantquant')

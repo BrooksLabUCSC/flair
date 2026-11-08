@@ -8,6 +8,7 @@
 # read's annotation and junctions to it, is in dev/design/clusters-and-partitions.md
 
 import argparse
+from flair.cli_help import FlairHelpFormatter
 import functools
 import os
 import re
@@ -32,7 +33,7 @@ def check_input_files(bed_files, bam_files, gtf_files, region_bed):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog='flair_partition',
+        prog='flair_partition', formatter_class=FlairHelpFormatter,
         description=("Define non-overlapping regions from BED, SAM/BAM, or GTF files."
                      "  Partitions are made across all input files")
     )

@@ -24,6 +24,7 @@ Modified for FLAIR-correct input - Alison Tang 2019
 # alternative donor, and alternative acceptor events.
 
 import argparse
+from flair.cli_help import FlairHelpFormatter
 import math
 import re
 import pysam
@@ -159,7 +160,7 @@ class JcnInfo:
 ########
 def build_parser():
     desc = "Call splice junctions from read alignments and write them as a bed file"
-    parser = argparse.ArgumentParser(prog='junctions_from_sam', description=desc)
+    parser = argparse.ArgumentParser(prog='junctions_from_sam', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument("-s", "--sam", dest="sam_file", required=True,
                         help="SAM/BAM file of read alignments to junctions and the genome. "
                              "More than one file can be listed, comma-delimited, "

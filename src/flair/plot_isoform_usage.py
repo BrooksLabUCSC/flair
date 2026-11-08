@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from flair.pycbio.hgdata.bed import BedReader
 from flair.flair_bed import FlairBed
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -18,7 +19,7 @@ def build_parser():
     The most highly expressed isoforms across all the samples will be plotted.
     The minor isoforms are aggregated into a gray bar. You can toggle min_reads or
     color_palette to plot more isoforms.'''
-    parser = argparse.ArgumentParser(prog='plot_isoform_usage', description=desc)
+    parser = argparse.ArgumentParser(prog='plot_isoform_usage', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('isoforms', type=str, action='store',
                         help='isoforms in bed format')
     parser.add_argument('counts_matrix', type=str, action='store',
