@@ -341,7 +341,8 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     if len(list(group_counts.keys())) != 2:
         raise FlairInputDataError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
     elif min(list(group_counts.values())) < 3:
-        raise FlairInputDataError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
+        raise FlairInputDataError("flair diffexp needs at least 3 samples of each condition; "
+                                  "with fewer, compare two samples with the diff_iso_usage program")
     elif set(groups).intersection(set(batches)):
         raise FlairInputDataError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
     elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
