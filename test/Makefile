@@ -881,15 +881,15 @@ test-plot-usage-help: mkdirs
 ###
 
 transcriptome-tests: test-transcriptome test-transcriptome-directrna test-transcriptome-region test-transcriptome-readthrough-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
-                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-total-rna test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
+                    test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-keep-intprimed test-transcriptome-keep-intprimed-no-trust-strand test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
 					test-transcriptome-keep-intermediate-needs-temp-dir test-transcriptome-trust-ends-removed \
 					test-transcriptome-no-stringent-removed test-transcriptome-no-check-splice-removed \
-					test-transcriptome-total-rna-needs-trust-strand test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic test-transcriptome-compress
+					test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic test-transcriptome-compress
 
 update-transcriptome-tests:
 	for tname in "test-transcriptome" "test-transcriptome-directrna" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-noannot-trust-junctions" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-nosubset" "test-transcriptome-filter-1.2X" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-total-rna" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
+	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-nosubset" "test-transcriptome-filter-1.2X" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-keep-intprimed" "test-transcriptome-keep-intprimed-no-trust-strand" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
 	"test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends" "test-transcriptome-seg1-badannot-comprehensive" "test-transcriptome-frac-support-0" "test-transcriptome-frac-support-0-basic"; \
 	do \
 	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
@@ -1116,11 +1116,17 @@ test-transcriptome-keep-intermediate-needs-temp-dir: mkdirs ${BASIC_ALIGN_BAM}
 	! flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate > $O/$@.out 2>&1
 	grep -q -- '--keep_intermediate requires --temp_dir' $O/$@.out
 
-# --total_rna: single-exon reads ending in or before genomic A runs are kept rather
-# than removed as internally primed
-test-transcriptome-total-rna: mkdirs ${BASIC_ALIGN_BAM}
-	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_strand --total_rna
+# --keep_internally_primed: single-exon reads ending in or before genomic A runs are
+# kept rather than removed as oligo-dT mispriming, for reads not primed on poly(A)
+test-transcriptome-keep-intprimed: mkdirs ${BASIC_ALIGN_BAM}
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_strand --keep_internally_primed
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
+	$(diff_bed_gtf)
+
+# --keep_internally_primed without --trust_strand: single-exon groups are still
+# stranded by their poly(A) tails
+test-transcriptome-keep-intprimed-no-trust-strand: mkdirs ${BASIC_ALIGN_BAM}
+	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_internally_primed
 	$(diff_bed_gtf)
 
 # test of --frac_support 0: isoforms need only sjc_support and single_exon_support
@@ -1140,9 +1146,6 @@ test-transcriptome-frac-support-0-basic: mkdirs ${BASIC_ALIGN_BAM}
 # 	$(call cmp_expect_bed_simple,$@.isoforms.bed)
 	$(diff_bed_gtf)
 
-test-transcriptome-total-rna-needs-trust-strand: mkdirs ${BASIC_ALIGN_BAM}
-	! flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --total_rna > $O/$@.out 2>&1
-	grep -q -- '--total_rna requires --trust_strand' $O/$@.out
 
 test-transcriptome-trust-ends-removed: mkdirs ${BASIC_ALIGN_BAM}
 	! flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_ends > $O/$@.out 2>&1

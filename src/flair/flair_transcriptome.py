@@ -104,11 +104,11 @@ class TranscriptomeOpts:
     end_window: int
     sjc_support: int
     single_exon_support: int
+    keep_internally_primed: bool
     subset_backup_support: int
     frac_support: float
     directRNA: bool
     trust_strand: bool
-    total_rna: bool
     trust_junctions: bool
     no_align_to_annot: bool
     max_ends: int
@@ -173,6 +173,13 @@ def add_subparser(subparsers):
                         help='minimum number of supporting reads for a spliced isoform (default: %(default)s)')
     parser.add_argument('--single_exon_support', type=int, default=3,
                         help='minimum number of supporting reads for a single exon isoform (default: %(default)s)')
+    parser.add_argument('--keep_internally_primed', action='store_true',
+                        help='keep single-exon reads ending in or before a genomic A run, which are '
+                             'removed by default as oligo-dT primed on that run rather than on a '
+                             "transcript's poly(A) tail.  For reads that were not primed on poly(A), "
+                             'such as a random primed total RNA library: nothing is then mispriming, '
+                             'and the check only drops reads of real transcript ends that lie at '
+                             'genomic A runs, non-polyadenylated transcripts among them')
     parser.add_argument('--subset_backup_support', type=int, default=10,
                         help='a spliced isoform removed as a subset of other isoforms is reported after all, '
                              'with its reads, if every isoform it is a subset of fails support and it has at '
@@ -189,10 +196,6 @@ def add_subparser(subparsers):
                              'reads keep the strand of their alignment, and spliced reads are corrected only '
                              'with splice junctions on that strand, and are only assigned to transcripts '
                              'on that strand')
-    parser.add_argument('--total_rna', action='store_true',
-                        help='the library is total RNA rather than poly(A) selected: single-exon reads ending '
-                             'in or before genomic A runs are kept, rather than removed as internally primed, '
-                             'and no poly(A) tails are needed.  Requires --trust_strand')
     parser.add_argument('--trust_junctions', action='store_true',
                         help='trust the strand of every input splice junction for read correction, without '
                              'checking splice motifs.  By default, an unannotated junction without a GT-AG '
@@ -272,9 +275,6 @@ def transcriptome_cmd(args):
                                   "against an isoform set with flair quantify")
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
-    if args.total_rna and not (args.trust_strand or args.directRNA):
-        raise FlairInputDataError("--total_rna requires --trust_strand: without poly(A) tails, the alignment strand is "
-                                  "the only strand evidence for single-exon reads")
     if not os.path.exists(args.genome_aligned_bam):
         raise FlairInputDataError(f'aligned reads bam file does not exist: {args.genome_aligned_bam}')
     check_genome_fasta(args.genome)
@@ -287,7 +287,7 @@ def transcriptome_cmd(args):
                         sjc_support=args.sjc_support,
                         single_exon_support=args.single_exon_support,
                         subset_backup_support=args.subset_backup_support,
-                        frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand, total_rna=args.total_rna,
+                        frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand, keep_internally_primed=args.keep_internally_primed,
                         trust_junctions=args.trust_junctions,
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
@@ -747,17 +747,17 @@ def _internally_primed(read, trust_strand):
         return right if read.strand == '+' else left
     return left or right
 
-def _se_read_groups(reads, se_support, trust_strand, total_rna=False):
+def _se_read_groups(reads, se_support, trust_strand, keep_internally_primed=False):
     """(strand, reads) for each overlap group of single-exon reads.  With
     trust_strand, the reads' strands are their transcripts', and each strand's reads
     are grouped separately, so sense and antisense transcripts at a locus are both
     kept.  Otherwise a group is of reads from both strands, and its strand comes
     from the poly(A) tails of its reads, None if they don't give one.  Internally
-    primed reads are left out first (_internally_primed): in a poly(A) selected
-    library they are reads of no polyadenylated transcript end, which would otherwise
-    make single-exon isoforms in introns and UTRs.  With total_rna, the library
-    isn't poly(A) selected, and they are kept."""
-    if not total_rna:
+    primed reads are left out first (_internally_primed): with oligo-dT priming they
+    are reads of no transcript end, which would otherwise make single-exon isoforms in
+    introns and UTRs.  With keep_internally_primed they are kept, for reads not primed
+    on poly(A), where the check only drops real ends that lie at genomic A runs."""
+    if not keep_internally_primed:
         reads = [read for read in reads if not _internally_primed(read, trust_strand)]
     if trust_strand:
         by_strand = {}
@@ -768,8 +768,8 @@ def _se_read_groups(reads, se_support, trust_strand, total_rna=False):
     return [(correct_se_strand_polyA(read_group, se_support), read_group)
             for read_group in _group_se_reads_by_overlap(reads)]
 
-def group_se_by_overlap(chrom, isoform, se_support, trust_strand, total_rna=False):
-    for new_strand, read_group in _se_read_groups(isoform.reads, se_support, trust_strand, total_rna):
+def group_se_by_overlap(chrom, isoform, se_support, trust_strand, keep_internally_primed=False):
+    for new_strand, read_group in _se_read_groups(isoform.reads, se_support, trust_strand, keep_internally_primed):
         # filter out single exon groups that fail stranding
         if new_strand is None:
             logging.debug(f"single-exon group dropped: strand could not be determined ({len(read_group)} reads): {chrom}:{read_group[0].start}-{read_group[-1].end}")
@@ -798,9 +798,9 @@ class IsoformOverlapGroups:
         """Add a spliced isoform, keyed by chrom, median ends, and junction chain."""
         self._groups[(chrom, median(isoform.starts), median(isoform.ends), juncs)] = isoform
 
-    def add_se_overlap_groups(self, chrom, isoform, se_support, trust_strand, total_rna=False):
+    def add_se_overlap_groups(self, chrom, isoform, se_support, trust_strand, keep_internally_primed=False):
         """Split single-exon reads into overlap groups and resolve strand."""
-        for new_key, new_strand, read_group in group_se_by_overlap(chrom, isoform, se_support, trust_strand, total_rna):
+        for new_key, new_strand, read_group in group_se_by_overlap(chrom, isoform, se_support, trust_strand, keep_internally_primed):
             self._groups[new_key] = Isoform.regroup(isoform, newreads=read_group, newstrand=new_strand)
 
     def __iter__(self):
@@ -816,18 +816,18 @@ class IsoformOverlapGroups:
         return self._groups.items()
 
 
-def group_by_overlap(sj_to_ends, se_support, trust_strand, total_rna=False):
+def group_by_overlap(sj_to_ends, se_support, trust_strand, keep_internally_primed=False):
     groups = IsoformOverlapGroups()
     for (chrom, juncs), isoform in sj_to_ends.items():
         if len(juncs) > 0:
             groups.add_spliced(chrom, juncs, isoform)
         else:
-            groups.add_se_overlap_groups(chrom, isoform, se_support, trust_strand, total_rna)
+            groups.add_se_overlap_groups(chrom, isoform, se_support, trust_strand, keep_internally_primed)
     return groups
 
 
 def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, region_chrom):
-    sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.single_exon_support, args.trust_strand, args.total_rna)
+    sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.single_exon_support, args.trust_strand, args.keep_internally_primed)
     # FIXME everything below here requires confidence in transcript strand
     build_genes(sjc_with_overlap_groups, annots, region_chrom, sjc_with_overlap_groups)
 
@@ -1727,7 +1727,7 @@ def write_partition_regions(regions, output):
 
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_star, junction_bed, junction_support, ss_window, end_window,
-                        sjc_support, single_exon_support, frac_support, directRNA, trust_strand, total_rna,
+                        sjc_support, single_exon_support, frac_support, directRNA, trust_strand, keep_internally_primed,
                         trust_junctions, no_align_to_annot,
                         max_ends, filter, keep_supplementary, quality, threads,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map,
@@ -1739,7 +1739,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              end_window=end_window, sjc_support=sjc_support,
                              single_exon_support=single_exon_support, frac_support=frac_support,
                              subset_backup_support=subset_backup_support,
-                             directRNA=directRNA, trust_strand=trust_strand or directRNA, total_rna=total_rna,
+                             directRNA=directRNA, trust_strand=trust_strand or directRNA, keep_internally_primed=keep_internally_primed,
                              trust_junctions=trust_junctions,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,
@@ -1753,9 +1753,6 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
 
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
-    if args.total_rna and not args.trust_strand:
-        raise FlairInputDataError("--total_rna requires --trust_strand: without poly(A) tails, the alignment strand is "
-                                  "the only strand evidence for single-exon reads")
     parse_filter(args.filter)
     temp_dir = make_run_temp_dir(args.output, args.temp_dir)
     logging.info(f'temporary files in {temp_dir}')

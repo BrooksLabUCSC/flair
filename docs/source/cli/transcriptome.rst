@@ -13,9 +13,10 @@
                               [--ss_window SS_WINDOW] [--end_window END_WINDOW]
                               [--sjc_support SJC_SUPPORT]
                               [--single_exon_support SINGLE_EXON_SUPPORT]
+                              [--keep_internally_primed]
                               [--subset_backup_support SUBSET_BACKUP_SUPPORT]
                               [--frac_support FRAC_SUPPORT] [--directRNA]
-                              [--trust_strand] [--total_rna] [--trust_junctions]
+                              [--trust_strand] [--trust_junctions]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
                               [--filter FILTER] [--keep_supplementary]
                               [--quality QUALITY] [-t THREADS]
@@ -66,6 +67,10 @@
 
    minimum number of supporting reads for a single exon isoform (default: 3)
 
+.. option:: --keep_internally_primed
+
+   keep single-exon reads ending in or before a genomic A run, which are removed by default as oligo-dT primed on that run rather than on a transcript's poly(A) tail. For reads that were not primed on poly(A), such as a random primed total RNA library: nothing is then mispriming, and the check only drops reads of real transcript ends that lie at genomic A runs, non-polyadenylated transcripts among them
+
 .. option:: --subset_backup_support SUBSET_BACKUP_SUPPORT
 
    a spliced isoform removed as a subset of other isoforms is reported after all, with its reads, if every isoform it is a subset of fails support and it has at least this many reads; 0 never reports it (default: 10)
@@ -81,10 +86,6 @@
 .. option:: --trust_strand
 
    trust the stranding of the input reads and do not attempt strand correction: reads keep the strand of their alignment, and spliced reads are corrected only with splice junctions on that strand, and are only assigned to transcripts on that strand
-
-.. option:: --total_rna
-
-   the library is total RNA rather than poly(A) selected: single-exon reads ending in or before genomic A runs are kept, rather than removed as internally primed, and no poly(A) tails are needed. Requires --trust_strand
 
 .. option:: --trust_junctions
 

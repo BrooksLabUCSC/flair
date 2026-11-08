@@ -378,9 +378,13 @@
     comes from gene identification.  `--trust_junctions` trusts every input
     junction's strand instead.
   * `--trust_strand` applies to spliced reads too; `--directRNA` declares direct
-    RNA input (it implies `--trust_strand` and allows no large UTR deletions);
-    `--total_rna` keeps single-exon reads that end at genomic A runs and needs no
-    poly(A) tails (it requires `--trust_strand`).
+    RNA input (it implies `--trust_strand` and allows no large UTR deletions).
+  * Single-exon reads ending in or before a genomic A run are removed as oligo-dT
+    primed on that run rather than on a poly(A) tail, which would otherwise make
+    single-exon isoforms in introns and UTRs.  `--keep_internally_primed` keeps them,
+    for reads not primed on poly(A), such as a random primed total RNA library: there
+    is no mispriming to remove, and the check only drops reads of real transcript ends
+    at genomic A runs, non-polyadenylated transcripts among them.
   * Temporary files go in `--temp_dir`, by default $TMPDIR.
 * flair combine
   * `-f/--gtf` gives each combined isoform its gene, reference transcript, CDS,
