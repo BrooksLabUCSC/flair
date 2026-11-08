@@ -18,9 +18,10 @@
                               [--frac_support FRAC_SUPPORT] [--directRNA]
                               [--trust_strand] [--trust_junctions]
                               [--no_align_to_annot] [--max_ends MAX_ENDS]
-                              [--filter FILTER] [--keep_supplementary]
-                              [--quality QUALITY] [-t THREADS]
-                              [--region_bed REGION_BED] [--region REGIONS]
+                              [--filter {nosubset,comprehensive,ginormous,<N>X}]
+                              [--keep_supplementary] [--quality QUALITY]
+                              [-t THREADS] [--region_bed REGION_BED]
+                              [--region REGIONS]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
                               [--normalize_ends] [--generate_map]
@@ -99,9 +100,9 @@
 
    maximum number of TSS/TES picked per spliced junction chain; make higher for more precise end detection. Single-exon isoforms are reported at each of their clustered ends, however many (default: 1)
 
-.. option:: --filter FILTER
+.. option:: --filter {nosubset,comprehensive,ginormous,<N>X}
 
-   which subset isoforms (a contiguous part of another isoform) to keep. <N>X, such as 10X: a subset isoform is kept if it has more than N times the reads of the isoforms it is a subset of; nosubset: all subset isoforms are removed; comprehensive: all spliced subset isoforms are kept; ginormous: comprehensive, plus single exon subset isoforms (default: nosubset)
+   which subset isoforms (a contiguous part of another isoform) to keep, one of: "nosubset", no subset isoform is kept; "comprehensive", every spliced subset isoform is kept; "ginormous", comprehensive plus every single-exon subset isoform; or a read ratio written "<N>X", such as "10X", keeping a subset isoform with more than N times the reads of the isoforms it is a subset of (default: nosubset)
 
 .. option:: --keep_supplementary
 

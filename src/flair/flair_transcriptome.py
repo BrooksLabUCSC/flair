@@ -217,12 +217,14 @@ def add_subparser(subparsers):
                              'precise end detection.  Single-exon isoforms are reported at each of their clustered '
                              'ends, however many (default: %(default)s)')
     parser.add_argument('--filter', default=DEFAULT_FILTER,
-                        help='which subset isoforms (a contiguous part of another isoform) to keep. '
-                             '<N>X, such as 10X: a subset isoform is kept if it has more than N times the reads '
-                             'of the isoforms it is a subset of; '
-                             'nosubset: all subset isoforms are removed; '
-                             'comprehensive: all spliced subset isoforms are kept; '
-                             'ginormous: comprehensive, plus single exon subset isoforms '
+                        metavar='{nosubset,comprehensive,ginormous,<N>X}',
+                        help='which subset isoforms (a contiguous part of another isoform) to keep, '
+                             'one of: '
+                             '"nosubset", no subset isoform is kept; '
+                             '"comprehensive", every spliced subset isoform is kept; '
+                             '"ginormous", comprehensive plus every single-exon subset isoform; '
+                             'or a read ratio written "<N>X", such as "10X", keeping a subset isoform '
+                             'with more than N times the reads of the isoforms it is a subset of '
                              '(default: %(default)s)')
 
     parser.add_argument('--keep_supplementary', action='store_true',
