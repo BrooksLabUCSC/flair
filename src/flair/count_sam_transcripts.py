@@ -386,9 +386,9 @@ def check_transcript_in_annot(exondict, tname):
         exoninfo = exondict[tname]
     except KeyError as ex:
         raise FlairInputDataError(
-            f"The transcript name ({tname}) in the annotation fasta do not appear to match the ones in the isoforms file."
-            " You may be able to fix this by using gtf_to_bed and bedtools getfasta on your annotation gtf"
-            " and using the resulting file as your annotation fasta input to this program") from ex
+            f"transcript {tname} of the annotation fasta is not in the isoforms file; the two must name "
+            "the same transcripts: make the fasta from the annotation gtf with gtf_to_bed and "
+            "bedtools getfasta") from ex
     except Exception as ex:
         # not an input error: reaching here means something other than a missing
         # transcript went wrong, so the stack is worth keeping

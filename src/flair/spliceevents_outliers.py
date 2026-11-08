@@ -83,7 +83,8 @@ def read_events(input_prefix, psi):
             continue
         if row['event'] not in totals:
             raise FlairInputDataError(f"event {row['event']} of {counts_tsv} is not in "
-                                      f'{input_prefix}.spliceevents.totals.tsv')
+                                      f'{input_prefix}.spliceevents.totals.tsv; both files must be '
+                                      'from the same flair spliceevents run')
         row['counts'] = {s: int(row[s]) for s in samples}
         row['totals'] = totals[row['event']]
         event_rows.append(row)

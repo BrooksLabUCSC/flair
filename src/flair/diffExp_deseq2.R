@@ -119,7 +119,9 @@ plot_results <- function(dds, args) {
     vst(dds, nsub = nsub, blind = FALSE)
   }, error = function(e) {
     dev.off()
-    stop('DESeq2 and other QC plots ran OK but the PCA plot failed, probably because the number of input genes is very low')
+    stop(sprintf(paste('the PCA plot failed where DESeq2 and the other QC plots succeeded: %s.',
+                       'This is usually too few genes in the counts matrix'),
+                 conditionMessage(e)))
   })
 
   colData <- read.table(args$formula, header = TRUE, sep = "\t", row.names = 1, check.names = FALSE)

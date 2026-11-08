@@ -67,7 +67,7 @@ def mark_intron_retention(isoform_bed, marked_bed, intron_txt):  # noqa C901
     marked = sorted([(isoforms[chrom][name]['entry'], isoforms[chrom][name]['ir'])
                      for chrom in isoforms for name in isoforms[chrom]],
                     key=lambda entry_ir: bed_row_sort_key(entry_ir[0]))
-    with MarkedIsoformsWriter(outfilename, bed_column_count([e for e, _ in marked])) as writer:
+    with MarkedIsoformsWriter(outfilename, bed_column_count([e for e, _ in marked], isoform_bed)) as writer:
         for entry, retains_intron in marked:
             writer.writeIsoform(entry, retains_intron)
 

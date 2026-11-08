@@ -29,7 +29,7 @@ import math
 import re
 import pysam
 import logging
-from flair import FlairInputDataError
+from flair import FlairError, FlairInputDataError
 from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed
 from flair.pycbio.sys import fileOps
@@ -107,28 +107,31 @@ class JcnInfo:
         self.intron_start = intron_start
         self.intron_end = intron_end
 
+    def _check_same_junction(self, name, chr, chromStart, chromEnd, first_block, second_block,
+                             intron_start, intron_end):
+        """the key a junction is stored under holds its chromosome and intron, so two
+        alignments reaching here disagreeing on one of these is a bug"""
+        compared = (("name", self.name, name),
+                    ("chromosome", self.chr, chr),
+                    ("intron start", self.intron_start, intron_start),
+                    ("intron end", self.intron_end, intron_end),
+                    ("intron end implied by the blocks",
+                     self.rightmost_end - self.longest_second_block, chromEnd - second_block),
+                    ("intron start implied by the blocks",
+                     self.leftmost_start + self.longest_first_block, chromStart + first_block))
+        for what, have, found in compared:
+            if have != found:
+                raise FlairError(f"junction {self.name}: two alignments of it disagree on the {what}, "
+                                 f"{have} and {found}; please report this with the SAM that produced it")
+
     def update_jcn_info(self, name, chr, chromStart, chromEnd, strand, first_block, second_block, intron_start, intron_end, verbosity=False, multi_jcn_block=None):  # noqa: C901 - FIXME: reduce complexity
-        # Check that name, chromosome, strand are the same
-        if self.name != name:
-            raise FlairInputDataError(f"Not the same name of the junctions: {self.name}, {name}")
-        if self.chr != chr:
-            raise FlairInputDataError(f"Error with chromosome: {self.name}, {name}")
+        self._check_same_junction(name, chr, chromStart, chromEnd, first_block, second_block,
+                                  intron_start, intron_end)
 
         if self.strand != strand and self.strand != '.':
             if verbosity:
                 print("Warning: Junction reads aligning to both strands for %s. Setting strand to '.'" % self.name)
             self.strand = "."
-
-        if self.intron_start != intron_start:
-            raise FlairInputDataError(f"Error with intron start: {self.intron_start}, {intron_start}")
-        if self.intron_end != intron_end:
-            raise FlairInputDataError(f"Error with intron end: {self.intron_end}, {intron_end}")
-
-        # Check blocks start
-        if (self.rightmost_end - self.longest_second_block) != (chromEnd - second_block):
-            raise FlairInputDataError(f"Error with second block in  {self.name}, {name}")
-        if (self.leftmost_start + self.longest_first_block) != (chromStart + first_block):
-            raise FlairInputDataError(f"Error with first block {self.name}, {name}")
 
         if chromStart < self.leftmost_start:
             self.leftmost_start = chromStart
@@ -282,7 +285,8 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
             sam_elems = line.split("\t")
 
             if len(sam_elems) < 11:
-                raise FlairInputDataError("Error in SAM file: Expecting at least 11 columns in SAM file.")
+                raise FlairInputDataError(f"a SAM alignment has {len(sam_elems)} columns, 11 are the minimum: "
+                                          f"{line[:100]}")
 
             q_name = sam_elems[0]
 
@@ -419,7 +423,7 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 
                         if jcn_strand != "+" and jcn_strand != "-" and jcn_strand != ".":
                             raise FlairInputDataError(
-                                f"XS tag strand is not +, - or . in: {line}")
+                                f"XS tag strand is `{jcn_strand}', not +, - or ., in: {line[:100]}")
 
                 # Now insert all introns into jcn dictionary.
                 for intron_info in introns_info:
@@ -646,14 +650,15 @@ def get_forced_junctions(forced_junction_file):
     jcn_file = fileOps.opengz(forced_junction_file)
     forced_junctions = set([])
 
-    for line in jcn_file:
+    for line_num, line in enumerate(jcn_file, 1):
         line = format_line(line)
 
         line_list = line.split("\t")
 
         # Slicing list in case strand is included in the file
         if len(line_list) < 3:
-            raise FlairInputDataError("Problem with forced junction file. Needs to be tab-delimited: chr start end")
+            raise FlairInputDataError(f"{forced_junction_file} line {line_num} has {len(line_list)} columns; "
+                                      "a forced junction file is tab-separated chrom, start, end")
 
         forced_junctions.add("_".join(line_list[0:3]))
 

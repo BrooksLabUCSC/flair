@@ -235,8 +235,9 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     proportions = [gray_bar[0]] + proportions_color
 
     if len(proportions) == 1:
-        raise FlairInputDataError('''Needs more than 1 isoform with sufficient representation, check gene_name in
-            your counts file, then try toggling min_reads''')
+        raise FlairInputDataError(f'no isoform of gene {args.gene_name} reaches --min_reads '
+                                  f'{args.min_reads} in any sample of {args.counts_matrix}; check the '
+                                  'gene name against the gene_id column, or lower --min_reads')
 
     proportions = sorted(proportions, key=lambda x: x[1])[::-1]
     heights = [0] * len(sample_ids)

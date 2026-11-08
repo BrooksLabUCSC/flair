@@ -48,8 +48,10 @@ run_DRIMSeq <- function(args) {
   formulaDF <- formulaDF[condition %in% c(args$condition_a, args$condition_b)]
 
   if (nrow(formulaDF) == 0) {
-    cat(sprintf('\n**ERROR** Could not find %s and/or %s in input file, exiting\n\n', args$condition_a, args$condition_b), file=stderr())
-    stop(sprintf('Could not find %s and/or %s in input file', args$condition_a, args$condition_b))
+    stop(sprintf(paste('neither condition %s nor %s is in the condition column of %s, which flair diffsplice',
+                       'writes from the sample info it checked them against;',
+                       'this is a bug, please report it'),
+                 args$condition_a, args$condition_b, args$formula))
   }
 
   # Read counts and prepare the quantification data frame

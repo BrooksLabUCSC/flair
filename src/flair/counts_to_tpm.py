@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 
-import sys
+import argparse
 from flair import FlairInputDataError
 from flair.counts_matrix_tsv import ID_COLUMNS, CountsRow
 from flair.seq_lengths_tsv import SeqLengthsReader
 from flair.tpm_tsv import tpm_writer
 from flair.pycbio.sys import cli
 from flair.pycbio.sys import fileOps
+from flair.cli_help import FlairHelpFormatter
 
-def parse_input():
-    try:
-        counts_matrix = fileOps.opengz(sys.argv[1])
-        outfilename = sys.argv[2]
-        sizefile = sys.argv[3] if len(sys.argv) > 3 else None
-    except Exception:
-        raise FlairInputDataError('usage: counts_to_tpm.py counts_matrix.tsv count_matrix.tpm.tsv [iso.sizes]\n'
-                                  'convenience script for obtaining a file of isoform sizes: bin/fasta_seq_lengths.py\n'
-                                  'if no isoform size file is provided, no length normalization will be done (just reads per million)\n')
-    return counts_matrix, outfilename, sizefile
+def parse_args():
+    parser = argparse.ArgumentParser(prog='counts_to_tpm',
+                                     formatter_class=FlairHelpFormatter,
+                                     description='write a counts matrix as transcripts per million')
+    parser.add_argument('counts_matrix', help='the counts matrix of flair quantify')
+    parser.add_argument('tpm_matrix', help='the TPM matrix to write')
+    parser.add_argument('isoform_sizes', nargs='?',
+                        help='each isoform\'s length, from fasta_seq_lengths; without it the counts '
+                             'are not length normalized, giving reads per million')
+    return parser.parse_args()
 
 def counts_to_tpm(counts_matrix, outfilename, sizefile=None, empty_ok=False):
     """Write a counts matrix as transcripts per million.  A sample with no counts in
@@ -60,9 +61,10 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None, empty_ok=False):
 
 
 def main():
-    counts_matrix, outfilename, sizefile = parse_input()
+    args = parse_args()
     with cli.ErrorHandler():
-        counts_to_tpm(counts_matrix, outfilename, sizefile)
+        with fileOps.opengz(args.counts_matrix) as counts_matrix:
+            counts_to_tpm(counts_matrix, args.tpm_matrix, args.isoform_sizes)
 
 
 if __name__ == '__main__':

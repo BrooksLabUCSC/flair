@@ -35,6 +35,10 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
 
 
+# an isoform is tested only when the two conditions' median counts differ by more
+# than this
+MIN_MEDIAN_COUNT_DIFF = 3
+
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffExp_deseq2 = osp.join(pkgdir, "diffExp_deseq2.R")
 diffExp_drimseq = osp.join(pkgdir, "diffExp_drimseq.R")
@@ -139,8 +143,8 @@ def row_ttest(ttest_ind, row, genetot, ref_cols, test_cols):
     # Compute normalized usage difference, ignore if totals are zero
     deltausage = (mean(varcounts) / vartot if vartot > 0 else 0) - (mean(wtcounts) / wttot if wttot > 0 else 0)
 
-    # Only test if median difference is large enough (|Δ| > 3)
-    if abs(deltaval) <= 3:
+    # Only test if median difference is large enough
+    if abs(deltaval) <= MIN_MEDIAN_COUNT_DIFF:
         return None
     # Two-sample t-test between WT and VAR counts
     # ranksums() wast too strict for small replicates
@@ -164,7 +168,10 @@ def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
             alldeltas.append(deltausage)
 
     if len(allpval) == 0:
-        raise FlairInputDataError("no p-values with sufficient delta values from the counts matrix")
+        raise FlairInputDataError(f"no isoform's median count differs between the two conditions by more "
+                                  f"than {MIN_MEDIAN_COUNT_DIFF} reads, so there is nothing to test; check "
+                                  "that the conditions compared are the ones meant and that the matrix "
+                                  "holds read counts rather than TPM")
 
     # Apply multiple-testing correction.  This is Holm-Sidak, not Benjamini-Hochberg
     # as this comment used to say: the adjusted values control the family-wise error
@@ -223,8 +230,6 @@ def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, out_dir):
     # make gene table first
     gene_ids = np.asarray(list(genes.keys()))
     vals = np.asarray([genes[x].exp for x in gene_ids])
-    if len(gene_ids) == 0:
-        raise FlairInputDataError("no genes parsed from the counts matrix")
 
     # genes must be expressed in all samples of at least one group
     filtered_rows = (np.min(vals[:, g1_ind], axis=1) > thresh) | (np.min(vals[:, g2_ind], axis=1) > thresh)

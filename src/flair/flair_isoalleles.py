@@ -111,8 +111,8 @@ def _sample_name(name, bam):
 
 def check_options(*, bam, sample_name, normal_bam, normal_read_map, normal_name, somatic, paths):
     """the options of a run of one sample or of a pair, consistent: somatic gives each
-    of SOMATIC_MODES's option, paths every input file.  Returns the samples' names,
-    the tumor first, and the somatic mode"""
+    of SOMATIC_MODES's option, paths every input file by the option naming it.  Returns
+    the samples' names, the tumor first, and the somatic mode"""
     pair = normal_bam is not None
     given = [mode for mode in SOMATIC_MODES if somatic[mode]]
     if pair and not normal_read_map:
@@ -130,9 +130,9 @@ def check_options(*, bam, sample_name, normal_bam, normal_read_map, normal_name,
     if len(set(names)) != len(names):
         raise FlairInputDataError(f'the tumor and normal are both named {names[0]}: give --sample_name and '
                                   '--normal_name')
-    for path in paths:
+    for opt, path in paths.items():
         if path and not os.path.exists(path):
-            raise FlairInputDataError(f'{path} does not exist')
+            raise FlairInputDataError(f'{opt} file does not exist: {path}')
     return names, (given[0] if given else None)
 
 
@@ -244,8 +244,10 @@ def isoalleles(*, isoform_bed, genome, bam, read_map, phased_vcf, germline_vcf=N
     names, somatic_mode = check_options(
         bam=bam, sample_name=sample_name, normal_bam=normal_bam, normal_read_map=normal_read_map,
         normal_name=normal_name, somatic={'tumor_vcf': tumor_vcf, 'somatic_vcf': somatic_vcf, 'variant': variant},
-        paths=[bam, read_map, phased_vcf, germline_vcf, isoform_bed, genome, normal_bam, normal_read_map, tumor_vcf,
-               somatic_vcf])
+        paths={'--bam': bam, '--read_map': read_map, '--phased_vcf': phased_vcf,
+               '--germline_vcf': germline_vcf, '--isoform_bed': isoform_bed, '--genome': genome,
+               '--normal_bam': normal_bam, '--normal_read_map': normal_read_map,
+               '--tumor_vcf': tumor_vcf, '--somatic_vcf': somatic_vcf})
     gene_data, fusions = load_isoform_data(isoform_bed)
     if fusions:
         logging.info(f'{len(fusions)} fusion isoforms left out: isoalleles takes the isoforms of genes')
