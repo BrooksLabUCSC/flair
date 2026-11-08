@@ -102,7 +102,14 @@
 
 .. option:: --filter {nosubset,comprehensive,ginormous,<N>X}
 
-   which subset isoforms (a contiguous part of another isoform) to keep, one of: "nosubset", no subset isoform is kept; "comprehensive", every spliced subset isoform is kept; "ginormous", comprehensive plus every single-exon subset isoform; or a read ratio written "<N>X", such as "10X", keeping a subset isoform with more than N times the reads of the isoforms it is a subset of (default: nosubset)
+   which subset isoforms (a contiguous part of another isoform) to keep:
+
+   - nosubset: no subset isoform is kept
+   - comprehensive: every spliced subset isoform is kept
+   - ginormous: comprehensive, plus every single-exon subset isoform
+   - <N>X, such as 10X: a subset isoform with more than N times the reads of the isoforms it is a subset of
+
+   (default: nosubset)
 
 .. option:: --keep_supplementary
 

@@ -98,13 +98,14 @@ options:
                         clustered ends, however many (default: 1)
   --filter {nosubset,comprehensive,ginormous,<N>X}
                         which subset isoforms (a contiguous part of another
-                        isoform) to keep, one of: "nosubset", no subset
-                        isoform is kept; "comprehensive", every spliced subset
-                        isoform is kept; "ginormous", comprehensive plus every
-                        single-exon subset isoform; or a read ratio written
-                        "<N>X", such as "10X", keeping a subset isoform with
-                        more than N times the reads of the isoforms it is a
-                        subset of (default: nosubset)
+                        isoform) to keep:
+                        - nosubset: no subset isoform is kept
+                        - comprehensive: every spliced subset isoform is kept
+                        - ginormous: comprehensive, plus every single-exon
+                          subset isoform
+                        - <N>X, such as 10X: a subset isoform with more than N
+                          times the reads of the isoforms it is a subset of
+                        (default: nosubset)
   --keep_supplementary  keep supplementary alignments when defining isoforms
   --quality QUALITY     minimum mapping quality threshold to consider genomic
                         alignments for defining transcripts (default: 1)

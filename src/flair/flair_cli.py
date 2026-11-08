@@ -4,6 +4,7 @@ from datetime import timedelta
 import argparse
 import logging
 from flair import VERSION
+from flair.cli_help import FlairHelpFormatter
 from flair.output_compress import set_output_compression
 from flair.pycbio.sys import cli, loggingOps
 from flair import (flair_combine, flair_diffExp, flair_diffSplice, flair_fusion,
@@ -50,6 +51,13 @@ def _trap_misplaced_global_options(parser, subparsers):
             subparser.add_argument(opt, nargs='?', action=MisplacedGlobalOptionAction,
                                    default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
+def _set_help_formatter(parser, subparsers):
+    """Every parser formats help with FlairHelpFormatter, set here rather than in
+    each subcommand's add_subparser"""
+    parser.formatter_class = FlairHelpFormatter
+    for subparser in subparsers.choices.values():
+        subparser.formatter_class = FlairHelpFormatter
+
 def build_parser():
     """Build the whole flair parser, every subcommand included.  This is the one
     entry point used both to run commands and to generate the command line
@@ -71,6 +79,7 @@ def build_parser():
     for module in SUBCOMMAND_MODULES:
         module.add_subparser(subparsers)
     _trap_misplaced_global_options(parser, subparsers)
+    _set_help_formatter(parser, subparsers)
     return parser
 
 def run_subcommand(args):
