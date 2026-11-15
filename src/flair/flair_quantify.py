@@ -12,7 +12,8 @@ from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter, check_read_ids_unique
 from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
-from flair.io_utils import check_genome_fasta, make_run_temp_dir, read_manifest_rows
+from flair.io_utils import GenomeFasta, make_run_temp_dir, read_manifest_rows
+from flair.run_checks import check_option_ranges, precheck, report_result_count
 from flair.output_compress import compressed_path, open_seekable_output
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
@@ -28,6 +29,9 @@ from flair.isoform_data import get_reverse_complement, cigar_clipping
 import multiprocessing as mp
 from flair.pycbio.sys import fileOps
 
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('minimap2',)
 
 # batches of loci per thread, for the pool to balance them
 BATCHES_PER_THREAD = 8
@@ -100,18 +104,14 @@ def quantify_cmd(args):
             f"spliced isoform's ends out to the furthest ends of its gene's isoforms, padded by "
             f"{NORM_END_EXTRA_LEN} bases, which is beyond the {TRUST_ENDS_WINDOW} bases --trust_ends "
             f"allows, so every spliced isoform would count zero reads; give one or the other")
-    check_input_files(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed)
+    check_option_ranges(args, positive=('threads',))
+    precheck(files={'isoform models BED': args.isoform_bed, 'manifest': args.manifest},
+             programs=PROGRAMS, genome=args.genome, isoform_beds=(args.isoform_bed,))
     quantify(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed,
              output=args.output, threads=args.threads,
              tpm=args.tpm, trust_ends=args.trust_ends, generate_map=args.generate_map,
              normalize_ends=args.normalize_ends,
              temp_dir=args.temp_dir, keep_intermediate=args.keep_intermediate)
-
-def check_input_files(*, manifest, genome, isoform_bed):
-    for what, path in (('isoform models bed', isoform_bed), ('manifest', manifest)):
-        if not os.path.exists(path):
-            raise FlairInputDataError(f'{what} file does not exist: {path}')
-    check_genome_fasta(genome)
 
 def load_manifest(manifest):
     """the manifest rows, (id, condition, batch, bam) each (io_utils.read_manifest_rows),
@@ -217,7 +217,7 @@ def normalize_isoform_ends(gene_data, genome_file):
     """With --normalize_ends, give each spliced isoform the ends its gene's isoforms
     with terminal exons like its own share (GeneTerminalExonEnds), before batching,
     so the batches' loci and the direct assignments see the isoforms as realigned to"""
-    with pysam.FastaFile(genome_file) as genome:
+    with GenomeFasta(genome_file) as genome:
         for gene_info in gene_data.values():
             for bed in gene_info.isoform_beds:
                 if len(bed.blocks) > 1:
@@ -437,7 +437,7 @@ def count_batch(batch, batch_beds, sample_data, temp_dir, genome_file, trust_end
     os.makedirs(temp_prefix)
     results = []
     try:
-        with pysam.FastaFile(genome_file) as genome:
+        with GenomeFasta(genome_file) as genome:
             has_reference = write_batch_reference(batch_beds, genome, temp_prefix)
             for i, (sample, group, sample_batch, bamfile) in enumerate(sample_data):
                 prefix = temp_prefix + sample
@@ -551,7 +551,7 @@ def count_fusions(fusions, sample_data, temp_dir, genome_file, threads, trust_en
     temp_prefix = temp_dir + 'fusions/'
     os.makedirs(temp_prefix)
     try:
-        with pysam.FastaFile(genome_file) as genome:
+        with GenomeFasta(genome_file) as genome:
             write_fusion_reference(fusions, genome, temp_prefix)
         for sample, group, sample_batch, bamfile in sample_data:
             prefix = temp_prefix + sample
@@ -672,6 +672,9 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
             if total == 0:
                 logging.warning(f'sample {sample} has no reads counted for any isoform'
                                 f'{"; its TPM are 0" if tpm else ""}')
+        report_result_count('reads counted', sum(totals),
+                            remedy='check that the reads are aligned to the genome given and that the isoforms '
+                            'are of the same assembly, or raise --quality')
         counts_tsv = compressed_path(output + '.isoforms.counts.tsv')
         write_sample_info(sample_info_path(counts_tsv),
                           [SampleInfo(sample, condition, batch)

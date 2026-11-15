@@ -3,10 +3,12 @@
 import logging
 import pysam
 from collections import Counter, defaultdict
+from contextlib import ExitStack
 from functools import partial
 from statistics import median
 from flair import FlairInputDataError
 from flair.convert_synthetic_to_genome_bed import identify_fusion_problems, fusion_role
+from flair.pycbio.sys import fileOps
 
 
 def binarySearch(arr, t):
@@ -295,7 +297,18 @@ def scan_genome_alignment(genome_bam, min_clip, chim_bam=None, reads_fa=None):
     """One pass over the genome alignment: writes the alignments of its chimeric reads to
     chim_bam, and the reads that need_transcriptome to reads_fa, each skipped when None,
     and returns the names of the latter.  Only those reads are aligned to annotated
-    transcripts, a small share of them: 11% in MCF7, 1.5% in SeraCare."""
+    transcripts, a small share of them: 11% in MCF7, 1.5% in SeraCare.
+
+    Each file is written under a temporary name and renamed when the pass is done, so
+    a run that stops partway leaves nothing that a later run takes for a finished
+    file and skips the pass over."""
+    with ExitStack() as stack:
+        chim_tmp = stack.enter_context(fileOps.AtomicFileCreate(chim_bam)) if chim_bam else None
+        fa_tmp = stack.enter_context(fileOps.AtomicFileCreate(reads_fa)) if reads_fa else None
+        return _scan_genome_alignment(genome_bam, min_clip, chim_tmp, fa_tmp)
+
+
+def _scan_genome_alignment(genome_bam, min_clip, chim_bam, reads_fa):
     needed = set()
     with pysam.AlignmentFile(genome_bam, 'rb') as pieces:
         chim_out = pysam.AlignmentFile(chim_bam, 'wb', template=pieces) if chim_bam else None

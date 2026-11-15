@@ -17,12 +17,13 @@ import subprocess
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
-import pipettor
+from flair.io_utils import quiet_pipettor_failures, run_program
 import pysam
 from flair import FlairInputDataError, SeqRange, combine_regions
 from flair import gtf_io
 from flair.interval_index import IntervalIndex
 from flair.region_spec import REGION_FORMAT_HELP, parse_regions
+from flair.run_checks import check_option_ranges
 from flair.pycbio.sys import cli, fileOps, loggingOps
 from flair.pycbio.hgdata.bed import Bed
 
@@ -174,13 +175,13 @@ def _bam_region(chrom):
 def bam_to_file(bam_file, out_bed, chrom=None, regions_bed=None):
     "alignments of a BAM, of one chrom of an indexed BAM, or of the regions of a BED, as BED"
     if regions_bed is not None:
-        pipettor.run([['samtools', 'view', '-u', '-M', '-L', regions_bed, bam_file],
-                      ['bedtools', 'bamtobed', '-i', 'stdin']], stdout=out_bed)
+        run_program([['samtools', 'view', '-u', '-M', '-L', regions_bed, bam_file],
+                     ['bedtools', 'bamtobed', '-i', 'stdin']], stdout=out_bed)
     elif chrom is None:
-        pipettor.run(['bedtools', 'bamtobed', '-i', bam_file], stdout=out_bed)
+        run_program(['bedtools', 'bamtobed', '-i', bam_file], stdout=out_bed)
     else:
-        pipettor.run([['samtools', 'view', '-u', bam_file, _bam_region(chrom)],
-                      ['bedtools', 'bamtobed', '-i', 'stdin']], stdout=out_bed)
+        run_program([['samtools', 'view', '-u', bam_file, _bam_region(chrom)],
+                     ['bedtools', 'bamtobed', '-i', 'stdin']], stdout=out_bed)
 
 def bam_chroms(bam_file):
     """chroms of an indexed BAM that have mapped reads, largest first, so the BAM
@@ -457,8 +458,10 @@ def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_p
 
 def main():
     args = parse_args()
+    quiet_pipettor_failures()
     with cli.ErrorHandler():
         # inside the handler, so a missing input file is reported as one line
+        check_option_ranges(args, count=('min_partition_items', 'part_merge_dist'), positive=('threads',))
         check_input_files(args.bed_files, args.bam_files, args.gtf_files, args.region_bed)
         flair_partition(args.bed_files, args.bam_files, args.gtf_files, args.ranges_bed, args.threads,
                         args.min_partition_items, args.part_merge_dist, region_bed=args.region_bed,

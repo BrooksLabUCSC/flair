@@ -10,9 +10,11 @@ each partition.
 import gc
 import os
 import shutil
+import logging
 import multiprocessing as mp
 import pipettor
-from flair import FlairError, SeqRange
+from flair import FlairError, FlairToolError, SeqRange
+from flair.pycbio import NoStackError
 from flair import thread_share
 from flair.output_compress import compressed_path
 from flair.pycbio.hgdata.bed import BedReader
@@ -121,6 +123,22 @@ def _call_partition_func(packed):
         thread_share.task_done()
 
 
+def _run_pool(threads, packed):
+    """Run the tasks in a process pool.  An error from a worker comes back with the
+    worker's traceback attached as its cause, which for an error that reports without
+    a stack, an input error, is the detail the report leaves out, so it goes to the
+    debug log and the error is raised with the cause dropped."""
+    try:
+        with mp.Pool(threads) as pool:
+            for _ in pool.imap_unordered(_call_partition_func, packed, chunksize=1):
+                pass
+    except Exception as exc:
+        if not isinstance(exc, NoStackError):
+            raise
+        logging.debug('error in a partition worker', exc_info=True)
+        raise exc from None
+
+
 def run_flair_partition(bam_files, annot_gtf, threads, *, region_bed=None, min_partition_items=0):
     """Run flair_partition and return a list of SeqRanges and a list of the number of
     input items in each.  No read and no annotated transcript crosses a partition, as
@@ -137,10 +155,13 @@ def run_flair_partition(bam_files, annot_gtf, threads, *, region_bed=None, min_p
         cmd += [f'--gtf={annot_gtf}']
     cmd += ['/dev/stdout']
     regions, item_counts = [], []
-    with pipettor.Popen(cmd) as fh:
-        for bed in BedReader(fh, numStdCols=4):
-            regions.append(SeqRange(bed.chrom, bed.chromStart, bed.chromEnd))
-            item_counts.append(int(bed.extraCols[0]))
+    try:
+        with pipettor.Popen(cmd) as fh:
+            for bed in BedReader(fh, numStdCols=4):
+                regions.append(SeqRange(bed.chrom, bed.chromStart, bed.chromEnd))
+                item_counts.append(int(bed.extraCols[0]))
+    except pipettor.ProcessException as exc:
+        raise FlairToolError('flair_partition failed, its diagnostics are above') from exc
     return regions, item_counts
 
 
@@ -226,9 +247,7 @@ class PartitionRunner:
             # worker
             gc.freeze()
             try:
-                with mp.Pool(self.threads) as pool:
-                    for _ in pool.imap_unordered(_call_partition_func, packed, chunksize=1):
-                        pass
+                _run_pool(self.threads, packed)
             finally:
                 gc.unfreeze()
 

@@ -6,6 +6,7 @@ import sys
 import pipettor
 import logging
 from flair import FlairInputDataError, FlairToolError
+from flair.run_checks import check_option_ranges, precheck
 from flair.conditions import select_condition_pair
 from flair.counts_matrix_tsv import read_isoform_ids, describe_ids
 from flair.drimseq_input import check_feature_ids_unique
@@ -24,6 +25,10 @@ es_as_inc_excl_to_counts = osp.join(pkgdir, "es_as_inc_excl_to_counts.py")
 
 BED_NAME_COLUMN = 3
 FEATURE_ID_COLUMN = 0
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('Rscript',)
+
 
 def add_subparser(subparsers):
     desc = "Call alternative splicing events from isoforms and test them for differential usage"
@@ -77,6 +82,11 @@ def diffsplice_cmd(args):
         # done no testing at all
         raise FlairInputDataError('--condition_a and --condition_b must both be given, '
                                   'or both left out to take the two conditions in sorted order')
+    check_option_ranges(args, count=('min_samps_gene_expr', 'min_samps_feature_expr', 'min_gene_expr',
+                                     'min_feature_expr'),
+                        positive=('threads',))
+    precheck(files={'isoform models BED': args.isoform_bed, 'counts matrix': args.counts_matrix},
+             programs=PROGRAMS)
     diff_splice(isoform_bed=args.isoform_bed, counts_matrix=args.counts_matrix,
                 output=args.output, threads=args.threads, test=args.test,
                 min_samps_gene_expr=args.min_samps_gene_expr,

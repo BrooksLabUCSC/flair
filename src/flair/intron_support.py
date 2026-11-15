@@ -160,6 +160,13 @@ class IntronSupport:
                                   "chromosomes of the genome the reads are aligned to")
 
     @staticmethod
+    def _parse_failed(what, path, records_read, header_lines=0):
+        """the error for a file that could not be parsed, naming the line when a record
+        was read: a failure before the first one is the file's, not a line's"""
+        where = f'{path} line {records_read + header_lines}' if records_read > 0 else path
+        return FlairInputDataError(f'parsing {what} failed: {where}')
+
+    @staticmethod
     def _bed_strand_error(bed):
         raise FlairInputDataError(f"strand `{bed.strand}' in BED must be one of: " +
                                   ", ".join([f"'{s}'" for s in _VALID_STRANDS]))
@@ -184,7 +191,7 @@ class IntronSupport:
                 if self._load_intron_bed(bed, chrom_filter):
                     cnt += 1
         except Exception as exc:
-            raise FlairInputDataError(f"parsing intron BED failed: {bed_file} line {line_num}") from exc
+            raise self._parse_failed('intron BED', bed_file, line_num) from exc
         if cnt == 0:
             self._no_introns_loaded_error(bed_file, "BED", chrom_filter)
         return cnt
@@ -217,7 +224,7 @@ class IntronSupport:
                 if self._load_annot_bed(bed, chrom_filter):
                     cnt += 1
         except Exception as exc:
-            raise FlairInputDataError(f"parsing intron BED failed: {bed_file} line {line_num}") from exc
+            raise self._parse_failed('annotation BED', bed_file, line_num) from exc
 
         if cnt == 0:
             self._no_introns_loaded_error(bed_file, "BED", chrom_filter)
@@ -243,7 +250,7 @@ class IntronSupport:
                 if self._load_star(rec, chrom_filter):
                     cnt += 1
         except Exception as exc:
-            raise FlairInputDataError(f"parsing STAR SJ failed: {sj_file} line {line_num}") from exc
+            raise self._parse_failed('STAR SJ', sj_file, line_num - 1, header_lines=1) from exc
         if cnt == 0:
             self._no_introns_loaded_error(sj_file, "STAR SJ", chrom_filter)
         return cnt
@@ -266,7 +273,7 @@ class IntronSupport:
             for transcript in gtf_data.transcripts:
                 cnt += self._load_gtf_transcript(transcript)
         except Exception as exc:
-            raise FlairInputDataError(f"parsing annotation GTF failed: {gtf_data.gtf_file}") from exc
+            raise self._parse_failed('annotation GTF', gtf_data.gtf_file, 0) from exc
         if cnt == 0:
             self._no_introns_loaded_error(gtf_data.gtf_file, "GTF")
         return cnt

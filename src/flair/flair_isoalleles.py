@@ -18,14 +18,19 @@ from flair import FlairInputDataError
 from flair.aaseq_tsv import write_aaseqs
 from flair.counts_matrix_tsv import CountsRow, counts_matrix_writer
 from flair.flair_quantify import load_isoform_data, make_batches
-from flair.io_utils import make_run_temp_dir, open_sorted_bed
+from flair.io_utils import GenomeFasta, make_run_temp_dir, open_sorted_bed
+from flair.run_checks import check_option_ranges, precheck, report_result_count
 from flair.isoallele_genes import GeneOutput, process_gene
-from flair.isoallele_variants import open_vcf, variant_keys
+from flair.isoallele_variants import UNTAGGED, open_vcf, variant_keys
+from flair.pycbio.sys import fileOps
 from flair.isoalleles_tsv import TABLES, isoalleles_table_writer, table_path
 from flair.isoform_data import make_big_bed
 from flair.output_compress import compressed_path, open_fasta_output
 from flair.read_map_index import ReadMapIndex
 from flair.read_map_tsv import ReadMapWriter
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('bedToBigBed',)
 
 # batches of genes per thread, so threads finishing early take more
 BATCHES_PER_THREAD = 4
@@ -143,7 +148,7 @@ class WorkerContext:
 
     def __init__(self, settings):
         self.__dict__.update(settings)
-        self.genome = pysam.FastaFile(self.genome_path)
+        self.genome = GenomeFasta(self.genome_path)
         self.bams = {name: pysam.AlignmentFile(bam) for name, bam in self.bam_paths.items()}
         self.map_readers = {name: index.open_reader() for name, index in self.map_indexes.items()}
         self.phased_vcf = open_vcf(self.phased_vcf_path)
@@ -248,6 +253,8 @@ class Outputs:
 
 def isoalleles_cmd(args):
     "the subcommand: its own options, not flair's global ones, to isoalleles"
+    check_option_ranges(args, fraction=('carrier_min',), count=('min_normal_depth', 'min_tagged'),
+                        positive=('threads',))
     params = inspect.signature(isoalleles).parameters
     isoalleles(**{k: v for k, v in vars(args).items() if k in params})
 
@@ -263,6 +270,8 @@ def isoalleles(*, isoform_bed, genome, bam, read_map, phased_vcf, germline_vcf=N
                '--germline_vcf': germline_vcf, '--isoform_bed': isoform_bed, '--genome': genome,
                '--normal_bam': normal_bam, '--normal_read_map': normal_read_map,
                '--tumor_vcf': tumor_vcf, '--somatic_vcf': somatic_vcf})
+    precheck(programs=PROGRAMS, genome=genome, alignments=(bam, normal_bam), isoform_beds=(isoform_bed,),
+             vcfs=(phased_vcf, germline_vcf, tumor_vcf, somatic_vcf))
     gene_data, fusions = load_isoform_data(isoform_bed)
     if fusions:
         logging.info(f'{len(fusions)} fusion isoforms left out: isoalleles takes the isoforms of genes')
@@ -290,8 +299,24 @@ def isoalleles(*, isoform_bed, genome, bam, read_map, phased_vcf, germline_vcf=N
             packed.append(([(gene_id, gene_data[gene_id].isoform_beds) for gene_id in batch['gene_ids']], batch_dir))
         logging.info(f'{len(gene_data)} genes in {len(batches)} batches')
         _run(settings, packed, threads, output, names, generate_map, label_bams, genome)
+        _report_alleles(output)
     finally:
         shutil.rmtree(run_temp_dir, ignore_errors=True)
+
+
+def _report_alleles(output):
+    """What the run counted: the alleles that reads were assigned to, and whether any
+    read carried a haplotype, which none does when the BAM given is not the
+    haplotagged one"""
+    with fileOps.opengz(compressed_path(f'{output}.isoalleles.counts.tsv')) as fh:
+        next(fh, None)  # the column names
+        groups = [line.split('\t')[1].rsplit('|', 1)[-1] for line in fh if line.strip() != '']
+    report_result_count('alleles', len(groups),
+                        remedy='check that the reads are haplotagged, as whatshap haplotag tags them, and that '
+                        'the phased VCF is of this sample')
+    if groups and all(group == UNTAGGED for group in groups):
+        logging.warning('no read has a haplotype tag, so every isoform has one untagged allele; give the BAM '
+                        'whatshap haplotag wrote, with the HP tags')
 
 
 def _check_read_maps(map_indexes, map_paths, gene_data):
@@ -321,7 +346,7 @@ def _run(settings, packed, threads, output, names, generate_map, label_bams, gen
             for sample, path in label_bams_of_batch.items():
                 label_parts[sample].append(path)
     write_aaseqs(compressed_path(f'{output}.isoalleles.aaseq.tsv'), outputs.proteins)
-    with pysam.FastaFile(genome) as genome_fa:
+    with GenomeFasta(genome) as genome_fa:
         make_big_bed(genome_fa, f'{output}.isoalleles.chrom.sizes', f'{output}.isoalleles')
     if label_bams:
         for sample, parts in label_parts.items():

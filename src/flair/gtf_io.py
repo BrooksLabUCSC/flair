@@ -225,8 +225,8 @@ class GtfData:
         """return transcript for id or error if not found"""
         try:
             return self.transcripts_by_id[transcript_id]
-        except KeyError:
-            raise GtfIdError(f"unknown transcript id `{transcript_id}'")
+        except KeyError as exc:
+            raise GtfIdError(f"unknown transcript id `{transcript_id}'") from exc
 
     def iter_transcript_ids(self):
         return self.transcripts_by_id.keys()
@@ -653,7 +653,7 @@ def gtf_data_parser(gtf_file, *, include_features: StrSetNone = None, attrs: Gtf
     regions, SeqRanges, only the transcripts overlapping one are kept, whole, and
     other chromosomes' lines aren't parsed, much faster for a few loci."""
     # must save up exons and CDS, as sorting of GTF files is not required
-    gtf_data = GtfData()
+    gtf_data = GtfData(gtf_file)
     transcript_id_to_exons = defaultdict(list)
     transcript_id_to_cds_recs = defaultdict(list)
     transcript_id_to_start_codons = defaultdict(lambda: None)

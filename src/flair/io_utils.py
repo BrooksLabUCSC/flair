@@ -2,10 +2,11 @@
 position sorted BED and VCF output."""
 
 import os
+import logging
 import tempfile
 import pipettor
 import pysam
-from flair import FlairInputDataError
+from flair import FlairInputDataError, FlairToolError
 from flair.output_compress import compressed_path
 from flair.pycbio.sys import fileOps
 
@@ -115,6 +116,54 @@ def check_genome_fasta(genome):
         raise FlairInputDataError(
             f"genome FASTA {genome} is missing {', '.join(missing)}; "
             f'index it with: samtools faidx {genome}')
+
+
+def _program_names(cmds):
+    "the programs of a pipettor command or pipeline, for a message"
+    commands = [cmds] if isinstance(cmds[0], str) else cmds
+    return ' | '.join(os.path.basename(command[0]) for command in commands)
+
+
+def quiet_pipettor_failures():
+    """pipettor logs a failed process at ERROR, with a traceback of the flair code
+    that started it; run_program reports the failure as a tool error instead, so the
+    record is dropped unless debug logging was asked for.  Called by each program
+    once logging is configured."""
+    if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
+        logging.getLogger(pipettor.LOGGER_NAME).setLevel(logging.CRITICAL)
+
+
+def run_program(cmds, **kwargs):
+    """Run a program, or a pipeline of them, reporting a failure as a tool error: the
+    program has already said what went wrong on stderr, so a traceback of the flair
+    code that started it adds nothing."""
+    try:
+        pipettor.run(cmds, **kwargs)
+    except pipettor.ProcessException as exc:
+        raise FlairToolError(f'{_program_names(cmds)} failed, its diagnostics are above') from exc
+
+
+class GenomeFasta(pysam.FastaFile):
+    """The genome, reporting a request for a sequence it does not have as an input
+    error.  The reader signals a KeyError, which says nothing about where the name
+    came from, and the cause is almost always the genome being named differently
+    from the alignments and the isoforms, chr1 against 1."""
+
+    def fetch(self, *args, **kwargs):
+        try:
+            return super().fetch(*args, **kwargs)
+        except KeyError as exc:
+            raise FlairInputDataError(self._missing_seq_msg(kwargs.get('reference', args[0] if args else None))) from exc
+
+    def get_reference_length(self, reference):
+        try:
+            return super().get_reference_length(reference)
+        except KeyError as exc:
+            raise FlairInputDataError(self._missing_seq_msg(reference)) from exc
+
+    def _missing_seq_msg(self, seq_name):
+        return (f"sequence `{seq_name}' is not in the genome FASTA {os.fsdecode(self.filename)}; the genome, "
+                'the alignments and the isoforms must name their sequences the same way')
 
 
 ##

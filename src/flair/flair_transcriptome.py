@@ -2,7 +2,6 @@
 import argparse
 import os
 import re
-import pipettor
 import shutil
 import pysam
 import logging
@@ -23,7 +22,7 @@ from flair.direct_assignment import (covers_unique_bounds, direct_assignments, p
                                      unassignable_reads, write_direct_assignments)
 from flair.partition_runner import PartitionRunner, partition_regions, combine_temp_files_by_suffix
 from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions, write_regions_bed
-from flair.io_utils import check_genome_fasta, make_run_temp_dir, open_sorted_bed
+from flair.io_utils import GenomeFasta, make_run_temp_dir, open_sorted_bed, run_program
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Isoform, ReadRec, convert_to_bed12, convert_to_flair_bed, make_big_bed)
 from flair.gene_identification import build_genes, _gene_span
@@ -41,6 +40,10 @@ from flair.output_compress import compressed_path, open_fasta_output, open_outpu
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
+from flair.run_checks import check_option_ranges, precheck, report_result_count, count_records
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('flair_partition', 'bedtools', 'samtools', 'minimap2', 'bedToBigBed')
 
 MIN_POLYA_FRAC_DIFF_FOR_SE_STRANDING = 0.1
 
@@ -289,9 +292,14 @@ def transcriptome_cmd(args):
                                   "against an isoform set with flair quantify")
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
-    if not os.path.exists(args.genome_aligned_bam):
-        raise FlairInputDataError(f'aligned reads bam file does not exist: {args.genome_aligned_bam}')
-    check_genome_fasta(args.genome)
+    check_option_ranges(args, fraction=('frac_support',),
+                        count=('junction_support', 'ss_window', 'end_window', 'sjc_support',
+                               'single_exon_support', 'subset_backup_support', 'quality'),
+                        positive=('max_ends', 'threads'))
+    precheck(files={'aligned reads BAM': args.genome_aligned_bam, 'annotation GTF': args.annot_gtf,
+                    'junction BED': args.junction_bed, 'STAR junction': args.junction_star,
+                    'region BED': args.region_bed},
+             programs=PROGRAMS, genome=args.genome, alignments=(args.genome_aligned_bam,))
     flair_transcriptome(genome_aligned_bam=args.genome_aligned_bam, genome=args.genome,
                         sample_name=args.sample_name,
                         output=args.output if args.output is not None else args.sample_name,
@@ -1511,9 +1519,9 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
     Isoform.clear_juncs_cache()
 
     # first extract reads for region as fasta
-    pipettor.run([('samtools', 'view', '-h', args.genome_aligned_bam, region.name + ':' + str(region.start) + '-' + str(region.end)),
-                  ('samtools', 'fasta', '-')],
-                 stdout=partition.output_path('reads.fasta'))
+    run_program([('samtools', 'view', '-h', args.genome_aligned_bam, region.name + ':' + str(region.start) + '-' + str(region.end)),
+                 ('samtools', 'fasta', '-')],
+                stdout=partition.output_path('reads.fasta'))
     if os.path.getsize(partition.output_path('reads.fasta')) > 0:
         _run_region_reads(partition=partition, region=region, gtf_data=gtf_data,
                           junction_corrector=junction_corrector, args=args)
@@ -1530,7 +1538,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
     annots = annot_data_from_gtf(gtf_data, region)
 
     # then align reads to transcriptome and run count_sam_transcripts
-    with pysam.FastaFile(args.genome) as genome, \
+    with GenomeFasta(args.genome) as genome, \
          pysam.AlignmentFile(args.genome_aligned_bam, 'rb') as bam_file:
         # genomic clipping: amount of clipping (from cigar) at ends of reads when aligned to genome
         # generates file with [read{\t}clipping amount] on each line
@@ -1777,7 +1785,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              generate_map=generate_map)
 
     logging.info('loading genome')
-    genome_fa = pysam.FastaFile(args.genome)
+    genome_fa = GenomeFasta(args.genome)
 
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
@@ -1825,6 +1833,10 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                    compressed_path(args.output + '.isoforms.gtf'), is_flair_bed=True)
 
         make_big_bed(genome_fa, temp_dir + 'chrom.sizes', args.output + '.isoforms')
+
+        report_result_count('isoforms', count_records(compressed_path(args.output + '.isoforms.bed')),
+                            remedy='lower --sjc_support, --single_exon_support or --frac_support, or check that '
+                            'the reads are aligned to the genome and annotation given')
 
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR

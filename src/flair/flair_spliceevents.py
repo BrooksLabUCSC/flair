@@ -1,13 +1,14 @@
 import os
 from flair import resolve_deprecated_option
 import shutil
-import pysam
 import logging
 from flair.partition_runner import PartitionRunner, run_flair_partition
 from flair import SeqRange
 from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
-from flair.io_utils import make_temp_dir, read_manifest_rows, check_genome_fasta
+from flair.io_utils import GenomeFasta, make_temp_dir, read_manifest_rows
+from flair.output_compress import compressed_path
+from flair.run_checks import check_option_ranges, check_seq_names, precheck, report_result_count, count_records
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.spliceevents_events import thresholds_of
@@ -36,6 +37,10 @@ REGION_RESTRICT_HELP = (
     'end, first and last exon events, which count all of a gene\'s reads, all its annotated junctions.  '
     'An event reaching past a region is left out, not reported from part of its reads.  The regions '
     'reads were corrected in are written to <output>.spliceevents.regions.bed')
+
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('flair_partition', 'bedtools', 'samtools')
 
 
 def add_subparser(subparsers):
@@ -124,7 +129,15 @@ def add_subparser(subparsers):
 
 def spliceevents_cmd(args):
     resolve_deprecated_option(args, deprecated="junction_tab", current="junction_star")
-    check_genome_fasta(args.genome)
+    check_option_ranges(args, fraction=('event_frac_of_tot', 'junc_frac_of_event'),
+                        count=('junction_support', 'ss_window', 'partition_items', 'feature_support',
+                               'event_support', 'quality'),
+                        positive=('threads',))
+    precheck(files={'manifest': args.manifest, 'annotation GTF': args.annot,
+                    'basic annotation GTF': args.annot_basic or None,
+                    'junction BED': args.junction_bed, 'STAR junction': args.junction_star,
+                    'region BED': args.region_bed},
+             programs=PROGRAMS, genome=args.genome)
     spliceevents(args)
 
 
@@ -163,7 +176,7 @@ def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, ite
     region = partition.region
     reports = region_reports[region_key(region)]
     chains = []
-    with pysam.FastaFile(args.genome) as genome:
+    with GenomeFasta(args.genome) as genome:
         for num, cluster in enumerate(region_clusters[region_key(region)]):
             chains += _correct_cluster_sample(args, cluster, f'{path}.{num}.correction', bamfile, genome,
                                               junction_corrector, gtf_data, terminal_exons, reports)
@@ -287,9 +300,11 @@ def spliceevents(args):
     logging.info('temp directory: %s', temp_dir)
     allsamples = read_manifest(args.manifest)
     bamfiles = [bamfile for _, bamfile in allsamples]
+    # the manifest names the BAMs, so they are checked once it is read
+    check_seq_names(args.genome, alignments=bamfiles)
 
     regions = parse_regions(args.regions, args.region_bed)
-    with pysam.FastaFile(args.genome) as genome:
+    with GenomeFasta(args.genome) as genome:
         report_regions = regions if regions is not None else chromosomes(genome, genome.references)
     plan = plan_correction(args, report_regions, bamfiles, regions is not None, temp_dir)
     write_regions_bed(plan.regions, args.output + '.spliceevents.regions.bed', compress=True)
@@ -311,5 +326,8 @@ def spliceevents(args):
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss)
 
     combine_region_tables(args.output, [p.file_prefix for p in runner])
+    report_result_count('splicing events', count_records(compressed_path(args.output + '.spliceevents.bed')),
+                        remedy='lower --feature_support, --event_support, --event_frac_of_tot or '
+                        '--junc_frac_of_event, which an event must pass to be reported')
     if not args.keep_intermediate:
         shutil.rmtree(temp_dir)

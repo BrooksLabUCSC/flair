@@ -21,6 +21,7 @@ from statistics import median, mean
 import pipettor
 
 from flair import FlairInputDataError, FlairToolError
+from flair.run_checks import check_option_ranges, precheck
 from flair.conditions import condition_column_indexes, select_condition_pair
 from flair.counts_matrix_tsv import QUANTIFY_COUNTS, CountsRow, read_grouped_counts, write_counts_matrix
 from flair.deseq2_counts_tsv import write_deseq2_counts
@@ -418,6 +419,11 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir, formula_matrix_file,
                 unreported_file)
 
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('Rscript',)
+
+
 def add_subparser(subparsers):
     desc = "Differential expression and differential usage analysis"
     parser = subparsers.add_parser('diffexp', help="Differential expression and usage analysis",
@@ -446,8 +452,8 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=diffexp_cmd)
 
 def diffexp_cmd(args):
-    if not os.path.exists(args.counts_matrix):
-        raise FlairInputDataError(f'counts matrix file does not exist: {args.counts_matrix}')
+    check_option_ranges(args, count=('min_expression',), positive=('threads',))
+    precheck(files={'counts matrix': args.counts_matrix}, programs=PROGRAMS)
     calculate_sig(counts_matrix=args.counts_matrix, output=args.output,
                   condition_a=args.condition_a, condition_b=args.condition_b,
                   min_expression=args.min_expression, threads=args.threads,

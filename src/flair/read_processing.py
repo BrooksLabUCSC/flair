@@ -3,8 +3,9 @@
 import logging
 import os
 from collections import namedtuple
-import pipettor
+from flair.io_utils import run_program
 from flair.isoform_data import Isoform, cigar_clipping
+from flair.pycbio.sys import fileOps
 
 
 # the windows of a region to fetch its reads from: ranges, sorted SeqRanges that don't
@@ -58,20 +59,25 @@ def should_process_read(read, region, min_quality, keep_sup, allow_outside_range
 
 def get_sequence_from_bed(genome, input_bed, output_fa):
     """Sequence for each BED record, with the (strand) suffix bedtools appends to the
-    name removed."""
-    bed_cmd = ('bedtools', 'getfasta', '-nameOnly', '-s', '-split',
-               '-fi', genome,
-               '-bed', input_bed,
-               '-fo', output_fa)
-    pipettor.run([bed_cmd])
-    # output_fa + '.fixed', not output_fa.split('.fa')[0]: the split truncates at the
-    # first '.fa' anywhere in the path, so a directory named x.fa or an output called
-    # out.fasta.fa put the temporary file somewhere else entirely
-    fixed_fa = output_fa + '.fixed'
-    with open(output_fa) as in_fh, open(fixed_fa, 'w') as out_fh:
+    name removed.  The file is written under a temporary name and renamed when it is
+    complete, so a run that stops partway leaves no file a later run would read as a
+    finished one."""
+    with fileOps.AtomicFileCreate(output_fa) as tmp_fa:
+        raw_fa = tmp_fa + '.raw'
+        bed_cmd = ('bedtools', 'getfasta', '-nameOnly', '-s', '-split',
+                   '-fi', genome,
+                   '-bed', input_bed,
+                   '-fo', raw_fa)
+        run_program([bed_cmd])
+        _strip_strand_suffix(raw_fa, tmp_fa)
+        os.remove(raw_fa)
+
+
+def _strip_strand_suffix(in_fa, out_fa):
+    "copy a FASTA, dropping the (strand) suffix bedtools appends to each record name"
+    with open(in_fa) as in_fh, open(out_fa, 'w') as out_fh:
         for line in in_fh:
             out_fh.write(line.split('(')[0] + '\n' if line[0] == '>' else line)
-    os.replace(fixed_fa, output_fa)
 
 
 def add_corrected_read_to_groups(corrected_read, sj_to_ends):

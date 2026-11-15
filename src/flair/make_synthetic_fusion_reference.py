@@ -1,9 +1,10 @@
 import argparse
-import pysam
 from flair import FlairInputDataError
+from flair.io_utils import GenomeFasta
 from flair.isoform_data import get_reverse_complement
 from flair.gtf_io import gtf_data_parser, gtf_write_row, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import fileOps
 
 # Makes a synthetic genome of fusion contigs, each the loci of a preliminary fusion
 # joined in fusion order, with an annotation of the fusion genes' transcripts on them
@@ -163,13 +164,15 @@ def make_synthetic_reference(gtf_data, anno_path, genome_path, chimbp, prefix):
     as prefix.synthetic_fusion_genome.fa, .synthetic_reference_anno.gtf and
     .synthetic_breakpoint_loc.bed"""
     allBP, fgenes, transcripts = read_breakpoints(chimbp)
-    genome = pysam.FastaFile(genome_path)
+    genome = GenomeFasta(genome_path)
     chrom_sizes = ChromSizes(genome, genome_path, anno_path)
     read_transcripts(gtf_data, fgenes, transcripts, chrom_sizes)
 
-    with open(prefix + '.synthetic_fusion_genome.fa', 'w') as out, \
-            open(prefix + '.synthetic_reference_anno.gtf', 'w') as annoOut, \
-            open(prefix + '.synthetic_breakpoint_loc.bed', 'w') as bpOut:
+    # each file appears under its name only once it is complete, so a run that stops
+    # partway leaves none of them for a later run to read
+    with fileOps.AtomicFileOpen(prefix + '.synthetic_fusion_genome.fa') as out, \
+            fileOps.AtomicFileOpen(prefix + '.synthetic_reference_anno.gtf') as annoOut, \
+            fileOps.AtomicFileOpen(prefix + '.synthetic_breakpoint_loc.bed') as bpOut:
         isocount = 1
         for fusion in allBP:
             labels, sequence, allstartloc, allisochunks = build_fusion(allBP[fusion], fgenes, transcripts, genome, chrom_sizes)

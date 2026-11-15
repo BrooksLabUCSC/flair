@@ -11,7 +11,7 @@ from flair.flair_bed import FlairBed, get_strand_rgb
 from flair.output_compress import compressed_path
 from statistics import median
 import pysam
-import pipettor
+from flair.io_utils import run_program
 import os.path as osp
 
 # the IUPAC nucleotide codes to their complements, with U and the gap characters:
@@ -195,10 +195,10 @@ def make_big_bed(genome, chrom_sizes_file_name, output_prefix):
             fh.write(chrom + '\t' + str(genome.get_reference_length(chrom)) + '\n')
     # no -sort: the BED is written in position order already, so sorting it again
     # only costs a pass over it
-    pipettor.run([('bedToBigBed', f'-as={osp.dirname(__file__)}/flair_bed.as', '-type=bed12+',
-                   compressed_path(f'{output_prefix}.bed'), chrom_sizes_file_name,
-                   f'{output_prefix}.bb', '-tab')])
-    pipettor.run([('rm', chrom_sizes_file_name)])
+    run_program([('bedToBigBed', f'-as={osp.dirname(__file__)}/flair_bed.as', '-type=bed12+',
+                  compressed_path(f'{output_prefix}.bed'), chrom_sizes_file_name,
+                  f'{output_prefix}.bb', '-tab')])
+    run_program([('rm', chrom_sizes_file_name)])
 
 def add_blocks_from_readrec(bed, readrec):
     exon_starts, exon_sizes = get_bed_exons_from_juncs(readrec.juncs, readrec.start, readrec.end)

@@ -1,13 +1,13 @@
 #! /usr/bin/env python3
 
 import logging
-import pysam
 from flair import FlairError, FlairInputDataError
 from flair.bed_to_gtf import bed_to_gtf
 from flair.cli_options import option_values
 from flair.combined_map_tsv import CombinedMapWriter
 from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
-from flair.io_utils import check_genome_fasta, open_sorted_bed
+from flair.io_utils import GenomeFasta, open_sorted_bed
+from flair.run_checks import check_input_files, check_option_ranges, precheck, report_result_count, count_records
 from flair.output_compress import compressed_path, open_fasta_output, open_output, resolved_input_path
 from flair.pycbio.sys import fileOps
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
@@ -19,6 +19,10 @@ from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import AnnotsByChrom
 from flair.gene_identification import get_gene_name_firstpass, group_by_splicing
 from flair.convert_synthetic_to_genome_bed import piece_gene
+
+# the programs a run executes, checked before it starts
+PROGRAMS = ('bedToBigBed',)
+
 
 def add_subparser(subparsers):
     desc = ("Combine FLAIR transcriptomes into one.  Each input is a flair BED, with the "
@@ -65,7 +69,13 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=combine_cmd)
 
 def combine_cmd(args):
-    check_genome_fasta(args.genome)
+    check_option_ranges(args, percent=('min_percent_usage',), count=('end_window', 'min_reads'),
+                        positive=('max_ends',))
+    # the manifest names the BEDs, so it is checked before it is read
+    check_input_files({'manifest': args.manifest})
+    isoform_beds = parse_input(args.manifest, args.prefixes, args.isoform_beds)
+    precheck(files={'isoform BED': isoform_beds, 'annotation GTF': args.gtf},
+             programs=PROGRAMS, genome=args.genome, isoform_beds=isoform_beds)
     # the option is a percentage, the code compares against fractional usage
     combine(manifest=args.manifest, prefixes=args.prefixes, isoform_beds=args.isoform_beds,
             genome=args.genome, annotation=args.gtf, output=args.output, end_window=args.end_window,
@@ -554,7 +564,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
 
     logging.info('combining isoforms')
 
-    genome_fa = pysam.FastaFile(genome)
+    genome_fa = GenomeFasta(genome)
     combined = []
     for juncchaininfo in intronchaintoisos:
         all_juncs = [x[3] for x in juncchaininfo]
@@ -604,3 +614,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
 
     make_big_bed(genome_fa, output + '.chrom.sizes', output + '.combined.isoforms')
     genome_fa.close()
+
+    report_result_count('combined isoforms', count_records(compressed_path(output + '.combined.isoforms.bed')),
+                        remedy='lower --min_reads or --min_percent_usage, which an isoform must pass in one '
+                        'sample to be kept')

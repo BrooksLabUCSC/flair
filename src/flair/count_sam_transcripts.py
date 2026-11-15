@@ -7,7 +7,7 @@ from math import inf
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-import pipettor
+from flair.io_utils import run_program
 import pysam
 from flair import FlairError, FlairInputDataError
 from flair.isoform_data import cigar_clipping
@@ -833,7 +833,7 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
         output_endpos=output_endpos, stranded=stranded, no_extra_clipping=no_extra_clipping,
         transcript_fasta=transcript_fasta)
     pipeline = [mm2_cmd, cmd] if mm2_cmd else [cmd]
-    pipettor.run(pipeline)
+    run_program(pipeline)
 
 
 if __name__ == '__main__':

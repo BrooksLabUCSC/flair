@@ -8,7 +8,8 @@ import shutil
 import multiprocessing as mp
 from flair import FlairError, FlairInputDataError
 from flair.pycbio.sys import cli
-from flair.io_utils import check_genome_fasta, make_temp_dir, write_sorted_vcf
+from flair.io_utils import GenomeFasta, make_temp_dir, write_sorted_vcf
+from flair.run_checks import check_option_ranges, precheck
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
 from flair.region_spec import REGION_FORMAT_HELP, parse_regions
 
@@ -318,7 +319,7 @@ def region_vars_path(temp_dir, region):
 
 def process_reads_for_region(args):
     temp_dir, bam_file, region, genome_file, min_cov, min_var_reads, min_vaf, min_read_end_dist, min_sj_dist, num_repeats_for_filtering, identify_indels, identify_snvs, density_dist, density_count = args
-    with pysam.FastaFile(genome_file) as genome, \
+    with GenomeFasta(genome_file) as genome, \
             IndelVarsWriter(region_vars_path(temp_dir, region)) as out:
         pos_to_cov, pos_to_var, donor_counts, acceptor_counts = get_indels_from_bam(region, bam_file, genome, min_read_end_dist, min_sj_dist, identify_indels, identify_snvs)
         pos_to_var_filtered = {}
@@ -346,7 +347,7 @@ def get_regions(region_specs, region_bed, genome_file):
 
 def get_regions_by_chrom(genome_file):
     regions = []
-    with pysam.FastaFile(genome_file) as genome:
+    with GenomeFasta(genome_file) as genome:
         for chrom in sorted(list(genome.references)):
             regions.append((chrom, 0, genome.get_reference_length(chrom)))
     return regions
@@ -369,7 +370,7 @@ def generate_new_vcf_header(genome):
     return new_header
 
 def write_output_vcf(genome_file, output, regions, temp_dir):
-    with pysam.FastaFile(genome_file) as genome:
+    with GenomeFasta(genome_file) as genome:
         vcf_header = generate_new_vcf_header(genome)
         records = []
         format_strings = ['GT', 'DP', 'AD']
@@ -390,7 +391,12 @@ def write_output_vcf(genome_file, output, regions, temp_dir):
 
 def get_indels():
     args = parse_args()
-    check_genome_fasta(args.genome)
+    check_option_ranges(args, percent=('min_vaf_pct',),
+                        count=('min_cov', 'min_var_reads', 'min_sj_dist', 'min_read_end_dist',
+                               'density_dist', 'density_count', 'num_repeats_for_filtering'),
+                        positive=('threads',))
+    precheck(files={'aligned reads BAM': args.bam, 'region BED': args.region_bed},
+             genome=args.genome, alignments=(args.bam,))
     temp_dir = make_temp_dir(args.output)
     regions = get_regions(args.regions, args.region_bed, args.genome)
 
