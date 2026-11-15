@@ -54,16 +54,6 @@ DEF_BEG_JCN_OVERHANG = 25
 
 MAX_CHAR = 60
 
-CIGAR_OPER = {0: "M",
-              1: "I",
-              2: "D",
-              3: "N",
-              4: "S",
-              5: "H",
-              6: "P",
-              7: "=",
-              8: "X"}
-
 #################
 # END CONSTANTS #
 #################
@@ -272,10 +262,9 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
     for sam_file, is_bam in sam_files:
         for line in sam_file:
             if is_bam:
-                # I realize this is bad style, but the original code was written
-                # for parsing SAM files. So less updating is necessary if I convert
-                # the AlignedRead object back to a SAM line
-                line = convert_to_sam_line(sam_file, line)
+                # the parse below was written for SAM, so a BAM record is formatted
+                # back into a SAM line rather than the parse being written twice
+                line = line.to_string()
 
             line = format_line(line)
 
@@ -551,66 +540,6 @@ def junctions_from_sam(options):  # noqa: C901 - FIXME: reduce complexity
 #############
 # FUNCTIONS #
 #############
-
-
-def convert_to_cigar(cigar_tuple):
-    cigar_str = ""
-    for tup in cigar_tuple:
-        cigar_str += "%d%s" % (tup[1],
-                               CIGAR_OPER[tup[0]])
-    return cigar_str
-
-
-def convert_to_sam_line(bam_file, read_obj):
-    # Checks due to depracation of variables in pysam
-    try:
-        rnext = read_obj.rnext
-        pnext = read_obj.pnext
-        tlen = read_obj.tlen
-    except Exception:
-        rnext = read_obj.mrnm
-        pnext = read_obj.mpos
-        tlen = read_obj.isize
-
-    try:
-        rname = bam_file.getrname(read_obj.tid)
-    except Exception:
-        rname = None
-
-    samline = "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s" % (read_obj.qname,
-                                                              read_obj.flag,
-                                                              rname if rname else "*",
-                                                              read_obj.pos + 1,
-                                                              read_obj.mapq,
-                                                              convert_to_cigar(read_obj.cigar) if read_obj.cigar else "*",
-                                                              rnext if rnext else "*",
-                                                              pnext + 1 if pnext else 0,
-                                                              tlen if tlen else 0,
-                                                              read_obj.seq,
-                                                              read_obj.qual)
-
-    if read_obj.tags:
-        if read_obj.tags == []:
-            return samline + "\n"
-
-        tags = convert_to_tags(read_obj.tags)
-        if tags != "":
-            samline += "\t%s" % tags
-
-    return samline + "\n"
-
-
-def convert_to_tags(tag_tuples):
-    tag_list = []
-    for tag_tup in tag_tuples:
-        if tag_tup[0] == "Y0":
-            tag_list.append("Y0:Z:%s" % tag_tup[1])
-        if tag_tup[0] == "XS":
-            tag_list.append("XS:A:%s" % tag_tup[1])
-        if tag_tup[0] == "NH":
-            tag_list.append("NH:i:%d" % tag_tup[1])
-
-    return "\t".join(tag_list)
 
 
 def extended_to_simple_cigar(cigar):

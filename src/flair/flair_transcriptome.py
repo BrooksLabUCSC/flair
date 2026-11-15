@@ -535,7 +535,6 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
     which come from any isoform with its junctions, as for a subset: none if its
     ends match an annotated transcript's.  The names of the isoforms it is a subset
     of are added to supersets, if given."""
-    assert isinstance(exons[0], Exon)  # FIXME: debugging
     isoform = all_isoforms[name]
     any_gene_superset = _juncs_outside_gene(juncs, isoform.gene, annots)
 

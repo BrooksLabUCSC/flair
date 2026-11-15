@@ -40,7 +40,6 @@ def generate_transcriptome_reference_transcript(strand, transcript_to_strand, tr
                                                 transcript_to_new_exons, chrom, genome, annot_bed_fh, annot_fa_fh):
     transcript_to_strand[(transcript_id, gene_id)] = strand
     exons = list(annots.transcript_to_exons[(transcript_id, gene_id)])
-    assert isinstance(exons[0], Exon)  # FIXME tmp debugging
     if len(exons) > 1:
         normalize_gene_terminal_exons(max_terminal_exons_ends, gene_id, strand, exons, genome.get_reference_length(chrom))
         transcript_to_new_exons[(transcript_id, gene_id)] = tuple(exons)
