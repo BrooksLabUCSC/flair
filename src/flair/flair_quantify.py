@@ -24,7 +24,7 @@ from flair.count_sam_transcripts import (run_count_sam_transcripts, TRUST_ENDS_W
 from flair.annotation_precheck import read_introns, splice_sites_cleanly_aligned
 from flair.interval_index import IntervalIndex
 from flair.identify_prelim_fusions import needs_transcriptome
-from flair.counts_to_tpm import counts_to_tpm
+from flair.counts_to_cpm import counts_to_cpm
 from flair.isoform_data import get_reverse_complement, cigar_clipping
 import multiprocessing as mp
 from flair.pycbio.sys import fileOps
@@ -74,8 +74,6 @@ def add_subparser(subparsers):
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='number of threads: batches of genes counted at once, with minimap2 given any '
                              'left idle (default: %(default)s)')
-    parser.add_argument('--tpm', action='store_true',
-                        help='also write the counts as transcripts per million, <output>.isoforms.tpm.tsv')
     parser.add_argument('--trust_ends', action='store_true',
                         help="count a read for a spliced isoform only if its ends are within 50 bp of the isoform's, "
                              'for reads of full-length molecules, as from a protocol with little fragmentation')
@@ -109,7 +107,7 @@ def quantify_cmd(args):
              programs=PROGRAMS, genome=args.genome, isoform_beds=(args.isoform_bed,))
     quantify(manifest=args.manifest, genome=args.genome, isoform_bed=args.isoform_bed,
              output=args.output, threads=args.threads,
-             tpm=args.tpm, trust_ends=args.trust_ends, generate_map=args.generate_map,
+             trust_ends=args.trust_ends, generate_map=args.generate_map,
              normalize_ends=args.normalize_ends,
              temp_dir=args.temp_dir, keep_intermediate=args.keep_intermediate)
 
@@ -646,16 +644,7 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
     write_counts_matrix(compressed_path(output + '.isoforms.counts.tsv'), [sample for sample, *_ in sample_data], rows)
     return [sum(sample_counts) for sample_counts in zip(*counts.values())] if counts else [0] * len(sample_data)
 
-def isoform_lengths(gene_data, fusions):
-    """the length in bases of every isoform of the counts matrix: the sum of its
-    blocks, and for a fusion the sum over its pieces"""
-    lengths = {bed.name: bed.coverage
-               for gene_info in gene_data.values() for bed in gene_info.isoform_beds}
-    lengths.update({name: sum(piece.coverage for piece in pieces)
-                    for name, pieces in fusions.items()})
-    return lengths
-
-def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
+def quantify(*, manifest, genome, isoform_bed, output, threads,
              trust_ends, generate_map, normalize_ends, temp_dir=None, keep_intermediate=False):
     logging.info('loading isos')
     sample_data = load_manifest(manifest)
@@ -694,8 +683,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
                                        batch_isoforms, sample_data, gene_data, fusions, output, generate_map)
         for (sample, *_), total in zip(sample_data, totals):
             if total == 0:
-                logging.warning(f'sample {sample} has no reads counted for any isoform'
-                                f'{"; its TPM are 0" if tpm else ""}')
+                logging.warning(f'sample {sample} has no reads counted for any isoform; its CPM are 0')
         report_result_count('reads counted', sum(totals),
                             remedy='check that the reads are aligned to the genome given and that the isoforms '
                             'are of the same assembly, or raise --quality')
@@ -703,10 +691,8 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
         write_sample_info(sample_info_path(counts_tsv),
                           [SampleInfo(sample, condition, batch)
                            for sample, condition, batch, _ in sample_data])
-        if tpm:
-            with fileOps.opengz(counts_tsv) as counts_fh:
-                counts_to_tpm(counts_fh, compressed_path(output + '.isoforms.tpm.tsv'),
-                              isoform_lengths(gene_data, fusions), empty_ok=True)
+        with fileOps.opengz(counts_tsv) as counts_fh:
+            counts_to_cpm(counts_fh, compressed_path(output + '.isoforms.cpm.tsv'), empty_ok=True)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

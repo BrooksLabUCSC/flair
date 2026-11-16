@@ -634,23 +634,23 @@ quantify-tests: test-quantify test-quantify-normends test-quantify-onethread-kee
 	test-quantify-bgzip-genome test-quantify-fusion test-quantify-fusion-3gene test-quantify-help
 
 test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${QUANTIFY_MANIFEST}
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map -o $O/$@
 	$(call cmp_expect,$@.isoforms.counts.tsv)
 	$(call cmp_expect,$@.isoforms.sample_info.tsv)
-	$(call cmp_expect,$@.isoforms.tpm.tsv)
+	$(call cmp_expect,$@.isoforms.cpm.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.A1.read.map.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.B3.read.map.tsv)
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${QUANTIFY_MANIFEST}
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ --normalize_ends
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map -o $O/$@ --normalize_ends
 	$(call cmp_expect,$@.isoforms.counts.tsv)
 	$(call cmp_expect,$@.isoforms.sample_info.tsv)
-	$(call cmp_expect,$@.isoforms.tpm.tsv)
+	$(call cmp_expect,$@.isoforms.cpm.tsv)
 
 # one thread, without the pool, and the intermediate files kept: the same counts as test-quantify
 test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${QUANTIFY_MANIFEST}
 	rm -rf $O/$@.tmp
-	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@ \
+	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map -o $O/$@ \
 	   -t 1 --temp_dir $O/$@.tmp --keep_intermediate
 	diff $E/test-quantify.isoforms.counts.tsv $O/$@.isoforms.counts.tsv
 	diff <(bin/read-map-sort < $E/test-quantify.isoforms.A1.read.map.tsv) <(bin/read-map-sort < $O/$@.isoforms.A1.read.map.tsv)
@@ -661,9 +661,9 @@ test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GE
 test-quantify-fusion: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${FUSION_TEST_BAM} ${QUANTIFY_MANIFEST}
 	( cat $(QUANTIFY_MANIFEST) && printf 'fusion\tF\tb0\t%s\n' ${FUSION_TEST_BAM} ) > $O/$@.manifest.tsv
 	flair quantify --manifest $O/$@.manifest.tsv --genome ${GENOME_FA} --isoform_bed $E/test-combine-files.combined.isoforms.bed \
-	   --generate_map --tpm -o $O/$@
+	   --generate_map -o $O/$@
 	$(call cmp_expect,$@.isoforms.counts.tsv)
-	$(call cmp_expect,$@.isoforms.tpm.tsv)
+	$(call cmp_expect,$@.isoforms.cpm.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.fusion.read.map.tsv)
 
 # a three-piece fusion: flair fusion's counts (test-fusion-3gene)
@@ -677,10 +677,10 @@ test-quantify-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 test-quantify-compress: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} \
 		${TI}/test-transcriptome.isoforms.bed.gz $O/basic.bam_manifest.txt.gz
 	flair --compress quantify --manifest $O/basic.bam_manifest.txt.gz --genome ${GENOME_FA} \
-	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --generate_map --tpm -o $O/$@
+	   --isoform_bed ${TI}/test-transcriptome.isoforms.bed.gz --generate_map -o $O/$@
 	$(call cmp_expect_gz,$@.isoforms.counts.tsv,test-quantify.isoforms.counts.tsv)
 	$(call cmp_expect_gz,$@.isoforms.sample_info.tsv,test-quantify.isoforms.sample_info.tsv)
-	$(call cmp_expect_gz,$@.isoforms.tpm.tsv,test-quantify.isoforms.tpm.tsv)
+	$(call cmp_expect_gz,$@.isoforms.cpm.tsv,test-quantify.isoforms.cpm.tsv)
 	@# read maps are bgzip, which flair isoalleles reads by offset, holding the same reads
 	htsfile $O/$@.isoforms.A1.read.map.tsv.gz | grep -q BGZF
 	diff <(bin/read-map-sort < $E/test-quantify.isoforms.A1.read.map.tsv) <(gunzip -c $O/$@.isoforms.A1.read.map.tsv.gz | bin/read-map-sort)
@@ -688,9 +688,9 @@ test-quantify-compress: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_F
 # the genome bgzipped and indexed, every other input plain
 test-quantify-bgzip-genome: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${BGZIP_GENOME_FA} ${QUANTIFY_MANIFEST}
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${BGZIP_GENOME_FA} \
-	   --isoform_bed $(TOME_ISOFORM_BED) --generate_map --tpm -o $O/$@
+	   --isoform_bed $(TOME_ISOFORM_BED) --generate_map -o $O/$@
 	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-quantify.isoforms.counts.tsv)
-	$(call cmp_expect_named,$@.isoforms.tpm.tsv,test-quantify.isoforms.tpm.tsv)
+	$(call cmp_expect_named,$@.isoforms.cpm.tsv,test-quantify.isoforms.cpm.tsv)
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out

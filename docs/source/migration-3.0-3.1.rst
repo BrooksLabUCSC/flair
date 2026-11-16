@@ -136,6 +136,8 @@ flair quantify
 
 - ``--output_bam``, ``--sample_id_only``
 - ``--quality``
+- ``--tpm``: the table it asked for is now always written, as
+  ``<output>.isoforms.cpm.tsv``
 - ``--stringent`` and ``--check_splice``: both requirements now always apply to read
   assignment, so there is nothing to turn on
 - ``--with_gene``: the counts matrix always names the gene, in its own column
@@ -154,6 +156,10 @@ flair quantify
   packed into the counts matrix column names, which now hold the sample id alone.
   ``flair diffexp`` and ``flair diffsplice`` read that file.
 - Read maps are ``<output>.isoforms.<sample>.read.map.tsv``.
+- ``<output>.tpm.tsv`` is ``<output>.isoforms.cpm.tsv``, written by every run.  It
+  held counts per million under the name TPM, and is now named for what it holds: a
+  long read is not one transcript, since reads are fragmented, so the counts are not
+  normalized by isoform length.
 
 flair combine
 -------------
@@ -299,7 +305,7 @@ Standalone programs
 File formats
 ------------
 
-- The counts matrix and the TPM table open with ``gene_id`` and ``isoform_id`` where
+- The counts matrix and the CPM table open with ``gene_id`` and ``isoform_id`` where
   they had one ``ID`` column holding ``<isoform>_<gene>``. A counts matrix from an
   earlier FLAIR, whose sample columns are named ``sample_condition_batch``, is still
   read: the fields are taken back out of the column name.

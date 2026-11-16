@@ -5,8 +5,8 @@ from flair import FlairInputDataError
 from flair.flair_bed import FlairBed
 from flair.pycbio.hgdata.bed import BedBlock
 from flair.io_utils import read_manifest_rows
-from flair.flair_quantify import load_manifest, load_isoform_data, check_bam_chromosomes, isoform_lengths
-from flair.counts_to_tpm import counts_to_tpm
+from flair.flair_quantify import load_manifest, load_isoform_data, check_bam_chromosomes
+from flair.counts_to_cpm import counts_to_cpm
 from flair.flair_spliceevents import read_manifest as spliceevents_manifest
 
 _HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 2000}]})
@@ -118,31 +118,19 @@ def test_bam_with_none_of_the_isoforms_chromosomes_is_an_error(tmp_path):
         check_bam_chromosomes([('s1', 'A', 'b0', bam)], gene_data, fusions, 'isoforms.bed')
 
 
-def test_tpm_of_a_sample_with_no_counts(tmp_path):
+def test_cpm_of_a_sample_with_no_counts(tmp_path):
     counts = 'gene_id\tisoform_id\ts1\ts2\nG1\tT1\t3\t0\nG1\tT2\t1\t0\n'
-    sizes = {'T1': 1000, 'T2': 1000}
     with pytest.raises(FlairInputDataError, match='samples s2 have no counts in any row'):
-        counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'), sizes)
-    assert counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'), sizes, empty_ok=True) == ['s2']
-    assert (tmp_path / 'tpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2', 'G1\tT1\t750000.0\t0',
+        counts_to_cpm(io.StringIO(counts), str(tmp_path / 'cpm.tsv'))
+    assert counts_to_cpm(io.StringIO(counts), str(tmp_path / 'cpm.tsv'), empty_ok=True) == ['s2']
+    assert (tmp_path / 'cpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2', 'G1\tT1\t750000.0\t0',
                                                                'G1\tT2\t250000.0\t0']
 
 
-def test_tpm_divides_the_counts_by_the_isoform_length(tmp_path):
-    counts = 'gene_id\tisoform_id\ts1\nG1\tT1\t3\nG1\tT2\t3\n'
-    counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'), {'T1': 1000, 'T2': 3000})
-    # equal counts over a third of the length is three times the reads per kilobase
-    assert (tmp_path / 'tpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1', 'G1\tT1\t750000.0',
-                                                               'G1\tT2\t250000.0']
-
-
-def test_tpm_of_an_isoform_with_no_length(tmp_path):
-    counts = 'gene_id\tisoform_id\ts1\nG1\tT1\t3\n'
-    with pytest.raises(FlairInputDataError, match='no length for isoform T1'):
-        counts_to_tpm(io.StringIO(counts), str(tmp_path / 'tpm.tsv'), {})
-
-
-def test_isoform_length_is_the_sum_of_its_blocks(tmp_path):
-    gene_data, fusions = load_isoform_data(_bed(tmp_path, _iso('T1', 'G1'),
-                                                _iso('T2', 'G1', exons=((100, 250),))))
-    assert isoform_lengths(gene_data, fusions) == {'T1': 200, 'T2': 150}
+def test_cpm_is_the_count_over_the_sample_total(tmp_path):
+    counts = 'gene_id\tisoform_id\ts1\ts2\nG1\tT1\t1\t3\nG1\tT2\t3\t1\n'
+    counts_to_cpm(io.StringIO(counts), str(tmp_path / 'cpm.tsv'))
+    # the same four reads in each sample, so each row is its count over four
+    assert (tmp_path / 'cpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2',
+                                                               'G1\tT1\t250000.0\t750000.0',
+                                                               'G1\tT2\t750000.0\t250000.0']

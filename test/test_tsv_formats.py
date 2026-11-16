@@ -26,7 +26,7 @@ from flair.splicing_events_tsv import SplicingEventsReader, SplicingEventsWriter
 from flair.splicing_totals_tsv import SplicingTotalsReader, SplicingTotalsWriter
 from flair.read_chains_tsv import ReadChainsReader, read_chains_writer
 from flair.splicing_outliers_tsv import SplicingOutliersReader, SplicingOutliersWriter
-from flair.tpm_tsv import CountsRow, TpmReader, tpm_writer
+from flair.cpm_tsv import CountsRow, CpmReader, cpm_writer
 from flair.transcript_counts_tsv import TranscriptCountsReader, TranscriptCountsWriter
 
 def chained_messages(ex):
@@ -237,11 +237,11 @@ def test_transcript_counts_round_trip(tmp_path):
     assert [(r.transcript, r.count) for r in TranscriptCountsReader(path)] == [('iso1', 5),
                                                                                ('iso2', 0)]
 
-def test_tpm_round_trip(tmp_path):
-    path = tsv_path(tmp_path, 'x.tpm.tsv')
-    with tpm_writer(path, ['s1', 's2']) as writer:
+def test_cpm_round_trip(tmp_path):
+    path = tsv_path(tmp_path, 'x.cpm.tsv')
+    with cpm_writer(path, ['s1', 's2']) as writer:
         writer.writeCountsRow(CountsRow('gene1', 'iso1', [1.5, 2.5]))
-    with TpmReader(path) as reader:
+    with CpmReader(path) as reader:
         assert [r.counts for r in reader] == [[1.5, 2.5]]
 
 @pytest.mark.parametrize('table', sorted(ISOALLELES_TABLES))

@@ -68,7 +68,7 @@ class _CountsMatrixTsvRow(TsvRow):
 
 class CountsMatrixReader(TsvReader):
     """Reads a counts matrix, checking the id columns and converting every sample
-    column with countType, int for counts and float for a TPM matrix.  Iterating
+    column with countType, int for counts and float for a CPM matrix.  Iterating
     yields CountsRow."""
 
     def __init__(self, counts_matrix_tsv, *, countType=int):

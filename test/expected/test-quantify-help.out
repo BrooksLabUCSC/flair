@@ -1,8 +1,7 @@
 usage: flair quantify [-h] --manifest MANIFEST -g GENOME
                       --isoform_bed ISOFORM_BED [-o OUTPUT] [-t THREADS]
-                      [--tpm] [--trust_ends] [--generate_map]
-                      [--normalize_ends] [--temp_dir TEMP_DIR]
-                      [--keep_intermediate]
+                      [--trust_ends] [--generate_map] [--normalize_ends]
+                      [--temp_dir TEMP_DIR] [--keep_intermediate]
 
 Quantify the expression level of isoforms across samples
 
@@ -13,8 +12,6 @@ options:
   -t, --threads THREADS
                         number of threads: batches of genes counted at once,
                         with minimap2 given any left idle (default: 4)
-  --tpm                 also write the counts as transcripts per million,
-                        <output>.isoforms.tpm.tsv
   --trust_ends          count a read for a spliced isoform only if its ends
                         are within 50 bp of the isoform's, for reads of full-
                         length molecules, as from a protocol with little

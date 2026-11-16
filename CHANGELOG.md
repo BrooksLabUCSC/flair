@@ -15,7 +15,7 @@
     | combine | `OUT.combined.isoform.map.tsv` | `OUT.combined.isoforms.map.tsv` |
     | combine | `OUT.combined.gene.map.tsv` | `OUT.combined.genes.map.tsv` |
     | quantify | `OUT.counts.tsv` | `OUT.isoforms.counts.tsv` |
-    | quantify | `OUT.tpm.tsv` | `OUT.isoforms.tpm.tsv` |
+    | quantify | `OUT.tpm.tsv` | `OUT.isoforms.cpm.tsv` |
     | quantify | `OUT.sample_info.tsv` | `OUT.isoforms.sample_info.tsv` |
     | quantify | `OUT.SAMPLE.read.map.tsv` | `OUT.isoforms.SAMPLE.read.map.tsv` |
     | fusion | `OUT.fusions.isoform.counts.tsv` | `OUT.fusions.isoforms.counts.tsv` |
@@ -701,13 +701,13 @@
   * `flair transcriptome --ss_window` defaults to 10 (was 15).
   * `count_sam_transcripts` no longer takes `--quality`, `--fusion_dist` or
     `--end_norm_dist`.
-  * `flair quantify --tpm` writes transcripts per million.  Since v1.5 it wrote
-    reads per million: the counts were scaled to a million without being divided
-    by the isoform's length.  Every isoform whose length differs from the mean
-    gets a different value, and the isoforms of a sample can change order.  The
-    length is the sum of the isoform's blocks in `--isoform_bed`, and for a fusion
-    the sum over its pieces.  `counts_to_tpm` now requires the isoform lengths
-    rather than taking them as an option.
+  * `flair quantify --tpm` is gone, and `<output>.isoforms.cpm.tsv` is written by
+    every run.  The option wrote `<output>.isoforms.tpm.tsv`, which held counts per
+    million, never transcripts per million: the counts were scaled to a million and
+    not divided by the isoform's length.  That is what was intended, since a long
+    read is not one transcript when reads are fragmented, so the file is now named
+    for what it holds.  `counts_to_tpm` is `counts_to_cpm` and no longer takes
+    isoform lengths (#718).
     
 ## [v3.0.0] 2025-11-31
 * General

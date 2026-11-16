@@ -82,7 +82,7 @@ def _inputs(tmp_path):
 def _run(tmp_path, threads, trust_ends=False):
     manifest, genome, bed = _inputs(tmp_path)
     output = str(tmp_path / 'out')
-    quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=output, threads=threads, tpm=False,
+    quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=output, threads=threads,
              trust_ends=trust_ends, generate_map=True, normalize_ends=False,
              temp_dir=str(tmp_path / 'tmp'))
     counts = [line.rstrip('\n').split('\t') for line in open(output + '.isoforms.counts.tsv')]
@@ -136,7 +136,7 @@ def test_read_map_per_sample_matches_its_counts_column(tmp_path):
         fh.write(f's1\tA\tb0\t{s1_bam}\ns2\tB\tb0\t{s2_bam}\n')
 
     output = str(tmp_path / 'out')
-    quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=output, threads=1, tpm=False,
+    quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=output, threads=1,
              trust_ends=False, generate_map=True, normalize_ends=False, temp_dir=str(tmp_path / 'tmp'))
 
     counts = [line.split('\t') for line in open(output + '.isoforms.counts.tsv').read().splitlines()]
@@ -176,5 +176,5 @@ def test_repeated_read_id_is_an_error(tmp_path):
 
     with pytest.raises(FlairInputDataError, match=r'1 read ids name more than one read .*a_full'):
         quantify(manifest=manifest, genome=genome, isoform_bed=bed, output=str(tmp_path / 'out'),
-                 threads=1, tpm=False, trust_ends=False, generate_map=True, normalize_ends=False,
+                 threads=1, trust_ends=False, generate_map=True, normalize_ends=False,
                  temp_dir=str(tmp_path / 'tmp'))

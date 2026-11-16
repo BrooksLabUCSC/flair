@@ -172,7 +172,7 @@ def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
         raise FlairInputDataError(f"no isoform's median count differs between the two conditions by more "
                                   f"than {MIN_MEDIAN_COUNT_DIFF} reads, so there is nothing to test; check "
                                   "that the conditions compared are the ones meant and that the matrix "
-                                  "holds read counts rather than TPM")
+                                  "holds read counts rather than counts per million")
 
     # Apply multiple-testing correction.  This is Holm-Sidak, not Benjamini-Hochberg
     # as this comment used to say: the adjusted values control the family-wise error

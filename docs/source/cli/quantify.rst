@@ -6,9 +6,8 @@
 
    usage: flair quantify [-h] --manifest MANIFEST -g GENOME
                          --isoform_bed ISOFORM_BED [-o OUTPUT] [-t THREADS]
-                         [--tpm] [--trust_ends] [--generate_map]
-                         [--normalize_ends] [--temp_dir TEMP_DIR]
-                         [--keep_intermediate]
+                         [--trust_ends] [--generate_map] [--normalize_ends]
+                         [--temp_dir TEMP_DIR] [--keep_intermediate]
 
 .. rubric:: options
 
@@ -19,10 +18,6 @@
 .. option:: -t, --threads THREADS
 
    number of threads: batches of genes counted at once, with minimap2 given any left idle (default: 4)
-
-.. option:: --tpm
-
-   also write the counts as transcripts per million, <output>.isoforms.tpm.tsv
 
 .. option:: --trust_ends
 
