@@ -509,7 +509,10 @@ def return_best_transcript_stringent(passing_transcripts, genomicclipping, soft_
         min_divergence = min(x[0] for x in passing_transcripts)
         passing_transcripts = [x for x in passing_transcripts if x[0] == min_divergence]
         passes_end_qual = []
-        clipping_min = sorted(passing_transcripts, key=lambda x: x[-2][3] + x[-1][3])[0]
+        # the least clipped alignment, broken by transcript name, since the two
+        # lengths become the threshold below and alignments tied on their sum can
+        # split it differently between the ends
+        clipping_min = min(passing_transcripts, key=lambda x: (x[-2][3] + x[-1][3], x[6]))
         clipping_min = (clipping_min[-2][3], clipping_min[-1][3])
         for t in passing_transcripts:
             # check each end for either has minimum clipping, or has 0 distance to transcript end

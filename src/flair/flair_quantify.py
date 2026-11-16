@@ -597,7 +597,9 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
     isoforms in the bed's order, then the fusions.  A read map has a row per isoform:
     a batch can assign a read to an isoform of a later batch, the read starting in
     this batch's loci but the isoform being another's, so those reads wait until that
-    batch is written.  Returns each sample's total reads counted."""
+    batch is written.  A row is written when its batch finishes, so the row order
+    follows the batching, which --threads sets; the reads of a row are sorted, since
+    they are collected batch by batch.  Returns each sample's total reads counted."""
     counts = {}
     # bgzip when compressed, so flair isoalleles can read an isoform's row by its offset
     map_paths = [f'{output}.isoforms.{sample}.read.map.tsv' for sample, *_ in sample_data] if generate_map else []
@@ -612,10 +614,10 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
                     if generate_map:
                         waiting[i].setdefault(name, []).extend(reads)
                 for name in [name for name in waiting[i] if name in own]:
-                    map_writers[i].writeReads(name, waiting[i].pop(name))
+                    map_writers[i].writeReads(name, sorted(waiting[i].pop(name)))
         for writer, left in zip(map_writers, waiting):
             for name, reads in left.items():
-                writer.writeReads(name, reads)
+                writer.writeReads(name, sorted(reads))
     finally:
         for writer, fh in zip(map_writers, map_fhs):
             writer.close()

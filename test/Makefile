@@ -385,27 +385,12 @@ define cmp_expect_help
 endef
 
 ##
-# Expected and output are sorted in cases where the order is not stable.  In
-# this case, we first test for the file as sorted input subsitution failure
-# isn't propigate by shell.
-##
-define cmp_expect_sort
-	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
-	diff <(sort $E/${1}) <(sort $O/${1})
-endef
-
-##
 # compare a compression test's output against the expected file of the plain test,
 # which is what it must reproduce from gzipped input
 ##
 define cmp_expect_named
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff $E/${2} $O/${1}
-endef
-
-define cmp_expect_sort_named
-	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
-	diff <(sort $E/${2}) <(sort $O/${1})
 endef
 
 ##
@@ -415,11 +400,6 @@ endef
 define cmp_expect_gz
 	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
 	diff $E/${2} <(zcat $O/${1}.gz)
-endef
-
-define cmp_expect_sort_gz
-	@test -e $O/${1}.gz || (echo Error: output file missing: $O/${1}.gz; exit 1)
-	diff <(sort $E/${2}) <(sort <(zcat $O/${1}.gz))
 endef
 
 ##
@@ -443,7 +423,8 @@ endef
 # compare an output file against another output file, for tests that must produce
 # the same result as an earlier test from differently arranged input
 ##
-# a read map, merged by isoform and sorted (bin/read-map-sort), as threading orders it
+# a read map, merged by isoform and sorted (bin/read-map-sort): quantify writes a row
+# when its batch finishes, so the row order follows the batching that --threads sets
 define cmp_expect_read_map
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff <(bin/read-map-sort < $E/${1}) <(bin/read-map-sort < $O/${1})
@@ -548,11 +529,6 @@ ${SHARED_JUNC_ANNOTATION}: ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF}
 	mv -f $@.tmp $@
 
 # macros to do comparions with expected results
-# FIXME: make sort version go away by making results stable
-define diff_bed_gtf_sort
-	$(call cmp_expect_sort,$@.isoforms.bed)
-	$(call cmp_expect_sort,$@.isoforms.gtf)
-endef
 define diff_bed_gtf
 	$(call cmp_expect,$@.isoforms.bed)
 	$(call cmp_expect,$@.isoforms.gtf)
@@ -729,9 +705,9 @@ diffexp-tests: test-diffexp test-diffexp-compress test-diffexp-colorder test-dif
 test-diffexp : mkdirs
 	flair diffexp --counts_matrix $(BASIC_COUNTS_MATRIX) -o $O/$@ --min_expression 1 \
 	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	$(call cmp_expect_sort,$@/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_sort,$@/isoforms_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 # same counts, columns interleaved rather than grouped by condition, compared against
 # the same expected results.  Taking the conditions from the first and last column
@@ -739,8 +715,8 @@ test-diffexp : mkdirs
 test-diffexp-compress: mkdirs ${TI}/basic.counts_matrix.diffexp.tsv.gz
 	flair -z diffexp --counts_matrix ${TI}/basic.counts_matrix.diffexp.tsv.gz -o $O/$@ --min_expression 1 \
 	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	$(call cmp_expect_sort_gz,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_sort_gz,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_gz,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_gz,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
 
 test-diffexp-colorder : mkdirs test-diffexp
 	${PYTHON} bin/tsv-condition-interleave $(BASIC_COUNTS_MATRIX) $O/$@.counts_matrix.tsv
@@ -759,7 +735,7 @@ test-diffexp-spliceevents: mkdirs
 	   --condition_a MCF7 --condition_b A549 --overwrite_output
 	test ! -e $O/$@/genes_deseq2_MCF7_v_A549.tsv
 	! grep -q '|other' $O/$@/isoforms_drimseq_MCF7_v_A549.tsv $O/$@/isoforms_sig_exp_change_norm_by_gene.tsv
-	$(call cmp_expect_sort,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help > $O/$@.out
@@ -772,10 +748,10 @@ diffsplice-tests: test-diffsplice test-diffsplice-cond test-diffsplice-strands t
 
 test-diffsplice: mkdirs
 	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output
-	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
 	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.ir.events.quant.tsv)
 	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
 	$(call cmp_expect,$@/drimseq_alt5_A_v_B.tsv)
 	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
@@ -784,7 +760,7 @@ test-diffsplice: mkdirs
 test-diffsplice-compress: mkdirs ${TI}/basic.isoforms.diffsplice.bed.gz ${TI}/basic.counts_matrix.diffsplice.tsv.gz
 	flair -z diffsplice --isoform_bed ${TI}/basic.isoforms.diffsplice.bed.gz \
 	   --counts_matrix ${TI}/basic.counts_matrix.diffsplice.tsv.gz --test -o $O/$@ --overwrite_output
-	$(call cmp_expect_sort_gz,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_gz,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
 	$(call cmp_expect_gz,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
 	$(call cmp_expect_gz,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
 	$(call cmp_expect_gz,$@/drimseq_ir_A_v_B.tsv,test-diffsplice/drimseq_ir_A_v_B.tsv)
@@ -808,10 +784,10 @@ test-diffsplice-cond: mkdirs test-diffsplice
 ##
 test-diffsplice-strands: mkdirs
 	flair diffsplice --isoform_bed $(STRANDS_DIFFSPLICE_BED) --counts_matrix $(STRANDS_DIFFSPLICE_MATRIX) -o $O/$@ --overwrite_output
-	$(call cmp_expect_sort,$@/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect_sort,$@/diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
 	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect_sort,$@/diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect,$@/diffsplice.ir.events.quant.tsv)
 
 test-diffsplice-help: mkdirs
 	flair diffsplice --help > $O/$@.out
@@ -1354,10 +1330,10 @@ update-fusion-tests:
 
 test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
-	$(call cmp_expect_sort,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
 	$(call cmp_expect,$@.fusions.aaseq.tsv)
 	test -s $O/$@.fusions.isoforms.read.map.tsv -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
@@ -1368,16 +1344,16 @@ test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 test-fusion-recall: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2 \
 	    --filter comprehensive --frac_support 0
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
-	$(call cmp_expect_sort,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
 
 # the sample name is the one test-fusion used, since it is written into the BED
 test-fusion-compress: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM} ${TI}/basic.annotation.gtf.gz
 	flair -z fusion -g ${GENOME_FA} -f ${TI}/basic.annotation.gtf.gz -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name test-fusion --min_support 2
-	$(call cmp_expect_sort_gz,$@.fusions.isoforms.bed,test-fusion.fusions.isoforms.bed)
-	$(call cmp_expect_sort_gz,$@.fusions.isoforms.fa,test-fusion.fusions.isoforms.fa)
+	$(call cmp_expect_gz,$@.fusions.isoforms.bed,test-fusion.fusions.isoforms.bed)
+	$(call cmp_expect_gz,$@.fusions.isoforms.fa,test-fusion.fusions.isoforms.fa)
 	$(call check_gz,$@.fusions.isoforms.gtf)
 	$(call check_fasta_indexable,$@.fusions.isoforms.fa)
 
@@ -1390,22 +1366,22 @@ test-fusion-max-partners: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_
 
 test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
 
 test-fusion-nongenic: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/basic.annotation.ERGIC3_only.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
 
 test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
-	$(call cmp_expect_sort,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
 	$(call cmp_expect,$@.fusions.aaseq.tsv)
 	test -s $O/$@.fusions.isoforms.read.map.tsv -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
 
@@ -1425,8 +1401,8 @@ test-fusion-sorted-gtf: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TE
 # gene_name attribute, BestRefSeq and Gnomon transcripts
 test-fusion-refseq: mkdirs ${REFSEQ_GENOME_FA} ${REFSEQ_FUSION_TEST_BAM}
 	flair fusion -g ${REFSEQ_GENOME_FA} -f $I/refseq.test.annotation.gtf -b ${REFSEQ_FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
 
 ${REFSEQ_FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${REFSEQ_GENOME_FA}
@@ -1435,8 +1411,8 @@ ${REFSEQ_FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${REFSEQ_GENOME_FA}
 # genome chimeras only: no transcriptome alignment
 test-fusion-no-tome: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2 --no_transcriptome_alignment
-	$(call cmp_expect_sort,$@.fusions.isoforms.bed)
-	$(call cmp_expect_sort,$@.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
 
 ${FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
@@ -1467,11 +1443,11 @@ test-isoalleles-help: mkdirs
 	$(call cmp_expect_help,$@.out)
 
 define spliceevents_diff
-	$(call cmp_expect_sort,$(1).spliceevents.bed)
-	$(call cmp_expect_sort,$(1).spliceevents.counts.tsv)
-	$(call cmp_expect_sort,$(1).spliceevents.psi_junc.tsv)
-	$(call cmp_expect_sort,$(1).spliceevents.psi_tot.tsv)
-	$(call cmp_expect_sort,$(1).spliceevents.totals.tsv)
+	$(call cmp_expect,$(1).spliceevents.bed)
+	$(call cmp_expect,$(1).spliceevents.counts.tsv)
+	$(call cmp_expect,$(1).spliceevents.psi_junc.tsv)
+	$(call cmp_expect,$(1).spliceevents.psi_tot.tsv)
+	$(call cmp_expect,$(1).spliceevents.totals.tsv)
 	$(call cmp_expect,$(1).spliceevents.regions.bed)
 endef
 
@@ -1487,11 +1463,11 @@ test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS} ${SPLICEEVENTS_MUL
 	flair spliceevents -m $(SPLICEEVENTS_MULTI_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call spliceevents_diff,$@)
 	python3 ../src/flair/spliceevents_outliers.py -i $O/$@ -o $O/$@
-	$(call cmp_expect_sort,$@.spliceevents.outliers.tsv)
-	$(call cmp_expect_sort,$@.spliceevents.outliers.filtered.tsv)
+	$(call cmp_expect,$@.spliceevents.outliers.tsv)
+	$(call cmp_expect,$@.spliceevents.outliers.filtered.tsv)
 	python3 ../src/flair/spliceevents_outliers.py -i $O/$@ -o $O/$@-psitot --psi tot
-	$(call cmp_expect_sort,$@-psitot.spliceevents.outliers.tsv)
-	$(call cmp_expect_sort,$@-psitot.spliceevents.outliers.filtered.tsv)
+	$(call cmp_expect,$@-psitot.spliceevents.outliers.tsv)
+	$(call cmp_expect,$@-psitot.spliceevents.outliers.filtered.tsv)
 
 # a region cutting KRAS: of its events, only the exon skip lies inside, and its
 # rows are those of the whole-genome run, though many of its reads run past the
@@ -1523,14 +1499,14 @@ test-spliceevents-region-partition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MAN
 test-spliceevents-smallparts: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition_items 1 -o $O/$@
 	for s in bed counts.tsv psi_junc.tsv psi_tot.tsv totals.tsv; do \
-	    diff <(sort $E/test-spliceevents.spliceevents.$$s) <(sort $O/$@.spliceevents.$$s) || exit 1; done
+	    diff $E/test-spliceevents.spliceevents.$$s $O/$@.spliceevents.$$s || exit 1; done
 	$(call cmp_expect,$@.spliceevents.regions.bed)
 
 # whole chromosomes, not cut, give the events of the cut ones
 test-spliceevents-nopartition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition_items 0 -o $O/$@
 	for s in bed counts.tsv psi_junc.tsv psi_tot.tsv totals.tsv; do \
-	    diff <(sort $E/test-spliceevents.spliceevents.$$s) <(sort $O/$@.spliceevents.$$s) || exit 1; done
+	    diff $E/test-spliceevents.spliceevents.$$s $O/$@.spliceevents.$$s || exit 1; done
 
 # a rerun with --keep_intermediate corrects only the samples without their corrected
 # reads, here the one whose file is removed, and gives the same tables
