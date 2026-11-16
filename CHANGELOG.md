@@ -26,6 +26,15 @@
   * an exon starting exactly on a synthetic locus boundary is no longer lost,
     and an isoform whose exons cannot all be placed in one locus is skipped
     with a message rather than written with the wrong blocks
+* FLAIR quantify
+  * `--tpm` writes transcripts per million.  Since v1.5 it wrote reads per
+    million: the counts were scaled to a million without being divided by the
+    isoform's length (#718).  Every isoform whose length differs from the mean
+    gets a different value, and the isoforms of a sample can change order.  The
+    length is taken from the isoform FASTA given with `-i`
+  * `counts_to_tpm` takes the isoform lengths rather than making them optional,
+    so there is no longer a path that silently skips the normalization, and it
+    is importable as a function
 * Documentation
   * corrected the v3.0.0 release date in this file to 2026-01-30
   * installing.rst no longer shows a release version for a `+master` tree

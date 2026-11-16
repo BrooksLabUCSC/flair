@@ -12,8 +12,28 @@ import tempfile
 import time
 import logging
 import pipettor, pysam
+from flair import FlairInputDataError
+from flair.counts_to_tpm import counts_to_tpm
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+
+def isoform_lengths(fasta):
+    """the length in bases of every sequence of the isoform fasta, named as minimap2
+    names it in its alignments: the header up to the first blank"""
+    lengths = {}
+    name = None
+    with open(fasta) as fh:
+        for line in fh:
+            if line.startswith('>'):
+                name = line[1:].split()[0]
+                lengths[name] = 0
+            elif name is None:
+                raise FlairInputDataError(f'{fasta}: sequence before the first > line; it must be a FASTA of the '
+                                          f'isoforms the reads are counted against')
+            else:
+                lengths[name] += len(line.strip())
+    return lengths
+
 
 def quantify(isoform_sequences=''):
     parser = argparse.ArgumentParser(description='takes in many long-read RNA-seq reads files and quantifies them against a single transcriptome. A stringent, full-read-match-based approach')
@@ -139,7 +159,8 @@ def quantify(isoform_sequences=''):
     countMatrix.close()
 
     if args.tpm:
-        pipettor.run([('counts_to_tpm.py', args.o+'.counts.tsv', args.o+'.tpm.tsv')])
+        with open(args.o+'.counts.tsv') as counts_matrix:
+            counts_to_tpm(counts_matrix, args.o+'.tpm.tsv', isoform_lengths(args.i))
     return args.o+'.counts.tsv'
 
 if __name__ == '__main__':
