@@ -661,8 +661,9 @@ test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GE
 test-quantify-fusion: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${FUSION_TEST_BAM} ${QUANTIFY_MANIFEST}
 	( cat $(QUANTIFY_MANIFEST) && printf 'fusion\tF\tb0\t%s\n' ${FUSION_TEST_BAM} ) > $O/$@.manifest.tsv
 	flair quantify --manifest $O/$@.manifest.tsv --genome ${GENOME_FA} --isoform_bed $E/test-combine-files.combined.isoforms.bed \
-	   --generate_map -o $O/$@
+	   --generate_map --tpm -o $O/$@
 	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.tpm.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.fusion.read.map.tsv)
 
 # a three-piece fusion: flair fusion's counts (test-fusion-3gene)

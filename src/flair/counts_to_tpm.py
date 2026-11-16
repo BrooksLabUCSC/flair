@@ -15,28 +15,25 @@ def parse_args():
                                      description='write a counts matrix as transcripts per million')
     parser.add_argument('counts_matrix', help='the counts matrix of flair quantify')
     parser.add_argument('tpm_matrix', help='the TPM matrix to write')
-    parser.add_argument('isoform_sizes', nargs='?',
-                        help='each isoform\'s length, from fasta_seq_lengths; without it the counts '
-                             'are not length normalized, giving reads per million')
+    parser.add_argument('isoform_sizes',
+                        help='each isoform\'s length, from fasta_seq_lengths')
     return parser.parse_args()
 
-def _isoform_size(sizes, isoform_id, sizefile):
+def _isoform_size(isoform_sizes, isoform_id):
     try:
-        return sizes[isoform_id]
+        return isoform_sizes[isoform_id]
     except KeyError as ex:
-        raise FlairInputDataError(f"{sizefile}: no length for isoform {isoform_id}; the names are the whole "
-                                  f"FASTA header line, so the FASTA the lengths came from must be the one "
-                                  f"the counts matrix names, with no description after the id") from ex
+        raise FlairInputDataError(f"no length for isoform {isoform_id}; a length is needed for every isoform of "
+                                  f"the counts matrix.  From fasta_seq_lengths the names are the whole FASTA "
+                                  f"header line, so that FASTA must be the one the counts matrix names, with no "
+                                  f"description after the id") from ex
 
 
-def counts_to_tpm(counts_matrix, outfilename, sizefile=None, empty_ok=False):
-    """Write a counts matrix as transcripts per million.  A sample with no counts in
-    any row has no TPM: an error, or with empty_ok, 0 in every row.  Returns the names
-    of such samples."""
-    sizes = {}
-    if sizefile:
-        sizes = {row.name: row.length for row in SeqLengthsReader(sizefile)}
-
+def counts_to_tpm(counts_matrix, outfilename, isoform_sizes, empty_ok=False):
+    """Write a counts matrix as transcripts per million, isoform_sizes giving the
+    length in bases of each isoform of the matrix.  A sample with no counts in any row
+    has no TPM: an error, or with empty_ok, 0 in every row.  Returns the names of such
+    samples."""
     header = counts_matrix.readline().rstrip().split('\t')
     num_id_cols = len(ID_COLUMNS)
     num_samples = len(header[num_id_cols:])
@@ -45,11 +42,8 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None, empty_ok=False):
     for line in counts_matrix:
         line = line.rstrip().split('\t')
         ids, counts = line[:num_id_cols], line[num_id_cols:]
-        isoform_id = ids[-1]
-        if sizefile:
-            rpk = [float(count) / _isoform_size(sizes, isoform_id, sizefile) for count in counts]
-        else:
-            rpk = [float(count) for count in counts]
+        size = _isoform_size(isoform_sizes, ids[-1])
+        rpk = [float(count) / size for count in counts]
         for n in range(num_samples):
             all_rpk[n] += rpk[n]
         matrix_data += [ids + rpk]
@@ -72,8 +66,9 @@ def counts_to_tpm(counts_matrix, outfilename, sizefile=None, empty_ok=False):
 def main():
     args = parse_args()
     with cli.ErrorHandler():
+        isoform_sizes = {row.name: row.length for row in SeqLengthsReader(args.isoform_sizes)}
         with fileOps.opengz(args.counts_matrix) as counts_matrix:
-            counts_to_tpm(counts_matrix, args.tpm_matrix, args.isoform_sizes)
+            counts_to_tpm(counts_matrix, args.tpm_matrix, isoform_sizes)
 
 
 if __name__ == '__main__':

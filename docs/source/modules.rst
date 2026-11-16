@@ -412,8 +412,10 @@ contain any characters. A counts matrix from an earlier FLAIR, whose columns are
 named ``sample_condition_batch``, is still read by taking the fields back out of the
 column name.
 
-With ``--tpm``, ``<output>.isoforms.tpm.tsv`` has the counts as transcripts per million; a
-sample with no reads counted has 0 throughout, with a warning.  With
+With ``--tpm``, ``<output>.isoforms.tpm.tsv`` has the counts as transcripts per million:
+each count divided by the isoform's length, the sum of its blocks in ``--isoform_bed``
+and for a fusion the sum over its pieces, then scaled so the sample's column sums to a
+million.  A sample with no reads counted has 0 throughout, with a warning.  With
 ``--generate_map``, ``<output>.isoforms.<sample id>.read.map.tsv`` lists each sample's reads by
 isoform, under a header, a row of an isoform's name and its reads' names,
 comma-separated.  With ``--compress`` these are all written gzipped.

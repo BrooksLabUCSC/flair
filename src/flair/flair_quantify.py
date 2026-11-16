@@ -646,6 +646,15 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
     write_counts_matrix(compressed_path(output + '.isoforms.counts.tsv'), [sample for sample, *_ in sample_data], rows)
     return [sum(sample_counts) for sample_counts in zip(*counts.values())] if counts else [0] * len(sample_data)
 
+def isoform_lengths(gene_data, fusions):
+    """the length in bases of every isoform of the counts matrix: the sum of its
+    blocks, and for a fusion the sum over its pieces"""
+    lengths = {bed.name: bed.coverage
+               for gene_info in gene_data.values() for bed in gene_info.isoform_beds}
+    lengths.update({name: sum(piece.coverage for piece in pieces)
+                    for name, pieces in fusions.items()})
+    return lengths
+
 def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
              trust_ends, generate_map, normalize_ends, temp_dir=None, keep_intermediate=False):
     logging.info('loading isos')
@@ -696,7 +705,8 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
                            for sample, condition, batch, _ in sample_data])
         if tpm:
             with fileOps.opengz(counts_tsv) as counts_fh:
-                counts_to_tpm(counts_fh, compressed_path(output + '.isoforms.tpm.tsv'), empty_ok=True)
+                counts_to_tpm(counts_fh, compressed_path(output + '.isoforms.tpm.tsv'),
+                              isoform_lengths(gene_data, fusions), empty_ok=True)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

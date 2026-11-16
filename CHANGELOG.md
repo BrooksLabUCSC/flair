@@ -701,6 +701,13 @@
   * `flair transcriptome --ss_window` defaults to 10 (was 15).
   * `count_sam_transcripts` no longer takes `--quality`, `--fusion_dist` or
     `--end_norm_dist`.
+  * `flair quantify --tpm` writes transcripts per million.  Since v1.5 it wrote
+    reads per million: the counts were scaled to a million without being divided
+    by the isoform's length.  Every isoform whose length differs from the mean
+    gets a different value, and the isoforms of a sample can change order.  The
+    length is the sum of the isoform's blocks in `--isoform_bed`, and for a fusion
+    the sum over its pieces.  `counts_to_tpm` now requires the isoform lengths
+    rather than taking them as an option.
     
 ## [v3.0.0] 2025-11-31
 * General
