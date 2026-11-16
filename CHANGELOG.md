@@ -706,8 +706,8 @@
     million, never transcripts per million: the counts were scaled to a million and
     not divided by the isoform's length.  That is what was intended, since a long
     read is not one transcript when reads are fragmented, so the file is now named
-    for what it holds.  `counts_to_tpm` is `counts_to_cpm` and no longer takes
-    isoform lengths (#718).
+    for what it holds.  The `counts_to_tpm` program is gone: quantify writes the
+    table itself (#718).
     
 ## [v3.0.0] 2025-11-31
 * General

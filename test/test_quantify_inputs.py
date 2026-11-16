@@ -1,12 +1,12 @@
-import io
 import pytest
 import pysam
 from flair import FlairInputDataError
 from flair.flair_bed import FlairBed
 from flair.pycbio.hgdata.bed import BedBlock
 from flair.io_utils import read_manifest_rows
-from flair.flair_quantify import load_manifest, load_isoform_data, check_bam_chromosomes
-from flair.counts_to_cpm import counts_to_cpm
+from flair.counts_matrix_tsv import CountsRow
+from flair.flair_quantify import (load_manifest, load_isoform_data, check_bam_chromosomes,
+                                  write_cpm_matrix)
 from flair.flair_spliceevents import read_manifest as spliceevents_manifest
 
 _HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 2000}]})
@@ -118,19 +118,17 @@ def test_bam_with_none_of_the_isoforms_chromosomes_is_an_error(tmp_path):
         check_bam_chromosomes([('s1', 'A', 'b0', bam)], gene_data, fusions, 'isoforms.bed')
 
 
-def test_cpm_of_a_sample_with_no_counts(tmp_path):
-    counts = 'gene_id\tisoform_id\ts1\ts2\nG1\tT1\t3\t0\nG1\tT2\t1\t0\n'
-    with pytest.raises(FlairInputDataError, match='samples s2 have no counts in any row'):
-        counts_to_cpm(io.StringIO(counts), str(tmp_path / 'cpm.tsv'))
-    assert counts_to_cpm(io.StringIO(counts), str(tmp_path / 'cpm.tsv'), empty_ok=True) == ['s2']
-    assert (tmp_path / 'cpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2', 'G1\tT1\t750000.0\t0',
-                                                               'G1\tT2\t250000.0\t0']
-
-
 def test_cpm_is_the_count_over_the_sample_total(tmp_path):
-    counts = 'gene_id\tisoform_id\ts1\ts2\nG1\tT1\t1\t3\nG1\tT2\t3\t1\n'
-    counts_to_cpm(io.StringIO(counts), str(tmp_path / 'cpm.tsv'))
+    rows = [CountsRow('G1', 'T1', [1, 3]), CountsRow('G1', 'T2', [3, 1])]
+    write_cpm_matrix(str(tmp_path / 'cpm.tsv'), ['s1', 's2'], rows, [4, 4])
     # the same four reads in each sample, so each row is its count over four
     assert (tmp_path / 'cpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2',
                                                                'G1\tT1\t250000.0\t750000.0',
                                                                'G1\tT2\t750000.0\t250000.0']
+
+
+def test_cpm_of_a_sample_with_no_counts(tmp_path):
+    rows = [CountsRow('G1', 'T1', [3, 0]), CountsRow('G1', 'T2', [1, 0])]
+    write_cpm_matrix(str(tmp_path / 'cpm.tsv'), ['s1', 's2'], rows, [4, 0])
+    assert (tmp_path / 'cpm.tsv').read_text().splitlines() == ['gene_id\tisoform_id\ts1\ts2', 'G1\tT1\t750000.0\t0',
+                                                               'G1\tT2\t250000.0\t0']

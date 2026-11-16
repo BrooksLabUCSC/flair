@@ -24,10 +24,9 @@ from flair.count_sam_transcripts import (run_count_sam_transcripts, TRUST_ENDS_W
 from flair.annotation_precheck import read_introns, splice_sites_cleanly_aligned
 from flair.interval_index import IntervalIndex
 from flair.identify_prelim_fusions import needs_transcriptome
-from flair.counts_to_cpm import counts_to_cpm
+from flair.cpm_tsv import cpm_writer
 from flair.isoform_data import get_reverse_complement, cigar_clipping
 import multiprocessing as mp
-from flair.pycbio.sys import fileOps
 
 
 # the programs a run executes, checked before it starts
@@ -601,14 +600,27 @@ def _count_batch_task(packed):
     finally:
         thread_share.task_done()
 
+def write_cpm_matrix(cpm_tsv, samples, rows, totals):
+    """Write the counts as counts per million: each count over the sample's counted
+    reads, times a million, so each sample's column sums to a million.  A sample with
+    no reads counted gets 0 in every row.  These are counts per million rather than
+    transcripts per million: a long read is not one transcript, since reads are
+    fragmented, so the counts are not normalized by isoform length."""
+    scales = [total / 1e6 for total in totals]
+    with cpm_writer(cpm_tsv, samples) as writer:
+        for row in rows:
+            cpm = [round(count / scale, 5) if scale > 0 else 0
+                   for count, scale in zip(row.counts, scales)]
+            writer.writeCountsRow(CountsRow(row.gene_id, row.isoform_id, cpm))
+
 def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions, output, generate_map):
-    """Write the counts matrix, and with generate_map each sample's read map, from the
-    results of the fusions and of the batches of genes as they arrive, in genomic
-    order, batch_isoforms naming each one's isoforms.  The counts have the genes'
-    isoforms in the bed's order, then the fusions.  A read map has a row per isoform:
-    a batch can assign a read to an isoform of a later batch, the read starting in
-    this batch's loci but the isoform being another's, so those reads wait until that
-    batch is written.  A row is written when its batch finishes, so the row order
+    """Write the counts matrix and the CPM matrix, and with generate_map each sample's
+    read map, from the results of the fusions and of the batches of genes as they
+    arrive, in genomic order, batch_isoforms naming each one's isoforms.  The counts
+    have the genes' isoforms in the bed's order, then the fusions.  A read map has a
+    row per isoform: a batch can assign a read to an isoform of a later batch, the
+    read starting in this batch's loci but the isoform being another's, so those reads
+    wait until that batch is written.  A row is written when its batch finishes, so the row order
     follows the batching, which --threads sets; the reads of a row are sorted, since
     they are collected batch by batch.  Returns each sample's total reads counted."""
     counts = {}
@@ -641,8 +653,11 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
             for gene_id, gene_info in gene_data.items() for bed in gene_info.isoform_beds]
     rows += [CountsRow(pieces[0].gene_id, name, counts.get(name, [0] * len(sample_data)))
              for name, pieces in fusions.items()]
-    write_counts_matrix(compressed_path(output + '.isoforms.counts.tsv'), [sample for sample, *_ in sample_data], rows)
-    return [sum(sample_counts) for sample_counts in zip(*counts.values())] if counts else [0] * len(sample_data)
+    samples = [sample for sample, *_ in sample_data]
+    write_counts_matrix(compressed_path(output + '.isoforms.counts.tsv'), samples, rows)
+    totals = [sum(sample_counts) for sample_counts in zip(*counts.values())] if counts else [0] * len(sample_data)
+    write_cpm_matrix(compressed_path(output + '.isoforms.cpm.tsv'), samples, rows, totals)
+    return totals
 
 def quantify(*, manifest, genome, isoform_bed, output, threads,
              trust_ends, generate_map, normalize_ends, temp_dir=None, keep_intermediate=False):
@@ -691,8 +706,6 @@ def quantify(*, manifest, genome, isoform_bed, output, threads,
         write_sample_info(sample_info_path(counts_tsv),
                           [SampleInfo(sample, condition, batch)
                            for sample, condition, batch, _ in sample_data])
-        with fileOps.opengz(counts_tsv) as counts_fh:
-            counts_to_cpm(counts_fh, compressed_path(output + '.isoforms.cpm.tsv'), empty_ok=True)
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR
         if keep_intermediate:

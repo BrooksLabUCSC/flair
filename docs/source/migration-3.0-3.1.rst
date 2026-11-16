@@ -279,6 +279,7 @@ Standalone programs
 **Gone**
 
 - ``bed_to_sequence``: use ``bedtools getfasta``
+- ``counts_to_tpm``: ``flair quantify`` writes ``<output>.isoforms.cpm.tsv`` itself
 - ``normalize_counts_matrix``
 - ``predictProductivity``: ``flair transcriptome`` writes the productivity call in the
   isoform BED, and ``--predictCDS`` is gone with it
