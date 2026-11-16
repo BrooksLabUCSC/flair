@@ -637,6 +637,8 @@ Optional arguments
     --trust_ends	Specify if reads are generated from a long read method with 
                         minimal fragmentation.
     --generate_map	Create read-to-isoform assignment files for each sample.
+    --cpm	        Also write the counts per million, <output>.tpm.tsv. --tpm is 
+                        the old name of this option.
     --isoform_bed	isoform .bed file, must be specified if --stringent or 
                         --check-splice is specified.
     --stringent	        Supporting reads must cover 80% of their isoform and extend 
@@ -651,6 +653,8 @@ Optional arguments
 
 Other info
 ----------
+``--cpm``, named ``--tpm`` before, writes counts per million: each count over the sample's counted reads, times a million. They are not transcripts per million. Long reads are fragmented, so a read is not a count of one transcript, and the counts are not normalized by isoform length.
+
 Unless ``--sample_id_only`` is specified, the output counts file concatenates id, condition and batch info for each sample. The `flair diffexp` and `flair diffsplice` modules expect this information.
 
 .. code:: text

@@ -26,6 +26,12 @@
   * an exon starting exactly on a synthetic locus boundary is no longer lost,
     and an isoform whose exons cannot all be placed in one locus is skipped
     with a message rather than written with the wrong blocks
+* FLAIR quantify
+  * `--cpm` is a new name for `--tpm`, which still works.  The table it writes
+    holds counts per million, not transcripts per million, and has since v1.5
+    (#718).  That is what was intended: a long read is not a count of one
+    transcript when reads are fragmented, so the counts are not normalized by
+    isoform length.  The output file name and the values are unchanged
 * Documentation
   * corrected the v3.0.0 release date in this file to 2026-01-30
   * installing.rst no longer shows a release version for a `+master` tree

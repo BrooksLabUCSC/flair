@@ -1,5 +1,5 @@
 usage: quantify [-h] -r R -i I [-o O] [-t T] [--temp_dir TEMP_DIR]
-                [--sample_id_only] [--tpm] [--quality QUALITY] [--trust_ends]
+                [--sample_id_only] [--cpm] [--quality QUALITY] [--trust_ends]
                 [--generate_map] [--isoform_bed ISOFORMS] [--stringent]
                 [--check_splice] [--output_bam]
 
@@ -14,8 +14,12 @@ options:
   --temp_dir TEMP_DIR   directory to put temporary files. use './" to indicate
                         current directory (default: python tempfile directory)
   --sample_id_only      only use sample id in output header
-  --tpm                 Convert counts matrix to transcripts per million and
-                        output as a separate file named <output>.tpm.tsv
+  --cpm, --tpm          Convert counts matrix to counts per million and output
+                        as a separate file named <output>.tpm.tsv. --tpm is
+                        the old name of this option: the values are counts per
+                        million, not transcripts per million, since a long
+                        read is not one transcript when reads are fragmented,
+                        so the counts are not normalized by isoform length
   --quality QUALITY     minimum MAPQ of read assignment to an isoform (0)
   --trust_ends          specify if reads are generated from a long read method
                         with minimal fragmentation
