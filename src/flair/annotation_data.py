@@ -8,7 +8,7 @@ assignment, and isoform filtering.
 
 from bisect import bisect_left
 from flair import FlairInputDataError
-from flair.isoform_data import Exon, exons_to_juncs
+from flair.isoform_data import Exon, exons_to_juncs, merge_intervals
 
 
 class AnnotData(object):
@@ -40,7 +40,10 @@ class AnnotData(object):
         # FIXME: rename once it is figured out how this works in get_single_exon_gene_overlaps
         self.all_annot_se = {'+': [], '-': []}
 
-        # map of strand -> gene_id -> set of Exon
+        # map of strand -> gene_id -> the exons of the gene's spliced transcripts.
+        # A set of Exon while the annotation is read, then the disjoint (start, end)
+        # of merge_intervals, so that the bases a gene covers are counted without the
+        # union being rebuilt on every lookup
         # FIXME: why is strand needed here
         self.spliced_exons = {'+': {}, '-': {}}
 
@@ -138,6 +141,11 @@ def annot_data_from_gtf(gtf_data, region):
     # finalize gene_to_exons as sorted tuples
     for gene_id in annots.gene_to_exons:
         annots.gene_to_exons[gene_id] = tuple(sorted(annots.gene_to_exons[gene_id]))
+    # and each gene's spliced exons as disjoint ranges, once rather than on every
+    # gene assignment (get_spliced_exon_overlaps)
+    for by_gene in annots.spliced_exons.values():
+        for gene_id in by_gene:
+            by_gene[gene_id] = merge_intervals((exon.start, exon.end) for exon in by_gene[gene_id])
     # once, not once per transcript, which made annotation loading quadratic.  The
     # binary search over these needs them sorted
     for se_strand in ('+', '-'):

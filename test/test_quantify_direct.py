@@ -127,10 +127,11 @@ def test_realigned_counts_added_without_a_map(tmp_path):
     assert assigned == {'main': 3, 'upstream': 1}
 
 
-def _gene(gene_id, start, end, n_isoforms=1, chrom='chr1'):
+def _gene(gene_id, start, end, n_isoforms=1, chrom='chr1', read_support=None):
     gene = GeneData(gene_id, chrom, '+')
     for i in range(n_isoforms):
-        gene.add_isoform_bed(FlairBed(chrom, start, end, f'{gene_id}.{i}', strand='+', blocks=[BedBlock(start, end)]))
+        gene.add_isoform_bed(FlairBed(chrom, start, end, f'{gene_id}.{i}', strand='+',
+                                      blocks=[BedBlock(start, end)], read_support=read_support))
     return gene
 
 
@@ -154,9 +155,19 @@ def test_batches_by_chromosome():
 
 def test_loci_grouped_up_to_a_share_of_the_isoforms():
     genes = [_gene('A', 100, 200, 2), _gene('B', 300, 400, 1), _gene('C', 500, 600, 1), _gene('D', 700, 800, 4)]
-    # 8 isoforms over 2 batches: 4 each, a batch closing once it has that many
+    # no read support, so the weight is the isoform count: 8 over 2 batches, 4 each,
+    # a batch closing once it has that many
     assert _batches(genes, 2) == [('chr1', 100, 600, [(100, 200), (300, 400), (500, 600)], None, ['A', 'B', 'C']),
                                   ('chr1', 700, 800, [(700, 800)], 600, ['D'])]
+
+
+def test_loci_grouped_by_the_reads_behind_the_isoforms():
+    # B has one isoform of 100 reads, the others one of none: weight 101 and 1, so
+    # 104 over 2 batches is 52 each and B closes a batch on its own
+    genes = [_gene('A', 100, 200), _gene('B', 300, 400, read_support=100),
+             _gene('C', 500, 600), _gene('D', 700, 800)]
+    assert _batches(genes, 2) == [('chr1', 100, 400, [(100, 200), (300, 400)], None, ['A', 'B']),
+                                  ('chr1', 500, 800, [(500, 600), (700, 800)], 400, ['C', 'D'])]
 
 
 def test_each_read_overlapping_a_locus_taken_by_one_batch(tmp_path):

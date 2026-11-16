@@ -85,7 +85,7 @@ class JunctionCorrector:
         if new_junctions is None:
             return False
         else:
-            readrec.juncs = tuple(Junc(j.start, j.end) for j in new_junctions)
+            readrec.set_juncs(Junc(j.start, j.end) for j in new_junctions)
             readrec.strand = strand
             return True
 

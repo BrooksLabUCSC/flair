@@ -84,6 +84,26 @@ def exons_to_juncs(exons):
             for i in range(len(exons) - 1)]
 
 
+def merge_intervals(intervals):
+    """Overlapping or adjoining (start, end) merged into disjoint ones in position
+    order, so that the bases a set of ranges covers can be summed without counting
+    a base twice."""
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and (start <= merged[-1][1]):
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return tuple(merged)
+
+
+def covered_bases(exons, intervals):
+    """The bases of exons, which must be disjoint and in position order, that the
+    disjoint intervals of merge_intervals cover."""
+    return sum(max(0, min(end, exon.end) - max(start, exon.start))
+               for exon in exons for start, end in intervals)
+
+
 def get_bed_exons_from_juncs(juncs, start, end):
     if len(juncs) == 0:
         exon_starts = [0]
@@ -286,7 +306,8 @@ class ReadRec:
     A Bed record can be produced on demand via to_bed().
 
     Junction tuples are interned via a class-level cache so identical junction
-    chains share a single tuple object.
+    chains share a single tuple object; set_juncs, not an assignment, keeps that
+    true after construction.
     """
 
     # keep on one copy of junction chain
@@ -328,18 +349,24 @@ class ReadRec:
     def exons(self):
         return get_exons(self)
 
+    def set_juncs(self, juncs):
+        """Set the junction chain, interned.  Every assignment after construction goes
+        through this: a corrected chain is shared by as many reads as an aligned one,
+        and assigning the tuple directly gave each read its own copy."""
+        self.juncs = self._intern_juncs(tuple(juncs))
+
     def reset_from_exons(self, exons):
         """Update ReadRec from a list of Exon objects."""
         self.start = exons[0].start
         self.end = exons[-1].end
-        self.juncs = tuple(exons_to_juncs(sorted(exons)))
+        self.set_juncs(exons_to_juncs(sorted(exons)))
 
     def correct_from_annotation(self, start, end, strand, juncs):
         """Update ReadRec with corrected coordinates from annotation match."""
         self.start = start
         self.end = end
         self.strand = strand
-        self.juncs = tuple(juncs)
+        self.set_juncs(juncs)
 
     def _get_both_intprim(read, genome, poly_tails):
         """whether each end, (left, right), is internally primed (internally_primed_end),
@@ -544,11 +571,15 @@ class Isoform:
             return None
         return self.end - self.start
 
+    def set_juncs(self, juncs):
+        "Set the junction chain, interned, as ReadRec.set_juncs does"
+        self.juncs = self._intern_juncs(tuple(juncs))
+
     def reset_from_exons(self, exons):
         """Update Isoform from a list of Exon objects."""
         self.start = exons[0].start
         self.end = exons[-1].end
-        self.juncs = tuple(exons_to_juncs(sorted(exons)))
+        self.set_juncs(exons_to_juncs(sorted(exons)))
 
     def get_sequence(self, genome):
         if self.start is None or self.end is None:

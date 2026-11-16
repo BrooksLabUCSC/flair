@@ -5,7 +5,7 @@ genes by shared splicing.  Used by flair transcriptome, and by flair combine and
 fusion to name genes as transcriptome does."""
 import hashlib
 import logging
-from flair.isoform_data import Exon, Gene, binary_search
+from flair.isoform_data import Exon, Gene, binary_search, covered_bases, merge_intervals
 from flair.junction_correct import UNKNOWN_STRAND
 
 # overlap fraction thresholds for gene assignment
@@ -142,30 +142,19 @@ def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
     return gene_hits
 
 def get_spliced_exon_overlaps(strand, exons, annots):
+    """Genes on the strand whose spliced transcripts' exons cover more than half of
+    the exons' length, as [bases covered, gene_id, strand].  The exons are disjoint
+    and in position order, and annots.spliced_exons holds each gene's exons already
+    merged, so the covered bases are summed over the two sets of ranges."""
+    exon_len = sum(exon.end - exon.start for exon in exons)
     gene_hits = []
-    for annot_gene in annots.spliced_exons[strand]:
-        annot_exons = sorted(list(annots.spliced_exons[strand][annot_gene]))
-        # check if there is overlap in the genes
-        # FIXME: not clear how this checks for overlap
-        if (min((annot_exons[-1].end, exons[-1].end)) > max((annot_exons[0].start, exons[0].start))):
-            covered_pos = set()
-            for ex in exons:
-                for aex in annot_exons:
-                    for p in range(max((aex.start, ex.start)), min((aex.end, ex.end))):
-                        covered_pos.add(p)
-            if len(covered_pos) > sum([x.end - x.start for x in exons]) * 0.5:
-                gene_hits.append([len(covered_pos), annot_gene, strand])
+    for annot_gene, annot_intervals in annots.spliced_exons[strand].items():
+        # the two spans overlap at all; the sum below decides whether enough does
+        if (annot_intervals[0][0] < exons[-1].end) and (annot_intervals[-1][1] > exons[0].start):
+            covered = covered_bases(exons, annot_intervals)
+            if covered > exon_len * 0.5:
+                gene_hits.append([covered, annot_gene, strand])
     return gene_hits
-
-def _merge_intervals(intervals):
-    "merge overlapping (start, end) intervals, sorted by start"
-    merged = []
-    for start, end in sorted(intervals):
-        if merged and start <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], end)
-        else:
-            merged.append([start, end])
-    return merged
 
 def get_unspliced_exon_overlaps(strand, exons, annots):
     """Genes on the strand whose single-exon (unspliced) annotated transcripts cover
@@ -176,8 +165,7 @@ def get_unspliced_exon_overlaps(strand, exons, annots):
     exon_len = sum(e.end - e.start for e in exons)
     gene_hits = []
     for gene_id, intervals in gene_to_intervals.items():
-        covered = sum(max(0, min(e.end, a_end) - max(e.start, a_start))
-                      for e in exons for a_start, a_end in _merge_intervals(intervals))
+        covered = covered_bases(exons, merge_intervals(intervals))
         if covered > exon_len * 0.5:
             gene_hits.append([covered, gene_id, strand])
     return gene_hits

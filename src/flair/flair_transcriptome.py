@@ -1760,6 +1760,32 @@ def write_partition_regions(regions, output):
         write_regions(regions, fh)
 
 
+# a partition worker holds its cluster's reads while it corrects and assembles them,
+# measured at about this much memory per input item (notes, scaling review)
+BYTES_PER_PARTITION_ITEM = 2700
+# the item count past which that is worth saying before the run rather than after it
+LARGE_PARTITION_ITEMS = 2000000
+
+
+def report_partition_sizes(regions, item_counts):
+    """Log the largest cluster and what one worker will need for it.  A cluster is
+    never split (dev/design/clusters-and-partitions.md), so its reads set the most
+    memory any one worker needs, whatever --threads is."""
+    if len(item_counts) == 0:
+        return
+    items = max(item_counts)
+    region = regions[item_counts.index(items)]
+    where = f'{region.name}:{region.start}-{region.end}'
+    logging.info(f'largest partition {where}, {items} reads and annotated transcripts')
+    if items >= LARGE_PARTITION_ITEMS:
+        logging.warning(
+            f'partition {where} holds {items} reads and annotated transcripts, which one worker '
+            f'corrects and assembles on its own, needing roughly '
+            f'{items * BYTES_PER_PARTITION_ITEM / 1e9:.0f} GB.  Overlapping reads are never split '
+            'between partitions, so lower --threads to run fewer of them at once, or give --region '
+            'or --region_bed to work on part of the genome')
+
+
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_star, junction_bed, junction_support, ss_window, end_window,
                         sjc_support, single_exon_support, frac_support, directRNA, trust_strand, keep_internally_primed,
@@ -1819,6 +1845,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
         runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
                                  threads=args.threads, weights=weights)
         logging.info(f'number of partitions: {len(runner)}')
+        report_partition_sizes(regions, weights)
 
         logging.info('running partitions')
         runner.run(_run_region, args=args)

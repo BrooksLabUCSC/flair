@@ -148,10 +148,14 @@ class GeneData():
         self.left_bound = None
         self.right_bound = None
         self.isoform_beds = []
+        # the reads that built the isoforms, from the BED's read_support column, 0
+        # where it is empty.  make_batches weighs a gene by it
+        self.read_support = 0
         self.terminal_exon_ends = GeneTerminalExonEnds(gene_id)
 
     def add_isoform_bed(self, isoform):
         self.isoform_beds.append(isoform)
+        self.read_support += isoform.read_support or 0
         if self.left_bound is None or isoform.chromStart < self.left_bound:
             self.left_bound = isoform.chromStart
         if self.right_bound is None or isoform.chromEnd > self.right_bound:
@@ -228,12 +232,21 @@ def normalize_isoform_ends(gene_data, genome_file):
             gene_info.left_bound = min(bed.chromStart for bed in gene_info.isoform_beds)
             gene_info.right_bound = max(bed.chromEnd for bed in gene_info.isoform_beds)
 
+def gene_weight(gene_info):
+    """What a gene costs a batch: its isoforms, which go into the reference the batch
+    realigns against, plus the reads that built them, which stand for the reads the
+    batch will fetch and realign.  Batching by isoforms alone put a highly expressed
+    gene in a batch of its own size on paper and many times that in work.  A BED with
+    no read_support column weighs by isoforms, as before."""
+    return len(gene_info.isoform_beds) + gene_info.read_support
+
+
 def make_batches(gene_data, num_batches):
     """The genes in batches realigned together, as dicts of chrom, start and end of
     their loci, the loci as (start, end), the end of the previous batch's last locus
-    on the chromosome (prev_end, None for the first), gene ids, and number of
-    isoforms.  Genes whose spans overlap, a locus, are always in one batch, and
-    consecutive loci of a chromosome are grouped up to an even share of the isoforms
+    on the chromosome (prev_end, None for the first), gene ids, and weight
+    (gene_weight).  Genes whose spans overlap, a locus, are always in one batch, and
+    consecutive loci of a chromosome are grouped up to an even share of the weight
     over num_batches.  A batch takes the reads overlapping its loci (batch_reads),
     as quantify always fetched a gene's reads, but not those starting before
     prev_end, which overlap the previous batch's last locus and are its reads, so each
@@ -241,30 +254,30 @@ def make_batches(gene_data, num_batches):
     by_chrom = {}
     for gene_info in gene_data.values():
         by_chrom.setdefault(gene_info.chrom, []).append(gene_info)
-    per_batch = max(1, -(-sum(len(g.isoform_beds) for g in gene_data.values()) // max(1, num_batches)))
+    per_batch = max(1, -(-sum(gene_weight(g) for g in gene_data.values()) // max(1, num_batches)))
     batches = []
     for chrom, genes in by_chrom.items():
         genes.sort(key=lambda g: (g.left_bound, g.right_bound))
-        loci = []   # [start, end, gene ids, isoforms]
+        loci = []   # [start, end, gene ids, weight]
         for gene_info in genes:
             if loci and gene_info.left_bound < loci[-1][1]:
                 loci[-1][1] = max(loci[-1][1], gene_info.right_bound)
                 loci[-1][2].append(gene_info.gene_id)
-                loci[-1][3] += len(gene_info.isoform_beds)
+                loci[-1][3] += gene_weight(gene_info)
             else:
-                loci.append([gene_info.left_bound, gene_info.right_bound, [gene_info.gene_id], len(gene_info.isoform_beds)])
+                loci.append([gene_info.left_bound, gene_info.right_bound, [gene_info.gene_id], gene_weight(gene_info)])
         chrom_batches = []
         for locus in loci:
-            if chrom_batches and chrom_batches[-1]['isoforms'] < per_batch:
+            if chrom_batches and chrom_batches[-1]['weight'] < per_batch:
                 batch = chrom_batches[-1]
                 batch['end'] = locus[1]
                 batch['loci'].append((locus[0], locus[1]))
                 batch['gene_ids'].extend(locus[2])
-                batch['isoforms'] += locus[3]
+                batch['weight'] += locus[3]
             else:
                 chrom_batches.append({'chrom': chrom, 'start': locus[0], 'end': locus[1], 'loci': [(locus[0], locus[1])],
                                       'prev_end': chrom_batches[-1]['end'] if chrom_batches else None,
-                                      'gene_ids': list(locus[2]), 'isoforms': locus[3]})
+                                      'gene_ids': list(locus[2]), 'weight': locus[3]})
         batches.extend(chrom_batches)
     return batches
 
@@ -584,7 +597,7 @@ def count_fusions(fusions, sample_data, temp_dir, genome_file, threads, trust_en
 
 def _count_batch_task(packed):
     batch = packed[0]
-    thread_share.task_start(batch['isoforms'])
+    thread_share.task_start(batch['weight'])
     try:
         return count_batch(*packed)
     finally:
@@ -660,7 +673,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads, tpm,
         # the isoforms of the fusions' results, then of each batch's
         batch_isoforms = [set(fusions)] + [{bed.name for bed in batch_beds} for _, batch_beds, *_ in packed]
         # minimap2 borrows threads left idle as the pool drains, more for batches of more isoforms
-        thread_share.init(threads, len(packed), max((batch['isoforms'] for batch in batches), default=1))
+        thread_share.init(threads, len(packed), max((batch['weight'] for batch in batches), default=1))
         if threads == 1:
             set_batch_lookups(*lookups)
             totals = write_outputs(itertools.chain([fusion_results], map(_count_batch_task, packed)), batch_isoforms,
