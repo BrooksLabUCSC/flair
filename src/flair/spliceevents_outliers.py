@@ -18,6 +18,7 @@ from statistics import median
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
 from flair import splicing_outliers_tsv
+from flair.spliceevents_events import has_psi
 from flair.splicing_events_tsv import SplicingEventsReader
 from flair.splicing_outliers_tsv import SplicingOutliersWriter
 from flair.splicing_totals_tsv import SplicingTotalsReader
@@ -53,7 +54,9 @@ def build_parser():
                         help='output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and '
                              f'OUTPUT.spliceevents.outliers.filtered.tsv, those more than {FILTERED_MIN_DEVIATIONS} '
                              'deviations from the median and not explained by a simpler event, without starts and '
-                             'ends (tss, tts), whose outliers are mostly false positives')
+                             'ends (tss, tts), whose outliers are mostly false positives.  An event needs '
+                             f'{MIN_SAMPLES} samples with a PSI for an outlier of it to be called, so with fewer '
+                             'samples both files hold only their header')
     parser.add_argument('--psi', choices=sorted(PSI_TOTALS), default='junc',
                         help="the PSI to call outliers of: 'junc', of the event's reads (PSIjunc), more sensitive, "
                              "or 'tot', of the reads covering its locus (PSItot), for strong overall events "
@@ -127,7 +130,7 @@ def group_by_shared_junctions(rows):
 def row_outliers(row, samples, event_support):
     """the outliers of an event row: per sample with one, its outlier line"""
     import scipy.stats as sps  # 0.7s to load
-    psis = {s: row['counts'][s] / row['totals'][s] for s in samples if row['totals'][s] >= event_support}
+    psis = {s: row['counts'][s] / row['totals'][s] for s in samples if has_psi(row['totals'], s, event_support)}
     if len(psis) < MIN_SAMPLES:
         return {}
     vals = list(psis.values())

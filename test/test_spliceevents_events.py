@@ -99,6 +99,17 @@ def test_a_sample_with_fewer_event_reads_than_event_support_has_no_psi(tmp_path)
     assert tables['PSIjunc'][f'{ES}|inc']['s3'] == ''
 
 
+def test_a_sample_with_no_reads_of_an_event_has_no_psi_at_event_support_zero(tmp_path):
+    # --event_support 0 asks for every sample's PSI; s3's reads are elsewhere, so it has
+    # no reads of the event and none covering its locus to divide by
+    tables, _ = _events(tmp_path, [(INC, 100, 600, 30), (EXC, 100, 600, 10)],
+                        [(INC, 100, 600, 10), (EXC, 100, 600, 30)],
+                        [([(2200, 2300)], 2100, 2400, 20)], event_support=0)
+    assert tables['counts'][f'{ES}|inc']['s3'] == '0'
+    assert tables['PSIjunc'][f'{ES}|inc']['s3'] == ''
+    assert tables['PSItot'][f'{ES}|inc']['s3'] == ''
+
+
 def test_an_event_with_a_psi_in_only_one_sample_is_reported(tmp_path):
     # s2 under event_support leaves s1's PSI, 0.75, alone: an alternative exon, as in one sample
     tables, _ = _events(tmp_path, [(INC, 100, 600, 30), (EXC, 100, 600, 10)],

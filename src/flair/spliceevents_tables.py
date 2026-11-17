@@ -6,7 +6,7 @@ from flair.partition_runner import combine_temp_files_by_suffix
 from flair.io_utils import sort_bed_file
 from statistics import median
 from flair.pycbio.hgdata.bed import Bed, BedBlock
-from flair.spliceevents_events import EVENT_COLORS, row_introns, row_name
+from flair.spliceevents_events import EVENT_COLORS, has_psi, row_introns, row_name
 from flair.splicing_events_tsv import SplicingEventsWriter
 from flair.splicing_totals_tsv import SplicingTotalsWriter
 
@@ -49,12 +49,12 @@ class EventTables:
             writer.close()
 
     def _write_row(self, columns, counts, event):
-        "a row's counts and PSIs; returns its PSIjuncs, of the samples with event_support reads"
+        "a row's counts and PSIs; returns its PSIjuncs, of the samples with a PSI (has_psi)"
         self.tables['.spliceevents.counts.tsv'].writeRow(columns + [str(counts[s]) for s in self.samples])
         for suffix, totals in (('.spliceevents.psi_junc.tsv', event.totjunc), ('.spliceevents.psi_tot.tsv', event.totoverlap)):
-            self.tables[suffix].writeRow(columns + [str(round(counts[s] / totals[s], 4)) if totals[s] >= self.event_support
+            self.tables[suffix].writeRow(columns + [str(round(counts[s] / totals[s], 4)) if has_psi(totals, s, self.event_support)
                                                     else '' for s in self.samples])
-        return [counts[s] / event.totjunc[s] for s in self.samples if event.totjunc[s] >= self.event_support]
+        return [counts[s] / event.totjunc[s] for s in self.samples if has_psi(event.totjunc, s, self.event_support)]
 
     def _write_beds(self, event, alternative, blocks_list, psis):
         "a row's BED records, scored by its median PSIjunc"

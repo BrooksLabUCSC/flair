@@ -60,6 +60,16 @@ def test_each_isoforms_other_counts_are_its_genes_total_less_its_own(tmp_path):
         'i1': ('8', '25'), 'i2': ('26', '7'), 'i3': ('27', '27'), 'i4': ('23', '22')}
 
 
+def test_delta_psi_is_the_difference_of_the_psis_not_of_the_values_written(tmp_path):
+    counts = str(tmp_path / 'x.counts.tsv')
+    write_counts_matrix(counts, ['s1', 's2'], [CountsRow('G1', 'i1', [1, 2]), CountsRow('G1', 'i2', [2, 1])])
+    out = str(tmp_path / 'usage.tsv')
+    diff_iso_usage(counts, 's1', 's2', out)
+    # PSIs of 1/3 and 2/3, written 0.333 and 0.667, whose difference is 0.334
+    row = _rows(out)['i1']
+    assert (row.s1_PSI, row.s2_PSI, row.delta_PSI) == ('0.333', '0.667', '0.333')
+
+
 def test_pvalues_are_adjusted_over_the_rows_tested():
     # Benjamini-Hochberg of 0.01, 0.04, 0.03 over three tests: p * 3 / rank, then
     # the minimum of those at or above it; the untested row stays NA

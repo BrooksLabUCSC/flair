@@ -84,6 +84,9 @@
     `--min_expression` leaves isoforms of few reads in the two samples untested.
     Each isoform's other isoforms' counts are its gene's total less its own, rather
     than summed again per isoform, so genes and events of many isoforms are fast.
+    `delta_PSI` is the difference of the two PSIs, taken before they are rounded to
+    three places, rather than the difference of the rounded values, which was up to
+    0.001 out: of PSIs 1/3 and 2/3 it is 0.333, not 0.334.
   * `flair diffexp` and `diff_iso_usage` also read the counts of `flair
     spliceevents`, testing an event's alternatives as an isoform's usage within its
     gene.  diffexp runs DRIMSeq and its t-test alone on them, not DESeq2, and an
@@ -599,6 +602,11 @@
     without rerunning spliceevents.  `--check_outliers` is removed.  A sample's PSI
     is used when it has at least `--event_support` reads, as in the PSI tables,
     rather than more than that.
+  * `--event_support 0` no longer stops the run with a division by zero at a sample
+    with no reads of an event, the case of a pool of samples sequenced to different
+    depths.  Such a sample has no PSI, as it already had none in the event calling,
+    so its PSIjunc and PSItot columns are empty; `spliceevents_outliers` leaves it
+    out of the median the same way.
 * Incompatibles
   * `gtf_to_bed --include_gene` adds a column naming the gene instead of appending
     it to the isoform name.  The annotation BED and FASTA that flair transcriptome

@@ -73,7 +73,8 @@ _SUPPORT_RATIO_FILTER_RE = re.compile(r'^(\d+(?:\.\d+)?)[xX]$')
 
 def subset_support_ratio(filter_mode):
     """For a --filter of <N>X, N, the ratio of reads by which a subset isoform must
-    exceed the isoforms it is a subset of to be kept; None for the named modes"""
+    exceed the isoform containing it that has the most reads to be kept, and by which
+    a single-exon isoform must exceed one it overlaps; None for the named modes"""
     match = _SUPPORT_RATIO_FILTER_RE.match(filter_mode)
     return float(match.group(1)) if match else None
 
@@ -237,7 +238,9 @@ def add_subparser(subparsers):
                              '- comprehensive: every spliced subset isoform is kept\n'
                              '- ginormous: comprehensive, plus every single-exon subset isoform\n'
                              '- <N>X, such as 10X: a subset isoform with more than N times the reads '
-                             'of the isoforms it is a subset of\n'
+                             'of the isoform containing it that has the most reads.  N also replaces '
+                             f'the {SINGLE_EXON_EXPRESSION_RATIO} ratio of the same test between two '
+                             'overlapping single-exon isoforms\n'
                              'A kept subset isoform is counted only reads reaching past the sequence it '
                              'shares with the isoforms containing it\n'
                              '(default: %(default)s)')

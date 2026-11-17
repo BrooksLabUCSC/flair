@@ -41,15 +41,13 @@ def sample_column_index(sample_columns, colname, counts_matrix_tsv):
     return sample_columns.index(colname)
 
 def iso_psi(iso_counts, other_counts):
-    "each sample's PSI for one isoform, and the change, NA where it cannot be taken"
-    s1_psi, s2_psi, delta_psi = 'NA', 'NA', 'NA'
-    if other_counts[0] + iso_counts[0] > 0:
-        s1_psi = round(iso_counts[0] / (other_counts[0] + iso_counts[0]), 3)
-    if other_counts[1] + iso_counts[1] > 0:
-        s2_psi = round(iso_counts[1] / (other_counts[1] + iso_counts[1]), 3)
-    if s1_psi != 'NA' and s2_psi != 'NA':
-        delta_psi = round(s2_psi - s1_psi, 3)
-    return [s1_psi, s2_psi, delta_psi]
+    """each sample's PSI for one isoform, and the change, NA where it cannot be taken.
+    The change is taken before rounding, so it is the difference of the PSIs rather
+    than of the three places they are written to"""
+    psis = [iso / (iso + other) if iso + other > 0 else None
+            for iso, other in zip(iso_counts, other_counts)]
+    delta_psi = round(psis[1] - psis[0], 3) if None not in psis else 'NA'
+    return [round(psi, 3) if psi is not None else 'NA' for psi in psis] + [delta_psi]
 
 def gene_total_counts(gene_counts):
     "the gene's counts in each sample, of all its isoforms"

@@ -15,7 +15,7 @@
 
 .. option:: -o, --output OUTPUT
 
-   output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and OUTPUT.spliceevents.outliers.filtered.tsv, those more than 6 deviations from the median and not explained by a simpler event, without starts and ends (tss, tts), whose outliers are mostly false positives
+   output prefix: writes OUTPUT.spliceevents.outliers.tsv, every outlier, and OUTPUT.spliceevents.outliers.filtered.tsv, those more than 6 deviations from the median and not explained by a simpler event, without starts and ends (tss, tts), whose outliers are mostly false positives. An event needs 5 samples with a PSI for an outlier of it to be called, so with fewer samples both files hold only their header
 
 .. option:: --psi {junc,tot}
 

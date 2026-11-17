@@ -112,7 +112,7 @@
    - nosubset: no subset isoform is kept
    - comprehensive: every spliced subset isoform is kept
    - ginormous: comprehensive, plus every single-exon subset isoform
-   - <N>X, such as 10X: a subset isoform with more than N times the reads of the isoforms it is a subset of
+   - <N>X, such as 10X: a subset isoform with more than N times the reads of the isoform containing it that has the most reads. N also replaces the 1.2 ratio of the same test between two overlapping single-exon isoforms
 
    A kept subset isoform is counted only reads reaching past the sequence it shares with the isoforms containing it (default: nosubset)
 

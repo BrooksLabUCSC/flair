@@ -44,6 +44,12 @@ def test_fewer_than_five_samples_with_a_psi_give_no_outliers():
     assert row_outliers(_row([20, 20, 22, 18, 5, 12], [100, 100, 100, 100, 10, 19]), SAMPLES, 20) == {}
 
 
+def test_a_sample_with_no_reads_has_no_psi_at_event_support_zero():
+    # --event_support 0 asks for every sample's PSI; s6 has no reads of the event
+    outliers = row_outliers(_row([20, 20, 22, 18, 60, 0], [100] * 5 + [0]), SAMPLES, 0)
+    assert list(outliers) == ['s5']
+
+
 def _line(event, sample, dev_from_med):
     return [event, 'inc', 'x', 'G1', 'NAME1', '', '', sample, 0.2, 0.01, 0.6, 6, '60;100', 0.4, dev_from_med]
 
