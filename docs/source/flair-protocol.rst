@@ -277,6 +277,8 @@ gene-level quantification.
   - Fusion isoforms in the combined transcriptome are counted too, from the same
     BAM files.  A read counted for a fusion is not counted again for an isoform
     of either partner gene
+  - If performing variant calling and incorporate into isoforms with FLAIR isoalleles, add ``--generate_map`` to FLAIR 
+    quantify for each sample's read map. The read maps must be made with the same isoform BED given to FLAIR isoalleles.
 
 Isoforms by haplotype and somatic variants
 ------------------------------------------
