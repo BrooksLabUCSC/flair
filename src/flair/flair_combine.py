@@ -155,12 +155,24 @@ def _check_support(bedfile, bed):
                                       f"filter on --min_reads and --min_percent_usage")
 
 
+def _check_one_sample(bedfile, bed):
+    """combine adds an isoform's read_support to each sample its samples column names,
+    so a BED of more than one sample, as combine's own output is, would give each of
+    those samples the reads of all of them"""
+    if len(bed.samples) > 1:
+        raise FlairInputDataError(f"{bedfile}: isoform {bed.name} names {len(bed.samples)} samples, "
+                                  f"{','.join(bed.samples)}; flair combine takes a BED of one sample, as flair "
+                                  f"transcriptome, flair fusion and flair isoalleles write one.  Combine every "
+                                  f"sample's BED in a single run rather than combining combined BEDs")
+
+
 def load_isos_by_id(bedfile):
     isotoinfo = {}
     mysamples = set()
     num_alleles = 0
     for bed in BedReader(bedfile, bedClass=FlairBed):
         _check_support(bedfile, bed)
+        _check_one_sample(bedfile, bed)
         num_alleles += _has_allele_info(bed)
         # by strand too: a single-exon isoform and one antisense to it, with
         # similar ends, aren't the same isoform

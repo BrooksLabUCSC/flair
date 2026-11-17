@@ -274,7 +274,11 @@ write it.  Its ``read_support`` (column 16) and ``frac_support`` (column 17) mus
 set, since ``--min_reads`` and ``--min_percent_usage`` filter on them; an isoform
 without them is an error.  An annotation is given with ``-f``, as a GTF; an annotation
 BED, such as gtf_to_bed writes, has neither the support columns nor the other flair
-BED columns, and is rejected.
+BED columns, and is rejected.  Each input is also one sample's BED, naming one sample
+in its ``samples`` column (column 22).  A combined BED names every sample its isoforms
+came from and holds their summed reads, so combining combined BEDs would give each of
+those samples the reads of all of them; such a BED is rejected.  Combine every
+sample's BED in a single run rather than in stages.
 
 Isoforms of the same splice junctions and strand from different samples are combined
 into one.  We recommend giving flair combine an annotation GTF (``-f``).  Each combined

@@ -410,6 +410,12 @@
   * An isoform found in many samples no longer stops combine making
     `combined.isoforms.bb`: its sample list, like its genes, can be longer than 255
     characters, bedToBigBed's limit for a string.
+  * A BED whose `samples` column (column 22) names more than one sample is rejected,
+    naming the isoform and its samples.  Combine's own output is such a BED: each
+    isoform names every sample it came from and holds their summed reads, and
+    combining it again gave each of those samples all of those reads, so an isoform
+    of 20, 18 and 9 reads in three samples came back as 47 in each, 141 in place of
+    47, with the run reporting nothing.  Combine every sample's BED in one run.
 * flair spliceevents
   * Is a flair subcommand, `flair spliceevents`, documented with the other modules;
     it was only runnable as `python flair_spliceevents.py`.  Its options are named

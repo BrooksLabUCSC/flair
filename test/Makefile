@@ -547,7 +547,8 @@ endef
 
 
 combine-tests: test-combine test-combine-files test-combine-prefixes test-combine-nose test-combine-10pct test-combine-multends test-combine-multends-10pct \
-	test-combine-conflict test-combine-conflict-gtf test-combine-isoalleles test-combine-compress
+	test-combine-conflict test-combine-conflict-gtf test-combine-isoalleles test-combine-compress \
+	test-combine-combined
 
 update-combine-tests:
 	for tname in "test-combine" "test-combine-files" "test-combine-nose" "test-combine-10pct" "test-combine-multends" "test-combine-multends-10pct" "test-combine-conflict-gtf" "test-combine-isoalleles"; \
@@ -626,6 +627,12 @@ test-combine-isoalleles: mkdirs ${GENOME_FA}
 	flair combine --isoform_beds $I/combine.isoalleles.bed --genome ${GENOME_FA} --min_percent_usage 1 -o $O/$@ 2> $O/$@.err
 	grep -q 'flair combine drops the allele information' $O/$@.err
 	$(combine_diff)
+
+# combine's own output names every sample an isoform came from and holds their
+# summed reads: combining it again would give each of those samples all the reads
+test-combine-combined: mkdirs ${GENOME_FA}
+	! flair combine --isoform_beds $E/test-combine.combined.isoforms.bed --genome ${GENOME_FA} -o $O/$@ 2> $O/$@.err
+	grep -q 'isoform FLT00000001 names 3 samples' $O/$@.err
 
 ###
 # FLAIR QUANTIFY
