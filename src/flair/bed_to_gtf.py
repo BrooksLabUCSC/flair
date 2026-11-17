@@ -109,10 +109,12 @@ def _collect_gene_records(query, force, use_cds, is_flair_bed):  # noqa: C901 - 
 
 
 def _has_cds(bed):
-    """A BED names a CDS with thickStart below thickEnd.  A thick range covering the
-    whole transcript is taken for an absent CDS, as gtf_to_bed wrote one before it
-    used the thickStart == thickEnd convention."""
-    return (bed.thickStart != bed.thickEnd) and ((bed.thickStart != bed.chromStart) or (bed.thickEnd != bed.chromEnd))
+    """A BED names a CDS with thickStart below thickEnd, and no CDS with the two equal.
+    A thick range covering the whole transcript used to be taken for an absent CDS as
+    well, which dropped the CDS, start codon and UTR records of a transcript whose
+    coding region covers all of its exons.  A BED with no thick columns has neither
+    coordinate."""
+    return (bed.thickStart is not None) and (bed.thickStart < bed.thickEnd)
 
 
 def _utr_feature(strand, before_cds):

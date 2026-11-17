@@ -128,8 +128,9 @@ FLANK_STUB = 10
 
 
 def junction_blocks(junc, exons=()):
-    "the BED blocks of a junction: FLANK_STUB bases each side of it, and the exons included between its ends"
-    return [(junc[0] - FLANK_STUB, junc[0]), *exons, (junc[1], junc[1] + FLANK_STUB)]
+    """the BED blocks of a junction: FLANK_STUB bases each side of it, and the exons
+    included between its ends.  The left stub stops at the start of the chromosome"""
+    return [(max(junc[0] - FLANK_STUB, 0), junc[0]), *exons, (junc[1], junc[1] + FLANK_STUB)]
 
 
 # the BED colors of each event type: first exons as starts, last exons as ends, and

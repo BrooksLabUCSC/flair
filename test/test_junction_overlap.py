@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from flair.annotation_data import AnnotData
 from flair.isoform_data import Junc, Exon, Isoform, merge_intervals
 from flair.junction_correct import UNKNOWN_STRAND
 from flair.gene_identification import (fixed_end_exons, get_spliced_exon_overlaps,
@@ -10,11 +11,13 @@ G1_EXONS = {(500, 1000), (5000, 5100), (6000, 9000)}
 
 
 def _annots():
-    return SimpleNamespace(
-        # as annot_data_from_gtf leaves them, merged and in position order
-        spliced_exons={'+': {'G1': merge_intervals(G1_EXONS)}, '-': {}},
-        # an unspliced lncRNA on each strand
-        all_annot_se={'+': [Exon(20000, 22000, 'LNC')], '-': [Exon(20000, 22000, 'LNC-MINUS')]})
+    "an annotation as annot_data_from_gtf leaves it, merged and in position order"
+    annots = AnnotData()
+    annots.spliced_exons = {'+': {'G1': merge_intervals(G1_EXONS)}, '-': {}}
+    # an unspliced lncRNA on each strand
+    annots.all_annot_se = {'+': [Exon(20000, 22000, 'LNC')], '-': [Exon(20000, 22000, 'LNC-MINUS')]}
+    annots.index_single_exon_annots()
+    return annots
 
 
 def test_fixed_end_exons():

@@ -27,11 +27,8 @@ def main():
         gtf_to_bed(args.bed, args.gtf, args.include_gene)
 
 def write_bed_row(include_gene, name_sep, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, fh):
+    "one transcript's BED row, its blocks given in position order"
     blockcount = len(blockstarts)
-    if blockcount > 1 and blockstarts[0] > blockstarts[1]:  # need to reverse exons
-        blocksizes = blocksizes[::-1]
-        blockstarts = blockstarts[::-1]
-
     tstart, tend = blockstarts[0], blockstarts[-1] + blocksizes[-1]  # target (e.g. chrom)
     if prev_transcript in iso_to_cds:
         cds_start, cds_end = iso_to_cds[prev_transcript]

@@ -35,12 +35,9 @@ UNKNOWN_STRAND = '.'
 _CANONICAL_MOTIFS = {'+': ('GT', 'AG'), '-': ('CT', 'AC')}
 
 class JunctionCorrector:
-    """Correction of read splice sites from orthogonal evidence
-
-       * flank_window - the number of based +/- a read junction to search for
-         an supporting intron match.
-       * min_read_support - minimum of reads to support a junction.
-    """
+    """Correction of read splice sites from orthogonal evidence: a read's junction is
+    moved to a supported intron within flank_window bases of it, an intron being
+    supported when it is annotated or has min_read_support reads."""
 
     def __init__(self, intron_support, flank_window, min_read_support):
         self.intron_support = intron_support
@@ -114,8 +111,8 @@ def _calc_possible_junction_range(readrec, new_junctions):
     return (min_start, max_end)
 
 def _filter_too_close(readrec, new_junctions, intron_hits):
-    """drop introns overlapping the previous intron or making a too short
-    an exon at ends"""
+    """drop introns overlapping the previous intron or leaving too short an exon at
+    a read end"""
     min_start, max_end = _calc_possible_junction_range(readrec, new_junctions)
     return list(filter(lambda ih: (ih.start >= min_start) and (ih.end <= max_end),
                        intron_hits))
@@ -131,8 +128,8 @@ def _find_best_intron_support(start, end, intron_hits):
     return closest_introns[0]
 
 def _collect_closest_hits(start, end, intron_hits):
-    """Return list by introns with closest total distance from ends.
-    Multiple introns are return"""
+    """the introns at the smallest total distance from the two ends, several of them
+    where they tie"""
     min_dist = inf
     closest_introns = []
     for intron in intron_hits:

@@ -86,11 +86,6 @@ gtf_to_bed
 
 Convert a GTF to a BED12 file.
 
-junctions_from_sam
-==================
-
-.. include:: cli/junctions_from_sam.rst
-
 mark_intron_retention
 =====================
 

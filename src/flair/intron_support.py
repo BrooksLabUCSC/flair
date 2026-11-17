@@ -15,8 +15,8 @@ _VALID_STRANDS = {'+', '-', '.'}
 IntronIndex = namedtuple('IntronIndex', ['start', 'end', 'strand'])
 
 class SupportIntron:
-    """Coordinates and support.  Strand could None if not available, but currently
-    enforce having strand."""
+    """An intron's coordinates, its strand, which is '.' where the evidence gives
+    none, and the support for it."""
     __slots__ = ("chrom", "start", "end", "strand",
                  "annot_supported", "read_supported", "read_support_cnt")
 
@@ -34,7 +34,8 @@ class SupportIntron:
 
 class IntronSupport:
     """
-    Table of intron support index by both start and end positions
+    Introns and their support, by chromosome, looked up by matching both ends of a
+    junction
     """
     def __init__(self, *, min_intron_size=MIN_INTRON_SIZE, max_intron_size=MAX_INTRON_SIZE):
         # dict index by chrom of per-chrom interval indexes, keyed on first base of donor and last base of the acceptor sites
@@ -85,8 +86,8 @@ class IntronSupport:
         return starts
 
     def overlap(self, chrom, start, end, flank_window=0):
-        """get introns were splice junctions overlap each end of this range,
-        with a +/-bp window on either of ends of the range. Empty list if no hits"""
+        """the introns whose two ends are each within flank_window of this range's,
+        an empty list where there are none"""
         # only return introns that hit both ends.  Bisect on start rather than scanning
         # the chromosome: this runs once per junction per read.  Sound because matching
         # both endpoints bounds interval.start on both sides; a general range overlap

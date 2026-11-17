@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument('--region', dest='regions', action='append', default=[],
                         help='region on which to call indels, as --region_bed does.  ' + REGION_FORMAT_HELP)
     parser.add_argument('--identify_indels', type=str, default='yes',
-                        help="[yes/no], default:yes - specify yes if you want this caller to identify SNVs")
+                        help="[yes/no], default:yes - specify yes if you want this caller to identify indels")
     parser.add_argument('--identify_snvs', type=str, default='no',
                         help="[yes/no], default:no - specify yes if you want this caller to identify SNVs")
 
@@ -158,7 +158,9 @@ def check_homopoly(indel_type, indel_seq, indel_vaf, genome, chrom, pos):
         if indel_type == 'DEL':
             rightseq = genome.fetch(chrom, pos + len(indel_seq), pos + len(indel_seq) + 5).upper()
         else:
-            rightseq = genome.fetch(chrom, pos + 1, pos + 6).upper()
+            # the anchor base is one-based pos, so the first base after the
+            # insertion point is zero-based pos, as check_repeat also reads it
+            rightseq = genome.fetch(chrom, pos, pos + 5).upper()
         rightlen = len_same_base(rightseq)
         # the fetch is clamped at the end of the contig, so it can come back empty
         if (len(rightseq) > 0) and (rightseq[0] == indel_seq[0]):

@@ -318,6 +318,23 @@
     written under a temporary name in the same directory and renamed at the end, as
     the other tables already were.  A failed run left a truncated read map that
     `flair isoalleles` read as a whole one.
+  * A single-exon isoform lying in an annotated single-exon gene is assigned to
+    that gene.  The search read the four annotations nearest the isoform's end in a
+    list sorted by start, so an annotation containing the isoform, with others
+    starting between the two, was not seen and the isoform was put in a novel gene.
+    The single-exon annotations are now indexed by range, as the spliced ones are.
+  * `bed_to_gtf` writes the CDS of a transcript whose coding region covers all of its
+    exons.  A thick range equal to the transcript's bounds was taken for an absent
+    CDS, which dropped the CDS, start codon and UTR records of a transcript with no
+    UTR.  A BED from a FLAIR before 3.1, which wrote that range for a transcript with
+    no coding region, is converted with `--no_cds`.
+* `junctions_from_sam` is removed.  It read only the alignments with no indel and no
+  clipping, 35 of the 970 spliced alignments of the test BAM, and took the strand
+  from an `XS:A:` tag that minimap2 does not write, so its junctions carried a
+  fraction of the read support and no strand.  Call junctions with
+  [intron-prospector](https://github.com/diekhans/intron-prospector) and pass them
+  with `--junction_bed`, or give STAR's `SJ.out.tab` to `--junction_star`, which is
+  what the protocol documentation already recommends.
 * `flair align` is removed.  It ran minimap2 and filtered its output, which no
   other module uses: flair transcriptome and flair fusion take a bam of all reads
   aligned to the genome.  Align with minimap2 as the docs show,

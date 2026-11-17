@@ -287,17 +287,28 @@ Standalone programs
 - ``identify_gene_isoform``: it named isoforms transcript_gene for ``bed_to_gtf`` to
   split, and FLAIR no longer splits names (:ref:`ids <ids-label>`)
 - ``annotate_aaseq_with_uniprot``
+- ``junctions_from_sam``: it read only alignments without an indel or clipping, which
+  is 4% of a minimap2 BAM, and took the strand from an ``XS:A:`` tag that minimap2
+  does not write, so its junctions had a fraction of the read support and no strand.
+  Call junctions with
+  `intron-prospector <https://github.com/diekhans/intron-prospector>`__ and pass them
+  with ``--junction_bed``, or use STAR's ``SJ.out.tab`` with ``--junction_star``
 
 **Changed**
 
 - ``bed_to_gtf``: ``--dontuseCDS`` is ``--no_cds``, ``--add_reference_transcript_id`` is
   gone, and ``--is_flair_bed`` turns the extra BED columns into GTF attributes.  A BED
   not from FLAIR is refused unless given ``--force``, which uses each name as its gene
-  id too: names are no longer split into a transcript and gene at an underscore
+  id too: names are no longer split into a transcript and gene at an underscore.
+  A thick range is now a coding region whenever ``thickStart`` is below ``thickEnd``,
+  as the BED convention has it, so a transcript with no UTR keeps its CDS.  FLAIR
+  before 3.1 wrote a thick range covering the whole transcript for a transcript with
+  no coding region, which was read as having none; convert such a BED with
+  ``--no_cds``
 - ``plot_isoform_usage``: ``--vcf`` is gone
-- ``junctions_from_sam``, ``mark_intron_retention``, ``fasta_seq_lengths`` and
-  ``diffsplice_fishers_exact`` take the same arguments as before, but now parse them
-  with argparse, so each has ``--help``
+- ``mark_intron_retention``, ``fasta_seq_lengths`` and ``diffsplice_fishers_exact``
+  take the same arguments as before, but now parse them with argparse, so each has
+  ``--help``
 - ``flair_partition`` takes the ``--log-*`` options
 
 ``gtf_to_bed`` is unchanged.

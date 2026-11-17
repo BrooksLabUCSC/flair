@@ -201,7 +201,9 @@ def covers_terminal_exon(exon_covered, end_dist, unique_bound_dist, trust_ends):
         # last exon shorter than TRUST_ENDS_WINDOW let a read stopping before it pass
         return (end_dist <= TRUST_ENDS_WINDOW) and (exon_covered >= SPLICE_SITE_FLANK)
     elif unique_bound_dist is not None:
-        # NOTE: I originally had this so that read ends needed to be closer to the end of the transcript than the exon edge, but found that was too stringent, especially after normalizing ends
+        # the read end need only reach past the unique sequence boundary, rather
+        # than also being closer to the transcript's end than to the exon's edge,
+        # which dropped too many reads, above all with normalized ends
         return unique_bound_dist >= SPLICE_SITE_FLANK
     else:
         return exon_covered >= SPLICE_SITE_FLANK

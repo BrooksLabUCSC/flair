@@ -2,9 +2,7 @@
 
 import functools
 import hashlib
-from bisect import bisect_right
 from collections import namedtuple
-from operator import attrgetter
 from flair import PosRange, FlairInputDataError
 from flair.pycbio.hgdata.bed import Bed
 from flair.flair_bed import FlairBed, get_strand_rgb
@@ -194,19 +192,6 @@ def get_sequence_for_exons(genome, chrom, strand, exons):
     if strand == '-':
         trans_seq = get_reverse_complement(trans_seq)
     return trans_seq
-
-
-def binary_search(query, data, start_of=attrgetter('start'), end_of=attrgetter('end')):
-    """Index in data, a list of coordinate intervals sorted by start, of the best
-    candidate to overlap query: the last interval starting at or before the query end.
-    An earlier long interval can also overlap, so callers scan a window around the
-    index rather than trusting it alone.  The index is always in range.
-
-    start_of and end_of read a coordinate; pass itemgetter for plain tuples."""
-    if len(data) == 0:
-        return 0
-    index = bisect_right(data, end_of(query), key=start_of) - 1
-    return min(max(index, 0), len(data) - 1)
 
 
 def make_big_bed(genome, chrom_sizes_file_name, output_prefix):

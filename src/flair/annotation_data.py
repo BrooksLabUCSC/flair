@@ -8,6 +8,7 @@ assignment, and isoform filtering.
 
 from bisect import bisect_left
 from flair import FlairInputDataError
+from flair.interval_index import IntervalIndex
 from flair.isoform_data import Exon, exons_to_juncs, merge_intervals
 
 
@@ -36,9 +37,17 @@ class AnnotData(object):
         self.splice_site_to_genes = {}
 
         # single-exon annotations by strand: {'+': [], '-': []}
-        # each entry is Exon(start, end, gene_id), sorted for binary search
-        # FIXME: rename once it is figured out how this works in get_single_exon_gene_overlaps
+        # each entry is Exon(start, end, gene_id), sorted by position
         self.all_annot_se = {'+': [], '-': []}
+
+        # the same annotations by strand, indexed by range, for the single-exon gene
+        # assignment of gene_identification.  Built when the annotation is loaded, so
+        # workers forked afterwards share it
+        self.annot_se_index = {'+': IntervalIndex(), '-': IntervalIndex()}
+
+        # map of strand -> gene_id -> the disjoint ranges of the gene's single-exon
+        # transcripts, built with the index rather than on every lookup
+        self.unspliced_exons = {'+': {}, '-': {}}
 
         # map of strand -> gene_id -> the exons of the gene's spliced transcripts.
         # A set of Exon while the annotation is read, then the disjoint (start, end)
@@ -90,6 +99,18 @@ class AnnotData(object):
         # ones especially, are often fragments whose ends aren't the transcript's,
         # though their tags don't say so
         self.confirmed_terminal_ends = {}
+
+    def index_single_exon_annots(self):
+        """index the single-exon annotations of each strand by range, and merge each
+        gene's, once the annotation is loaded, for gene_identification"""
+        for strand, annot_exons in self.all_annot_se.items():
+            by_gene = {}
+            for annot_exon in annot_exons:
+                self.annot_se_index[strand].add(annot_exon.start, annot_exon.end, annot_exon)
+                by_gene.setdefault(annot_exon.name, []).append((annot_exon.start, annot_exon.end))
+            self.annot_se_index[strand].build()
+            self.unspliced_exons[strand] = {gene_id: merge_intervals(intervals)
+                                            for gene_id, intervals in by_gene.items()}
 
     def has_transcript_ends(self, strand, start, end, window):
         """does an annotated transcript on strand, with both ends confirmed, start
@@ -151,6 +172,7 @@ def annot_data_from_gtf(gtf_data, region):
     for se_strand in ('+', '-'):
         annots.all_annot_se[se_strand] = sorted(annots.all_annot_se[se_strand])
         annots.transcript_ends[se_strand].sort()
+    annots.index_single_exon_annots()
     for ends in annots.confirmed_terminal_ends.values():
         ends.sort()
     return annots

@@ -804,7 +804,10 @@ test-diffsplice-help: mkdirs
 
 bed-to-gtf-tests: test-bed-to-gtf test-bed-to-gtf-compress test-bed-to-gtf-extracols test-bed-to-gtf-no-genes
 
-# a bed not from flair, of names transcript_gene, which are not split: each name is its gene id too
+# a bed not from flair, of names transcript_gene, which are not split: each name is
+# its gene id too.  Its thick range covers each transcript, which is a coding region
+# over every exon; a bed from a FLAIR before 3.1, which wrote that for a transcript
+# with no coding region, is converted with --no_cds
 test-bed-to-gtf : mkdirs
 	bed_to_gtf --force $(COLLAPSE_ANNOT_ISOFORMS_BED) > $O/$@.gtf
 	$(call cmp_expect,$@.gtf)
@@ -827,7 +830,7 @@ test-bed-to-gtf-no-genes : mkdirs
 # the other installed programs, each run on the test data
 ##
 scripts-tests: test-gtf-to-bed test-mark-intron-retention test-fasta-seq-lengths \
-	test-junctions-from-sam test-diffsplice-fishers-exact
+	test-diffsplice-fishers-exact
 
 test-gtf-to-bed: mkdirs
 	gtf_to_bed --include_gene $(BASIC_ANNOTATION) $O/$@.bed
@@ -843,11 +846,6 @@ test-fasta-seq-lengths: mkdirs
 	fasta_seq_lengths $E/test-transcriptome.isoforms.fa $O/$@.lengths.tsv $O/$@.histogram.tsv
 	$(call cmp_expect,$@.lengths.tsv)
 	$(call cmp_expect,$@.histogram.tsv)
-
-# junctions called from the read alignments, as --junction_bed takes them
-test-junctions-from-sam: mkdirs ${BASIC_ALIGN_BAM}
-	junctions_from_sam --sam ${BASIC_ALIGN_BAM} -n $O/$@
-	$(call cmp_expect,$@_junctions.bed)
 
 # two samples of the committed diffsplice counts, so no R is needed
 test-diffsplice-fishers-exact: mkdirs

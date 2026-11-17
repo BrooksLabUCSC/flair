@@ -42,7 +42,6 @@ repository = "https://github.com/BrooksLabUCSC/flair/"
 
 [project.scripts]
 flair = "flair.flair_cli:main"
-junctions_from_sam = "flair.junctions_from_sam:main"
 mark_intron_retention = "flair.mark_intron_retention:main"
 plot_isoform_usage = "flair.plot_isoform_usage:main"
 fasta_seq_lengths = "flair.fasta_seq_lengths:main"

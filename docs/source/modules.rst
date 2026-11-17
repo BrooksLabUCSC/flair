@@ -625,6 +625,12 @@ considered to include or exclude the each event:
    inclusion_chr1:400-500(+)  chr1:400-500(+)    75.0    35.0    ... e,a
    exclusion_chr1:400-500(+)  chr1:400-500(+)    56.0    15.0    ... f
 
+The ``coordinate`` column and the feature ids hold a junction's BED coordinates, the
+zero-based start and the end, written 5' to 3', so on the minus strand the first
+number is the larger: ``chr12:25215560-25215436(-)``.  ``flair spliceevents`` names
+the same events one-based and in ascending order, so a name from one does not match a
+name from the other.
+
 ----
 
 .. _spliceevents-label:

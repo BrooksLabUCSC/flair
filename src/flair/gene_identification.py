@@ -5,15 +5,13 @@ genes by shared splicing.  Used by flair transcriptome, and by flair combine and
 fusion to name genes as transcriptome does."""
 import hashlib
 import logging
-from flair.isoform_data import Exon, Gene, binary_search, covered_bases, merge_intervals
+from flair.isoform_data import Exon, Gene, covered_bases
 from flair.junction_correct import UNKNOWN_STRAND
 
 # overlap fraction thresholds for gene assignment
 MIN_ISOFORM_OVERLAP_FRAC = 0.5
 MIN_ANNOT_OVERLAP_FRAC = 0
 
-# search window for binary search of single-exon annotations
-ANNOT_SE_SEARCH_WINDOW = 2
 # in gene assignment, a gene's matched splice site this close to the isoform's
 # 5' splice site counts as matching the isoform's 5' end
 FIVE_PRIME_SS_WINDOW = 20
@@ -122,14 +120,15 @@ def get_genes_with_shared_juncs(juncs, strand, annots, extra_sites=()):
 
 
 def get_single_exon_gene_overlaps(strand, iso_readrec, annots):
+    """Genes whose single-exon transcripts overlap a single-exon isoform, as
+    gene_id -> [fraction of the isoform covered, fraction of the annotation covered].
+    Every overlapping annotation is found: a few entries each side of a binary
+    search index were read before, which missed an annotation containing the isoform
+    whenever other annotations started between the two, and put the isoform in a
+    novel gene."""
     gene_hits = {}
     exon = iso_readrec.exons[0]
-    index = binary_search(exon, annots.all_annot_se[strand])
-    # FIXME: how does this ever work? all_annot_se is [(start, end, strand, gene_id), ...]
-    # max(0, ...): a negative slice start would be read as an offset from the end of
-    # the list, which for a long list gives an empty window
-    for annot_exon_info in annots.all_annot_se[strand][max(0, index - ANNOT_SE_SEARCH_WINDOW):index + ANNOT_SE_SEARCH_WINDOW]:
-        # FIXME: make overlap a function
+    for annot_exon_info in annots.annot_se_index[strand].overlap(exon.start, exon.end):
         overlap = min(exon.end, annot_exon_info.end) - max(exon.start, annot_exon_info.start)
         if overlap > 0:
             # base coverage of long-read isoform by the annotated isoform
@@ -158,14 +157,13 @@ def get_spliced_exon_overlaps(strand, exons, annots):
 
 def get_unspliced_exon_overlaps(strand, exons, annots):
     """Genes on the strand whose single-exon (unspliced) annotated transcripts cover
-    more than half of the exons' length, as [bases covered, gene_id, strand]"""
-    gene_to_intervals = {}
-    for annot_exon in annots.all_annot_se[strand]:
-        gene_to_intervals.setdefault(annot_exon.name, []).append((annot_exon.start, annot_exon.end))
+    more than half of the exons' length, as [bases covered, gene_id, strand].  Each
+    gene's ranges are merged when the annotation is loaded, rather than here, which
+    rebuilt them for every isoform taking this path."""
     exon_len = sum(e.end - e.start for e in exons)
     gene_hits = []
-    for gene_id, intervals in gene_to_intervals.items():
-        covered = covered_bases(exons, merge_intervals(intervals))
+    for gene_id, intervals in annots.unspliced_exons[strand].items():
+        covered = covered_bases(exons, intervals)
         if covered > exon_len * 0.5:
             gene_hits.append([covered, gene_id, strand])
     return gene_hits
@@ -218,7 +216,10 @@ def _find_gene_id_by_exon_overlap(iso_readrec, annots):
         gene_hits = (get_spliced_exon_overlaps(iso_readrec.strand, exons, annots)
                      or get_unspliced_exon_overlaps(iso_readrec.strand, exons, annots))
     else:
-        gene_hits = get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+        # single-exon genes too, as in the spliced branch: an unspliced isoform can
+        # lie in an unspliced annotated gene
+        gene_hits = (get_spliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots)
+                     or get_unspliced_exon_overlaps(iso_readrec.strand, iso_readrec.exons, annots))
     if gene_hits:
         gene_hits.sort(reverse=True)
         return (gene_hits[0][1], )
