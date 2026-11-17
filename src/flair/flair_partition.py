@@ -2,8 +2,13 @@
 
 # Program that partitions a BED file into non-overlapping regions.
 # This is based on the UCSC Browser utility bedPartition.
+#
+# A partition here is a cluster: a maximal set of items that overlap, which no read
+# and no annotated transcript crosses.  What that is for, and why flair must scope a
+# read's annotation and junctions to it, is in dev/design/clusters-and-partitions.md
 
 import argparse
+from flair.cli_help import FlairHelpFormatter
 import functools
 import os
 import re
@@ -28,7 +33,7 @@ def check_input_files(bed_files, bam_files, gtf_files, region_bed):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog='flair_partition',
+        prog='flair_partition', formatter_class=FlairHelpFormatter,
         description=("Define non-overlapping regions from BED, SAM/BAM, or GTF files."
                      "  Partitions are made across all input files")
     )
@@ -384,12 +389,12 @@ def covered_regions(partitions):
                       for bed_part, _ in partitions])
 
 def closed_partitions(bed_files, bam_files, gtf_files, nthreads, part_merge_dist, regions, tmp_dir):
-    """The partitions over regions, read again over the regions they cover until they
-    stop growing.  Each one then holds every input item a partition of the whole input
-    would: an item overlapping a grown region overlaps the chain of items that grew it,
-    and the regions only grow over items that touch them, so this terminates.
-    min_partition_items is not used, as the counts are of the items read, not of the
-    whole input"""
+    """The partitions over regions, read again over the regions they cover until the
+    partitions stop changing.  Each one then contains every input item that a partition
+    of the whole input would: an item that overlaps an expanded region also overlaps the
+    items that expanded it, and a region is only expanded over items that overlap it, so
+    this terminates.  min_partition_items is not used, as the counts are of the items
+    read, not of the whole input"""
     while True:
         logging.info(f"partitioning over {len(regions)} regions")
         partitions = list(scan_partitions(bed_files, bam_files, gtf_files, nthreads, 0,

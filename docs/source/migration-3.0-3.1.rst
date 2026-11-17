@@ -54,15 +54,15 @@ flair transcriptome
 **Renamed**
 
 - ``--genomealignedbam`` is ``-b``, ``--genome_aligned_bam``
-- ``--parallelmode`` is ``--parallel_mode``
 - ``--keep_sup`` is ``--keep_supplementary``
 - ``--noaligntoannot`` is ``--no_align_to_annot``
 - ``--junction_tab`` is ``--junction_star``; the old name still works and warns
 
 **Defaults flipped**
 
-- ``--stringent`` is now the default; ``--no_stringent`` turns it off
-- ``--check_splice`` is now the default; ``--no_check_splice`` turns it off
+- ``--stringent`` and ``--check_splice`` always apply, and ``--no_stringent`` and
+  ``--no_check_splice`` are gone: they counted reads that don't support an isoform
+  toward it
 
 **Split**
 
@@ -74,7 +74,27 @@ flair transcriptome
 **Gone**
 
 - ``-n``, ``--no_redundant``
-- ``--predictCDS``
+- ``--predictCDS``, ``--longestORF``: an isoform's CDS and productivity are reported
+  whenever the annotation given with ``-f`` has start codons
+- ``--annotation_reliant``, ``--annotated_bed``, ``--transcriptomefasta``: reads are
+  aligned to the transcripts of ``-f`` by default, with no FASTA or BED of them to
+  build or pass; ``--no_align_to_annot`` turns that alignment off
+- ``--remove_internal_priming``, ``--intprimingthreshold``, ``--intprimingfracAs``:
+  single-exon reads whose 3' end is in A-rich genome, 60% A in the 20 bases after it
+  or 80% A in its last 20 aligned bases, are always removed as oligo-dT mispriming;
+  ``--keep_internally_primed`` keeps them
+- ``--nvrna``: correcting a read's strand against the annotation is what correction
+  does; ``--trust_strand`` and ``--directRNA`` keep the alignment's strand instead
+- ``--promoters``, ``--3prime_regions``, ``--gene_tss``, ``--no_gtf_end_adjustment``:
+  an isoform's ends come from the ends of the reads assigned to it, clustered within
+  ``--end_window``, at most ``--max_ends`` of them, or ``--normalize_ends``.  No
+  promoter or TES file, no gene-level ends, and the annotation's ends are used to
+  keep subset isoforms rather than to move an isoform's ends
+- ``--mm2_args``: the minimap2 runs are internal
+- ``--longshot_bam``, ``--longshot_vcf``: haplotypes come from ``flair isoalleles``
+- ``--allow_paralogs``
+- ``--parallelmode``, ``--parallel_mode``: the input is always partitioned into
+  clusters of overlapping reads and annotated transcripts
 - ``--trust_ends``: each isoform's ends come from the ends of the reads assigned to it,
   and passing it is an error that says so
 
@@ -82,7 +102,11 @@ flair transcriptome
 
 - ``--sample_name`` is required, and is recorded in the output files
 - ``--trust_strand``, ``--trust_junctions``, ``--normalize_ends``
-- ``--directRNA`` and ``--total_rna``, the latter requiring ``--trust_strand``
+- ``--directRNA``, and ``--keep_internally_primed`` for reads not primed on poly(A),
+  where a single-exon read ending in A-rich sequence is a real transcript end rather
+  than oligo-dT mispriming
+- ``--region`` and ``--region_bed`` build transcripts in the given regions only, each
+  grown to the whole cluster of reads and transcripts that overlap it
 - ``--temp_dir``, which ``--keep_intermediate`` now requires
 - ``--generate_map``, ``--fusion_breakpoints``, ``--subset_backup_support``
 
@@ -129,7 +153,7 @@ flair quantify
 - Each sample's condition and batch are in ``<output>.sample_info.tsv`` rather than
   packed into the counts matrix column names, which now hold the sample id alone.
   ``flair diffexp`` and ``flair diffsplice`` read that file.
-- Read maps are ``<output>.<sample>.read.map.tsv``.
+- Read maps are ``<output>.isoforms.<sample>.read.map.tsv``.
 
 flair combine
 -------------
@@ -177,8 +201,7 @@ flair fusion
 
 **Defaults flipped**
 
-- ``--stringent`` and ``--check_splice`` are the default; ``--no_stringent`` and
-  ``--no_check_splice`` turn them off
+- ``--stringent`` and ``--check_splice`` always apply; neither can be turned off
 
 **Gone**
 

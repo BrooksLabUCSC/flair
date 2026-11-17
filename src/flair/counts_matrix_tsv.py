@@ -92,8 +92,8 @@ class CountsMatrixWriter(TsvWriter):
     def writeCountsRow(self, row):
         if len(row.counts) != len(self.sample_columns):
             raise FlairInputDataError(
-                f"isoform {row.isoform_id} has {len(row.counts)} counts, "
-                f"{len(self.sample_columns)} samples are named by the columns")
+                f"isoform {row.isoform_id} has {len(row.counts)} counts for the "
+                f"{len(self.sample_columns)} sample columns; a row holds one count per sample")
         self.writeRow([row.gene_id, row.isoform_id] + list(row.counts))
 
 @contextmanager
@@ -156,9 +156,9 @@ def counts_format(columns, counts_tsv):
             return fmt
     expected = '; '.join(f"{fmt.program}: {', '.join(fmt.id_columns[:2])}" for fmt in COUNTS_FORMATS)
     raise FlairInputDataError(
-        f"{counts_tsv} is not a table of counts this reads, which start with the columns of "
-        f"{expected}; it starts with: {', '.join(columns[:2])}.  A matrix from an earlier FLAIR, "
-        "with one isoform_gene column, must be remade with flair quantify")
+        f"{counts_tsv} is not a counts table; they start with the columns of {expected}; it "
+        f"starts with: {', '.join(columns[:2])}.  A matrix from an earlier FLAIR, with one "
+        "isoform_gene column, must be remade with flair quantify")
 
 class GroupedCounts(namedtuple('GroupedCounts', ('format', 'sample_columns', 'rows', 'unreported'))):
     """The rows of a table of COUNTS_FORMATS as CountsRow: gene_id holds the row's

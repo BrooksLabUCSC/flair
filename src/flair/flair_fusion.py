@@ -86,6 +86,7 @@ def add_subparser(subparsers):
                              'a fusion with one dominant isoform hides its minor ones below this.  For the most '
                              'recall, give 0 with --filter comprehensive (default: %(default)s)')
     parser.add_argument('--filter', default=DEFAULT_FILTER,
+                        metavar='{nosubset,comprehensive,ginormous,<N>X}',
                         help='which subset fusion isoforms, a contiguous part of another, to keep, as flair '
                              'transcriptome\'s --filter: nosubset, comprehensive, ginormous or <N>X.  A fusion\'s '
                              'reads are often 5\' truncated, and with nosubset its isoforms take only its few '
@@ -451,8 +452,6 @@ def run_synthetic_transcriptome(output, sample_name, threads, frac_support, subs
                              '--filter', subset_filter,
                              '--end_window', '300',
                              '--frac_support', str(frac_support),
-                             # '--no_check_splice',
-                             # '--no_stringent',
                              '--no_align_to_annot',
                              '--fusion_breakpoints', output + '.synthetic_breakpoint_loc.bed',
                              '--sample_name', sample_name,

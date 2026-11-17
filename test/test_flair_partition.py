@@ -5,6 +5,7 @@ from flair import FlairInputDataError, SeqRange
 from flair.flair_partition import (gtf_to_file, read_ranges, convert_inputs, bam_chroms, bam_to_file,
                                    check_bam_indexed, closed_partitions, scan_partitions, RegionSet)
 from flair.gtf_to_bed import gtf_to_bed
+from flair.partition_runner import run_flair_partition
 
 
 def _bed3(path):
@@ -13,7 +14,7 @@ def _bed3(path):
 
 
 def test_gtf_spans_match_gtf_to_bed(tmp_path):
-    gtf = 'input/seg1.gencodeV47.gtf'
+    gtf = 'input/seg1.gencode_v47.gtf'
     gtf_to_bed(str(tmp_path / 'full.bed'), gtf, include_gene=True)
     gtf_to_file(gtf, str(tmp_path / 'spans.bed'))
     assert _bed3(tmp_path / 'spans.bed') == _bed3(tmp_path / 'full.bed')
@@ -27,7 +28,7 @@ def test_read_ranges_only_needs_three_columns():
 
 def test_indexed_bam_split_by_chrom(tmp_path, make_output_dir):
     # converting by chrom gives the same alignments as converting the whole BAM
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     assert sorted(bam_chroms(bam)) == ['chr12', 'chr17', 'chr20']
     split = convert_inputs([], [bam], [], 3, str(tmp_path))
     assert len(split) == 3
@@ -43,7 +44,7 @@ def test_unindexed_sam_converted_whole(tmp_path):
 
 def test_single_thread_converts_bam_whole(tmp_path, make_output_dir):
     # one bamtobed process, rather than samtools view and bamtobed per chrom
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     assert len(convert_inputs([], [bam], [], 1, str(tmp_path))) == 1
 
 
@@ -95,7 +96,7 @@ def test_region_grows_over_a_chain_of_items(tmp_path):
 def test_region_partitions_are_those_of_the_whole_input(tmp_path, make_output_dir):
     # a region inside a gene gives the partition, and its item count, that
     # partitioning the whole BAM gives
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     full_dir, region_dir = tmp_path / 'full', tmp_path / 'region'
     full_dir.mkdir()
     region_dir.mkdir()
@@ -106,13 +107,13 @@ def test_region_partitions_are_those_of_the_whole_input(tmp_path, make_output_di
 
 
 def test_region_with_no_items_gives_no_partitions(tmp_path, make_output_dir):
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     regions = RegionSet([SeqRange('chr12', 60000000, 60010000)])
     assert closed_partitions([], [bam], [], 2, 0, regions, str(tmp_path)) == []
 
 
 def test_bam_regions_hold_the_alignments_overlapping_them(tmp_path, make_output_dir):
-    bam = os.path.join(make_output_dir, 'basic-reads.bam')
+    bam = os.path.join(make_output_dir, 'basic.reads.bam')
     regions = RegionSet([SeqRange('chr20', 35550000, 35551000)])
     regions_bed = str(tmp_path / 'regions.bed')
     regions.write_bed(regions_bed)
@@ -127,3 +128,38 @@ def test_bam_regions_hold_the_alignments_overlapping_them(tmp_path, make_output_
 def test_unindexed_bam_cannot_be_read_by_region():
     with pytest.raises(FlairInputDataError, match="indexed BAM or CRAM"):
         check_bam_indexed('input/tiny.sam')
+
+
+def _alignment_spans(bams, tmp_path):
+    spans = []
+    for num, bam in enumerate(bams):
+        bed = str(tmp_path / f'{num}.bed')
+        bam_to_file(bam, bed)
+        with open(bed) as fh:
+            spans += [(f[0], int(f[1]), int(f[2])) for f in (line.split('\t') for line in fh)]
+    return spans
+
+
+def _containing(regions, chrom, start, end):
+    return [r for r in regions if r.name == chrom and r.start < end and start < r.end]
+
+
+def test_no_alignment_crosses_a_partition(tmp_path, make_output_dir):
+    # what flair spliceevents corrects and counts reads by: a read is in one partition
+    bams = [os.path.join(make_output_dir, 'basic.reads.bam'), os.path.join(make_output_dir, 'seg1.reads.bam')]
+    regions, counts = run_flair_partition(bams, 'input/basic.annotation.gtf', 2)
+    assert len(regions) == len(counts) > 3
+    for chrom, start, end in _alignment_spans(bams, tmp_path):
+        holding = _containing(regions, chrom, start, end)
+        assert len(holding) == 1
+        assert holding[0].start <= start and end <= holding[0].end
+
+
+def test_partitions_are_merged_up_to_the_item_count(tmp_path, make_output_dir):
+    # the two chr20 loci of the two BAMs are separate partitions, merged into one
+    bams = [os.path.join(make_output_dir, 'basic.reads.bam'), os.path.join(make_output_dir, 'seg1.reads.bam')]
+    clusters = [r for r in run_flair_partition(bams, None, 2)[0] if r.name == 'chr20']
+    merged = [r for r in run_flair_partition(bams, None, 2, min_partition_items=100000)[0] if r.name == 'chr20']
+    assert len(clusters) > 1
+    assert len(merged) == 1
+    assert (merged[0].start, merged[0].end) == (clusters[0].start, clusters[-1].end)

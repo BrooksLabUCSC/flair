@@ -21,8 +21,8 @@ from flair.annotation_alignment import (_exon_bounds, _write_reads_subset,
 from flair.count_sam_transcripts import MINIMAP2_SECONDARY_ALIGNMENTS
 from flair.direct_assignment import (covers_unique_bounds, direct_assignments, parse_unique_bounds, read_unique_bounds,
                                      unassignable_reads, write_direct_assignments)
-from flair.partition_runner import parallel_mode_parse, PartitionRunner, partition_regions, combine_temp_files_by_suffix
-from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions_bed
+from flair.partition_runner import PartitionRunner, partition_regions, combine_temp_files_by_suffix
+from flair.region_spec import REGION_FORMAT_HELP, parse_regions, write_regions, write_regions_bed
 from flair.io_utils import check_genome_fasta, make_run_temp_dir, open_sorted_bed
 from flair.bed_to_gtf import bed_to_gtf
 from flair.isoform_data import (Exon, Isoform, ReadRec, convert_to_bed12, convert_to_flair_bed, make_big_bed)
@@ -37,7 +37,7 @@ from flair.aaseq_tsv import write_aaseqs
 from flair.isoform_counts_tsv import IsoformCountsWriter
 from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
-from flair.output_compress import compressed_path, open_fasta_output
+from flair.output_compress import compressed_path, open_fasta_output, open_output
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
@@ -104,21 +104,18 @@ class TranscriptomeOpts:
     end_window: int
     sjc_support: int
     single_exon_support: int
+    keep_internally_primed: bool
     subset_backup_support: int
     frac_support: float
     directRNA: bool
     trust_strand: bool
-    total_rna: bool
     trust_junctions: bool
-    no_stringent: bool
-    no_check_splice: bool
     no_align_to_annot: bool
     max_ends: int
     filter: str
     keep_supplementary: bool
     quality: int
     threads: int
-    parallel_mode: tuple
     regions: list
     fusion_breakpoints: str
     keep_intermediate: bool
@@ -130,13 +127,12 @@ class TranscriptomeOpts:
 # shared by the --region_bed and --region help: what restricting the run does to the
 # transcripts in the regions and next to them
 REGION_RESTRICT_HELP = (
-    'If no region is given, the whole genome is used.  A region is expanded to include all the reads '
-    'and annotated transcripts that overlap it, repeatedly, until it stops growing, so it holds '
-    'everything a whole-genome run would put with it and the transcripts of the genes in the region '
-    'are those of a whole-genome run.  The expansion can reach into a gene next to the region, whose '
-    'transcripts are reported too; those may be wrong, as the reads supporting them that do not '
-    'overlap the expanded region are never read.  Isoform and gene ids are numbered within a run, so '
-    'they are not the ids a whole-genome run gives the same transcripts')
+    'If no region is given, the whole genome is used.  A region is expanded over the reads and '
+    'annotated transcripts that overlap it, until nothing more overlaps, so the transcripts reported '
+    'are the same as a whole-genome run\'s.  The expansion can reach a gene next to the region, '
+    'which is reported too.  The expanded regions are written to <output>.regions.bed.  Isoform and '
+    'gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same '
+    'transcripts')
 
 def add_subparser(subparsers):
     desc = ('generates confident transcript models directly from a bam file '
@@ -177,6 +173,17 @@ def add_subparser(subparsers):
                         help='minimum number of supporting reads for a spliced isoform (default: %(default)s)')
     parser.add_argument('--single_exon_support', type=int, default=3,
                         help='minimum number of supporting reads for a single exon isoform (default: %(default)s)')
+    parser.add_argument('--keep_internally_primed', action='store_true',
+                        help="keep single-exon reads whose 3' end looks oligo-dT primed on the "
+                             "genome's own A rather than on a transcript's poly(A) tail, which are "
+                             'removed by default.  Primed is either of:\n'
+                             '- at least 60%% A in the 20 genome bases after the end, with no poly(A) '
+                             'tail clipped there\n'
+                             '- at least 80%% A in the last 20 bases the read aligns to\n'
+                             'Keep them for reads that were not primed on poly(A), such as a random '
+                             'primed total RNA library: nothing is then mispriming, and the check only '
+                             'drops reads of real transcript ends in A-rich sequence, '
+                             'non-polyadenylated transcripts among them')
     parser.add_argument('--subset_backup_support', type=int, default=10,
                         help='a spliced isoform removed as a subset of other isoforms is reported after all, '
                              'with its reads, if every isoform it is a subset of fails support and it has at '
@@ -193,10 +200,6 @@ def add_subparser(subparsers):
                              'reads keep the strand of their alignment, and spliced reads are corrected only '
                              'with splice junctions on that strand, and are only assigned to transcripts '
                              'on that strand')
-    parser.add_argument('--total_rna', action='store_true',
-                        help='the library is total RNA rather than poly(A) selected: single-exon reads ending '
-                             'in or before genomic A runs are kept, rather than removed as internally primed, '
-                             'and no poly(A) tails are needed.  Requires --trust_strand')
     parser.add_argument('--trust_junctions', action='store_true',
                         help='trust the strand of every input splice junction for read correction, without '
                              'checking splice motifs.  By default, an unannotated junction without a GT-AG '
@@ -205,13 +208,9 @@ def add_subparser(subparsers):
     # removed: each isoform's ends come from the reads assigned to it
     parser.add_argument('--trust_ends', action='store_true', help=argparse.SUPPRESS)
 
-    parser.add_argument('--no_stringent', action='store_true',
-                        help="do not require all supporting reads to be full-length, that is aligned to the "
-                             "first and last exons of the transcript. Use this for fragmented libraries, "
-                             "with an understanding that it will impact precision")
-    parser.add_argument('--no_check_splice', action='store_true',
-                        help="do not enforce accurate alignment around splice sites. Specify this for "
-                             "libraries with high error rates, but it will reduce precision")
+    # removed: both let reads that don't support an isoform count toward it
+    parser.add_argument('--no_stringent', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--no_check_splice', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--no_align_to_annot', action='store_true',
                         help="skip the initial alignment to the annotated sequences and detect transcripts "
                              "only from the genomic alignment. Slightly faster but less accurate when the "
@@ -222,12 +221,13 @@ def add_subparser(subparsers):
                              'precise end detection.  Single-exon isoforms are reported at each of their clustered '
                              'ends, however many (default: %(default)s)')
     parser.add_argument('--filter', default=DEFAULT_FILTER,
-                        help='which subset isoforms (a contiguous part of another isoform) to keep. '
-                             '<N>X, such as 10X: a subset isoform is kept if it has more than N times the reads '
-                             'of the isoforms it is a subset of; '
-                             'nosubset: all subset isoforms are removed; '
-                             'comprehensive: all spliced subset isoforms are kept; '
-                             'ginormous: comprehensive, plus single exon subset isoforms '
+                        metavar='{nosubset,comprehensive,ginormous,<N>X}',
+                        help='which subset isoforms (a contiguous part of another isoform) to keep:\n'
+                             '- nosubset: no subset isoform is kept\n'
+                             '- comprehensive: every spliced subset isoform is kept\n'
+                             '- ginormous: comprehensive, plus every single-exon subset isoform\n'
+                             '- <N>X, such as 10X: a subset isoform with more than N times the reads '
+                             'of the isoforms it is a subset of\n'
                              '(default: %(default)s)')
 
     parser.add_argument('--keep_supplementary', action='store_true',
@@ -237,13 +237,7 @@ def add_subparser(subparsers):
                              'defining transcripts (default: %(default)s)')
 
     parser.add_argument('-t', '--threads', type=int, default=12,
-                        help='number of threads to run with, related to --parallel_mode (default: %(default)s)')
-    parser.add_argument('--parallel_mode', default='auto:1GB',
-                        help='parallelization mode. auto:1GB is an automatic threshold where, if the file '
-                             'is less than 1GB, parallelization is done by chromosome, and if it is larger, '
-                             'parallelization is done by region of non-overlapping reads. Other modes: '
-                             'bychrom, byregion, auto:xGB; for the auto threshold, the size must be in units '
-                             'of GB (default: %(default)s)')
+                        help='number of threads to run with (default: %(default)s)')
 
     parser.add_argument('--region_bed',
                         help='bed file of the regions to build transcripts in, such as the genes of '
@@ -280,11 +274,12 @@ def transcriptome_cmd(args):
     if args.trust_ends:
         raise FlairInputDataError("--trust_ends has been removed: each isoform's ends come from the ends "
                                   "of the reads assigned to it")
+    if args.no_stringent or args.no_check_splice:
+        raise FlairInputDataError("--no_stringent and --no_check_splice have been removed: they counted reads "
+                                  "that don't support an isoform toward it.  Drop them, or quantify the reads "
+                                  "against an isoform set with flair quantify")
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
-    if args.total_rna and not (args.trust_strand or args.directRNA):
-        raise FlairInputDataError("--total_rna requires --trust_strand: without poly(A) tails, the alignment strand is "
-                                  "the only strand evidence for single-exon reads")
     if not os.path.exists(args.genome_aligned_bam):
         raise FlairInputDataError(f'aligned reads bam file does not exist: {args.genome_aligned_bam}')
     check_genome_fasta(args.genome)
@@ -297,13 +292,11 @@ def transcriptome_cmd(args):
                         sjc_support=args.sjc_support,
                         single_exon_support=args.single_exon_support,
                         subset_backup_support=args.subset_backup_support,
-                        frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand, total_rna=args.total_rna,
-                        trust_junctions=args.trust_junctions, no_stringent=args.no_stringent,
-                        no_check_splice=args.no_check_splice,
+                        frac_support=args.frac_support, directRNA=args.directRNA, trust_strand=args.trust_strand, keep_internally_primed=args.keep_internally_primed,
+                        trust_junctions=args.trust_junctions,
                         no_align_to_annot=args.no_align_to_annot, max_ends=args.max_ends,
                         filter=args.filter, keep_supplementary=args.keep_supplementary,
                         quality=args.quality, threads=args.threads,
-                        parallel_mode=parallel_mode_parse(args.parallel_mode),
                         regions=parse_regions(args.regions, args.region_bed),
                         fusion_breakpoints=args.fusion_breakpoints,
                         keep_intermediate=args.keep_intermediate, temp_dir=args.temp_dir,
@@ -759,17 +752,17 @@ def _internally_primed(read, trust_strand):
         return right if read.strand == '+' else left
     return left or right
 
-def _se_read_groups(reads, se_support, trust_strand, total_rna=False):
+def _se_read_groups(reads, se_support, trust_strand, keep_internally_primed=False):
     """(strand, reads) for each overlap group of single-exon reads.  With
     trust_strand, the reads' strands are their transcripts', and each strand's reads
     are grouped separately, so sense and antisense transcripts at a locus are both
     kept.  Otherwise a group is of reads from both strands, and its strand comes
     from the poly(A) tails of its reads, None if they don't give one.  Internally
-    primed reads are left out first (_internally_primed): in a poly(A) selected
-    library they are reads of no polyadenylated transcript end, which would otherwise
-    make single-exon isoforms in introns and UTRs.  With total_rna, the library
-    isn't poly(A) selected, and they are kept."""
-    if not total_rna:
+    primed reads are left out first (_internally_primed): with oligo-dT priming they
+    are reads of no transcript end, which would otherwise make single-exon isoforms in
+    introns and UTRs.  With keep_internally_primed they are kept, for reads not primed
+    on poly(A), where the check only drops real ends in A-rich sequence."""
+    if not keep_internally_primed:
         reads = [read for read in reads if not _internally_primed(read, trust_strand)]
     if trust_strand:
         by_strand = {}
@@ -780,8 +773,8 @@ def _se_read_groups(reads, se_support, trust_strand, total_rna=False):
     return [(correct_se_strand_polyA(read_group, se_support), read_group)
             for read_group in _group_se_reads_by_overlap(reads)]
 
-def group_se_by_overlap(chrom, isoform, se_support, trust_strand, total_rna=False):
-    for new_strand, read_group in _se_read_groups(isoform.reads, se_support, trust_strand, total_rna):
+def group_se_by_overlap(chrom, isoform, se_support, trust_strand, keep_internally_primed=False):
+    for new_strand, read_group in _se_read_groups(isoform.reads, se_support, trust_strand, keep_internally_primed):
         # filter out single exon groups that fail stranding
         if new_strand is None:
             logging.debug(f"single-exon group dropped: strand could not be determined ({len(read_group)} reads): {chrom}:{read_group[0].start}-{read_group[-1].end}")
@@ -810,9 +803,9 @@ class IsoformOverlapGroups:
         """Add a spliced isoform, keyed by chrom, median ends, and junction chain."""
         self._groups[(chrom, median(isoform.starts), median(isoform.ends), juncs)] = isoform
 
-    def add_se_overlap_groups(self, chrom, isoform, se_support, trust_strand, total_rna=False):
+    def add_se_overlap_groups(self, chrom, isoform, se_support, trust_strand, keep_internally_primed=False):
         """Split single-exon reads into overlap groups and resolve strand."""
-        for new_key, new_strand, read_group in group_se_by_overlap(chrom, isoform, se_support, trust_strand, total_rna):
+        for new_key, new_strand, read_group in group_se_by_overlap(chrom, isoform, se_support, trust_strand, keep_internally_primed):
             self._groups[new_key] = Isoform.regroup(isoform, newreads=read_group, newstrand=new_strand)
 
     def __iter__(self):
@@ -828,18 +821,18 @@ class IsoformOverlapGroups:
         return self._groups.items()
 
 
-def group_by_overlap(sj_to_ends, se_support, trust_strand, total_rna=False):
+def group_by_overlap(sj_to_ends, se_support, trust_strand, keep_internally_primed=False):
     groups = IsoformOverlapGroups()
     for (chrom, juncs), isoform in sj_to_ends.items():
         if len(juncs) > 0:
             groups.add_spliced(chrom, juncs, isoform)
         else:
-            groups.add_se_overlap_groups(chrom, isoform, se_support, trust_strand, total_rna)
+            groups.add_se_overlap_groups(chrom, isoform, se_support, trust_strand, keep_internally_primed)
     return groups
 
 
 def process_juncs_to_firstpass_isos(args, temp_prefix, sj_to_ends, annots, region_chrom):
-    sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.single_exon_support, args.trust_strand, args.total_rna)
+    sjc_with_overlap_groups = group_by_overlap(sj_to_ends, args.single_exon_support, args.trust_strand, args.keep_internally_primed)
     # FIXME everything below here requires confidence in transcript strand
     build_genes(sjc_with_overlap_groups, annots, region_chrom, sjc_with_overlap_groups)
 
@@ -1360,7 +1353,7 @@ def _with_single_exon_isoforms(final, single_exon):
             out[final_isoform.name] = final_isoform
     return out
 
-def calc_final_iso_support(read_ends_file, final_transcript_objs, no_stringent):
+def calc_final_iso_support(read_ends_file, final_transcript_objs):
     iso_to_counts = {}
     gene_to_tot = {}
     for row in ReadEndsReader(read_ends_file):
@@ -1372,9 +1365,9 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs, no_stringent):
             gene_to_tot[gene] = [0, 0, 0]
         if transcript not in iso_to_counts:
             iso_to_counts[transcript] = [0, 0]
-        # only spliced isoforms' reads have ends lines (assign_single_exon_isoforms);
-        # either reads are full-length or the user has explicitly specified no_stringent
-        if (start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1) or no_stringent:
+        # only spliced isoforms' reads have ends lines (assign_single_exon_isoforms),
+        # and a read is counted for an isoform only if it is full-length on it
+        if start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1:
             iso_to_counts[transcript][0] += 1
             gene_to_tot[gene][0] += 1
             gene_to_tot[gene][1] += 1
@@ -1508,6 +1501,9 @@ def _run_region(*, partition, gtf_data, junction_corrector, args):
 def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
     # FIXME confusing name if taking gtf_data,
     # FIXME: should only have region, so why take region arg
+    # a partition is one cluster, so gtf_data, the junctions and the firstpass isoforms
+    # reads are realigned to are all the cluster's; nothing here may be given more than
+    # that (dev/design/clusters-and-partitions.md)
     annots = annot_data_from_gtf(gtf_data, region)
 
     # then align reads to transcriptome and run count_sam_transcripts
@@ -1529,7 +1525,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             logging.info('aligning to transcriptome reference')
         read_to_annot_transcript = identify_good_match_to_annot(
             partition.file_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
-            directRNA=args.directRNA, check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
+            directRNA=args.directRNA, trust_strand=args.trust_strand,
             fusion_breakpoints=args.fusion_breakpoints)
 
         logging.info('correcting and grouping reads, filtering isoforms')
@@ -1591,8 +1587,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                               read_map_file, False,  # say is not annot, requires stringent, returns different end values
                                               partition.output_path('reads.genomicclipping.tsv'),
                                               partition.output_path('firstpass.uniquebound.tsv'),
-                                              directRNA=args.directRNA, no_stringent=args.no_stringent,
-                                              check_splice=not args.no_check_splice, trust_strand=args.trust_strand,
+                                              directRNA=args.directRNA, trust_strand=args.trust_strand,
                                               fusion_breakpoints=args.fusion_breakpoints,
                                               secondary_alignments=(KEEP_SUBSET_SECONDARY_ALIGNMENTS
                                                                     if args.filter in KEEP_SUBSET_FILTERS
@@ -1612,7 +1607,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                                   normalize_ends=args.normalize_ends,
                                                   max_ends=args.max_ends, end_window=args.end_window,
                                                   sjc_support=args.sjc_support, frac_support=args.frac_support)
-        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoforms.ends.tsv'), final_transcript_objs, args.no_stringent)
+        iso_to_counts, gene_to_tot = calc_final_iso_support(partition.output_path('isoforms.ends.tsv'), final_transcript_objs)
         # single-exon isoforms after the spliced reads are counted, which their support is a fraction of
         single_exon = assign_single_exon_isoforms([isoform for isoform in final_transcript_objs.values() if isoform.juncs == ()],
                                                   iso_to_counts, gene_to_tot,
@@ -1715,8 +1710,8 @@ def fix_iso_labels(output, generate_map):
 
 def region_chromosomes(regions, genome_fa):
     """The whole chromosomes of the --region/--region_bed regions, which the annotation
-    is loaded for: the regions themselves grow over the reads and transcripts reaching
-    them, and the annotation is subset per partition after that"""
+    is loaded for: the regions themselves are expanded over the reads and transcripts
+    that overlap them, and the annotation is subset per partition after that"""
     chroms = sorted({region.name for region in regions})
     genome_seqs = set(genome_fa.references)
     missing = [chrom for chrom in chroms if chrom not in genome_seqs]
@@ -1727,11 +1722,19 @@ def region_chromosomes(regions, genome_fa):
     return [SeqRange(chrom, 0, genome_fa.get_reference_length(chrom)) for chrom in chroms]
 
 
+def write_partition_regions(regions, output):
+    """The regions transcripts were built in, as an output: with --region/--region_bed,
+    the given regions after they were expanded over the reads and transcripts that
+    overlap them"""
+    with open_output(output + '.regions.bed') as fh:
+        write_regions(regions, fh)
+
+
 def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, annot_gtf,
                         junction_star, junction_bed, junction_support, ss_window, end_window,
-                        sjc_support, single_exon_support, frac_support, directRNA, trust_strand, total_rna,
-                        trust_junctions, no_stringent, no_check_splice, no_align_to_annot,
-                        max_ends, filter, keep_supplementary, quality, threads, parallel_mode,
+                        sjc_support, single_exon_support, frac_support, directRNA, trust_strand, keep_internally_primed,
+                        trust_junctions, no_align_to_annot,
+                        max_ends, filter, keep_supplementary, quality, threads,
                         fusion_breakpoints, keep_intermediate, temp_dir, normalize_ends, generate_map,
                         regions=None, subset_backup_support=10):
     args = TranscriptomeOpts(genome_aligned_bam=genome_aligned_bam, genome=genome,
@@ -1741,12 +1744,11 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                              end_window=end_window, sjc_support=sjc_support,
                              single_exon_support=single_exon_support, frac_support=frac_support,
                              subset_backup_support=subset_backup_support,
-                             directRNA=directRNA, trust_strand=trust_strand or directRNA, total_rna=total_rna,
+                             directRNA=directRNA, trust_strand=trust_strand or directRNA, keep_internally_primed=keep_internally_primed,
                              trust_junctions=trust_junctions,
-                             no_stringent=no_stringent, no_check_splice=no_check_splice,
                              no_align_to_annot=no_align_to_annot, max_ends=max_ends,
                              filter=filter, keep_supplementary=keep_supplementary,
-                             quality=quality, threads=threads, parallel_mode=parallel_mode,
+                             quality=quality, threads=threads,
                              regions=regions, fusion_breakpoints=fusion_breakpoints,
                              keep_intermediate=keep_intermediate, temp_dir=temp_dir, normalize_ends=normalize_ends,
                              generate_map=generate_map)
@@ -1756,9 +1758,6 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
 
     if args.keep_intermediate and args.temp_dir is None:
         raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
-    if args.total_rna and not args.trust_strand:
-        raise FlairInputDataError("--total_rna requires --trust_strand: without poly(A) tails, the alignment strand is "
-                                  "the only strand evidence for single-exon reads")
     parse_filter(args.filter)
     temp_dir = make_run_temp_dir(args.output, args.temp_dir)
     logging.info(f'temporary files in {temp_dir}')
@@ -1771,7 +1770,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
         annot_regions = region_chromosomes(args.regions, genome_fa) if args.regions else None
         region_bed = write_regions_bed(args.regions, os.path.join(temp_dir, 'regions.bed')) if args.regions else None
         with ThreadPoolExecutor(max_workers=1) as executor:
-            partitioning = executor.submit(partition_regions, args.parallel_mode, genome_fa, args.genome_aligned_bam,
+            partitioning = executor.submit(partition_regions, args.genome_aligned_bam,
                                            args.annot_gtf, max(1, args.threads - 1), region_bed)
             annot_gtf_data = None
             if args.annot_gtf:
@@ -1785,6 +1784,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                                                             intron_beds=args.junction_bed,
                                                             star_sj_tabs=args.junction_star)
             regions, weights = partitioning.result()
+        write_partition_regions(regions, args.output)
 
         runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
                                  threads=args.threads, weights=weights)

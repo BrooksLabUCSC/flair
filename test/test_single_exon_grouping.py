@@ -176,11 +176,11 @@ def test_with_trust_strand_only_the_3_prime_end_is_checked():
     assert _groups(three_prime, trust_strand=True) == []
 
 
-def test_total_rna_keeps_internally_primed_reads():
+def test_keep_internally_primed_keeps_internally_primed_reads():
     reads = [_read(1000, 2000, '+', intprim=(False, True))] * 3
     isoform = Isoform('chr1', '+', (), reads=reads)
     assert list(group_se_by_overlap('chr1', isoform, 3, True)) == []
-    ((_, strand, kept),) = group_se_by_overlap('chr1', isoform, 3, True, total_rna=True)
+    ((_, strand, kept),) = group_se_by_overlap('chr1', isoform, 3, True, keep_internally_primed=True)
     assert strand == '+' and len(kept) == 3
 
 

@@ -1,4 +1,4 @@
-var_name	is_var	varpos	ref	alt	strand	phase_set	haplotype	gene	basic-reads
+var_name	is_var	varpos	ref	alt	strand	phase_set	haplotype	gene	basic.reads
 chr12:25205716:A>T	yes	chr12:25205716	A	T	.	.	.	ENSG00000133703.12	72
 chr12:25205716:A>T	no	chr12:25205716	A	T	.	.	.	ENSG00000133703.12	87
 chr12:25205894:T>G	yes	chr12:25205894	T	G	.	.	.	ENSG00000133703.12	74

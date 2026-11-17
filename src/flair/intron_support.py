@@ -153,15 +153,15 @@ class IntronSupport:
 
     @staticmethod
     def _no_introns_loaded_error(file_name, file_desc, chrom_filter=None):
-        msg = f"No introns loaded from {file_desc} file"
+        msg = f"no introns loaded from {file_desc} file {file_name}"
         if chrom_filter is not None:
             msg += f" for chromosome `{chrom_filter}'"
-        msg += f": {file_name}"
-        raise FlairInputDataError(msg)
+        raise FlairInputDataError(msg + "; it must hold at least one intron, named by the "
+                                  "chromosomes of the genome the reads are aligned to")
 
     @staticmethod
     def _bed_strand_error(bed):
-        raise FlairInputDataError(f"Invalid strand `{bed.strand}' in BED must be one of: " +
+        raise FlairInputDataError(f"strand `{bed.strand}' in BED must be one of: " +
                                   ", ".join([f"'{s}'" for s in _VALID_STRANDS]))
 
     def _load_intron_bed(self, bed, chrom_filter):

@@ -7,15 +7,15 @@ usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME
                            [--ss_window SS_WINDOW] [--end_window END_WINDOW]
                            [--sjc_support SJC_SUPPORT]
                            [--single_exon_support SINGLE_EXON_SUPPORT]
+                           [--keep_internally_primed]
                            [--subset_backup_support SUBSET_BACKUP_SUPPORT]
                            [--frac_support FRAC_SUPPORT] [--directRNA]
-                           [--trust_strand] [--total_rna] [--trust_junctions]
-                           [--no_stringent] [--no_check_splice]
+                           [--trust_strand] [--trust_junctions]
                            [--no_align_to_annot] [--max_ends MAX_ENDS]
-                           [--filter FILTER] [--keep_supplementary]
-                           [--quality QUALITY] [-t THREADS]
-                           [--parallel_mode PARALLEL_MODE]
-                           [--region_bed REGION_BED] [--region REGIONS]
+                           [--filter {nosubset,comprehensive,ginormous,<N>X}]
+                           [--keep_supplementary] [--quality QUALITY]
+                           [-t THREADS] [--region_bed REGION_BED]
+                           [--region REGIONS]
                            [--fusion_breakpoints FUSION_BREAKPOINTS]
                            [--temp_dir TEMP_DIR] [--keep_intermediate]
                            [--normalize_ends] [--generate_map]
@@ -54,6 +54,20 @@ options:
   --single_exon_support SINGLE_EXON_SUPPORT
                         minimum number of supporting reads for a single exon
                         isoform (default: 3)
+  --keep_internally_primed
+                        keep single-exon reads whose 3' end looks oligo-dT
+                        primed on the genome's own A rather than on a
+                        transcript's poly(A) tail, which are removed by
+                        default. Primed is either of:
+                        - at least 60% A in the 20 genome bases after the end,
+                          with no poly(A) tail clipped there
+                        - at least 80% A in the last 20 bases the read aligns
+                          to
+                        Keep them for reads that were not primed on poly(A),
+                        such as a random primed total RNA library: nothing is
+                        then mispriming, and the check only drops reads of
+                        real transcript ends in A-rich sequence, non-
+                        polyadenylated transcripts among them
   --subset_backup_support SUBSET_BACKUP_SUPPORT
                         a spliced isoform removed as a subset of other
                         isoforms is reported after all, with its reads, if
@@ -73,24 +87,12 @@ options:
                         their alignment, and spliced reads are corrected only
                         with splice junctions on that strand, and are only
                         assigned to transcripts on that strand
-  --total_rna           the library is total RNA rather than poly(A) selected:
-                        single-exon reads ending in or before genomic A runs
-                        are kept, rather than removed as internally primed,
-                        and no poly(A) tails are needed. Requires
-                        --trust_strand
   --trust_junctions     trust the strand of every input splice junction for
                         read correction, without checking splice motifs. By
                         default, an unannotated junction without a GT-AG
                         motif, such as GC-AG or AT-AC, is only weak evidence
                         of strand: a read stranded only by such junctions gets
                         its strand from gene identification, or is dropped
-  --no_stringent        do not require all supporting reads to be full-length,
-                        that is aligned to the first and last exons of the
-                        transcript. Use this for fragmented libraries, with an
-                        understanding that it will impact precision
-  --no_check_splice     do not enforce accurate alignment around splice sites.
-                        Specify this for libraries with high error rates, but
-                        it will reduce precision
   --no_align_to_annot   skip the initial alignment to the annotated sequences
                         and detect transcripts only from the genomic
                         alignment. Slightly faster but less accurate when the
@@ -99,48 +101,39 @@ options:
                         chain; make higher for more precise end detection.
                         Single-exon isoforms are reported at each of their
                         clustered ends, however many (default: 1)
-  --filter FILTER       which subset isoforms (a contiguous part of another
-                        isoform) to keep. <N>X, such as 10X: a subset isoform
-                        is kept if it has more than N times the reads of the
-                        isoforms it is a subset of; nosubset: all subset
-                        isoforms are removed; comprehensive: all spliced
-                        subset isoforms are kept; ginormous: comprehensive,
-                        plus single exon subset isoforms (default: nosubset)
+  --filter {nosubset,comprehensive,ginormous,<N>X}
+                        which subset isoforms (a contiguous part of another
+                        isoform) to keep:
+                        - nosubset: no subset isoform is kept
+                        - comprehensive: every spliced subset isoform is kept
+                        - ginormous: comprehensive, plus every single-exon
+                          subset isoform
+                        - <N>X, such as 10X: a subset isoform with more than N
+                          times the reads of the isoforms it is a subset of
+                        (default: nosubset)
   --keep_supplementary  keep supplementary alignments when defining isoforms
   --quality QUALITY     minimum mapping quality threshold to consider genomic
                         alignments for defining transcripts (default: 1)
   -t, --threads THREADS
-                        number of threads to run with, related to
-                        --parallel_mode (default: 12)
-  --parallel_mode PARALLEL_MODE
-                        parallelization mode. auto:1GB is an automatic
-                        threshold where, if the file is less than 1GB,
-                        parallelization is done by chromosome, and if it is
-                        larger, parallelization is done by region of non-
-                        overlapping reads. Other modes: bychrom, byregion,
-                        auto:xGB; for the auto threshold, the size must be in
-                        units of GB (default: auto:1GB)
+                        number of threads to run with (default: 12)
   --region_bed REGION_BED
                         bed file of the regions to build transcripts in, such
                         as the genes of interest. If no region is given, the
-                        whole genome is used. A region is expanded to include
-                        all the reads and annotated transcripts that overlap
-                        it, repeatedly, until it stops growing, so it holds
-                        everything a whole-genome run would put with it and
-                        the transcripts of the genes in the region are those
-                        of a whole-genome run. The expansion can reach into a
-                        gene next to the region, whose transcripts are
-                        reported too; those may be wrong, as the reads
-                        supporting them that do not overlap the expanded
-                        region are never read. Isoform and gene ids are
+                        whole genome is used. A region is expanded over the
+                        reads and annotated transcripts that overlap it, until
+                        nothing more overlaps, so the transcripts reported are
+                        the same as a whole-genome run's. The expansion can
+                        reach a gene next to the region, which is reported
+                        too. The expanded regions are written to
+                        <output>.regions.bed. Isoform and gene ids are
                         numbered within a run, so they are not the ids a
                         whole-genome run gives the same transcripts
   --region REGIONS      region to build transcripts in, with everything
                         --region_bed says. A region is either one-based and
-                        closed, as a genome browser writes it,
-                        `chr1:1,000-2,000', or zero-based and half-open, as a
-                        BED line, `chr1 999 2000'. Maybe repeated, and maybe
-                        used with --region_bed, whose regions are added to it
+                        closed, chr1:1,000-2,000, or zero-based and half-open,
+                        chr1 999 2000, as a BED line. May be repeated, and may
+                        be used with --region_bed, whose regions are added to
+                        it
   --fusion_breakpoints FUSION_BREAKPOINTS
                         for fusion detection only: bed file containing
                         locations of fusion breakpoints on the synthetic

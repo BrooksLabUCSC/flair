@@ -37,6 +37,40 @@
     browser writes it, `chr12:25,205,001-25,210,000`, or zero-based and half-open, as
     a BED line, `chr12 25205000 25210000`.  The option may be repeated, and its
     regions are added to those of `--region_bed`.
+  * flair transcriptome writes `OUT.regions.bed`, the regions it built transcripts in:
+    with `--region`/`--region_bed`, the given regions after they were expanded over the
+    reads and transcripts that overlap them.
+  * flair spliceevents writes `OUT.spliceevents.regions.bed`, the regions it corrected
+    reads in.  A `--region`/`--region_bed` region is now expanded over the reads that
+    overlap it until nothing more overlaps, rather than once, so a gene's reads are all
+    in one region however far they reach.
+  * flair spliceevents corrects reads a cluster at a time, a cluster being the reads and
+    annotated transcripts that overlap each other, from `flair_partition`, rather than
+    cutting a chromosome in the intergenic gaps of the annotation, where reads crossed
+    the cuts and their events past a cut were lost.  A cluster's reads are aligned to
+    its own annotated transcripts, so results no longer depend on how the work is
+    divided: `--partition_items`, which replaces `--partition` and groups clusters into
+    tasks, gives the same tables at every setting, and 0 gives a task per chromosome.
+    On A498's chr19, 328k reads and a GENCODE lift, this takes 48 seconds rather than
+    72, reports every event row the intergenic cuts did, and adds the two rows they lost
+    at a cut.  A `--region`/`--region_bed` region is expanded over the reads and the
+    annotated transcripts that overlap it, rather than the reads alone, and a region
+    with no reads or transcripts is reported and dropped.
+  * `flair transcriptome --no_stringent` and `--no_check_splice` are removed, and
+    passing either is an error that says so (issue #706).  They let a read count
+    toward an isoform it does not support, the first by dropping the requirement that
+    the read be full-length on it, the second by dropping the check that it aligns
+    accurately at the splice sites, which the rest of the module's logic assumes.
+  * flair transcriptome partitions the input into clusters of overlapping reads and
+    annotated transcripts, and `--parallel_mode` is removed.  `bychrom` aligned a
+    chromosome's reads to every transcript on it and `byregion` aligned a partition's
+    to the partition's, so the two gave different isoforms: one of 2559 on A498's
+    chr19, and six read counts.  A cluster holds every transcript its reads can reach,
+    so the isoforms no longer depend on how the work is divided, and `--region` gives
+    the whole-genome run's transcripts for the region.  bychrom was also the slower
+    path: chr19 took 4m05s, against 49 seconds by cluster.  An isoform whose cluster
+    has no annotated start codon now has no `productivity`, where a whole-chromosome
+    partition would give it one from a gene megabases away.
   * `flair alleles` is removed, and `flair isoalleles` is rewritten.  Calling allele
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
@@ -344,9 +378,14 @@
     comes from gene identification.  `--trust_junctions` trusts every input
     junction's strand instead.
   * `--trust_strand` applies to spliced reads too; `--directRNA` declares direct
-    RNA input (it implies `--trust_strand` and allows no large UTR deletions);
-    `--total_rna` keeps single-exon reads that end at genomic A runs and needs no
-    poly(A) tails (it requires `--trust_strand`).
+    RNA input (it implies `--trust_strand` and allows no large UTR deletions).
+  * Single-exon reads whose 3' end is in A-rich genome, 60% A in the 20 bases after
+    it or 80% A in its last 20 aligned bases, are removed as oligo-dT primed on that
+    A rather than on a poly(A) tail, which would otherwise make single-exon isoforms
+    in introns and UTRs.  `--keep_internally_primed` keeps them, for reads not primed
+    on poly(A), such as a random primed total RNA library: there is no mispriming to
+    remove, and the check only drops reads of real transcript ends in A-rich sequence,
+    non-polyadenylated transcripts among them.
   * Temporary files go in `--temp_dir`, by default $TMPDIR.
 * flair combine
   * `-f/--gtf` gives each combined isoform its gene, reference transcript, CDS,
@@ -471,16 +510,13 @@
     `--annot_basic` if given.  A read overlapping several genes' exons belongs to
     the one whose exons share the most bases with it, of its own strand with
     `--trust_strand`, else of either.  They were all left out.
-  * Whole chromosomes are cut into pieces in intergenic gaps of the annotation, about
-    5000 annotated exons each, and each piece's reads are corrected and its events
-    found in parallel.  A piece owns the reads starting in it, however far they run,
-    and reports the events starting in it, so an event near a cut can miss reads
-    starting in the piece before.  Reads are aligned to the annotated transcripts of
-    their piece rather than of their chromosome.  On PC9's chr19 this takes 8 minutes
-    rather than 63, and 0.8 rather than 2.6 GB, and 95% of events are unchanged, the
-    other 5% from the alignment to fewer transcripts: without it, 99.9% are.
-    `--partition no` corrects whole chromosomes, and `--partition yes` cuts
-    `--region_bed` regions, which are not cut by default.
+  * Whole chromosomes are cut into partitions, and each partition's reads are
+    corrected and its events found in parallel.  Reads are aligned to the annotated
+    transcripts of their partition rather than of their chromosome.  On PC9's chr19
+    this takes 8 minutes rather than 63, and 0.8 rather than 2.6 GB, and 95% of events
+    are unchanged, the other 5% from the alignment to fewer transcripts: without it,
+    99.9% are.  (The cuts were first placed in the intergenic gaps of the annotation,
+    which reads crossed; see `--partition_items` above for how they are placed now.)
   * The genome-wide annotation of first and last exons was pickled into every
     region's task, 1.7 seconds each, which kept the threads waiting on the main
     process.  A 1% sample of PC9 over the whole genome now takes under 5 minutes

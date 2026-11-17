@@ -39,7 +39,7 @@ def test_no_regions_given_is_none():
 
 
 def test_regions_of_both_options_are_merged():
-    assert parse_regions(['chr1:1-100', 'chr1 50 200'], 'input/partition-region.bed') == \
+    assert parse_regions(['chr1:1-100', 'chr1 50 200'], 'input/partition.region.bed') == \
         [SeqRange('chr1', 0, 200), SeqRange('chr19', 368000, 368100), SeqRange('chr6', 74285000, 74285100)]
 
 

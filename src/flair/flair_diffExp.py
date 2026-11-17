@@ -35,6 +35,10 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
 
 
+# an isoform is tested only when the two conditions' median counts differ by more
+# than this
+MIN_MEDIAN_COUNT_DIFF = 3
+
 pkgdir = osp.dirname(osp.realpath(__file__))
 diffExp_deseq2 = osp.join(pkgdir, "diffExp_deseq2.R")
 diffExp_drimseq = osp.join(pkgdir, "diffExp_drimseq.R")
@@ -139,8 +143,8 @@ def row_ttest(ttest_ind, row, genetot, ref_cols, test_cols):
     # Compute normalized usage difference, ignore if totals are zero
     deltausage = (mean(varcounts) / vartot if vartot > 0 else 0) - (mean(wtcounts) / wttot if wttot > 0 else 0)
 
-    # Only test if median difference is large enough (|Δ| > 3)
-    if abs(deltaval) <= 3:
+    # Only test if median difference is large enough
+    if abs(deltaval) <= MIN_MEDIAN_COUNT_DIFF:
         return None
     # Two-sample t-test between WT and VAR counts
     # ranksums() wast too strict for small replicates
@@ -164,7 +168,10 @@ def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
             alldeltas.append(deltausage)
 
     if len(allpval) == 0:
-        raise FlairInputDataError("no p-values with sufficient delta values from the counts matrix")
+        raise FlairInputDataError(f"no isoform's median count differs between the two conditions by more "
+                                  f"than {MIN_MEDIAN_COUNT_DIFF} reads, so there is nothing to test; check "
+                                  "that the conditions compared are the ones meant and that the matrix "
+                                  "holds read counts rather than TPM")
 
     # Apply multiple-testing correction.  This is Holm-Sidak, not Benjamini-Hochberg
     # as this comment used to say: the adjusted values control the family-wise error
@@ -223,8 +230,6 @@ def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, out_dir):
     # make gene table first
     gene_ids = np.asarray(list(genes.keys()))
     vals = np.asarray([genes[x].exp for x in gene_ids])
-    if len(gene_ids) == 0:
-        raise FlairInputDataError("no genes parsed from the counts matrix")
 
     # genes must be expressed in all samples of at least one group
     filtered_rows = (np.min(vals[:, g1_ind], axis=1) > thresh) | (np.min(vals[:, g2_ind], axis=1) > thresh)
@@ -339,13 +344,22 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
 
     group_counts = Counter(groups)
     if len(list(group_counts.keys())) != 2:
-        raise FlairInputDataError("** Error. diffExp requires exactly 2 condition groups. Maybe group name formatting is incorrect")
+        raise FlairInputDataError(f"flair diffexp compares two conditions, but the sample info of "
+                                  f"{quant_table_tsv} names {len(group_counts)}: "
+                                  f"{', '.join(sorted(group_counts))}.  Cut the counts matrix and its "
+                                  f"sample info down to the two conditions to compare")
     elif min(list(group_counts.values())) < 3:
-        raise FlairInputDataError("** Error. diffExp requires >2 samples per condition group. Use diff_iso_usage.py for analyses with <3 replicates.")
+        raise FlairInputDataError("flair diffexp needs at least 3 samples of each condition; "
+                                  "with fewer, compare two samples with the diff_iso_usage program")
     elif set(groups).intersection(set(batches)):
-        raise FlairInputDataError("** Error. Sample group/condition names and batch descriptor must be distinct. Try renaming batch descriptor in count matrix.")
+        raise FlairInputDataError(f"a condition and a batch have the same name, "
+                                  f"{', '.join(sorted(set(groups) & set(batches)))}, which the model "
+                                  f"formula cannot tell apart; rename the batch in the sample info of "
+                                  f"{quant_table_tsv}")
     elif sum([1 if x.isdigit() else 0 for x in groups]) > 0 or sum([1 if x.isdigit() else 0 for x in batches]) > 0:
-        raise FlairInputDataError("** Error. Sample group/condition or batch names are required to be strings not integers. Please change formatting.")
+        raise FlairInputDataError(f"condition and batch names must not be numbers, which are read as "
+                                  f"numbers rather than as groups; name them in the sample info of "
+                                  f"{quant_table_tsv}, batch1 rather than 1")
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(out_dir, 'workdir')
@@ -361,7 +375,8 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
             if e.errno != errno.EEXIST:
                 raise
     else:
-        raise FlairInputDataError(f"** Error. Name {out_dir} already exists. Choose another name for out_dir")
+        raise FlairInputDataError(f"output directory {out_dir} already exists; give another -o, or "
+                                  f"--overwrite_output to write into this one")
 
     # the normalized rows keep the counts matrix column order, so the same column
     # indexes apply to them

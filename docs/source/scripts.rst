@@ -1,7 +1,7 @@
 Additional programs
 ^^^^^^^^^^^^^^^^^^^
 
-When you ``conda install`` or ``pip install`` flair, the following helper programs will be in your $PATH.
+When you ``conda install`` or ``pip install`` flair, the following programs will be in your $PATH.
 The options of each are generated from the program itself, so they are always what the program accepts.
 
 bed_to_gtf

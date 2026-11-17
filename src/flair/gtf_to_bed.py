@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
 from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed, BedBlock
@@ -12,7 +13,7 @@ GENE_ID_EXTRA_COL = 0
 def build_parser():
     desc = ('converts a gtf to a bed, depending on the output filename extension; '
             'gtf exons need to be grouped by transcript and sorted by coordinate within a transcript')
-    parser = argparse.ArgumentParser(prog='gtf_to_bed', description=desc)
+    parser = argparse.ArgumentParser(prog='gtf_to_bed', formatter_class=FlairHelpFormatter, description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('gtf', type=str, help='annotated gtf')
     required.add_argument('bed', type=str, help='bed file')

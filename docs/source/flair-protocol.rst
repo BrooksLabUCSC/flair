@@ -100,7 +100,7 @@ long-read data
 
     - After genomic alignment of your reads (have indexed BAM file), use
       intron-prospector to generate a junctions.bed file:
-    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.IPjunctions.bed -C 0.0 SAMPLE.genome_aligned.bam``
+    - ``intron-prospector --genome-fasta=GENOME.fa --intron-bed6=SAMPLE.ip_junctions.bed -C 0.0 SAMPLE.genome_aligned.bam``
 
 .. _choosing-analysis-label:
 
@@ -184,7 +184,7 @@ more.
 
 - With junctions from long reads:
 
-  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed --junction_support 2 -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
+  - ``flair transcriptome -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.ip_junctions.bed --junction_support 2 -b SAMPLE.genome_aligned.bam --sample_name SAMPLE -o SAMPLE``
 
 - The sample name labels the sample's isoforms and reads in the outputs, and
   FLAIR combine's columns, so give each sample its own
@@ -325,7 +325,7 @@ for every option and output.
 
    - One sample: its reads by haplotype, H1, H2 or untagged
 
-     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam SAMPLE.haplotagged.bam --read_map OUTPUT.SAMPLE.read.map.tsv --phased_vcf SAMPLE.phased.vcf.gz --sample_name SAMPLE -o SAMPLE``
+     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam SAMPLE.haplotagged.bam --read_map OUTPUT.isoforms.SAMPLE.read.map.tsv --phased_vcf SAMPLE.phased.vcf.gz --sample_name SAMPLE -o SAMPLE``
 
    - A tumor and normal pair: the tumor's reads by haplotype and somatic variants,
      such as H2-S1, with the normal's as a control.  Give the normal's BAM and read
@@ -338,7 +338,7 @@ for every option and output.
        DeepSomatic, taken as they are
      - ``--variant CHROM:POS:REF>ALT``, only the variants given, as a known driver
        that the normal also calls because tumor cells are in it
-     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam TUMOR.haplotagged.bam --read_map OUTPUT.TUMOR.read.map.tsv --sample_name TUMOR --normal_bam NORMAL.haplotagged.bam --normal_read_map OUTPUT.NORMAL.read.map.tsv --normal_name NORMAL --phased_vcf NORMAL.phased.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR``
+     - ``flair isoalleles --isoform_bed COMBINED.isoforms.bed -g GENOME.fa --bam TUMOR.haplotagged.bam --read_map OUTPUT.isoforms.TUMOR.read.map.tsv --sample_name TUMOR --normal_bam NORMAL.haplotagged.bam --normal_read_map OUTPUT.isoforms.NORMAL.read.map.tsv --normal_name NORMAL --phased_vcf NORMAL.phased.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR``
 
    ``OUTPUT.isoalleles.counts.tsv`` is a counts matrix of each isoform's groups, so
    ``diff_iso_usage`` compares their usage between the tumor and the normal.
@@ -378,7 +378,7 @@ genome-aligned BAM files directly, with a manifest of each sample's name and
 BAM file, tab-separated.  As with FLAIR transcriptome, include a junction
 reference.
 
-- ``flair spliceevents -m MANIFEST.tsv -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.IPjunctions.bed -o OUTPUT``
+- ``flair spliceevents -m MANIFEST.tsv -g GENOME.fa -f ANNOTATION.gtf --junction_bed LONGREAD.ip_junctions.bed -o OUTPUT``
 - For a few loci, add ``--region chr12:25,205,001-25,210,000`` or
   ``--region_bed REGIONS.bed``; only the regions' reads and annotation are used,
   and an event reaching past a region is left out rather than counted from part

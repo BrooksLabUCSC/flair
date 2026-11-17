@@ -7,10 +7,10 @@ from flair import SeqRange, FlairInputDataError, combine_regions
 from flair.pycbio.hgdata.bed import BedReader
 
 # appended to the help of each program's --region option
-REGION_FORMAT_HELP = ("A region is either one-based and closed, as a genome browser "
-                      "writes it, `chr1:1,000-2,000', or zero-based and half-open, as a "
-                      "BED line, `chr1 999 2000'.  Maybe repeated, and maybe used with "
-                      "--region_bed, whose regions are added to it")
+REGION_FORMAT_HELP = ("A region is either one-based and closed, chr1:1,000-2,000, or "
+                      "zero-based and half-open, chr1 999 2000, as a BED line.  May be "
+                      "repeated, and may be used with --region_bed, whose regions are "
+                      "added to it")
 
 # `chr1:1,000-2,000'; the sequence name may contain a colon, so the last one starts the range
 _ONE_BASED_RE = re.compile(r"^(\S+):([\d,]+)-([\d,]+)$")
@@ -69,9 +69,14 @@ def parse_regions(region_specs, region_bed=None):
     return combine_regions(regions)
 
 
+def write_regions(regions, fh):
+    "the regions as BED3 lines on an open file"
+    for region in regions:
+        fh.write(f"{region.name}\t{region.start}\t{region.end}\n")
+
+
 def write_regions_bed(regions, bed_file):
     "the regions as a BED3, for a program that takes a region BED; returns the path"
     with open(bed_file, 'w') as fh:
-        for region in regions:
-            fh.write(f"{region.name}\t{region.start}\t{region.end}\n")
+        write_regions(regions, fh)
     return bed_file

@@ -119,5 +119,5 @@ def test_an_unknown_table_is_refused(tmp_path):
     other = str(tmp_path / 'x.tsv')
     with open(other, 'w') as fh:
         fh.write('name\tkind\ts1\nA\tB\t1\n')
-    with pytest.raises(FlairInputDataError, match='not a table of counts'):
+    with pytest.raises(FlairInputDataError, match='is not a counts table'):
         read_grouped_counts(other)

@@ -11,7 +11,8 @@
                        [--max_dist_to_tss MAX_DIST_TO_TSS]
                        [--min_dist_between_breakpoints MIN_DIST_BETWEEN_BREAKPOINTS]
                        [--max_partners MAX_PARTNERS] [--quality QUALITY]
-                       [--frac_support FRAC_SUPPORT] [--filter FILTER]
+                       [--frac_support FRAC_SUPPORT]
+                       [--filter {nosubset,comprehensive,ginormous,<N>X}]
                        [--no_transcriptome_alignment] [--keep_intermediate]
 
 .. rubric:: options
@@ -56,7 +57,7 @@
 
    minimum fraction of a fusion's reads for a fusion isoform to be reported; a fusion with one dominant isoform hides its minor ones below this. For the most recall, give 0 with --filter comprehensive (default: 0.05)
 
-.. option:: --filter FILTER
+.. option:: --filter {nosubset,comprehensive,ginormous,<N>X}
 
    which subset fusion isoforms, a contiguous part of another, to keep, as flair transcriptome's --filter: nosubset, comprehensive, ginormous or <N>X. A fusion's reads are often 5' truncated, and with nosubset its isoforms take only its few full-length reads: for the most recall, give comprehensive, every spliced subset isoform kept, with --frac_support 0 (default: nosubset)
 

@@ -102,9 +102,9 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
                 min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
                 condition_a, condition_b, overwrite_output):
     if not os.path.exists(counts_matrix):
-        raise FlairInputDataError('Counts matrix file path does not exist')
+        raise FlairInputDataError(f'counts matrix file does not exist: {counts_matrix}')
     if not os.path.exists(isoform_bed):
-        raise FlairInputDataError('Isoform bed file path does not exist')
+        raise FlairInputDataError(f'isoform bed file does not exist: {isoform_bed}')
     check_isoform_ids(isoform_bed, counts_matrix)
 
     # Create output directory including a working directory for intermediate files.
@@ -117,9 +117,10 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
         try:
             os.makedirs(workdir, 0o700)
         except OSError as ex:
-            raise OSError("** ERROR cannot create directory %s" % (workdir)) from ex
+            raise OSError(f"cannot create the working directory {workdir}") from ex
     else:
-        raise FlairInputDataError(f'** Error. Name {output} already exists. Choose another name for out_dir')
+        raise FlairInputDataError(f"output directory {output} already exists; give another -o, or "
+                                  f"--overwrite_output to write into this one")
 
     filebase = os.path.join(output, 'diffsplice')
     # the event callers are separate processes, so each is told whether to compress;

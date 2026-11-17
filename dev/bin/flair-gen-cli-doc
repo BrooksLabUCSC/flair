@@ -24,6 +24,7 @@ ROOT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
 sys.path.insert(0, os.path.join(ROOT_DIR, "src"))
 
 from flair import flair_cli  # noqa: E402
+from flair.cli_help import help_blocks  # noqa: E402
 
 GENERATED_BY = "dev/bin/flair-gen-cli-doc"
 
@@ -52,13 +53,17 @@ def format_invocation(formatter, action):
     "`-r READS, --reads READS', as the terminal help writes it"
     return formatter._format_action_invocation(action)
 
-def format_help(formatter, action):
-    "the help text with %(default)s and friends expanded"
-    return ' '.join(formatter._expand_help(action).split())
+def write_help(fh, formatter, action):
+    """the help text with %(default)s and friends expanded, its `- ' lines written as
+    a bullet list and the rest as paragraphs"""
+    for _, lines in help_blocks(formatter._expand_help(action)):
+        for line in lines:
+            fh.write(f"   {line}\n")
+        fh.write("\n")
 
 def write_option(fh, formatter, action):
     fh.write(f".. option:: {format_invocation(formatter, action)}\n\n")
-    fh.write(f"   {format_help(formatter, action)}\n\n")
+    write_help(fh, formatter, action)
 
 def write_group(fh, formatter, group):
     actions = [a for a in group._group_actions if is_documented(a)]

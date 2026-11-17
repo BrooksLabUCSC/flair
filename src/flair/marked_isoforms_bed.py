@@ -22,13 +22,13 @@ def bed_columns(num_bed_columns):
     "names for the pass-through BED columns, which are addressed by position"
     return [f'col{num}' for num in range(1, num_bed_columns + 1)]
 
-def bed_column_count(bed_rows):
+def bed_column_count(bed_rows, isoform_bed):
     "the shared width of the input rows, which the marked file keeps"
     widths = {len(row) for row in bed_rows}
     if len(widths) != 1:
         raise FlairInputDataError(
-            "the isoform BED rows are not all the same width, found: "
-            f"{', '.join(str(width) for width in sorted(widths))}")
+            f"{isoform_bed}: its rows have {', '.join(str(width) for width in sorted(widths))} "
+            "columns; every row of a BED must have the same number of columns")
     return widths.pop()
 
 class MarkedIsoformsReader(TsvReader):

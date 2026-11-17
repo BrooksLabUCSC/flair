@@ -10,7 +10,8 @@
                              [--junction_tab JUNCTION_TAB]
                              [--junction_bed JUNCTION_BED]
                              [--junction_support JUNCTION_SUPPORT]
-                             [--ss_window SS_WINDOW] [--partition {yes,no}]
+                             [--ss_window SS_WINDOW]
+                             [--partition_items PARTITION_ITEMS]
                              [--region_bed REGION_BED] [--region REGIONS]
                              [--feature_support FEATURE_SUPPORT]
                              [--event_support EVENT_SUPPORT]
@@ -54,17 +55,17 @@
 
    window size for correcting splice sites (default: 10)
 
-.. option:: --partition {yes,no}
+.. option:: --partition_items PARTITION_ITEMS
 
-   whether to cut the regions reads are corrected and events found in, in intergenic gaps of the annotation, into pieces of about 5000 annotated exons, each owning the reads that start in it. By default, yes for whole chromosomes and no for --region/--region_bed regions
+   run the reads in partitions of at least this many input items, reads of all the samples and annotated transcripts (default: 1000), or of a whole chromosome with 0. A partition is one or more clusters of items that overlap, and a cluster is corrected and searched for events on its own, so this sets how much work a task is and changes no result
 
 .. option:: --region_bed REGION_BED
 
-   bed file of the regions to report events in, such as the genes of interest. If no region is given, all chromosomes are used. A region is expanded to include all the reads and annotated transcripts that overlap it, and its reads are corrected over their whole length. The events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions. An event reaching past a region is left out, not reported from part of its reads
+   bed file of the regions to report events in, such as the genes of interest. If no region is given, all chromosomes are used. A region is expanded over the reads and annotated transcripts that overlap it, until nothing more overlaps, and its reads are corrected over their whole length. The events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions. An event reaching past a region is left out, not reported from part of its reads. The regions reads were corrected in are written to <output>.spliceevents.regions.bed
 
 .. option:: --region REGIONS
 
-   region to report events in, with everything --region_bed says. A region is either one-based and closed, as a genome browser writes it, `chr1:1,000-2,000', or zero-based and half-open, as a BED line, `chr1 999 2000'. Maybe repeated, and maybe used with --region_bed, whose regions are added to it
+   region to report events in, with everything --region_bed says. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
 
 .. option:: --feature_support FEATURE_SUPPORT
 

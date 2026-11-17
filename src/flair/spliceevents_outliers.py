@@ -11,6 +11,7 @@ table of every outlier.  When start and end events improve, add them to
 SIMPLE_EVENTS and take them out of LEFT_OUT_EVENTS.
 """
 import argparse
+from flair.cli_help import FlairHelpFormatter
 from collections import defaultdict
 from itertools import product
 from statistics import median
@@ -44,7 +45,7 @@ PSI_TOTALS = {'junc': 'event_reads', 'tot': 'locus_reads'}
 def build_parser():
     desc = ('outlier samples of flair spliceevents events, whose PSI of an event is far from the '
             "median of all samples'")
-    parser = argparse.ArgumentParser(prog='spliceevents_outliers', description=desc)
+    parser = argparse.ArgumentParser(prog='spliceevents_outliers', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('-i', '--input', required=True,
                         help='output prefix of flair spliceevents: reads its OUTPUT.spliceevents.counts.tsv '
                              'and OUTPUT.spliceevents.totals.tsv')
@@ -82,7 +83,8 @@ def read_events(input_prefix, psi):
             continue
         if row['event'] not in totals:
             raise FlairInputDataError(f"event {row['event']} of {counts_tsv} is not in "
-                                      f'{input_prefix}.spliceevents.totals.tsv')
+                                      f'{input_prefix}.spliceevents.totals.tsv; both files must be '
+                                      'from the same flair spliceevents run')
         row['counts'] = {s: int(row[s]) for s in samples}
         row['totals'] = totals[row['event']]
         event_rows.append(row)
