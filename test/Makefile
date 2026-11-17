@@ -1440,7 +1440,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region test-spliceevents-region-extend \
 		test-spliceevents-region-partition test-spliceevents-smallparts test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
-		test-spliceevents-help
+		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-no-temp-dir test-spliceevents-help
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out
@@ -1526,6 +1526,20 @@ test-spliceevents-restart: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair --log-level INFO spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@ 2> $O/$@.log
 	test $$(grep -c 'reads to the annotated transcripts' $O/$@.log) -eq 1
 	for f in $O/$@.first/*.tsv; do diff $$f $O/$@.$$(basename $$f | sed 's/^$@\.//') || exit 1; done
+
+# --temp_dir holds the run's own directory, which is removed at the end, and nothing
+# is written beside the output; the events are those of a run using $TMPDIR
+test-spliceevents-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
+	mkdir -p $O/$@.tmp
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --temp_dir $O/$@.tmp -o $O/$@
+	diff $E/test-spliceevents.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
+	test -z "$$(ls $O/$@.tmp)"
+	test ! -e $O/$@.intermediate
+
+# the files kept are beside the output, so --temp_dir would name a directory they are not in
+test-spliceevents-keep-intermediate-no-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
+	! flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate --temp_dir $O/$@.tmp -o $O/$@ > $O/$@.out 2>&1
+	grep -q -- '--keep_intermediate and --temp_dir cannot be given together' $O/$@.out
 
 $O/spliceevents.s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<

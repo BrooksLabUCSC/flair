@@ -6,6 +6,7 @@ import shutil
 import itertools
 import logging
 from bisect import bisect_right
+from contextlib import ExitStack
 from flair import FlairInputDataError
 from flair.pycbio import PycbioDataError
 from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
@@ -26,7 +27,7 @@ from flair.interval_index import IntervalIndex
 from flair.identify_prelim_fusions import needs_transcriptome
 from flair.cpm_tsv import cpm_writer
 from flair.isoform_data import get_reverse_complement, cigar_clipping
-import multiprocessing as mp
+from flair.process_pool import ProcessPool
 
 
 # the programs a run executes, checked before it starts
@@ -626,10 +627,12 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
     counts = {}
     # bgzip when compressed, so flair isoalleles can read an isoform's row by its offset
     map_paths = [f'{output}.isoforms.{sample}.read.map.tsv' for sample, *_ in sample_data] if generate_map else []
-    map_fhs = [open_seekable_output(path) for path in map_paths]
-    map_writers = [ReadMapWriter(compressed_path(path), outFh=fh) for path, fh in zip(map_paths, map_fhs)]
     waiting = [{} for _ in sample_data]
-    try:
+    # the maps are installed under their names when they are complete, so a failed
+    # run leaves no truncated map that read_map_index would read as a whole one
+    with ExitStack() as stack:
+        map_fhs = [stack.enter_context(open_seekable_output(path)) for path in map_paths]
+        map_writers = [ReadMapWriter(compressed_path(path), outFh=fh) for path, fh in zip(map_paths, map_fhs)]
         for own, results in zip(batch_isoforms, results_iter):
             for i, assigned in enumerate(results):
                 for name, reads in assigned.items():
@@ -641,10 +644,6 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
         for writer, left in zip(map_writers, waiting):
             for name, reads in left.items():
                 writer.writeReads(name, sorted(reads))
-    finally:
-        for writer, fh in zip(map_writers, map_fhs):
-            writer.close()
-            fh.close()
     # every id of a sample passes through its map, so this is the one check that sees
     # the whole sample rather than a batch of loci
     for path in map_paths:
@@ -692,8 +691,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads,
             totals = write_outputs(itertools.chain([fusion_results], map(_count_batch_task, packed)), batch_isoforms,
                                    sample_data, gene_data, fusions, output, generate_map)
         else:
-            mp.set_start_method('fork', force=True)
-            with mp.Pool(threads, initializer=set_batch_lookups, initargs=lookups) as pool:
+            with ProcessPool(threads, initializer=set_batch_lookups, initargs=lookups) as pool:
                 totals = write_outputs(itertools.chain([fusion_results], pool.imap(_count_batch_task, packed)),
                                        batch_isoforms, sample_data, gene_data, fusions, output, generate_map)
         for (sample, *_), total in zip(sample_data, totals):

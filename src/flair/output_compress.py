@@ -44,14 +44,18 @@ def compressed_path(path):
     return path + COMPRESS_SUFFIX if _compress_output else path
 
 def open_output(path):
-    "writable text file under the name compressed_path gives it"
-    return fileOps.opengz(compressed_path(path), 'w')
+    """Context manager for a writable text file under the name compressed_path gives
+    it.  The file is written under a temporary name in the same directory and renamed
+    when the context is left without an error, so a failed run leaves no part of an
+    output under the name of a whole one."""
+    return fileOps.AtomicFileOpen(compressed_path(path), 'w')
 
 def open_seekable_output(path):
-    """Writable text file under the name compressed_path gives it, bgzip compressed
-    rather than gzip when the run asked for compression, so it can be read from an
-    offset: a FASTA by samtools faidx, a read map by read_map_index."""
-    return fileOps.opengz(compressed_path(path), 'w', bgzip=True)
+    """Context manager for a writable text file under the name compressed_path gives
+    it, installed when complete as open_output's is, and bgzip compressed rather than
+    gzip when the run asked for compression, so it can be read from an offset: a
+    FASTA by samtools faidx, a read map by read_map_index."""
+    return fileOps.AtomicFileOpen(compressed_path(path), 'w', bgzip=True)
 
 def open_fasta_output(path):
     "Writable FASTA, bgzip compressed when the run asked for compression (open_seekable_output)"

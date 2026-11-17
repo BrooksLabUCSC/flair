@@ -5,12 +5,12 @@ import logging
 import pysam
 import vcfpy
 import shutil
-import multiprocessing as mp
 from flair import FlairError, FlairInputDataError
 from flair.pycbio.sys import cli
 from flair.io_utils import GenomeFasta, make_temp_dir, write_sorted_vcf
 from flair.run_checks import check_option_ranges, precheck
 from flair.indel_vars_tsv import IndelVarsReader, IndelVarsWriter
+from flair.process_pool import ProcessPool
 from flair.region_spec import REGION_FORMAT_HELP, parse_regions
 
 def parse_args():
@@ -410,9 +410,8 @@ def get_indels():
         for p in packed:
             process_reads_for_region(p)
     else:
-        mp.set_start_method('fork', force=True)
-        with mp.Pool(args.threads) as pool:
-            pool.map(process_reads_for_region, packed)
+        with ProcessPool(args.threads) as pool:
+            pool.run(process_reads_for_region, packed)
     write_output_vcf(args.genome, args.output, regions, temp_dir)
 
     shutil.rmtree(temp_dir)

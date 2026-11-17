@@ -1,12 +1,12 @@
 import os
-from flair import resolve_deprecated_option
+from flair import FlairInputDataError, resolve_deprecated_option
 import shutil
 import logging
 from flair.partition_runner import PartitionRunner, run_flair_partition
 from flair import SeqRange
 from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
-from flair.io_utils import GenomeFasta, make_temp_dir, read_manifest_rows
+from flair.io_utils import GenomeFasta, make_run_temp_dir, make_temp_dir, read_manifest_rows
 from flair.output_compress import compressed_path
 from flair.run_checks import check_option_ranges, check_seq_names, precheck, report_result_count, count_records
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
@@ -122,13 +122,23 @@ def add_subparser(subparsers):
                         help="skip the initial alignment to the annotated sequences and correct reads only "
                              "from the genomic alignment. Slightly faster but less accurate when the annotation "
                              "is good")
+    parser.add_argument('--temp_dir',
+                        help='directory for temporary files; each run makes its own directory, named for the '
+                             'output, in it.  Many small files are written and removed, so a local disk is much '
+                             'faster than network storage (default: $TMPDIR or the system temporary directory).  '
+                             'Not given with --keep_intermediate, which keeps them beside the output')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help='keep intermediate and temporary files for debugging')
+                        help='keep intermediate and temporary files for debugging, in <output>.intermediate.  '
+                             'A rerun with --keep_intermediate reads the corrected reads that directory holds '
+                             'rather than correcting those samples again')
     parser.set_defaults(entry=spliceevents_cmd)
 
 
 def spliceevents_cmd(args):
     resolve_deprecated_option(args, deprecated="junction_tab", current="junction_star")
+    if args.keep_intermediate and args.temp_dir is not None:
+        raise FlairInputDataError('--keep_intermediate and --temp_dir cannot be given together: the files kept are '
+                                  'in <output>.intermediate, which a rerun with --keep_intermediate reads')
     check_option_ranges(args, fraction=('event_frac_of_tot', 'junc_frac_of_event'),
                         count=('junction_support', 'ss_window', 'partition_items', 'feature_support',
                                'event_support', 'quality'),
@@ -296,8 +306,24 @@ def load_terminal_exons(args, gtf_data, regions):
 
 
 def spliceevents(args):
-    temp_dir = make_temp_dir(args.output)
+    # with --keep_intermediate the directory is beside the output and is reused by the
+    # next run, which then corrects only the samples whose corrected reads it does not
+    # hold; otherwise it is a directory of this run's own and is removed
+    temp_dir = (make_temp_dir(args.output) if args.keep_intermediate
+                else make_run_temp_dir(args.output, args.temp_dir))
     logging.info('temp directory: %s', temp_dir)
+    try:
+        run_spliceevents(args, temp_dir)
+    finally:
+        # also on failure, so runs don't leave their files in $TMPDIR
+        if args.keep_intermediate:
+            logging.info(f'intermediate files kept in {temp_dir}')
+        else:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def run_spliceevents(args, temp_dir):
+    "correct each partition's reads, find its events, and combine the partitions' tables"
     allsamples = read_manifest(args.manifest)
     bamfiles = [bamfile for _, bamfile in allsamples]
     # the manifest names the BAMs, so they are checked once it is read
@@ -329,5 +355,3 @@ def spliceevents(args):
     report_result_count('splicing events', count_records(compressed_path(args.output + '.spliceevents.bed')),
                         remedy='lower --feature_support, --event_support, --event_frac_of_tot or '
                         '--junc_frac_of_event, which an event must pass to be reported')
-    if not args.keep_intermediate:
-        shutil.rmtree(temp_dir)

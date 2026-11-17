@@ -10,11 +10,9 @@ each partition.
 import gc
 import os
 import shutil
-import logging
-import multiprocessing as mp
 import pipettor
 from flair import FlairError, FlairToolError, SeqRange
-from flair.pycbio import NoStackError
+from flair.process_pool import ProcessPool
 from flair import thread_share
 from flair.output_compress import compressed_path
 from flair.pycbio.hgdata.bed import BedReader
@@ -123,22 +121,6 @@ def _call_partition_func(packed):
         thread_share.task_done()
 
 
-def _run_pool(threads, packed):
-    """Run the tasks in a process pool.  An error from a worker comes back with the
-    worker's traceback attached as its cause, which for an error that reports without
-    a stack, an input error, is the detail the report leaves out, so it goes to the
-    debug log and the error is raised with the cause dropped."""
-    try:
-        with mp.Pool(threads) as pool:
-            for _ in pool.imap_unordered(_call_partition_func, packed, chunksize=1):
-                pass
-    except Exception as exc:
-        if not isinstance(exc, NoStackError):
-            raise
-        logging.debug('error in a partition worker', exc_info=True)
-        raise exc from None
-
-
 def run_flair_partition(bam_files, annot_gtf, threads, *, region_bed=None, min_partition_items=0):
     """Run flair_partition and return a list of SeqRanges and a list of the number of
     input items in each.  No read and no annotated transcript crosses a partition, as
@@ -240,14 +222,14 @@ class PartitionRunner:
             for p in packed:
                 _call_partition_func(p)
         else:
-            mp.set_start_method('fork', force=True)
             # objects existing at the fork go to the collector's permanent
             # generation, so collections in the workers don't visit them; visiting
             # writes to each object, which copied the whole annotation into every
             # worker
             gc.freeze()
             try:
-                _run_pool(self.threads, packed)
+                with ProcessPool(self.threads) as pool:
+                    pool.run(_call_partition_func, packed)
             finally:
                 gc.unfreeze()
 

@@ -766,6 +766,16 @@ indexed bam file, a line per sample::
    ``EVENT|ALTERNATIVE`` and scored by their median PSIjunc
  - ``OUTPUT.spliceevents.regions.bed``, the regions reads were corrected in
 
+**Temporary files**
+
+Each partition's corrected reads and the alignments they come from are written to a
+directory of the run's own in ``--temp_dir``, by default ``$TMPDIR`` or the system
+temporary directory, which is best on a local disk, and removed when the run ends,
+even on failure.  With ``--keep_intermediate`` they are kept in
+``OUTPUT.intermediate`` instead, where a rerun with ``--keep_intermediate`` reads the
+corrected reads it finds rather than correcting those samples again; the two options
+are not given together.
+
 Outlier samples, whose PSI of an event is far from the other samples', can be found
 from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__
 script.

@@ -19,7 +19,8 @@
                              [--junc_frac_of_event JUNC_FRAC_OF_EVENT]
                              [--quality QUALITY] [--trust_strand]
                              [--trust_junctions] [--keep_supplementary]
-                             [--no_align_to_annot] [--keep_intermediate]
+                             [--no_align_to_annot] [--temp_dir TEMP_DIR]
+                             [--keep_intermediate]
 
 .. rubric:: options
 
@@ -103,9 +104,13 @@
 
    skip the initial alignment to the annotated sequences and correct reads only from the genomic alignment. Slightly faster but less accurate when the annotation is good
 
+.. option:: --temp_dir TEMP_DIR
+
+   directory for temporary files; each run makes its own directory, named for the output, in it. Many small files are written and removed, so a local disk is much faster than network storage (default: $TMPDIR or the system temporary directory). Not given with --keep_intermediate, which keeps them beside the output
+
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging
+   keep intermediate and temporary files for debugging, in <output>.intermediate. A rerun with --keep_intermediate reads the corrected reads that directory holds rather than correcting those samples again
 
 .. rubric:: required named arguments
 

@@ -18,8 +18,8 @@ nothing is lent at the start of the pool.
 init() must be called in the parent before the pool is forked, so the workers
 share the counters.
 """
-import multiprocessing as mp
 from contextlib import contextmanager
+from flair.process_pool import fork_context
 
 _threads = 1
 _max_weight = 1
@@ -32,7 +32,8 @@ def init(threads, tasks, max_weight=1):
     global _threads, _max_weight, _state
     _threads = max(1, threads)
     _max_weight = max(1, max_weight)
-    _state = mp.Array('i', [tasks, 0])
+    # the context of the pool, so the counters are the ones its workers inherit
+    _state = fork_context().Array('i', [tasks, 0])
 
 
 def task_start(weight=1):

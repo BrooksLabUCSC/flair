@@ -302,6 +302,22 @@
     than 10 bases otherwise still reject a fusion: in MCF7 and SeraCare those are
     paralogs and pseudogenes the paralog table misses, template switches and RN7SL
     artifacts, and no reference fusions.
+  * A run whose worker process is killed, as the OOM killer kills the worker holding
+    the largest cluster, now ends with an error rather than waiting forever: the
+    parallel subcommands run their tasks in a `ProcessPoolExecutor` over a fork
+    context rather than a `multiprocessing.Pool`, which has no way to notice a worker
+    that dies without returning a result.  A failed task now ends the run once the
+    tasks already running have finished, rather than killing their workers, which left
+    the minimap2 and samtools processes those workers had started running on after the
+    run was gone.  An input error from a worker, such as a read id naming two reads,
+    now reports as it does from a run of one thread, without the worker's traceback,
+    in `flair quantify` as it already did in the partitioned subcommands.
+  * An output file appears under its name only when it is complete.  The read maps of
+    `flair quantify`, the FASTA of `flair transcriptome`, `flair combine`,
+    `flair fusion` and `flair isoalleles`, and the tables written beside them are
+    written under a temporary name in the same directory and renamed at the end, as
+    the other tables already were.  A failed run left a truncated read map that
+    `flair isoalleles` read as a whole one.
 * `flair align` is removed.  It ran minimap2 and filtered its output, which no
   other module uses: flair transcriptome and flair fusion take a bam of all reads
   aligned to the genome.  Align with minimap2 as the docs show,
@@ -613,6 +629,13 @@
     depths.  Such a sample has no PSI, as it already had none in the event calling,
     so its PSIjunc and PSItot columns are empty; `spliceevents_outliers` leaves it
     out of the median the same way.
+  * `--temp_dir` names the directory for temporary files, as flair transcriptome,
+    quantify and isoalleles take it, and each run makes its own directory in it or in
+    `$TMPDIR`.  The temporary files went to `<output>.intermediate`, network storage
+    for an output on it, and a failed run left them there.  They are removed whether
+    the run succeeds or fails, unless `--keep_intermediate`, which still keeps them in
+    `<output>.intermediate` for a rerun to correct only the samples whose corrected
+    reads are not there, and which is now rejected together with `--temp_dir`.
 * Incompatibles
   * `gtf_to_bed --include_gene` adds a column naming the gene instead of appending
     it to the isoform name.  The annotation BED and FASTA that flair transcriptome

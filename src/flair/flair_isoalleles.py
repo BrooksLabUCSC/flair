@@ -9,7 +9,6 @@ open files (WorkerContext).
 """
 import inspect
 import logging
-import multiprocessing as mp
 import os
 import shutil
 from contextlib import ExitStack
@@ -26,6 +25,7 @@ from flair.pycbio.sys import fileOps
 from flair.isoalleles_tsv import TABLES, isoalleles_table_writer, table_path
 from flair.isoform_data import make_big_bed
 from flair.output_compress import compressed_path, open_fasta_output
+from flair.process_pool import ProcessPool
 from flair.read_map_index import ReadMapIndex
 from flair.read_map_tsv import ReadMapWriter
 
@@ -338,8 +338,7 @@ def _run(settings, packed, threads, output, names, generate_map, label_bams, gen
             _init_worker(settings)
             results = map(_process_batch, packed)
         else:
-            mp.set_start_method('fork', force=True)
-            pool = stack.enter_context(mp.Pool(threads, initializer=_init_worker, initargs=(settings,)))
+            pool = stack.enter_context(ProcessPool(threads, initializer=_init_worker, initargs=(settings,)))
             results = pool.imap(_process_batch, packed)
         for out, label_bams_of_batch in results:
             outputs.add(out)
