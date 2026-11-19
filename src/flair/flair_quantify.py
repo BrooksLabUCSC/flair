@@ -32,8 +32,11 @@ def quantify(isoform_sequences=''):
             (default: python tempfile directory)''')
     parser.add_argument('--sample_id_only', default=False, action='store_true', dest='sample_id_only',
             help='''only use sample id in output header''')
-    parser.add_argument('--tpm', action='store_true', dest='tpm', default=False,
-            help='Convert counts matrix to transcripts per million and output as a separate file named <output>.tpm.tsv')
+    parser.add_argument('--cpm', '--tpm', action='store_true', dest='tpm', default=False,
+            help='''Convert counts matrix to counts per million and output as a separate file named
+            <output>.tpm.tsv.  --tpm is the old name of this option: the values are counts per million,
+            not transcripts per million, since a long read is not one transcript when reads are
+            fragmented, so the counts are not normalized by isoform length''')
     parser.add_argument('--quality', type=int, action='store', dest='quality', default=0,
             help='''minimum MAPQ of read assignment to an isoform (0)''')
     parser.add_argument('--trust_ends', default=False, action='store_true', dest='trust_ends',
