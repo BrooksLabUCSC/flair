@@ -1,9 +1,10 @@
 """
 FLAIR BED record that is used to pass extra fields.
 """
-from flair.pycbio.hgdata.bed import Bed, BedException, defaultIfNone
+from flair import FlairInputDataError
+from flair.pycbio import PycbioDataError
+from flair.pycbio.hgdata.bed import Bed, BedException, BedReader, defaultIfNone
 from flair.pycbio.hgdata.autoSql import strArraySplitNone, strArrayJoin
-from flair.pycbio.tsv.tabFile import TabFileReader
 
 def parse_str_or_none(s):
     return None if len(s) == 0 else s
@@ -163,9 +164,12 @@ class FlairBed(Bed):
         return my_attrs
 
 
-def FlairBedReader(fspec):
-    """Generator to read BED objects loaded from a tab-file or file-like
-    object.  See Bed.parse()."""
-    for bed in TabFileReader(fspec, rowClass=lambda r: FlairBed.parse(r),
-                             hashAreComments=True, skipBlankLines=True):
-        yield bed
+def FlairBedReader(bed_file, *, fixScores=False):
+    """The isoforms of a FLAIR isoform BED, reporting a file that is not one as an
+    input error naming the columns it must have, rather than as the pycbio exception
+    and the row that failed."""
+    try:
+        yield from BedReader(bed_file, bedClass=FlairBed, fixScores=fixScores)
+    except PycbioDataError as exc:
+        raise FlairInputDataError(f'{bed_file} is not a FLAIR isoform bed, of the 25 columns flair transcriptome '
+                                  f'and flair combine write: {exc}') from exc

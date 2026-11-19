@@ -64,7 +64,7 @@ def add_subparser(subparsers):
                                '--bam with, the sample\'s own, or in a pair the normal\'s.  bgzipped and indexed')
     parser.add_argument('--germline_vcf',
                         help='the germline variant calls, of the sample, or in a pair the normal, when --phased_vcf '
-                             'holds only some of them, as when only hets were phased: every passing call is a '
+                             'contains only some of them, as when only hets were phased: every passing call is a '
                              'germline variant, phased by --phased_vcf.  bgzipped and indexed (default: --phased_vcf)')
     parser.add_argument('--sample_name', help='the name of --bam\'s sample in the outputs (default: its file name)')
     pair = parser.add_argument_group('tumor and normal pair')
@@ -89,10 +89,10 @@ def add_subparser(subparsers):
                       help='with --tumor_vcf, the normal reads informing a site for a tumor-only call there to be '
                            'somatic (default: %(default)s)')
     parser.add_argument('--carrier_min', type=float, default=0.9,
-                        help='an unphased germline het is put on the haplotype holding at least this share of an '
-                             'isoform\'s tagged reads carrying it (default: %(default)s)')
+                        help='an unphased germline het is put on the haplotype with at least this share of an '
+                             'isoform\'s tagged reads that have it (default: %(default)s)')
     parser.add_argument('--min_tagged', type=int, default=10,
-                        help='the tagged reads carrying an unphased germline het needed to place it (default: '
+                        help='the tagged reads with an unphased germline het needed to place it (default: '
                              '%(default)s)')
     parser.add_argument('-o', '--output', default='flair', help='output file name base (default: %(default)s)')
     parser.add_argument('-t', '--threads', type=int, default=4,
@@ -270,7 +270,7 @@ def isoalleles(*, isoform_bed, genome, bam, read_map, phased_vcf, germline_vcf=N
                '--germline_vcf': germline_vcf, '--isoform_bed': isoform_bed, '--genome': genome,
                '--normal_bam': normal_bam, '--normal_read_map': normal_read_map,
                '--tumor_vcf': tumor_vcf, '--somatic_vcf': somatic_vcf})
-    precheck(programs=PROGRAMS, genome=genome, alignments=(bam, normal_bam), isoform_beds=(isoform_bed,),
+    precheck(programs=PROGRAMS, genome=genome, indexed_alignments=(bam, normal_bam), isoform_beds=(isoform_bed,),
              vcfs=(phased_vcf, germline_vcf, tumor_vcf, somatic_vcf))
     gene_data, fusions = load_isoform_data(isoform_bed)
     if fusions:
@@ -306,7 +306,7 @@ def isoalleles(*, isoform_bed, genome, bam, read_map, phased_vcf, germline_vcf=N
 
 def _report_alleles(output):
     """What the run counted: the alleles that reads were assigned to, and whether any
-    read carried a haplotype, which none does when the BAM given is not the
+    read had a haplotype, which none does when the BAM given is not the
     haplotagged one"""
     with fileOps.opengz(compressed_path(f'{output}.isoalleles.counts.tsv')) as fh:
         next(fh, None)  # the column names

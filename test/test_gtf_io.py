@@ -188,6 +188,23 @@ def test_whitespace_tab_in_transcript_id(tmp_path):
         list(gtf_record_parser(_write_gtf(tmp_path / "test.gtf", "ENSG1", "ENST1\tBAD")))
 
 
+def test_gff3_transcript_has_no_transcript_id(tmp_path):
+    "a GFF3's ID=...;Parent=... matches no GTF attribute, so its records parse with no ids"
+    path = tmp_path / "test.gff3"
+    path.write_text('chr1\tHAVANA\tmRNA\t1000\t2000\t.\t+\t.\tID=ENST1;Parent=ENSG1\n')
+    with pytest.raises(GtfParseError, match="test.gff3:1: invalid GTF record") as caught:
+        list(gtf_record_parser(str(path)))
+    assert "has no transcript_id attribute" in str(caught.value.__cause__)
+
+
+def test_exon_has_no_transcript_id(tmp_path):
+    path = tmp_path / "test.gtf"
+    path.write_text('chr1\tHAVANA\texon\t1000\t2000\t.\t+\t.\tgene_id "ENSG1";\n')
+    with pytest.raises(GtfParseError) as caught:
+        list(gtf_record_parser(str(path)))
+    assert "has no transcript_id attribute" in str(caught.value.__cause__)
+
+
 def test_no_whitespace_valid(tmp_path):
     recs = list(gtf_record_parser(_write_gtf(tmp_path / "test.gtf", "ENSG1", "ENST1")))
     assert len(recs) == 1

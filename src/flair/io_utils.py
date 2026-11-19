@@ -25,7 +25,7 @@ os.environ['LC_ALL'] = 'C'
 def make_temp_dir(out_prefix):
     """The intermediate directory of a run, kept if it is already there, so a stage
     can reuse what an earlier run left.  A stage whose results depend on what the
-    directory holds wants make_run_temp_dir instead, a new directory each run."""
+    directory contains requires make_run_temp_dir instead, a new directory each run."""
     # FIXME: use TMPDIR unless directory explicitly specified
     temp_dir = out_prefix + ".intermediate"
     try:
@@ -98,7 +98,7 @@ def is_bgzip(fasta):
 def check_genome_fasta(genome):
     """Check a genome FASTA before a run starts, rather than after the setup that
     precedes the first sequence fetch.  A compressed genome must be bgzip, since the
-    sequence reader cannot index plain gzip, and must carry its index, since the
+    sequence reader cannot index plain gzip, and must have its index, since the
     reader can only build one where it may write beside the genome."""
     if not os.path.exists(genome):
         raise FlairInputDataError(f'genome FASTA does not exist: {genome}')
@@ -135,19 +135,28 @@ def quiet_pipettor_failures():
         logging.getLogger(pipettor.LOGGER_NAME).setLevel(logging.CRITICAL)
 
 
+def _program_failed_msg(cmds, exc):
+    """A failed program's message, with its own diagnostics when pipettor captured
+    them.  The cause does not survive a process pool worker, so the diagnostics must
+    be in the message itself to be reported at all."""
+    diagnostics = (exc.stderr or '').strip()
+    where = f'\n{diagnostics}' if diagnostics != '' else ', its diagnostics are above'
+    return f'{_program_names(cmds)} failed{where}'
+
+
 def run_program(cmds, **kwargs):
-    """Run a program, or a pipeline of them, reporting a failure as a tool error: the
-    program has already said what went wrong on stderr, so a traceback of the flair
-    code that started it adds nothing."""
+    """Run a program, or a pipeline of them, reporting a failure as a tool error with
+    the program's own diagnostics, so that a traceback of the flair code that started
+    it adds nothing."""
     try:
         pipettor.run(cmds, **kwargs)
     except pipettor.ProcessException as exc:
-        raise FlairToolError(f'{_program_names(cmds)} failed, its diagnostics are above') from exc
+        raise FlairToolError(_program_failed_msg(cmds, exc)) from exc
 
 
 class GenomeFasta(pysam.FastaFile):
     """The genome, reporting a request for a sequence it does not have as an input
-    error.  The reader signals a KeyError, which says nothing about where the name
+    error.  The reader signals a KeyError, which reports nothing about where the name
     came from, and the cause is almost always the genome being named differently
     from the alignments and the isoforms, chr1 against 1."""
 

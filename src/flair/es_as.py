@@ -9,8 +9,7 @@ from flair import FlairInputDataError
 from flair.cli_help import FlairHelpFormatter
 from flair.diffsplice_event_ids import junction_id
 from flair.es_events_tsv import EsEventsWriter
-from flair.flair_bed import FlairBed
-from flair.pycbio.hgdata.bed import BedReader
+from flair.flair_bed import FlairBedReader
 from flair.pycbio.sys import cli
 
 
@@ -123,7 +122,7 @@ def check_gene_placement(gene, iso, chrom, strand, flair_isoforms):
 
 def read_genes(flair_isoforms):
     genes = dict()
-    for bed in BedReader(flair_isoforms, bedClass=FlairBed, fixScores=True):
+    for bed in FlairBedReader(flair_isoforms, fixScores=True):
         if bed.gene_id is None:
             raise FlairInputDataError(
                 f"{flair_isoforms}: isoform {bed.name} has no gene_id column; exon "

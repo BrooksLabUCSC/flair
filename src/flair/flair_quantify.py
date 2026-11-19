@@ -8,7 +8,6 @@ import logging
 from bisect import bisect_right
 from contextlib import ExitStack
 from flair import FlairInputDataError
-from flair.pycbio import PycbioDataError
 from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter, check_read_ids_unique
 from flair.transcript_counts_tsv import TranscriptCountsReader
@@ -17,8 +16,8 @@ from flair.io_utils import GenomeFasta, make_run_temp_dir, read_manifest_rows
 from flair.run_checks import check_option_ranges, precheck, report_result_count
 from flair.output_compress import compressed_path, open_seekable_output
 from flair import thread_share
-from flair.pycbio.hgdata.bed import BedReader, BedBlock
-from flair.flair_bed import FlairBed
+from flair.pycbio.hgdata.bed import BedBlock
+from flair.flair_bed import FlairBedReader
 from flair.terminal_exon_ends import GeneTerminalExonEnds, NORM_END_EXTRA_LEN
 from flair.count_sam_transcripts import (run_count_sam_transcripts, TRUST_ENDS_WINDOW, MINIMAP2_SECONDARY_ALIGNMENTS,
                                          LARGE_INDEL_TOLERANCE, covers_single_exon, covers_terminal_exon)
@@ -162,13 +161,6 @@ class GeneData():
             self.terminal_exon_ends.add(isoform.blocks[0].start, isoform.blocks[0].end,
                                         isoform.blocks[-1].start, isoform.blocks[-1].end)
 
-def _isoform_beds(isoform_bed):
-    "the isoforms of a FLAIR isoform bed, with errors about its format as input errors"
-    try:
-        yield from BedReader(isoform_bed, bedClass=FlairBed)
-    except PycbioDataError as exc:
-        raise FlairInputDataError(f'{isoform_bed} is not a FLAIR isoform bed, of the 25 columns flair transcriptome '
-                                  f'and flair combine write: {exc}') from exc
 
 def load_isoform_data(isoform_bed):
     """The isoforms by gene, gene id -> GeneData, and fusion isoforms, name -> their
@@ -178,7 +170,7 @@ def load_isoform_data(isoform_bed):
     chromosome, but for a fusion's pieces."""
     gene_data, fusions = {}, {}
     names = {}
-    for bed in _isoform_beds(isoform_bed):
+    for bed in FlairBedReader(isoform_bed):
         if bed.pos_in_fusion is not None:
             fusions.setdefault(bed.name, []).append(bed)
             continue
@@ -311,7 +303,7 @@ def _covers_terminal_exons(read, bed, trust_ends):
 
 def _has_large_indel(read):
     """Is an indel in the read longer than the realignment tolerates.  Where it falls
-    in the transcript decides whether it is tolerated (process_cigar), which the
+    in the transcript determines whether it is tolerated (process_cigar), which the
     realignment is left to work out."""
     return any((op in (pysam.CINS, pysam.CDEL)) and (length > LARGE_INDEL_TOLERANCE)
                for op, length in read.cigartuples)
@@ -374,7 +366,7 @@ def single_exon_isoform(read, se_index):
     return min(covered, key=lambda iso: (abs(start - iso[0]) + abs(end - iso[1]),) + iso, default=None)
 
 def _batch_alignments(bam_file, batch):
-    """The batch's alignments.  A sample's BAM holds some of the isoforms'
+    """The batch's alignments.  A sample's BAM contains some of the isoforms'
     chromosomes, which check_bam_chromosomes allows, and fetch raises on one it
     does not have, as fusion_candidate_reads also guards against."""
     if batch['chrom'] in bam_file.references:
@@ -644,7 +636,7 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
         for writer, left in zip(map_writers, waiting):
             for name, reads in left.items():
                 writer.writeReads(name, sorted(reads))
-    # every id of a sample passes through its map, so this is the one check that sees
+    # every id of a sample passes through its map, so this is the one check that covers
     # the whole sample rather than a batch of loci
     for path in map_paths:
         check_read_ids_unique(compressed_path(path))

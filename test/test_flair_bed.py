@@ -2,6 +2,7 @@
 tests of flair_bed module
 """
 import pytest
+from flair import FlairInputDataError
 from flair.flair_bed import FlairBed, FlairBedReader, parse_str_or_none
 from flair.pycbio.hgdata.bed import BedException
 
@@ -158,6 +159,15 @@ def test_reader(tmp_path):
     assert beds[0].chrom == "chr1"
     assert beds[0].gene_id == "geneA"
     assert beds[0].productivity == "PRO"
+
+
+def test_reader_of_a_plain_bed12(tmp_path):
+    "the 12 columns of a BED, which has none of the flair columns"
+    p = tmp_path / "bed12.bed"
+    p.write_text("\t".join(["chr1", "100", "200", "tx1", "0", "+",
+                            "100", "200", "0", "1", "100,", "0,"]) + "\n")
+    with pytest.raises(FlairInputDataError, match="is not a FLAIR isoform bed"):
+        list(FlairBedReader(str(p)))
 
 
 class _Genome:

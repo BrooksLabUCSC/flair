@@ -2,8 +2,7 @@
 import os
 import argparse
 from flair.cli_help import FlairHelpFormatter
-from flair.pycbio.hgdata.bed import BedReader
-from flair.flair_bed import FlairBed
+from flair.flair_bed import FlairBedReader
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
 import matplotlib  # noqa: E402
@@ -51,7 +50,7 @@ def parse_bed(bedfile, keepiso, *, names=False):  # noqa: C901 - FIXME: reduce c
     usednames = []
     lowbound, upbound = 1e9, 0
     gene_strand = None
-    for bed in BedReader(bedfile, bedClass=FlairBed):
+    for bed in FlairBedReader(bedfile):
         if bed.name in keepiso:
             blocksizes = [x.end - x.start for x in bed.blocks]
             blockstarts = [x.start for x in bed.blocks]
@@ -182,7 +181,7 @@ def read_color_palette(palette_file):
     if len(colors) < 6:
         raise FlairInputDataError(
             f"{palette_file}: found {len(colors)} colors, at least 6 are needed; "
-            "the file holds one color per line")
+            "the file contains one color per line")
     return colors
 
 

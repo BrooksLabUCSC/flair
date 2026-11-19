@@ -21,7 +21,8 @@ from flair.fusion_table import write_fusion_table, write_table
 from flair.flair_transcriptome import DEFAULT_FILTER, parse_filter
 from flair.io_utils import GenomeFasta, run_program
 from flair.pycbio.sys import fileOps
-from flair.run_checks import check_option_ranges, precheck, report_result_count, count_records
+from flair.run_checks import (check_annotation, check_option_ranges, precheck, report_result_count,
+                              count_records)
 from flair.output_compress import compressed_path, open_output, open_fasta_output
 
 # the programs a run executes, checked before it starts; it runs flair transcriptome
@@ -101,7 +102,7 @@ def add_subparser(subparsers):
     parser.add_argument('--no_transcriptome_alignment', action='store_true',
                         help='find fusions from the chimeric reads of the genome alignment only, without '
                              'aligning reads to annotated transcripts.  About half the time and a third of the '
-                             'memory, and -b can then hold only the chimeric reads, but loses fusion reads whose '
+                             'memory, and -b can then contain only the chimeric reads, but loses fusion reads whose '
                              'partner piece the genome alignment leaves clipped, particularly short 5\' exons')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep the intermediate files: the annotated transcripts, the preliminary fusion '
@@ -159,7 +160,7 @@ def align_to_synth_genome(genome, reads, output, additional_options):
 
 
 CANONICAL_MOTIFS = {"GT/AG", "GC/AG", "AT/AC"}
-# a non-canonical breakpoint junction must carry this share of the reads crossing the breakpoint
+# a non-canonical breakpoint junction must have this share of the reads crossing the breakpoint
 NONCANONICAL_MIN_SHARE = 0.5
 
 
@@ -179,7 +180,7 @@ def select_junctions(junctions, fusiontobp, crossing):
     """The rows of the junctions (intron-prospector BED6 records on the synthetic
     genome) to pass flair transcriptome: canonical ones with 2 or more reads, and for
     a fusion with no such junction across its breakpoint, the junctions across it with
-    2 or more reads that carry NONCANONICAL_MIN_SHARE of the reads crossing it.  A
+    2 or more reads that are NONCANONICAL_MIN_SHARE of the reads crossing it.  A
     breakpoint inside an exon has no splice site, so its junction needn't be
     canonical, but the reads should agree on it: in MCF7, TAOK3--RPS2's 21 reads
     crossed its breakpoint at a dozen non-canonical junctions, and 3 that happened to
@@ -361,7 +362,7 @@ def write_prelim_fusions(combchim, bedfile):
 
 
 def write_fusion_reads(fusionreads, bams, fasta):
-    "the sequences of fusionreads, from the first of the chimeric read bams holding each, to fasta"
+    "the sequences of fusionreads, from the first of the chimeric read bams containing each, to fasta"
     seenreads = set()
     with fileOps.AtomicFileOpen(fasta) as out_fa:
         for bam in bams:
@@ -374,7 +375,7 @@ def write_fusion_reads(fusionreads, bams, fasta):
 
 
 def make_synthetic_genome(gtf, gtf_data, genome, output):
-    "the synthetic fusion genome and its annotation; False if it holds no fusion"
+    "the synthetic fusion genome and its annotation; False if it contains no fusion"
     logging.info('generating synthetic reference')
     make_synthetic_reference(gtf_data, gtf, genome, output + '.fusions.prelim.bed', output)
     if os.path.getsize(output + '.synthetic_fusion_genome.fa') == 0:
@@ -549,18 +550,19 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                   min_fragment_size, min_support, max_loci, max_dist_to_tss,
                   min_dist_between_breakpoints, keep_intermediate, frac_support=0.05, subset_filter=DEFAULT_FILTER, quality=10,
                   transcriptome_alignment=True, max_partners=1000):
-    # fusion detection relies on stranded reads, as the help and docs say: a read's pieces
+    # fusion detection relies on stranded reads, as the help and docs state: a read's pieces
     # are ordered 5' to 3' by their position in the read
     # parsed once for everything that needs the annotation.  Without CDS records,
     # which nothing here uses, it takes a third less memory and time
     logging.info('reading gtf')
     gtf_data = gtf_data_parser(gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
+    check_annotation(gtf_data, genome)
     transcriptome_reads = make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size,
                                              transcriptome_alignment)
     annot = read_annotation(gtf_data)
     logging.info('finding preliminary fusions')
     # only the reads that needed aligning to transcripts, as a bam left by an earlier
-    # run may hold others.  A read aligned to the genome in one piece is left out, and
+    # run may contain others.  A read aligned to the genome in one piece is left out, and
     # with it a fusion from a deletion between genes closer than the genome aligner's
     # maximum intron length, which aligns to the genome as one spliced read
     prelim_fusions = id_chimeras(output + '.genome_aligned.chim.bam', annot, min_support, max_loci=max_loci,

@@ -66,7 +66,7 @@ Which file to give FLAIR
 ------------------------
 
 FLAIR reads the file of reads aligned to the genome, coordinate sorted, with its
-index beside it.  It is not the basecaller's reads file, which holds no alignments,
+index beside it.  It is not the basecaller's reads file, which contains no alignments,
 and not a transcriptome aligned BAM, whose coordinates are a transcript's.
 
 - minimap2: the ``samtools sort`` output above, once ``samtools index`` has indexed it
@@ -108,6 +108,23 @@ remade::
      | samtools view -b -o sample.rep1.bam -
    samtools index sample.rep1.bam
 
+Annotation GTF
+--------------
+
+``-f``/``--gtf``, and ``--annot_basic``, take an annotation of the genome the reads
+are aligned to, such as GENCODE's or Ensembl's, as a GTF, plain or gzipped.
+
+- GTF attributes, ``gene_id "GENE"; transcript_id "TRANSCRIPT";``, not GFF3's
+  ``ID=...;Parent=...``.  A GFF3 is converted first, with ``gffread -T`` or
+  ``agat_convert_sp_gff2gtf.pl``.
+- transcript lines as well as exon lines.  A file of exon lines alone, and a file with
+  no transcripts at all, are errors.
+- the sequence names of the genome and of the BAM: an annotation naming ``1`` where
+  the genome names ``chr1`` is an error, rather than an annotation that matches
+  nothing.
+- ``start_codon`` lines where isoforms are to get a coding sequence: an isoform's CDS
+  starts at the start codon of the annotated transcript it matches.
+
 
 
 ----
@@ -128,7 +145,7 @@ For when to count splicing events from reads with flair spliceevents instead, se
  - ``<output>.isoforms.bed``, ``<output>.isoforms.gtf`` and ``<output>.isoforms.fa``,
    the transcriptome, with ``<output>.isoforms.bb``, the BED as a bigBed
  - ``<output>.isoforms.counts.tsv``, each isoform's reads in this sample
- - ``<output>.aaseq.tsv``, each protein sequence once, by the id the isoforms carry
+ - ``<output>.aaseq.tsv``, each protein sequence once, by the id the isoforms have
  - ``<output>.isoforms.read.map.tsv``, each isoform's read names, with ``--generate_map``
  - ``<output>.regions.bed``, the regions the transcripts were built in
 
@@ -276,7 +293,7 @@ without them is an error.  An annotation is given with ``-f``, as a GTF; an anno
 BED, such as gtf_to_bed writes, has neither the support columns nor the other flair
 BED columns, and is rejected.  Each input is also one sample's BED, naming one sample
 in its ``samples`` column (column 22).  A combined BED names every sample its isoforms
-came from and holds their summed reads, so combining combined BEDs would give each of
+came from and contains their summed reads, so combining combined BEDs would give each of
 those samples the reads of all of them; such a BED is rejected.  Combine every
 sample's BED in a single run rather than in stages.
 
@@ -343,7 +360,8 @@ condition, its batch, and its reads aligned to the genome as a sorted, indexed B
 Lines starting with ``#`` and blank lines are skipped.  A line of other than four
 fields, fields separated by spaces, a sample id given twice, a missing or unindexed
 BAM, and a BAM with none of the isoforms' chromosomes (as ``chr1`` against ``1``) are
-errors.  Absolute paths are safest.
+errors.  A relative path in a manifest is read relative to the directory flair runs
+in, not the manifest's directory, so absolute paths are safest.
 
 **Isoforms**
 
@@ -416,6 +434,10 @@ contain any characters. A counts matrix from an earlier FLAIR, whose columns are
 named ``sample_condition_batch``, is still read by taking the fields back out of the
 column name.
 
+The sample info file is found beside the counts matrix, by the matrix's name, so the
+two are moved, renamed and copied together.  A matrix of this FLAIR without its sample
+info file is an error naming the file that is missing.
+
 ``<output>.isoforms.cpm.tsv`` has the counts as counts per million: each count over the
 sample's counted reads, times a million, so each column sums to a million.  A sample
 with no reads counted has 0 throughout, with a warning.  These are counts per million
@@ -470,7 +492,7 @@ If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`_
 gene: an event's alternatives (``event`` and ``alternative``).  Only usage is tested, with
 DRIMSeq and the t-test normalized by gene, since an event's reads are not a gene's
 expression, so there are no DESeq2 tables.  An event's ``other`` row counts toward its
-total, but is not tested.  In the outputs, the ``gene_id`` column holds the event and
+total, but is not tested.  In the outputs, the ``gene_id`` column contains the event and
 the ``feature_id`` or ``isoform_id`` column ``event|alternative``.
 
 flair spliceevents does not record conditions, so write the sample info file that
@@ -625,7 +647,7 @@ considered to include or exclude the each event:
    inclusion_chr1:400-500(+)  chr1:400-500(+)    75.0    35.0    ... e,a
    exclusion_chr1:400-500(+)  chr1:400-500(+)    56.0    15.0    ... f
 
-The ``coordinate`` column and the feature ids hold a junction's BED coordinates, the
+The ``coordinate`` column and the feature ids contain a junction's BED coordinates, the
 zero-based start and the end, written 5' to 3', so on the minus strand the first
 number is the larger: ``chr12:25215560-25215436(-)``.  ``flair spliceevents`` names
 the same events one-based and in ascending order, so a name from one does not match a
@@ -799,8 +821,8 @@ flair isoalleles
 ================
 
 Splits each isoform's reads by haplotype, and in a tumor and normal pair by the
-somatic variants they carry, and gives the sequence and protein of each group: for
-example, isoform 1's reads in the tumor on haplotype H1, on H2, and on H2 carrying
+somatic variants they have, and gives the sequence and protein of each group: for
+example, isoform 1's reads in the tumor on haplotype H1, on H2, and on H2 with
 a somatic KRAS G12V. The haplotypes come from an upstream phasing tool, such as
 WhatsHap, which tags each read with its haplotype; flair isoalleles does not call or
 phase variants itself.
@@ -814,7 +836,7 @@ phase variants itself.
      flair quantify --manifest MANIFEST.tsv -g GENOME.fa --isoform_bed ISOFORMS.bed --generate_map -o QUANT
 
 2. Phase the germline variants and haplotag the reads, as with WhatsHap, giving a
-   phased VCF and a BAM whose reads carry HP (haplotype) and PS (phase set) tags.
+   phased VCF and a BAM whose reads have HP (haplotype) and PS (phase set) tags.
    WhatsHap is not in the conda environment; see :ref:`whatshap-install-label`.
    In a pair, phase the normal's germline variants and haplotag both the tumor and the
    normal reads with them, so H1 and H2 mean the same in both::
@@ -846,7 +868,7 @@ get a sequence with their germline variants::
 
 ``--bam`` and ``--read_map`` are the tumor's, ``--normal_bam`` and ``--normal_read_map``
 the normal's, and ``--phased_vcf`` the normal's phased germline variants. The tumor's
-reads are also split by the somatic variants they carry. The somatic variants come
+reads are also split by the somatic variants they have. The somatic variants come
 from exactly one of:
 
 ``--tumor_vcf TUMOR.vcf.gz``
@@ -862,7 +884,7 @@ from exactly one of:
     Only these variants are somatic, whatever the VCFs call. Use it for a known
     driver that the normal also calls, as when tumor cells are in the normal sample,
     which would otherwise be taken as germline. ``CHROM:POS`` alone takes every alt a
-    VCF has at that position. The sequences then hold no other somatic variant, and a
+    VCF has at that position. The sequences then contain no other somatic variant, and a
     given variant with few normal reads is warned of.
 
 ::
@@ -872,7 +894,7 @@ from exactly one of:
       --normal_bam NORMAL.haplotagged.bam --normal_read_map QUANT.isoforms.NORMAL.read.map.tsv --normal_name NORMAL \
       --phased_vcf NORMAL.phased.vcf.gz --germline_vcf NORMAL.vcf.gz --tumor_vcf TUMOR.vcf.gz -o PAIR
 
-``--germline_vcf NORMAL.vcf.gz`` is only needed when ``NORMAL.phased.vcf.gz`` holds
+``--germline_vcf NORMAL.vcf.gz`` is only needed when ``NORMAL.phased.vcf.gz`` contains
 just some of the normal's calls (see above). With ``--tumor_vcf``, a tumor call is
 somatic only if it is none of the normal's germline calls.
 
@@ -882,20 +904,20 @@ somatic only if it is none of the normal's germline calls.
   couldn't place it.
 - Germline variants: homozygous ones are in every sequence, and phased hets on their
   haplotype. An unphased het is put on the haplotype holding at least
-  ``--carrier_min`` (0.9) of the isoform's tagged reads that carry it, of at least
+  ``--carrier_min`` (0.9) of the isoform's tagged reads that have it, of at least
   ``--min_tagged`` (10); otherwise the reference base is kept, with a warning.
-- Somatic sets, in a pair: the somatic variants a read carries make its set, numbered
+- Somatic sets, in a pair: the somatic variants a read has make its set, numbered
   per gene by reads, most first (S1, S2, ...), so variants on one molecule are one
   set and those of different subclones different sets. A read's group is its
   haplotype and set, such as ``H2-S1``. A read that doesn't inform every somatic site
-  defining its isoform's sets, by not reaching it or by a deletion over it, may carry
+  defining its isoform's sets, by not reaching it or by a deletion over it, may have
   the one it misses, so its group is ``H2-S?``, which is counted but gets no sequence.
 - flair quantify assigns a read to a spliced isoform only if it reaches a few bases
   into the first and last exons, so every assigned read covers the internal exons
   but not all of the terminal exons, such as UTRs. Somatic sites in the internal exons
   or next to the splice sites define the sets. A somatic site further into a terminal
   exon is added to a group's sequence only if the group's reads that reach it all
-  carry it, and at least one does (``terminal_sites.tsv``). An isoform with no other
+  have it, and at least one does (``terminal_sites.tsv``). An isoform with no other
   somatic site has its terminal ones define the sets.
 - Each sequence's CDS starts at the isoform's annotated start codon and runs to the
   first stop in the variant sequence, so nonsense, frameshift and stop-lost variants
@@ -921,7 +943,7 @@ somatic only if it is none of the normal's germline calls.
 - ``OUTPUT.isoalleles.genes.tsv``: per gene and sample, the share of its spliced reads
   that flair quantify assigned, which is small in long genes of many 5'-truncated reads
 - with ``--generate_map``, ``OUTPUT.isoalleles.<sample>.read.map.tsv``, and with
-  ``--label_bams``, ``OUTPUT.isoalleles.<sample>.bam``, whose reads carry their isoform
+  ``--label_bams``, ``OUTPUT.isoalleles.<sample>.bam``, whose reads name their isoform
   and group in the ``IA`` tag (in IGV, group alignments by tag IA)
 
 The read maps are not loaded whole: each worker reads only the rows of its batch of

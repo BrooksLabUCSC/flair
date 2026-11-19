@@ -7,10 +7,11 @@ from flair.cli_options import option_values
 from flair.combined_map_tsv import CombinedMapWriter
 from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
 from flair.io_utils import GenomeFasta, open_sorted_bed, read_manifest_rows
-from flair.run_checks import check_input_files, check_option_ranges, precheck, report_result_count, count_records
+from flair.run_checks import (check_annotation, check_input_files, check_option_ranges, precheck,
+                              report_result_count, count_records)
 from flair.output_compress import compressed_path, open_fasta_output, open_output, resolved_input_path
-from flair.pycbio.hgdata.bed import BedReader, BedBlock
-from flair.flair_bed import FlairBed
+from flair.pycbio.hgdata.bed import BedBlock
+from flair.flair_bed import FlairBedReader
 from statistics import median
 from flair.isoform_data import make_big_bed, get_sequence_for_exons, Gene, Isoform, Junc
 from flair.predictProductivity import predict_productivity, translate
@@ -61,7 +62,7 @@ def add_subparser(subparsers):
                         help='remove all single exon isoforms')
     parser.add_argument('--max_ends', type=int, default=1,
                         help='how the ends of a splice junction chain are combined:\n'
-                             '- 1: the chain gives one isoform, holding the isoforms of every group of '
+                             '- 1: the chain gives one isoform, containing the isoforms of every group of '
                              'similar ends and their read support\n'
                              '- above 1: each group of similar ends gives an isoform of its own, when the '
                              'group passes --min_percent_usage and --min_reads on its own, so ends are more '
@@ -173,7 +174,7 @@ def load_isos_by_id(bedfile):
     isotoinfo = {}
     mysamples = set()
     num_alleles = 0
-    for bed in BedReader(bedfile, bedClass=FlairBed):
+    for bed in FlairBedReader(bedfile):
         _check_support(bedfile, bed)
         _check_one_sample(bedfile, bed)
         num_alleles += _has_allele_info(bed)
@@ -492,8 +493,8 @@ def correct_bed_fields_write_out(bed_list_group, new_iso_id, new_gene_id, new_fu
         bed.name = new_iso_id
         bed.gene_id = new_gene_id
         bed.fused_genes = tuple(new_fused_genes)
-        # a sample's own isoform name and allele, from flair isoalleles, which don't
-        # carry over to the combined isoform
+        # a sample's own isoform name and allele, from flair isoalleles, which are not
+        # copied to the combined isoform
         bed.source_isoform = bed.allele_group = None
         if bed.transcript_class == 'with_vars':
             bed.transcript_class = 'readthrough' if len([g for g in bed.ref_gene_mappings if g]) > 1 else 'basic'
@@ -570,8 +571,10 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     annots_by_chrom = None
     if annotation is not None:
         logging.info('loading annotation GTF')
-        annots_by_chrom = AnnotsByChrom(gtf_data_parser(annotation, attrs=GtfAttrsSet.FLAIR,
-                                                        include_features=TRANSCRIPT_EXON_FEATURES))
+        annot_gtf_data = gtf_data_parser(annotation, attrs=GtfAttrsSet.FLAIR,
+                                         include_features=TRANSCRIPT_EXON_FEATURES)
+        check_annotation(annot_gtf_data, genome)
+        annots_by_chrom = AnnotsByChrom(annot_gtf_data)
     num_regened = 0
 
     logging.info('loading isoforms from individual samples')

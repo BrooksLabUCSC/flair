@@ -43,6 +43,14 @@ def test_read_sample_info_falls_back_to_column_names(tmp_path):
     assert read_sample_info(counts) == [SampleInfo('s1_ctl_b1', 'ctl', 'b1'),
                                         SampleInfo('s2_test_b1', 'test', 'b1')]
 
+def test_read_sample_info_names_the_missing_file(tmp_path):
+    "a matrix of this FLAIR moved or renamed without its sample info file"
+    counts = str(tmp_path / 'x.counts.tsv')
+    write_test_matrix(counts, ['s1', 's2'])
+    with pytest.raises(FlairInputDataError, match='x.sample_info.tsv does not exist'):
+        read_sample_info(counts)
+
+
 def test_read_sample_info_must_match_counts_columns(tmp_path):
     counts = str(tmp_path / 'x.counts.tsv')
     write_test_matrix(counts, ['s1', 's2'])

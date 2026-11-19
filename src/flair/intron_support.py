@@ -157,7 +157,7 @@ class IntronSupport:
         msg = f"no introns loaded from {file_desc} file {file_name}"
         if chrom_filter is not None:
             msg += f" for chromosome `{chrom_filter}'"
-        raise FlairInputDataError(msg + "; it must hold at least one intron, named by the "
+        raise FlairInputDataError(msg + "; it must contain at least one intron, named by the "
                                   "chromosomes of the genome the reads are aligned to")
 
     @staticmethod
@@ -244,7 +244,10 @@ class IntronSupport:
         columns = ("chrom", "start", "end", "strand", "motif", "annot", "uniq_map_cnt",
                    "multi_map_cnt", "max_overhang")
         cnt = 0
-        line_num = 1  # include header
+        # a STAR SJ.out.tab has no header; a row that fails in the reader fails before
+        # the increment below, so this is the line that row is on, which the
+        # header_lines=1 below restores
+        line_num = 1
         try:
             for rec in TsvReader(sj_file, columns=columns, typeMap={"chrom": str}, defaultColType=int):
                 line_num += 1

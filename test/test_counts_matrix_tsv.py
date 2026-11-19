@@ -101,7 +101,7 @@ def test_spliceevents_rows_are_grouped_by_event_and_other_is_unreported(tmp_path
 def test_a_table_of_psi_values_is_refused(tmp_path):
     psi = str(tmp_path / 'x.spliceevents.psi_junc.tsv')
     _write_spliceevents_counts(psi, [('es|chr1:101-200(+)|G1', 'inc', 0.5, '')])
-    with pytest.raises(FlairInputDataError, match='must hold read counts'):
+    with pytest.raises(FlairInputDataError, match='must contain read counts'):
         read_grouped_counts(psi)
 
 

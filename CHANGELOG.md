@@ -55,7 +55,7 @@
     annotated transcripts that overlap it, rather than the reads alone, and a region
     with no reads or transcripts is reported and dropped.
   * `flair transcriptome --no_stringent` and `--no_check_splice` are removed, and
-    passing either is an error that says so (issue #706).  They let a read count
+    passing either is an error that reports it (issue #706).  They let a read count
     toward an isoform it does not support, the first by dropping the requirement that
     the read be full-length on it, the second by dropping the check that it aligns
     accurately at the splice sites, which the rest of the module's logic assumes.
@@ -63,7 +63,7 @@
     annotated transcripts, and `--parallel_mode` is removed.  `bychrom` aligned a
     chromosome's reads to every transcript on it and `byregion` aligned a partition's
     to the partition's, so the two gave different isoforms: one of 2559 on A498's
-    chr19, and six read counts.  A cluster holds every transcript its reads can reach,
+    chr19, and six read counts.  A cluster contains every transcript its reads can reach,
     so the isoforms no longer depend on how the work is divided, and `--region` gives
     the whole-genome run's transcripts for the region.  bychrom was also the slower
     path: chr19 took 4m05s, against 49 seconds by cluster.  An isoform whose cluster
@@ -73,7 +73,7 @@
     groups from the reads is replaced by haplotyping with an upstream tool, such as
     WhatsHap: `flair isoalleles` takes reads it haplotagged, its phased VCF and flair
     quantify's read maps, and splits each isoform's reads by haplotype, and in a tumor
-    and normal pair by the somatic variants they carry (from the tumor's calls, a
+    and normal pair by the somatic variants they have (from the tumor's calls, a
     somatic caller's, or `--variant`), with the sequence and protein of each group
     and a counts matrix of them.  Genes are processed in parallel batches, and the
     read maps are read by offset rather than loaded.
@@ -94,8 +94,8 @@
     the counts, as quantify writes one.
   * Isoform and gene ids are never split at an underscore.  `flair transcriptome`
     failed with a KeyError on an annotation whose transcript and gene ids both
-    hold one, such as a GTF of HLA alleles; it now names the annotated transcripts
-    it aligns reads to by transcript id alone.  `bed_to_gtf` refuses a BED not from
+    contain one, such as a GTF of HLA alleles; it now names the annotated transcripts
+    it aligns reads to by transcript id alone.  `bed_to_gtf` rejects a BED not from
     flair unless given `--force`, which uses each name as its gene id too.
     `identify_gene_isoform`, `annotate_aaseq_with_uniprot`, the uninstalled
     `predict_aaseq_withvar.py` and `plot_isoform_usage --vcf` are gone.
@@ -134,41 +134,61 @@
   * Bad input is reported as one line rather than a Python traceback: every
     installed command now reports errors this way, and the errors for mismatched
     annotation fasta and isoform names, alignments without AS or MD tags, and the
-    option and input problems in junctions_from_sam and identify_vars say what to
+    option and input problems in junctions_from_sam and identify_vars state what to
     do about them.
   * `flair diffsplice` fails when a counts matrix isoform id has no record in
     `--isoform_bed`.  That combination used to produce empty results silently.
   * `flair diffexp` gained `--condition_a` and `--condition_b`, matching
     `flair diffsplice`.  `condition_a` is the reference that fold changes are
     measured against.
-  * `flair diffexp` no longer fails in DESeq2 when a sample column name holds
+  * `flair diffexp` no longer fails in DESeq2 when a sample column name contains
     anything but letters, digits, dot and underscore, or starts with a digit.
     R was renaming those columns, so they stopped matching the formula matrix
     and SummarizedExperiment rejected the assay (#689).
   * `flair diffsplice` reports an error when no isoform in the BED is named in
     the counts matrix. It used to skip every isoform silently, writing empty
     alt3, alt5 and ir tables and an es table of zeros (#689).
-  * A program flair runs that fails is now reported as one line naming the log
-    that holds its diagnostics, rather than a Python traceback of the flair code
-    that started it.  The diffsplice event callers report their own errors this
-    way too.
+  * A program flair runs that fails is now reported as one line with that program's
+    own diagnostics, rather than a Python traceback of the flair code that started
+    it.  The diagnostics were lost whenever the program ran in a worker process, which
+    is every run at the default thread count.  The diffsplice event callers report
+    their own errors this way too.
+  * The annotation GTF is checked where each subcommand parses it: one with no
+    transcripts, and one whose sequence names are not the genome's, are errors.  An
+    annotation naming `CHR1` where the genome names `chr1` used to run to the end,
+    with fewer isoforms and none of them named, and `flair combine -f` took any file
+    at all.
+  * A transcript or exon line with no `transcript_id` is reported as an input error
+    naming the file and the line.  A GFF3, whose attributes are `ID=...;Parent=...`,
+    matched none of the GTF attribute forms and failed with a Python traceback over a
+    duplicate transcript id of `None`.
+  * flair transcriptome, flair spliceevents and flair isoalleles check that each BAM
+    they read by region has its index, as flair quantify checked its manifest's BAMs.
+    An unindexed BAM used to fail in a worker as `samtools | samtools failed, its
+    diagnostics are above`, with nothing above.
+  * A counts matrix whose sample info file is missing is reported by naming the file
+    that was looked for.  The message named the pre-3.1 `sample_condition_batch`
+    column names as the remedy, which no matrix flair now writes uses.
+  * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
+    FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
+    than printing the pycbio exception and the row that failed.
   * `es_as.py` raises when two isoforms of one gene sit on different
     chromosomes or strands, instead of graphing both loci as one gene and
     calling skipped exons that are in neither.
   * A failing R script now fails the flair run.  The DESeq2 and DRIMSeq scripts
     set an error handler that printed a traceback and let Rscript exit 0, so
     flair reported success while producing no results (#689).
-  * `flair diffsplice` refuses to run DRIMSeq on an event table holding a
+  * `flair diffsplice` rejects an event table containing a
     repeated feature_id, naming the file and the repeats; DRIMSeq reported this
     only as a failed stopifnot naming no file.
   * The `diffexp` and `diffsplice` R dependencies are now part of
     `misc/flair_conda_env.yaml`, and `misc/flair_diffexp_conda_env.yaml` is gone.
-    The BioConda package still does not carry them; `installing.rst` gives the
+    The BioConda package still does not include them; `installing.rst` gives the
     `conda install` command to add them.
   * FLAIR requires python 3.13 through 3.14, dropping 3.12.
   * The conda `pysam` is now 0.24, matching what FLAIR requires.
   * Reverse complement takes every IUPAC nucleotide code, with U and the gap
-    characters, so a genome carrying degenerate bases no longer stops FLAIR
+    characters, so a genome with degenerate bases no longer stops FLAIR
     with `KeyError: 'R'` (#715).  A character that is not a nucleotide now
     reports itself rather than raising KeyError.
   * `flair fusion` rejects fusions between paralogs with a GENCODE annotation.
@@ -188,7 +208,7 @@
     a fusion.  They made fusions of genes with their antisense or neighbouring
     opposite-strand genes, as SLC7A5--SLC7A5-AS1 and EXOC7--ZACN in MCF7.
   * `flair fusion` accepts a non-canonical junction across a fusion breakpoint
-    only if it carries at least half the reads crossing the breakpoint.  Any such
+    only if it has at least half the reads crossing the breakpoint.  Any such
     junction with 2 reads used to do, so a few reads that happened to agree among
     many scattered ones made a fusion isoform, as TAOK3--RPS2 in MCF7 (3 of 21
     reads).  Canonical breakpoint junctions are unchanged.
@@ -215,7 +235,7 @@
     false fusions that the transcript alignment added in SeraCare and UPK3B,
     ANAPC1P2 and NPEPPSP1--TBC1D3L in MCF7.  A partner piece the genome
     alignment leaves clipped still counts (MYO6--SENP6 in MCF7).  The `-b` help
-    now asks for all reads aligned with minimap2, and the
+    now requests all reads aligned with minimap2, and the
     `--min_dist_between_breakpoints` help explains finding fusions between
     close genes with a smaller minimap2 `-G`.
   * `flair fusion --max_dist_to_tss` now measures to the 5' gene's transcript
@@ -247,7 +267,7 @@
   * `flair fusion` failed with an invalid GTF record on an annotation sorted by
     position: minus strand exons were put in genomic order by reversing their
     order in the file, which only works for GENCODE's transcript order.
-  * The `-b` and `-o` help of `flair fusion` say that the chimeric read bams of an
+  * The `-b` and `-o` help of `flair fusion` state that the chimeric read bams of an
     earlier run with the same `-o` are reused, whatever `-b` is.
   * `flair fusion -t` is passed on to flair transcriptome on the synthetic fusion
     genome, which used its own default of 12 threads whatever `-t` was.
@@ -259,7 +279,7 @@
     chimeric reads and these together, where it was read three times.
   * `flair fusion` no longer writes OUTPUT.fusionreads.fa, the sequences of the
     final isoforms' reads: OUTPUT.fusion.isoform.read.map.txt names them, and
-    OUTPUT.fusionreads.prelim.fa holds the sequences of every preliminary fusion read.
+    OUTPUT.fusionreads.prelim.fa contains the sequences of every preliminary fusion read.
   * Without `--keep_intermediate`, `flair fusion` removes its intermediate files,
     where it removed only those of flair transcriptome: the annotated transcripts
     (1 GB with GENCODE), the preliminary fusion reads, and the synthetic fusion
@@ -281,11 +301,11 @@
     every fusion on NC_000012.12 or 12.  Chromosomes are now recognised as UCSC,
     GENCODE, RefSeq and Ensembl name them, still leaving out mitochondria and unplaced
     scaffolds, and non-genic loci by their chrom:start-end form rather than a chr
-    prefix.  The docs say flair fusion is configured for human genomes.
+    prefix.  The docs state that flair fusion is configured for human genomes.
   * `flair fusion` writes its isoforms as flair transcriptome does, all named
     OUTPUT.fusions.*: with the bed, fasta, GTF and bigBed, it now writes
     OUTPUT.fusions.isoform.counts.txt and OUTPUT.fusions.aaseq.tsv, the proteins
-    of the productive isoforms, whose ids the bed's aaseq_id column now carries.
+    of the productive isoforms, whose ids the bed's aaseq_id column now contains.
     The read map is renamed OUTPUT.fusions.isoform.read.map.txt (was
     OUTPUT.fusion.isoform.read.map.txt).
   * `flair fusion` drew a fusion piece the coding region doesn't reach as all
@@ -306,7 +326,7 @@
     BPTF--BPTF call in SeraCare.  OUTPUT.fusions.tsv names fusions by their final
     isoforms' genes and non-genic loci.
   * `flair fusion` reads its GTF once, rather than four times, which takes 1 to 1.5
-    minutes off a GENCODE run, but holds it in memory: 6 GB at its peak for SeraCare,
+    minutes off a GENCODE run, but keeps it in memory: 6 GB at its peak for SeraCare,
     from 3 GB.
   * `flair fusion` groups chimeric reads into preliminary fusions by their loci as
     well as their genes.  Reads of one fusion whose pieces were given different
@@ -326,7 +346,7 @@
     than 10 bases otherwise still reject a fusion: in MCF7 and SeraCare those are
     paralogs and pseudogenes the paralog table misses, template switches and RN7SL
     artifacts, and no reference fusions.
-  * A run whose worker process is killed, as the OOM killer kills the worker holding
+  * A run whose worker process is killed, as the OOM killer kills the worker with
     the largest cluster, now ends with an error rather than waiting forever: the
     parallel subcommands run their tasks in a `ProcessPoolExecutor` over a fork
     context rather than a `multiprocessing.Pool`, which has no way to notice a worker
@@ -354,7 +374,7 @@
     no coding region, is converted with `--no_cds`.
 * `junctions_from_sam` is removed.  It read only the alignments with no indel and no
   clipping, 35 of the 970 spliced alignments of the test BAM, and took the strand
-  from an `XS:A:` tag that minimap2 does not write, so its junctions carried a
+  from an `XS:A:` tag that minimap2 does not write, so its junctions had a
   fraction of the read support and no strand.  Call junctions with
   [intron-prospector](https://github.com/diekhans/intron-prospector) and pass them
   with `--junction_bed`, or give STAR's `SJ.out.tab` to `--junction_star`, which is
@@ -371,7 +391,7 @@
   * `--region_bed` and `--region` build transcripts only in the given regions, such as
     the genes of interest, reading only those parts of the BAM.  Each region is
     expanded to include all the reads and annotated transcripts that overlap it, and
-    then those overlapping the expanded region, until it stops growing, so it holds
+    then those overlapping the expanded region, until it stops growing, so it contains
     everything a whole-genome run would put with it and the transcripts of the genes
     it covers are that run's.  The expansion can reach into a gene next to the region,
     whose transcripts are reported too but may be wrong, as the reads supporting them
@@ -469,7 +489,7 @@
     characters, bedToBigBed's limit for a string.
   * A BED whose `samples` column (column 22) names more than one sample is rejected,
     naming the isoform and its samples.  Combine's own output is such a BED: each
-    isoform names every sample it came from and holds their summed reads, and
+    isoform names every sample it came from and contains their summed reads, and
     combining it again gave each of those samples all of those reads, so an isoform
     of 20, 18 and 9 reads in three samples came back as 47 in each, 141 in place of
     47, with the run reporting nothing.  Combine every sample's BED in one run.
@@ -689,7 +709,7 @@
     gone, the gene is always named.  A matrix from an earlier FLAIR is refused
     rather than split on an underscore, which was wrong for some gene ids.
     `flair combine` writes its counts file the same way.
-  * `flair diffsplice` event ids now carry the strand, as
+  * `flair diffsplice` event ids now include the strand, as
     `chr1:100-200(+)` and `chr1:35556271(+)`, matching the event names
     `flair spliceevents` writes. Without it, an event at the same coordinates on
     both strands produced one feature_id twice and DRIMSeq refused the whole
@@ -697,7 +717,7 @@
     `diffsplice.alt3`, `diffsplice.alt5` and `diffsplice.ir` events.quant.tsv
     and the drimseq results made from them.  The es event ids gain the strand in
     the same form; they could not collide, since the two strands order the
-    skipped exon's boundaries differently, but they did not say which strand
+    skipped exon's boundaries differently, but they did not state which strand
     that ordering meant.
   * Removed flair correct and collapse modules, the functionality is replaced
     by flair transcriptome.

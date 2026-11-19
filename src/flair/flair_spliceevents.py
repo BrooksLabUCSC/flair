@@ -8,7 +8,8 @@ from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
 from flair.io_utils import GenomeFasta, make_run_temp_dir, make_temp_dir, read_manifest_rows
 from flair.output_compress import compressed_path
-from flair.run_checks import check_option_ranges, check_seq_names, precheck, report_result_count, count_records
+from flair.run_checks import (check_annotation, check_bam_indexes, check_option_ranges, check_seq_names, precheck,
+                              report_result_count, count_records)
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
 from flair.spliceevents_events import thresholds_of
@@ -76,7 +77,7 @@ def add_subparser(subparsers):
                                                '--junction_star, not a different kind of evidence')
     parser.add_argument('--junction_support', type=int, default=2,
                         help='minimum number of supporting reads to keep a junction, from either --junction_star '
-                             'or --junction_bed; for bed the score column holds the count (default: %(default)s)')
+                             'or --junction_bed; for bed the score column contains the count (default: %(default)s)')
     parser.add_argument('--ss_window', type=int, default=10,
                         help='window size for correcting splice sites (default: %(default)s)')
     parser.add_argument('--partition_items', type=int, default=PARTITION_ITEMS,
@@ -129,7 +130,7 @@ def add_subparser(subparsers):
                              'Not given with --keep_intermediate, which keeps them beside the output')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging, in <output>.intermediate.  '
-                             'A rerun with --keep_intermediate reads the corrected reads that directory holds '
+                             'A rerun with --keep_intermediate reads the corrected reads that directory contains '
                              'rather than correcting those samples again')
     parser.set_defaults(entry=spliceevents_cmd)
 
@@ -159,7 +160,7 @@ def _correct_cluster_sample(args, cluster, work_dir, bamfile, genome, junction_c
     partitions"""
     # annot_data_from_gtf keeps every transcript of the GtfData it is given, so the
     # annotation is cut to the cluster here: it is what reads are aligned to, and the
-    # partition's would make a read's alignment depend on how many clusters it holds
+    # partition's would make a read's alignment depend on how many clusters it contains
     annots = annot_data_from_gtf(gtf_data.subset_for_region(cluster.name, cluster.start, cluster.end), cluster)
     if len(annots.transcripts) == 0:
         return []
@@ -169,7 +170,7 @@ def _correct_cluster_sample(args, cluster, work_dir, bamfile, genome, junction_c
     if len(windows.ranges) == 0:
         return []
     # the junctions of the cluster, as the partition's would make a read's correction
-    # depend on how many clusters the partition holds
+    # depend on how many clusters the partition contains
     cluster_juncs = junction_corrector.subset_for_region(cluster.name, cluster.start, cluster.end)
     return sample_read_chains(args, cluster, work_dir, bamfile, genome, cluster_juncs, annots,
                               cluster_terminal, windows)
@@ -291,7 +292,9 @@ def plan_correction(args, report_regions, bamfiles, restricted, temp_dir):
                   if restricted else None)
     clusters, counts = run_flair_partition(bamfiles, args.annot, args.threads, region_bed=region_bed)
     units = _work_units(clusters, counts, args.partition_items)
-    return _plan_of(units, report_regions, load_gtf(args.annot, clusters if restricted else None))
+    gtf_data = load_gtf(args.annot, clusters if restricted else None)
+    check_annotation(gtf_data, args.genome, region_filtered=restricted)
+    return _plan_of(units, report_regions, gtf_data)
 
 
 def load_terminal_exons(args, gtf_data, regions):
@@ -308,7 +311,7 @@ def load_terminal_exons(args, gtf_data, regions):
 def spliceevents(args):
     # with --keep_intermediate the directory is beside the output and is reused by the
     # next run, which then corrects only the samples whose corrected reads it does not
-    # hold; otherwise it is a directory of this run's own and is removed
+    # contain; otherwise it is a directory of this run's own and is removed
     temp_dir = (make_temp_dir(args.output) if args.keep_intermediate
                 else make_run_temp_dir(args.output, args.temp_dir))
     logging.info('temp directory: %s', temp_dir)
@@ -327,6 +330,7 @@ def run_spliceevents(args, temp_dir):
     allsamples = read_manifest(args.manifest)
     bamfiles = [bamfile for _, bamfile in allsamples]
     # the manifest names the BAMs, so they are checked once it is read
+    check_bam_indexes(bamfiles)
     check_seq_names(args.genome, alignments=bamfiles)
 
     regions = parse_regions(args.regions, args.region_bed)

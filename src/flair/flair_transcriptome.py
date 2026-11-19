@@ -40,7 +40,8 @@ from flair.output_compress import compressed_path, open_fasta_output, open_outpu
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
-from flair.run_checks import check_option_ranges, precheck, report_result_count, count_records
+from flair.run_checks import (check_annotation, check_option_ranges, precheck, report_result_count,
+                              count_records)
 
 # the programs a run executes, checked before it starts
 PROGRAMS = ('flair_partition', 'bedtools', 'samtools', 'minimap2', 'bedToBigBed')
@@ -173,7 +174,7 @@ def add_subparser(subparsers):
                                                '--junction_star, not a different kind of evidence')
     parser.add_argument('--junction_support', type=int, default=2,
                         help='minimum number of supporting reads to keep a junction, from either --junction_star '
-                             'or --junction_bed; for bed the score column holds the count (default: %(default)s)')
+                             'or --junction_bed; for bed the score column contains the count (default: %(default)s)')
 
     parser.add_argument('--ss_window', type=int, default=10,
                         help='window size for correcting splice sites (default: %(default)s)')
@@ -303,7 +304,7 @@ def transcriptome_cmd(args):
     precheck(files={'aligned reads BAM': args.genome_aligned_bam, 'annotation GTF': args.annot_gtf,
                     'junction BED': args.junction_bed, 'STAR junction': args.junction_star,
                     'region BED': args.region_bed},
-             programs=PROGRAMS, genome=args.genome, alignments=(args.genome_aligned_bam,))
+             programs=PROGRAMS, genome=args.genome, indexed_alignments=(args.genome_aligned_bam,))
     flair_transcriptome(genome_aligned_bam=args.genome_aligned_bam, genome=args.genome,
                         sample_name=args.sample_name,
                         output=args.output if args.output is not None else args.sample_name,
@@ -535,7 +536,7 @@ def filter_spliced_iso(filter_type, support, juncs, exons, name, score, annots,
     """Is a spliced candidate kept by the subset filter, and its unique sequence
     boundaries.  It is a subset of isoforms of its own gene, and of other genes'
     only if its junctions reach outside its own gene (_juncs_outside_gene).  An
-    isoform of any gene containing it still decides its unique sequence boundaries,
+    isoform of any gene containing it still determines its unique sequence boundaries,
     which come from any isoform with its junctions, as for a subset: none if its
     ends match an annotated transcript's.  The names of the isoforms it is a subset
     of are added to supersets, if given."""
@@ -1406,8 +1407,8 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs):
             gene_to_tot[gene][0] += 1
             gene_to_tot[gene][1] += 1
         else:  # this is only kept to catch bugs in count_sam_transcripts transcript assignment
-            # the FIXME above says count_sam_transcripts no longer emits these, so
-            # reaching this means the two disagree about what ends.tsv holds
+            # the FIXME above states that count_sam_transcripts no longer emits these, so
+            # reaching this means the two disagree about what ends.tsv contains
             raise FlairError(f"{read_ends_file}: read '{read}' on transcript '{transcript}' is not "
                              f"full length: junctions {start_sj_index} to {end_sj_index} of "
                              f"{len(final_transcript_objs[transcript].juncs)}")
@@ -1463,7 +1464,7 @@ def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_
 def unpadded_exons(exons, unpadded_ends, name=None):
     """A spliced isoform's exons with the realignment padding taken off its first and
     last exons, back to unpadded_ends.  An end at or past its exon's other edge is
-    left where it is, as it would make the exon empty, or reversed, which Exon refuses
+    left where it is, as it would make the exon empty, or reversed, which Exon rejects
     with an assertion that stopped the run."""
     exons = list(exons)
     start, end = unpadded_ends
@@ -1618,7 +1619,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                                               partition.output_path('firstpass.fa'),
                                               partition.output_path('firstpass.bed'),
                                               partition.output_path('isoforms.counts.tsv'),
-                                              read_map_file, False,  # say is not annot, requires stringent, returns different end values
+                                              read_map_file, False,  # not annot, requires stringent, returns different end values
                                               partition.output_path('reads.genomicclipping.tsv'),
                                               unique_bound=partition.output_path('firstpass.uniquebound.tsv'),
                                               directRNA=args.directRNA, trust_strand=args.trust_strand,
@@ -1764,10 +1765,10 @@ def write_partition_regions(regions, output):
         write_regions(regions, fh)
 
 
-# a partition worker holds its cluster's reads while it corrects and assembles them,
+# a partition worker keeps its cluster's reads while it corrects and assembles them,
 # measured at about this much memory per input item (notes, scaling review)
 BYTES_PER_PARTITION_ITEM = 2700
-# the item count past which that is worth saying before the run rather than after it
+# the item count past which that is worth reporting before the run rather than after it
 LARGE_PARTITION_ITEMS = 2000000
 
 
@@ -1783,7 +1784,7 @@ def report_partition_sizes(regions, item_counts):
     logging.info(f'largest partition {where}, {items} reads and annotated transcripts')
     if items >= LARGE_PARTITION_ITEMS:
         logging.warning(
-            f'partition {where} holds {items} reads and annotated transcripts, which one worker '
+            f'partition {where} contains {items} reads and annotated transcripts, which one worker '
             f'corrects and assembles on its own, needing roughly '
             f'{items * BYTES_PER_PARTITION_ITEM / 1e9:.0f} GB.  Overlapping reads are never split '
             'between partitions, so lower --threads to run fewer of them at once, or give --region '
@@ -1837,6 +1838,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
                 logging.info('loading annotation GTF')
                 annot_gtf_data = gtf_data_parser(args.annot_gtf, attrs=GtfAttrsSet.FLAIR,
                                                  include_features=TRANSCRIPT_EXON_FEATURES, regions=annot_regions)
+                check_annotation(annot_gtf_data, args.genome, region_filtered=annot_regions is not None)
 
             logging.info('building intron support database')
             junction_corrector = junction_corrector_factory(args.ss_window, args.junction_support,

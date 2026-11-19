@@ -29,7 +29,7 @@ CONDITION_FIELD = 1
 BATCH_FIELD = -1
 
 class SampleInfo(namedtuple('SampleInfo', SAMPLE_INFO_COLUMNS)):
-    "one counts matrix column: which sample it holds and how that sample was grouped"
+    "one counts matrix column: which sample it contains and how that sample was grouped"
     __slots__ = ()
 
 class SampleInfoReader(TsvReader):
@@ -88,16 +88,23 @@ def write_sample_info(sample_info_tsv, sample_infos):
         for sample_info in sample_infos:
             writer.writeRow(sample_info)
 
+def _no_sample_info_error(sample_columns, counts_matrix_tsv):
+    """No sample info file beside the matrix and column names that are not the pre-3.1
+    sample_condition_batch, which is a matrix moved or renamed without its sample
+    info file, the form flair quantify has written since 3.1."""
+    return FlairInputDataError(
+        f"{counts_matrix_tsv}: its sample info file {sample_info_path(counts_matrix_tsv)} does not exist, and "
+        f"its counts columns are not named sample_condition_batch, as those of a matrix written before FLAIR "
+        f"3.1 are: {' '.join(sample_columns)}; flair quantify writes the sample info file beside the counts "
+        'matrix, and the two must be kept together')
+
+
 def parse_sample_fields(sample_columns, counts_matrix_tsv):
     "the condition and the batch of each sample column, from the column names"
-    try:
-        conditions = [col.split('_')[CONDITION_FIELD] for col in sample_columns]
-        batches = [col.split('_')[BATCH_FIELD] for col in sample_columns]
-    except IndexError as ex:
-        raise FlairInputDataError(
-            f"{counts_matrix_tsv}: counts columns must be named sample_condition_batch, "
-            f"found: {' '.join(sample_columns)}") from ex
-    return conditions, batches
+    if any('_' not in col for col in sample_columns):
+        raise _no_sample_info_error(sample_columns, counts_matrix_tsv)
+    return ([col.split('_')[CONDITION_FIELD] for col in sample_columns],
+            [col.split('_')[BATCH_FIELD] for col in sample_columns])
 
 def _sample_info_from_columns(sample_columns, counts_matrix_tsv):
     "recover the fields from sample_condition_batch column names"

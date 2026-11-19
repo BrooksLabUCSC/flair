@@ -1,5 +1,7 @@
-"""
-Simplistic, non-validating GTF parser.
+"""GTF parser.  The fields of each record are checked: the column count, the
+coordinates, the strand, the score, the frame, the ids and their white space, and
+that a file with exon lines has transcript lines.  The attributes are GTF's,
+key "value", not GFF3's key=value.
 """
 import functools
 import re
@@ -7,7 +9,7 @@ from enum import Enum
 from typing import Optional
 from collections import defaultdict
 from flair.pycbio.sys import fileOps
-from flair import SeqRange
+from flair import FlairInputDataError, SeqRange
 from flair.interval_index import IntervalIndex
 
 StrNone = Optional[str]
@@ -52,8 +54,8 @@ class GtfAttrsSet(Enum):
     BASIC = 'basic'
 
 
-class GtfParseError(Exception):
-    """Error parsing GTF record."""
+class GtfParseError(FlairInputDataError):
+    """Error parsing a GTF record, which is an error in a file the user gave."""
     pass
 
 class GtfIdError(KeyError):
@@ -61,9 +63,9 @@ class GtfIdError(KeyError):
     pass
 
 class GtfRecord:
-    """Base GTF record.  Text columns of '.' are set to None.  Repeated attributes
-    are converted to list of values.  If attrs is specified, ownership is passed
-    to this object.
+    """Base GTF record.  A score or frame column of '.' is set to None, while a strand
+    of '.' is kept, as the callers test for it.  Repeated attributes are converted to a
+    list of values.  If attrs is specified, ownership is passed to this object.
     """
     def __init__(self, chrom: str, source: str, feature: str,
                  start: int, end: int, score: str, strand: str, frame: str, *,
@@ -79,7 +81,7 @@ class GtfRecord:
         self.strand = strand
         self.frame = frame
 
-        # attrs is taken, not copied, as the class docstring says.  A caller that
+        # attrs is taken, not copied, as the class docstring states.  A caller that
         # keeps its dict and goes on using it will change this record
         self.attrs = attrs if attrs is not None else {}
         if gene_id is not None:
@@ -200,9 +202,8 @@ class GtfTranscript(GtfRecord):
         self.cds_recs.sort(key=gtf_record_sort_key)
 
 class GtfData:
-    """Data from a GTF file.  This is a container of GtfTranscript objects
-    and there children.  There is no gene objects, as they are not required records
-    in GTF."""
+    """Data from a GTF file: a container of GtfTranscript objects and their children.
+    There are no gene objects, as GTF does not require gene records."""
     def __init__(self, gtf_file=None):
         self.gtf_file = gtf_file  # saved for error messages
         self.transcripts = []
@@ -287,7 +288,7 @@ def _parse_attribute_match(match: re.Match) -> tuple[str, str | int | float]:
 
 def _parse_tags(attrs_str: str) -> list[str]:
     """The tag attribute values, which may repeat, as a list.  GTF transcripts are
-    expected to carry these, so the list is set even when empty."""
+    expected to have these, so the list is set even when empty."""
     return _TAG_ATTR_RE.findall(attrs_str)
 
 def _parse_all_attributes(attrs_str: str, record_type: str, attr_re=_ALL_ATTR_RE) -> Attrs:
@@ -400,7 +401,7 @@ def _parse_strand(strand: str) -> str:
         raise GtfParseError(f"Invalid strand '{strand}'")
     return strand
 
-def _parse_score(score_str: str) -> str:
+def _parse_score(score_str: str) -> float | None:
     try:
         if score_str == '.':
             return None
@@ -409,7 +410,7 @@ def _parse_score(score_str: str) -> str:
     except Exception as exc:
         raise GtfParseError(f"Invalid score '{score_str}'") from exc
 
-def _parse_frame(frame_str: str) -> str:
+def _parse_frame(frame_str: str) -> int | None:
     try:
         if frame_str == '.':
             return None
@@ -455,6 +456,16 @@ def _check_id_whitespace(attrs):
             _check_id_value(key, val)
 
 
+def _check_transcript_id(attrs, feature):
+    """A transcript or exon record names its transcript.  A GFF3's attributes,
+    ID=...;Parent=..., match none of the GTF forms, so its records parse with no ids at
+    all and collide on a transcript_id of None rather than failing on their syntax."""
+    if (feature in TRANSCRIPT_EXON_FEATURES) and (attrs.get('transcript_id') is None):
+        raise GtfParseError(f'{feature} record has no transcript_id attribute; flair reads GTF attributes, '
+                            'gene_id "GENE"; transcript_id "TRANSCRIPT";, so a GFF3, whose attributes are '
+                            'ID=...;Parent=..., must be converted to GTF first')
+
+
 def _parse_gtf_line(line: str, include_features: StrSetNone, attrs_parser) -> GtfRecord:
     """Parse a single GTF line into a GtfRecord or derived class."""
     # drop excluded features before stripping and splitting the whole line; in
@@ -477,6 +488,7 @@ def _parse_gtf_line(line: str, include_features: StrSetNone, attrs_parser) -> Gt
     start, end = _parse_coordinates(fields[3], fields[4])
     attrs = attrs_parser(fields[8], fields[2])
     _check_id_whitespace(attrs)
+    _check_transcript_id(attrs, fields[2])
 
     cls = _gtf_record_class(fields[2])
     return cls(chrom=fields[0],
@@ -637,7 +649,7 @@ def _resolve_gtf_records(gtf_data, transcript_id_to_exons, transcript_id_to_cds_
                       transcript_id_to_start_codons.get(transcript.transcript_id))
 
 def _check_transcripts_found(gtf_file, transcripts_read, transcript_id_to_exons, include_features):
-    """A GTF holding exons but no transcript features parses to an empty GtfData, and
+    """A GTF containing exons but no transcript features parses to an empty GtfData, and
     everything downstream then behaves as though the annotation were empty."""
     wanted_transcripts = (include_features is None) or ('transcript' in include_features)
     if wanted_transcripts and (len(transcript_id_to_exons) > 0) and (transcripts_read == 0):
