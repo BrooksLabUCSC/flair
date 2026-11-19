@@ -28,6 +28,9 @@ TSVs, the isoform BED, the GTF, the FASTA and the VCF.  The FASTA is bgzip, so
 Reading and writing are independent: a run may read gzipped input and write plain
 output, or the reverse.
 
-The additional programs, such as ``diff_iso_usage`` and ``bed_to_gtf``, name their
-output file rather than a prefix, so they take no option: end the name in ``.gz``
-and the output is gzipped.
+The additional programs name their output file rather than a prefix, so they take no
+option: end the name in ``.gz`` and the output is gzipped, as with
+``gtf_to_bed ANNOTATION.gtf ANNOTATION.bed.gz``.  ``bed_to_gtf`` is the exception.  It
+writes to standard output, so redirect it through ``gzip``::
+
+   bed_to_gtf ISOFORMS.bed | gzip > ISOFORMS.gtf.gz

@@ -5,8 +5,8 @@
 .. code-block:: text
 
    usage: flair transcriptome [-h] -b GENOME_ALIGNED_BAM -g GENOME
-                              --sample_name SAMPLE_NAME [-o OUTPUT]
-                              [-f ANNOT_GTF] [--junction_star JUNCTION_STAR]
+                              --sample_name SAMPLE_NAME [-o OUTPUT] [-f GTF]
+                              [--junction_star JUNCTION_STAR]
                               [--junction_tab JUNCTION_TAB]
                               [--junction_bed JUNCTION_BED]
                               [--junction_support JUNCTION_SUPPORT]
@@ -21,7 +21,7 @@
                               [--filter {nosubset,comprehensive,ginormous,<N>X}]
                               [--keep_supplementary] [--quality QUALITY]
                               [-t THREADS] [--region_bed REGION_BED]
-                              [--region REGIONS]
+                              [--region REGION]
                               [--fusion_breakpoints FUSION_BREAKPOINTS]
                               [--temp_dir TEMP_DIR] [--keep_intermediate]
                               [--normalize_ends] [--generate_map]
@@ -32,7 +32,7 @@
 
    prefix for the output file names; defaults to the required --sample_name
 
-.. option:: -f, --gtf ANNOT_GTF
+.. option:: -f, --gtf GTF
 
    GTF annotation file, used for identifying annotated isoforms
 
@@ -87,7 +87,7 @@
 
 .. option:: --directRNA
 
-   input is directRNA - this sets trust_strand to True, also doesn't allow large deletions in UTRs (an artifact of cDNA amplification)
+   the reads are direct RNA: this implies --trust_strand, and large deletions in UTRs, an artifact of cDNA amplification, are not allowed
 
 .. option:: --trust_strand
 
@@ -132,9 +132,9 @@
 
    bed file of the regions to build transcripts in, such as the genes of interest. If no region is given, the whole genome is used. A region is expanded over the reads and annotated transcripts that overlap it, until nothing more overlaps, so the transcripts reported are the same as a whole-genome run's. The expansion can reach a gene next to the region, which is reported too. The expanded regions are written to <output>.regions.bed. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
 
-.. option:: --region REGIONS
+.. option:: --region REGION
 
-   region to build transcripts in, with everything --region_bed says. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
+   region to build transcripts in. The notes under --region_bed apply to it as well. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
 
 .. option:: --fusion_breakpoints FUSION_BREAKPOINTS
 
@@ -168,5 +168,5 @@
 
 .. option:: --sample_name SAMPLE_NAME
 
-   name of sample - this will be added as metadata to your output files
+   name of the sample, written as metadata in the output files
 

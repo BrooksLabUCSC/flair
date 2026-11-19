@@ -12,7 +12,7 @@
                              [--junction_support JUNCTION_SUPPORT]
                              [--ss_window SS_WINDOW]
                              [--partition_items PARTITION_ITEMS]
-                             [--region_bed REGION_BED] [--region REGIONS]
+                             [--region_bed REGION_BED] [--region REGION]
                              [--feature_support FEATURE_SUPPORT]
                              [--event_support EVENT_SUPPORT]
                              [--event_frac_of_tot EVENT_FRAC_OF_TOT]
@@ -64,9 +64,9 @@
 
    bed file of the regions to report events in, such as the genes of interest. If no region is given, all chromosomes are used. A region is expanded over the reads and annotated transcripts that overlap it, until nothing more overlaps, and its reads are corrected over their whole length. The events reported are those inside a region: all their junctions and exons, or, for the start, end, first and last exon events, which count all of a gene's reads, all its annotated junctions. An event reaching past a region is left out, not reported from part of its reads. The regions reads were corrected in are written to <output>.spliceevents.regions.bed
 
-.. option:: --region REGIONS
+.. option:: --region REGION
 
-   region to report events in, with everything --region_bed says. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
+   region to report events in. The notes under --region_bed apply to it as well. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
 
 .. option:: --feature_support FEATURE_SUPPORT
 

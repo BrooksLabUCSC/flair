@@ -88,9 +88,9 @@ def add_subparser(subparsers):
     parser.add_argument('--region_bed',
                         help='bed file of the regions to report events in, such as the genes of '
                              'interest.  ' + REGION_RESTRICT_HELP)
-    parser.add_argument('--region', dest='regions', action='append', default=[],
-                        help='region to report events in, with everything --region_bed says.  '
-                             + REGION_FORMAT_HELP)
+    parser.add_argument('--region', dest='regions', action='append', default=[], metavar='REGION',
+                        help='region to report events in.  The notes under --region_bed apply to it '
+                             'as well.  ' + REGION_FORMAT_HELP)
     parser.add_argument('--feature_support', type=int, default=2,
                         help='minimum number of reads of a junction, splice site or end of an event in some '
                              'sample (default: %(default)s)')

@@ -4,6 +4,7 @@ position sorted BED and VCF output."""
 import os
 import logging
 import tempfile
+from contextlib import contextmanager
 import pipettor
 import pysam
 from flair import FlairInputDataError, FlairToolError
@@ -59,12 +60,13 @@ def _parse_manifest_line(where, line, field_counts, line_format, file_fields):
     return fields
 
 
-def read_manifest_rows(path, field_counts, line_format, file_fields):
+def read_manifest_rows(path, field_counts, line_format, file_fields, *, named='samples'):
     """A manifest's rows, each a list of its tab-separated fields, for a line each but
     blank lines and '#' comments.  A line has one of field_counts fields, none of them
     empty, as line_format describes for errors; the fields at the indexes of
     file_fields, index -> what the file is, name files that must exist; and the first
-    field, the sample's name, is unique."""
+    field is unique.  named is what that field names, for the messages about an empty
+    manifest and a repeated one."""
     rows = []
     # plain or compressed, as every flair text input may be
     with fileOps.opengz(path) as fh:
@@ -73,11 +75,11 @@ def read_manifest_rows(path, field_counts, line_format, file_fields):
             if (line.strip() != '') and not line.startswith('#'):
                 rows.append(_parse_manifest_line(f'{path}:{lineno}', line, field_counts, line_format, file_fields))
     if len(rows) == 0:
-        raise FlairInputDataError(f'{path}: manifest has no samples')
+        raise FlairInputDataError(f'{path}: manifest has no {named}')
     names = [row[0] for row in rows]
     duplicated = sorted({name for name in names if names.count(name) > 1})
     if duplicated:
-        raise FlairInputDataError(f'{path}: samples named more than once: {", ".join(duplicated)}')
+        raise FlairInputDataError(f'{path}: {named} named more than once: {", ".join(duplicated)}')
     return rows
 
 
@@ -189,10 +191,17 @@ def _bed_sort_cmds(path):
         cmds.append(fileOps.compressCmd(path))
     return cmds
 
+@contextmanager
 def open_sorted_bed(path):
     """Writable file for BED rows, sorting them as they are written.  Compression
-    follows the file name, as it does in opengz."""
-    return pipettor.Popen(_bed_sort_cmds(path), mode='w', stdout=path)
+    follows the file name, as it does in opengz.  The rows are written under a
+    temporary name in the same directory and installed under path when they are all
+    written, as sort_bed_file and the TSV writers do, so a failed run leaves no part
+    of a BED under the name of a whole one, and the directory of path is created if
+    it does not exist."""
+    with fileOps.AtomicFileCreate(path) as tmp_path:
+        with pipettor.Popen(_bed_sort_cmds(path), mode='w', stdout=tmp_path) as fh:
+            yield fh
 
 def sort_bed_file(path):
     "Sort a BED that is already written, leaving it in the same place."

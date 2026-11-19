@@ -1,7 +1,7 @@
 Additional programs
 ^^^^^^^^^^^^^^^^^^^
 
-When you ``conda install`` or ``pip install`` flair, the following programs will be in your $PATH.
+A ``conda install`` or ``pip install`` of flair puts the following programs on $PATH.
 The options of each are generated from the program itself, so they are always what the program accepts.
 
 bed_to_gtf
@@ -106,27 +106,22 @@ plot_isoform_usage
 
 .. include:: cli/plot_isoform_usage.rst
 
-Visualization script for FLAIR isoform structures and the percent usage
-of each isoform in each sample for a given gene. If you supply the
-isoforms.bed file from running ``predictProductivity``, then isoforms
-will be filled according to the predicted productivity (solid for
-``PRO``, hatched for ``PTC``, faded for ``NGO`` or ``NST``). The gene
-name supplied should correspond to a gene name in your isoform file and
-counts file.
+Plots the isoform structures of one gene and the percent usage of each of its
+isoforms in each sample.  The gene name given must be one of the gene names in the
+isoform file and the counts file.  Given the isoforms.bed of
+``predictProductivity``, each isoform is filled according to its predicted
+productivity: solid for ``PRO``, hatched for ``PTC``, faded for ``NGO`` or ``NST``.
 
-The script will produce two images, one of the isoform models and another of the usage proportions.
-
-The most highly expressed isoforms across all the samples will be plotted.
-
-The minor isoforms are aggregated into a gray bar. You can toggle --min_reads or
---palette to plot more isoforms.
+The isoforms plotted are the most highly expressed across all the samples; the minor
+ones are aggregated into a gray bar.  ``--min_reads`` and ``--palette`` plot more of
+them.
 
 **Outputs**
 
  - gene_name_isoforms.pdf of isoform structures
  - gene_name_usage.pdf of isoform usage by sample
 
-With -o, the prefix comes before the gene name.
+With ``-o``, the prefix comes before the gene name.
 
 For example:
 

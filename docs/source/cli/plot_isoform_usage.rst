@@ -4,7 +4,7 @@
 
 .. code-block:: text
 
-   usage: plot_isoform_usage [-h] [-o O] [--min_reads MIN_READS]
+   usage: plot_isoform_usage [-h] [-o OUTPUT] [--min_reads MIN_READS]
                              [--palette PALETTE]
                              isoforms counts_matrix gene_name
 
@@ -24,15 +24,15 @@
 
 .. rubric:: options
 
-.. option:: -o O
+.. option:: -o, --output OUTPUT
 
-   prefix used for output files (default=gene_name)
+   prefix used for output files (default: the gene name)
 
 .. option:: --min_reads MIN_READS
 
-   minimum number of total supporting reads for an isoform to be visualized (default=6)
+   minimum number of total supporting reads for an isoform to be plotted (default: 6)
 
 .. option:: --palette PALETTE
 
-   provide a palette file if you would like to visualize more than 7 isoforms at once or change the palette used. each line contains a hex color for each isoform
+   a palette file, to plot more than 7 isoforms at once or to change the colors used: a line of one hex color for each isoform
 

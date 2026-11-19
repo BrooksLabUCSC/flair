@@ -316,30 +316,36 @@ def convert_synthetic_isos(isoformsbed, breakpointfile, outname, min_dist, annot
                     converted.append((bed, bedinfos, genes))
 
     name_nongenic_loci(converted)
-    out = open_sorted_bed(outname)
     gene_og_to_new = {}
     curr_gene_count = 1
     iso_genes = {}
-    for bed, bedinfos, genes in converted:
-        if len(set(genes)) < len(genes):
-            # pieces of one gene: a rearrangement within a gene, as of a
-            # segmental duplication, which flair fusion doesn't call
-            logging.info('skipping %s: pieces of one gene, %s', bed.name, '--'.join(genes))
-            continue
-        iso_genes[bed.name] = tuple(genes)
-        for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
-            curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, '--'.join(genes), curr_gene_count)
-            flair_genes = []
-            for gene in ref_gene_info:
-                curr_gene_count, gene_id, ref_gene_ids = get_gene_id(gene_og_to_new, gene, curr_gene_count)
-                flair_genes.append(gene_id)
-            # convert reference genes that are chromosome regions to none in the ref_gene_mappings field
-            ref_gene_info = tuple([None if is_nongenic_locus(x) else x for x in ref_gene_info])
-            outbed = FlairBed(genomicchr, chromStart, chromEnd, name=bed.name, score=bed.score, strand=locusdir, blocks=blocks,
-                              gene_id=fusion_id, ref_gene_mappings=ref_gene_info, thickStart=thickStart, thickEnd=thickEnd,
-                              read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',
-                              fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples,
-                              aaseq_id=bed.aaseq_id)
-            outbed.write(out)
-    out.close()
+    with open_sorted_bed(outname) as out:
+        for bed, bedinfos, genes in converted:
+            if len(set(genes)) < len(genes):
+                # pieces of one gene: a rearrangement within a gene, as of a
+                # segmental duplication, which flair fusion doesn't call
+                logging.info('skipping %s: pieces of one gene, %s', bed.name, '--'.join(genes))
+            else:
+                iso_genes[bed.name] = tuple(genes)
+                curr_gene_count = _write_fusion_pieces(out, bed, bedinfos, genes, gene_og_to_new,
+                                                       curr_gene_count)
     return iso_genes
+
+
+def _write_fusion_pieces(out, bed, bedinfos, genes, gene_og_to_new, curr_gene_count):
+    "one isoform's pieces as BED rows, returning the gene count the next isoform starts from"
+    for fusion_order, (genomicchr, chromStart, chromEnd, locusdir, thickStart, thickEnd, blocks) in enumerate(bedinfos):
+        curr_gene_count, fusion_id, ref_gene_info = get_gene_id(gene_og_to_new, '--'.join(genes), curr_gene_count)
+        flair_genes = []
+        for gene in ref_gene_info:
+            curr_gene_count, gene_id, ref_gene_ids = get_gene_id(gene_og_to_new, gene, curr_gene_count)
+            flair_genes.append(gene_id)
+        # convert reference genes that are chromosome regions to none in the ref_gene_mappings field
+        ref_gene_info = tuple([None if is_nongenic_locus(x) else x for x in ref_gene_info])
+        outbed = FlairBed(genomicchr, chromStart, chromEnd, name=bed.name, score=bed.score, strand=locusdir, blocks=blocks,
+                          gene_id=fusion_id, ref_gene_mappings=ref_gene_info, thickStart=thickStart, thickEnd=thickEnd,
+                          read_support=bed.read_support, frac_support=bed.frac_support, productivity=bed.productivity, transcript_class='fusion',
+                          fused_genes=tuple(flair_genes), pos_in_fusion=fusion_order, samples=bed.samples,
+                          aaseq_id=bed.aaseq_id)
+        outbed.write(out)
+    return curr_gene_count

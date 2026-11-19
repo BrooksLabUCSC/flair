@@ -6,8 +6,8 @@
 
    usage: flair_partition [-h] [--min_partition_items MIN_PARTITION_ITEMS]
                           [--part_merge_dist PART_MERGE_DIST] [--threads THREADS]
-                          [--bed BED_FILES] [--bam BAM_FILES] [--gtf GTF_FILES]
-                          [--region_bed REGION_BED] [--region REGIONS]
+                          [--bed BED] [--bam BAM] [--gtf GTF]
+                          [--region_bed REGION_BED] [--region REGION]
                           [--log-stderr] [--log-level LOG_LEVEL]
                           [--log-conf LOG_CONF] [--log-debug]
                           ranges_bed
@@ -16,7 +16,7 @@
 
 .. option:: ranges_bed
 
-   Output ranges BED file, will be compressed if it ends in .gz. It is a BED4 with the number of input items in each partition as a fifth column
+   Output ranges BED file, compressed if its name ends in .gz. It is a BED4 with the number of input items in each partition as a fifth column
 
 .. rubric:: options
 
@@ -30,27 +30,27 @@
 
 .. option:: --threads THREADS
 
-   Number of cores for converting inputs, a BAM by chromosome, and sorting
+   Number of cores for converting inputs, a BAM by chromosome, and sorting (default: 1)
 
-.. option:: --bed BED_FILES
+.. option:: --bed BED
 
-   Input BED file, maybe compressed. Maybe repeated
+   Input BED file, may be compressed. May be repeated
 
-.. option:: --bam BAM_FILES
+.. option:: --bam BAM
 
-   Input SAM/BAM file. Maybe repeated.
+   Input SAM/BAM file. May be repeated
 
-.. option:: --gtf GTF_FILES
+.. option:: --gtf GTF
 
-   Input GTF file. Maybe repeated.
+   Input GTF file. May be repeated
 
 .. option:: --region_bed REGION_BED
 
    BED of regions to restrict the partitions to, such as the genes of interest. Only input items overlapping a region are read, an indexed BAM by random access, and the regions are then grown over the items reaching them until they stop growing, so each partition holds every item that a partition of the whole input would. Not used with --min_partition_items
 
-.. option:: --region REGIONS
+.. option:: --region REGION
 
-   region to restrict the partitions to, with everything --region_bed says. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
+   region to restrict the partitions to. The notes under --region_bed apply to it as well. A region is either one-based and closed, chr1:1,000-2,000, or zero-based and half-open, chr1 999 2000, as a BED line. May be repeated, and may be used with --region_bed, whose regions are added to it
 
 .. option:: --log-stderr
 

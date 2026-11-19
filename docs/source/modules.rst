@@ -259,8 +259,8 @@ Combines FLAIR transcriptomes into one combined transcriptome. The transcriptome
 combine are named in one of three mutually exclusive ways: --manifest, --prefixes or
 --isoform_beds.
 
-Manifest example, one bed file path per line (we suggest using absolute file paths to
-point to your files though):
+Manifest example, one bed file path per line, blank lines and lines starting with
+``#`` skipped (absolute paths are recommended):
 
 .. code:: text
 

@@ -85,5 +85,5 @@
 
 .. option:: --sample_name SAMPLE_NAME
 
-   name of sample, will be added as metadata to output files
+   name of the sample, written as metadata in the output files
 

@@ -13,12 +13,12 @@ import matplotlib.patches as mplpatches  # noqa: E402
 from flair import FlairInputDataError  # noqa: E402
 from flair.pycbio.sys import cli, fileOps  # noqa: E402
 from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noqa: E402
+from flair.run_checks import check_option_ranges  # noqa: E402
 
 def build_parser():
-    desc = '''The script will produce two images, one of the isoform models and another of the usage proportions.
-    The most highly expressed isoforms across all the samples will be plotted.
-    The minor isoforms are aggregated into a gray bar. You can toggle --min_reads or
-    --palette to plot more isoforms.'''
+    desc = '''Produces two images, one of the isoform models and another of the usage proportions.
+    The isoforms plotted are the most highly expressed across all the samples; the minor ones
+    are aggregated into a gray bar.  --min_reads and --palette plot more of them.'''
     parser = argparse.ArgumentParser(prog='plot_isoform_usage', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('isoforms', type=str, action='store',
                         help='isoforms in bed format')
@@ -27,13 +27,14 @@ def build_parser():
     parser.add_argument('gene_name', type=str, action='store',
                         help='''Name of gene, must correspond with the gene names in the
     isoform and counts matrix files''')
-    parser.add_argument('-o', action='store', dest='o', type=str,
-                        help='prefix used for output files (default=gene_name)')
-    parser.add_argument('--min_reads', action='store', dest='min_reads', type=int, default=6,
-                        help='minimum number of total supporting reads for an isoform to be visualized (default=6)')
-    parser.add_argument('--palette', action='store', dest='palette',
-                        help='''provide a palette file if you would like to visualize more than 7
-                        isoforms at once or change the palette used. each line contains a hex color for each isoform''')
+    parser.add_argument('-o', '--output', type=str,
+                        help='prefix used for output files (default: the gene name)')
+    parser.add_argument('--min_reads', type=int, default=6,
+                        help='minimum number of total supporting reads for an isoform to be plotted '
+                             '(default: %(default)s)')
+    parser.add_argument('--palette',
+                        help='a palette file, to plot more than 7 isoforms at once or to change the '
+                             'colors used: a line of one hex color for each isoform')
     return parser
 
 
@@ -187,7 +188,7 @@ def read_color_palette(palette_file):
 
 def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
     # the gene is always in the name, since one prefix may be used for several genes
-    prefix = f'{args.o}_{args.gene_name}' if args.o else args.gene_name
+    prefix = f'{args.output}_{args.gene_name}' if args.output else args.gene_name
 
     color_palette = name_colors + hex_colors
     if args.palette:
@@ -293,6 +294,7 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 def main():
     args = build_parser().parse_args()
     with cli.ErrorHandler():
+        check_option_ranges(args, count=('min_reads',))
         plot_isoform_usage(args)
 
 

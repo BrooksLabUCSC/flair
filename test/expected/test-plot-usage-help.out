@@ -1,11 +1,11 @@
-usage: plot_isoform_usage [-h] [-o O] [--min_reads MIN_READS]
+usage: plot_isoform_usage [-h] [-o OUTPUT] [--min_reads MIN_READS]
                           [--palette PALETTE]
                           isoforms counts_matrix gene_name
 
-The script will produce two images, one of the isoform models and another of
-the usage proportions. The most highly expressed isoforms across all the
-samples will be plotted. The minor isoforms are aggregated into a gray bar.
-You can toggle --min_reads or --palette to plot more isoforms.
+Produces two images, one of the isoform models and another of the usage
+proportions. The isoforms plotted are the most highly expressed across all the
+samples; the minor ones are aggregated into a gray bar. --min_reads and
+--palette plot more of them.
 
 positional arguments:
   isoforms              isoforms in bed format
@@ -15,10 +15,10 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o O                  prefix used for output files (default=gene_name)
+  -o, --output OUTPUT   prefix used for output files (default: the gene name)
   --min_reads MIN_READS
                         minimum number of total supporting reads for an
-                        isoform to be visualized (default=6)
-  --palette PALETTE     provide a palette file if you would like to visualize
-                        more than 7 isoforms at once or change the palette
-                        used. each line contains a hex color for each isoform
+                        isoform to be plotted (default: 6)
+  --palette PALETTE     a palette file, to plot more than 7 isoforms at once
+                        or to change the colors used: a line of one hex color
+                        for each isoform

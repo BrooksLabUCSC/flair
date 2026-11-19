@@ -41,7 +41,7 @@
 
 .. option:: --batch
 
-   with --test, DRIMSeq will perform batch correction
+   implies --test. DRIMSeq corrects for the batch of each sample, as the sample info TSV beside the counts matrix gives it
 
 .. option:: --condition_a CONDITION_A
 

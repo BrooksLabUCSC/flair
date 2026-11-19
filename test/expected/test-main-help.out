@@ -28,7 +28,6 @@ subcommands:
     transcriptome       Build a transcriptome from aligned reads
     quantify            Quantify isoform expression
     combine             Combine transcriptomes from multiple samples
-    variantquant        Count the reads showing variants at genome positions
     isoalleles          Isoform usage by haplotype and somatic variants
     fusion              Identify gene fusions
     diffexp             Differential expression and usage analysis

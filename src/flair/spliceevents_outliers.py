@@ -17,6 +17,7 @@ from itertools import product
 from statistics import median
 from flair import FlairInputDataError
 from flair.pycbio.sys import cli
+from flair.run_checks import check_option_ranges
 from flair import splicing_outliers_tsv
 from flair.spliceevents_events import has_psi
 from flair.splicing_events_tsv import SplicingEventsReader
@@ -256,6 +257,7 @@ def spliceevents_outliers(input_prefix, output, psi, event_support):
 def main():
     args = build_parser().parse_args()
     with cli.ErrorHandler():
+        check_option_ranges(args, count=('event_support',))
         spliceevents_outliers(args.input, args.output, args.psi, args.event_support)
 
 

@@ -112,5 +112,5 @@ required named arguments:
                         they exist: with a different bam, use a new -o or
                         remove them first
   --sample_name SAMPLE_NAME
-                        name of sample, will be added as metadata to output
+                        name of the sample, written as metadata in the output
                         files

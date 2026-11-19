@@ -6,10 +6,9 @@ from flair.bed_to_gtf import bed_to_gtf
 from flair.cli_options import option_values
 from flair.combined_map_tsv import CombinedMapWriter
 from flair.counts_matrix_tsv import CountsRow, write_counts_matrix
-from flair.io_utils import GenomeFasta, open_sorted_bed
+from flair.io_utils import GenomeFasta, open_sorted_bed, read_manifest_rows
 from flair.run_checks import check_input_files, check_option_ranges, precheck, report_result_count, count_records
 from flair.output_compress import compressed_path, open_fasta_output, open_output, resolved_input_path
-from flair.pycbio.sys import fileOps
 from flair.pycbio.hgdata.bed import BedReader, BedBlock
 from flair.flair_bed import FlairBed
 from statistics import median
@@ -31,7 +30,9 @@ def add_subparser(subparsers):
                                    description=desc)
     mutexc = parser.add_mutually_exclusive_group(required=True)
     mutexc.add_argument('--manifest', type=str,
-                        help="path to manifest file that has a list of flair bed files paths, eg path/to/isoforms.bed")
+                        help="file naming the flair isoform BEDs to combine, one path a line, as in "
+                        "path/to/isoforms.bed.  Blank lines and lines starting with '#' are skipped; "
+                        "each BED once")
     mutexc.add_argument('--prefixes', type=str, action='append',
                         help="prefixes of the FLAIR transcriptomes to combine, each naming "
                         "PREFIX.isoforms.bed and including any directories; give several comma "
@@ -59,9 +60,13 @@ def add_subparser(subparsers):
     parser.add_argument('--remove_single_exon', action='store_true',
                         help='remove all single exon isoforms')
     parser.add_argument('--max_ends', type=int, default=1,
-                        help='maximum number of TSS/TES picked per isoform; make higher for more precise end detection. '
-                             'If max_ends is 1, all isoforms/read support for a splice junction chain will be condensed into one isoform. '
-                             'max_ends > 1 introduces greater stringency for assigning og to new isoforms, more read support may be dropped '
+                        help='how the ends of a splice junction chain are combined:\n'
+                             '- 1: the chain gives one isoform, holding the isoforms of every group of '
+                             'similar ends and their read support\n'
+                             '- above 1: each group of similar ends gives an isoform of its own, when the '
+                             'group passes --min_percent_usage and --min_reads on its own, so ends are more '
+                             'precise and the support of a group that fails them is dropped.  Any value '
+                             'above 1 gives the same result\n'
                              '(default: %(default)s)')
     parser.add_argument('--min_reads', type=int, default=3,
                         help='min reads from all samples to call isoform; taken from read_support, column 16 of the '
@@ -128,16 +133,14 @@ def combineIsos(beds, endwindow):
 def parse_input(manifest, prefixes, input_beds):
     # assumes that only one input is not None; prefixes and input_beds are their
     # options' values, one per time the option was given
-    sampledata = []
     if manifest is not None:
-        for line in fileOps.iterLines(manifest):
-            sampledata.append(line)
+        return [row[0] for row in read_manifest_rows(manifest, (1,), "the path of one sample's flair "
+                                                     'isoform BED', {0: 'isoform BED'},
+                                                     named='isoform BEDs')]
     elif prefixes is not None:
-        for prefix in option_values(prefixes):
-            sampledata.append(resolved_input_path(prefix + '.isoforms.bed'))
-    elif input_beds is not None:
-        sampledata.extend(option_values(input_beds))
-    return sampledata
+        return [resolved_input_path(prefix + '.isoforms.bed') for prefix in option_values(prefixes)]
+    else:
+        return option_values(input_beds)
 
 
 def _has_allele_info(bed):

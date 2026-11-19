@@ -157,12 +157,12 @@ def add_subparser(subparsers):
                           help='FASTA of reference genome, can be minimap2 indexed; a compressed genome '
                                'must be bgzip and indexed with samtools faidx')
     required.add_argument('--sample_name', required=True,
-                          help='name of sample - this will be added as metadata to your output files')
+                          help='name of the sample, written as metadata in the output files')
     parser.add_argument('-o', '--output',
                         help='prefix for the output file names; defaults to the '
                              'required --sample_name')
 
-    parser.add_argument('-f', '--gtf', dest="annot_gtf", default=None,
+    parser.add_argument('-f', '--gtf', dest="annot_gtf", default=None, metavar='GTF',
                         help='GTF annotation file, used for identifying annotated isoforms')
     parser.add_argument('--junction_star', help='splice junctions in STAR SJ.out.tab format, as STAR writes '
                                                 'when it aligns reads')
@@ -205,7 +205,8 @@ def add_subparser(subparsers):
                              'max recall (default: %(default)s)')
 
     parser.add_argument('--directRNA', action='store_true',
-                        help="input is directRNA - this sets trust_strand to True, also doesn't allow large deletions in UTRs (an artifact of cDNA amplification)")
+                        help='the reads are direct RNA: this implies --trust_strand, and large deletions '
+                             'in UTRs, an artifact of cDNA amplification, are not allowed')
     parser.add_argument('--trust_strand', action='store_true',
                         help='trust the stranding of the input reads and do not attempt strand correction: '
                              'reads keep the strand of their alignment, and spliced reads are corrected only '
@@ -257,9 +258,9 @@ def add_subparser(subparsers):
     parser.add_argument('--region_bed',
                         help='bed file of the regions to build transcripts in, such as the genes of '
                              'interest.  ' + REGION_RESTRICT_HELP)
-    parser.add_argument('--region', dest='regions', action='append', default=[],
-                        help='region to build transcripts in, with everything --region_bed says.  '
-                             + REGION_FORMAT_HELP)
+    parser.add_argument('--region', dest='regions', action='append', default=[], metavar='REGION',
+                        help='region to build transcripts in.  The notes under --region_bed apply to '
+                             'it as well.  ' + REGION_FORMAT_HELP)
 
     parser.add_argument('--fusion_breakpoints',
                         help='for fusion detection only: bed file containing locations of fusion breakpoints '

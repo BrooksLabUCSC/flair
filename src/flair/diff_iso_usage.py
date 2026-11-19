@@ -6,6 +6,7 @@ from flair import FlairInputDataError
 from flair.iso_usage_tsv import iso_usage_writer
 from flair.counts_matrix_tsv import read_grouped_counts
 from flair.pycbio.sys import cli
+from flair.run_checks import check_option_ranges
 
 
 def build_parser():
@@ -113,6 +114,7 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename,  # noqa: 
 def main():
     args = cli.parseArgsWithLogging(build_parser())
     with cli.ErrorHandler():
+        check_option_ranges(args, count=('min_expression',))
         diff_iso_usage(args.counts_matrix_tsv, args.colname1, args.colname2, args.outfile,
                        min_expression=args.min_expression)
 

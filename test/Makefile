@@ -91,7 +91,7 @@ test-base:
 	${MAKE} test-alignments quantify-tests bed-to-gtf-tests \
 		combine-tests diff-iso-usage-tests \
 		plot-usage-tests transcriptome-tests fusion-tests variants-tests \
-		spliceevents-tests partition-tests lib-tests test-doc-cli \
+		spliceevents-tests partition-tests lib-tests test-help \
 		test-protocol-unit scripts-tests
 
 test-no-align:
@@ -110,6 +110,8 @@ test-installed:
 test-base-installed:
 	${MAKE} test-base use_installed_flair=yes
 
+# the help of each program, which test-base runs: test-main-help had listed a
+# subcommand that no longer exists since it was only run on its own
 test-help:
 	${MAKE} test-main-help \
 		test-quantify-help test-diffexp-help test-diffsplice-help \

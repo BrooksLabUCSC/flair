@@ -2,6 +2,8 @@
 Tests for the sorted BED output of the io_utils module.
 """
 import gzip
+import os
+import pytest
 from flair.io_utils import open_sorted_bed, sort_bed_file
 from flair.pycbio.hgdata.bed import Bed, BedReader
 
@@ -50,4 +52,18 @@ def test_sort_written_file_compressed(tmp_path):
             bed.write(fh)
     sort_bed_file(bed_file)
     assert open(bed_file, 'rb').read(2) == b'\x1f\x8b'
+    assert read_names(bed_file) == SORTED_NAMES
+
+def test_a_failed_write_leaves_no_bed(tmp_path):
+    "the rows are installed under the name when they are all written, not as they are written"
+    bed_file = str(tmp_path / 'x.bed')
+    with pytest.raises(ValueError):
+        with open_sorted_bed(bed_file) as fh:
+            ROWS[0].write(fh)
+            raise ValueError('while writing')
+    assert not os.path.exists(bed_file)
+
+def test_the_directory_of_the_bed_is_created(tmp_path):
+    bed_file = str(tmp_path / 'sub' / 'dir' / 'x.bed')
+    write_rows(bed_file)
     assert read_names(bed_file) == SORTED_NAMES

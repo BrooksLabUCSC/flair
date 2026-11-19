@@ -11,12 +11,11 @@ GENE_ID_EXTRA_COL = 0
 
 
 def build_parser():
-    desc = ('converts a gtf to a bed, depending on the output filename extension; '
-            'gtf exons need to be grouped by transcript and sorted by coordinate within a transcript')
+    desc = ('converts a gtf to a bed; gtf exons need to be grouped by transcript and sorted '
+            'by coordinate within a transcript')
     parser = argparse.ArgumentParser(prog='gtf_to_bed', formatter_class=FlairHelpFormatter, description=desc)
-    required = parser.add_argument_group('required named arguments')
-    required.add_argument('gtf', type=str, help='annotated gtf')
-    required.add_argument('bed', type=str, help='bed file')
+    parser.add_argument('gtf', type=str, help='annotated gtf')
+    parser.add_argument('bed', type=str, help='output bed, gzipped if its name ends in .gz')
     parser.add_argument('--include_gene', action='store_true',
                         help='add a column naming the gene of each isoform')
     return parser

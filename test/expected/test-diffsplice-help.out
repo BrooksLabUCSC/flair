@@ -34,7 +34,9 @@ options:
                         DRIMSeq dmFilter min_feature_expr: minimum number of
                         reads covering an AS event inclusion; events with too
                         few reads are filtered out and not tested (default: 5)
-  --batch               with --test, DRIMSeq will perform batch correction
+  --batch               implies --test. DRIMSeq corrects for the batch of each
+                        sample, as the sample info TSV beside the counts
+                        matrix gives it
   --condition_a CONDITION_A
                         implies --test. The reference condition, as named in
                         the counts matrix columns; the comparison is

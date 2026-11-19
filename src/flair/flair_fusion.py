@@ -5,6 +5,7 @@ import glob
 import pysam
 import logging
 from collections import namedtuple
+from flair import FlairInputDataError
 from flair.gtf_to_bed import gtf_data_to_bed
 from flair.convert_synthetic_to_genome_bed import convert_synthetic_isos, get_paralog_ref, paralog_groups_for_genes
 from flair.identify_prelim_fusions import id_chimeras, scan_genome_alignment
@@ -47,7 +48,7 @@ def add_subparser(subparsers):
                                'OUTPUT.transcriptome_aligned.chim.bam, and reused if they exist: with a different '
                                'bam, use a new -o or remove them first')
     required.add_argument('--sample_name', required=True,
-                          help='name of sample, will be added as metadata to output files')
+                          help='name of the sample, written as metadata in the output files')
     parser.add_argument('-o', '--output',
                         help='output file name base for FLAIR isoforms, defaults to --sample_name.  The chimeric '
                              'reads bams OUTPUT.genome_aligned.chim.bam and OUTPUT.transcriptome_aligned.chim.bam '
@@ -111,6 +112,10 @@ def add_subparser(subparsers):
 
 def fusion_cmd(args):
     parse_filter(args.filter)
+    if args.max_dist_to_tss < -1:
+        raise FlairInputDataError(f"--max_dist_to_tss is {args.max_dist_to_tss}, which is not a distance "
+                                  "of 0 or more; give -1 to report a fusion whatever the distance from "
+                                  "its 5' end to an annotated transcript start")
     check_option_ranges(args, fraction=('frac_support',),
                         count=('min_support', 'min_dist_between_breakpoints', 'max_partners', 'quality'),
                         positive=('threads', 'max_loci', 'min_fragment_size'))

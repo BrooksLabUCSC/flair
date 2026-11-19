@@ -62,7 +62,8 @@ def add_subparser(subparsers):
                              'event inclusion; events with too few reads are filtered out and not tested '
                              '(default: %(default)s)')
     parser.add_argument('--batch', action='store_true',
-                        help='with --test, DRIMSeq will perform batch correction')
+                        help='implies --test. DRIMSeq corrects for the batch of each sample, '
+                             'as the sample info TSV beside the counts matrix gives it')
     parser.add_argument('--condition_a', default='',
                         help='implies --test. The reference condition, as named in the counts matrix '
                              'columns; the comparison is --condition_b against this. With neither this '
@@ -108,6 +109,26 @@ def check_isoform_ids(isoform_bed, counts_matrix):
             f"{isoform_bed}: {describe_ids(missing)}; pass the isoform BED that was quantified "
             "to produce this counts matrix")
 
+def check_batch_modelled(sample_infos, counts_matrix):
+    """--batch adds the batch of each sample to the DRIMSeq model, which can be fitted
+    only when the samples of the comparison are in more than one batch and the batches
+    are not the conditions under other names.  Without this check R stops in
+    model.matrix with "contrasts can be applied only to factors with 2 or more
+    levels", which names neither the option nor the file to correct."""
+    conditions = [si.condition for si in sample_infos]
+    batches = [si.batch for si in sample_infos]
+    combos = {(conditions.index(condition), batches.index(batch))
+              for condition, batch in zip(conditions, batches)}
+    if len(set(batches)) < 2:
+        raise FlairInputDataError(f"--batch needs the samples of {conditions[0]} and {conditions[-1]} in more "
+                                  f"than one batch; the sample info beside {counts_matrix} puts them all in "
+                                  f"{batches[0]}.  Drop --batch, or give the batches in the flair quantify "
+                                  "manifest and quantify again")
+    if len(combos) == len(set(conditions)):
+        raise FlairInputDataError(f"--batch needs a batch holding samples of more than one condition; in the "
+                                  f"sample info beside {counts_matrix} each condition has a batch of its own, "
+                                  "so the batch and the condition cannot be told apart.  Drop --batch")
+
 def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_gene_expr,  # noqa: C901 - FIXME: reduce complexity
                 min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
                 condition_a, condition_b, overwrite_output):
@@ -146,13 +167,18 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
         call_events(es_as_inc_excl_to_counts, [counts_matrix, es_events_tsv], stdout=quant_fh)
     os.unlink(es_events_tsv)
 
-    if test or condition_a:
+    # --condition_a and --batch imply --test, as each is only used in the testing
+    # below: given without it, they were read and nothing was done with them
+    if test or condition_a or batch:
         logging.info('DRIMSeq testing for each AS event type')
         # resolved here, not in the R script, so that diffexp and diffsplice choose
         # the same way and R is always told both names
         sample_infos = read_sample_info(counts_matrix)
         condition_a, condition_b = select_condition_pair([si.condition for si in sample_infos],
                                                          condition_a, condition_b, counts_matrix)
+        if batch:
+            check_batch_modelled([si for si in sample_infos if si.condition in (condition_a, condition_b)],
+                                 counts_matrix)
         # the condition and batch of each sample, so that the R script does not have
         # to take them back out of the matrix column names
         formula_tsv = os.path.join(workdir, 'formula_matrix.tsv')

@@ -43,24 +43,25 @@ def build_parser():
     parser.add_argument("--part_merge_dist", type=int, default=0,
                         help="Combine adjacent non-overlapping partitions separated by this distance")
     parser.add_argument("--threads", type=int, default=1,
-                        help="Number of cores for converting inputs, a BAM by chromosome, and sorting")
-    parser.add_argument("--bed", dest="bed_files", action="append", default=[],
-                        help="Input BED file, maybe compressed.  Maybe repeated")
-    parser.add_argument("--bam", dest="bam_files", action="append", default=[],
-                        help="Input SAM/BAM file.  Maybe repeated.")
-    parser.add_argument("--gtf", dest="gtf_files", action="append", default=[],
-                        help="Input GTF file.  Maybe repeated.")
+                        help="Number of cores for converting inputs, a BAM by chromosome, and sorting "
+                        "(default: %(default)s)")
+    parser.add_argument("--bed", dest="bed_files", action="append", default=[], metavar="BED",
+                        help="Input BED file, may be compressed.  May be repeated")
+    parser.add_argument("--bam", dest="bam_files", action="append", default=[], metavar="BAM",
+                        help="Input SAM/BAM file.  May be repeated")
+    parser.add_argument("--gtf", dest="gtf_files", action="append", default=[], metavar="GTF",
+                        help="Input GTF file.  May be repeated")
     parser.add_argument("--region_bed",
                         help="BED of regions to restrict the partitions to, such as the genes of "
                         "interest.  Only input items overlapping a region are read, an indexed BAM "
                         "by random access, and the regions are then grown over the items reaching "
                         "them until they stop growing, so each partition holds every item that a "
                         "partition of the whole input would.  Not used with --min_partition_items")
-    parser.add_argument("--region", dest="regions", action="append", default=[],
-                        help="region to restrict the partitions to, with everything --region_bed says.  "
-                        + REGION_FORMAT_HELP)
+    parser.add_argument("--region", dest="regions", action="append", default=[], metavar="REGION",
+                        help="region to restrict the partitions to.  The notes under --region_bed "
+                        "apply to it as well.  " + REGION_FORMAT_HELP)
     parser.add_argument("ranges_bed",
-                        help="Output ranges BED file, will be compressed if it ends in .gz.  "
+                        help="Output ranges BED file, compressed if its name ends in .gz.  "
                         "It is a BED4 with the number of input items in each partition as a fifth column")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
     return parser

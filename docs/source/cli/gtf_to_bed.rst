@@ -6,13 +6,7 @@
 
    usage: gtf_to_bed [-h] [--include_gene] gtf bed
 
-.. rubric:: options
-
-.. option:: --include_gene
-
-   add a column naming the gene of each isoform
-
-.. rubric:: required named arguments
+.. rubric:: positional arguments
 
 .. option:: gtf
 
@@ -20,5 +14,11 @@
 
 .. option:: bed
 
-   bed file
+   output bed, gzipped if its name ends in .gz
+
+.. rubric:: options
+
+.. option:: --include_gene
+
+   add a column naming the gene of each isoform
 

@@ -2,10 +2,11 @@
 Tests for flair_diffSplice module.
 """
 import pytest
+from types import SimpleNamespace
 from flair import FlairInputDataError
 from flair.counts_matrix_tsv import (MAX_REPORTED_IDS, CountsRow,
                                      write_counts_matrix as write_counts_rows)
-from flair.flair_diffSplice import check_isoform_ids
+from flair.flair_diffSplice import check_batch_modelled, check_isoform_ids
 
 def write_bed(path, names):
     with open(path, 'w') as fh:
@@ -52,3 +53,21 @@ def test_check_isoform_ids_none_match(tmp_path):
     with pytest.raises(FlairInputDataError,
                        match=r"2 isoform ids .* other1_gene9, other2_gene9;"):
         check_isoform_ids(bed, counts)
+
+def _samples(*conditions_and_batches):
+    return [SimpleNamespace(sample_id=f's{num}', condition=condition, batch=batch)
+            for num, (condition, batch) in enumerate(conditions_and_batches)]
+
+def test_batch_needs_more_than_one_batch():
+    samples = _samples(('A', 'b1'), ('A', 'b1'), ('B', 'b1'), ('B', 'b1'))
+    with pytest.raises(FlairInputDataError, match='more than one batch'):
+        check_batch_modelled(samples, 'counts.tsv')
+
+def test_a_batch_for_each_condition_cannot_be_told_from_the_condition():
+    samples = _samples(('A', 'b1'), ('A', 'b1'), ('B', 'b2'), ('B', 'b2'))
+    with pytest.raises(FlairInputDataError, match='more than one condition'):
+        check_batch_modelled(samples, 'counts.tsv')
+
+def test_a_batch_holding_both_conditions_is_modelled():
+    samples = _samples(('A', 'b1'), ('A', 'b2'), ('B', 'b1'), ('B', 'b2'))
+    check_batch_modelled(samples, 'counts.tsv')

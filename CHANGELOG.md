@@ -107,6 +107,30 @@
     can no longer drift from what they accept.  flair alleles and isoalleles are
     documented for the first time.
   * All subcommands now honor the logging options; previously only flair align did.
+  * A global option given after the subcommand is reported with the command written
+    again, and the correction now keeps the option's value:
+    `flair transcriptome --log-level DEBUG` reports
+    `flair --log-level DEBUG transcriptome ...`, where it used to drop the DEBUG and
+    name a correction that failed with `invalid validateLevel value: 'transcriptome'`.
+  * `flair combine --manifest` reads its manifest as the other subcommands read
+    theirs: blank lines and lines starting with `#` are skipped, a line names one
+    isoform BED that must exist, the BEDs must differ, and a manifest naming none is
+    an error.  A manifest with a comment or a trailing blank line used to report
+    `isoform BED file does not exist:` with the comment or nothing after it, and an
+    empty manifest wrote a full set of empty outputs and exited 0.
+  * The sorted BED outputs are written under a temporary name and installed when the
+    rows are all written, as the TSVs already were, so a failed run leaves no part of
+    a BED under the name of a whole one.  A `-o` naming a directory that does not
+    exist now creates it in every subcommand; `flair combine` used to fail there with
+    a FileNotFoundError at its last step.
+  * `flair diffsplice --batch` implies `--test`, as `--condition_a` does.  Without
+    one of them the option was read and nothing was done with it.  `--batch` also
+    now reports what to do when the samples compared are all in one batch, or each
+    condition is in a batch of its own, where DRIMSeq stopped with
+    `contrasts can be applied only to factors with 2 or more levels`.
+  * `flair fusion --max_dist_to_tss` rejects a value below -1.  Such a value was
+    taken as a real distance, which no fusion can be under, so the run reported no
+    fusions and said nothing; -1 remains the way to leave the distance unchecked.
   * Bad input is reported as one line rather than a Python traceback: every
     installed command now reports errors this way, and the errors for mismatched
     annotation fasta and isoform names, alignments without AS or MD tags, and the

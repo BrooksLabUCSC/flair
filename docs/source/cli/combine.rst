@@ -15,7 +15,7 @@
 
 .. option:: --manifest MANIFEST
 
-   path to manifest file that has a list of flair bed files paths, eg path/to/isoforms.bed
+   file naming the flair isoform BEDs to combine, one path a line, as in path/to/isoforms.bed. Blank lines and lines starting with '#' are skipped; each BED once
 
 .. option:: --prefixes PREFIXES
 
@@ -51,7 +51,12 @@
 
 .. option:: --max_ends MAX_ENDS
 
-   maximum number of TSS/TES picked per isoform; make higher for more precise end detection. If max_ends is 1, all isoforms/read support for a splice junction chain will be condensed into one isoform. max_ends > 1 introduces greater stringency for assigning og to new isoforms, more read support may be dropped (default: 1)
+   how the ends of a splice junction chain are combined:
+
+   - 1: the chain gives one isoform, holding the isoforms of every group of similar ends and their read support
+   - above 1: each group of similar ends gives an isoform of its own, when the group passes --min_percent_usage and --min_reads on its own, so ends are more precise and the support of a group that fails them is dropped. Any value above 1 gives the same result
+
+   (default: 1)
 
 .. option:: --min_reads MIN_READS
 

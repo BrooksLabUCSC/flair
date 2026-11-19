@@ -30,24 +30,30 @@ SUBCOMMAND_MODULES = (
 )
 
 class MisplacedGlobalOptionAction(argparse.Action):
-    """Report how to correct a global option given after the subcommand."""
+    """Report how to correct a global option given after the subcommand.  The value
+    of an option that takes one is repeated in the correction, since the correction
+    without it would be read as taking the subcommand name for the value."""
 
     def __call__(self, parser, namespace, values, option_string=None):
         subcommand = parser.prog.split()[-1]
+        given = f"{option_string} {values}" if values else option_string
         parser.error(f"{option_string} is a global option and must precede the subcommand:\n"
-                     f"    flair {option_string} {subcommand} ...")
+                     f"    flair {given} {subcommand} ...")
 
-def _global_option_strings(parser):
-    return tuple(opt for opt in parser._option_string_actions
+def _global_options(parser):
+    "the global options to trap, as option string and the action the global parser has for it"
+    return tuple((opt, action) for opt, action in parser._option_string_actions.items()
                  if opt not in ('-h', '--help'))
 
 def _trap_misplaced_global_options(parser, subparsers):
     """Global options are only accepted before the subcommand.  Give each subparser
     a hidden copy of each one so that using it there explains the correct form
-    instead of argparse's bare `unrecognized arguments'."""
+    instead of argparse's bare `unrecognized arguments'.  A flag takes no value
+    here either, so the argument after it is still reported as the subcommand's."""
     for subparser in subparsers.choices.values():
-        for opt in _global_option_strings(parser):
-            subparser.add_argument(opt, nargs='?', action=MisplacedGlobalOptionAction,
+        for opt, action in _global_options(parser):
+            subparser.add_argument(opt, nargs=(0 if action.nargs == 0 else '?'),
+                                   action=MisplacedGlobalOptionAction,
                                    default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
 def _set_help_formatter(parser, subparsers):
