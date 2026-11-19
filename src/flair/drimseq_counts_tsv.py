@@ -3,8 +3,8 @@
 Columns, in order:
 
   irow         a serial number over the rows of this file.  DRIMSeq indexes its
-               data frame by the first column and refuses duplicate values, which
-               the isoform ids can carry when one isoform appears twice
+               data frame by the first column and rejects duplicate values, which
+               the isoform ids can have when one isoform appears twice
   gene_id      the gene whose isoforms DRIMSeq compares against each other
   feature_id   the isoform
   <sample>     one integer column per sample, named as in the formula matrix

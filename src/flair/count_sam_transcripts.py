@@ -678,7 +678,7 @@ def parse_sam(sam, info, readstoclipping,  # noqa: C901 - FIXME: reduce complexi
 
     A read's alignments are taken to be together in the stream, as an aligner writes
     them, and that is checked: a name coming back after another read's alignments is
-    two reads sharing an id.  The check holds the names of this stream, which is the
+    two reads sharing an id.  The check keeps the names of this stream, which is the
     reads of one batch of loci, not of a sample."""
     lastread = None
     finished = set()

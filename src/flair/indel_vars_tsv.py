@@ -7,7 +7,7 @@ Columns, in order:
   indel_type   insertion or deletion
   ref_seq      the reference sequence
   var_seq      the variant sequence
-  indel_reads  reads carrying the variant
+  indel_reads  reads with the variant
   tot_cov      reads covering the position
   filters      filter tags, dn marking a dense cluster of variants around this
                one; comma separated in the file and a list on the row

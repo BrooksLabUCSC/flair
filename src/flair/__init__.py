@@ -33,16 +33,16 @@ class FlairInputDataError(FlairError, NoStackError):
     pass
 
 class FlairToolError(FlairError, NoStackError):
-    """A program flair ran reported an error.  That program's own diagnostics say
-    what went wrong, so the message names the log holding them and a Python
-    traceback of the flair code that started it adds nothing."""
+    """A program flair ran reported an error.  The message includes that program's own
+    diagnostics, which report what went wrong, so a Python traceback of the flair code
+    that started it adds nothing."""
     pass
 
 class FlairNotImplementedError(FlairError, NoStackError):
     """An option is accepted by the argument parser but does nothing.  Raising is
     better than ignoring it silently, and better than dropping the option, which would
-    make an existing command line fail with an argparse message that does not say the
-    feature is missing."""
+    make an existing command line fail with an argparse message that does not state
+    that the feature is missing."""
     pass
 
 
@@ -79,7 +79,7 @@ def range_overlap(a, b):
 def combine_regions(regions):
     """regions sorted, with those overlapping or touching merged.  Sorting is on
     name, start and end, since a strand of None and one of '+' do not compare, and
-    the merged regions carry no strand."""
+    the merged regions have no strand."""
     merged = []
     for region in sorted(regions, key=lambda r: (r.name, r.start, r.end)):
         if merged and merged[-1].name == region.name and region.start <= merged[-1].end:

@@ -140,7 +140,7 @@ depends mostly on how complete your reads are.
     fragmented and degraded samples keep most of their reads, and samples
     of different quality can be compared.  It also runs quickly on a few
     loci of interest, with ``--region`` or ``--region_bed``.
-  - Cons: harder to interpret.  An event says nothing about which other
+  - Cons: harder to interpret.  An event shows nothing about which other
     exons the transcript it comes from has, events overlap, one read counts
     toward several, and events aren't tied to an isoform or protein.  It
     doesn't take advantage of long-read technology: it only uses what a
@@ -282,8 +282,8 @@ Isoforms by haplotype and somatic variants
 ------------------------------------------
 
 FLAIR isoalleles splits each isoform's reads by haplotype, and in a tumor and
-normal pair by the somatic variants they carry, and gives the sequence and protein
-of each group, such as an isoform's tumor reads on the haplotype carrying a KRAS
+normal pair by the somatic variants they have, and gives the sequence and protein
+of each group, such as an isoform's tumor reads on the haplotype with a KRAS
 G12V and on the other haplotype.  It does not call or phase variants itself: it
 takes the variants and haplotagged reads of upstream tools, and works with any
 variant caller whose VCF has genotypes.  See the FLAIR isoalleles documentation

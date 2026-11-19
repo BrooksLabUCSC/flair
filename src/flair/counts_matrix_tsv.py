@@ -111,7 +111,7 @@ class CountsMatrixWriter(TsvWriter):
         if len(row.counts) != len(self.sample_columns):
             raise FlairInputDataError(
                 f"isoform {row.isoform_id} has {len(row.counts)} counts for the "
-                f"{len(self.sample_columns)} sample columns; a row holds one count per sample")
+                f"{len(self.sample_columns)} sample columns; a row contains one count per sample")
         self.writeRow([row.gene_id, row.isoform_id] + list(row.counts))
 
 @contextmanager
@@ -159,7 +159,7 @@ class CountsFormat(namedtuple('CountsFormat', ('program', 'group_column', 'featu
 
 
 QUANTIFY_COUNTS = CountsFormat('flair quantify', 'gene_id', 'isoform_id', ID_COLUMNS, None)
-# an event's other row holds its reads of none of its alternatives
+# an event's other row contains its reads of none of its alternatives
 SPLICEEVENTS_COUNTS = CountsFormat('flair spliceevents', 'event', 'alternative',
                                    splicing_events_tsv.EVENT_COLUMNS, 'other')
 COUNTS_FORMATS = (QUANTIFY_COUNTS, SPLICEEVENTS_COUNTS)
@@ -176,7 +176,7 @@ def counts_format(columns, counts_tsv):
         "isoform_gene column, must be remade with flair quantify")
 
 class GroupedCounts(namedtuple('GroupedCounts', ('format', 'sample_columns', 'rows', 'unreported'))):
-    """The rows of a table of COUNTS_FORMATS as CountsRow: gene_id holds the row's
+    """The rows of a table of COUNTS_FORMATS as CountsRow: gene_id contains the row's
     group and isoform_id its feature id, unique over the table.  A quantify isoform
     keeps its id, and a spliceevents row is named group|feature, as spliceevents names
     its BED records.  unreported is the set of feature ids of rows of the format's
@@ -202,6 +202,6 @@ def read_grouped_counts(counts_tsv):
                 if feature == fmt.unreported_feature:
                     unreported.add(feature_id)
     except TsvError as ex:
-        raise FlairInputDataError(f"{counts_tsv}: its sample columns must hold read counts, integers; "
+        raise FlairInputDataError(f"{counts_tsv}: its sample columns must contain read counts, integers; "
                                   f"a table of PSI values can't be tested ({ex.__cause__})") from ex
     return GroupedCounts(fmt, sample_columns, rows, unreported)

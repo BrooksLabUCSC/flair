@@ -20,7 +20,7 @@ the exon after.
 
 Written by call_diffsplice_events for alternative 3' and 5' splice sites and
 intron retention, and by es_as_inc_excl_to_counts for exon skipping.  DRIMSeq
-reads it; flair diffsplice skips an event type whose file holds only the header.
+reads it; flair diffsplice skips an event type whose file contains only the header.
 """
 from contextlib import contextmanager
 from flair import FlairInputDataError
@@ -40,7 +40,7 @@ def columns(sample_columns):
 
 class EventQuantReader(TsvReader):
     """Reads an event quant TSV, checking its fixed columns.  Sample columns stay
-    strings, since callers decide whether to read them as counts or as fractions."""
+    strings, since callers determine whether to read them as counts or as fractions."""
 
     def __init__(self, event_quant_tsv):
         super().__init__(event_quant_tsv, defaultColType=str,

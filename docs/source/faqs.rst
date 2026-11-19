@@ -10,7 +10,7 @@ was renamed, split or removed, and what replaces it.
 
 2. flair transcriptome uses too much memory, what can I do?
 -----------------------------------------------------------
-A run holds the parsed annotation once, and each worker holds the reads of the cluster
+A run keeps the parsed annotation once, and each worker keeps the reads of the cluster
 of overlapping reads it is building transcripts for.
 
 - lower ``-t``, ``--threads``: the run forks that many workers, each working on a
@@ -33,8 +33,8 @@ What survives still has to clear two bars:
 
 - ``--single_exon_support`` reads at the same clustered ends, 3 by default
 - a poly(A) consensus across the group giving it a strand, a group that gets none
-  being dropped; a single exon read's alignment carries no strand, unless
-  ``--trust_strand`` or ``--directRNA`` says the library is directional
+  being dropped; a single exon read's alignment has no strand, unless
+  ``--trust_strand`` or ``--directRNA`` states that the library is directional
 
 ``--annotation_reliant`` is gone.  Reads are aligned to the annotation's transcripts
 by default when a GTF is given with ``-f``, and ``--no_align_to_annot`` turns that
@@ -52,6 +52,6 @@ run's reads.  :ref:`alignment-label` has the rule and a command that labels them
 ----------------------------------------------------
 The reads aligned to the genome, coordinate sorted, with its index beside it, which is
 ``pbmm2 align --sort`` output or what ``dorado aligner`` writes to ``--output-dir``.  The
-basecaller's reads file holds no alignments, and a transcriptome aligned BAM has a
+basecaller's reads file contains no alignments, and a transcriptome aligned BAM has a
 transcript's coordinates rather than the genome's.  :ref:`alignment-label` names the
 files and the options.

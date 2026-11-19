@@ -1,7 +1,7 @@
 """Column converters and header handling shared by the flair TSV formats.
 
 A converter is the (parse, format) pair a typeMap entry takes, so a column whose
-text holds several values is a list on the row and is joined again on write.
+text contains several values is a list on the row and is joined again on write.
 Callers then never split or join a column themselves, and the separator is
 stated once, here and in the format that uses it.
 """
@@ -18,7 +18,7 @@ def _joined(values, sep):
     return sep.join(str(value) for value in values)
 
 def separated_list_type(sep):
-    "a column holding strings joined by sep; the row carries the list of them"
+    "a column of strings joined by sep; the row contains the list of them"
     return (lambda value: [] if value == '' else value.split(sep),
             lambda values: _joined(values, sep))
 
@@ -47,7 +47,7 @@ semicolonSpaceListType = separated_list_type('; ')
 # field
 semicolonIntListType = separated_int_list_type(';')
 
-# comma separated start-end ranges, as junctions or read ends; the row carries a tuple
+# comma separated start-end ranges, as junctions or read ends; the row contains a tuple
 # of (start, end) pairs
 def _parse_ranges(value):
     return () if value == '' else tuple(tuple(int(x) for x in pair.split('-')) for pair in value.split(','))

@@ -114,8 +114,8 @@ def add_var_to_dict(pos_to_var, ref_pos, indel_key, flagged_bad):
 
 def add_indel_info(cigar, align_start, align_end, region, readseq, genome, introns, read_length, min_read_end_dist, min_sj_dist, pos_to_var):
     chrom, r_start, r_end = region
-    # ref_pos counts 0-based, so at an indel it holds the 1-based position of the
-    # anchor base before it, which is what VCF POS wants and what is written.  SNVs
+    # ref_pos counts 0-based, so at an indel it contains the 1-based position of the
+    # anchor base before it, which is what VCF POS requires and what is written.  SNVs
     # key pos_to_var by the 1-based position of the changed base instead, so the two
     # kinds of entry sit one base apart; get_cov_for_var_pos reconciles them
     ref_pos, quer_pos = align_start, 0
@@ -241,7 +241,7 @@ def get_indels_from_bam(region, bam_file, genome, min_read_end_dist, min_sj_dist
 def get_cov_for_var_pos(pos, pos_to_cov):
     """Coverage at a variant position.  Both pos and pos + 1 are probed because an
     indel's key is its anchor base while an SNV's is the changed base, so which of the
-    two carries the coverage depends on the kind of variant.  Verified against the
+    two has the coverage depends on the kind of variant.  Verified against the
     alignments: a 2 bp deletion of chr12 25205729-25205730, 1-based, is written as
     POS 25205728 REF CTT ALT C, which is what these keys produce.
 

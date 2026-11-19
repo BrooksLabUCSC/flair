@@ -50,7 +50,7 @@
 
 .. option:: --junction_support JUNCTION_SUPPORT
 
-   minimum number of supporting reads to keep a junction, from either --junction_star or --junction_bed; for bed the score column holds the count (default: 2)
+   minimum number of supporting reads to keep a junction, from either --junction_star or --junction_bed; for bed the score column contains the count (default: 2)
 
 .. option:: --ss_window SS_WINDOW
 

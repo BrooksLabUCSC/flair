@@ -41,7 +41,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('--list', action="store_true", dest="list_versions",
                         help="print the python versions requires-python spans, one per line, "
-                        "and exit; `make test-pyversions' uses this to know what to run")
+                        "and exit; `make test-pyversions' uses this to determine what to run")
     parser.add_argument('--env-prefix', default="flair-dev-py",
                         help="the conda environment name is this plus the version digits")
     parser.add_argument('--reuse-env', action="store_true",

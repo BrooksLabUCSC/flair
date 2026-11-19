@@ -15,7 +15,7 @@ die() {
     exit 1
 }
 
-# directory holding the pycbio package in a checkout, which has moved over time
+# directory containing the pycbio package in a checkout, which has moved over time
 findPycbioPkgDir() {
     local pycbioRoot="$1" pkgDir
     for pkgDir in "$pycbioRoot/lib/pycbio" "$pycbioRoot/src/pycbio" "$pycbioRoot/pycbio" ; do

@@ -24,7 +24,7 @@ Columns, in order:
   dev_from_med           that difference in units of dev(IQR/2), or 100000 when the
                          other samples agree exactly
 
-The four gene columns hold several values, comma separated in the file and a list
+The four gene columns contain several values, comma separated in the file and a list
 on the row.  The numbers are written as computed, rounded to six places, and read
 back as strings.
 

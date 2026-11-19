@@ -125,7 +125,7 @@ def check_batch_modelled(sample_infos, counts_matrix):
                                   f"{batches[0]}.  Drop --batch, or give the batches in the flair quantify "
                                   "manifest and quantify again")
     if len(combos) == len(set(conditions)):
-        raise FlairInputDataError(f"--batch needs a batch holding samples of more than one condition; in the "
+        raise FlairInputDataError(f"--batch needs a batch containing samples of more than one condition; in the "
                                   f"sample info beside {counts_matrix} each condition has a batch of its own, "
                                   "so the batch and the condition cannot be told apart.  Drop --batch")
 

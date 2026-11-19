@@ -4,7 +4,7 @@ Columns, in order:
 
   gene_id      the gene the isoform belongs to
   isoform_id   the isoform
-  <sample>     one column per sample, named by its sample id, holding CPM
+  <sample>     one column per sample, named by its sample id, containing CPM
 
 The same columns as a counts matrix, with the counts replaced by CPM, so it is read
 and written through counts_matrix_tsv with float values.  flair quantify writes it

@@ -5,7 +5,7 @@ table.  This stands in for running whatshap over the alignments, so that the iso
 tests need only the committed table; bioconda builds whatshap for python 3.12 alone,
 and the tests run on every version FLAIR supports.
 
-whatshap also writes a PC tag, which the table does not carry and FLAIR does not read.
+whatshap also writes a PC tag, which the table does not contain and FLAIR does not read.
 """
 import argparse
 import pysam

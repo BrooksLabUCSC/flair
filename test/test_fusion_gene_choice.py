@@ -97,7 +97,7 @@ def test_intronic_piece_is_not_genic():
 
 
 def test_piece_spliced_across_an_exon_without_aligning_to_it_is_not_genic():
-    "the piece's span holds MTAP's exon 5000-5100, but none of its aligned bases do"
+    "the piece's span contains MTAP's exon 5000-5100, but none of its aligned bases do"
     assert _gene_for([(3000, 3200), (6000, 6200)], juncs=[(3200, 6000)]) == ('chr9', 3000, 6200)
 
 

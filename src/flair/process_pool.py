@@ -72,7 +72,7 @@ class ProcessPool:
                                              initializer=initializer, initargs=initargs)
         # the workers are forked here, with a task that does nothing, rather than at
         # the first task: a worker that inherits a file the caller opens after the
-        # pool is made holds it open, and a pipe to a compressing program then never
+        # pool is made keeps it open, and a pipe to a compressing program then never
         # reaches end of file
         self._executor.submit(_fork_workers).result()
 
@@ -96,7 +96,7 @@ class ProcessPool:
     def run(self, func, tasks):
         """Run func on each task, discarding the results.  A result is taken as its
         task finishes rather than in the order of the tasks, so a long task does not
-        hold the queue while the other workers idle."""
+        block the queue while the other workers idle."""
         pending = []
         for task in tasks:
             pending.append(self._executor.submit(func, task))

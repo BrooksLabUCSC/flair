@@ -199,7 +199,7 @@ def exon_sharing_genes(chrom_to_gene_pos, gene_to_all_exons):
     return sharing
 
 
-# a shorter gene is taken if its exons hold this much of what the assigned gene's do
+# a shorter gene is taken if its exons contain this much of what the assigned gene's do
 SHORTER_GENE_MIN_COVER = 0.95
 
 
@@ -422,7 +422,7 @@ def _locus_extents(reads, read_to_pieces):
 def _same_loci(extents1, extents2):
     """do two fusions have their loci in the same places: each position's on one
     strand, overlapping once padded by LOCUS_PADDING, as their synthetic contigs would
-    be, which would then hold the same sequence"""
+    be, which would then contain the same sequence"""
     return len(extents1) == len(extents2) and all(
         (c1, s1) == (c2, s2) and b1 - LOCUS_PADDING < e2 + LOCUS_PADDING and b2 - LOCUS_PADDING < e1 + LOCUS_PADDING
         for (c1, s1, b1, e1), (c2, s2, b2, e2) in zip(extents1, extents2))
@@ -652,7 +652,7 @@ def id_chimeras(genome_bam, annot, min_support, max_loci=10, max_dist_to_tss=Non
     more genes and explain as much of the read, as a 3-gene fusion's short middle exon
     the genome alignment missed (_use_transcript_pieces).
     The transcript alignment can split a read into more pieces of one gene, aligned to
-    different transcripts, so pieces alone don't decide.  Reads are grouped into
+    different transcripts, so the pieces alone do not determine it.  Reads are grouped into
     fusions by reads_by_genes, and min_support and the filters apply to each fusion's
     reads from both alignments together.  annot is flair fusion's Annotation.
     Returns the fusions' genes joined by __ -> their reads, TSS distance, read gaps and

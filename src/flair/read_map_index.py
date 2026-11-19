@@ -2,7 +2,7 @@
 --generate_map writes it, so that only some isoforms' reads are read.
 
 A read map has a row per isoform and can name tens of millions of reads, too many
-to hold at once.  ReadMapIndex reads the file through once, keeping only the offset
+to keep in memory at once.  ReadMapIndex reads the file through once, keeping only the offset
 of each isoform's row, and then reads the rows of the isoforms asked for.
 
 The file may be plain, bgzip compressed, which is read by its virtual offsets, or

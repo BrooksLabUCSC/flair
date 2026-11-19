@@ -57,7 +57,7 @@ def build_parser():
                              'deviations from the median and not explained by a simpler event, without starts and '
                              'ends (tss, tts), whose outliers are mostly false positives.  An event needs '
                              f'{MIN_SAMPLES} samples with a PSI for an outlier of it to be called, so with fewer '
-                             'samples both files hold only their header')
+                             'samples both files contain only their header')
     parser.add_argument('--psi', choices=sorted(PSI_TOTALS), default='junc',
                         help="the PSI to call outliers of: 'junc', of the event's reads (PSIjunc), more sensitive, "
                              "or 'tot', of the reads covering its locus (PSItot), for strong overall events "
@@ -176,7 +176,7 @@ def _explaining_site(inc, exc, site_juncs, end_juncs):
     """The outliers of the events that may explain an alternative splice site: those of
     site_juncs splicing the junctions it includes and at least one it excludes, which
     is the same choice of site, and the first or last exon alternatives whose junctions
-    hold the ones it includes, which is the same choice of exon seen as a site.  A site
+    contain the ones it includes, which is the same choice of exon seen as a site.  A site
     of three or more choices has the others' junctions in exc, so the excluded junctions
     are tested one at a time rather than all together"""
     return ([outliers for key, by_juncs in site_juncs.items() if inc <= key and exc & key
@@ -188,7 +188,7 @@ def _explaining_site(inc, exc, site_juncs, end_juncs):
 def _explaining(eventtype, juncs, es_juncs, site_juncs, end_juncs):
     """A complex exon skip's or alternative splice site's own junctions, and the
     outliers of the events that may explain it: for a complex exon skip, the exon
-    skips holding its junctions, its exons' for its exclusion row, and for an
+    skips containing its junctions, its exons' for its exclusion row, and for an
     alternative splice site, _explaining_site"""
     inc, exc, outer = juncs
     if eventtype == 'ces':

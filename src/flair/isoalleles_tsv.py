@@ -26,13 +26,13 @@ variants: one row per variant used
   variant                       the variant
   kind                          germline homozygous, germline phased het, germline
                                 unphased het (placed by reads, or not placed), somatic
-  haplotype_or_sets             the haplotype of a het, or the somatic sets carrying it
+  haplotype_or_sets             the haplotype of a het, or the somatic sets containing it
   detail                        a het's phase set, a somatic variant's normal reads
 
 somatic_sets: one row per somatic set of a gene, of a pair
   gene_id, somatic_set          the gene, and the set, S1 and so on, by reads, most first
-  variants                      the somatic variants the set's reads carry
-  reads                         the reads, in every sample, carrying exactly them
+  variants                      the somatic variants the set's reads have
+  reads                         the reads, in every sample, with exactly them
 
 excluded: the tumor's calls left out of a pair as somatic, too few normal reads
   gene_id, variant, normal_reads, isoform_ids, reason
@@ -42,7 +42,7 @@ warnings: one row per warning
 
 terminal_sites: per isoform, its terminal-exon somatic variants, per group
   gene_id, isoform_id, variant, allele_group
-  reads_reaching, reads_carrying the group's reads that inform the site, and carry it
+  reads_reaching, reads_carrying the group's reads that inform the site, and have it
   decision                      added, dropped, or that the site defines sets
 
 genes: per gene and sample, how many of its spliced reads the read map assigns

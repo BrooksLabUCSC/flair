@@ -14,7 +14,7 @@ Columns, in order:
                          its locus, which PSItot divides by
   <sample>               one integer column per sample
 
-The four gene columns hold several values, comma separated in the file and a list
+The four gene columns contain several values, comma separated in the file and a list
 on the row.  spliceevents_outliers takes its PSIs from the counts file and these.
 
 Each partition writes its part with the header, and only the first part's header is

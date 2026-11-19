@@ -6,7 +6,7 @@ Columns, in order:
   aaseq        the protein sequence itself
 
 One row per distinct sequence; isoforms that translate alike share an id, so the
-sequence is written once however many isoforms carry it.  flair transcriptome
+sequence is written once however many isoforms have it.  flair transcriptome
 writes <output>.aaseq.tsv.
 """
 from contextlib import contextmanager

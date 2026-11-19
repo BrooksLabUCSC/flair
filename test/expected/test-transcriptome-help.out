@@ -43,7 +43,7 @@ options:
   --junction_support JUNCTION_SUPPORT
                         minimum number of supporting reads to keep a junction,
                         from either --junction_star or --junction_bed; for bed
-                        the score column holds the count (default: 2)
+                        the score column contains the count (default: 2)
   --ss_window SS_WINDOW
                         window size for correcting splice sites (default: 10)
   --end_window END_WINDOW

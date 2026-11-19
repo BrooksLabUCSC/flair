@@ -37,7 +37,7 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-# cli/ holds the generated per-subcommand option pages, which are included into
+# cli/ contains the generated per-subcommand option pages, which are included into
 # modules.rst rather than being pages of their own
 exclude_patterns = ['cli/*']
 

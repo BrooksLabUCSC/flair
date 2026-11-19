@@ -32,7 +32,7 @@ A partition is a unit of work.  Nothing about the result may depend on it.
 
 ## The rule
 
-Anything that decides what a read becomes must be scoped to the cluster, never to the
+Anything that determines what a read becomes must be scoped to the cluster, never to the
 partition:
 
 - the annotation the reads are aligned to

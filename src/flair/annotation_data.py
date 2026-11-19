@@ -90,14 +90,14 @@ class AnnotData(object):
 
         # annotated transcripts' genomic start and end, for keeping subset isoforms
         # that match them: strand -> sorted list of (start, end), only for
-        # transcripts whose tags don't say an end wasn't found
+        # transcripts whose tags do not record that an end wasn't found
         self.transcript_ends = {'+': [], '-': []}
         # each side's confirmed ends on its own, for a subset isoform truncated on
         # one side, with the splice site of the terminal exon there: (strand, side)
         # -> sorted (splice site, genomic start (side 0) or end (side 1)) of spliced
         # basic transcripts.  Only basic ones: other transcripts, retained_intron
         # ones especially, are often fragments whose ends aren't the transcript's,
-        # though their tags don't say so
+        # though their tags do not record it
         self.confirmed_terminal_ends = {}
 
     def index_single_exon_annots(self):
@@ -148,7 +148,7 @@ def _check_transcript_strand(trans, gtf_file):
 
 def annot_data_from_gtf(gtf_data, region):
     """Build AnnotData for a region from a pre-partitioned GtfData object.  Every
-    transcript of gtf_data is kept, whatever region says, so a caller that needs the
+    transcript of gtf_data is kept, whatever region is given, so a caller that needs the
     annotation of a cluster must pass gtf_data.subset_for_region() for it; see
     dev/design/clusters-and-partitions.md"""
     annots = AnnotData()
@@ -241,7 +241,7 @@ _BASIC_TAG = 'basic'
 
 
 def _save_transcript_ends(annots, strand, t_start, t_end, transcript_tags, t_exons=None):
-    """record the transcript's ends, unless its tags say they weren't found: both
+    """record the transcript's ends, unless its tags record that they weren't found: both
     together, and for a spliced transcript, each by its terminal exon's splice site"""
     five_prime_found = _MRNA_START_NOT_FOUND_TAG not in transcript_tags
     three_prime_found = _MRNA_END_NOT_FOUND_TAG not in transcript_tags

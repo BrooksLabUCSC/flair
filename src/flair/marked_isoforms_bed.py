@@ -1,4 +1,4 @@
-"""An isoform BED with a column saying whether the isoform retains an intron.
+"""An isoform BED with a column recording whether the isoform retains an intron.
 
 Columns, in order:
 
@@ -37,7 +37,7 @@ def bed_column_count(bed_rows, isoform_bed):
 
 class MarkedIsoformsReader(TsvReader):
     """The BED columns are passed through, so they are addressed by the col1, col2
-    names the header gives them; only retains_intron is named for what it holds."""
+    names the header gives them; only retains_intron is named for what it contains."""
     def __init__(self, marked_bed):
         super().__init__(marked_bed, defaultColType=str, typeMap=TYPE_MAP)
 

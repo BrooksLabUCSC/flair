@@ -5,7 +5,7 @@ Running FLAIR
 
 ``flair`` is one program and each analysis is a sub-command, as in
 ``flair transcriptome -o sample1 ...``.  The options below are global and come
-before the sub-command.  Giving one after it is an error that says so.
+before the sub-command.  Giving one after it is an error that reports it.
 
 .. include:: cli/flair.rst
 

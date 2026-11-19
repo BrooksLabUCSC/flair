@@ -56,7 +56,7 @@ def is_alternative(psis, junc_frac_of_event):
 def has_psi(totals, sample, min_total):
     """Does a sample have a PSI of an event: reads to divide by, at least min_total of
     them.  A sample with no reads has no PSI, which --event_support 0 would otherwise
-    ask for."""
+    request."""
     return (totals[sample] > 0) and (totals[sample] >= min_total)
 
 
@@ -117,7 +117,7 @@ def span(ranges):
 # as it stands, the two sides of an event would be a bare gap with nothing to
 # anchor them, and the inclusion and exclusion rows would be hard to tell apart.
 # Each row therefore starts FLANK_STUB bases before the first junction and ends
-# FLANK_STUB after the last, and carries those two stubs as its outer blocks, so
+# FLANK_STUB after the last, and contains those two stubs as its outer blocks, so
 # inclusion shows as stub, exon, stub and exclusion as stub, stub with the
 # junction as the gap between them.
 #

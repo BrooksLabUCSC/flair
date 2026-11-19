@@ -65,7 +65,7 @@ def calc_genomic_end_pos(my_exons, exon_sizes, orf_end_pos, strand):
     """Genomic position of the end of the ORF, orf_end_pos being the transcript
     position just past the stop codon, or None if that is not in the transcript.
     my_exons and exon_sizes are ordered 5' to 3'.  The position is found from the
-    exon holding the stop codon's last base, so an ORF ending at the 3' edge of an
+    exon containing the stop codon's last base, so an ORF ending at the 3' edge of an
     exon ends there, not at the first base of the next exon, and one ending at the
     transcript's 3' end ends at the transcript's end."""
     last_base = orf_end_pos - 1

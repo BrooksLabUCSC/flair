@@ -5,7 +5,7 @@ from flair.flair_bed import FlairBed
 from flair.convert_synthetic_to_genome_bed import breakpoint_sites, piece_gene, convert_synthetic_isos
 
 # on chr1 +: gene A, exons 1000-1200 and 1500-1700, and gene B, exons 900-1300 and
-# 1600-1800, whose first exon holds all of A's, and genes C and D downstream, not
+# 1600-1800, whose first exon contains all of A's, and genes C and D downstream, not
 # overlapping (0-based, end exclusive)
 GTF = [('A', 'TA', [(1000, 1200), (1500, 1700)]),
        ('B', 'TB', [(900, 1300), (1600, 1800)]),

@@ -7,7 +7,7 @@ from test_fusion_piece_gene import _annots
 
 
 def _genome(tmp_path):
-    # chr1 + holds ATG AAA, chr2 holds TTT TAA on its minus strand (TTAAAA)
+    # chr1 + contains ATG AAA, chr2 contains TTT TAA on its minus strand (TTAAAA)
     fa = tmp_path / 'genome.fa'
     fa.write_text('>chr1\nCCATGAAAGGGG\n>chr2\nCTTAAAACCCC\n')
     pysam.faidx(str(fa))
@@ -42,7 +42,7 @@ def test_no_protein_for_an_unproductive_fusion(tmp_path):
 
 def test_fusion_genes_from_the_annotation_whatever_the_samples_gave(tmp_path):
     # on chr1 +, A's first exon to its donor at 1200, then a 3' piece in no gene's
-    # exons; one sample named the 5' piece B, whose exon also holds it
+    # exons; one sample named the 5' piece B, whose exon also contains it
     def sample(gene5, name):
         return [_piece('chr1', '+', [(1050, 1200)], (1050, 1050), 0, 'PTC', (gene5, None), (name,)),
                 _piece('chr1', '+', [(2000, 2100)], (2000, 2000), 1, 'PTC', (gene5, None), (name,))]

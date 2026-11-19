@@ -18,13 +18,13 @@ Columns, in order:
   novel_junctions        the alternative's junctions that aren't annotated
   <sample>               one column per sample
 
-The four gene columns and the five coordinate columns hold several values, comma
+The four gene columns and the five coordinate columns contain several values, comma
 separated in the file and a list on the row.  The 'other' row's coordinate
 columns are empty.
 
 Coordinates are one based and inclusive, as the event names are.
 
-Three files share these columns and differ only in what the sample columns hold:
+Three files share these columns and differ only in what the sample columns contain:
 
   .spliceevents.counts.tsv    reads of the alternative
   .spliceevents.psi_junc.tsv   its share of the event's reads
@@ -51,7 +51,7 @@ def columns(sample_columns):
 
 class SplicingEventsReader(TsvReader):
     """Reads one of the three files.  The sample columns stay strings, since the
-    counts file holds integers and the two PSI files hold fractions or nothing."""
+    counts file contains integers and the two PSI files contain fractions or nothing."""
     def __init__(self, splicing_events_tsv):
         super().__init__(splicing_events_tsv, defaultColType=str, typeMap=TYPE_MAP)
 

@@ -89,7 +89,7 @@ REGION_OUTPUT_SUFFIXES = ('.spliceevents.bed', *EVENT_TABLE_SUFFIXES, TOTALS_SUF
 
 def combine_region_tables(output, prefixes):
     """the regions' tables as the run's, OUTPUT.spliceevents.*, the BED sorted by position
-    as every final BED is.  Each region's table parts carry the header, kept once"""
+    as every final BED is.  Each region's table parts contain the header, kept once"""
     compress = output_compression()
     combine_temp_files_by_suffix(output, prefixes, ['.spliceevents.bed'], compress=compress)
     sort_bed_file(compressed_path(output + '.spliceevents.bed'))

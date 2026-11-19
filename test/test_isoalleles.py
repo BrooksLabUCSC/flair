@@ -64,7 +64,7 @@ def _transcript_index(gpos0):
 
 
 def _read(header, name, alleles=(), hp=None, delete=None):
-    """a full-length read of the isoform carrying the alleles given, with HP tag hp,
+    """a full-length read of the isoform with the alleles given, with HP tag hp,
     and with the base at genome position delete (0-based) deleted"""
     seq = list(TRANSCRIPT)
     for key in alleles:

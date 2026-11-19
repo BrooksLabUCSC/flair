@@ -50,7 +50,7 @@
 
 .. option:: --junction_support JUNCTION_SUPPORT
 
-   minimum number of supporting reads to keep a junction, from either --junction_star or --junction_bed; for bed the score column holds the count (default: 2)
+   minimum number of supporting reads to keep a junction, from either --junction_star or --junction_bed; for bed the score column contains the count (default: 2)
 
 .. option:: --ss_window SS_WINDOW
 
@@ -110,7 +110,7 @@
 
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging, in <output>.intermediate. A rerun with --keep_intermediate reads the corrected reads that directory holds rather than correcting those samples again
+   keep intermediate and temporary files for debugging, in <output>.intermediate. A rerun with --keep_intermediate reads the corrected reads that directory contains rather than correcting those samples again
 
 .. rubric:: required named arguments
 

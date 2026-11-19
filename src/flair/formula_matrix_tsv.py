@@ -29,7 +29,7 @@ class FormulaRow(namedtuple('FormulaRow', COLUMNS_WITH_BATCH)):
     __slots__ = ()
 
 class FormulaMatrixReader(TsvReader):
-    "batch is there only when it was modelled; the row then carries None for it"
+    "batch is there only when it was modelled; the row then contains None for it"
     def __init__(self, formula_matrix_tsv):
         super().__init__(formula_matrix_tsv, defaultColType=str)
 

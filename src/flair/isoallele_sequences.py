@@ -13,7 +13,7 @@ def variant_label(key):
 
 
 def exon_index(exons, pos, ref):
-    """the index of the exon, of (start, end) 0-based half open, that wholly holds a
+    """the index of the exon, of (start, end) 0-based half open, that wholly contains a
     variant at 1-based pos with this ref allele, or None"""
     return next((j for j, (s, e) in enumerate(exons) if s < pos and pos - 1 + len(ref) <= e), None)
 

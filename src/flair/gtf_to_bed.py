@@ -6,7 +6,7 @@ from flair.pycbio.sys import cli
 from flair.pycbio.hgdata.bed import Bed, BedBlock
 from flair.io_utils import open_sorted_bed
 
-# with --include_gene, the column after the twelve standard ones holds the gene
+# with --include_gene, the column after the twelve standard ones contains the gene
 GENE_ID_EXTRA_COL = 0
 
 
@@ -105,7 +105,7 @@ def gtf_to_bed(outputfile, gtf, include_gene=False, name_sep=None):
 
 
 def gtf_data_to_bed(outputfile, gtf_data, include_gene=False, name_sep=None):
-    """gtf_to_bed of an already parsed GTF (GtfData) holding exon records.  Without
+    """gtf_to_bed of an already parsed GTF (GtfData) containing exon records.  Without
     CDS records, each transcript's thickStart and thickEnd are its ends"""
     write_bed(outputfile, iso_info_from_gtf_data(gtf_data), include_gene, name_sep)
 

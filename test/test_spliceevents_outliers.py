@@ -45,7 +45,7 @@ def test_fewer_than_five_samples_with_a_psi_give_no_outliers():
 
 
 def test_a_sample_with_no_reads_has_no_psi_at_event_support_zero():
-    # --event_support 0 asks for every sample's PSI; s6 has no reads of the event
+    # --event_support 0 requests every sample's PSI; s6 has no reads of the event
     outliers = row_outliers(_row([20, 20, 22, 18, 60, 0], [100] * 5 + [0]), SAMPLES, 0)
     assert list(outliers) == ['s5']
 
@@ -90,7 +90,7 @@ def test_alternative_site_much_better_than_its_exon_skip_is_kept():
 
 
 def test_alternative_site_explained_by_one_of_its_events_is_filtered_whatever_the_others():
-    # a complex exon skip of two exons, between the same outer sites, also holds the
+    # a complex exon skip of two exons, between the same outer sites, also contains the
     # alt3's junctions but has no outlier of s6: the exon skip still explains it
     ces = (frozenset({'chr1:100-200', 'chr1:250-300', 'chr1:350-400'}), frozenset(), frozenset({'chr1:100-400'}))
     es, alt3 = _line('es', 's6', 20), _line('alt3', 's6', 18)

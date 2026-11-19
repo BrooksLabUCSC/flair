@@ -43,7 +43,7 @@ def event_in_regions(event, regions, gene_span):
     as a user choosing a region around a gene would think of it: its reads are
     spliced, so nearly all have a junction in the region and were fetched.  The
     gene's first and last exons may run past the region.  No read crosses a
-    partition, so an event is found by the one partition holding its reads"""
+    partition, so an event is found by the one partition containing its reads"""
     if event.eventtype in GENE_WIDE_EVENTS:
         low, high = gene_span
     else:

@@ -15,7 +15,7 @@ from flair.pycbio.sys import fileOps
 from flair.pycbio.tsv import TsvReader, TsvWriter
 from flair.tsv_column_types import countType
 
-# R takes column one as row names, so it carries no name
+# R takes column one as row names, so it has no name
 FEATURE_COLUMN = ''
 
 # the unnamed feature column cannot be a row attribute, so the reader names it

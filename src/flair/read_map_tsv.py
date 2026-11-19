@@ -33,7 +33,7 @@ class ReadMapWriter(TsvWriter):
 
 def _read_id_hashes(read_map_tsv):
     """The hash of every read id of the map.  Hashes, not the ids: a sample has an id
-    per read it counted, and holding tens of millions of names costs gigabytes."""
+    per read it counted, and keeping tens of millions of names costs gigabytes."""
     with ReadMapReader(read_map_tsv) as reader:
         return np.fromiter((hash(read) for row in reader for read in row.reads),
                            dtype=np.int64)

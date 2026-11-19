@@ -1,8 +1,8 @@
 #! /usr/bin/env python3
 """Generate the command line documentation from the flair parsers.
 
-Writes one RST file per flair subcommand and per installed script, each holding
-the usage line and the options exactly as argparse knows them.  The files are
+Writes one RST file per flair subcommand and per installed script, each containing
+the usage line and the options exactly as argparse has them.  The files are
 committed, and the prose pages in docs/source include them, so the documentation
 build needs none of FLAIR's runtime dependencies.  Run `make doc-cli' after
 changing any option.
@@ -28,7 +28,7 @@ from flair.cli_help import help_blocks  # noqa: E402
 
 GENERATED_BY = "dev/bin/flair-gen-cli-doc"
 
-# the flair command's own page holds the global options; its subcommands get one each
+# the flair command's own page contains the global options; its subcommands get one each
 FLAIR_COMMAND = 'flair'
 
 def parse_args():

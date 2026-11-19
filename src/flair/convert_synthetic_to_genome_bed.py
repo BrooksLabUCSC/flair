@@ -52,7 +52,7 @@ def get_paralog_ref(paralogfile):
 
 def paralog_groups_for_genes(genetoparalogs, gene_ids):
     """Key the paralog groups by the annotation's gene ids.  The paralog table
-    has unversioned Ensembl ids, while GENCODE ids carry a version
+    has unversioned Ensembl ids, while GENCODE ids have a version
     (ENSG00000215915.10), so looking them up as written never matched and no
     fusion was rejected as between paralogs."""
     return {g: genetoparalogs[g.split('.')[0]] for g in gene_ids

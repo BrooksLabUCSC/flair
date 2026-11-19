@@ -40,7 +40,7 @@ def _end_clipping(cigar_ops):
 
 def cigar_clipping(cigar):
     """The bases clipped from the two ends of an alignment, as (left, right).  An end
-    can hold a hard clip outside a soft clip, H S M S H, so the outermost operation
+    can contain a hard clip outside a soft clip, H S M S H, so the outermost operation
     alone undercounts it."""
     return _end_clipping(cigar), _end_clipping(reversed(cigar))
 
@@ -142,13 +142,13 @@ CODON_TABLE = {
     'TGC': 'C', 'TGT': 'C', 'TGA': '_', 'TGG': 'W',
 }
 
-# N and the IUPAC ambiguity codes.  A codon holding one of these is real data, not a
+# N and the IUPAC ambiguity codes.  A codon containing one of these is real data, not a
 # defect, so it translates to X rather than ending the run
 AMBIGUOUS_BASES = frozenset('NRYKMSWBVDH')
 
 
 def translate_codon(codon):
-    """One codon to its amino acid, '_' for a stop and 'X' when the codon holds an N
+    """One codon to its amino acid, '_' for a stop and 'X' when the codon contains an N
     or an IUPAC ambiguity code."""
     codon = codon.upper()
     aa = CODON_TABLE.get(codon)
@@ -305,7 +305,7 @@ class ReadRec:
     @classmethod
     def clear_juncs_cache(cls):
         """Drop the interned junction chains.  Nothing else releases them, and a tuple
-        cannot be weakly referenced, so the caller has to say when a set of chains is
+        cannot be weakly referenced, so the caller has to report when a set of chains is
         finished with; chains are only shared within a region anyway."""
         cls._juncs_cache.clear()
 
@@ -464,7 +464,7 @@ class Isoform:
     @classmethod
     def clear_juncs_cache(cls):
         """Drop the interned junction chains.  Nothing else releases them, and a tuple
-        cannot be weakly referenced, so the caller has to say when a set of chains is
+        cannot be weakly referenced, so the caller has to report when a set of chains is
         finished with; chains are only shared within a region anyway."""
         cls._juncs_cache.clear()
 

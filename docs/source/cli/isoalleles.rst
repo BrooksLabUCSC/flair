@@ -20,7 +20,7 @@
 
 .. option:: --germline_vcf GERMLINE_VCF
 
-   the germline variant calls, of the sample, or in a pair the normal, when --phased_vcf holds only some of them, as when only hets were phased: every passing call is a germline variant, phased by --phased_vcf. bgzipped and indexed (default: --phased_vcf)
+   the germline variant calls, of the sample, or in a pair the normal, when --phased_vcf contains only some of them, as when only hets were phased: every passing call is a germline variant, phased by --phased_vcf. bgzipped and indexed (default: --phased_vcf)
 
 .. option:: --sample_name SAMPLE_NAME
 
@@ -28,11 +28,11 @@
 
 .. option:: --carrier_min CARRIER_MIN
 
-   an unphased germline het is put on the haplotype holding at least this share of an isoform's tagged reads carrying it (default: 0.9)
+   an unphased germline het is put on the haplotype with at least this share of an isoform's tagged reads that have it (default: 0.9)
 
 .. option:: --min_tagged MIN_TAGGED
 
-   the tagged reads carrying an unphased germline het needed to place it (default: 10)
+   the tagged reads with an unphased germline het needed to place it (default: 10)
 
 .. option:: -o, --output OUTPUT
 

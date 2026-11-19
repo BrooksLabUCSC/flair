@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument('out_prefix', help="prefix for the three events.quant.tsv outputs")
     parser.add_argument('counts_tsv', nargs='?', help="[optional] isoform counts matrix")
     parser.add_argument('--compress', action='store_true',
-                        help="gzip the event files, as flair --compress asks for")
+                        help="gzip the event files, as flair --compress requires")
     return parser.parse_args()
 
 

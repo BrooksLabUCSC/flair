@@ -1,6 +1,6 @@
 """
 Genome partitioning and parallel execution.  A partition is a unit of work, a cluster
-is a unit of meaning; dev/design/clusters-and-partitions.md says what may depend on
+is a unit of meaning; dev/design/clusters-and-partitions.md states what may depend on
 which.
 
 Manages per-region Partition objects, each with a temporary working directory
@@ -35,7 +35,7 @@ def _copy_part(in_fh, combined_fh, skip_header):
 
 def combine_temp_files_by_suffix(output, temp_prefixes, suffixes, *, headers=(), compress=False):
     """Join each partition file into one.  A suffix named in headers is a TSV whose
-    parts each carry the header, so only the first part keeps it.  With compress, the
+    parts each contain the header, so only the first part keeps it.  With compress, the
     joined file is written under compressed_path, for a caller whose joined files are
     the run's outputs rather than intermediates it rewrites later."""
     for filesuffix in suffixes:

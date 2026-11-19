@@ -6,7 +6,7 @@ passes with FILTER PASS or '.'.
 
 Germline variants are the calls of the sample, or of the normal of a pair, phased
 by the VCF that haplotagged the reads (WhatsHap, DeepVariant, HiPhase and the like),
-which can hold them all or, when only some were phased, as only the hets, just
+which can contain them all or, when only some were phased, as only the hets, just
 those:
   homozygous     in every sequence
   phased het     on the haplotype its phased genotype gives, H1 for the first allele
@@ -17,7 +17,7 @@ Somatic variants, of a pair only, are one of:
                  min_normal_depth normal reads informing the site; the rest are
                  excluded, as the normal can't show they aren't germline
   somatic_vcf    every passing call of a somatic caller's VCF, as it calls them
-  --variant      only the variants given, whatever the VCFs say
+  --variant      only the variants given, whatever the VCFs contain
 """
 import re
 from collections import namedtuple
@@ -33,7 +33,7 @@ HOMOZYGOUS, PHASED_HET, UNPHASED_HET = 'homozygous', 'phased het', 'unphased het
 UNTAGGED = 'untagged'
 
 # an indel read within this many bases of a called indel, of the same kind and
-# length, carries it: long reads don't always place an indel where the caller did
+# length, has it: long reads don't always place an indel where the caller did
 INDEL_WINDOW = 5
 
 
@@ -49,7 +49,7 @@ def _genotype(rec):
 
 
 def called_alts(rec):
-    """the alts of a passing record its first sample's genotype holds; every alt for a
+    """the alts of a passing record its first sample's genotype contains; every alt for a
     VCF of no samples or genotypes"""
     if not passes(rec):
         return []

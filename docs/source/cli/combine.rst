@@ -53,7 +53,7 @@
 
    how the ends of a splice junction chain are combined:
 
-   - 1: the chain gives one isoform, holding the isoforms of every group of similar ends and their read support
+   - 1: the chain gives one isoform, containing the isoforms of every group of similar ends and their read support
    - above 1: each group of similar ends gives an isoform of its own, when the group passes --min_percent_usage and --min_reads on its own, so ends are more precise and the support of a group that fails them is dropped. Any value above 1 gives the same result
 
    (default: 1)

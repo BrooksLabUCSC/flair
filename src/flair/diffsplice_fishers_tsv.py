@@ -6,7 +6,7 @@ Columns, in order:
   event_quant_tsv
   <sample1>-<sample2>_pval   the p-value of the test between those two samples
 
-One row per side of each event, the two sides of an event carrying the same
+One row per side of each event, the two sides of an event with the same
 p-value, since the test is of the event's two by two table.
 """
 from contextlib import contextmanager

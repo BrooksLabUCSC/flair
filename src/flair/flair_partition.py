@@ -55,7 +55,7 @@ def build_parser():
                         help="BED of regions to restrict the partitions to, such as the genes of "
                         "interest.  Only input items overlapping a region are read, an indexed BAM "
                         "by random access, and the regions are then grown over the items reaching "
-                        "them until they stop growing, so each partition holds every item that a "
+                        "them until they stop growing, so each partition contains every item that a "
                         "partition of the whole input would.  Not used with --min_partition_items")
     parser.add_argument("--region", dest="regions", action="append", default=[], metavar="REGION",
                         help="region to restrict the partitions to.  The notes under --region_bed "
@@ -202,7 +202,7 @@ def check_bam_indexed(bam_file):
 
 def _exon_span_fields(line):
     """The chrom, zero-based start, end and transcript id of a GTF exon line, or
-    None for a line that is not an exon or carries no transcript_id."""
+    None for a line that is not an exon or has no transcript_id."""
     fields = line.split('\t', 8)
     if (len(fields) < 9) or (fields[2] != 'exon'):
         return None

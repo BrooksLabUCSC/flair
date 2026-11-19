@@ -44,7 +44,7 @@ def _events(tmp_path, *samples_chains, strand='+', feature_support=2, event_frac
     tables = {}
     for table, suffix in (('counts', 'counts'), ('PSIjunc', 'psi_junc'), ('PSItot', 'psi_tot')):
         with open(f'{prefix}.spliceevents.{suffix}.tsv') as fh:
-            # a region's part of a table carries the header
+            # a region's part of a table contains the header
             assert fh.readline().rstrip('\n').split('\t') == columns(samples)
             tables[table] = {f"{row['event']}|{row['alternative']}": row
                              for row in csv.DictReader(fh, fieldnames=columns(samples), delimiter='\t')}
@@ -100,7 +100,7 @@ def test_a_sample_with_fewer_event_reads_than_event_support_has_no_psi(tmp_path)
 
 
 def test_a_sample_with_no_reads_of_an_event_has_no_psi_at_event_support_zero(tmp_path):
-    # --event_support 0 asks for every sample's PSI; s3's reads are elsewhere, so it has
+    # --event_support 0 requests every sample's PSI; s3's reads are elsewhere, so it has
     # no reads of the event and none covering its locus to divide by
     tables, _ = _events(tmp_path, [(INC, 100, 600, 30), (EXC, 100, 600, 10)],
                         [(INC, 100, 600, 10), (EXC, 100, 600, 30)],
@@ -531,7 +531,7 @@ def test_an_event_of_no_annotation_is_of_the_gene_of_most_of_its_reads():
                       {((700, 800),): [ReadEnds(650, 850)] * 10}]
     # of the intron 200-300, A has 3 reads and B 1, the readthrough's counted for both
     assert read_event_genes({(200, 300)}, cluster_chains, chain_genes, '+') == ['A']
-    # of both introns, 3 each: a tie; C's reads carry neither
+    # of both introns, 3 each: a tie; C's reads have neither
     assert read_event_genes({(200, 300), (400, 500)}, cluster_chains, chain_genes, '+') == ['A', 'B']
 
 

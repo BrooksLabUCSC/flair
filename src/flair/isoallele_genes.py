@@ -14,11 +14,11 @@ exons next to their splice sites ('guaranteed'), but only some reach the rest of
 terminal exons, such as UTRs ('terminal').  The guaranteed sites define the
 somatic sets; if an isoform has none, its terminal sites do.  An isoform's other
 terminal sites are added to a group's sequence if the group's reads that reach the
-site all carry it, and at least one does (terminal_sites.tsv).
+site all have it, and at least one does (terminal_sites.tsv).
 
 A read's group is its haplotype (H1, H2 or untagged) and the set of defining
-somatic sites it carries, numbered per gene by reads, most first: H2-S1.  A read
-that doesn't inform every defining site of its isoform may carry the one it misses,
+somatic sites it has, numbered per gene by reads, most first: H2-S1.  A read
+that doesn't inform every defining site of its isoform may have the one it misses,
 so its set isn't known: its group is H2-S? and gets no sequence.
 """
 import collections
@@ -133,7 +133,7 @@ def _place_unphased(ctx, key, iso_name, reads_by_sample):
                                     if info.isoform == iso_name and info.haplotype != UNTAGGED
                                     and info.alleles.get(key) == 'alt')
     tagged = sum(alt_reads.values())
-    # the counter is empty when no tagged read carries the alt, which --min_tagged 0
+    # the counter is empty when no tagged read has the alt, which --min_tagged 0
     # would otherwise take as enough, leaving min() nothing to pick from
     if (len(alt_reads) > 0) and (tagged >= ctx.min_tagged):
         top, n = min(alt_reads.items(), key=lambda x: (-x[1], x[0]))
@@ -160,7 +160,7 @@ def process_gene(ctx, gene_id, isos, out):  # noqa: C901 - one gene's whole anal
 
     reads_by_sample, coverage, missing = {}, {}, {}
     depth = collections.Counter()
-    for sample in ctx.samples:  # the normal first, in a pair: its depth decides the somatic sites
+    for sample in ctx.samples:  # the normal first, in a pair: its depth determines the somatic sites
         depth_sites = candidates if sample == ctx.normal else []
         reads, sample_depth, coverage[sample], missing[sample] = _scan_sample(
             ctx, sample, region, isoforms, candidates, hets, depth_sites)
@@ -199,7 +199,7 @@ def process_gene(ctx, gene_id, isos, out):  # noqa: C901 - one gene's whole anal
                                            'defines sets (the isoform has no guaranteed somatic site)'])
 
     def carried(info):
-        "the defining sites a read carries, sorted, and whether it misses one"
+        "the defining sites a read has, sorted, and whether it misses one"
         sites = defining[info.isoform]
         return (tuple(sorted(k for k in sites if info.alleles.get(k) == 'alt')),
                 any(info.alleles.get(k) is None for k in sites))
@@ -293,7 +293,7 @@ def _haplotype_alleles(ctx, gene_id, name, iso, germline, reads_by_sample, out):
 
 def _terminal_added(gene_id, name, terminal, wanted, reads_by_sample, group, out):
     """the terminal-exon somatic sites added to each group's sequence: those the
-    group's reads that reach them all carry, at least one"""
+    group's reads that reach them all have, at least one"""
     added = collections.defaultdict(list)
     for key in terminal[name]:
         for g in sorted(wanted):

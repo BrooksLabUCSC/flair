@@ -18,7 +18,7 @@ Everywhere
   whether or not it is given.
 - The TSVs FLAIR writes are named ``.tsv``, not ``.txt``: ``flair.read.map.txt`` is
   ``flair.isoforms.read.map.tsv``.
-- Genes, isoforms and protein sequences carry FLAIR identifiers, and the gene is a
+- Genes, isoforms and protein sequences have FLAIR identifiers, and the gene is a
   column of its own rather than part of the isoform name. See :ref:`ids-label`.
 - ``--quiet`` is gone. Logging is set by the global ``--log-level``, ``--log-stderr``,
   ``--log-conf`` and ``--log-debug``.
@@ -46,7 +46,7 @@ to the genome.  Align the reads yourself:
    minimap2 -ax splice --MD --secondary=no -t 4 genome.fa reads.fq | samtools sort -o sample.bam -
    samtools index sample.bam
 
-:ref:`alignment-label` says what each option does and when to change it.
+:ref:`alignment-label` states what each option does and when to change it.
 
 flair transcriptome
 -------------------
@@ -96,7 +96,7 @@ flair transcriptome
 - ``--parallelmode``, ``--parallel_mode``: the input is always partitioned into
   clusters of overlapping reads and annotated transcripts
 - ``--trust_ends``: each isoform's ends come from the ends of the reads assigned to it,
-  and passing it is an error that says so
+  and passing it is an error that reports it
 
 **New**
 
@@ -153,11 +153,11 @@ flair quantify
 - ``<output>.counts.tsv`` has a ``gene_id`` and an ``isoform_id`` column, in place of
   the single ``ids`` column that joined the two.
 - Each sample's condition and batch are in ``<output>.sample_info.tsv`` rather than
-  packed into the counts matrix column names, which now hold the sample id alone.
+  packed into the counts matrix column names, which now contain the sample id alone.
   ``flair diffexp`` and ``flair diffsplice`` read that file.
 - Read maps are ``<output>.isoforms.<sample>.read.map.tsv``.
 - ``<output>.tpm.tsv`` is ``<output>.isoforms.cpm.tsv``, written by every run.  It
-  held counts per million under the name TPM, and is now named for what it holds: a
+  held counts per million under the name TPM, and is now named for what it contains: a
   long read is not one transcript, since reads are fragmented, so the counts are not
   normalized by isoform length.
 
@@ -264,7 +264,7 @@ flair diffsplice
 
 **Outputs**
 
-- Event names carry the strand, so ``inclusion_chr1:500-650`` is
+- Event names include the strand, so ``inclusion_chr1:500-650`` is
   ``inclusion_chr1:500-650(+)``, the strand written as ``flair spliceevents`` writes it,
   though its coordinates differ: spliceevents names an event with one-based coordinates
   in ascending order. The same goes for the ``coordinate`` column. Without it, an event called on both strands at one locus
@@ -330,6 +330,6 @@ File formats
   ``productivity``, ``transcript_class``, ``fused_genes``, ``pos_in_fusion``,
   ``samples``, ``source_isoform``, ``allele_group``, ``aaseq_id``. A column that does
   not apply to a row is empty. Anything reading the BED by column number past column
-  12 has to be told which column it wants.
-- The isoform name no longer carries the gene. It is the isoform id alone, with the
+  12 has to be told which column it requires.
+- The isoform name no longer includes the gene. It is the isoform id alone, with the
   gene in the ``gene_id`` column beside it.

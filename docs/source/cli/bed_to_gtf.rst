@@ -20,7 +20,7 @@
 
 .. option:: --no_cds
 
-   do not carry forward CDS from the bed file (thickstart and thickend) to the gtf
+   do not copy the CDS from the bed file (thickstart and thickend) to the gtf
 
 .. option:: --is_flair_bed
 
