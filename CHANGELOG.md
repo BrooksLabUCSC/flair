@@ -172,6 +172,9 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * An error is reported whatever `--log-level` was given.  A run that failed with
+    `--log-level CRITICAL` used to exit 1 with nothing printed, since the error was
+    reported at the `ERROR` level (pycbio `cli.ErrorHandler`).
   * `es_as.py` raises when two isoforms of one gene sit on different
     chromosomes or strands, instead of graphing both loci as one gene and
     calling skipped exons that are in neither.

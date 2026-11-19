@@ -32,5 +32,5 @@
 
 .. option:: --log-debug
 
-   short-cut that that sets --log-stderr and --log-level=DEBUG
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

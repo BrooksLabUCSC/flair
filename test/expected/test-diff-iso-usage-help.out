@@ -34,5 +34,4 @@ options:
                         INFO, DEBUG, NOTSET
   --log-conf LOG_CONF   Python logging configuration file, see
                         logging.config.fileConfig()
-  --log-debug           short-cut that that sets --log-stderr and --log-
-                        level=DEBUG
+  --log-debug           short-cut that sets --log-stderr and --log-level=DEBUG

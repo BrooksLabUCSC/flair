@@ -131,7 +131,9 @@ class ErrorHandler:
     """Command line error handling. This is a context manager that wraps execution
     of a program.  This is called after command line parsing has been done.
     If an exception is caught, it handles printing the error via logging, normally
-    to stderr, and exits non-zero.
+    to stderr, and exits non-zero.  The error is reported at the CRITICAL level, and
+    written to stderr directly if logging is configured above that, so that a quiet
+    level does not hide why the program failed.
 
     If DEBUG log level is set, the call stack traceback will always be logged.
     Otherwise, the stack is not print if the Exception inherits from
@@ -178,7 +180,17 @@ class ErrorHandler:
         msg = _exceptionFormat(exc_val, showTraceback=showTraceback)
         if not showTraceback:
             msg += "Specify --log-debug for details"
-        logger.error(msg.rstrip('\n'))
+        self._reportError(logger, msg.rstrip('\n'))
+
+    @staticmethod
+    def _reportError(logger, msg):
+        """Report the error at the highest level, writing to stderr when logging is
+        configured above even that.  A program that exits non-zero must state why,
+        whatever logging level was requested."""
+        if logger.isEnabledFor(logging.CRITICAL):
+            logger.critical(msg)
+        else:
+            print(msg, file=sys.stderr)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:

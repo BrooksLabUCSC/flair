@@ -159,7 +159,7 @@ def addCmdOptions(parser, *, defaultLevel=logging.WARNING, inclSyslog=False, sub
     parser.add_argument("--log-conf", default=optDefault(None),
                         help=optHelp("Python logging configuration file, see logging.config.fileConfig()"))
     parser.add_argument("--log-debug", action="store_true", default=optDefault(False),
-                        help=optHelp("short-cut that that sets --log-stderr and --log-level=DEBUG"))
+                        help=optHelp("short-cut that sets --log-stderr and --log-level=DEBUG"))
 
 def haveCmdOptions(parser):
     """Check if an logging options have been added to this parser."""
