@@ -25,12 +25,12 @@ If you have questions, please ask in FLAIR GitHub Discussions:
 Report bugs to FLAIR GitHub Issues:
 
    https://github.com/BrooksLabUCSC/flair/issues
-   
+
 
 Installing FLAIR
 ================
 
-See  :ref:`installing-label` for instructions on the various approache to install FLAIR.
+See  :ref:`installing-label` for instructions on the various approaches to install FLAIR.
 
 
 Using FLAIR
@@ -39,7 +39,7 @@ Using FLAIR
 FLAIR can be run optionally with short-read data to help increase splice
 site accuracy of the long read splice junctions. FLAIR uses multiple
 alignment steps and splice site filters to increase confidence in the
-set of isoforms defined from noisy data.FLAIR was designed to be able
+set of isoforms defined from noisy data.  FLAIR was designed to be able
 to sense subtle splicing changes in nanopore data from `Tang et
 al. (2020) <https://www.nature.com/articles/s41467-020-15171-6>`__.
 Please read for more description of the methods.

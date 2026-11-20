@@ -11,6 +11,8 @@ bed_to_gtf
 
 Convert isoforms in BED12 format to a GTF, written to standard output.
 
+.. _diff-iso-usage-label:
+
 diff_iso_usage
 ==============
 
@@ -50,6 +52,8 @@ each sample's reads, or on the change, would not be independent: a filter on the
 change would make the adjusted p-values too small, since the change and the
 p-value come from the same counts.  To report only large changes, filter the
 output on ``delta_PSI`` after the run.
+
+.. _diffsplice-fishers-exact-label:
 
 diffsplice_fishers_exact
 ========================
@@ -128,6 +132,8 @@ For example:
 .. figure:: img/toy_diu_isoforms.svg
 
 .. figure:: img/toy_diu_usage.svg
+
+.. _spliceevents-outliers-label:
 
 spliceevents_outliers
 =====================

@@ -54,7 +54,8 @@ def check_programs(programs):
     missing = [program for program in programs if shutil.which(program) is None]
     if missing:
         raise FlairInputDataError(f"not on PATH: {', '.join(missing)}; flair runs these programs, which "
-                                  'docs/source/installing.rst states how to install')
+                                  'the installing page of the FLAIR documentation states how to install: '
+                                  'https://flair.readthedocs.io/en/latest/installing.html')
 
 
 def _bed_seq_names(bed_file):

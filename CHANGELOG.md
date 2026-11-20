@@ -172,6 +172,9 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * The message naming a program that is not on PATH points at the installing page
+    of the FLAIR documentation rather than at `docs/source/installing.rst`, a path
+    a user who installed FLAIR from conda or PyPI does not have.
   * The `networkx` dependency is gone: nothing in FLAIR imports it, and every
     install was paying for it.
   * `flair diffexp` and `flair diffsplice` report what they found: the rows of each

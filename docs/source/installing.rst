@@ -98,7 +98,7 @@ or to install the current code from github:
 
    pip install git+https://github.com/BrooksLabUCSC/flair.git
 
-If you already have FLAIR install, you will need to uninstall it first
+If you already have FLAIR installed, you will need to uninstall it first
 to update the code, since the version number will not have changed in the tree.
 
 .. code:: sh

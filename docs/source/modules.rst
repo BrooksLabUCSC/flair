@@ -18,7 +18,7 @@ If you want to compare multiple samples, there are two primary ways of doing thi
 Aligning reads to the genome
 ============================
 
-FLAIR's modules take reads aligned to the genome as a sorted, indexed bam.  
+FLAIR's modules take reads aligned to the genome as a sorted, indexed bam.
 
 Please see the protocols page with more details on pros and cons of different alignment options, but here is an explanation of minimap options if you chose to use minimap and want to customize your run.
 
@@ -193,9 +193,9 @@ as the genes of interest, rather than over the whole genome.
 flair fusion
 ============
 
-This identifies gene fusions and generates a fusion transcriptome. 
-To incorporate this fusion transcriptome in downstream analysis, 
-use flair combine to merge it with normal isoforms. 
+This identifies gene fusions and generates a fusion transcriptome.
+To incorporate this fusion transcriptome in downstream analysis,
+use flair combine to merge it with normal isoforms.
 
 Its input is a bam of all the reads aligned to the genome, as :ref:`aligning reads to the
 genome <alignment-label>` describes, with ``-s 40`` to keep short partner pieces.
@@ -474,10 +474,10 @@ flair diffexp
 =============
 
 
-The standard `conda` environment no long installed `R` and the required packages.
-These maybe added do the environment as describe in :ref:`installing-label` 
+``flair diffexp`` needs ``R`` and the R packages :ref:`installing-label` lists,
+which the standard conda environment does not install.
 
-This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with 
+This module performs differential *expression* and differential *usage* analyses between **exactly two** conditions with
 3 or more replicates. Name the two conditions with ``--condition_a`` and ``--condition_b``;
 ``--condition_a`` is the reference, so fold changes are reported for ``--condition_b``
 relative to it. With neither given, the two conditions are used in sorted order, which
@@ -487,7 +487,8 @@ by running these R packages:
  - `DESeq2 <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>`__ on genes and isoforms. This tests for differential expression.
  - `DRIMSeq <https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html>`__ is used on isoforms only and tests for differential usage. This is done by testing if the ratio of isoforms changes between conditions.
 
-If you do not have replicates you can use the `diff_iso_usage <#diffisoscript>`__ standalone script.
+If you do not have replicates you can use the :ref:`diff_iso_usage <diff-iso-usage-label>`
+standalone script.
 
 **Splicing events**
 
@@ -513,7 +514,7 @@ and then a line per sample column, in the order of the columns:
 
 Without it, the sample columns must be named ``sample_condition_batch``.
 
-If you have more than two sample condtions, either split your counts matrix ahead of time or run DESeq2 and DRIMSeq yourself. 
+If you have more than two sample conditions, either split your counts matrix ahead of time or run DESeq2 and DRIMSeq yourself.
 
 **Outputs**
 
@@ -563,11 +564,11 @@ Results tables are filtered and reordered by p-value so that only p<0.05 differe
 flair diffsplice
 ================
 
-The standard `conda` environment no long installed `R` and the required packages.
-These maybe added do the environment as describe in :ref:`installing-label` 
+``flair diffsplice`` needs ``R`` and the R packages :ref:`installing-label` lists,
+which the standard conda environment does not install.
 
 This module calls alternative splicing (AS) events from isoforms. Currently supports
-the following AS events: 
+the following AS events:
 
  - intron retention (ir)
  - alternative 3’ splicing (alt3)
@@ -577,10 +578,10 @@ the following AS events:
 If there are 3 or more samples per condition, then you can run with
 ``--test`` and DRIMSeq will be used to calculate differential usage of
 the alternative splicing events between two conditions. See below for
-more DRIMSeq-specific arguments. 
+more DRIMSeq-specific arguments.
 
 If conditions were sequenced without replicates, then the diffSplice output files can
-be input to the `diffsplice_fishers_exact <#diffsplice_fishers>`__
+be input to the :ref:`diffsplice_fishers_exact <diffsplice-fishers-exact-label>`
 script for statistical testing instead.
 
 **Outputs**
@@ -825,7 +826,7 @@ with other options corrects those samples again, and reports which files it reus
 and which it makes again.
 
 Outlier samples, whose PSI of an event is far from the other samples', can be found
-from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__
+from these tables with the :ref:`spliceevents_outliers <spliceevents-outliers-label>`
 script.
 
 Options
