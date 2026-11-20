@@ -21,6 +21,7 @@ from flair.fusion_table import write_fusion_table, write_table
 from flair.flair_transcriptome import DEFAULT_FILTER, parse_filter
 from flair.io_utils import GenomeFasta, run_program
 from flair.pycbio.sys import fileOps
+from flair.reuse import provenance, record_provenance, reuse_file
 from flair.run_checks import (check_annotation, check_option_ranges, precheck, report_result_count,
                               count_records)
 from flair.output_compress import compressed_path, open_output, open_fasta_output
@@ -230,13 +231,29 @@ def align_reads_to_transcripts(genome, gtf_data, output, reads_fa, nreads, threa
     pysam.index(transcriptchimbam)
 
 
-def make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size, transcriptome_alignment):
+def _chimeric_bam_provenances(genome, annot_gtf, genome_aligned_bam, min_fragment_size):
+    """What the two chimeric BAMs are produced from, so that a later run reuses them
+    only for the same reads, genome, annotation and fragment size.  Threads are left
+    out: they change how long the alignment takes, not what it reports."""
+    options = {'min_fragment_size': min_fragment_size}
+    return (provenance(files=(genome_aligned_bam,), options=options),
+            provenance(files=(genome_aligned_bam, genome, annot_gtf), options=options))
+
+
+def make_chimeric_bams(genome, gtf_data, annot_gtf, genome_aligned_bam, output, threads, min_fragment_size,
+                       transcriptome_alignment):
     """The chimeric reads of the genome alignment and of the alignment to annotated
-    transcripts, each unless an earlier run left them, from one pass over the genome
-    alignment.  Returns the names of the reads aligned to transcripts, None if not."""
+    transcripts, each unless an earlier run left one made from the same inputs and
+    options, from one pass over the genome alignment.  Returns the names of the reads
+    aligned to transcripts, None if not."""
     genomechimbam = output + '.genome_aligned.chim.bam'
-    make_chim = not os.path.exists(genomechimbam)
-    align_to_transcripts = transcriptome_alignment and not os.path.exists(output + '.transcriptome_aligned.chim.bam')
+    transcriptchimbam = output + '.transcriptome_aligned.chim.bam'
+    genome_prov, transcript_prov = _chimeric_bam_provenances(genome, annot_gtf, genome_aligned_bam,
+                                                             min_fragment_size)
+    make_chim = not reuse_file(genomechimbam, genome_prov,
+                               what="the genome alignment's chimeric reads")
+    align_to_transcripts = transcriptome_alignment and not reuse_file(
+        transcriptchimbam, transcript_prov, what='the chimeric alignments to the annotated transcripts')
     transcriptome_reads_fa = output + '.transcriptome_reads.fa'
     transcriptome_reads = None
     if make_chim or transcriptome_alignment:
@@ -246,9 +263,11 @@ def make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, mi
                                                     reads_fa=transcriptome_reads_fa if align_to_transcripts else None)
         if make_chim:
             pysam.index(genomechimbam)
+            record_provenance(genomechimbam, genome_prov)
     if align_to_transcripts:
         align_reads_to_transcripts(genome, gtf_data, output, transcriptome_reads_fa, len(transcriptome_reads),
                                    threads, min_fragment_size)
+        record_provenance(transcriptchimbam, transcript_prov)
     return transcriptome_reads
 
 
@@ -558,8 +577,8 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     logging.info('loading annotation GTF')
     gtf_data = gtf_data_parser(gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
     check_annotation(gtf_data, genome)
-    transcriptome_reads = make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size,
-                                             transcriptome_alignment)
+    transcriptome_reads = make_chimeric_bams(genome, gtf_data, gtf, genome_aligned_bam, output, threads,
+                                             min_fragment_size, transcriptome_alignment)
     annot = read_annotation(gtf_data)
     logging.info('finding preliminary fusions')
     # only the reads that needed aligning to transcripts, as a bam left by an earlier

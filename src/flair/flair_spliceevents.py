@@ -8,6 +8,7 @@ from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
 from flair.io_utils import GenomeFasta, make_run_temp_dir, make_temp_dir, read_manifest_rows
 from flair.output_compress import compressed_path
+from flair.reuse import provenance, record_provenance, reuse_file
 from flair.run_logging import plural
 from flair.run_checks import (check_annotation, check_bam_indexes, check_option_ranges, check_seq_names, precheck,
                               report_result_count, count_records)
@@ -177,15 +178,28 @@ def _correct_cluster_sample(args, cluster, work_dir, bamfile, genome, junction_c
                               cluster_terminal, windows)
 
 
+def _correction_provenance(args, bamfile):
+    """What a sample's corrected reads in a partition are produced from, so that a
+    rerun with --keep_intermediate reuses them only where they are what it would
+    correct.  The partition's region is part of the file's name, so it is not here."""
+    return provenance(files=(bamfile, args.genome, args.annot, args.annot_basic or None,
+                             args.junction_bed, args.junction_star),
+                      options={opt: getattr(args, opt)
+                               for opt in ('ss_window', 'junction_support', 'quality',
+                                           'keep_supplementary', 'trust_strand', 'trust_junctions',
+                                           'no_align_to_annot')})
+
+
 def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, item, terminal_exons,
                            region_reports, region_clusters):
     """Correct one sample's reads in a partition, a cluster at a time, for _run_region.
     A task of its own, so the samples of a partition are corrected in parallel"""
     sample, bamfile = item
     path = read_chains_path(partition, sample)
-    if os.path.exists(path):
-        return
     region = partition.region
+    prov = _correction_provenance(args, bamfile)
+    if reuse_file(path, prov, what=f'the corrected reads of {sample} in {region.name}:{region.start}-{region.end}'):
+        return
     reports = region_reports[region_key(region)]
     chains = []
     with GenomeFasta(args.genome) as genome:
@@ -193,6 +207,7 @@ def _correct_region_sample(*, partition, gtf_data, junction_corrector, args, ite
             chains += _correct_cluster_sample(args, cluster, f'{path}.{num}.correction', bamfile, genome,
                                               junction_corrector, gtf_data, terminal_exons, reports)
     write_read_chains(path, region.name, chains)
+    record_provenance(path, prov)
 
 
 def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, region_reports,

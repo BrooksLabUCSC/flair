@@ -38,6 +38,12 @@ class FlairToolError(FlairError, NoStackError):
     that started it adds nothing."""
     pass
 
+class FlairStopped(FlairError, NoStackError):
+    """The run was stopped by a signal.  It is raised rather than taking the signal's
+    default, so that the temporary files of the run are removed as they are on an
+    error."""
+    pass
+
 class FlairNotImplementedError(FlairError, NoStackError):
     """An option is accepted by the argument parser but does nothing.  Raising is
     better than ignoring it silently, and better than dropping the option, which would

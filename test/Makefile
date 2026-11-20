@@ -1335,7 +1335,8 @@ test-identifyvars-thresholds: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
 ###
 
 fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-tome test-fusion-3gene test-fusion-sorted-gtf \
-	test-fusion-refseq test-fusion-recall test-fusion-help test-fusion-compress test-fusion-max-partners
+	test-fusion-refseq test-fusion-recall test-fusion-help test-fusion-compress test-fusion-max-partners \
+	test-fusion-reuse test-fusion-reuse-other-reads
 
 update-fusion-tests:
 	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene" "test-fusion-refseq" "test-fusion-recall"; \
@@ -1393,6 +1394,25 @@ test-fusion-nongenic: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST
 	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
 
+# a rerun under the same output name with other reads: the chimeric BAMs the first
+# run left are made again, since they are not of these reads, and the result is that
+# of a run with nothing to reuse.  Reusing them on their existence alone reported the
+# first run's fusion for the second run's reads.
+test-fusion-reuse-other-reads: mkdirs ${GENOME_FA} ${FUSION_TEST_BAM} ${FUSION3_TEST_BAM}
+	for f in genome_aligned transcriptome_aligned; do rm -f $O/$@.$$f.chim.bam $O/$@.$$f.chim.bam.bai $O/$@.$$f.chim.bam.provenance.json; done
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
+	diff $E/test-fusion-3gene.fusions.tsv $O/$@.fusions.tsv
+
+# the same reads and options again: the chimeric BAMs are reused, and reported
+test-fusion-reuse: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
+	for f in genome_aligned transcriptome_aligned; do rm -f $O/$@.$$f.chim.bam $O/$@.$$f.chim.bam.bai $O/$@.$$f.chim.bam.provenance.json; done
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
+	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2 2> $O/$@.log
+	test $$(grep -c "reusing the genome alignment's chimeric reads" $O/$@.log) -eq 1
+	test $$(grep -c 'reusing the chimeric alignments to the annotated transcripts' $O/$@.log) -eq 1
+	diff $E/test-fusion-3gene.fusions.tsv $O/$@.fusions.tsv
+
 test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
@@ -1449,7 +1469,18 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region test-spliceevents-region-extend \
 		test-spliceevents-region-partition test-spliceevents-smallparts test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
-		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-no-temp-dir test-spliceevents-help
+		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-no-temp-dir test-spliceevents-reuse-other-options test-spliceevents-help
+
+# a rerun with --keep_intermediate and other correction options corrects the samples
+# again rather than reading the first run's corrected reads, which are not what this
+# run would correct, and gives what a run with nothing to reuse gives
+test-spliceevents-reuse-other-options: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate --ss_window 50 -o $O/$@ 2> $O/$@.log
+	test $$(grep -c 'from other inputs or options' $O/$@.log) -eq 3
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --ss_window 50 -o $O/$@-clean
+	diff $O/$@-clean.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
+	diff $O/$@-clean.spliceevents.psi_junc.tsv $O/$@.spliceevents.psi_junc.tsv
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out

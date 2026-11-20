@@ -172,6 +172,20 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * flair fusion reuses the chimeric BAMs of an earlier run under the same output
+    name only where they were made from the same reads, genome, annotation and
+    options, which is recorded in a `.provenance.json` beside each of them.  A rerun
+    with other reads used to report the earlier run's fusions for them: measured, a
+    run given the three-gene fusion reads reported the two-gene fusion of the run
+    before it, exit 0 and no warning.
+  * flair spliceevents reuses a sample's corrected reads, with `--keep_intermediate`,
+    only where the sample's BAM, the genome, the annotations, the junction files and
+    the correction options are those they were corrected from.  A rerun with
+    `--ss_window 50` used to report the default window's events.
+  * Both report at `INFO` what they reuse and what they make again.
+  * A run stopped with SIGTERM or SIGINT removes its temporary directory, as a failed
+    run does.  It used to leave the reads and alignments of every partition behind,
+    which is what a job scheduler stopping a run leaves.
   * A run reports its progress.  The default logging level is `INFO` rather than
     `WARNING`, which printed nothing at all until something went wrong: a run that
     took hours was silent, and finished, running and hung looked alike.  A run now

@@ -253,7 +253,11 @@ sample.fusions.prelim.bed
     The preliminary fusions' loci, with their reads and distances to a TSS
 sample.genome_aligned.chim.bam, sample.transcriptome_aligned.chim.bam
     The chimeric reads of the genome alignment and of the alignment to annotated
-    transcripts, reused by a later run with the same output name
+    transcripts, reused by a later run with the same output name when its reads,
+    genome, annotation and options are those the files were made from, which is
+    recorded in a .provenance.json beside each of them.  A run that was given other
+    reads or other options makes them again, and reports which it reuses and which
+    it makes again
 
 With ``--keep_intermediate``, the synthetic fusion genome (sample.synthetic_fusion_genome.fa),
 its annotation, the reads aligned to it (sample.synthetic_aligned.bam) and the other
@@ -803,6 +807,12 @@ even on failure.  With ``--keep_intermediate`` they are kept in
 ``OUTPUT.intermediate`` instead, where a rerun with ``--keep_intermediate`` reads the
 corrected reads it finds rather than correcting those samples again; the two options
 are not given together.
+
+A sample's corrected reads are reused only where the sample's BAM, the genome, the
+annotations, the junction files and the correction options are those they were
+corrected from, which is recorded in a .provenance.json beside each file.  A rerun
+with other options corrects those samples again, and reports which files it reuses
+and which it makes again.
 
 Outlier samples, whose PSI of an event is far from the other samples', can be found
 from these tables with the `spliceevents_outliers <scripts.html#spliceevents-outliers>`__

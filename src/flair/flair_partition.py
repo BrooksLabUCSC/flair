@@ -19,6 +19,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from flair.io_utils import run_program
 from flair.run_logging import configure_logging, plural
+from flair.run_signals import install_stop_handlers
 import pysam
 from flair import FlairInputDataError, SeqRange, combine_regions
 from flair import gtf_io
@@ -461,6 +462,7 @@ def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_p
 def main():
     args = parse_args()
     configure_logging()
+    install_stop_handlers()
     with cli.ErrorHandler():
         # inside the handler, so a missing input file is reported as one line
         check_option_ranges(args, count=('min_partition_items', 'part_merge_dist'), positive=('threads',))

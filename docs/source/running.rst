@@ -43,6 +43,30 @@ report::
 
 An error is printed whatever level was given.
 
+.. _rerun-label:
+
+Running again under the same output prefix
+==========================================
+
+A run writes its outputs under the prefix given to ``-o``, replacing any file of
+that name.  Files of an earlier run that this run does not write stay as they are:
+a run with ``--generate_map`` followed by one without it leaves the first run's read
+map beside the second run's isoforms, and isoform ids are assigned per run, so the
+old map names this run's ids for other isoforms.  A run with ``--compress`` followed
+by one without it leaves both ``OUTPUT.isoforms.bed.gz`` and
+``OUTPUT.isoforms.bed``.  Use a new prefix for a run with different options, or
+remove the old files first.
+
+``flair fusion`` and ``flair spliceevents`` with ``--keep_intermediate`` reuse what
+an earlier run under the same prefix left, and only where the reads, the genome, the
+annotation and the options are those it was made from; each run reports what it
+reuses and what it makes again.
+
+A run that is stopped with SIGTERM or SIGINT, as a job scheduler and the terminal
+send, removes its temporary directory as a failed run does.  SIGKILL cannot be
+taken, so a run stopped with it leaves its temporary directory in ``--temp_dir`` or
+``$TMPDIR``, named for the output prefix, to be removed by hand.
+
 .. _compression-label:
 
 Compression

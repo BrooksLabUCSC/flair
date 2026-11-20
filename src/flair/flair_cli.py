@@ -6,6 +6,7 @@ import logging
 from flair import VERSION
 from flair.cli_help import FlairHelpFormatter
 from flair.run_logging import configure_logging, log_run_start
+from flair.run_signals import install_stop_handlers
 from flair.output_compress import set_output_compression
 from flair.pycbio.sys import cli, loggingOps
 from flair import (flair_combine, flair_diffExp, flair_diffSplice, flair_fusion,
@@ -97,6 +98,7 @@ def run_subcommand(args):
 def main():
     args = cli.parseArgsWithLogging(build_parser())
     configure_logging()
+    install_stop_handlers()
     set_output_compression(args.compress)
     with cli.ErrorHandler():
         run_subcommand(args)
