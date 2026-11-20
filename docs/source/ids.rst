@@ -36,19 +36,8 @@ from.
 A fusion isoform has an isoform id and a gene id of its own. The genes it joins keep
 their own gene ids, listed in transcript order.
 
-One id per column
------------------
-
-No FLAIR file puts an isoform and its gene in one field. The gene is a column of its
-own: ``gene_id`` in an isoforms BED, ``gene_id`` beside ``isoform_id`` in a counts
-matrix, and the column ``gtf_to_bed --include_gene`` adds. An isoform id is
-therefore read, never parsed.
-
-The annotated gene or transcript an isoform was matched to, when it was matched to
-one, is likewise its own column rather than part of the id.
-
-Ids that are built from others
-------------------------------
+Derived identifiers
+-------------------
 
 Three things FLAIR names are named for what they are made of, so their ids do have
 parts, with a separator that the id's own component ids cannot contain:
