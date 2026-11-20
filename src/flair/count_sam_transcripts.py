@@ -8,6 +8,7 @@ import os
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from flair.io_utils import run_program
+from flair.run_logging import child_log_level_opt, configure_logging
 import pysam
 from flair import FlairError, FlairInputDataError
 from flair.isoform_data import cigar_clipping
@@ -15,6 +16,7 @@ from flair.read_ends_tsv import ReadEndsWriter
 from flair.read_map_tsv import ReadMapWriter
 from flair.transcript_counts_tsv import TranscriptCountsWriter
 from flair.pycbio.hgdata.bed import BedReader
+from flair.pycbio.sys import cli
 
 
 _COUNT_SAM_TRANSCRIPTS_SCRIPT = os.path.realpath(__file__)
@@ -65,8 +67,7 @@ def parse_args():
     parser.add_argument('--stranded', action='store_true',
                         help='reads are in their sense orientation, so alignments to the reverse '
                              'complement of a transcript are not used')
-    args = parser.parse_args()
-    return args
+    return cli.parseArgsWithLogging(parser, defaultLevel=logging.INFO)
 
 
 def check_args(args):
@@ -783,7 +784,7 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     transcript_fasta=None):
     """Build count_sam_transcripts.py argv."""
     # FIXME: default values should be centralized
-    cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT,
+    cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT, child_log_level_opt(),
            '--sam', str(sam), '-o', str(output)]
     if threads != 4:
         cmd += ['-t', str(threads)]
@@ -841,19 +842,27 @@ def run_count_sam_transcripts(*, output, mm2_cmd=None, sam='-', threads=4,
     run_program(pipeline)
 
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
-    args = check_args(args)
-    info = read_isoforms_bed(isoforms=args.isoforms, fusion_breakpoints=args.fusion_breakpoints,
-                             unique_bound=args.unique_bound, transcript_fasta=args.transcript_fasta)
-    readstoclipping = read_clipping(args.trimmedreads) if args.trimmedreads else {}
-    transcript_to_reads = parse_sam(args.sam, info, readstoclipping,
-                                    stringent=args.stringent, check_splice=args.check_splice,
-                                    fusion_breakpoints=args.fusion_breakpoints,
-                                    allow_UTR_indels=args.allow_UTR_indels,
-                                    trimmedreads=args.trimmedreads,
-                                    soft_clipping_buffer=args.soft_clipping_buffer,
-                                    output_endpos=args.output_endpos,
-                                    trust_ends=args.trust_ends, stranded=args.stranded,
-                                    no_extra_clipping=args.no_extra_clipping)
-    write_output(args, transcript_to_reads)
+    configure_logging()
+    with cli.ErrorHandler():
+        # inside the handler, so an input error is reported as one line rather than
+        # as a traceback inside the diagnostics of the pipeline that runs this
+        check_args(args)
+        info = read_isoforms_bed(isoforms=args.isoforms, fusion_breakpoints=args.fusion_breakpoints,
+                                 unique_bound=args.unique_bound, transcript_fasta=args.transcript_fasta)
+        readstoclipping = read_clipping(args.trimmedreads) if args.trimmedreads else {}
+        transcript_to_reads = parse_sam(args.sam, info, readstoclipping,
+                                        stringent=args.stringent, check_splice=args.check_splice,
+                                        fusion_breakpoints=args.fusion_breakpoints,
+                                        allow_UTR_indels=args.allow_UTR_indels,
+                                        trimmedreads=args.trimmedreads,
+                                        soft_clipping_buffer=args.soft_clipping_buffer,
+                                        output_endpos=args.output_endpos,
+                                        trust_ends=args.trust_ends, stranded=args.stranded,
+                                        no_extra_clipping=args.no_extra_clipping)
+        write_output(args, transcript_to_reads)
+
+
+if __name__ == '__main__':
+    main()

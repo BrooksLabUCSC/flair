@@ -100,7 +100,7 @@ def identify_good_match_to_annot(temp_prefix, region, annots, genome, bam_file, 
         skip = reads_skipping_annotation_alignment(bam_file, region, annots, genome, windows)
         annot_reads = temp_prefix + '.annotreads.fasta'
         nreads = _write_reads_subset(temp_prefix + '.reads.fasta', annot_reads, skip)
-        logging.info(f'aligning {nreads} reads to the annotated transcripts; {len(skip)} need no alignment')
+        logging.debug(f'aligning {nreads} reads to the annotated transcripts; {len(skip)} need no alignment')
         if nreads == 0:
             return read_to_transcript
         # this part generates the fasta file for the annotation

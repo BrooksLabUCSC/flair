@@ -5,7 +5,7 @@ import argparse
 import logging
 from flair import VERSION
 from flair.cli_help import FlairHelpFormatter
-from flair.io_utils import quiet_pipettor_failures
+from flair.run_logging import configure_logging, log_run_start
 from flair.output_compress import set_output_compression
 from flair.pycbio.sys import cli, loggingOps
 from flair import (flair_combine, flair_diffExp, flair_diffSplice, flair_fusion,
@@ -78,7 +78,7 @@ def build_parser():
                              "and PDFs are not gzipped, nor are intermediate files.  "
                              "Compressed input is read with or without this option, "
                              "detected by file extension")
-    loggingOps.addCmdOptions(parser, defaultLevel=logging.WARNING)
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     subparsers = parser.add_subparsers(title="subcommands", dest="subcommand",
                                        metavar="<subcommand>", required=True)
     for module in SUBCOMMAND_MODULES:
@@ -88,14 +88,15 @@ def build_parser():
     return parser
 
 def run_subcommand(args):
+    log_run_start()
     start_time = time.time()
     args.entry(args)
     elapsed = time.time() - start_time
-    logging.info(f"Flair {args.subcommand} took " + str(timedelta(seconds=round(elapsed))))
+    logging.info(f"flair {args.subcommand} took " + str(timedelta(seconds=round(elapsed))))
 
 def main():
     args = cli.parseArgsWithLogging(build_parser())
-    quiet_pipettor_failures()
+    configure_logging()
     set_output_compression(args.compress)
     with cli.ErrorHandler():
         run_subcommand(args)

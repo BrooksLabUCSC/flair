@@ -11,6 +11,7 @@ import inspect
 import logging
 import os
 import shutil
+import time
 from contextlib import ExitStack
 import pysam
 from flair import FlairInputDataError
@@ -26,6 +27,7 @@ from flair.isoalleles_tsv import TABLES, isoalleles_table_writer, table_path
 from flair.isoform_data import make_big_bed
 from flair.output_compress import compressed_path, open_fasta_output
 from flair.process_pool import ProcessPool
+from flair.run_logging import plural, report_task_done, start_task_progress
 from flair.read_map_index import ReadMapIndex
 from flair.read_map_tsv import ReadMapWriter
 
@@ -168,12 +170,14 @@ def _init_worker(settings):
 def _process_batch(packed):
     "a batch's genes, as one GeneOutput, and the paths of its labelled reads"
     batch_genes, batch_dir = packed
+    start_time = time.time()
     out = GeneOutput()
     for gene_id, isos in batch_genes:
         process_gene(_context, gene_id, isos, out)
     label_bams = _write_batch_labels(_context, batch_genes, out, batch_dir) if _context.label_bams else {}
     if not _context.generate_map:
         out.labels = {}
+    report_task_done('batch', plural(len(batch_genes), 'gene'), start_time)
     return out, label_bams
 
 
@@ -297,7 +301,8 @@ def isoalleles(*, isoform_bed, genome, bam, read_map, phased_vcf, germline_vcf=N
             batch_dir = os.path.join(run_temp_dir, f'batch{n}')
             os.makedirs(batch_dir)
             packed.append(([(gene_id, gene_data[gene_id].isoform_beds) for gene_id in batch['gene_ids']], batch_dir))
-        logging.info(f'{len(gene_data)} genes in {len(batches)} batches')
+        logging.info('%s in %s', plural(len(gene_data), 'gene'), plural(len(batches), 'batch', 'batches'))
+        start_task_progress(len(packed))
         _run(settings, packed, threads, output, names, generate_map, label_bams, genome)
         _report_alleles(output)
     finally:
@@ -311,7 +316,7 @@ def _report_alleles(output):
     with fileOps.opengz(compressed_path(f'{output}.isoalleles.counts.tsv')) as fh:
         next(fh, None)  # the column names
         groups = [line.split('\t')[1].rsplit('|', 1)[-1] for line in fh if line.strip() != '']
-    report_result_count('alleles', len(groups),
+    report_result_count('allele', len(groups),
                         remedy='check that the reads are haplotagged, as whatshap haplotag tags them, and that '
                         'the phased VCF is of this sample')
     if groups and all(group == UNTAGGED for group in groups):

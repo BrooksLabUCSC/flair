@@ -10,9 +10,11 @@ each partition.
 import gc
 import os
 import shutil
+import time
 import pipettor
 from flair import FlairError, FlairToolError, SeqRange
 from flair.process_pool import ProcessPool
+from flair.run_logging import child_log_level_opt, report_task_done, start_task_progress
 from flair import thread_share
 from flair.output_compress import compressed_path
 from flair.pycbio.hgdata.bed import BedReader
@@ -25,6 +27,9 @@ from flair.pycbio.sys import fileOps
 _shared_data = {}
 # the keyword arguments of the run() in progress, shared by all its tasks
 _run_kwargs = {}
+
+# what the tasks of the run() in progress are called in its progress lines
+_run_what = 'partition'
 
 
 def _copy_part(in_fh, combined_fh, skip_header):
@@ -108,15 +113,32 @@ class Partition:
         return f"Partition({self.region.name}:{self.region.start}-{self.region.end}, temp_dir={self.temp_dir!r})"
 
 
+def _item_name(item):
+    """the task's item for its progress line, which for the samples of a manifest is
+    the row of one, whose first field is its name"""
+    value = item[0]
+    return str(value[0] if isinstance(value, (tuple, list)) else value)
+
+
+def _report_partition_done(partition, weight, item, start_time):
+    "one line as a partition finishes, with its region, its size and its time"
+    region = partition.region
+    named = '' if item is None else f', {_item_name(item)}'
+    report_task_done(_run_what, f'{region.name}:{region.start}-{region.end}{named}, {weight} items',
+                     start_time)
+
+
 def _call_partition_func(packed):
     partition, weight, func, item = packed
     func_kwargs = _run_kwargs if item is None else dict(_run_kwargs, item=item[0])
     thread_share.task_start(weight)
+    start_time = time.time()
     try:
         func(partition=partition,
              gtf_data=partition.load_gtf_data(),
              junction_corrector=partition.load_junction_corrector(),
              **func_kwargs)
+        _report_partition_done(partition, weight, item, start_time)
     finally:
         thread_share.task_done()
 
@@ -129,7 +151,8 @@ def run_flair_partition(bam_files, annot_gtf, threads, *, region_bed=None, min_p
     transcripts that overlap them; min_partition_items is not used then, as it would
     count only the items read in the regions"""
     cmd = ['flair_partition',
-           f'--threads={threads}']
+           f'--threads={threads}',
+           child_log_level_opt()]
     cmd += [f'--bam={bam_file}' for bam_file in bam_files]
     cmd += ([f'--region_bed={region_bed}'] if region_bed is not None
             else [f'--min_partition_items={min_partition_items}'])
@@ -188,8 +211,10 @@ class PartitionRunner:
     def __len__(self):
         return len(self.partitions)
 
-    def run(self, func, *, items=None, **kwargs):
+    def run(self, func, *, items=None, what='partition', **kwargs):
         """Run func for each partition, in parallel if threads > 1 (set at construction).
+        what names the tasks in the progress lines, for a caller with more than one
+        stage of them.
 
         func is called with the following keyword arguments:
             partition      -- Partition for this region; provides region,
@@ -210,13 +235,15 @@ class PartitionRunner:
         # the arguments every task shares reach the forked workers as a global, not
         # pickled into each task, which for a genome cut into hundreds of partitions
         # took longer than the partitions themselves
-        global _run_kwargs
+        global _run_kwargs, _run_what
         _run_kwargs = kwargs
+        _run_what = what
         # an item goes in a tuple, so None is no item
         packed = sorted(((p, w, func, item) for p, w in zip(self.partitions, self.weights)
                          for item in ([(i,) for i in items] if items is not None else [None])),
                         key=lambda x: x[1], reverse=True)
         thread_share.init(self.threads, len(packed), max(self.weights, default=1))
+        start_task_progress(len(packed))
 
         if self.threads == 1:
             for p in packed:

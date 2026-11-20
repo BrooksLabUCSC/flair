@@ -17,7 +17,8 @@ import subprocess
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from flair.io_utils import quiet_pipettor_failures, run_program
+from flair.io_utils import run_program
+from flair.run_logging import configure_logging, plural
 import pysam
 from flair import FlairInputDataError, SeqRange, combine_regions
 from flair import gtf_io
@@ -63,7 +64,7 @@ def build_parser():
     parser.add_argument("ranges_bed",
                         help="Output ranges BED file, compressed if its name ends in .gz.  "
                         "It is a BED4 with the number of input items in each partition as a fifth column")
-    loggingOps.addCmdOptions(parser, defaultLevel=logging.WARN)
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
 
 def parse_args():
@@ -405,7 +406,7 @@ def closed_partitions(bed_files, bam_files, gtf_files, nthreads, part_merge_dist
     this terminates.  min_partition_items is not used, as the counts are of the items
     read, not of the whole input"""
     while True:
-        logging.info(f"partitioning over {len(regions)} regions")
+        logging.info("partitioning over %s", plural(len(regions), 'region'))
         partitions = list(scan_partitions(bed_files, bam_files, gtf_files, nthreads, 0,
                                           part_merge_dist, regions, tmp_dir))
         grown = covered_regions(partitions)
@@ -433,12 +434,12 @@ def build_partitions(bed_files, bam_files, gtf_files, nthreads, min_partition_it
         write_partitions(partitions, part_fh, part_counts)
 
 def report_stats(part_counts):
-    logging.info(f"Number of items: {part_counts.item_count}")
-    logging.info(f"Number of partitions: {part_counts.part_count}")
-    logging.info(f"Min items per partition: {part_counts.min_part_items}")
-    logging.info(f"Max items per partition: {part_counts.max_part_items}")
-    if part_counts.part_count > 0:
-        logging.info(f"Mean items per partition: {part_counts.item_count / part_counts.part_count:.1f}")
+    logging.info(f"input items: {part_counts.item_count}")
+    logging.info(f"partitions: {part_counts.part_count}")
+    logging.info(f"items per partition: minimum {part_counts.min_part_items}, "
+                 f"maximum {part_counts.max_part_items}" +
+                 (f", mean {part_counts.item_count / part_counts.part_count:.1f}"
+                  if part_counts.part_count > 0 else ""))
 
 def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_partition_items,
                     part_merge_dist, region_bed=None, region_specs=()):
@@ -459,7 +460,7 @@ def flair_partition(bed_files, bam_files, gtf_files, ranges_bed, nthreads, min_p
 
 def main():
     args = parse_args()
-    quiet_pipettor_failures()
+    configure_logging()
     with cli.ErrorHandler():
         # inside the handler, so a missing input file is reported as one line
         check_option_ranges(args, count=('min_partition_items', 'part_merge_dist'), positive=('threads',))

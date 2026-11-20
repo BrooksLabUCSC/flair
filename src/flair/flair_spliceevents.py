@@ -8,6 +8,7 @@ from flair.junction_correct import junction_corrector_factory
 from collections import namedtuple
 from flair.io_utils import GenomeFasta, make_run_temp_dir, make_temp_dir, read_manifest_rows
 from flair.output_compress import compressed_path
+from flair.run_logging import plural
 from flair.run_checks import (check_annotation, check_bam_indexes, check_option_ranges, check_seq_names, precheck,
                               report_result_count, count_records)
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
@@ -314,7 +315,7 @@ def spliceevents(args):
     # contain; otherwise it is a directory of this run's own and is removed
     temp_dir = (make_temp_dir(args.output) if args.keep_intermediate
                 else make_run_temp_dir(args.output, args.temp_dir))
-    logging.info('temp directory: %s', temp_dir)
+    logging.info('temporary files in %s', temp_dir)
     try:
         run_spliceevents(args, temp_dir)
     finally:
@@ -345,17 +346,18 @@ def run_spliceevents(args, temp_dir):
     terminal_exons, annot_afe_ss, annot_ale_ss = load_terminal_exons(args, plan.gtf_data,
                                                                      plan.regions if regions is not None else None)
 
-    logging.info(f'correcting reads of {len(allsamples)} samples in {len(plan.regions)} partitions of '
-                 f'{sum(len(c) for c in plan.clusters.values())} clusters, then finding events, '
-                 f'with {args.threads} threads')
+    logging.info("correcting reads of %s in %s of %s, then finding events, with %s",
+                 plural(len(allsamples), 'sample'), plural(len(plan.regions), 'partition'),
+                 plural(sum(len(c) for c in plan.clusters.values()), 'cluster'),
+                 plural(args.threads, 'thread'))
     runner = PartitionRunner(plan.regions, temp_dir, gtf_data=plan.gtf_data, junction_corrector=junction_corrector,
                              threads=args.threads, weights=plan.weights)
-    runner.run(_correct_region_sample, items=allsamples, args=args, terminal_exons=terminal_exons,
-               region_reports=plan.reports, region_clusters=plan.clusters)
-    runner.run(_run_region, args=args, allsamples=allsamples, region_reports=plan.reports,
+    runner.run(_correct_region_sample, items=allsamples, what='correction', args=args,
+               terminal_exons=terminal_exons, region_reports=plan.reports, region_clusters=plan.clusters)
+    runner.run(_run_region, what='events', args=args, allsamples=allsamples, region_reports=plan.reports,
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss)
 
     combine_region_tables(args.output, [p.file_prefix for p in runner])
-    report_result_count('splicing events', count_records(compressed_path(args.output + '.spliceevents.bed')),
+    report_result_count('splicing event', count_records(compressed_path(args.output + '.spliceevents.bed')),
                         remedy='lower --feature_support, --event_support, --event_frac_of_tot or '
                         '--junc_frac_of_event, which an event must pass to be reported')

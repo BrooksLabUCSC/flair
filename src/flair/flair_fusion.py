@@ -135,7 +135,8 @@ def fusion_cmd(args):
                   keep_intermediate=args.keep_intermediate)
 
 def report_nofusions(outputprefix):
-    logging.info('no fusions detected. Exiting')
+    # the empty outputs; the run goes on to report the fusion count, which states
+    # that there are none and what to do about it
     # written through the openers, so that a compressed run gets an empty gzip file
     # rather than an empty file wearing a .gz name
     with open_output(outputprefix + '.fusions.isoforms.bed'):
@@ -329,7 +330,7 @@ def intron_locs(exons, strand):
 def read_annotation(gtf_data):
     "the annotation (GtfData) as id_chimeras uses it"
     genetoinfo, genetoexons, genetoname, chrom_to_gene_pos, juncs_to_gene = parse_gtf(gtf_data)
-    logging.info('continuing to parse annot')
+    logging.info('building the gene, exon and intron lookups')
     gene_to_all_exons = gene_exons_and_junctions(genetoexons, genetoinfo, juncs_to_gene)
     intronLocs, intronToGenome = {}, {}
     for g in genetoexons:
@@ -433,7 +434,7 @@ def align_to_synthetic_genome(output, freadsname, min_fragment_size, threads):
 
 def write_synthetic_junctions(output):
     "OUTPUT.synthetic_aligned.SJ.bed: the junctions of the synthetic alignments to pass flair transcriptome"
-    logging.info('getting ss')
+    logging.info('finding the splice sites of the synthetic alignments')
     with fileOps.AtomicFileCreate(f'{output}.synthetic_aligned.IPSJ.bed') as tmp_bed:
         ipcmd = ('intron-prospector', f'--genome-fasta={output}.synthetic_fusion_genome.fa',
                  f'--intron-bed6={tmp_bed}', '-C', '0.0', '--sj-filter=all',
@@ -482,7 +483,7 @@ def run_synthetic_transcriptome(output, sample_name, threads, frac_support, subs
         transcriptome_command.extend(['--junction_bed', junc_bed])
 
     logging.info('generating fusion transcriptome')
-    logging.info(' '.join(transcriptome_command))
+    logging.debug(' '.join(transcriptome_command))
     run_program(transcriptome_command)
 
 
@@ -554,7 +555,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
     # are ordered 5' to 3' by their position in the read
     # parsed once for everything that needs the annotation.  Without CDS records,
     # which nothing here uses, it takes a third less memory and time
-    logging.info('reading gtf')
+    logging.info('loading annotation GTF')
     gtf_data = gtf_data_parser(gtf, attrs=GtfAttrsSet.FLAIR, include_features=TRANSCRIPT_EXON_FEATURES)
     check_annotation(gtf_data, genome)
     transcriptome_reads = make_chimeric_bams(genome, gtf_data, genome_aligned_bam, output, threads, min_fragment_size,
@@ -576,7 +577,7 @@ def detectfusions(*, genome, gtf, genome_aligned_bam, sample_name, output, threa
                              annot.genetoname)
     else:
         report_nofusions(output)
-    report_result_count('fusions', count_records(compressed_path(output + '.fusions.tsv')) - 1,
+    report_result_count('fusion', count_records(compressed_path(output + '.fusions.tsv')) - 1,
                         remedy='check that the reads are stranded and aligned with minimap2 -ax splice, or '
                         'lower --min_support')
     if not keep_intermediate:

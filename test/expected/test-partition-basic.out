@@ -1,5 +1,3 @@
-Number of items: 81
-Number of partitions: 6
-Min items per partition: 1
-Max items per partition: 59
-Mean items per partition: 13.5
+input items: 81
+partitions: 6
+items per partition: minimum 1, maximum 59, mean 13.5

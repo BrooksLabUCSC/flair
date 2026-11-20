@@ -370,6 +370,15 @@ define cmp_expect
 endef
 
 ##
+# compare a captured log, whose records are stamped with the time they were logged,
+# which is not reproducible: the stamps are dropped first
+##
+define cmp_expect_log
+	sed -i -r -e 's/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} //' $O/$(1)
+	diff $E/$(1) $O/$(1)
+endef
+
+##
 # compare --help output.  argparse writes "-o, --output OUTPUT" from python 3.13
 # on, where 3.12 wrote "-o OUTPUT, --output OUTPUT", and wraps usage lines at
 # different points.  The expected files are in the 3.13 form, so an older python
@@ -630,7 +639,7 @@ test-combine-isoalleles: mkdirs ${GENOME_FA}
 	grep -q 'flair combine drops the allele information' $O/$@.err
 	$(combine_diff)
 
-# combine's own output names every sample an isoform came from and holds their
+# combine's own output names every sample an isoform came from and contains their
 # summed reads: combining it again would give each of those samples all the reads
 test-combine-combined: mkdirs ${GENOME_FA}
 	! flair combine --isoform_beds $E/test-combine.combined.isoforms.bed --genome ${GENOME_FA} -o $O/$@ 2> $O/$@.err
@@ -1523,11 +1532,11 @@ test-spliceevents-restart: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@
 	mkdir -p $O/$@.first && cp $O/$@.spliceevents.*.tsv $O/$@.first/
 	rm $$(ls $O/$@.intermediate/*/*.read_chains.tsv | head -1)
-	flair --log-level INFO spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@ 2> $O/$@.log
+	flair --log-level DEBUG spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@ 2> $O/$@.log
 	test $$(grep -c 'reads to the annotated transcripts' $O/$@.log) -eq 1
 	for f in $O/$@.first/*.tsv; do diff $$f $O/$@.$$(basename $$f | sed 's/^$@\.//') || exit 1; done
 
-# --temp_dir holds the run's own directory, which is removed at the end, and nothing
+# --temp_dir contains the run's own directory, which is removed at the end, and nothing
 # is written beside the output; the events are those of a run using $TMPDIR
 test-spliceevents-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	mkdir -p $O/$@.tmp
@@ -1559,19 +1568,19 @@ partition-tests: test-partition-basic test-partition-adjacent test-partition-min
 test-partition-basic: mkdirs
 	flair_partition --threads=2 --log-level=info --bed=input/partition.test.bed $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_log,$@.out)
 
 # merge adjacent partitions
 test-partition-adjacent: mkdirs
 	flair_partition --threads=2 --part_merge_dist=10000 --log-level=info --bed=input/partition.test.bed $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_log,$@.out)
 
 # minimum reads per partition
 test-partition-min-reads: mkdirs
 	flair_partition --threads=2 --min_partition_items=3  --log-level=info --bed=input/partition.test.bed $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_log,$@.out)
 
 # --region_bed grows each region over the items reaching it, so the partitions are
 # those of the whole input that the regions fall in
@@ -1579,7 +1588,7 @@ test-partition-region: mkdirs
 	flair_partition --threads=2 --log-level=info --bed=input/partition.test.bed --region_bed=input/partition.region.bed \
 	    $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_log,$@.out)
 
 # --region, in either coordinate form, gives the partitions of the same --region_bed
 # regions, so the comparison is with that test's expected files
@@ -1588,6 +1597,7 @@ test-partition-region-opt: mkdirs
 	    --region=chr19:368001-368100 --region='chr6 74285000 74285100' \
 	    $O/$@.ranges.bed >& $O/$@.out
 	diff $E/test-partition-region.ranges.bed $O/$@.ranges.bed
+	sed -i -r -e 's/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} //' $O/$@.out
 	diff $E/test-partition-region.out $O/$@.out
 
 # with bed, sam, and gtf
@@ -1595,7 +1605,7 @@ test-partition-sam: mkdirs
 	flair_partition --threads=2 --log-level=info --bed=input/partition.test.bed --bam=input/tiny.sam --gtf=input/seg1.gencode_v47.gtf \
 	    $O/$@.ranges.bed >& $O/$@.out
 	$(call cmp_expect,$@.ranges.bed)
-	$(call cmp_expect,$@.out)
+	$(call cmp_expect_log,$@.out)
 
 ##
 # library tests with pytest.  test_flair_partition.py reads the basic alignment

@@ -7,6 +7,7 @@ from contextlib import ExitStack
 from functools import partial
 from statistics import median
 from flair import FlairInputDataError
+from flair.run_logging import plural
 from flair.convert_synthetic_to_genome_bed import identify_fusion_problems, fusion_role
 from flair.pycbio.sys import fileOps
 
@@ -391,7 +392,8 @@ def read_pieces(mode, bam, piece_of, min_mapq, only_reads):
     for read in low_quality:
         read_to_pieces.pop(read, None)
     if low_quality:
-        logging.info(f'{mode} chimeras: {len(low_quality)} reads with a piece below MAPQ {min_mapq} left out')
+        logging.info('%s chimeras: %s with a piece below MAPQ %d left out', mode,
+                     plural(len(low_quality), 'read'), min_mapq)
     return read_to_pieces
 
 
@@ -399,7 +401,8 @@ def drop_foldbacks(mode, read_to_pieces):
     foldbacks = [read for read, pieces in read_to_pieces.items() if is_foldback(pieces)]
     for read in foldbacks:
         del read_to_pieces[read]
-    logging.info(f'{mode} chimeras: {len(foldbacks)} fold-back reads of {len(read_to_pieces) + len(foldbacks)} left out')
+    logging.info('%s chimeras: %s of %d left out', mode, plural(len(foldbacks), 'fold-back read'),
+                 len(read_to_pieces) + len(foldbacks))
 
 
 def consensus_gene(genes):

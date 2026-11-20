@@ -2,13 +2,13 @@
 position sorted BED and VCF output."""
 
 import os
-import logging
 import tempfile
 from contextlib import contextmanager
 import pipettor
 import pysam
 from flair import FlairInputDataError, FlairToolError
 from flair.output_compress import compressed_path
+from flair.run_logging import debug_logging
 from flair.pycbio.sys import fileOps
 
 # chrom and start, which is Bed.genome_sort_key, kept stable so that rows at one
@@ -126,15 +126,6 @@ def _program_names(cmds):
     return ' | '.join(os.path.basename(command[0]) for command in commands)
 
 
-def quiet_pipettor_failures():
-    """pipettor logs a failed process at ERROR, with a traceback of the flair code
-    that started it; run_program reports the failure as a tool error instead, so the
-    record is dropped unless debug logging was asked for.  Called by each program
-    once logging is configured."""
-    if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
-        logging.getLogger(pipettor.LOGGER_NAME).setLevel(logging.CRITICAL)
-
-
 def _program_failed_msg(cmds, exc):
     """A failed program's message, with its own diagnostics when pipettor captured
     them.  The cause does not survive a process pool worker, so the diagnostics must
@@ -147,7 +138,10 @@ def _program_failed_msg(cmds, exc):
 def run_program(cmds, **kwargs):
     """Run a program, or a pipeline of them, reporting a failure as a tool error with
     the program's own diagnostics, so that a traceback of the flair code that started
-    it adds nothing."""
+    it adds nothing.  With debug logging their stderr is inherited rather than
+    captured, so that what a flair program run this way logs is printed as it runs."""
+    if debug_logging() and ('stderr' not in kwargs):
+        kwargs['stderr'] = None
     try:
         pipettor.run(cmds, **kwargs)
     except pipettor.ProcessException as exc:

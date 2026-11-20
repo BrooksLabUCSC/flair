@@ -172,6 +172,22 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * A run reports its progress.  The default logging level is `INFO` rather than
+    `WARNING`, which printed nothing at all until something went wrong: a run that
+    took hours was silent, and finished, running and hung looked alike.  A run now
+    reports its version and command line, each stage as it starts, each partition or
+    batch as it finishes, with its region, its size and its time, and what it
+    produced.  `--log-level WARNING` restores the old output.
+  * Each log record is stamped with the time it was logged, and a warning with its
+    level, so that a warning stands out in the progress of a long run.
+  * The FLAIR programs a run starts, `flair_partition` and `count_sam_transcripts`,
+    are given the run's logging level.  Their progress and their diagnostics could
+    not be printed at any level before.  With debug logging their output is printed
+    as they run rather than captured, so `--log-debug` now reaches every read
+    `count_sam_transcripts` drops and the reason for it.
+  * `count_sam_transcripts` reports an input error as one line, as the subcommands
+    do, rather than as a Python traceback inside the diagnostics of the pipeline
+    that runs it.
   * An error is reported whatever `--log-level` was given.  A run that failed with
     `--log-level CRITICAL` used to exit 1 with nothing printed, since the error was
     reported at the `ERROR` level (pycbio `cli.ErrorHandler`).

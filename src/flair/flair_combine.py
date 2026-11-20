@@ -633,6 +633,6 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     make_big_bed(genome_fa, output + '.chrom.sizes', output + '.combined.isoforms')
     genome_fa.close()
 
-    report_result_count('combined isoforms', count_records(compressed_path(output + '.combined.isoforms.bed')),
+    report_result_count('combined isoform', count_records(compressed_path(output + '.combined.isoforms.bed')),
                         remedy='lower --min_reads or --min_percent_usage, which an isoform must pass in one '
                         'sample to be kept')

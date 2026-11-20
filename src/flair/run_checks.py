@@ -8,6 +8,7 @@ import logging
 import pysam
 from flair import FlairInputDataError
 from flair.io_utils import check_genome_fasta
+from flair.run_logging import plural, plural_noun
 from flair.pycbio.sys import fileOps
 
 # the range a numeric option takes: its bounds, how the message states them, and what
@@ -148,14 +149,15 @@ def _given(paths):
     return [path for path in paths if path is not None]
 
 
-def report_result_count(what, count, *, remedy):
+def report_result_count(what, count, *, remedy, plural_what=None):
     """What a finished run produced, warning when it is nothing: an empty result is
-    otherwise the same to look at as a run with nothing to report.  remedy states what
-    to do about an empty one."""
+    otherwise the same to look at as a run with nothing to report.  what is the
+    singular noun of what was produced, plural_what its plural where adding s is
+    wrong, and remedy states what to do about an empty result."""
     if count == 0:
-        logging.warning('no %s; %s', what, remedy)
+        logging.warning('no %s; %s', plural_noun(0, what, plural_what), remedy)
     else:
-        logging.info('%d %s', count, what)
+        logging.info('%s', plural(count, what, plural_what))
 
 
 def count_records(path):

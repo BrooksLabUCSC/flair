@@ -1557,13 +1557,13 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
         # aligning to reference transcriptome, then identifying reads that match well to reference transcripts
         # with filter_transcriptome_align
         if not args.no_align_to_annot:
-            logging.info('aligning to transcriptome reference')
+            logging.debug('aligning to transcriptome reference')
         read_to_annot_transcript = identify_good_match_to_annot(
             partition.file_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
             directRNA=args.directRNA, trust_strand=args.trust_strand,
             fusion_breakpoints=args.fusion_breakpoints)
 
-        logging.info('correcting and grouping reads, filtering isoforms')
+        logging.debug('correcting and grouping reads, filtering isoforms')
 
         # takes in bam file, for each read attempts to correct splice junctions (removes unsupported ones), then groups reads by junction chains
         # this also handles read strandedness if necessary
@@ -1594,7 +1594,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             # also adjusts isoform strand, determines novel isoform and gene names
             # also normalizes transcript ends (temporarily extends ends so that transcript end alignment does not drive transcript assignment during transcriptome alignment)
             # writes out bed and fa files
-            logging.info('realigning to firstpass and getting final isoforms')
+            logging.debug('realigning to firstpass and getting final isoforms')
             write_firstpass(partition.file_prefix, region.name, firstpass, annots, genome, unique_bound=iso_to_unique_bound)
 
             # reads matching a firstpass isoform exactly are assigned without the realignment,
@@ -1606,8 +1606,8 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
                 direct = direct_assignments(spliced_reads, firstpass.values(),
                                             read_unique_bounds(partition.output_path('firstpass.uniquebound.tsv')))
                 unassignable = unassignable_reads(spliced_reads, firstpass.values(), args.ss_window)
-                logging.info(f'{len(direct)} reads assigned to firstpass isoforms without realignment, '
-                             f'{len(unassignable)} not realigned as no firstpass isoform can take them')
+                logging.debug(f'{len(direct)} reads assigned to firstpass isoforms without realignment, '
+                              f'{len(unassignable)} not realigned as no firstpass isoform can take them')
 
             # aligns the other spliced reads to the spliced firstpass isoforms, identifies best read -> isoform
             # alignment for each read, then gets read counts per isoform
@@ -1632,7 +1632,7 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
             with open(partition.output_path('isoforms.ends.tsv'), 'a') as ends_fh:
                 write_direct_assignments(direct, ReadEndsWriter(None, outFh=ends_fh, writeHeader=False))
         else:
-            logging.info('no firstpass isoforms found')
+            logging.debug('no firstpass isoforms found')
             generate_empty_intermediate_files(partition.file_prefix, ['.firstpass.fa', '.firstpass.bed', '.isoforms.counts.tsv', '.countsam.read.map.tsv', '.isoforms.ends.tsv'])
 
         # every spliced isoform's ends, from the reads assigned to it; this also writes
@@ -1850,7 +1850,8 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
 
         runner = PartitionRunner(regions, temp_dir, gtf_data=annot_gtf_data, junction_corrector=junction_corrector,
                                  threads=args.threads, weights=weights)
-        logging.info(f'number of partitions: {len(runner)}')
+        # the partition count and the distribution of their sizes are reported by
+        # flair_partition, which runs at this run's log level
         report_partition_sizes(regions, weights)
 
         logging.info('running partitions')
@@ -1866,7 +1867,7 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
 
         make_big_bed(genome_fa, temp_dir + 'chrom.sizes', args.output + '.isoforms')
 
-        report_result_count('isoforms', count_records(compressed_path(args.output + '.isoforms.bed')),
+        report_result_count('isoform', count_records(compressed_path(args.output + '.isoforms.bed')),
                             remedy='lower --sjc_support, --single_exon_support or --frac_support, or check that '
                             'the reads are aligned to the genome and annotation given')
 

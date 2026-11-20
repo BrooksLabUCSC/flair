@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import os
+import time
 import pysam
 import shutil
 import itertools
@@ -14,6 +15,7 @@ from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import GenomeFasta, make_run_temp_dir, read_manifest_rows
 from flair.run_checks import check_option_ranges, precheck, report_result_count
+from flair.run_logging import plural, report_task_done, start_task_progress
 from flair.output_compress import compressed_path, open_seekable_output
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedBlock
@@ -588,8 +590,11 @@ def count_fusions(fusions, sample_data, temp_dir, genome_file, threads, trust_en
 def _count_batch_task(packed):
     batch = packed[0]
     thread_share.task_start(batch['weight'])
+    start_time = time.time()
     try:
-        return count_batch(*packed)
+        result = count_batch(*packed)
+        report_task_done('batch', plural(len(batch['gene_ids']), 'gene'), start_time)
+        return result
     finally:
         thread_share.task_done()
 
@@ -652,7 +657,7 @@ def write_outputs(results_iter, batch_isoforms, sample_data, gene_data, fusions,
 
 def quantify(*, manifest, genome, isoform_bed, output, threads,
              trust_ends, generate_map, normalize_ends, temp_dir=None, keep_intermediate=False):
-    logging.info('loading isos')
+    logging.info('loading isoforms')
     sample_data = load_manifest(manifest)
     gene_data, fusions = load_isoform_data(isoform_bed)
     check_bam_chromosomes(sample_data, gene_data, fusions, isoform_bed)
@@ -664,9 +669,9 @@ def quantify(*, manifest, genome, isoform_bed, output, threads,
 
     # a directory of this run's own, so no earlier run's files are read
     run_temp_dir = make_run_temp_dir(output, temp_dir)
-    logging.info(f'Re-aligning reads to transcriptome in {len(batches)} batches of genes'
-                 f'{f" and {len(fusions)} fusion isoforms" if fusions else ""}. '
-                 f'Writing temporary files into {run_temp_dir}')
+    logging.info('temporary files in %s', run_temp_dir)
+    logging.info('realigning reads to the transcriptome in %s of genes%s', plural(len(batches), 'batch', 'batches'),
+                 f" and {plural(len(fusions), 'fusion isoform')}" if fusions else '')
     try:
         fusion_results, fusion_reads = count_fusions(fusions, sample_data, run_temp_dir, genome, threads, trust_ends,
                                                      generate_map, keep_intermediate)
@@ -678,6 +683,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads,
         batch_isoforms = [set(fusions)] + [{bed.name for bed in batch_beds} for _, batch_beds, *_ in packed]
         # minimap2 borrows threads left idle as the pool drains, more for batches of more isoforms
         thread_share.init(threads, len(packed), max((batch['weight'] for batch in batches), default=1))
+        start_task_progress(len(packed))
         if threads == 1:
             set_batch_lookups(*lookups)
             totals = write_outputs(itertools.chain([fusion_results], map(_count_batch_task, packed)), batch_isoforms,
@@ -689,7 +695,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads,
         for (sample, *_), total in zip(sample_data, totals):
             if total == 0:
                 logging.warning(f'sample {sample} has no reads counted for any isoform; its CPM are 0')
-        report_result_count('reads counted', sum(totals),
+        report_result_count('read counted', sum(totals), plural_what='reads counted',
                             remedy='check that the reads are aligned to the genome given and that the isoforms '
                             'are of the same assembly, or raise --quality')
         counts_tsv = compressed_path(output + '.isoforms.counts.tsv')
