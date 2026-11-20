@@ -312,7 +312,7 @@ COMBINE_MANIFEST = $I/combine.bed_only.manifest.txt
 # that, with the compressed copies following from it.
 ##
 MANIFEST_NAMES = basic.bam_manifest.txt spliceevents.manifest.tsv \
-	spliceevents.multi.manifest.tsv
+	spliceevents.multi.manifest.tsv spliceevents.conditions.manifest.tsv
 OUT_MANIFESTS = ${MANIFEST_NAMES:%=$O/%}
 OUT_MANIFEST_GZS = $O/basic.bam_manifest.txt.gz $O/spliceevents.manifest.tsv.gz
 
@@ -1469,7 +1469,8 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region test-spliceevents-region-extend \
 		test-spliceevents-region-partition test-spliceevents-smallparts test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
-		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-no-temp-dir test-spliceevents-reuse-other-options test-spliceevents-help
+		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-no-temp-dir test-spliceevents-reuse-other-options \
+		test-spliceevents-conditions test-spliceevents-help
 
 # a rerun with --keep_intermediate and other correction options corrects the samples
 # again rather than reading the first run's corrected reads, which are not what this
@@ -1481,6 +1482,14 @@ test-spliceevents-reuse-other-options: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --ss_window 50 -o $O/$@-clean
 	diff $O/$@-clean.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
 	diff $O/$@-clean.spliceevents.psi_junc.tsv $O/$@.spliceevents.psi_junc.tsv
+
+# a manifest of the four flair quantify fields: the conditions are written beside the
+# counts as the sample info file flair diffexp reads, and the counts are those of the
+# same samples named in the two field form (test-spliceevents-outliers)
+test-spliceevents-conditions: mkdirs ${SPLICEEVENTS_MULTI_BAMS} $O/spliceevents.conditions.manifest.tsv
+	flair spliceevents -m $O/spliceevents.conditions.manifest.tsv -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
+	$(call cmp_expect,$@.spliceevents.sample_info.tsv)
+	diff $E/test-spliceevents-outliers.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out

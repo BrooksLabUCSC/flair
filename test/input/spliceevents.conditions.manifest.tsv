@@ -1,0 +1,6 @@
+s1	ctl	b1	output/spliceevents.s1.bam
+s2	ctl	b1	output/spliceevents.s2.bam
+s3	ctl	b1	output/spliceevents.s3.bam
+s4	test	b1	output/spliceevents.s4.bam
+s5	test	b1	output/spliceevents.intron_retention.bam
+s6	test	b1	output/spliceevents.exon_inclusion.bam

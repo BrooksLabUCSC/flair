@@ -8,6 +8,7 @@ from flair.counts_matrix_tsv import CountsRow
 from flair.flair_quantify import (load_manifest, load_isoform_data, check_bam_chromosomes,
                                   write_cpm_matrix)
 from flair.flair_spliceevents import read_manifest as spliceevents_manifest
+from flair.sample_info_tsv import SampleInfo
 
 _HEADER = pysam.AlignmentHeader.from_dict({'SQ': [{'SN': 'chr1', 'LN': 2000}]})
 
@@ -68,7 +69,21 @@ def test_quantify_manifest_needs_indexed_bams(tmp_path):
 
 def test_spliceevents_manifest(tmp_path):
     bam = _bam(tmp_path / 's1.bam')
-    assert spliceevents_manifest(_manifest(tmp_path, '# sample\tbam', f's1\t{bam}')) == [('s1', bam)]
+    assert spliceevents_manifest(_manifest(tmp_path, '# sample\tbam', f's1\t{bam}')) == ([('s1', bam)], None)
+
+
+def test_spliceevents_manifest_with_conditions(tmp_path):
+    "the four field form, which is a flair quantify manifest"
+    bam = _bam(tmp_path / 's1.bam')
+    samples, sample_infos = spliceevents_manifest(_manifest(tmp_path, f's1\tctl\tb0\t{bam}'))
+    assert samples == [('s1', bam)]
+    assert sample_infos == [SampleInfo('s1', 'ctl', 'b0')]
+
+
+def test_spliceevents_manifest_of_both_forms(tmp_path):
+    bam = _bam(tmp_path / 's1.bam')
+    with pytest.raises(FlairInputDataError, match='these have 2 and 4'):
+        spliceevents_manifest(_manifest(tmp_path, f's1\t{bam}', f's2\tctl\tb0\t{bam}'))
 
 
 def _iso(name, gene_id, chrom='chr1', strand='+', exons=((100, 200), (300, 400))):

@@ -149,19 +149,19 @@ def describe_ids(ids):
 
 
 class CountsFormat(namedtuple('CountsFormat', ('program', 'group_column', 'feature_column', 'id_columns',
-                                               'unreported_feature'))):
+                                               'unreported_feature', 'row_noun'))):
     """A table of integer counts that the differential usage tests read: its
     id_columns, then a column per sample.  Rows of one group_column value are
     compared against each other, each named by its feature_column value.  Rows of the
     unreported_feature, if any, count toward their group's total but are not tested
-    themselves."""
+    themselves.  row_noun names one row in a message about the table."""
     __slots__ = ()
 
 
-QUANTIFY_COUNTS = CountsFormat('flair quantify', 'gene_id', 'isoform_id', ID_COLUMNS, None)
+QUANTIFY_COUNTS = CountsFormat('flair quantify', 'gene_id', 'isoform_id', ID_COLUMNS, None, 'isoform')
 # an event's other row contains its reads of none of its alternatives
 SPLICEEVENTS_COUNTS = CountsFormat('flair spliceevents', 'event', 'alternative',
-                                   splicing_events_tsv.EVENT_COLUMNS, 'other')
+                                   splicing_events_tsv.EVENT_COLUMNS, 'other', 'event alternative')
 COUNTS_FORMATS = (QUANTIFY_COUNTS, SPLICEEVENTS_COUNTS)
 
 def counts_format(columns, counts_tsv):

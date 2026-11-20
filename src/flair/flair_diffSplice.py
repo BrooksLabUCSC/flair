@@ -6,7 +6,9 @@ import sys
 import pipettor
 import logging
 from flair import FlairInputDataError, FlairToolError
-from flair.run_checks import check_option_ranges, precheck
+from flair.io_utils import remove_on_failure
+from flair.run_checks import (check_option_ranges, count_records, precheck,
+                              report_result_count)
 from flair.conditions import select_condition_pair
 from flair.counts_matrix_tsv import read_isoform_ids, describe_ids
 from flair.drimseq_input import check_feature_ids_unique
@@ -25,6 +27,9 @@ es_as_inc_excl_to_counts = osp.join(pkgdir, "es_as_inc_excl_to_counts.py")
 
 BED_NAME_COLUMN = 3
 FEATURE_ID_COLUMN = 0
+
+# the alternative splicing events called, in the order they are reported
+EVENT_TYPES = ('es', 'alt5', 'alt3', 'ir')
 
 # the programs a run executes, checked before it starts
 PROGRAMS = ('Rscript',)
@@ -140,19 +145,57 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(output, 'workdir')
-    if overwrite_output:
-        if not os.path.exists(workdir):
-            os.makedirs(workdir)
-        pass
-    elif not os.path.exists(output):
-        try:
-            os.makedirs(workdir, 0o700)
-        except OSError as ex:
-            raise OSError(f"cannot create the working directory {workdir}") from ex
-    else:
+    made_output_dir = make_output_dir(output, workdir, overwrite_output)
+
+    # a run that fails before it writes a result leaves nothing, so the rerun under
+    # the same -o is not rejected for the directory being there
+    with remove_on_failure(output, made_output_dir):
+        call_and_test_events(isoform_bed=isoform_bed, counts_matrix=counts_matrix, output=output,
+                             workdir=workdir, threads=threads, test=test, batch=batch,
+                             condition_a=condition_a, condition_b=condition_b,
+                             min_samps_gene_expr=min_samps_gene_expr,
+                             min_samps_feature_expr=min_samps_feature_expr,
+                             min_gene_expr=min_gene_expr, min_feature_expr=min_feature_expr)
+
+
+def make_output_dir(output, workdir, overwrite_output):
+    """The output directory and the working directory inside it, returning whether
+    this run made the output directory.  A directory that is already there is an
+    error without --overwrite_output: its files are of another run, and the two sets
+    would be read as one."""
+    made = not os.path.exists(output)
+    if not (overwrite_output or made):
         raise FlairInputDataError(f"output directory {output} already exists; give another -o, or "
                                   f"--overwrite_output to write into this one")
+    os.makedirs(workdir, 0o700, exist_ok=True)
+    return made
 
+
+def report_event_counts(filebase):
+    """The events of each type the run called, which are otherwise four tables to
+    open."""
+    counts = {event: max(count_records(compressed_path(f'{filebase}.{event}.events.quant.tsv')) - 1, 0)
+              for event in EVENT_TYPES}
+    logging.info('events called: %s', ', '.join(f'{event} {count}' for event, count in counts.items()))
+    report_result_count('splicing event', sum(counts.values()),
+                        remedy='check that the isoform BED is the one the counts matrix was made from, '
+                        'and that its genes have more than one isoform')
+
+
+def report_tested_events(output, condition_a, condition_b):
+    "what DRIMSeq reported for each event type, which an empty table does not state"
+    for event in EVENT_TYPES:
+        path = drimseq_result_path(output, event, condition_a, condition_b)
+        report_result_count(f'{event} event with differential usage', max(count_records(path) - 1, 0),
+                            plural_what=f'{event} events with differential usage',
+                            remedy='check that the conditions compared are the ones meant, or lower '
+                            '--min_samps_gene_expr and --min_samps_feature_expr')
+
+
+def call_and_test_events(*, isoform_bed, counts_matrix, output, workdir, threads, test, batch,
+                         condition_a, condition_b, min_samps_gene_expr, min_samps_feature_expr,
+                         min_gene_expr, min_feature_expr):
+    "call the events of the isoforms and their counts, and test them when asked to"
     filebase = os.path.join(output, 'diffsplice')
     # the event callers are separate processes, so each is told whether to compress;
     # the exon skipping one writes to stdout, so this process opens that file
@@ -166,6 +209,8 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
     with fileOps.opengz(compressed_path(filebase + '.es.events.quant.tsv'), 'w') as quant_fh:
         call_events(es_as_inc_excl_to_counts, [counts_matrix, es_events_tsv], stdout=quant_fh)
     os.unlink(es_events_tsv)
+
+    report_event_counts(filebase)
 
     # --condition_a and --batch imply --test, as each is only used in the testing
     # below: given without it, they were read and nothing was done with them
@@ -195,10 +240,13 @@ def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_
         if batch:
             ds_command += ['--batch']
         with open(workdir + '/ds.stderr.txt', 'w') as ds_stderr:
-            for event in ('es', 'alt5', 'alt3', 'ir'):
+            for event in EVENT_TYPES:
                 run_drimseq_event(ds_command, event, filebase, workdir, ds_stderr,
                                   output, condition_a, condition_b, sample_infos)
+        report_tested_events(output, condition_a, condition_b)
     else:
+        logging.info('no statistical test was run: give --condition_a and --condition_b, or --test, '
+                     'to test the events with DRIMSeq')
         # workdir only necessary for drimseq output
         os.rmdir(workdir)
 

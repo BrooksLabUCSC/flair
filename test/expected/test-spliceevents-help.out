@@ -126,9 +126,12 @@ options:
 
 required named arguments:
   -m, --manifest MANIFEST
-                        tab-separated manifest of sample name and path to its
-                        sorted and indexed bam file aligned to the genome, a
-                        line per sample
+                        tab-separated manifest, a line per sample: its name
+                        and the path to its sorted and indexed bam file
+                        aligned to the genome, or the four fields of a flair
+                        quantify manifest, the name, its condition, its batch
+                        and that file. With the conditions, the sample info
+                        file flair diffexp reads is written beside the counts
   -g, --genome GENOME   FASTA of reference genome, can be minimap2 indexed
   -f, --gtf GTF         GTF annotation file, used for correcting reads and
                         assigning them to genes

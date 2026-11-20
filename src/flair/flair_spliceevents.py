@@ -9,6 +9,7 @@ from collections import namedtuple
 from flair.io_utils import GenomeFasta, make_run_temp_dir, make_temp_dir, read_manifest_rows
 from flair.output_compress import compressed_path
 from flair.reuse import provenance, record_provenance, reuse_file
+from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.run_logging import plural
 from flair.run_checks import (check_annotation, check_bam_indexes, check_option_ranges, check_seq_names, precheck,
                               report_result_count, count_records)
@@ -54,8 +55,11 @@ def add_subparser(subparsers):
                                    description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-m', '--manifest', required=True,
-                          help='tab-separated manifest of sample name and path to its sorted and indexed bam '
-                               'file aligned to the genome, a line per sample')
+                          help='tab-separated manifest, a line per sample: its name and the path to its '
+                               'sorted and indexed bam file aligned to the genome, or the four fields of a '
+                               "flair quantify manifest, the name, its condition, its batch and that file.  "
+                               'With the conditions, the sample info file flair diffexp reads is written '
+                               'beside the counts')
     required.add_argument('-g', '--genome', required=True, type=str,
                           help='FASTA of reference genome, can be minimap2 indexed')
     required.add_argument('-f', '--gtf', dest='annot', metavar='GTF', required=True,
@@ -231,10 +235,32 @@ def _run_region(*, partition, gtf_data, junction_corrector, args, allsamples, re
             os.remove(read_chains_path(partition, sample))
 
 
+def write_counts_sample_info(output, sample_infos):
+    """The conditions of the counts table's columns, beside it, as flair quantify
+    writes them, so that flair diffexp reads the events without a file written by
+    hand.  A manifest that names no conditions gets none."""
+    if sample_infos is None:
+        return
+    counts_tsv = compressed_path(output + '.spliceevents.counts.tsv')
+    write_sample_info(sample_info_path(counts_tsv), sample_infos)
+
+
 def read_manifest(path):
-    "a manifest's samples, (name, bam file) each (io_utils.read_manifest_rows)"
-    return [tuple(row) for row in read_manifest_rows(path, (2,), 'a sample name and its sorted, indexed bam file',
-                                                     {1: 'bam file'})]
+    """A manifest's samples, (name, bam file) each, and their SampleInfo when the
+    manifest is the four column form of flair quantify, None when it is the two
+    column form, which names no conditions (io_utils.read_manifest_rows)."""
+    rows = [tuple(row) for row in read_manifest_rows(
+        path, (2, 4), 'a sample name and its sorted, indexed bam file, or that file preceded by the sample '
+        "id, its condition and its batch, as a flair quantify manifest is", {-1: 'bam file'})]
+    counts = {len(row) for row in rows}
+    if len(counts) > 1:
+        raise FlairInputDataError(f'{path}: every line of a manifest has the same number of fields, and '
+                                  'these have 2 and 4; give the condition and the batch of every sample '
+                                  'or of none')
+    samples = [(row[0], row[-1]) for row in rows]
+    sample_infos = ([SampleInfo(row[0], row[1], row[2]) for row in rows]
+                    if counts == {4} else None)
+    return samples, sample_infos
 
 
 def load_gtf(path, regions=None):
@@ -343,7 +369,7 @@ def spliceevents(args):
 
 def run_spliceevents(args, temp_dir):
     "correct each partition's reads, find its events, and combine the partitions' tables"
-    allsamples = read_manifest(args.manifest)
+    allsamples, sample_infos = read_manifest(args.manifest)
     bamfiles = [bamfile for _, bamfile in allsamples]
     # the manifest names the BAMs, so they are checked once it is read
     check_bam_indexes(bamfiles)
@@ -373,6 +399,7 @@ def run_spliceevents(args, temp_dir):
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss)
 
     combine_region_tables(args.output, [p.file_prefix for p in runner])
+    write_counts_sample_info(args.output, sample_infos)
     report_result_count('splicing event', count_records(compressed_path(args.output + '.spliceevents.bed')),
                         remedy='lower --feature_support, --event_support, --event_frac_of_tot or '
                         '--junc_frac_of_event, which an event must pass to be reported')

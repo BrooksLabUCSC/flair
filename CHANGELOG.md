@@ -172,6 +172,25 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * `flair diffexp` and `flair diffsplice` report what they found: the rows of each
+    filtered table, and for diffsplice the events called of each type, warning when
+    a test that ran reported nothing.  Both used to write their tables and report
+    nothing at all.
+  * `flair diffsplice` states that no statistical test was run when neither the
+    conditions nor `--test` were given, where it used to write the four event tables
+    and say nothing.
+  * A `flair diffexp` or `flair diffsplice` run that fails before writing a result
+    removes the output directory it made, so the rerun under the same `-o` is not
+    rejected for the directory being there.  A directory given with
+    `--overwrite_output` is left alone.
+  * `flair spliceevents` takes a `flair quantify` manifest, the sample id, its
+    condition, its batch and its BAM, and writes
+    `OUTPUT.spliceevents.sample_info.tsv` beside its counts.  The conditions of a
+    spliceevents counts table had to be written into that file by hand before
+    `flair diffexp` would read it.
+  * `flair diffexp`'s messages about the rows of a counts table name them for the
+    table: an event alternative for a spliceevents table, an isoform for a quantify
+    one.
   * flair fusion reuses the chimeric BAMs of an earlier run under the same output
     name only where they were made from the same reads, genome, annotation and
     options, which is recorded in a `.provenance.json` beside each of them.  A rerun

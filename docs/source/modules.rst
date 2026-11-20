@@ -499,10 +499,10 @@ expression, so there are no DESeq2 tables.  An event's ``other`` row counts towa
 total, but is not tested.  In the outputs, the ``gene_id`` column contains the event and
 the ``feature_id`` or ``isoform_id`` column ``event|alternative``.
 
-flair spliceevents does not record conditions, so write the sample info file that
-``flair quantify`` would beside the counts, named for them:
-``OUTPUT.spliceevents.sample_info.tsv``, a header and then a line per sample column, in
-the order of the columns:
+``flair spliceevents`` writes that sample info file itself when its manifest names
+the conditions, the four field form.  With the two field form it has none to write,
+so write ``OUTPUT.spliceevents.sample_info.tsv`` beside the counts yourself, a header
+and then a line per sample column, in the order of the columns:
 
 .. code:: text
 
@@ -776,6 +776,16 @@ indexed bam file, a line per sample::
 
    sample1	sample1.genome_aligned.bam
    sample2	sample2.genome_aligned.bam
+
+It may instead be a ``flair quantify`` manifest, the same four fields: the sample id,
+its condition, its batch and the bam file.  The conditions are written beside the
+counts table as ``OUTPUT.spliceevents.sample_info.tsv``, which is what ``flair
+diffexp`` reads to compare the events of two conditions::
+
+   sample1	ctl	batch1	sample1.genome_aligned.bam
+   sample2	test	batch1	sample2.genome_aligned.bam
+
+Every line has the same number of fields; a manifest of both forms is an error.
 
 **Outputs**
 

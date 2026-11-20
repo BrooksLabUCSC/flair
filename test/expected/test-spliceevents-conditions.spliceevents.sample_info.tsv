@@ -1,0 +1,7 @@
+sample_id	condition	batch
+s1	ctl	b1
+s2	ctl	b1
+s3	ctl	b1
+s4	test	b1
+s5	test	b1
+s6	test	b1

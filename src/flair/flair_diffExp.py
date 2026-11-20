@@ -15,13 +15,14 @@
 import logging
 import os
 import os.path as osp
-import errno
 from collections import Counter
 from statistics import median, mean
 import pipettor
 
 from flair import FlairInputDataError, FlairToolError
-from flair.run_checks import check_option_ranges, precheck
+from flair.io_utils import remove_on_failure
+from flair.run_checks import (check_option_ranges, count_records, precheck,
+                              report_result_count)
 from flair.conditions import condition_column_indexes, select_condition_pair
 from flair.counts_matrix_tsv import QUANTIFY_COUNTS, CountsRow, read_grouped_counts, write_counts_matrix
 from flair.deseq2_counts_tsv import write_deseq2_counts
@@ -151,7 +152,7 @@ def row_ttest(ttest_ind, row, genetot, ref_cols, test_cols):
     # ranksums() wast too strict for small replicates
     return deltausage, ttest_ind(wtcounts, varcounts).pvalue
 
-def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
+def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported, counts_format):
     """the t-test of each row but those of unreported, whose counts are in their
     gene's total all the same"""
     # imported here rather than at module scope; scipy takes 0.7s to import and
@@ -169,10 +170,10 @@ def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
             alldeltas.append(deltausage)
 
     if len(allpval) == 0:
-        raise FlairInputDataError(f"no isoform's median count differs between the two conditions by more "
-                                  f"than {MIN_MEDIAN_COUNT_DIFF} reads, so there is nothing to test; check "
-                                  "that the conditions compared are the ones meant and that the matrix "
-                                  "contains read counts rather than counts per million")
+        raise FlairInputDataError(f"no {counts_format.row_noun}'s median count differs between the two "
+                                  f"conditions by more than {MIN_MEDIAN_COUNT_DIFF} reads, so there is "
+                                  "nothing to test; check that the conditions compared are the ones meant "
+                                  "and that the matrix contains read counts rather than counts per million")
 
     # Apply multiple-testing correction.  This is Holm-Sidak, not Benjamini-Hochberg
     # as this comment used to read: the adjusted values control the family-wise error
@@ -182,7 +183,7 @@ def do_mtc_ttest(rows, gene_to_tot_counts, ref_cols, test_cols, unreported):
     return allids, alldeltas, corrpval
 
 
-def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols, unreported):
+def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols, unreported, counts_format):
     """
     This function runs t-tests with multiple testing correction on isoform counts normalized by gene
     This method essentially does differential isoform usage testing, but accounts for differences in gene expression
@@ -190,7 +191,8 @@ def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols, unreporte
     """
 
     gene_to_tot_counts = get_gene_to_counts(norm_rows)
-    allids, alldeltas, corrpval = do_mtc_ttest(norm_rows, gene_to_tot_counts, ref_cols, test_cols, unreported)
+    allids, alldeltas, corrpval = do_mtc_ttest(norm_rows, gene_to_tot_counts, ref_cols,
+                                               test_cols, unreported, counts_format)
 
     with iso_usage_change_writer(outname) as out:
         for i in range(len(allids)):
@@ -365,59 +367,90 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
 
     # Create output directory including a working directory for intermediate files.
     workdir = os.path.join(out_dir, 'workdir')
+    made_out_dir = make_output_dir(out_dir, workdir, force_dir)
 
-    if force_dir:
-        if not os.path.exists(workdir):
-            os.makedirs(workdir)
-        pass
-    elif not os.path.exists(out_dir):
-        try:
-            os.makedirs(workdir, 0o700)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-    else:
+    # a run that fails before it writes a result leaves nothing, so the rerun under
+    # the same -o is not rejected for the directory being there
+    with remove_on_failure(out_dir, made_out_dir):
+        # the normalized rows keep the counts matrix column order, so the same column
+        # indexes apply to them
+        norm_rows = calc_gene_norm_sig(workdir, counts_rows, samples)
+        get_sig_from_norm_by_gene(compressed_path(out_dir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
+                                  norm_rows, a_cols, b_cols, grouped.unreported, grouped.format)
+
+        # Convert count tables to dataframe and update isoform objects.
+        genes, isoforms = separate_tables(counts_rows, s_filter, samples, a_cols, b_cols, workdir)
+
+        # DESeq2 models batch when the formula matrix has a batch column, so it is
+        # written only when batch varies and is not a linear combination of condition.
+        # The no-batch branches used to differ only in a stray leading space in the
+        # condition column name
+        with_batch = (len(combos) != 2) and (len(set(batches)) > 1)
+        formula_rows = [FormulaRow(sample, group, batch)
+                        for sample, group, batch in zip(samples, groups, batches)]
+
+        formula_matrix_file = workdir + "/formula_matrix.tsv"
+        write_formula_matrix(formula_matrix_file, formula_rows, with_batch=with_batch)
+
+        iso_matrix_file = workdir + "/filtered_iso_counts_ds2.tsv"
+        gene_matrix_file = workdir + "/filtered_gene_counts_ds2.tsv"
+        drim_matrix_file = workdir + "/filtered_iso_counts_drim.tsv"
+
+        # DESeq2 genes & isoforms.  An event's reads are not the expression of a gene, so
+        # of flair spliceevents counts only usage is tested
+        expression_tested = grouped.format is QUANTIFY_COUNTS
+        if expression_tested:
+            run_deseq2("genes_deseq2", workdir, condition_a, condition_b, gene_matrix_file, out_dir, formula_matrix_file)
+            run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, iso_matrix_file, out_dir, formula_matrix_file)
+        else:
+            logging.info(f'{quant_table_tsv} is of {grouped.format.program}: testing usage only, '
+                         'not expression with DESeq2')
+
+        # DIRMSeq, its results of the rows that are not tested left out
+        unreported_file = workdir + "/unreported_features.txt"
+        with open(unreported_file, 'w') as fh:
+            fh.writelines(feature_id + '\n' for feature_id in sorted(grouped.unreported))
+        run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir,
+                    formula_matrix_file, unreported_file)
+        report_results(out_dir, condition_a, condition_b, grouped.format, expression_tested)
+
+
+def make_output_dir(out_dir, workdir, force_dir):
+    """The output directory and the working directory inside it, returning whether
+    this run made the output directory.  A directory that is already there is an
+    error without --overwrite_output: its files are of another run, and the two sets
+    would be read as one."""
+    made = not os.path.exists(out_dir)
+    if not (force_dir or made):
         raise FlairInputDataError(f"output directory {out_dir} already exists; give another -o, or "
                                   f"--overwrite_output to write into this one")
+    os.makedirs(workdir, 0o700, exist_ok=True)
+    return made
 
-    # the normalized rows keep the counts matrix column order, so the same column
-    # indexes apply to them
-    norm_rows = calc_gene_norm_sig(workdir, counts_rows, samples)
-    get_sig_from_norm_by_gene(compressed_path(out_dir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
-                              norm_rows, a_cols, b_cols, grouped.unreported)
 
-    # Convert count tables to dataframe and update isoform objects.
-    genes, isoforms = separate_tables(counts_rows, s_filter, samples, a_cols, b_cols, workdir)
+# each filtered table a run writes, as (the noun for one row, its plural, the file)
+def _result_tables(condition_a, condition_b, row_noun, expression_tested):
+    tables = [(f'{row_noun} with differential usage', f'{row_noun}s with differential usage',
+               f'isoforms_drimseq_{condition_a}_v_{condition_b}.tsv'),
+              (f'{row_noun} whose usage changes by the t-test', f'{row_noun}s whose usage changes by the t-test',
+               'isoforms_sig_exp_change_norm_by_gene.tsv')]
+    if expression_tested:
+        tables = [('differentially expressed gene', None, f'genes_deseq2_{condition_a}_v_{condition_b}.tsv'),
+                  ('differentially expressed isoform', None,
+                   f'isoforms_deseq2_{condition_a}_v_{condition_b}.tsv')] + tables
+    return tables
 
-    # DESeq2 models batch when the formula matrix has a batch column, so it is
-    # written only when batch varies and is not a linear combination of condition.
-    # The no-batch branches used to differ only in a stray leading space in the
-    # condition column name
-    with_batch = (len(combos) != 2) and (len(set(batches)) > 1)
-    formula_rows = [FormulaRow(sample, group, batch)
-                    for sample, group, batch in zip(samples, groups, batches)]
 
-    formula_matrix_file = workdir + "/formula_matrix.tsv"
-    write_formula_matrix(formula_matrix_file, formula_rows, with_batch=with_batch)
-
-    iso_matrix_file = workdir + "/filtered_iso_counts_ds2.tsv"
-    gene_matrix_file = workdir + "/filtered_gene_counts_ds2.tsv"
-    drim_matrix_file = workdir + "/filtered_iso_counts_drim.tsv"
-
-    # DESeq2 genes & isoforms.  An event's reads are not the expression of a gene, so
-    # of flair spliceevents counts only usage is tested
-    if grouped.format is QUANTIFY_COUNTS:
-        run_deseq2("genes_deseq2", workdir, condition_a, condition_b, gene_matrix_file, out_dir, formula_matrix_file)
-        run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, iso_matrix_file, out_dir, formula_matrix_file)
-    else:
-        logging.info(f'{quant_table_tsv} is of {grouped.format.program}: testing usage only, not expression with DESeq2')
-
-    # DIRMSeq, its results of the rows that are not tested left out
-    unreported_file = workdir + "/unreported_features.txt"
-    with open(unreported_file, 'w') as fh:
-        fh.writelines(feature_id + '\n' for feature_id in sorted(grouped.unreported))
-    run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir, formula_matrix_file,
-                unreported_file)
+def report_results(out_dir, condition_a, condition_b, counts_format, expression_tested):
+    """What each test reported, which is otherwise a table the user has to open: a
+    test that reported nothing and a test that was not run look the same in the
+    output directory."""
+    for what, plural_what, name in _result_tables(condition_a, condition_b, counts_format.row_noun,
+                                                  expression_tested):
+        path = compressed_path(os.path.join(out_dir, name))
+        report_result_count(what, max(count_records(path) - 1, 0), plural_what=plural_what,
+                            remedy=f'the tables before filtering are in {os.path.join(out_dir, "workdir")}; '
+                            'check that the conditions compared are the ones meant')
 
 
 # the programs a run executes, checked before it starts

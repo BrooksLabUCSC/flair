@@ -620,7 +620,7 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     new_iso_to_og, new_gene_to_og, iso_to_samples_to_counts, iso_to_gene = write_combined(
         combined, genome_fa, output, number_aaseqs=annots_by_chrom is not None)
 
-    if annots_by_chrom is not None:
+    if num_regened > 0:
         logging.info(f'{num_regened} combined isoforms given a gene from the annotation different from '
                      f'one or more samples\' (listed with flair --log-level DEBUG)')
     write_map_files(output, new_iso_to_og, new_gene_to_og)

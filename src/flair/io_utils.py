@@ -2,6 +2,7 @@
 position sorted BED and VCF output."""
 
 import os
+import shutil
 import tempfile
 from contextlib import contextmanager
 import pipettor
@@ -46,6 +47,20 @@ def make_run_temp_dir(out_prefix, temp_dir=None):
     except OSError as exc:
         raise OSError(f"Creation of a temporary directory in `{base}' failed") from exc
     return run_dir + '/'
+
+
+@contextmanager
+def remove_on_failure(path, remove):
+    """Remove a directory this run created when the run fails before writing a
+    result, so that the rerun after a failure is not rejected for the directory
+    being there.  remove is False for a directory the run was given rather than
+    made, whose contents are not this run's to delete."""
+    try:
+        yield
+    except Exception:
+        if remove:
+            shutil.rmtree(path, ignore_errors=True)
+        raise
 
 
 def _parse_manifest_line(where, line, field_counts, line_format, file_fields):
