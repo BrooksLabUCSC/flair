@@ -1,37 +1,50 @@
-"""The output directory of flair diffexp and flair diffsplice: made by the run, kept
-only when the run wrote something, and never shared with another run's files."""
+"""The temporary directory a run makes for itself: kept only when it was asked for,
+and removed whether the run finishes or fails."""
 import os
 import pytest
 from flair import FlairInputDataError
-from flair.io_utils import remove_on_failure
-from flair.flair_diffExp import make_output_dir as diffexp_output_dir
-from flair.flair_diffSplice import make_output_dir as diffsplice_output_dir
-
-MAKE_OUTPUT_DIRS = (diffexp_output_dir, diffsplice_output_dir)
+from flair.io_utils import keep_or_remove, make_run_temp_dir, remove_on_failure
 
 
-@pytest.mark.parametrize('make_output_dir', MAKE_OUTPUT_DIRS)
-def test_a_new_directory_is_made_with_its_workdir(tmp_path, make_output_dir):
-    out_dir = str(tmp_path / 'out')
-    workdir = os.path.join(out_dir, 'workdir')
-    assert make_output_dir(out_dir, workdir, False)
-    assert os.path.isdir(workdir)
+def test_a_run_directory_is_made_in_the_directory_given(tmp_path):
+    run_dir = make_run_temp_dir(str(tmp_path / 'out'), str(tmp_path / 'tmp'))
+    assert os.path.isdir(run_dir)
+    assert run_dir.startswith(str(tmp_path / 'tmp'))
+    assert 'out.' in os.path.basename(run_dir.rstrip('/'))
 
 
-@pytest.mark.parametrize('make_output_dir', MAKE_OUTPUT_DIRS)
-def test_a_directory_that_is_there_is_an_error(tmp_path, make_output_dir):
-    out_dir = str(tmp_path / 'out')
-    os.makedirs(out_dir)
-    with pytest.raises(FlairInputDataError, match='already exists'):
-        make_output_dir(out_dir, os.path.join(out_dir, 'workdir'), False)
+def test_a_run_directory_goes_to_the_system_one_when_none_is_given(tmp_path, monkeypatch):
+    "tempfile.gettempdir() is what $TMPDIR sets, and what it caches for the process"
+    import tempfile
+    monkeypatch.setattr(tempfile, 'tempdir', str(tmp_path / 'systmp'))
+    os.makedirs(tmp_path / 'systmp')
+    run_dir = make_run_temp_dir(str(tmp_path / 'out'))
+    assert os.path.isdir(run_dir) and run_dir.startswith(str(tmp_path / 'systmp'))
 
 
-@pytest.mark.parametrize('make_output_dir', MAKE_OUTPUT_DIRS)
-def test_overwrite_takes_a_directory_that_is_there(tmp_path, make_output_dir):
-    out_dir = str(tmp_path / 'out')
-    os.makedirs(out_dir)
-    assert not make_output_dir(out_dir, os.path.join(out_dir, 'workdir'), True)
-    assert os.path.isdir(os.path.join(out_dir, 'workdir'))
+def test_a_finished_run_removes_its_directory(tmp_path):
+    run_dir = make_run_temp_dir(str(tmp_path / 'out'), str(tmp_path / 'tmp'))
+    with keep_or_remove(run_dir, False):
+        pass
+    assert not os.path.exists(run_dir)
+
+
+def test_a_failed_run_removes_it_too(tmp_path):
+    run_dir = make_run_temp_dir(str(tmp_path / 'out'), str(tmp_path / 'tmp'))
+    with pytest.raises(FlairInputDataError):
+        with keep_or_remove(run_dir, False):
+            raise FlairInputDataError('nothing to test')
+    assert not os.path.exists(run_dir)
+
+
+def test_the_directory_asked_for_is_kept_and_reported(tmp_path, caplog):
+    import logging
+    run_dir = make_run_temp_dir(str(tmp_path / 'out'), str(tmp_path / 'tmp'))
+    with caplog.at_level(logging.INFO):
+        with keep_or_remove(run_dir, True):
+            pass
+    assert os.path.isdir(run_dir)
+    assert 'intermediate files kept in' in caplog.text
 
 
 def test_a_failed_run_leaves_no_directory_of_its_own(tmp_path):
@@ -44,18 +57,10 @@ def test_a_failed_run_leaves_no_directory_of_its_own(tmp_path):
 
 
 def test_a_failed_run_keeps_a_directory_it_was_given(tmp_path):
-    "with --overwrite_output the directory is the user's, holding another run's files"
+    "remove is False for a directory the run was given rather than made"
     out_dir = str(tmp_path / 'out')
     os.makedirs(out_dir)
     with pytest.raises(FlairInputDataError):
         with remove_on_failure(out_dir, False):
             raise FlairInputDataError('nothing to test')
-    assert os.path.isdir(out_dir)
-
-
-def test_a_run_that_finishes_keeps_its_directory(tmp_path):
-    out_dir = str(tmp_path / 'out')
-    os.makedirs(out_dir)
-    with remove_on_failure(out_dir, True):
-        pass
     assert os.path.isdir(out_dir)

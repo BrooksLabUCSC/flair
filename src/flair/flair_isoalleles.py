@@ -97,7 +97,7 @@ def add_subparser(subparsers):
                         help='the tagged reads with an unphased germline het needed to place it (default: '
                              '%(default)s)')
     parser.add_argument('-o', '--output', default='flair', help='output file name base (default: %(default)s)')
-    parser.add_argument('-t', '--threads', type=int, default=4,
+    parser.add_argument('-t', '--threads', type=int, default=12,
                         help='batches of genes processed at once (default: %(default)s)')
     parser.add_argument('--generate_map', action='store_true',
                         help='write each sample\'s reads by isoform and group, '

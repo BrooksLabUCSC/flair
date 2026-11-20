@@ -106,7 +106,7 @@
 
 .. option:: --temp_dir TEMP_DIR
 
-   directory for temporary files; each run makes its own directory, named for the output, in it. Many small files are written and removed, so a local disk is much faster than network storage (default: $TMPDIR or the system temporary directory). Not given with --keep_intermediate, which keeps them beside the output
+   directory for temporary files; each run makes its own directory, named for the output, in it. Many small files are written and removed, so a local disk is much faster than network storage (default: $TMPDIR or the system temporary directory). With --keep_intermediate the files are kept beside the output instead, where a rerun finds them, and this is not used
 
 .. option:: --keep_intermediate
 

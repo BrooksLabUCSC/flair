@@ -4,9 +4,10 @@ import os
 import os.path as osp
 import sys
 import pipettor
+import argparse
 import logging
 from flair import FlairInputDataError, FlairToolError
-from flair.io_utils import remove_on_failure
+from flair.io_utils import keep_or_remove, make_run_temp_dir
 from flair.run_checks import (check_option_ranges, count_records, precheck,
                               report_result_count)
 from flair.conditions import select_condition_pair
@@ -46,7 +47,7 @@ def add_subparser(subparsers):
                           help='tab-delimited isoform count matrix from flair quantify')
     required.add_argument('-o', '--output', type=str, required=True,
                           help='output directory for tables and plots')
-    parser.add_argument('-t', '--threads', type=int, default=4,
+    parser.add_argument('-t', '--threads', type=int, default=12,
                         help='number of threads for parallel DRIMSeq (default: %(default)s)')
     parser.add_argument('--test', action='store_true',
                         help='run DRIMSeq statistical testing')
@@ -75,11 +76,17 @@ def add_subparser(subparsers):
                              'nor --condition_b given, the two conditions are taken in sorted order')
     parser.add_argument('--condition_b', default='',
                         help='the condition compared against --condition_a')
-    parser.add_argument('--overwrite_output', action='store_true',
-                        help='overwrite files in an existing output directory')
+    parser.add_argument('--temp_dir',
+                        help='directory for temporary files; each run makes its own directory, named for the output, in it (default: $TMPDIR or the system temporary directory)')
+    parser.add_argument('--keep_intermediate', action='store_true',
+                        help="keep the run's own directory, which holds the event tables DRIMSeq was given "
+                             "and its diagnostics, and whose path the run reports")
+    parser.add_argument('--overwrite_output', action='store_true', help=argparse.SUPPRESS)
     parser.set_defaults(entry=diffsplice_cmd)
 
 def diffsplice_cmd(args):
+    if args.overwrite_output:
+        raise FlairInputDataError('--overwrite_output has been removed: -o names a file name base, as it does in every other subcommand, and the outputs are replaced as theirs are')
     if bool(args.condition_a) != bool(args.condition_b):
         # checked here as well as in select_condition_pair, which only runs when
         # testing is asked for; --condition_b alone would otherwise be ignored.
@@ -99,7 +106,7 @@ def diffsplice_cmd(args):
                 min_samps_feature_expr=args.min_samps_feature_expr,
                 min_gene_expr=args.min_gene_expr, min_feature_expr=args.min_feature_expr,
                 batch=args.batch, condition_a=args.condition_a, condition_b=args.condition_b,
-                overwrite_output=args.overwrite_output)
+                temp_dir=args.temp_dir, keep_intermediate=args.keep_intermediate)
 
 def check_isoform_ids(isoform_bed, counts_matrix):
     """Every counted isoform must have a BED record, since the events are called from
@@ -136,39 +143,24 @@ def check_batch_modelled(sample_infos, counts_matrix):
 
 def diff_splice(*, isoform_bed, counts_matrix, output, threads, test, min_samps_gene_expr,  # noqa: C901 - FIXME: reduce complexity
                 min_samps_feature_expr, min_gene_expr, min_feature_expr, batch,
-                condition_a, condition_b, overwrite_output):
+                condition_a, condition_b, temp_dir=None, keep_intermediate=False):
     if not os.path.exists(counts_matrix):
         raise FlairInputDataError(f'counts matrix file does not exist: {counts_matrix}')
     if not os.path.exists(isoform_bed):
         raise FlairInputDataError(f'isoform bed file does not exist: {isoform_bed}')
     check_isoform_ids(isoform_bed, counts_matrix)
 
-    # Create output directory including a working directory for intermediate files.
-    workdir = os.path.join(output, 'workdir')
-    made_output_dir = make_output_dir(output, workdir, overwrite_output)
+    # the event tables DRIMSeq is given and its diagnostics, in a directory of this
+    # run's own, removed at the end unless they were asked for
+    workdir = make_run_temp_dir(output, temp_dir)
 
-    # a run that fails before it writes a result leaves nothing, so the rerun under
-    # the same -o is not rejected for the directory being there
-    with remove_on_failure(output, made_output_dir):
+    with keep_or_remove(workdir, keep_intermediate):
         call_and_test_events(isoform_bed=isoform_bed, counts_matrix=counts_matrix, output=output,
                              workdir=workdir, threads=threads, test=test, batch=batch,
                              condition_a=condition_a, condition_b=condition_b,
                              min_samps_gene_expr=min_samps_gene_expr,
                              min_samps_feature_expr=min_samps_feature_expr,
                              min_gene_expr=min_gene_expr, min_feature_expr=min_feature_expr)
-
-
-def make_output_dir(output, workdir, overwrite_output):
-    """The output directory and the working directory inside it, returning whether
-    this run made the output directory.  A directory that is already there is an
-    error without --overwrite_output: its files are of another run, and the two sets
-    would be read as one."""
-    made = not os.path.exists(output)
-    if not (overwrite_output or made):
-        raise FlairInputDataError(f"output directory {output} already exists; give another -o, or "
-                                  f"--overwrite_output to write into this one")
-    os.makedirs(workdir, 0o700, exist_ok=True)
-    return made
 
 
 def report_event_counts(filebase):
@@ -196,7 +188,9 @@ def call_and_test_events(*, isoform_bed, counts_matrix, output, workdir, threads
                          condition_a, condition_b, min_samps_gene_expr, min_samps_feature_expr,
                          min_gene_expr, min_feature_expr):
     "call the events of the isoforms and their counts, and test them when asked to"
-    filebase = os.path.join(output, 'diffsplice')
+    # the event tables are written beside the output prefix, as every other
+    # subcommand writes its outputs
+    filebase = output
     # the event callers are separate processes, so each is told whether to compress;
     # the exon skipping one writes to stdout, so this process opens that file
     call_args = [isoform_bed, filebase, counts_matrix]
@@ -228,7 +222,8 @@ def call_and_test_events(*, isoform_bed, counts_matrix, output, workdir, threads
         # to take them back out of the matrix column names
         formula_tsv = os.path.join(workdir, 'formula_matrix.tsv')
         write_sample_info(formula_tsv, sample_infos)
-        ds_command = ['Rscript', diffSplice_drimSeq, '--threads', threads, '--out_dir', output,
+        ds_command = ['Rscript', diffSplice_drimSeq, '--threads', threads,
+                      '--out_prefix', output, '--workdir', workdir,
                       '--condition_a', condition_a, '--condition_b', condition_b,
                       '--formula', formula_tsv,
                       '--min_samps_gene_expr', min_samps_gene_expr,
@@ -247,8 +242,6 @@ def call_and_test_events(*, isoform_bed, counts_matrix, output, workdir, threads
     else:
         logging.info('no statistical test was run: give --condition_a and --condition_b, or --test, '
                      'to test the events with DRIMSeq')
-        # workdir only necessary for drimseq output
-        os.rmdir(workdir)
 
 def call_events(program, args, stdout=None):
     """Run one of the event callers.  Its own message is already on stderr, so an
@@ -261,7 +254,7 @@ def call_events(program, args, stdout=None):
 
 def drimseq_result_path(output, event, condition_a, condition_b):
     "the result file for one event type, as diffSplice_drimSeq.R names it"
-    return compressed_path(osp.join(output, f'drimseq_{event}_{condition_a}_v_{condition_b}.tsv'))
+    return compressed_path(f'{output}.drimseq_{event}_{condition_a}_v_{condition_b}.tsv')
 
 def write_empty_drimseq_result(output, event, condition_a, condition_b, sample_infos):
     """The file DRIMSeq would have written had the event type called anything, so that

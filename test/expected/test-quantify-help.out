@@ -11,7 +11,7 @@ options:
                         flair.quantify)
   -t, --threads THREADS
                         number of threads: batches of genes counted at once,
-                        with minimap2 given any left idle (default: 4)
+                        with minimap2 given any left idle (default: 12)
   --trust_ends          count a read for a spliced isoform only if its ends
                         are within 50 bp of the isoform's, for reads of full-
                         length molecules, as from a protocol with little
@@ -30,8 +30,9 @@ options:
                         and isoforms of each batch of genes realigned
                         (default: $TMPDIR or the system temporary directory)
   --keep_intermediate   keep intermediate and temporary files for debugging,
-                        in the run's directory in --temp_dir, which must be
-                        given
+                        in the run's own directory, whose path the run
+                        reports: it is in --temp_dir when that is given and in
+                        $TMPDIR otherwise
 
 required named arguments:
   --manifest MANIFEST   tab-separated file of the samples, a line each of four

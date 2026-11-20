@@ -16,7 +16,10 @@ parse_args <- function() {
   parser$add_argument("--condition_a", required=TRUE, help='Reference condition; fold changes are relative to this.')
   parser$add_argument("--condition_b", required=TRUE, help='Condition compared against condition_a.')
   parser$add_argument("--matrix", required=TRUE, help='Input count files.')
-  parser$add_argument("--out_dir", required=TRUE, help='Write to specified output directory.')
+  parser$add_argument("--out_prefix", required=TRUE,
+                      help='Write result tables as <out_prefix>.<name>.')
+  parser$add_argument("--workdir", required=TRUE,
+                      help='Directory for the unfiltered tables and other intermediates.')
   parser$add_argument("--prefix", required=TRUE, help='Specify file prefix.')
   parser$add_argument("--formula", required=TRUE, help='Formula design matrix.')
   parser$add_argument("--threads", type="integer", default=4, help='Number of threads for running DRIM-Seq. BBPARAM')
@@ -37,7 +40,7 @@ parse_args <- function() {
 main <- function() {
   args <- parse_args()
   
-  outdir <- args$out_dir
+  out_prefix <- args$out_prefix
   condition_a <- args$condition_a
   condition_b <- args$condition_b
   matrix <- args$matrix
@@ -45,25 +48,21 @@ main <- function() {
   formula <- args$formula
   threads <- args$threads
   
-  rundrimseq(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
+  rundrimseq(out_prefix, args$workdir, condition_a, condition_b, matrix, prefix, formula, threads,
              args$min_samps_gene_expr, args$min_samps_feature_expr, args$min_gene_expr,
              args$min_feature_expr, args$compress, args$unreported)
 }
 
-rundrimseq <- function(outdir, condition_a, condition_b, matrix, prefix, formula, threads,
+rundrimseq <- function(out_prefix, workdir, condition_a, condition_b, matrix, prefix, formula, threads,
                        min_samps_gene_expr, min_samps_feature_expr, min_gene_expr, min_feature_expr,
                        compress, unreported = NULL) {
   cat(sprintf('input file: %s\n', matrix), file=stderr())
   
   # create output working directory if it doesn't exist
-  data_folder <- normalizePath(outdir, mustWork = FALSE)
-  workdir <- file.path(data_folder, 'workdir')
-  if (!dir.exists(workdir)) {
-    dir.create(workdir, recursive=TRUE)
-  }
+
   
   resOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b)), compress)
-  cleanOut <- tsvCompressedPath(file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b)), compress)
+  cleanOut <- tsvCompressedPath(sprintf("%s.%s_%s_v_%s.tsv", out_prefix, prefix, condition_a, condition_b), compress)
   
   # Import data
   quantDF <- read.table(matrix, header=TRUE, sep='\t', row.names=1, check.names=FALSE)

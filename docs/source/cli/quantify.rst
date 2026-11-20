@@ -17,7 +17,7 @@
 
 .. option:: -t, --threads THREADS
 
-   number of threads: batches of genes counted at once, with minimap2 given any left idle (default: 4)
+   number of threads: batches of genes counted at once, with minimap2 given any left idle (default: 12)
 
 .. option:: --trust_ends
 
@@ -37,7 +37,7 @@
 
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given
+   keep intermediate and temporary files for debugging, in the run's own directory, whose path the run reports: it is in --temp_dir when that is given and in $TMPDIR otherwise
 
 .. rubric:: required named arguments
 

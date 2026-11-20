@@ -16,7 +16,10 @@ parse_arguments <- function() {
   parser$add_argument("--condition_a", required = TRUE, help = "Reference condition; fold changes are relative to this.")
   parser$add_argument("--condition_b", required = TRUE, help = "Condition compared against condition_a.")
   parser$add_argument("--matrix", required = TRUE, help = "Input count files.")
-  parser$add_argument("--out_dir", required = TRUE, help = "Write to specified output directory.")
+  parser$add_argument("--out_prefix", required = TRUE,
+                      help = "Write result tables as <out_prefix>.<name>.")
+  parser$add_argument("--workdir", required = TRUE,
+                      help = "Directory for the unfiltered tables and other intermediates.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
   parser$add_argument("--id_column", required = TRUE,
                       help = "Name of the first column of the result table, gene_id or isoform_id.")
@@ -47,22 +50,18 @@ check_sample_names <- function(countData, colData, matrixFile, formulaFile) {
 
 # Function to run DESeq2 and save results
 run_deseq_analysis <- function(args) {
-  outdir <- args$out_dir
+  out_prefix <- args$out_prefix
   condition_a <- args$condition_a
   condition_b <- args$condition_b
   prefix <- args$prefix
   matrixFile <- args$matrix
   formulaFile <- args$formula
   
-  data_folder <- normalizePath(outdir, mustWork = FALSE)
-  workdir <- file.path(data_folder, 'workdir')
-  if (!dir.exists(workdir)) {
-    dir.create(workdir, recursive = TRUE)
-  }
+  workdir <- args$workdir
   
   lfcOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results_shrinkage.tsv", prefix, condition_a, condition_b)), args$compress)
   resOut <- tsvCompressedPath(file.path(workdir, sprintf("%s_%s_v_%s_results.tsv", prefix, condition_a, condition_b)), args$compress)
-  cleanOut <- tsvCompressedPath(file.path(data_folder, sprintf("%s_%s_v_%s.tsv", prefix, condition_a, condition_b)), args$compress)
+  cleanOut <- tsvCompressedPath(sprintf("%s.%s_%s_v_%s.tsv", out_prefix, prefix, condition_a, condition_b), args$compress)
   
   # check.names=FALSE: make.names() rewrites a sample column whose name holds
   # anything but letters, digits, dot and underscore, or that starts with a digit.
@@ -102,11 +101,10 @@ plot_results <- function(dds, args) {
   condition_a <- args$condition_a
   condition_b <- args$condition_b
   prefix <- args$prefix
-  outdir <- args$out_dir
+  out_prefix <- args$out_prefix
   matrixFile <- args$matrix
 
-  data_folder <- normalizePath(outdir, mustWork = FALSE)
-  qcOut <- file.path(data_folder, sprintf("%s_QCplots_%s_v_%s.pdf", prefix, condition_a, condition_b))
+  qcOut <- sprintf("%s.%s_QCplots_%s_v_%s.pdf", out_prefix, prefix, condition_a, condition_b)
   
   pdf(qcOut)
 

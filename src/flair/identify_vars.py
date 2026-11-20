@@ -21,8 +21,8 @@ def parse_args():
                         help="output prefix. default: 'flair'")
     parser.add_argument('-g', '--genome',
                         type=str, required=True, help='FASTA of reference genome')
-    parser.add_argument('-t', '--threads', type=int,
-                        action='store', default=4, help='minimap2 number of threads (4)')
+    parser.add_argument('-t', '--threads', type=int, default=12,
+                        help='number of threads (default: %(default)s)')
 
     parser.add_argument('--min_cov', type=int, default=6,
                         help='Minimum total read coverage of a site to call indels')

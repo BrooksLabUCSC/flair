@@ -172,6 +172,19 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * `-o` names a file name base in every subcommand.  `flair diffexp` and
+    `flair diffsplice` made a directory of that name and wrote their tables into it;
+    each table is now written as `OUTPUT.<name>`, as every other subcommand writes
+    its outputs.  `--overwrite_output` is gone with the directory, and reports that
+    it is.
+  * `--temp_dir` is accepted by every subcommand that writes temporary files,
+    including `flair diffexp` and `flair diffsplice`, is never required, and defaults
+    to `$TMPDIR`.  `--keep_intermediate` required it in `flair transcriptome` and
+    `flair quantify` and was rejected with it in `flair spliceevents`; it now keeps
+    the run's own directory, wherever that is, and the run reports the path.
+  * `--threads` defaults to 12 in every program that takes it.  It was 12 in two
+    subcommands, 4 in six programs and 1 in `flair_partition`, so how much of a
+    machine a run used depended on which subcommand it was.
   * `frac_support` is one fraction of one thing: an isoform's reads over the reads
     of every isoform of its gene, spliced and single exon together.  A spliced
     isoform's was its share of the gene's spliced reads and a single exon one's its

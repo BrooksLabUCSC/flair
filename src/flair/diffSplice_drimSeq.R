@@ -15,9 +15,10 @@ source(file.path(dirname(sub("^--file=", "",
 parse_arguments <- function() {
   parser <- ArgumentParser(description = 'run dirmSeq')
   parser$add_argument("--matrix", required=TRUE, help="Input DRIM-Seq formatted count files.")
-  # required, not default='': file.path("", "workdir") is "/workdir", at the
-  # filesystem root, so the default could never work
-  parser$add_argument("--out_dir", required=TRUE, help="Write to specified output directory.")
+  parser$add_argument("--out_prefix", required=TRUE,
+                      help="Write result tables as <out_prefix>.<name>.")
+  parser$add_argument("--workdir", required=TRUE,
+                      help="Directory for the unfiltered tables and other intermediates.")
   parser$add_argument("--prefix", required=TRUE, help="Specify file prefix.")
   parser$add_argument('--min_samps_gene_expr', type="integer", default=6, help="Minimum number of samples expressing event inclusion/exclusion (6).")
   parser$add_argument('--min_samps_feature_expr', type="integer", default=3, help="Minimum number of samples expressing the inclusion of an event (3).")
@@ -37,10 +38,7 @@ run_DRIMSeq <- function(args) {
   cat('Input file:', args$matrix, "\n", file=stderr())
 
   # Create output working directory if it doesn't exist
-  workdir <- file.path(args$out_dir, 'workdir')
-  if (!dir.exists(workdir)) {
-    dir.create(workdir, recursive=TRUE)
-  }
+  workdir <- args$workdir
 
   # The condition and batch of each sample come from the formula file rather than
   # from the matrix column names, which carry only the sample id.
@@ -103,7 +101,7 @@ run_DRIMSeq <- function(args) {
   tsvWriteTable(res, res_out_path, row.names=FALSE)
 
   # Finalize and write cleaned results
-  clean_out_path <- tsvCompressedPath(file.path(args$out_dir, sprintf("drimseq_%s_%s_v_%s.tsv", args$prefix, args$condition_a, args$condition_b)), args$compress)
+  clean_out_path <- tsvCompressedPath(sprintf("%s.drimseq_%s_%s_v_%s.tsv", args$out_prefix, args$prefix, args$condition_a, args$condition_b), args$compress)
   res <- res[order(res$adj_pvalue),]
   res <- subset(res, adj_pvalue <= 0.05)
   final_idx <- ncol(res) - 4

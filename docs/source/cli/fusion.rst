@@ -23,7 +23,7 @@
 
 .. option:: -t, --threads THREADS
 
-   number of threads for minimap2 and for flair transcriptome on the synthetic fusion genome (default: 4)
+   number of threads for minimap2 and for flair transcriptome on the synthetic fusion genome (default: 12)
 
 .. option:: --min_fragment_size MIN_FRAGMENT_SIZE
 

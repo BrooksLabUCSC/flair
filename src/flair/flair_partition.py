@@ -44,7 +44,7 @@ def build_parser():
                         help="Minimum number of input items in a partition")
     parser.add_argument("--part_merge_dist", type=int, default=0,
                         help="Combine adjacent non-overlapping partitions separated by this distance")
-    parser.add_argument("--threads", type=int, default=1,
+    parser.add_argument("--threads", type=int, default=12,
                         help="Number of cores for converting inputs, a BAM by chromosome, and sorting "
                         "(default: %(default)s)")
     parser.add_argument("--bed", dest="bed_files", action="append", default=[], metavar="BED",

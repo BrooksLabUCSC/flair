@@ -274,9 +274,10 @@ def add_subparser(subparsers):
                              'output, in it.  Many small files are written and removed, so a local disk is much '
                              'faster than network storage (default: $TMPDIR or the system temporary directory)')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help='keep intermediate and temporary files for debugging, in the run\'s directory in '
-                             '--temp_dir, which must be given. Intermediate files include the promoter-supported '
-                             'reads file and read assignments to firstpass isoforms')
+                        help='keep intermediate and temporary files for debugging, in the run\'s own directory, '
+                             'whose path the run reports: it is in --temp_dir when that is given and in $TMPDIR '
+                             'otherwise.  Intermediate files include the promoter-supported reads file and read '
+                             'assignments to firstpass isoforms')
 
     parser.add_argument('--normalize_ends', action='store_true',
                         help='report each spliced isoform with the ends it shares with the isoforms of its gene '
@@ -298,8 +299,6 @@ def transcriptome_cmd(args):
         raise FlairInputDataError("--no_stringent and --no_check_splice have been removed: they counted reads "
                                   "that don't support an isoform toward it.  Drop them, or quantify the reads "
                                   "against an isoform set with flair quantify")
-    if args.keep_intermediate and args.temp_dir is None:
-        raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     check_option_ranges(args, fraction=('frac_support',),
                         count=('junction_support', 'ss_window', 'end_window', 'sjc_support',
                                'single_exon_support', 'subset_backup_support', 'quality'),
@@ -1826,8 +1825,6 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
     logging.info('loading genome')
     genome_fa = GenomeFasta(args.genome)
 
-    if args.keep_intermediate and args.temp_dir is None:
-        raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     parse_filter(args.filter)
     temp_dir = make_run_temp_dir(args.output, args.temp_dir)
     logging.info(f'temporary files in {temp_dir}')

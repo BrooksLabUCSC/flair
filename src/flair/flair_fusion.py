@@ -56,7 +56,7 @@ def add_subparser(subparsers):
                         help='output file name base for FLAIR isoforms, defaults to --sample_name.  The chimeric '
                              'reads bams OUTPUT.genome_aligned.chim.bam and OUTPUT.transcriptome_aligned.chim.bam '
                              'from an earlier run with this -o are reused, whatever -b and --min_fragment_size are')
-    parser.add_argument('-t', '--threads', type=int, default=4,
+    parser.add_argument('-t', '--threads', type=int, default=12,
                         help='number of threads for minimap2 and for flair transcriptome on the synthetic '
                              'fusion genome (default: %(default)s)')
     parser.add_argument('--min_fragment_size', type=int, default=40,

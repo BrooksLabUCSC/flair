@@ -1,14 +1,14 @@
 usage: flair diffexp [-h] --counts_matrix COUNTS_MATRIX -o OUTPUT [-t THREADS]
                      [--min_expression MIN_EXPRESSION]
                      [--condition_a CONDITION_A] [--condition_b CONDITION_B]
-                     [--overwrite_output]
+                     [--temp_dir TEMP_DIR] [--keep_intermediate]
 
 Differential expression and differential usage analysis
 
 options:
   -h, --help            show this help message and exit
   -t, --threads THREADS
-                        number of threads for parallel DRIMSeq (default: 4)
+                        number of threads for parallel DRIMSeq (default: 12)
   --min_expression MIN_EXPRESSION
                         read count expression threshold: a gene or isoform is
                         tested when the reads of at least one condition,
@@ -21,7 +21,12 @@ options:
                         given, the two conditions are taken in sorted order
   --condition_b CONDITION_B
                         the condition compared against --condition_a
-  --overwrite_output    overwrite files in an existing output directory
+  --temp_dir TEMP_DIR   directory for temporary files; each run makes its own
+                        directory, named for the output, in it (default:
+                        $TMPDIR or the system temporary directory)
+  --keep_intermediate   keep the run's own directory, which holds the tables
+                        before filtering and the R scripts' diagnostics, and
+                        whose path the run reports
 
 required named arguments:
   --counts_matrix COUNTS_MATRIX
@@ -30,4 +35,6 @@ required named arguments:
                         (OUTPUT.spliceevents.counts.tsv), whose usage only is
                         tested. Conditions and batches are read from the
                         sample info TSV beside it
-  -o, --output OUTPUT   output directory for tables and plots
+  -o, --output OUTPUT   output file name base: each table and plot is written
+                        as <output>.<name>, as every other subcommand writes
+                        its outputs

@@ -12,6 +12,7 @@
 ########################################################################
 
 
+import argparse
 import logging
 import os
 import os.path as osp
@@ -20,7 +21,7 @@ from statistics import median, mean
 import pipettor
 
 from flair import FlairInputDataError, FlairToolError
-from flair.io_utils import remove_on_failure
+from flair.io_utils import keep_or_remove, make_run_temp_dir
 from flair.run_checks import (check_option_ranges, count_records, precheck,
                               report_result_count)
 from flair.conditions import condition_column_indexes, select_condition_pair
@@ -288,28 +289,28 @@ def r_compress_option():
     "the R scripts compress their tables when this run does"
     return ['--compress'] if output_compression() else []
 
-def run_deseq2(prefix, id_column, workdir, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
+def run_deseq2(prefix, id_column, workdir, condition_a, condition_b, matrix_file, output, formula_matrix_file):
     # no --batch: neither R script ever read it, and one arbitrary batch label would
     # not have said anything anyway.  Both take the batch column from the formula matrix
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_deseq2, "--condition_a", condition_a, "--condition_b", condition_b,
-                          "--matrix", matrix_file, "--out_dir", out_dir,
+                          "--matrix", matrix_file, "--out_prefix", output, "--workdir", workdir,
                           "--prefix", prefix, "--id_column", id_column,
                           "--formula", formula_matrix_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
 
-def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file,
+def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file, output, formula_matrix_file,
                 unreported_file):
     check_feature_ids_unique(matrix_file)
     stderr = f"{workdir}/{prefix}.txt"
     try:
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_drimseq, "--threads", threads, "--condition_a", condition_a, "--condition_b", condition_b,
-                          "--matrix", matrix_file, "--out_dir", out_dir,
+                          "--matrix", matrix_file, "--out_prefix", output, "--workdir", workdir,
                           "--prefix", prefix, "--formula", formula_matrix_file,
                           "--unreported", unreported_file] + r_compress_option(),
                          stderr=stderr_fh)
@@ -318,11 +319,9 @@ def run_dirmseq(prefix, workdir, threads, condition_a, condition_b, matrix_file,
 
 
 def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expression,  # noqa: C901 - FIXME: reduce complexity
-                  threads, overwrite_output):
-    out_dir = output
+                  threads, temp_dir=None, keep_intermediate=False):
     quant_table_tsv = counts_matrix
     s_filter = min_expression
-    force_dir = overwrite_output
 
     grouped = read_grouped_counts(quant_table_tsv)
     counts_rows = grouped.rows
@@ -364,17 +363,15 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
                                   f"numbers rather than as groups; name them in the sample info of "
                                   f"{quant_table_tsv}, batch1 rather than 1")
 
-    # Create output directory including a working directory for intermediate files.
-    workdir = os.path.join(out_dir, 'workdir')
-    made_out_dir = make_output_dir(out_dir, workdir, force_dir)
+    # the unfiltered tables and the R scripts' other intermediates, in a directory
+    # of this run's own, removed at the end unless they were asked for
+    workdir = make_run_temp_dir(output, temp_dir)
 
-    # a run that fails before it writes a result leaves nothing, so the rerun under
-    # the same -o is not rejected for the directory being there
-    with remove_on_failure(out_dir, made_out_dir):
+    with keep_or_remove(workdir, keep_intermediate):
         # the normalized rows keep the counts matrix column order, so the same column
         # indexes apply to them
         norm_rows = calc_gene_norm_sig(workdir, counts_rows, samples)
-        get_sig_from_norm_by_gene(compressed_path(out_dir + '/isoforms_sig_exp_change_norm_by_gene.tsv'),
+        get_sig_from_norm_by_gene(compressed_path(output + '.isoforms_sig_exp_change_norm_by_gene.tsv'),
                                   norm_rows, a_cols, b_cols, grouped.unreported, grouped.format)
 
         # Convert count tables to dataframe and update isoform objects.
@@ -400,9 +397,9 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
         expression_tested = grouped.format is QUANTIFY_COUNTS
         if expression_tested:
             run_deseq2("genes_deseq2", 'gene_id', workdir, condition_a, condition_b, gene_matrix_file,
-                       out_dir, formula_matrix_file)
+                       output, formula_matrix_file)
             run_deseq2("isoforms_deseq2", 'isoform_id', workdir, condition_a, condition_b, iso_matrix_file,
-                       out_dir, formula_matrix_file)
+                       output, formula_matrix_file)
         else:
             logging.info(f'{quant_table_tsv} is of {grouped.format.program}: testing usage only, '
                          'not expression with DESeq2')
@@ -411,22 +408,9 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
         unreported_file = workdir + "/unreported_features.txt"
         with open(unreported_file, 'w') as fh:
             fh.writelines(feature_id + '\n' for feature_id in sorted(grouped.unreported))
-        run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, out_dir,
+        run_dirmseq("isoforms_drimseq", workdir, threads, condition_a, condition_b, drim_matrix_file, output,
                     formula_matrix_file, unreported_file)
-        report_results(out_dir, condition_a, condition_b, grouped.format, expression_tested)
-
-
-def make_output_dir(out_dir, workdir, force_dir):
-    """The output directory and the working directory inside it, returning whether
-    this run made the output directory.  A directory that is already there is an
-    error without --overwrite_output: its files are of another run, and the two sets
-    would be read as one."""
-    made = not os.path.exists(out_dir)
-    if not (force_dir or made):
-        raise FlairInputDataError(f"output directory {out_dir} already exists; give another -o, or "
-                                  f"--overwrite_output to write into this one")
-    os.makedirs(workdir, 0o700, exist_ok=True)
-    return made
+        report_results(output, condition_a, condition_b, grouped.format, expression_tested)
 
 
 # each filtered table a run writes, as (the noun for one row, its plural, the file)
@@ -442,16 +426,16 @@ def _result_tables(condition_a, condition_b, row_noun, expression_tested):
     return tables
 
 
-def report_results(out_dir, condition_a, condition_b, counts_format, expression_tested):
+def report_results(output, condition_a, condition_b, counts_format, expression_tested):
     """What each test reported, which is otherwise a table the user has to open: a
     test that reported nothing and a test that was not run look the same in the
     output directory."""
     for what, plural_what, name in _result_tables(condition_a, condition_b, counts_format.row_noun,
                                                   expression_tested):
-        path = compressed_path(os.path.join(out_dir, name))
+        path = compressed_path(f'{output}.{name}')
         report_result_count(what, max(count_records(path) - 1, 0), plural_what=plural_what,
-                            remedy=f'the tables before filtering are in {os.path.join(out_dir, "workdir")}; '
-                            'check that the conditions compared are the ones meant')
+                            remedy='check that the conditions compared are the ones meant; the tables before '
+                            'filtering are in the run directory, which --keep_intermediate keeps')
 
 
 # the programs a run executes, checked before it starts
@@ -468,8 +452,9 @@ def add_subparser(subparsers):
                           'spliceevents (OUTPUT.spliceevents.counts.tsv), whose usage only is tested.  Conditions '
                           'and batches are read from the sample info TSV beside it')
     required.add_argument('-o', '--output', type=str, required=True,
-                          help='output directory for tables and plots')
-    parser.add_argument('-t', '--threads', type=int, default=4,
+                          help='output file name base: each table and plot is written as '
+                               '<output>.<name>, as every other subcommand writes its outputs')
+    parser.add_argument('-t', '--threads', type=int, default=12,
                         help='number of threads for parallel DRIMSeq (default: %(default)s)')
     parser.add_argument('--min_expression', type=int, default=10,
                         help='read count expression threshold: a gene or isoform is tested when the '
@@ -482,14 +467,20 @@ def add_subparser(subparsers):
                              'taken in sorted order')
     parser.add_argument('--condition_b', default='',
                         help='the condition compared against --condition_a')
-    parser.add_argument('--overwrite_output', action='store_true',
-                        help='overwrite files in an existing output directory')
+    parser.add_argument('--temp_dir',
+                        help='directory for temporary files; each run makes its own directory, named for the output, in it (default: $TMPDIR or the system temporary directory)')
+    parser.add_argument('--keep_intermediate', action='store_true',
+                        help="keep the run's own directory, which holds the tables before filtering and the "
+                             "R scripts' diagnostics, and whose path the run reports")
+    parser.add_argument('--overwrite_output', action='store_true', help=argparse.SUPPRESS)
     parser.set_defaults(entry=diffexp_cmd)
 
 def diffexp_cmd(args):
+    if args.overwrite_output:
+        raise FlairInputDataError('--overwrite_output has been removed: -o names a file name base, as it does in every other subcommand, and the outputs are replaced as theirs are')
     check_option_ranges(args, count=('min_expression',), positive=('threads',))
     precheck(files={'counts matrix': args.counts_matrix}, programs=PROGRAMS)
     calculate_sig(counts_matrix=args.counts_matrix, output=args.output,
                   condition_a=args.condition_a, condition_b=args.condition_b,
                   min_expression=args.min_expression, threads=args.threads,
-                  overwrite_output=args.overwrite_output)
+                  temp_dir=args.temp_dir, keep_intermediate=args.keep_intermediate)

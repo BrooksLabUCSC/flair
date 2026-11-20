@@ -151,10 +151,11 @@ options:
                         faster than network storage (default: $TMPDIR or the
                         system temporary directory)
   --keep_intermediate   keep intermediate and temporary files for debugging,
-                        in the run's directory in --temp_dir, which must be
-                        given. Intermediate files include the promoter-
-                        supported reads file and read assignments to firstpass
-                        isoforms
+                        in the run's own directory, whose path the run
+                        reports: it is in --temp_dir when that is given and in
+                        $TMPDIR otherwise. Intermediate files include the
+                        promoter-supported reads file and read assignments to
+                        firstpass isoforms
   --normalize_ends      report each spliced isoform with the ends it shares
                         with the isoforms of its gene whose terminal exons
                         have splice sites near its own: the furthest of their

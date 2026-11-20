@@ -115,9 +115,9 @@ options:
                         directory, named for the output, in it. Many small
                         files are written and removed, so a local disk is much
                         faster than network storage (default: $TMPDIR or the
-                        system temporary directory). Not given with
-                        --keep_intermediate, which keeps them beside the
-                        output
+                        system temporary directory). With --keep_intermediate
+                        the files are kept beside the output instead, where a
+                        rerun finds them, and this is not used
   --keep_intermediate   keep intermediate and temporary files for debugging,
                         in <output>.intermediate. A rerun with
                         --keep_intermediate reads the corrected reads that

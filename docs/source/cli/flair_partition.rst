@@ -30,7 +30,7 @@
 
 .. option:: --threads THREADS
 
-   Number of cores for converting inputs, a BAM by chromosome, and sorting (default: 1)
+   Number of cores for converting inputs, a BAM by chromosome, and sorting (default: 12)
 
 .. option:: --bed BED
 

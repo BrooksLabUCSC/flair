@@ -134,7 +134,8 @@ def add_subparser(subparsers):
                         help='directory for temporary files; each run makes its own directory, named for the '
                              'output, in it.  Many small files are written and removed, so a local disk is much '
                              'faster than network storage (default: $TMPDIR or the system temporary directory).  '
-                             'Not given with --keep_intermediate, which keeps them beside the output')
+                             'With --keep_intermediate the files are kept beside the output instead, where a '
+                             'rerun finds them, and this is not used')
     parser.add_argument('--keep_intermediate', action='store_true',
                         help='keep intermediate and temporary files for debugging, in <output>.intermediate.  '
                              'A rerun with --keep_intermediate reads the corrected reads that directory contains '
@@ -145,8 +146,8 @@ def add_subparser(subparsers):
 def spliceevents_cmd(args):
     resolve_deprecated_option(args, deprecated="junction_tab", current="junction_star")
     if args.keep_intermediate and args.temp_dir is not None:
-        raise FlairInputDataError('--keep_intermediate and --temp_dir cannot be given together: the files kept are '
-                                  'in <output>.intermediate, which a rerun with --keep_intermediate reads')
+        logging.info('--keep_intermediate keeps the files in %s.intermediate, where a rerun finds them, '
+                     'so --temp_dir is not used', args.output)
     check_option_ranges(args, fraction=('event_frac_of_tot', 'junc_frac_of_event'),
                         count=('junction_support', 'ss_window', 'partition_items', 'feature_support',
                                'event_support', 'quality'),

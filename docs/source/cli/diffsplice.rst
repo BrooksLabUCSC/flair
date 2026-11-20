@@ -11,13 +11,14 @@
                            [--min_gene_expr MIN_GENE_EXPR]
                            [--min_feature_expr MIN_FEATURE_EXPR] [--batch]
                            [--condition_a CONDITION_A]
-                           [--condition_b CONDITION_B] [--overwrite_output]
+                           [--condition_b CONDITION_B] [--temp_dir TEMP_DIR]
+                           [--keep_intermediate]
 
 .. rubric:: options
 
 .. option:: -t, --threads THREADS
 
-   number of threads for parallel DRIMSeq (default: 4)
+   number of threads for parallel DRIMSeq (default: 12)
 
 .. option:: --test
 
@@ -51,9 +52,13 @@
 
    the condition compared against --condition_a
 
-.. option:: --overwrite_output
+.. option:: --temp_dir TEMP_DIR
 
-   overwrite files in an existing output directory
+   directory for temporary files; each run makes its own directory, named for the output, in it (default: $TMPDIR or the system temporary directory)
+
+.. option:: --keep_intermediate
+
+   keep the run's own directory, which holds the event tables DRIMSeq was given and its diagnostics, and whose path the run reports
 
 .. rubric:: required named arguments
 

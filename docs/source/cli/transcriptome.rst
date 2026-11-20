@@ -146,7 +146,7 @@
 
 .. option:: --keep_intermediate
 
-   keep intermediate and temporary files for debugging, in the run's directory in --temp_dir, which must be given. Intermediate files include the promoter-supported reads file and read assignments to firstpass isoforms
+   keep intermediate and temporary files for debugging, in the run's own directory, whose path the run reports: it is in --temp_dir when that is given and in $TMPDIR otherwise. Intermediate files include the promoter-supported reads file and read assignments to firstpass isoforms
 
 .. option:: --normalize_ends
 

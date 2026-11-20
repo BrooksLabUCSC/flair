@@ -37,7 +37,7 @@ options:
                         to place it (default: 10)
   -o, --output OUTPUT   output file name base (default: flair)
   -t, --threads THREADS
-                        batches of genes processed at once (default: 4)
+                        batches of genes processed at once (default: 12)
   --generate_map        write each sample's reads by isoform and group,
                         <output>.isoalleles.<sample>.read.map.tsv
   --label_bams          write each sample's assigned reads with their isoform

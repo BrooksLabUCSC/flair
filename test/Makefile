@@ -723,27 +723,27 @@ diffexp-tests: test-diffexp test-diffexp-compress test-diffexp-colorder test-dif
 # their columns fall in the counts matrix
 test-diffexp : mkdirs
 	flair diffexp --counts_matrix $(BASIC_COUNTS_MATRIX) -o $O/$@ --min_expression 1 \
-	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	$(call cmp_expect,$@/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect,$@/isoforms_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	   --condition_a MCF7 --condition_b A549
+	$(call cmp_expect,$@.genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@.isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@.isoforms_drimseq_MCF7_v_A549.tsv)
 
 # same counts, columns interleaved rather than grouped by condition, compared against
 # the same expected results.  Taking the conditions from the first and last column
 # got this wrong, and with an order like A,B,B,A filtered one condition twice.
 test-diffexp-compress: mkdirs ${TI}/basic.counts_matrix.diffexp.tsv.gz
 	flair -z diffexp --counts_matrix ${TI}/basic.counts_matrix.diffexp.tsv.gz -o $O/$@ --min_expression 1 \
-	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	$(call cmp_expect_gz,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_gz,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
+	   --condition_a MCF7 --condition_b A549
+	$(call cmp_expect_gz,$@.genes_deseq2_MCF7_v_A549.tsv,test-diffexp.genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_gz,$@.isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp.isoforms_deseq2_MCF7_v_A549.tsv)
 
 test-diffexp-colorder : mkdirs test-diffexp
 	${PYTHON} bin/tsv-condition-interleave $(BASIC_COUNTS_MATRIX) $O/$@.counts_matrix.tsv
 	flair diffexp --counts_matrix $O/$@.counts_matrix.tsv -o $O/$@ --min_expression 1 \
-	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	$(call cmp_expect_sort_as,$@/genes_deseq2_MCF7_v_A549.tsv,test-diffexp/genes_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_sort_as,$@/isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp/isoforms_deseq2_MCF7_v_A549.tsv)
-	$(call cmp_expect_sort_stats_as,$@/isoforms_drimseq_MCF7_v_A549.tsv,test-diffexp/isoforms_drimseq_MCF7_v_A549.tsv)
+	   --condition_a MCF7 --condition_b A549
+	$(call cmp_expect_sort_as,$@.genes_deseq2_MCF7_v_A549.tsv,test-diffexp.genes_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_as,$@.isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp.isoforms_deseq2_MCF7_v_A549.tsv)
+	$(call cmp_expect_sort_stats_as,$@.isoforms_drimseq_MCF7_v_A549.tsv,test-diffexp.isoforms_drimseq_MCF7_v_A549.tsv)
 
 # the basic counts as a flair spliceevents table, each gene an event, the last isoform of
 # a gene of three or more its other row: usage alone is tested, no DESeq2, and other rows
@@ -751,10 +751,10 @@ test-diffexp-colorder : mkdirs test-diffexp
 # are those of test-diffexp
 test-diffexp-spliceevents: mkdirs
 	flair diffexp --counts_matrix $I/basic.diffexp.spliceevents.counts.tsv -o $O/$@ --min_expression 1 \
-	   --condition_a MCF7 --condition_b A549 --overwrite_output
-	test ! -e $O/$@/genes_deseq2_MCF7_v_A549.tsv
-	! grep -q '|other' $O/$@/isoforms_drimseq_MCF7_v_A549.tsv $O/$@/isoforms_sig_exp_change_norm_by_gene.tsv
-	$(call cmp_expect,$@/isoforms_drimseq_MCF7_v_A549.tsv)
+	   --condition_a MCF7 --condition_b A549
+	test ! -e $O/$@.genes_deseq2_MCF7_v_A549.tsv
+	! grep -q '|other' $O/$@.isoforms_drimseq_MCF7_v_A549.tsv $O/$@.isoforms_sig_exp_change_norm_by_gene.tsv
+	$(call cmp_expect,$@.isoforms_drimseq_MCF7_v_A549.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help > $O/$@.out
@@ -766,35 +766,35 @@ test-diffexp-help: mkdirs
 diffsplice-tests: test-diffsplice test-diffsplice-cond test-diffsplice-strands test-diffsplice-help test-diffsplice-compress
 
 test-diffsplice: mkdirs
-	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output
-	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.ir.events.quant.tsv)
-	$(call cmp_expect,$@/drimseq_alt3_A_v_B.tsv)
-	$(call cmp_expect,$@/drimseq_alt5_A_v_B.tsv)
-	$(call cmp_expect,$@/drimseq_es_A_v_B.tsv)
-	$(call cmp_expect,$@/drimseq_ir_A_v_B.tsv)
+	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@
+	$(call cmp_expect,$@.alt3.events.quant.tsv)
+	$(call cmp_expect,$@.alt5.events.quant.tsv)
+	$(call cmp_expect,$@.es.events.quant.tsv)
+	$(call cmp_expect,$@.ir.events.quant.tsv)
+	$(call cmp_expect,$@.drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect,$@.drimseq_alt5_A_v_B.tsv)
+	$(call cmp_expect,$@.drimseq_es_A_v_B.tsv)
+	$(call cmp_expect,$@.drimseq_ir_A_v_B.tsv)
 
 test-diffsplice-compress: mkdirs ${TI}/basic.isoforms.diffsplice.bed.gz ${TI}/basic.counts_matrix.diffsplice.tsv.gz
 	flair -z diffsplice --isoform_bed ${TI}/basic.isoforms.diffsplice.bed.gz \
-	   --counts_matrix ${TI}/basic.counts_matrix.diffsplice.tsv.gz --test -o $O/$@ --overwrite_output
-	$(call cmp_expect_gz,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect_gz,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect_gz,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
-	$(call cmp_expect_gz,$@/drimseq_ir_A_v_B.tsv,test-diffsplice/drimseq_ir_A_v_B.tsv)
+	   --counts_matrix ${TI}/basic.counts_matrix.diffsplice.tsv.gz --test -o $O/$@
+	$(call cmp_expect_gz,$@.alt3.events.quant.tsv,test-diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_gz,$@.es.events.quant.tsv,test-diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_gz,$@.drimseq_es_A_v_B.tsv,test-diffsplice.drimseq_es_A_v_B.tsv)
+	$(call cmp_expect_gz,$@.drimseq_ir_A_v_B.tsv,test-diffsplice.drimseq_ir_A_v_B.tsv)
 
 # naming the two conditions gives what taking them in sorted order gives.  The
 # comparisons used to name test-diffsplice on both sides, so they re-checked that
 # test's output and never looked at this one's
 test-diffsplice-cond: mkdirs test-diffsplice
-	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --overwrite_output --condition_a A --condition_b B
-	$(call cmp_expect_sort_as,$@/diffsplice.alt3.events.quant.tsv,test-diffsplice/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect_sort_as,$@/diffsplice.alt5.events.quant.tsv,test-diffsplice/diffsplice.alt5.events.quant.tsv)
-	$(call cmp_expect_sort_as,$@/diffsplice.es.events.quant.tsv,test-diffsplice/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect_sort_as,$@/diffsplice.ir.events.quant.tsv,test-diffsplice/diffsplice.ir.events.quant.tsv)
-	$(call cmp_expect_sort_as,$@/drimseq_alt3_A_v_B.tsv,test-diffsplice/drimseq_alt3_A_v_B.tsv)
-	$(call cmp_expect_sort_as,$@/drimseq_es_A_v_B.tsv,test-diffsplice/drimseq_es_A_v_B.tsv)
+	flair diffsplice --isoform_bed $(BASIC_DIFFSPLICE_BED) --counts_matrix $(BASIC_DIFFSPLICE_MATRIX) --test -o $O/$@ --condition_a A --condition_b B
+	$(call cmp_expect_sort_as,$@.alt3.events.quant.tsv,test-diffsplice.alt3.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@.alt5.events.quant.tsv,test-diffsplice.alt5.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@.es.events.quant.tsv,test-diffsplice.es.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@.ir.events.quant.tsv,test-diffsplice.ir.events.quant.tsv)
+	$(call cmp_expect_sort_as,$@.drimseq_alt3_A_v_B.tsv,test-diffsplice.drimseq_alt3_A_v_B.tsv)
+	$(call cmp_expect_sort_as,$@.drimseq_es_A_v_B.tsv,test-diffsplice.drimseq_es_A_v_B.tsv)
 
 ##
 # events at the same coordinates on both strands.  The strand is part of the event
@@ -802,11 +802,11 @@ test-diffsplice-cond: mkdirs test-diffsplice
 # the file.  No --test, so this runs without DRIMSeq installed
 ##
 test-diffsplice-strands: mkdirs
-	flair diffsplice --isoform_bed $(STRANDS_DIFFSPLICE_BED) --counts_matrix $(STRANDS_DIFFSPLICE_MATRIX) -o $O/$@ --overwrite_output
-	$(call cmp_expect,$@/diffsplice.alt3.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.alt5.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.es.events.quant.tsv)
-	$(call cmp_expect,$@/diffsplice.ir.events.quant.tsv)
+	flair diffsplice --isoform_bed $(STRANDS_DIFFSPLICE_BED) --counts_matrix $(STRANDS_DIFFSPLICE_MATRIX) -o $O/$@
+	$(call cmp_expect,$@.alt3.events.quant.tsv)
+	$(call cmp_expect,$@.alt5.events.quant.tsv)
+	$(call cmp_expect,$@.es.events.quant.tsv)
+	$(call cmp_expect,$@.ir.events.quant.tsv)
 
 test-diffsplice-help: mkdirs
 	flair diffsplice --help > $O/$@.out
@@ -860,7 +860,7 @@ test-fasta-seq-lengths: mkdirs
 
 # two samples of the committed diffsplice counts, so no R is needed
 test-diffsplice-fishers-exact: mkdirs
-	diffsplice_fishers_exact $E/test-diffsplice/diffsplice.es.events.quant.tsv A1_A_b0 B1_B_b0 $O/$@.tsv
+	diffsplice_fishers_exact $E/test-diffsplice.es.events.quant.tsv A1_A_b0 B1_B_b0 $O/$@.tsv
 	$(call cmp_expect,$@.tsv)
 
 
@@ -908,7 +908,7 @@ test-plot-usage-help: mkdirs
 transcriptome-tests: test-transcriptome test-transcriptome-directrna test-transcriptome-region test-transcriptome-readthrough-region test-transcriptome-lowannot test-transcriptome-noannot test-transcriptome-noannot-trust-junctions test-transcriptome-normends test-transcriptome-comprehensive test-transcriptome-comprehensive-basic \
                     test-transcriptome-seg1 test-transcriptome-mutant-splice test-transcriptome-readthrough test-transcriptome-readthrough-gene test-transcriptome-nosubset test-transcriptome-filter-1.2X test-transcriptome-nopolya test-transcriptome-nopolya-trust-strand test-transcriptome-keep-intprimed test-transcriptome-keep-intprimed-no-trust-strand test-transcriptome-polyt test-transcriptome-shared-junc test-transcriptome-no-firstpass test-transcriptome-onechrom test-transcriptome-mult-ends \
 					test-transcriptome-seg1-badannot test-transcriptome-seg1-badannot-multends test-transcriptome-seg1-badannot-comprehensive test-transcriptome-help \
-					test-transcriptome-keep-intermediate-needs-temp-dir test-transcriptome-trust-ends-removed \
+					test-transcriptome-keep-intermediate-no-temp-dir test-transcriptome-trust-ends-removed \
 					test-transcriptome-no-stringent-removed test-transcriptome-no-check-splice-removed \
 					test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic test-transcriptome-compress
 
@@ -1114,10 +1114,13 @@ ${KRAS_MUT_SPLICE_BAM}: ${KRAS_MUT_SPLICE_FQ}  ${GENOME_FA}
 ${DDX5_READTHROUGH_BAM}: ${DDX5_READTHROUGH_FQ}  ${GENOME_FA}
 	$(call minimap2_genome_align,${DDX5_READTHROUGH_FQ},${GENOME_FA},-s 40 -G 350k)
 
-# --keep_intermediate needs --temp_dir, to say where they are kept
-test-transcriptome-keep-intermediate-needs-temp-dir: mkdirs ${BASIC_ALIGN_BAM}
-	! flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate > $O/$@.out 2>&1
-	grep -q -- '--keep_intermediate requires --temp_dir' $O/$@.out
+# --keep_intermediate without --temp_dir keeps the run's own directory, in $TMPDIR,
+# and reports where it is
+test-transcriptome-keep-intermediate-no-temp-dir: mkdirs ${BASIC_ALIGN_BAM}
+	TMPDIR=$O/$@.tmpdir; export TMPDIR; mkdir -p $$TMPDIR; \
+	  flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate > $O/$@.out 2>&1
+	grep -q -- 'intermediate files kept in' $O/$@.out
+	test -n "$$(ls $O/$@.tmpdir)" 
 
 # --keep_internally_primed: single-exon reads ending in or before genomic A runs are
 # kept rather than removed as oligo-dT mispriming, for reads not primed on poly(A)
@@ -1288,11 +1291,11 @@ test-protocol-patients: mkdirs ${GENOME_FA} ${QUANTIFY_INPUT_BAMS}
 	   > $O/$@.manifest.tsv
 	python3 ${PROTOCOL} -m $O/$@.manifest.tsv -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ -t 2 \
 	   --spliceevents --stat_test patients --force > $O/$@.out
-	test -s $O/$@/quantify/flair.isoforms.counts.tsv
-	test -s $O/$@/spliceevents/flair.spliceevents.counts.tsv
-	test -s $O/$@/stats/P1.P1T.isoforms.usage.tsv
-	test -s $O/$@/stats/P1.P1T.spliceevents.usage.tsv
-	test ! -e $O/$@/stats/P2.P2T.isoforms.usage.tsv
+	test -s $O/$@.quantify/flair.isoforms.counts.tsv
+	test -s $O/$@.spliceevents/flair.spliceevents.counts.tsv
+	test -s $O/$@.stats/P1.P1T.isoforms.usage.tsv
+	test -s $O/$@.stats/P1.P1T.spliceevents.usage.tsv
+	test ! -e $O/$@.stats/P2.P2T.isoforms.usage.tsv
 	grep -q 'tumor-only patients, reported but not tested: P2' $O/$@.out
 	python3 ${PROTOCOL} -m $O/$@.manifest.tsv -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ -t 2 \
 	   --spliceevents --stat_test patients > $O/$@.rerun.out
@@ -1306,10 +1309,10 @@ test-protocol-haplotype: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM} ${BASIC_LONGSHOT
 	   > $O/$@.manifest.tsv
 	python3 ${PROTOCOL} -m $O/$@.manifest.tsv -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ -t 2 \
 	   --stat_test patients --haplotype --force > $O/$@.out
-	test -s $O/$@/isoalleles/P1T.isoalleles.counts.tsv
-	test -s $O/$@/isoalleles/P2T.isoalleles.counts.tsv
-	test -s $O/$@/stats/P1.P1T.isoalleles.usage.tsv
-	head -1 $O/$@/isoalleles/P1T.isoalleles.counts.tsv | grep -q 'P1T	P1N'
+	test -s $O/$@.isoalleles/P1T.isoalleles.counts.tsv
+	test -s $O/$@.isoalleles/P2T.isoalleles.counts.tsv
+	test -s $O/$@.stats/P1.P1T.isoalleles.usage.tsv
+	head -1 $O/$@.isoalleles/P1T.isoalleles.counts.tsv | grep -q 'P1T	P1N'
 
 test-identifyvars-snvs: mkdirs ${GENOME_FA} ${BASIC_ALIGN_BAM}
 	python3 ../src/flair/identify_vars.py --genome ${GENOME_FA} --bam ${BASIC_ALIGN_BAM} --identify_snvs yes --identify_indels no --output $O/$@
@@ -1469,7 +1472,7 @@ ${ERGIC3_KRAS_SIM_FA_GZ}: $I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq
 ###
 spliceevents-tests: test-spliceevents test-spliceevents-extraannot test-spliceevents-outliers test-spliceevents-region test-spliceevents-region-extend \
 		test-spliceevents-region-partition test-spliceevents-smallparts test-spliceevents-nopartition test-spliceevents-restart test-spliceevents-compress \
-		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-no-temp-dir test-spliceevents-reuse-other-options \
+		test-spliceevents-temp-dir test-spliceevents-keep-intermediate-with-temp-dir test-spliceevents-reuse-other-options \
 		test-spliceevents-conditions test-spliceevents-help
 
 # a rerun with --keep_intermediate and other correction options corrects the samples
@@ -1585,10 +1588,14 @@ test-spliceevents-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	test -z "$$(ls $O/$@.tmp)"
 	test ! -e $O/$@.intermediate
 
-# the files kept are beside the output, so --temp_dir would name a directory they are not in
-test-spliceevents-keep-intermediate-no-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
-	! flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate --temp_dir $O/$@.tmp -o $O/$@ > $O/$@.out 2>&1
-	grep -q -- '--keep_intermediate and --temp_dir cannot be given together' $O/$@.out
+# the files kept are beside the output, so --temp_dir, which is accepted with it,
+# names a directory they are not in and the run says so
+test-spliceevents-keep-intermediate-with-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
+	mkdir -p $O/$@.tmp
+	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate --temp_dir $O/$@.tmp -o $O/$@ > $O/$@.out 2>&1
+	grep -q -- 'so --temp_dir is not used' $O/$@.out
+	test -d $O/$@.intermediate
+	test -z "$$(ls $O/$@.tmp)" 
 
 $O/spliceevents.s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<

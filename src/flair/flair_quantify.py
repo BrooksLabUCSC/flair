@@ -73,7 +73,7 @@ def add_subparser(subparsers):
                                'flair combine and flair fusion), whose fusion isoforms are counted too')
     parser.add_argument('-o', '--output', type=str, default='flair.quantify',
                         help='output file name base for FLAIR quantify (default: %(default)s)')
-    parser.add_argument('-t', '--threads', type=int, default=4,
+    parser.add_argument('-t', '--threads', type=int, default=12,
                         help='number of threads: batches of genes counted at once, with minimap2 given any '
                              'left idle (default: %(default)s)')
     parser.add_argument('--trust_ends', action='store_true',
@@ -91,13 +91,12 @@ def add_subparser(subparsers):
                              'output, in it, with the reads and isoforms of each batch of genes realigned '
                              '(default: $TMPDIR or the system temporary directory)')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help="keep intermediate and temporary files for debugging, in the run's directory in "
-                             '--temp_dir, which must be given')
+                        help="keep intermediate and temporary files for debugging, in the run's own directory, "
+                             'whose path the run reports: it is in --temp_dir when that is given and in $TMPDIR '
+                             'otherwise')
     parser.set_defaults(entry=quantify_cmd)
 
 def quantify_cmd(args):
-    if args.keep_intermediate and args.temp_dir is None:
-        raise FlairInputDataError('--keep_intermediate requires --temp_dir, the directory to keep them in')
     if args.trust_ends and args.normalize_ends:
         raise FlairInputDataError(
             f"--trust_ends and --normalize_ends cannot be used together: --normalize_ends moves a "

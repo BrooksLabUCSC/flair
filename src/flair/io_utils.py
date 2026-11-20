@@ -1,6 +1,7 @@
 """The run temporary directory, manifest reading, genome FASTA checks, and
 position sorted BED and VCF output."""
 
+import logging
 import os
 import shutil
 import tempfile
@@ -47,6 +48,20 @@ def make_run_temp_dir(out_prefix, temp_dir=None):
     except OSError as exc:
         raise OSError(f"Creation of a temporary directory in `{base}' failed") from exc
     return run_dir + '/'
+
+
+@contextmanager
+def keep_or_remove(run_dir, keep):
+    """Remove the run's temporary directory at the end, or report where it is when
+    it was asked for.  It goes on a failure too, so a run leaves nothing of its
+    own."""
+    try:
+        yield run_dir
+    finally:
+        if keep:
+            logging.info('intermediate files kept in %s', run_dir)
+        else:
+            shutil.rmtree(run_dir, ignore_errors=True)
 
 
 @contextmanager

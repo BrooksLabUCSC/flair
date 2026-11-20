@@ -39,7 +39,7 @@ def parse_args():
             insertions greater than 3 bp at the splice site''')
     parser.add_argument('--trust_ends', action='store_true',
                         help='specify if reads are generated from a long read method with minimal fragmentation')
-    parser.add_argument('-t', '--threads', default=4, type=int,
+    parser.add_argument('-t', '--threads', default=12, type=int,
                         help='number of threads to use')
     parser.add_argument('--generate_map',
                         help='''specify an output path for a txt file of which isoform each read is assigned to''')

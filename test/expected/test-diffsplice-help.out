@@ -5,7 +5,8 @@ usage: flair diffsplice [-h] --isoform_bed ISOFORM_BED
                         [--min_gene_expr MIN_GENE_EXPR]
                         [--min_feature_expr MIN_FEATURE_EXPR] [--batch]
                         [--condition_a CONDITION_A]
-                        [--condition_b CONDITION_B] [--overwrite_output]
+                        [--condition_b CONDITION_B] [--temp_dir TEMP_DIR]
+                        [--keep_intermediate]
 
 Call alternative splicing events from isoforms and test them for differential
 usage
@@ -13,7 +14,7 @@ usage
 options:
   -h, --help            show this help message and exit
   -t, --threads THREADS
-                        number of threads for parallel DRIMSeq (default: 4)
+                        number of threads for parallel DRIMSeq (default: 12)
   --test                run DRIMSeq statistical testing
   --min_samps_gene_expr MIN_SAMPS_GENE_EXPR
                         DRIMSeq dmFilter min_samps_gene_expr: minimum number
@@ -45,7 +46,12 @@ options:
                         sorted order
   --condition_b CONDITION_B
                         the condition compared against --condition_a
-  --overwrite_output    overwrite files in an existing output directory
+  --temp_dir TEMP_DIR   directory for temporary files; each run makes its own
+                        directory, named for the output, in it (default:
+                        $TMPDIR or the system temporary directory)
+  --keep_intermediate   keep the run's own directory, which holds the event
+                        tables DRIMSeq was given and its diagnostics, and
+                        whose path the run reports
 
 required named arguments:
   --isoform_bed ISOFORM_BED

@@ -518,10 +518,10 @@ If you have more than two sample conditions, either split your counts matrix ahe
 
 **Outputs**
 
-After the run, the output directory (``--output``) contains the following, where ``A``
-is ``--condition_a`` and ``B`` is ``--condition_b``. Fold changes are reported for
-``B`` relative to ``A``, so naming the conditions the other way round negates them
-and renames these files.
+``--output`` is a file name base, as it is in every other subcommand, and each file
+below is written as ``OUTPUT.<name>``, where ``A`` is ``--condition_a`` and ``B`` is
+``--condition_b``.  Fold changes are reported for ``B`` relative to ``A``, so naming
+the conditions the other way round negates them and renames these files.
 
  - ``genes_deseq2_A_v_B.tsv`` Filtered differential gene expression table.
  - ``genes_deseq2_QCplots_A_v_B.pdf`` QC plots, see the `DESeq2 manual <https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html>`__ for details.
@@ -529,7 +529,10 @@ and renames these files.
  - ``isoforms_deseq2_QCplots_A_v_B.pdf`` QC plots
  - ``isoforms_drimseq_A_v_B.tsv`` Filtered differential isoform usage table
  - ``isoforms_sig_exp_change_norm_by_gene.tsv`` Isoforms whose usage changes, from a t-test on counts normalized by gene.
- - ``workdir`` Temporary files including unfiltered output files.
+
+The tables before filtering, and the R scripts' own diagnostics, are written to a
+directory of the run's own in ``--temp_dir``, ``$TMPDIR`` by default, which is
+removed at the end unless ``--keep_intermediate`` is given.
 
 The columns of the four tables, each row being one gene or one isoform of the row
 the matrix was built from:
@@ -569,7 +572,7 @@ Gene A has an average expression of 1 in group s, and 2 in group v but the total
 
 Flair does not remove low count genes as long as they are expressed in all samples of at least one group so please be careful when interpreting results.
 
-Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. Unfiltered tables can be found in ``workdir``
+Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. The tables before filtering are in the run's own directory, which ``--keep_intermediate`` keeps
 
 ----
 
@@ -600,12 +603,13 @@ script for statistical testing instead.
 
 **Outputs**
 
-After the run, the output directory (``--output``) contains the following tab separated files:
+``--output`` is a file name base, as it is in every other subcommand, and each file
+below is written as ``OUTPUT.<name>``:
 
- - ``diffsplice.alt3.events.quant.tsv``
- - ``diffsplice.alt5.events.quant.tsv``
- - ``diffsplice.es.events.quant.tsv``
- - ``diffsplice.ir.events.quant.tsv``
+ - ``alt3.events.quant.tsv``
+ - ``alt5.events.quant.tsv``
+ - ``es.events.quant.tsv``
+ - ``ir.events.quant.tsv``
 
 If DRIMSeq was run, where ``A`` is ``--condition_a`` and ``B`` is ``--condition_b``:
 
@@ -613,7 +617,10 @@ If DRIMSeq was run, where ``A`` is ``--condition_a`` and ``B`` is ``--condition_
  - ``drimseq_alt5_A_v_B.tsv``
  - ``drimseq_es_A_v_B.tsv``
  - ``drimseq_ir_A_v_B.tsv``
- - ``workdir`` Temporary files including unfiltered output files.
+
+The event tables DRIMSeq was given and its own diagnostics are written to a
+directory of the run's own in ``--temp_dir``, ``$TMPDIR`` by default, which is
+removed at the end unless ``--keep_intermediate`` is given.
 
 All four are written whichever events were called: an event type that called nothing, or
 whose events DRIMSeq found nothing significant in, leaves a file of only its header.
@@ -627,7 +634,7 @@ Options
 Notes
 -----
 
-Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. Unfiltered tables can be found in ``workdir``
+Results tables are filtered and reordered by p-value so that only p<0.05 differential genes/isoforms remain. The tables before filtering are in the run's own directory, which ``--keep_intermediate`` keeps
 
 For a complex splicing example, please note the 2 alternative 3’ SS, 3
 intron retention, and 4 exon skipping events in the following set of

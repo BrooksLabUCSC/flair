@@ -40,7 +40,7 @@
 
 .. option:: -t, --threads THREADS
 
-   batches of genes processed at once (default: 4)
+   batches of genes processed at once (default: 12)
 
 .. option:: --generate_map
 
