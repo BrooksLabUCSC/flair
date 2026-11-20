@@ -1,0 +1,3 @@
+event	event_type	gene	gene_name	additional_genes	additional_gene_names	total	sample
+es|chr12:25215437-25215560(-)|ENSG00000133703.12	es	ENSG00000133703.12	KRAS			event_reads	149
+es|chr12:25215437-25215560(-)|ENSG00000133703.12	es	ENSG00000133703.12	KRAS			locus_reads	149

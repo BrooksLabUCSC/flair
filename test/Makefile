@@ -84,8 +84,12 @@ help:
 	@echo "   " make test-hub >&2
 	@echo "   " make make hub-check huburl=https://public.gi.ucsc.edu/~you/flair/test/hub/hub.txt >&2
 
+# the two halves run one after the other: both include the help tests, and a
+# parallel run of the two had the same target writing an output file while the
+# other half's run of it was comparing that file
 test:
-	$(call run_tests, test-base test-with-R)
+	$(call run_tests, test-base)
+	$(call run_tests, test-with-R)
 
 test-base:
 	${MAKE} test-alignments quantify-tests bed-to-gtf-tests \
@@ -441,6 +445,12 @@ define cmp_expect_read_map
 	diff <(bin/read-map-sort < $E/${1}) <(bin/read-map-sort < $O/${1})
 endef
 
+# a read map that must reproduce another test's, sorted the same way
+define cmp_expect_read_map_named
+	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
+	diff <(bin/read-map-sort < $E/${2}) <(bin/read-map-sort < $O/${1})
+endef
+
 define cmp_expect_sort_as
 	@test -e $O/${1} || (echo Error: output file missing: $O/${1}; exit 1)
 	diff <(sort $O/${2} | bin/tsv-round-numeric) <(sort $O/${1} | bin/tsv-round-numeric)
@@ -539,6 +549,15 @@ ${SHARED_JUNC_ANNOTATION}: ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF}
 	cat ${BASIC_ANNOTATION} ${SHARED_JUNC_GENE_GTF} > $@.tmp
 	mv -f $@.tmp $@
 
+# regenerate the expected files a family already has from the output of a run: a
+# name no expected file has is not created, since what a test compares is in its recipe
+define update_expected
+	for exp in $E/$(1)*; do \
+	    out=$O/$$(basename $$exp); \
+	    if test -f $$exp -a -f $$out; then cp -f $$out $$exp; fi; \
+	done
+endef
+
 # macros to do comparions with expected results
 define diff_bed_gtf
 	$(call cmp_expect,$@.isoforms.bed)
@@ -562,16 +581,13 @@ combine-tests: test-combine test-combine-files test-combine-prefixes test-combin
 	test-combine-combined
 
 update-combine-tests:
-	for tname in "test-combine" "test-combine-files" "test-combine-nose" "test-combine-10pct" "test-combine-multends" "test-combine-multends-10pct" "test-combine-conflict-gtf" "test-combine-isoalleles"; \
-	do \
-	cp $O/$$tname.combined.isoforms.bed $E/$$tname.combined.isoforms.bed; \
-	cp $O/$$tname.combined.isoforms.counts.tsv $E/$$tname.combined.isoforms.counts.tsv; \
-	done
-	cp $O/test-combine-conflict-gtf.combined.aaseq.tsv $E/
+	$(call update_expected,test-combine)
 
 test-combine: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@
 	$(combine_diff)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 # the same eight BEDs test-combine-files uses, gzipped
 COMBINE_BEDS_GZ = ${TI}/test-transcriptome.isoforms.bed.gz ${TI}/test-transcriptome-mult-ends.isoforms.bed.gz \
@@ -591,6 +607,8 @@ test-combine-compress: mkdirs ${GENOME_FA} ${COMBINE_BEDS_GZ}
 test-combine-files: mkdirs ${GENOME_FA}
 	flair combine --genome ${GENOME_FA} -o $O/$@ --isoform_beds expected/test-transcriptome.isoforms.bed,expected/test-transcriptome-mult-ends.isoforms.bed,expected/test-transcriptome-mutant-splice.isoforms.bed,expected/test-transcriptome-readthrough.isoforms.bed,expected/test-fusion.fusions.isoforms.bed,expected/test-transcriptome-seg1-badannot.isoforms.bed,expected/test-transcriptome-seg1-badannot-multends.isoforms.bed,input/test-transcriptome-seg1-badannot-multends-chromshifted.isoforms.bed
 	$(combine_diff)
+	$(call cmp_expect_named,$@.combined.isoforms.fa,test-combine.combined.isoforms.fa)
+	$(call cmp_expect_named,$@.combined.isoforms.gtf,test-combine.combined.isoforms.gtf)
 
 # the same eight transcriptomes as test-combine-files, named by prefix with their
 # directories, comma separated and by repeating the option
@@ -603,22 +621,34 @@ test-combine-prefixes: mkdirs ${GENOME_FA}
 		--prefixes input/test-transcriptome-seg1-badannot-multends-chromshifted
 	diff $E/test-combine-files.combined.isoforms.bed $O/$@.combined.isoforms.bed
 	diff $E/test-combine-files.combined.isoforms.counts.tsv $O/$@.combined.isoforms.counts.tsv
+	$(call cmp_expect_named,$@.combined.genes.map.tsv,test-combine-files.combined.genes.map.tsv)
+	$(call cmp_expect_named,$@.combined.isoforms.fa,test-combine.combined.isoforms.fa)
+	$(call cmp_expect_named,$@.combined.isoforms.gtf,test-combine.combined.isoforms.gtf)
+	$(call cmp_expect_named,$@.combined.isoforms.map.tsv,test-combine-files.combined.isoforms.map.tsv)
 
 test-combine-nose: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --remove_single_exon
 	$(combine_diff)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 test-combine-10pct: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --min_percent_usage 10
 	$(combine_diff)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 test-combine-multends: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10
 	$(combine_diff)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 test-combine-multends-10pct: mkdirs ${GENOME_FA}
 	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --min_percent_usage 10
 	$(combine_diff)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 # a sample whose isoform of ENST00000348547 was given KRAS: without the annotation,
 # an error naming the samples' genes, and with it, the isoform gets its own gene
@@ -630,6 +660,8 @@ test-combine-conflict-gtf: mkdirs ${GENOME_FA}
 	flair combine --manifest $I/combine.conflict.manifest.txt --genome ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@
 	$(combine_diff)
 	$(call cmp_expect,$@.combined.aaseq.tsv)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 # isoforms of alleles, from flair isoalleles: combined into their isoforms,
 # without allele information, with a warning.  read_support is per allele,
@@ -638,6 +670,8 @@ test-combine-isoalleles: mkdirs ${GENOME_FA}
 	flair combine --isoform_beds $I/combine.isoalleles.bed --genome ${GENOME_FA} --min_percent_usage 1 -o $O/$@ 2> $O/$@.err
 	grep -q 'flair combine drops the allele information' $O/$@.err
 	$(combine_diff)
+	$(call cmp_expect,$@.combined.isoforms.fa)
+	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 # combine's own output names every sample an isoform came from and contains their
 # summed reads: combining it again would give each of those samples all the reads
@@ -658,12 +692,22 @@ test-quantify: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${QUAN
 	$(call cmp_expect,$@.isoforms.cpm.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.A1.read.map.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.B3.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A2.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A3.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B1.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B2.read.map.tsv)
 
 test-quantify-normends: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${QUANTIFY_MANIFEST}
 	flair quantify --manifest $(QUANTIFY_MANIFEST) --genome ${GENOME_FA} --isoform_bed $(TOME_ISOFORM_BED) --generate_map -o $O/$@ --normalize_ends
 	$(call cmp_expect,$@.isoforms.counts.tsv)
 	$(call cmp_expect,$@.isoforms.sample_info.tsv)
 	$(call cmp_expect,$@.isoforms.cpm.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A1.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.A2.read.map.tsv,test-quantify.isoforms.A2.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.A3.read.map.tsv,test-quantify.isoforms.A3.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.B1.read.map.tsv,test-quantify.isoforms.B1.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.B2.read.map.tsv,test-quantify.isoforms.B2.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B3.read.map.tsv)
 
 # one thread, without the pool, and the intermediate files kept: the same counts as test-quantify
 test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} ${QUANTIFY_MANIFEST}
@@ -673,6 +717,13 @@ test-quantify-onethread-keep: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GE
 	diff $E/test-quantify.isoforms.counts.tsv $O/$@.isoforms.counts.tsv
 	diff <(bin/read-map-sort < $E/test-quantify.isoforms.A1.read.map.tsv) <(bin/read-map-sort < $O/$@.isoforms.A1.read.map.tsv)
 	ls $O/$@.tmp/*.intermediate/*/isoforms.fa > /dev/null
+	$(call cmp_expect_read_map_named,$@.isoforms.A2.read.map.tsv,test-quantify.isoforms.A2.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.A3.read.map.tsv,test-quantify.isoforms.A3.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.B1.read.map.tsv,test-quantify.isoforms.B1.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.B2.read.map.tsv,test-quantify.isoforms.B2.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B3.read.map.tsv)
+	$(call cmp_expect_named,$@.isoforms.cpm.tsv,test-quantify.isoforms.cpm.tsv)
+	$(call cmp_expect_named,$@.isoforms.sample_info.tsv,test-quantify.isoforms.sample_info.tsv)
 
 # combine's isoforms with a two-piece fusion, on opposite strands, with the fusion's simulated reads as a
 # sample: the fusion gets flair fusion's counts (test-fusion), and its reads no other isoform's
@@ -683,6 +734,13 @@ test-quantify-fusion: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA}
 	$(call cmp_expect,$@.isoforms.counts.tsv)
 	$(call cmp_expect,$@.isoforms.cpm.tsv)
 	$(call cmp_expect_read_map,$@.isoforms.fusion.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A1.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A2.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A3.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B1.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B2.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B3.read.map.tsv)
+	$(call cmp_expect,$@.isoforms.sample_info.tsv)
 
 # a three-piece fusion: flair fusion's counts (test-fusion-3gene)
 test-quantify-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
@@ -690,6 +748,8 @@ test-quantify-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	flair quantify --manifest $O/$@.manifest.tsv --genome ${GENOME_FA} --isoform_bed $E/test-fusion-3gene.fusions.isoforms.bed \
 	   -o $O/$@
 	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.cpm.tsv)
+	$(call cmp_expect,$@.isoforms.sample_info.tsv)
 
 # every text input gzipped: the isoform BED and the manifest
 test-quantify-compress: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${GENOME_FA} \
@@ -709,6 +769,13 @@ test-quantify-bgzip-genome: mkdirs ${TOME_OUT_FAI} ${QUANTIFY_INPUT_BAMS} ${BGZI
 	   --isoform_bed $(TOME_ISOFORM_BED) --generate_map -o $O/$@
 	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-quantify.isoforms.counts.tsv)
 	$(call cmp_expect_named,$@.isoforms.cpm.tsv,test-quantify.isoforms.cpm.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.A1.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.A2.read.map.tsv,test-quantify.isoforms.A2.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.A3.read.map.tsv,test-quantify.isoforms.A3.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.B1.read.map.tsv,test-quantify.isoforms.B1.read.map.tsv)
+	$(call cmp_expect_read_map_named,$@.isoforms.B2.read.map.tsv,test-quantify.isoforms.B2.read.map.tsv)
+	$(call cmp_expect_read_map,$@.isoforms.B3.read.map.tsv)
+	$(call cmp_expect_named,$@.isoforms.sample_info.tsv,test-quantify.isoforms.sample_info.tsv)
 
 test-quantify-help: mkdirs
 	flair quantify --help > $O/$@.out
@@ -727,6 +794,7 @@ test-diffexp : mkdirs
 	$(call cmp_expect,$@.genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@.isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect,$@.isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@.isoforms_sig_exp_change_norm_by_gene.tsv)
 
 # same counts, columns interleaved rather than grouped by condition, compared against
 # the same expected results.  Taking the conditions from the first and last column
@@ -744,6 +812,7 @@ test-diffexp-colorder : mkdirs test-diffexp
 	$(call cmp_expect_sort_as,$@.genes_deseq2_MCF7_v_A549.tsv,test-diffexp.genes_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort_as,$@.isoforms_deseq2_MCF7_v_A549.tsv,test-diffexp.isoforms_deseq2_MCF7_v_A549.tsv)
 	$(call cmp_expect_sort_stats_as,$@.isoforms_drimseq_MCF7_v_A549.tsv,test-diffexp.isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect_named,$@.isoforms_sig_exp_change_norm_by_gene.tsv,test-diffexp.isoforms_sig_exp_change_norm_by_gene.tsv)
 
 # the basic counts as a flair spliceevents table, each gene an event, the last isoform of
 # a gene of three or more its other row: usage alone is tested, no DESeq2, and other rows
@@ -755,6 +824,7 @@ test-diffexp-spliceevents: mkdirs
 	test ! -e $O/$@.genes_deseq2_MCF7_v_A549.tsv
 	! grep -q '|other' $O/$@.isoforms_drimseq_MCF7_v_A549.tsv $O/$@.isoforms_sig_exp_change_norm_by_gene.tsv
 	$(call cmp_expect,$@.isoforms_drimseq_MCF7_v_A549.tsv)
+	$(call cmp_expect,$@.isoforms_sig_exp_change_norm_by_gene.tsv)
 
 test-diffexp-help: mkdirs
 	flair diffexp --help > $O/$@.out
@@ -913,13 +983,7 @@ transcriptome-tests: test-transcriptome test-transcriptome-directrna test-transc
 					test-transcriptome-frac-support-0 test-transcriptome-frac-support-0-basic test-transcriptome-compress
 
 update-transcriptome-tests:
-	for tname in "test-transcriptome" "test-transcriptome-directrna" "test-transcriptome-lowannot" "test-transcriptome-noannot" "test-transcriptome-noannot-trust-junctions" "test-transcriptome-normends" "test-transcriptome-comprehensive" "test-transcriptome-comprehensive-basic" \
-	"test-transcriptome-seg1" "test-transcriptome-mutant-splice" "test-transcriptome-readthrough" "test-transcriptome-readthrough-gene" "test-transcriptome-nosubset" "test-transcriptome-filter-1.2X" "test-transcriptome-nopolya" "test-transcriptome-nopolya-trust-strand" "test-transcriptome-keep-intprimed" "test-transcriptome-keep-intprimed-no-trust-strand" "test-transcriptome-polyt" "test-transcriptome-shared-junc" "test-transcriptome-no-firstpass" "test-transcriptome-onechrom" "test-transcriptome-mult-ends" \
-	"test-transcriptome-seg1-badannot" "test-transcriptome-seg1-badannot-multends" "test-transcriptome-seg1-badannot-comprehensive" "test-transcriptome-frac-support-0" "test-transcriptome-frac-support-0-basic"; \
-	do \
-	cp $O/$$tname.isoforms.bed $E/$$tname.isoforms.bed; \
-	cp $O/$$tname.isoforms.gtf $E/$$tname.isoforms.gtf; \
-	done
+	$(call update_expected,test-transcriptome)
 
 
 test-transcriptome: mkdirs ${BASIC_ALIGN_BAM}
@@ -931,11 +995,18 @@ test-transcriptome: mkdirs ${BASIC_ALIGN_BAM}
 	$(call cmp_expect,$@.aaseq.tsv)
 	$(call cmp_expect,$@.isoforms.read.map.tsv)
 	$(call cmp_expect,$@.regions.bed)
+	$(call cmp_expect,$@.firstpass.bed)
+	$(call cmp_expect,$@.firstpass.reallyunfiltered.bed)
+	$(call cmp_expect,$@.firstpass.unfiltered.bed)
 
 # --directRNA: trusts read strand and does not tolerate large indels in terminal exons
 test-transcriptome-directrna: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --directRNA
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # --normalize_ends: spliced isoforms report the ends shared by the isoforms of
 # their gene with similar terminal splice sites, rather than their reads' ends
@@ -943,6 +1014,10 @@ test-transcriptome-normends: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --normalize_ends
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoforms.read.map.tsv)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # test of --filter comprehensive, which keeps the subset isoforms that the
 # default nosubset filter drops from test-transcriptome-mutant-splice
@@ -951,17 +1026,32 @@ test-transcriptome-comprehensive: mkdirs ${KRAS_MUT_SPLICE_BAM}
 	   --junction_bed=${KRAS_MUT_SPLICE_SJ_BED} \
 	   -t 4 -f ${BASIC_ANNOTATION} -o $O/$@ --sample_name $@ --sjc_support 2 --filter comprehensive
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # --filter comprehensive on the basic data, which has single-exon isoforms
 # contained in spliced exons
 test-transcriptome-comprehensive-basic: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --filter comprehensive
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 test-transcriptome-mult-ends: mkdirs ${BASIC_ALIGN_BAM}
 	rm -rf $O/$@.tmp
 	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 5 --keep_intermediate --temp_dir $O/$@.tmp
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.firstpass.bed,test-transcriptome.firstpass.bed)
+	$(call cmp_expect_named,$@.firstpass.reallyunfiltered.bed,test-transcriptome.firstpass.reallyunfiltered.bed)
+	$(call cmp_expect_named,$@.firstpass.unfiltered.bed,test-transcriptome.firstpass.unfiltered.bed)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # --region_bed builds transcripts in one region, grown to the partition holding every
 # read and annotation that reaches it, so they are the whole-genome run's transcripts
@@ -974,6 +1064,9 @@ test-transcriptome-region: mkdirs ${BASIC_ALIGN_BAM}
 	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.bed) $O/$@.isoforms.bed
 	diff <(awk '$$1 == "chr12"' $E/test-transcriptome.isoforms.gtf) $O/$@.isoforms.gtf
 	$(call cmp_expect,$@.regions.bed)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
 
 # a 1kb region inside DDX5 is expanded over the readthrough reads into POLG2, the gene
 # next to it, so the region reproduces a whole-genome run, POLG2's transcripts included
@@ -982,16 +1075,27 @@ test-transcriptome-readthrough-region: mkdirs ${DDX5_READTHROUGH_BAM}
 	diff $E/test-transcriptome-readthrough.isoforms.bed $O/$@.isoforms.bed
 	diff $E/test-transcriptome-readthrough.isoforms.gtf $O/$@.isoforms.gtf
 	$(call cmp_expect,$@.regions.bed)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome-readthrough.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome-readthrough.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome-readthrough.isoforms.fa)
 
 test-transcriptome-lowannot: mkdirs ${BASIC_ALIGN_BAM}
 	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.ip_junctions.bed -C 0.0 ${BASIC_ALIGN_BAM}
 	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --junction_bed $O/$@.ip_junctions.bed --junction_support 2 -o $O/$@ --sample_name $@ --no_align_to_annot --sjc_support 3
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 test-transcriptome-noannot: mkdirs ${BASIC_ALIGN_BAM}
 	intron-prospector --genome-fasta=${GENOME_FA} --intron-bed6=$O/$@.ip_junctions.bed -C 0.0 ${BASIC_ALIGN_BAM}
 	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.ip_junctions.bed --junction_support 2 --sjc_support 3
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # no annotation, so junction strands come only from intron-prospector; --trust_junctions
 # takes every junction's strand as given, without checking for a GT-AG motif
@@ -1000,24 +1104,44 @@ test-transcriptome-noannot-trust-junctions: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome  -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.ip_junctions.bed --junction_support 2 --sjc_support 3 \
 	   --trust_junctions
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 test-transcriptome-seg1: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(SEG1_ANNOTATION) -o $O/$@ --sample_name $@
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 test-transcriptome-seg1-badannot: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 test-transcriptome-seg1-badannot-multends: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 4 --single_exon_support 2 --filter ginormous
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # as seg1-badannot-multends, but comprehensive compares the overlapping single-exon
 # isoforms by expression instead of keeping them all
 test-transcriptome-seg1-badannot-comprehensive: mkdirs  ${SEG1_ALIGN_BAM}
 	flair transcriptome -b ${SEG1_ALIGN_BAM} -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --max_ends 4 --single_exon_support 2 --filter comprehensive
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # test of an artifical mutated splice site.
 test-transcriptome-mutant-splice: mkdirs ${KRAS_MUT_SPLICE_BAM}
@@ -1025,11 +1149,19 @@ test-transcriptome-mutant-splice: mkdirs ${KRAS_MUT_SPLICE_BAM}
 	   --junction_bed=${KRAS_MUT_SPLICE_SJ_BED} \
 	   -t 4 -f ${BASIC_ANNOTATION} -o $O/$@ --sample_name $@ --sjc_support 2
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 #test of an artificial read through transcript
 test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
 	flair transcriptome -b ${DDX5_READTHROUGH_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 
 # the readthrough transcript annotated as its own gene: the readthrough isoform
@@ -1037,6 +1169,10 @@ test-transcriptome-readthrough: mkdirs ${DDX5_READTHROUGH_BAM}
 test-transcriptome-readthrough-gene: mkdirs ${DDX5_READTHROUGH_BAM} ${DDX5_READTHROUGH_GENE_ANNOT}
 	flair transcriptome -b ${DDX5_READTHROUGH_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_GENE_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 ${DDX5_READTHROUGH_GENE_ANNOT}: ${DDX5_READTHROUGH_ANNOT} ${DDX5_READTHROUGH_GENE_GTF}
 	@mkdir -p $O
@@ -1049,6 +1185,10 @@ test-transcriptome-nosubset: mkdirs ${DDX5_BYSUPPORT_BAM}
 	flair transcriptome -b ${DDX5_BYSUPPORT_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 \
 	   --filter nosubset
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # test of --filter 1.2X on the same reads, which keeps a subset isoform with more
 # than 1.2x the reads of the isoforms it is a subset of
@@ -1056,6 +1196,10 @@ test-transcriptome-filter-1.2X: mkdirs ${DDX5_BYSUPPORT_BAM}
 	flair transcriptome -b ${DDX5_BYSUPPORT_BAM} -g ${GENOME_FA} -f ${DDX5_READTHROUGH_ANNOT} -o $O/$@ --sample_name $@ --junction_bed=${DDX5_READTHROUGH_SJ} --sjc_support 2 \
 	   --filter 1.2X
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 ${DDX5_BYSUPPORT_BAM}: ${DDX5_READTHROUGH_BAM} ${DDX5_BYSUPPORT_DROP_READS}
 	samtools view -h ${DDX5_READTHROUGH_BAM} | grep -v -F -w -f ${DDX5_BYSUPPORT_DROP_READS} | samtools view -b -o $@.tmp.bam -
@@ -1068,11 +1212,19 @@ test-transcriptome-nopolya: mkdirs ${NOPOLYA_ALIGN_BAM}
 	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 test-transcriptome-nopolya-trust-strand: mkdirs ${NOPOLYA_ALIGN_BAM}
 	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2 --trust_strand
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # poly(T) heads on all reads, no annotation: the single-exon KRAS isoform gets re-assigned to the + strand
 # all spliced reads strand as normal due to splice junction strand correction, only single exon reads get re-stranded
@@ -1081,6 +1233,10 @@ test-transcriptome-polyt: mkdirs ${POLYT_ALIGN_BAM}
 	flair transcriptome -b ${POLYT_ALIGN_BAM} -g ${GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.ip_junctions.bed --junction_support 2 --sjc_support 3 \
 	   --filter ginormous --single_exon_support 2
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # novel DDX5 isoforms use the intron shared with the synthetic SHAREDJ1 gene; SHAREDJ1
 # has fewer of their junctions, so gene assignment drops it and the results match
@@ -1089,6 +1245,10 @@ test-transcriptome-polyt: mkdirs ${POLYT_ALIGN_BAM}
 test-transcriptome-shared-junc: mkdirs ${BASIC_ALIGN_BAM} ${SHARED_JUNC_ANNOTATION}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_tab ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f ${SHARED_JUNC_ANNOTATION} -o $O/$@ --sample_name $@
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # the chr20 partition has one read, below --sjc_support 2, so it has no firstpass
 # isoforms; results should be the chr12 and chr17 isoforms of test-transcriptome
@@ -1096,6 +1256,10 @@ test-transcriptome-no-firstpass: mkdirs ${ONECHR20_ALIGN_BAM}
 	flair transcriptome -b ${ONECHR20_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --generate_map --sjc_support 2
 	$(diff_bed_gtf)
 	$(call cmp_expect,$@.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # test-transcriptome-noannot with all loci on one chromosome, so KRAS and DDX5 (both
 # minus strand) are separate novel genes on the same strand of one partition
@@ -1103,6 +1267,10 @@ test-transcriptome-onechrom: mkdirs ${ONECHROM_ALIGN_BAM}
 	intron-prospector --genome-fasta=${ONECHROM_GENOME_FA} --intron-bed6=$O/$@.ip_junctions.bed -C 0.0 ${ONECHROM_ALIGN_BAM}
 	flair transcriptome -b ${ONECHROM_ALIGN_BAM} -g ${ONECHROM_GENOME_FA} -t 4 -o $O/$@ --sample_name $@ --junction_bed $O/$@.ip_junctions.bed --junction_support 2 --sjc_support 3
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 ${ONECHROM_ALIGN_BAM}: ${BASIC_READS_FA} ${ONECHROM_GENOME_FA}
 	$(call minimap2_genome_align,${BASIC_READS_FA},${ONECHROM_GENOME_FA},-s 80 -G 200k)
@@ -1121,18 +1289,35 @@ test-transcriptome-keep-intermediate-no-temp-dir: mkdirs ${BASIC_ALIGN_BAM}
 	  flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_intermediate > $O/$@.out 2>&1
 	grep -q -- 'intermediate files kept in' $O/$@.out
 	test -n "$$(ls $O/$@.tmpdir)" 
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.firstpass.bed,test-transcriptome.firstpass.bed)
+	$(call cmp_expect_named,$@.firstpass.reallyunfiltered.bed,test-transcriptome.firstpass.reallyunfiltered.bed)
+	$(call cmp_expect_named,$@.firstpass.unfiltered.bed,test-transcriptome.firstpass.unfiltered.bed)
+	$(call cmp_expect,$@.isoforms.bed)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect,$@.isoforms.gtf)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # --keep_internally_primed: single-exon reads ending in or before genomic A runs are
 # kept rather than removed as oligo-dT mispriming, for reads not primed on poly(A)
 test-transcriptome-keep-intprimed: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --trust_strand --keep_internally_primed
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # --keep_internally_primed without --trust_strand: single-exon groups are still
 # stranded by their poly(A) tails
 test-transcriptome-keep-intprimed-no-trust-strand: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --keep_internally_primed
 	$(diff_bed_gtf)
+	$(call cmp_expect_named,$@.aaseq.tsv,test-transcriptome.aaseq.tsv)
+	$(call cmp_expect_named,$@.isoforms.counts.tsv,test-transcriptome.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.isoforms.fa,test-transcriptome.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 # test of --frac_support 0: isoforms need only sjc_support and single_exon_support
 # reads, though single-exon end variants still need SINGLE_EXON_END_MIN_FRAC of
@@ -1141,6 +1326,10 @@ test-transcriptome-frac-support-0: mkdirs ${NOPOLYA_ALIGN_BAM}
 	flair transcriptome -b ${NOPOLYA_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --filter ginormous --single_exon_support 2 --trust_strand --frac_support 0
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect,$@.regions.bed)
 
 # the basic test with --frac_support 0: spliced isoforms need only sjc_support reads,
 # 3 here, as the default 1 would keep every corrected junction chain
@@ -1148,6 +1337,10 @@ test-transcriptome-frac-support-0-basic: mkdirs ${BASIC_ALIGN_BAM}
 	flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} --junction_star ${BASIC_SHORTREAD_JUNCTIONS} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ \
 	   --frac_support 0 --sjc_support 3
 	$(diff_bed_gtf)
+	$(call cmp_expect,$@.aaseq.tsv)
+	$(call cmp_expect,$@.isoforms.counts.tsv)
+	$(call cmp_expect,$@.isoforms.fa)
+	$(call cmp_expect_named,$@.regions.bed,test-transcriptome.regions.bed)
 
 
 test-transcriptome-trust-ends-removed: mkdirs ${BASIC_ALIGN_BAM}
@@ -1244,6 +1437,9 @@ test-isoalleles: mkdirs ${ISOALLELES_READ_MAP} ${BASIC_PHASED_VCF}
 	$(call cmp_expect,$@.isoalleles.excluded.tsv)
 	$(call cmp_expect,$@.isoalleles.terminal_sites.tsv)
 	$(call cmp_expect,$@.isoalleles.warnings.tsv)
+	$(call cmp_expect,$@.isoalleles.aaseq.tsv)
+	$(call cmp_expect,$@.isoalleles.fa)
+	$(call cmp_expect,$@.isoalleles.somatic_sets.tsv)
 
 # a pair, of the reads as tumor and normal both, the chr17 het given as a somatic
 # variant: its reads, on H1, are a somatic set in both
@@ -1259,6 +1455,9 @@ test-isoalleles-pair: mkdirs ${ISOALLELES_READ_MAP} ${BASIC_PHASED_VCF}
 	$(call cmp_expect,$@.isoalleles.excluded.tsv)
 	$(call cmp_expect,$@.isoalleles.terminal_sites.tsv)
 	$(call cmp_expect,$@.isoalleles.warnings.tsv)
+	$(call cmp_expect,$@.isoalleles.aaseq.tsv)
+	$(call cmp_expect,$@.isoalleles.bed)
+	$(call cmp_expect,$@.isoalleles.fa)
 
 # compressed, in two threads, with read maps and labelled bams: the same tables
 test-isoalleles-compress: mkdirs ${ISOALLELES_READ_MAP} ${BASIC_PHASED_VCF}
@@ -1342,12 +1541,7 @@ fusion-tests: test-fusion test-fusion-pary test-fusion-nongenic test-fusion-no-t
 	test-fusion-reuse test-fusion-reuse-other-reads
 
 update-fusion-tests:
-	for tname in "test-fusion" "test-fusion-pary" "test-fusion-nongenic" "test-fusion-no-tome" "test-fusion-3gene" "test-fusion-refseq" "test-fusion-recall"; \
-	do \
-	cp $O/$$tname.fusions.isoforms.bed $E/$$tname.fusions.isoforms.bed; \
-	cp $O/$$tname.fusions.isoforms.fa $E/$$tname.fusions.isoforms.fa; \
-	cp $O/$$tname.fusions.tsv $E/$$tname.fusions.tsv; \
-	done
+	$(call update_expected,test-fusion)
 
 test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
@@ -1357,6 +1551,9 @@ test-fusion: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
 	$(call cmp_expect,$@.fusions.aaseq.tsv)
 	test -s $O/$@.fusions.isoforms.read.map.tsv -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map,$@.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 # 	diff <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $E/$@.fusions.isoforms.bed)) <(sort <(cut -f 1,2,3,5,6,7,8,9,10,11,12 $O/$@.fusions.isoforms.bed))
 # 	diff <(sort <(grep -v ">" $E/$@.fusions.isoforms.fa)) <(sort <(grep -v ">" $O/$@.fusions.isoforms.fa))
 
@@ -1369,6 +1566,10 @@ test-fusion-recall: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_B
 	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
 	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map_named,$@.fusions.isoforms.read.map.tsv,test-fusion.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect_named,$@.fusions.prelim.bed,test-fusion.fusions.prelim.bed)
 
 # the sample name is the one test-fusion used, since it is written into the BED
 test-fusion-compress: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM} ${TI}/basic.annotation.gtf.gz
@@ -1377,6 +1578,7 @@ test-fusion-compress: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST
 	$(call cmp_expect_gz,$@.fusions.isoforms.fa,test-fusion.fusions.isoforms.fa)
 	$(call check_gz,$@.fusions.isoforms.gtf)
 	$(call check_fasta_indexable,$@.fusions.isoforms.fa)
+	$(call cmp_expect_named,$@.fusions.prelim.bed,test-fusion.fusions.prelim.bed)
 
 # --max_partners 0 makes every gene promiscuous, so the fusion test-fusion reports
 # is dropped: the option reaches the partner count
@@ -1384,18 +1586,33 @@ test-fusion-max-partners: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2 --max_partners 0
 	$(call cmp_expect,$@.fusions.tsv)
 	test ! -s $O/$@.fusions.isoforms.bed
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.fa)
+	$(call cmp_expect_read_map,$@.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 
 test-fusion-pary: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/parY.annotation.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect_named,$@.fusions.isoforms.counts.tsv,test-fusion.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map_named,$@.fusions.isoforms.read.map.tsv,test-fusion.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 
 test-fusion-nongenic: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $I/basic.annotation.ERGIC3_only.gtf -b ${FUSION_TEST_BAM} --max_loci 4 -o $O/$@ --sample_name $@ --min_support 2
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map,$@.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 
 # a rerun under the same output name with other reads: the chimeric BAMs the first
 # run left are made again, since they are not of these reads, and the result is that
@@ -1406,6 +1623,13 @@ test-fusion-reuse-other-reads: mkdirs ${GENOME_FA} ${FUSION_TEST_BAM} ${FUSION3_
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
 	diff $E/test-fusion-3gene.fusions.tsv $O/$@.fusions.tsv
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion-3gene.fusions.aaseq.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect_named,$@.fusions.isoforms.counts.tsv,test-fusion-3gene.fusions.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.fusions.isoforms.fa,test-fusion-3gene.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map_named,$@.fusions.isoforms.read.map.tsv,test-fusion-3gene.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect_named,$@.fusions.prelim.bed,test-fusion-3gene.fusions.prelim.bed)
 
 # the same reads and options again: the chimeric BAMs are reused, and reported
 test-fusion-reuse: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
@@ -1415,6 +1639,13 @@ test-fusion-reuse: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	test $$(grep -c "reusing the genome alignment's chimeric reads" $O/$@.log) -eq 1
 	test $$(grep -c 'reusing the chimeric alignments to the annotated transcripts' $O/$@.log) -eq 1
 	diff $E/test-fusion-3gene.fusions.tsv $O/$@.fusions.tsv
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion-3gene.fusions.aaseq.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.bed)
+	$(call cmp_expect_named,$@.fusions.isoforms.counts.tsv,test-fusion-3gene.fusions.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.fusions.isoforms.fa,test-fusion-3gene.fusions.isoforms.fa)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map_named,$@.fusions.isoforms.read.map.tsv,test-fusion-3gene.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect_named,$@.fusions.prelim.bed,test-fusion-3gene.fusions.prelim.bed)
 
 test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	flair fusion -g ${GENOME_FA} -f $(BASIC_ANNOTATION) -b ${FUSION3_TEST_BAM} --max_loci 3 -o $O/$@ --sample_name $@ --min_support 2
@@ -1424,6 +1655,9 @@ test-fusion-3gene: mkdirs ${GENOME_FA} ${FUSION3_TEST_BAM}
 	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
 	$(call cmp_expect,$@.fusions.aaseq.tsv)
 	test -s $O/$@.fusions.isoforms.read.map.tsv -a -s $O/$@.fusions.isoforms.gtf -a -s $O/$@.fusions.isoforms.bb
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map,$@.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 
 ${FUSION3_TEST_BAM}: $I/ERGIC3_DDX5_KRAS_sim_fusion.badread_30x.stranded.fastq ${GENOME_FA}
 	$(call minimap2_genome_align,$I/ERGIC3_DDX5_KRAS_sim_fusion.badread_30x.stranded.fastq,${GENOME_FA},-s 40 -G 350k)
@@ -1436,6 +1670,11 @@ test-fusion-sorted-gtf: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TE
 	diff <(sort $E/test-fusion.fusions.isoforms.bed) <(sort $O/$@.fusions.isoforms.bed)
 	diff <(sort $E/test-fusion.fusions.isoforms.fa) <(sort $O/$@.fusions.isoforms.fa)
 	diff $E/test-fusion.fusions.tsv $O/$@.fusions.tsv
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect_named,$@.fusions.isoforms.counts.tsv,test-fusion.fusions.isoforms.counts.tsv)
+	$(call cmp_expect_named,$@.fusions.isoforms.gtf,test-fusion.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map_named,$@.fusions.isoforms.read.map.tsv,test-fusion.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect_named,$@.fusions.prelim.bed,test-fusion.fusions.prelim.bed)
 
 # a RefSeq annotation: RefSeq sequence names, gene symbols as gene ids and no
 # gene_name attribute, BestRefSeq and Gnomon transcripts
@@ -1444,6 +1683,11 @@ test-fusion-refseq: mkdirs ${REFSEQ_GENOME_FA} ${REFSEQ_FUSION_TEST_BAM}
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect_named,$@.fusions.isoforms.counts.tsv,test-fusion.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map,$@.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 
 ${REFSEQ_FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${REFSEQ_GENOME_FA}
 	$(call minimap2_genome_align,$I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq,${REFSEQ_GENOME_FA},-s 40 -G 350k)
@@ -1454,6 +1698,11 @@ test-fusion-no-tome: mkdirs ${GENOME_FA} ${ERGIC3_KRAS_SIM_FA_GZ} ${FUSION_TEST_
 	$(call cmp_expect,$@.fusions.isoforms.bed)
 	$(call cmp_expect,$@.fusions.isoforms.fa)
 	$(call cmp_expect,$@.fusions.tsv)
+	$(call cmp_expect_named,$@.fusions.aaseq.tsv,test-fusion.fusions.aaseq.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.counts.tsv)
+	$(call cmp_expect,$@.fusions.isoforms.gtf)
+	$(call cmp_expect_read_map,$@.fusions.isoforms.read.map.tsv)
+	$(call cmp_expect,$@.fusions.prelim.bed)
 
 ${FUSION_TEST_BAM}: ${ERGIC3_KRAS_SIM_FA_GZ} ${GENOME_FA}
 	$(call minimap2_genome_align,$I/ERGIC3_KRAS_sim_fusion.badread_20x.stranded.fastq,${GENOME_FA},-s 40 -G 350k)
@@ -1485,6 +1734,10 @@ test-spliceevents-reuse-other-options: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --ss_window 50 -o $O/$@-clean
 	diff $O/$@-clean.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
 	diff $O/$@-clean.spliceevents.psi_junc.tsv $O/$@.spliceevents.psi_junc.tsv
+	$(call cmp_expect,$@.spliceevents.bed)
+	$(call cmp_expect,$@.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.regions.bed,test-spliceevents.spliceevents.regions.bed)
+	$(call cmp_expect,$@.spliceevents.totals.tsv)
 
 # a manifest of the four flair quantify fields: the conditions are written beside the
 # counts as the sample info file flair diffexp reads, and the counts are those of the
@@ -1493,6 +1746,11 @@ test-spliceevents-conditions: mkdirs ${SPLICEEVENTS_MULTI_BAMS} $O/spliceevents.
 	flair spliceevents -m $O/spliceevents.conditions.manifest.tsv -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@
 	$(call cmp_expect,$@.spliceevents.sample_info.tsv)
 	diff $E/test-spliceevents-outliers.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
+	$(call cmp_expect_named,$@.spliceevents.bed,test-spliceevents-outliers.spliceevents.bed)
+	$(call cmp_expect_named,$@.spliceevents.psi_junc.tsv,test-spliceevents-outliers.spliceevents.psi_junc.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_tot.tsv,test-spliceevents-outliers.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.regions.bed,test-spliceevents-outliers.spliceevents.regions.bed)
+	$(call cmp_expect_named,$@.spliceevents.totals.tsv,test-spliceevents-outliers.spliceevents.totals.tsv)
 
 test-spliceevents-help: mkdirs
 	flair spliceevents --help > $O/$@.out
@@ -1538,12 +1796,20 @@ test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
 	$(call cmp_expect,$@.spliceevents.regions.bed)
+	$(call cmp_expect,$@.spliceevents.bed)
+	$(call cmp_expect,$@.spliceevents.psi_tot.tsv)
+	$(call cmp_expect,$@.spliceevents.totals.tsv)
 
 # a region at KRAS's 5' end: expanding it once over the reads that overlap it reaches
 # 25251072, and over the reads that overlap those, 25251120, the whole gene
 test-spliceevents-region-extend: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25205001-25205500 -o $O/$@
 	$(call cmp_expect,$@.spliceevents.regions.bed)
+	$(call cmp_expect,$@.spliceevents.bed)
+	$(call cmp_expect,$@.spliceevents.counts.tsv)
+	$(call cmp_expect,$@.spliceevents.psi_junc.tsv)
+	$(call cmp_expect,$@.spliceevents.psi_tot.tsv)
+	$(call cmp_expect,$@.spliceevents.totals.tsv)
 
 # --region regions, the same as the --region_bed ones of test-spliceevents-region,
 # give the region's events whatever --partition_items says, as a region is expanded
@@ -1552,6 +1818,10 @@ test-spliceevents-region-partition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MAN
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25200001-25235000 --region='chr12 60000000 60010000' --partition_items 1 -o $O/$@
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
 	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
+	$(call cmp_expect,$@.spliceevents.bed)
+	$(call cmp_expect,$@.spliceevents.psi_tot.tsv)
+	$(call cmp_expect,$@.spliceevents.regions.bed)
+	$(call cmp_expect,$@.spliceevents.totals.tsv)
 
 # one partition per cluster of overlapping reads and transcripts, the most a
 # chromosome can be cut into, gives the events of the default partitions: no read
@@ -1561,12 +1831,23 @@ test-spliceevents-smallparts: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	for s in bed counts.tsv psi_junc.tsv psi_tot.tsv totals.tsv; do \
 	    diff $E/test-spliceevents.spliceevents.$$s $O/$@.spliceevents.$$s || exit 1; done
 	$(call cmp_expect,$@.spliceevents.regions.bed)
+	$(call cmp_expect_named,$@.spliceevents.bed,test-spliceevents.spliceevents.bed)
+	$(call cmp_expect_named,$@.spliceevents.counts.tsv,test-spliceevents.spliceevents.counts.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_junc.tsv,test-spliceevents.spliceevents.psi_junc.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_tot.tsv,test-spliceevents.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.totals.tsv,test-spliceevents.spliceevents.totals.tsv)
 
 # whole chromosomes, not cut, give the events of the cut ones
 test-spliceevents-nopartition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --partition_items 0 -o $O/$@
 	for s in bed counts.tsv psi_junc.tsv psi_tot.tsv totals.tsv; do \
 	    diff $E/test-spliceevents.spliceevents.$$s $O/$@.spliceevents.$$s || exit 1; done
+	$(call cmp_expect_named,$@.spliceevents.bed,test-spliceevents.spliceevents.bed)
+	$(call cmp_expect_named,$@.spliceevents.counts.tsv,test-spliceevents.spliceevents.counts.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_junc.tsv,test-spliceevents.spliceevents.psi_junc.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_tot.tsv,test-spliceevents.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.regions.bed,test-spliceevents.spliceevents.regions.bed)
+	$(call cmp_expect_named,$@.spliceevents.totals.tsv,test-spliceevents.spliceevents.totals.tsv)
 
 # a rerun with --keep_intermediate corrects only the samples without their corrected
 # reads, here the one whose file is removed, and gives the same tables
@@ -1578,6 +1859,12 @@ test-spliceevents-restart: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair --log-level DEBUG spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --keep_intermediate -o $O/$@ 2> $O/$@.log
 	test $$(grep -c 'reads to the annotated transcripts' $O/$@.log) -eq 1
 	for f in $O/$@.first/*.tsv; do diff $$f $O/$@.$$(basename $$f | sed 's/^$@\.//') || exit 1; done
+	$(call cmp_expect_named,$@.spliceevents.bed,test-spliceevents.spliceevents.bed)
+	$(call cmp_expect_named,$@.spliceevents.counts.tsv,test-spliceevents.spliceevents.counts.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_junc.tsv,test-spliceevents.spliceevents.psi_junc.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_tot.tsv,test-spliceevents.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.regions.bed,test-spliceevents.spliceevents.regions.bed)
+	$(call cmp_expect_named,$@.spliceevents.totals.tsv,test-spliceevents.spliceevents.totals.tsv)
 
 # --temp_dir contains the run's own directory, which is removed at the end, and nothing
 # is written beside the output; the events are those of a run using $TMPDIR
@@ -1587,6 +1874,11 @@ test-spliceevents-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	diff $E/test-spliceevents.spliceevents.counts.tsv $O/$@.spliceevents.counts.tsv
 	test -z "$$(ls $O/$@.tmp)"
 	test ! -e $O/$@.intermediate
+	$(call cmp_expect_named,$@.spliceevents.bed,test-spliceevents.spliceevents.bed)
+	$(call cmp_expect_named,$@.spliceevents.psi_junc.tsv,test-spliceevents.spliceevents.psi_junc.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_tot.tsv,test-spliceevents.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.regions.bed,test-spliceevents.spliceevents.regions.bed)
+	$(call cmp_expect_named,$@.spliceevents.totals.tsv,test-spliceevents.spliceevents.totals.tsv)
 
 # the files kept are beside the output, so --temp_dir, which is accepted with it,
 # names a directory they are not in and the run says so
@@ -1596,6 +1888,12 @@ test-spliceevents-keep-intermediate-with-temp-dir: mkdirs ${BASIC_ALIGN_BAM} ${S
 	grep -q -- 'so --temp_dir is not used' $O/$@.out
 	test -d $O/$@.intermediate
 	test -z "$$(ls $O/$@.tmp)" 
+	$(call cmp_expect_named,$@.spliceevents.bed,test-spliceevents.spliceevents.bed)
+	$(call cmp_expect_named,$@.spliceevents.counts.tsv,test-spliceevents.spliceevents.counts.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_junc.tsv,test-spliceevents.spliceevents.psi_junc.tsv)
+	$(call cmp_expect_named,$@.spliceevents.psi_tot.tsv,test-spliceevents.spliceevents.psi_tot.tsv)
+	$(call cmp_expect_named,$@.spliceevents.regions.bed,test-spliceevents.spliceevents.regions.bed)
+	$(call cmp_expect_named,$@.spliceevents.totals.tsv,test-spliceevents.spliceevents.totals.tsv)
 
 $O/spliceevents.s%.bam: ${BASIC_ALIGN_BAM}
 	samtools view -b -s $*.6 -o $@ $<
