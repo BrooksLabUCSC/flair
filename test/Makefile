@@ -633,7 +633,7 @@ test-combine-nose: mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 test-combine-10pct: mkdirs ${GENOME_FA}
-	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --min_percent_usage 10
+	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --frac_support 0.1
 	$(combine_diff)
 	$(call cmp_expect,$@.combined.isoforms.fa)
 	$(call cmp_expect,$@.combined.isoforms.gtf)
@@ -645,7 +645,7 @@ test-combine-multends: mkdirs ${GENOME_FA}
 	$(call cmp_expect,$@.combined.isoforms.gtf)
 
 test-combine-multends-10pct: mkdirs ${GENOME_FA}
-	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --min_percent_usage 10
+	flair combine --manifest $(COMBINE_MANIFEST) --genome ${GENOME_FA} -o $O/$@ --max_ends 10 --frac_support 0.1
 	$(combine_diff)
 	$(call cmp_expect,$@.combined.isoforms.fa)
 	$(call cmp_expect,$@.combined.isoforms.gtf)
@@ -665,9 +665,9 @@ test-combine-conflict-gtf: mkdirs ${GENOME_FA}
 
 # isoforms of alleles, from flair isoalleles: combined into their isoforms,
 # without allele information, with a warning.  read_support is per allele,
-# frac_support the isoform's, so --min_percent_usage treats an isoform's alleles alike
+# frac_support the isoform's, so --frac_support treats an isoform's alleles alike
 test-combine-isoalleles: mkdirs ${GENOME_FA}
-	flair combine --isoform_beds $I/combine.isoalleles.bed --genome ${GENOME_FA} --min_percent_usage 1 -o $O/$@ 2> $O/$@.err
+	flair combine --isoform_beds $I/combine.isoalleles.bed --genome ${GENOME_FA} --frac_support 0.01 -o $O/$@ 2> $O/$@.err
 	grep -q 'flair combine drops the allele information' $O/$@.err
 	$(combine_diff)
 	$(call cmp_expect,$@.combined.isoforms.fa)

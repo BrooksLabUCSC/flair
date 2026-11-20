@@ -51,6 +51,8 @@ _PREDICT_CDS = ("has been removed: the CDS and productivity of an isoform are re
 _SUPPORT_SPLIT = ("has been split into --sjc_support, for spliced isoforms, "
                   "--single_exon_support, for single exon isoforms, and --frac_support, the share "
                   "of its gene's reads an isoform must have")
+_PERCENT_USAGE = ("is now --frac_support, a fraction of its gene's reads where this was a "
+                  "percentage of them: 5 becomes 0.05, the default of both")
 _PARALOGS = ("has been removed: a read aligning equally well to several transcripts is assigned "
              "to one of them, the same one for every such read, rather than to all of them")
 
@@ -119,8 +121,9 @@ RETIRED_BY_COMMAND = {
     'combine': {
         '--endwindow': "is now --end_window",
         '-w': "is now --end_window",
-        '--minpercentusage': "is now --min_percent_usage",
-        '-p': "is now --min_percent_usage",
+        '--minpercentusage': _PERCENT_USAGE,
+        '--min_percent_usage': _PERCENT_USAGE,
+        '-p': _PERCENT_USAGE,
         '--remove_se': "is now --remove_single_exon",
         '--include_se': ("has been removed: single exon isoforms are combined unless "
                          "--remove_single_exon is given"),
@@ -128,7 +131,7 @@ RETIRED_BY_COMMAND = {
                "is given"),
         '--convert_gtf': "has been removed: a GTF of the combined isoforms is always written",
         '-c': "has been removed: a GTF of the combined isoforms is always written",
-        '--filter': "has been removed: --min_percent_usage and --min_reads select the isoforms kept",
+        '--filter': "has been removed: --frac_support and --min_reads select the isoforms kept",
         '-m': "is now --manifest",
     },
     'fusion': {

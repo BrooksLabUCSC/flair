@@ -54,10 +54,10 @@ def add_subparser(subparsers):
                         help="prefix for output file (default: %(default)s)")
     parser.add_argument('--end_window', type=int, default=200,
                         help="window, in bases, for comparing ends of isoforms with the same intron chain (default: %(default)s)")
-    parser.add_argument('--min_percent_usage', type=int, default=5,
-                        help="minimum percent usage required in one sample to keep isoform in combined transcriptome; "
-                        "taken from frac_support, column 17 of the input BEDs: an isoform without it is an error "
-                        "(default: %(default)s)")
+    parser.add_argument('--frac_support', type=float, default=0.05,
+                        help="minimum share of its gene's reads for an isoform, in one sample, to be kept in the "
+                        "combined transcriptome; taken from frac_support, column 17 of the input BEDs: an isoform "
+                        "without it is an error (default: %(default)s)")
     parser.add_argument('--remove_single_exon', action='store_true',
                         help='remove all single exon isoforms')
     parser.add_argument('--max_ends', type=int, default=1,
@@ -65,7 +65,7 @@ def add_subparser(subparsers):
                              '- 1: the chain gives one isoform, containing the isoforms of every group of '
                              'similar ends and their read support\n'
                              '- above 1: each group of similar ends gives an isoform of its own, when the '
-                             'group passes --min_percent_usage and --min_reads on its own, so ends are more '
+                             'group passes --frac_support and --min_reads on its own, so ends are more '
                              'precise and the support of a group that fails them is dropped.  Any value '
                              'above 1 gives the same result\n'
                              '(default: %(default)s)')
@@ -75,17 +75,16 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=combine_cmd)
 
 def combine_cmd(args):
-    check_option_ranges(args, percent=('min_percent_usage',), count=('end_window', 'min_reads'),
+    check_option_ranges(args, fraction=('frac_support',), count=('end_window', 'min_reads'),
                         positive=('max_ends',))
     # the manifest names the BEDs, so it is checked before it is read
     check_input_files({'manifest': args.manifest})
     isoform_beds = parse_input(args.manifest, args.prefixes, args.isoform_beds)
     precheck(files={'isoform BED': isoform_beds, 'annotation GTF': args.gtf},
              programs=PROGRAMS, genome=args.genome, isoform_beds=isoform_beds)
-    # the option is a percentage, the code compares against fractional usage
     combine(manifest=args.manifest, prefixes=args.prefixes, isoform_beds=args.isoform_beds,
             genome=args.genome, annotation=args.gtf, output=args.output, end_window=args.end_window,
-            min_frac_usage=args.min_percent_usage / 100.0,
+            frac_support=args.frac_support,
             remove_single_exon=args.remove_single_exon, max_ends=args.max_ends,
             min_reads=args.min_reads)
 
@@ -156,7 +155,7 @@ def _check_support(bedfile, bed):
                           ('frac_support (column 17)', bed.frac_support)):
         if value is None:
             raise FlairInputDataError(f"{bedfile}: isoform {bed.name} has no {column}; flair combine needs it to "
-                                      f"filter on --min_reads and --min_percent_usage")
+                                      f"filter on --min_reads and --frac_support")
 
 
 def _check_one_sample(bedfile, bed):
@@ -195,7 +194,7 @@ def load_isos_by_id(bedfile):
                         f"the allele information, combining the alleles of an isoform into one isoform, with the CDS and "
                         f"productivity of an allele without variants where there is one (give -f to recompute them from "
                         f"the reference).  Their support is per allele, so each is a smaller fraction of its gene's reads "
-                        f"than its isoform: set --min_percent_usage lower for them")
+                        f"than its isoform: set --frac_support lower for them")
     return isotoinfo, mysamples
 
 def _fusion_junction_sites(bed, order, numpieces):
@@ -237,13 +236,13 @@ def load_isoforms_by_junc_chain(sampledata):
         organize_isos_by_junc_chain(isotoinfo, intronchaintoisos)
     return intronchaintoisos, sorted(list(allsamples))
 
-def filter_groups(ends_to_iso_groups, max_ends, minpercentusage, min_reads):
+def filter_groups(ends_to_iso_groups, max_ends, frac_support, min_reads):
     if max_ends == 1:
         groups_after_end_filtering = [ends_to_iso_groups[0], ]
         for group in ends_to_iso_groups[1:]:
             groups_after_end_filtering[0].extend(group)  # adding to main group
     else:
-        groups_after_end_filtering = [x for x in ends_to_iso_groups if x[0][0].frac_support >= minpercentusage and x[0][0].read_support >= min_reads]
+        groups_after_end_filtering = [x for x in ends_to_iso_groups if x[0][0].frac_support >= frac_support and x[0][0].read_support >= min_reads]
         if len(groups_after_end_filtering) == 0:
             groups_after_end_filtering = [ends_to_iso_groups[0], ]
     return groups_after_end_filtering
@@ -565,7 +564,7 @@ def write_counts_file(output, all_samples, iso_to_samples_to_counts, iso_to_gene
     write_counts_matrix(compressed_path(output + '.combined.isoforms.counts.tsv'), all_samples, rows)
 
 def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
-            min_frac_usage, remove_single_exon, max_ends, min_reads, annotation=None):
+            frac_support, remove_single_exon, max_ends, min_reads, annotation=None):
     logging.info('parsing manifest')
     sampledata = parse_input(manifest, prefixes, isoform_beds)
     annots_by_chrom = None
@@ -604,12 +603,12 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
                 # group of them with similar ends is an isoform of its own, which
                 # max_ends mustn't merge, filtered on its own
                 groups_after_end_filtering = [group for group in ends_to_iso_groups
-                                              if max(x[0].frac_support for x in group) >= min_frac_usage
+                                              if max(x[0].frac_support for x in group) >= frac_support
                                               and sum(x[0].read_support for x in group) >= min_reads]
-            elif max_usage >= min_frac_usage and tot_counts >= min_reads:
+            elif max_usage >= frac_support and tot_counts >= min_reads:
                 # sum all reads from all files, but do median usage from original usages
                 # that way high counts files don't throw off the usage estimates
-                groups_after_end_filtering = filter_groups(ends_to_iso_groups, max_ends, min_frac_usage, min_reads)
+                groups_after_end_filtering = filter_groups(ends_to_iso_groups, max_ends, frac_support, min_reads)
             else:
                 groups_after_end_filtering = []
             for bed_list_group in groups_after_end_filtering:
@@ -634,5 +633,5 @@ def combine(*, manifest, prefixes, isoform_beds, genome, output, end_window,
     genome_fa.close()
 
     report_result_count('combined isoform', count_records(compressed_path(output + '.combined.isoforms.bed')),
-                        remedy='lower --min_reads or --min_percent_usage, which an isoform must pass in one '
+                        remedy='lower --min_reads or --frac_support, which an isoform must pass in one '
                         'sample to be kept')

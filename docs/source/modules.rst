@@ -292,7 +292,7 @@ Manifest example, one bed file path per line, blank lines and lines starting wit
 
 Each input is a flair BED, as flair transcriptome, flair fusion and flair isoalleles
 write it.  Its ``read_support`` (column 16) and ``frac_support`` (column 17) must be
-set, since ``--min_reads`` and ``--min_percent_usage`` filter on them; an isoform
+set, since ``--min_reads`` and ``--frac_support`` filter on them; an isoform
 without them is an error.  An annotation is given with ``-f``, as a GTF; an annotation
 BED, such as gtf_to_bed writes, has neither the support columns nor the other flair
 BED columns, and is rejected.  Each input is also one sample's BED, naming one sample
@@ -314,7 +314,7 @@ error, and isoforms have no protein ids, as each sample numbers its own.
 Isoforms of alleles, from flair isoalleles, can be combined, but without their allele
 information: the alleles of an isoform are combined into one isoform, with a warning.
 Their ``read_support`` is per allele, while their ``frac_support`` is the isoform's
-share of its gene's reads, so ``--min_percent_usage`` keeps or drops an isoform's
+share of its gene's reads, so ``--frac_support`` keeps or drops an isoform's
 alleles together.  Either way, isoforms without an annotated gene are grouped into
 novel genes as flair transcriptome groups them, and isoform and gene ids are numbered
 in genome order, so they don't depend on the order of the samples.

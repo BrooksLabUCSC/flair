@@ -199,6 +199,11 @@
     isoform's was its share of the gene's spliced reads and a single exon one's its
     share of all of them, so the rows of one gene were on two scales with no column
     stating which.  `--frac_support` filters on that one fraction.
+  * `flair combine` filters on `--frac_support`, the share of its gene's reads an
+    isoform must have in one sample, under the name and on the scale `flair
+    transcriptome` and `flair fusion` use for that quantity.  It was
+    `--min_percent_usage`, a percentage of the same share: `--min_percent_usage 5`
+    is `--frac_support 0.05`, the default of all three.
   * The isoforms counts file of `flair transcriptome` has one count column,
     `full_length_reads`.  `total_reads` was incremented on the same rows, the branch
     that would have differed raising instead, so the two were always equal.

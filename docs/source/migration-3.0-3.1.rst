@@ -175,7 +175,8 @@ flair combine
 
 - ``--output_prefix`` is ``-o``, ``--output``
 - ``--endwindow`` is ``--end_window``
-- ``--minpercentusage`` is ``--min_percent_usage``
+- ``--minpercentusage`` is ``--frac_support``, a fraction of the gene's reads where
+  it was a percentage of them: ``--minpercentusage 5`` is ``--frac_support 0.05``
 
 **Default flipped**
 

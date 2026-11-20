@@ -45,7 +45,7 @@ def test_no_retired_name_is_also_a_live_option():
 
 def test_a_value_given_with_an_equals_sign_is_part_of_the_name(capsys):
     message = _error_message(capsys, ['combine', '--minpercentusage=10'])
-    assert 'flair combine: error: --minpercentusage is now --min_percent_usage' in message
+    assert 'flair combine: error: --minpercentusage is now --frac_support' in message
 
 
 def test_a_retired_name_is_reported_although_required_arguments_are_missing(capsys):

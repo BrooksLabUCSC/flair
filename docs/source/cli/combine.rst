@@ -7,9 +7,8 @@
    usage: flair combine [-h] (--manifest MANIFEST | --prefixes PREFIXES |
                         --isoform_beds ISOFORM_BEDS) -g GENOME [-f GTF]
                         [-o OUTPUT] [--end_window END_WINDOW]
-                        [--min_percent_usage MIN_PERCENT_USAGE]
-                        [--remove_single_exon] [--max_ends MAX_ENDS]
-                        [--min_reads MIN_READS]
+                        [--frac_support FRAC_SUPPORT] [--remove_single_exon]
+                        [--max_ends MAX_ENDS] [--min_reads MIN_READS]
 
 .. rubric:: options
 
@@ -41,9 +40,9 @@
 
    window, in bases, for comparing ends of isoforms with the same intron chain (default: 200)
 
-.. option:: --min_percent_usage MIN_PERCENT_USAGE
+.. option:: --frac_support FRAC_SUPPORT
 
-   minimum percent usage required in one sample to keep isoform in combined transcriptome; taken from frac_support, column 17 of the input BEDs: an isoform without it is an error (default: 5)
+   minimum share of its gene's reads for an isoform, in one sample, to be kept in the combined transcriptome; taken from frac_support, column 17 of the input BEDs: an isoform without it is an error (default: 0.05)
 
 .. option:: --remove_single_exon
 
@@ -54,7 +53,7 @@
    how the ends of a splice junction chain are combined:
 
    - 1: the chain gives one isoform, containing the isoforms of every group of similar ends and their read support
-   - above 1: each group of similar ends gives an isoform of its own, when the group passes --min_percent_usage and --min_reads on its own, so ends are more precise and the support of a group that fails them is dropped. Any value above 1 gives the same result
+   - above 1: each group of similar ends gives an isoform of its own, when the group passes --frac_support and --min_reads on its own, so ends are more precise and the support of a group that fails them is dropped. Any value above 1 gives the same result
 
    (default: 1)
 

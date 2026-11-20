@@ -218,7 +218,7 @@ quantify names its columns from its own manifest.
 For the most fusion isoforms, as for reporting fusions, FLAIR fusion's
 ``--filter comprehensive --frac_support 0`` keeps the isoforms of a fusion's
 5' truncated reads (see the FLAIR fusion documentation).  FLAIR combine filters
-fusion isoforms as it does normal ones, at ``--min_percent_usage`` of the
+fusion isoforms as it does normal ones, at ``--frac_support`` of the
 fusion's reads and ``--min_reads``, so it drops the rarest of them again unless
 those are lowered, for all isoforms.  Report fusions from ``SAMPLE.fusions.tsv``.
 
@@ -247,7 +247,7 @@ transcriptomes.
   - Less stringent combination (keeps anything supported in any file,
     just combines based on splice junctions and similar ends)
 
-    - ``flair combine --manifest MANIFEST.txt -g GENOME.fa -f ANNOTATION.gtf -o OUTPUT --min_percent_usage 0 --min_reads 1``
+    - ``flair combine --manifest MANIFEST.txt -g GENOME.fa -f ANNOTATION.gtf -o OUTPUT --frac_support 0 --min_reads 1``
 
 Quantify splicing relative to the combined transcriptome
 --------------------------------------------------------
