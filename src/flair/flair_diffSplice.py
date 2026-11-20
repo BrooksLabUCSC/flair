@@ -4,7 +4,6 @@ import os
 import os.path as osp
 import sys
 import pipettor
-import argparse
 import logging
 from flair import FlairInputDataError, FlairToolError
 from flair.io_utils import keep_or_remove, make_run_temp_dir
@@ -81,12 +80,9 @@ def add_subparser(subparsers):
     parser.add_argument('--keep_intermediate', action='store_true',
                         help="keep the run's own directory, which holds the event tables DRIMSeq was given "
                              "and its diagnostics, and whose path the run reports")
-    parser.add_argument('--overwrite_output', action='store_true', help=argparse.SUPPRESS)
     parser.set_defaults(entry=diffsplice_cmd)
 
 def diffsplice_cmd(args):
-    if args.overwrite_output:
-        raise FlairInputDataError('--overwrite_output has been removed: -o names a file name base, as it does in every other subcommand, and the outputs are replaced as theirs are')
     if bool(args.condition_a) != bool(args.condition_b):
         # checked here as well as in select_condition_pair, which only runs when
         # testing is asked for; --condition_b alone would otherwise be ignored.

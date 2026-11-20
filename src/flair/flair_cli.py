@@ -5,6 +5,7 @@ import argparse
 import logging
 from flair import VERSION
 from flair.cli_help import FlairHelpFormatter
+from flair.cli_retired import RetiredCheckParser
 from flair.run_logging import configure_logging, log_run_start
 from flair.run_signals import install_stop_handlers
 from flair.output_compress import set_output_compression
@@ -70,7 +71,7 @@ def build_parser():
     documentation."""
     desc = """Run a FLAIR module.  This program is the main entry point
     for running FLAIR analysis."""
-    parser = argparse.ArgumentParser(prog='flair', description=desc)
+    parser = RetiredCheckParser(prog='flair', description=desc)
     parser.add_argument('--version', action='version', version='FLAIR ' + VERSION,
                         help="print FLAIR version")
     parser.add_argument('-z', '--compress', action='store_true',

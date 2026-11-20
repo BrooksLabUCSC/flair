@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os
-import argparse
 import logging
 from flair.cli_help import FlairHelpFormatter
+from flair.cli_retired import RetiredCheckParser
 from flair.flair_bed import FlairBedReader
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np  # noqa: E402
@@ -20,7 +20,7 @@ def build_parser():
     desc = '''Produces two images, one of the isoform models and another of the usage proportions.
     The isoforms plotted are the most highly expressed across all the samples; the minor ones
     are aggregated into a gray bar.  --min_reads and --palette plot more of them.'''
-    parser = argparse.ArgumentParser(prog='plot_isoform_usage', formatter_class=FlairHelpFormatter, description=desc)
+    parser = RetiredCheckParser(prog='plot_isoform_usage', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('isoforms', type=str, action='store',
                         help='isoforms in bed format')
     parser.add_argument('counts_matrix', type=str, action='store',

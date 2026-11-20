@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import argparse
 import os
 import re
 import shutil
@@ -92,6 +91,10 @@ def parse_filter(filter_mode):
     "validate a --filter value"
     if filter_mode in FILTER_MODES:
         return filter_mode
+    if filter_mode == 'bysupport':
+        raise FlairInputDataError("--filter bysupport is now --filter <N>X, which keeps a subset isoform "
+                                  "with more than N times the reads of the isoforms it is a subset of; "
+                                  "bysupport was 1.2X")
     ratio = subset_support_ratio(filter_mode)
     if ratio is None or ratio <= 0:
         raise FlairInputDataError(f"invalid --filter '{filter_mode}': expected one of {', '.join(FILTER_MODES)}, "
@@ -220,12 +223,6 @@ def add_subparser(subparsers):
                              'checking splice motifs.  By default, an unannotated junction without a GT-AG '
                              'motif, such as GC-AG or AT-AC, is only weak evidence of strand: a read stranded '
                              'only by such junctions gets its strand from gene identification, or is dropped')
-    # removed: each isoform's ends come from the reads assigned to it
-    parser.add_argument('--trust_ends', action='store_true', help=argparse.SUPPRESS)
-
-    # removed: both let reads that don't support an isoform count toward it
-    parser.add_argument('--no_stringent', action='store_true', help=argparse.SUPPRESS)
-    parser.add_argument('--no_check_splice', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--no_align_to_annot', action='store_true',
                         help="skip the initial alignment to the annotated sequences and detect transcripts "
                              "only from the genomic alignment. Slightly faster but less accurate when the "
@@ -292,13 +289,6 @@ def transcriptome_cmd(args):
     resolve_deprecated_option(args, deprecated="junction_tab", current="junction_star")
     check_sample_name(args.sample_name)
     parse_filter(args.filter)
-    if args.trust_ends:
-        raise FlairInputDataError("--trust_ends has been removed: each isoform's ends come from the ends "
-                                  "of the reads assigned to it")
-    if args.no_stringent or args.no_check_splice:
-        raise FlairInputDataError("--no_stringent and --no_check_splice have been removed: they counted reads "
-                                  "that don't support an isoform toward it.  Drop them, or quantify the reads "
-                                  "against an isoform set with flair quantify")
     check_option_ranges(args, fraction=('frac_support',),
                         count=('junction_support', 'ss_window', 'end_window', 'sjc_support',
                                'single_exon_support', 'subset_backup_support', 'quality'),

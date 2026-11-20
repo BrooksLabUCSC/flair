@@ -8,6 +8,7 @@ from math import inf
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass, field
+from flair.cli_retired import RetiredCheckParser
 from flair.io_utils import run_program
 from flair.run_logging import child_log_level_opt, configure_logging
 import pysam
@@ -24,7 +25,7 @@ _COUNT_SAM_TRANSCRIPTS_SCRIPT = os.path.realpath(__file__)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='''for counting transcript abundances after
+    parser = RetiredCheckParser(prog='count_sam_transcripts', description='''for counting transcript abundances after
             aligning reads to transcripts; for multiple mappers, only the best alignment
             for each read is used''')
     required = parser.add_argument_group('required named arguments')

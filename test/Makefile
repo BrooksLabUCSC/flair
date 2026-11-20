@@ -1349,11 +1349,11 @@ test-transcriptome-trust-ends-removed: mkdirs ${BASIC_ALIGN_BAM}
 
 test-transcriptome-no-stringent-removed: mkdirs ${BASIC_ALIGN_BAM}
 	! flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_stringent > $O/$@.out 2>&1
-	grep -q -- '--no_stringent and --no_check_splice have been removed' $O/$@.out
+	grep -q -- '--no_stringent has been removed' $O/$@.out
 
 test-transcriptome-no-check-splice-removed: mkdirs ${BASIC_ALIGN_BAM}
 	! flair transcriptome -b ${BASIC_ALIGN_BAM} -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) -o $O/$@ --sample_name $@ --no_check_splice > $O/$@.out 2>&1
-	grep -q -- '--no_stringent and --no_check_splice have been removed' $O/$@.out
+	grep -q -- '--no_check_splice has been removed' $O/$@.out
 
 test-transcriptome-help: mkdirs
 	flair transcriptome --help > $O/$@.out

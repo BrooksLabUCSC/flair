@@ -12,7 +12,6 @@
 ########################################################################
 
 
-import argparse
 import logging
 import os
 import os.path as osp
@@ -472,12 +471,9 @@ def add_subparser(subparsers):
     parser.add_argument('--keep_intermediate', action='store_true',
                         help="keep the run's own directory, which holds the tables before filtering and the "
                              "R scripts' diagnostics, and whose path the run reports")
-    parser.add_argument('--overwrite_output', action='store_true', help=argparse.SUPPRESS)
     parser.set_defaults(entry=diffexp_cmd)
 
 def diffexp_cmd(args):
-    if args.overwrite_output:
-        raise FlairInputDataError('--overwrite_output has been removed: -o names a file name base, as it does in every other subcommand, and the outputs are replaced as theirs are')
     check_option_ranges(args, count=('min_expression',), positive=('threads',))
     precheck(files={'counts matrix': args.counts_matrix}, programs=PROGRAMS)
     calculate_sig(counts_matrix=args.counts_matrix, output=args.output,

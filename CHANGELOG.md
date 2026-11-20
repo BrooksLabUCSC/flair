@@ -29,6 +29,15 @@
     | fusion | `OUT-syntheticBreakpointLoc.bed` | `OUT.synthetic_breakpoint_loc.bed` |
     | spliceevents | `OUT.spliceevents.PSIjunc.tsv` | `OUT.spliceevents.psi_junc.tsv` |
     | spliceevents | `OUT.spliceevents.PSItot.tsv` | `OUT.spliceevents.psi_tot.tsv` |
+  * A subcommand or option name that an earlier release accepted is reported with
+    the name that replaced it, instead of argparse's `unrecognized arguments`:
+    `flair transcriptome --out_dir out` reports `--out_dir is now --output, a file
+    name base rather than a directory`, and `flair collapse` reports that flair
+    transcriptome builds transcript models from the aligned reads.  The old names
+    are in no parser, so they are still not accepted, are not listed in the help,
+    and do not make an abbreviation of a name that remains ambiguous.  They are
+    listed in `src/flair/cli_retired.py`, with the standalone programs' old names,
+    `bed_to_gtf --noCDS` and the three `count_sam_transcripts` options.
   * `--region` gives a region on the command line, wherever `--region_bed` takes a BED
     of them: flair transcriptome, flair spliceevents, flair_partition and
     identify_vars.  A region is written either one-based and closed, as a genome
@@ -865,9 +874,10 @@
       --min_samps_feature_expr, --min_gene_expr, --min_feature_expr, after the
       DRIMSeq dmFilter arguments they are passed to; --conditionA and
       --conditionB to --condition_a and --condition_b
-    * alleles and isoalleles: --bam to --tumor_bam; --norm_bam to --normal_bam;
-      --norm_vcf to --normal_vcf; --allele_read_map_norm and --iso_read_map_norm
-      to --allele_read_map_normal and --iso_read_map_normal
+    * isoalleles: --norm_bam to --normal_bam; --iso_read_map to --read_map;
+      --iso_read_map_norm to --normal_read_map.  The options of flair alleles went
+      with it, and isoalleles' own --allele_vcf, --allele_read_map and
+      --allele_read_map_norm with the rewrite
   * Short options dropped where a letter meant two different things: -w, -p, -q,
     -e, -s, -i, -k, -m, -v and -of.  -b is now always the aligned BAM, -r the
     reads, -t threads, -g the genome, -f the annotation and -o the output.

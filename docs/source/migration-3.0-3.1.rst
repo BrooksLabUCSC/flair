@@ -6,6 +6,13 @@ Migrating from FLAIR 3.0 to 3.1
 What a command line written for FLAIR 3.0 has to change to run under FLAIR 3.1.
 Options and outputs that are not listed here are unchanged.
 
+An old name still given on a command line is reported with the name that replaced
+it, rather than as unrecognized: ``flair transcriptome --out_dir out`` reports
+``--out_dir is now --output, a file name base rather than a directory``, and
+``flair collapse`` reports that ``flair transcriptome`` builds transcript models
+from the aligned reads.  The old names are not accepted, and are not listed in any
+``--help``.
+
 Everywhere
 ----------
 
