@@ -33,23 +33,25 @@ def correct_sample_reads(args, region, work_dir, bamfile_name, genome, annots, j
             if not (read.is_secondary or read.is_supplementary):
                 out.write(f'>{read.query_name}\n{read.get_forward_sequence()}\n')
     sj_to_ends = {}
-    with pysam.AlignmentFile(bamfile_name, 'rb') as bam_file:
-        generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region.name, region.start, region.end,
-                                                         windows)
-        read_to_transcript = identify_good_match_to_annot(
-            temp_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
-            directRNA=False, trust_strand=args.trust_strand, fusion_breakpoints=None,
-            windows=windows)
-        filter_correct_group_reads(bam_file=bam_file, region=region,
-                                   read_to_annot_transcript=read_to_transcript,
-                                   annots=annots, junction_corrector=junction_corrector,
-                                   genome=genome,
-                                   quality=args.quality, keep_sup=args.keep_supplementary,
-                                   sj_to_ends=sj_to_ends,
-                                   allow_outside_range=True,
-                                   keep_single_exon=True, trust_strand=args.trust_strand,
-                                   check_motifs=not args.trust_junctions, windows=windows)
-    shutil.rmtree(work_dir)
+    try:
+        with pysam.AlignmentFile(bamfile_name, 'rb') as bam_file:
+            generate_genomic_alignment_read_to_clipping_file(temp_prefix, bam_file, region.name, region.start,
+                                                             region.end, windows)
+            read_to_transcript = identify_good_match_to_annot(
+                temp_prefix, region, annots, genome, bam_file, no_align_to_annot=args.no_align_to_annot,
+                directRNA=False, trust_strand=args.trust_strand, fusion_breakpoints=None,
+                windows=windows)
+            filter_correct_group_reads(bam_file=bam_file, region=region,
+                                       read_to_annot_transcript=read_to_transcript,
+                                       annots=annots, junction_corrector=junction_corrector,
+                                       genome=genome,
+                                       quality=args.quality, keep_sup=args.keep_supplementary,
+                                       sj_to_ends=sj_to_ends,
+                                       allow_outside_range=True,
+                                       keep_single_exon=True, trust_strand=args.trust_strand,
+                                       check_motifs=not args.trust_junctions, windows=windows)
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
     return sj_to_ends
 
 

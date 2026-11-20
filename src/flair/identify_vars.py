@@ -408,15 +408,18 @@ def get_indels():
                        args.min_read_end_dist, args.min_sj_dist, args.num_repeats_for_filtering,
                        args.identify_indels, args.identify_snvs, args.density_dist, args.density_count))
 
-    if args.threads == 1:
-        for p in packed:
-            process_reads_for_region(p)
-    else:
-        with ProcessPool(args.threads) as pool:
-            pool.run(process_reads_for_region, packed)
-    write_output_vcf(args.genome, args.output, regions, temp_dir)
-
-    shutil.rmtree(temp_dir)
+    try:
+        if args.threads == 1:
+            for p in packed:
+                process_reads_for_region(p)
+        else:
+            with ProcessPool(args.threads) as pool:
+                pool.run(process_reads_for_region, packed)
+        write_output_vcf(args.genome, args.output, regions, temp_dir)
+    finally:
+        # also on failure: the directory is beside the output, where the next run
+        # would read what this one left
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def main():

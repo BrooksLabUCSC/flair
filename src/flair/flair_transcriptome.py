@@ -1857,6 +1857,8 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
 
         logging.info('running partitions')
         runner.run(_run_region, args=args)
+        # the annotation and the junction corrector are not needed by what follows
+        runner.release()
         combine_chunks(args, args.output, runner.partitions)
 
         #  simplify isoform and gene ID hashes in bed file, read map, counts, and fa files

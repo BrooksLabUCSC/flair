@@ -400,6 +400,8 @@ def run_spliceevents(args, temp_dir):
                terminal_exons=terminal_exons, region_reports=plan.reports, region_clusters=plan.clusters)
     runner.run(_run_region, what='events', args=args, allsamples=allsamples, region_reports=plan.reports,
                annot_afe_ss=annot_afe_ss, annot_ale_ss=annot_ale_ss)
+    # the annotation and the junction corrector are not needed by what follows
+    runner.release()
 
     combine_region_tables(args.output, [p.file_prefix for p in runner])
     write_counts_sample_info(args.output, sample_infos)

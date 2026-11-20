@@ -172,6 +172,10 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * The programs FLAIR runs as subprocesses are started with the interpreter FLAIR
+    itself runs under, rather than a `python3` from `PATH`, which failed with
+    `ModuleNotFoundError: No module named 'flair'` in an unactivated environment or
+    under a scheduler that resets `PATH` (issue #677).
   * The programs an install puts on PATH beside `flair` report a missing input by
     naming it, as a subcommand does, take the logging options of `flair` itself, and
     report what they produced.  `gtf_to_bed` given a BED, and `fasta_seq_lengths`

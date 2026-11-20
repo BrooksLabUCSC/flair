@@ -3,6 +3,7 @@
 import argparse
 import logging
 import re
+import sys
 from math import inf
 import os
 from contextlib import ExitStack
@@ -782,9 +783,12 @@ def build_count_sam_transcripts_cmd(*, output, sam='-', threads=4,   # noqa: C90
                                     allow_UTR_indels=False, trimmedreads=None,
                                     output_endpos=None, stranded=False, no_extra_clipping=False,
                                     transcript_fasta=None):
-    """Build count_sam_transcripts.py argv."""
+    """Build count_sam_transcripts.py argv.  The interpreter is this one, not a
+    python3 from PATH: a child started by name fails with ModuleNotFoundError when
+    the ambient python3 is not the one flair is installed in, which an unactivated
+    environment or a scheduler that resets PATH gives (BrooksLabUCSC/flair#677)."""
     # FIXME: default values should be centralized
-    cmd = ['python3', _COUNT_SAM_TRANSCRIPTS_SCRIPT, child_log_level_opt(),
+    cmd = [sys.executable, _COUNT_SAM_TRANSCRIPTS_SCRIPT, child_log_level_opt(),
            '--sam', str(sam), '-o', str(output)]
     if threads != 4:
         cmd += ['-t', str(threads)]

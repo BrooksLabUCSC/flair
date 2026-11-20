@@ -205,6 +205,12 @@ class PartitionRunner:
         self.partitions = [Partition(region, _region_temp_dir(work_dir, region), work_dir)
                            for region in regions]
 
+    def release(self):
+        """Drop the data the workers were forked with, once the last run() is done.
+        It is the annotation and the junction corrector, over a gigabyte for a human
+        annotation, which were held to the end of the run."""
+        _shared_data.pop(self.work_dir, None)
+
     def __iter__(self):
         return iter(self.partitions)
 
