@@ -122,7 +122,7 @@ build: clean
 # test if pip install locally
 test-pip:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir ./dist/${PACKAGE_FILE_PREFIX}-py3-none-any.whl
+	${pip_env_act} && pip install --no-cache-dir "./dist/${PACKAGE_FILE_PREFIX}-py3-none-any.whl[dev]"
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 # testpypy
@@ -131,7 +131,7 @@ publish-testpypi: build
 
 test-testpypi:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir  --index-url=${TESTPYPI_INSTALL_URL} --extra-index-url=${PYPI_INSTALL_URL} flair-brookslab==${VERSION}
+	${pip_env_act} && pip install --no-cache-dir  --index-url=${TESTPYPI_INSTALL_URL} --extra-index-url=${PYPI_INSTALL_URL} "flair-brookslab[dev]==${VERSION}"
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 
@@ -141,7 +141,7 @@ publish-pypi: build
 
 test-pypi:
 	${pip_env_setup}
-	${pip_env_act} && pip install --no-cache-dir  --index-url=${PYPI_INSTALL_URL} flair-brookslab==${VERSION}
+	${pip_env_act} && pip install --no-cache-dir  --index-url=${PYPI_INSTALL_URL} "flair-brookslab[dev]==${VERSION}"
 	${pip_env_act} && ${MAKE} -C test test use_installed_flair=yes
 
 

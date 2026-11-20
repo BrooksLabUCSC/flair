@@ -172,6 +172,8 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * The `networkx` dependency is gone: nothing in FLAIR imports it, and every
+    install was paying for it.
   * `flair diffexp` and `flair diffsplice` report what they found: the rows of each
     filtered table, and for diffsplice the events called of each type, warning when
     a test that ran reported nothing.  Both used to write their tables and report

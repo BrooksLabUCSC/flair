@@ -20,8 +20,6 @@ dependencies = [
     "numpy (>=2.5,<3.0)",
     "scipy (>=1.18.1,<2.0.0)",
     "vcfpy (>=0.14.2,<0.15.0)",
-    # networkx 3.7 excludes python 3.14.1, which this range supports
-    "networkx (>=3.6,<4.0)",
     "matplotlib (>=3.11.2,<4.0.0)",
 ]
 
@@ -51,13 +49,6 @@ diff_iso_usage = "flair.diff_iso_usage:main"
 diffsplice_fishers_exact = "flair.diffsplice_fishers_exact:main"
 spliceevents_outliers = "flair.spliceevents_outliers:main"
 flair_partition = "flair.flair_partition:main"
-
-# these are needed for pip install
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
 
 [tool.pytest.ini_options]
 # test/output and test/tmp-input are generated.  A transcriptome run writes

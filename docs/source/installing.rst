@@ -71,6 +71,9 @@ FLAIR Docker with:
 Pip install
 ~~~~~~~~~~~
 
+FLAIR runs under python 3.13 and 3.14, which is what ``requires-python`` in
+``pyproject.toml`` spans; pip rejects the install under any other version.
+
 To install with pip, you must first install these packages. This can be done
 with Conda, your system package manager or by downloading and compiling,
 

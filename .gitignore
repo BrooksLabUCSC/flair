@@ -11,6 +11,11 @@ test/output*/
 *.bai
 *.gz
 /dist/
+
+# make test-pip's virtual environment, and the file virtualenv writes beside
+# pyproject.toml naming it
+/pip_test_env/
+/.venv
 .claude.bak/
 .claude/
 
