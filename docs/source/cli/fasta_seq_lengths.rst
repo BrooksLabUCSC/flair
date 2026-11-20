@@ -4,7 +4,9 @@
 
 .. code-block:: text
 
-   usage: fasta_seq_lengths [-h] fasta lengths_tsv [histogram_tsv]
+   usage: fasta_seq_lengths [-h] [--log-stderr] [--log-level LOG_LEVEL]
+                            [--log-conf LOG_CONF] [--log-debug]
+                            fasta lengths_tsv [histogram_tsv]
 
 .. rubric:: positional arguments
 
@@ -19,4 +21,22 @@
 .. option:: histogram_tsv
 
    optional output TSV of length and the number of sequences of that length
+
+.. rubric:: options
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

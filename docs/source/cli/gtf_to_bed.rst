@@ -4,7 +4,9 @@
 
 .. code-block:: text
 
-   usage: gtf_to_bed [-h] [--include_gene] gtf bed
+   usage: gtf_to_bed [-h] [--include_gene] [--log-stderr] [--log-level LOG_LEVEL]
+                     [--log-conf LOG_CONF] [--log-debug]
+                     gtf bed
 
 .. rubric:: positional arguments
 
@@ -21,4 +23,20 @@
 .. option:: --include_gene
 
    add a column naming the gene of each isoform
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

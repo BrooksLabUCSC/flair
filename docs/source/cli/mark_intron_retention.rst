@@ -4,7 +4,9 @@
 
 .. code-block:: text
 
-   usage: mark_intron_retention [-h] isoform_bed marked_bed intron_txt
+   usage: mark_intron_retention [-h] [--log-stderr] [--log-level LOG_LEVEL]
+                                [--log-conf LOG_CONF] [--log-debug]
+                                isoform_bed marked_bed intron_txt
 
 .. rubric:: positional arguments
 
@@ -19,4 +21,22 @@
 .. option:: intron_txt
 
    output text file of the retained introns
+
+.. rubric:: options
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

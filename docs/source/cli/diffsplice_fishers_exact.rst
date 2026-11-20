@@ -4,7 +4,8 @@
 
 .. code-block:: text
 
-   usage: diffsplice_fishers_exact [-h]
+   usage: diffsplice_fishers_exact [-h] [--log-stderr] [--log-level LOG_LEVEL]
+                                   [--log-conf LOG_CONF] [--log-debug]
                                    events_quant_tsv colname1 colname2 fishers_tsv
 
 .. rubric:: positional arguments
@@ -24,4 +25,22 @@
 .. option:: fishers_tsv
 
    output TSV of the per-event test results
+
+.. rubric:: options
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+import logging
 from flair.cli_help import FlairHelpFormatter
 from flair import FlairInputDataError
 from flair.iso_usage_tsv import iso_usage_writer
 from flair.counts_matrix_tsv import read_grouped_counts
-from flair.pycbio.sys import cli
-from flair.run_checks import check_option_ranges
+from flair.pycbio.sys import cli, loggingOps
+from flair.run_checks import check_input_files, check_option_ranges
+from flair.run_logging import configure_logging
 
 
 def build_parser():
@@ -31,6 +33,7 @@ def build_parser():
                         "its p-values NA, though its reads count toward its gene's other isoforms.  Filtering on "
                         "the total, not on each sample, leaves the adjusted p-values valid, and testing fewer "
                         "isoforms that could never be significant gives more power (default: %(default)s)")
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
 
 def sample_column_index(sample_columns, colname, counts_matrix_tsv):
@@ -113,8 +116,10 @@ def diff_iso_usage(counts_matrix_tsv, colname1, colname2, outfilename,  # noqa: 
 
 def main():
     args = cli.parseArgsWithLogging(build_parser())
+    configure_logging()
     with cli.ErrorHandler():
         check_option_ranges(args, count=('min_expression',))
+        check_input_files({'counts matrix': args.counts_matrix_tsv})
         diff_iso_usage(args.counts_matrix_tsv, args.colname1, args.colname2, args.outfile,
                        min_expression=args.min_expression)
 

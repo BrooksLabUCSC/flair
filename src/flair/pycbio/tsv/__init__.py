@@ -1,11 +1,13 @@
 # Copyright 2006-2026 Mark Diekhans
 """TSV (Tab Separated File) reading and writing"""
 
-from flair.pycbio import PycbioException
+from flair.pycbio import PycbioException, NoStackError
 
 
-class TsvError(PycbioException):
-    "Error from reading, writing, or parsing a TSV file"
+class TsvError(PycbioException, NoStackError):
+    """Error from reading, writing, or parsing a TSV file.  A NoStackError, as
+    PycbioDataError is: it reports the file rather than the code that read it, so
+    cli.ErrorHandler prints it without a stack unless debug logging is on."""
     def __init__(self, msg, reader=None):
         if (reader is not None):
             msg = str(reader.fileName) + ":" + str(reader.lineNum) + ": " + msg

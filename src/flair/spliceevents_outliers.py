@@ -11,19 +11,21 @@ table of every outlier.  When start and end events improve, add them to
 SIMPLE_EVENTS and take them out of LEFT_OUT_EVENTS.
 """
 import argparse
+import logging
 from flair.cli_help import FlairHelpFormatter
 from collections import defaultdict
 from itertools import product
 from statistics import median
 from flair import FlairInputDataError
-from flair.pycbio.sys import cli
-from flair.run_checks import check_option_ranges
+from flair.pycbio.sys import cli, loggingOps
+from flair.run_checks import check_input_files, check_option_ranges
 from flair import splicing_outliers_tsv
 from flair.spliceevents_events import has_psi
 from flair.splicing_events_tsv import SplicingEventsReader
 from flair.splicing_outliers_tsv import SplicingOutliersWriter
 from flair.splicing_totals_tsv import SplicingTotalsReader
 from flair.tsv_column_types import read_header_columns
+from flair.run_logging import configure_logging
 
 # a sample is an outlier when its PSI is at least MIN_DELTA_PSI from the median and
 # more than MIN_DEVIATIONS deviations (half the interquartile range) from it, of at
@@ -65,7 +67,14 @@ def build_parser():
     parser.add_argument('--event_support', type=int, default=20,
                         help='minimum reads of a sample for its PSI of an event to be used, as flair '
                              'spliceevents --event_support (default: %(default)s)')
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
+
+
+def input_paths(input_prefix):
+    "the tables flair spliceevents wrote that this program reads, by what each is"
+    return {'splicing events counts TSV': input_prefix + '.spliceevents.counts.tsv',
+            'splicing events totals TSV': input_prefix + '.spliceevents.totals.tsv'}
 
 
 def read_events(input_prefix, psi):
@@ -255,9 +264,11 @@ def spliceevents_outliers(input_prefix, output, psi, event_support):
 
 
 def main():
-    args = build_parser().parse_args()
+    args = cli.parseArgsWithLogging(build_parser())
+    configure_logging()
     with cli.ErrorHandler():
         check_option_ranges(args, count=('event_support',))
+        check_input_files(input_paths(args.input))
         spliceevents_outliers(args.input, args.output, args.psi, args.event_support)
 
 

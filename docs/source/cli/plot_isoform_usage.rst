@@ -5,7 +5,9 @@
 .. code-block:: text
 
    usage: plot_isoform_usage [-h] [-o OUTPUT] [--min_reads MIN_READS]
-                             [--palette PALETTE]
+                             [--palette PALETTE] [--log-stderr]
+                             [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
+                             [--log-debug]
                              isoforms counts_matrix gene_name
 
 .. rubric:: positional arguments
@@ -35,4 +37,20 @@
 .. option:: --palette PALETTE
 
    a palette file, to plot more than 7 isoforms at once or to change the colors used: a line of one hex color for each isoform
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

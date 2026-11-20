@@ -172,6 +172,13 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * The programs an install puts on PATH beside `flair` report a missing input by
+    naming it, as a subcommand does, take the logging options of `flair` itself, and
+    report what they produced.  `gtf_to_bed` given a BED, and `fasta_seq_lengths`
+    given a GTF, wrote an empty output and said nothing; both now warn.
+  * A TSV that cannot be opened or read is reported in two lines wherever it is
+    read.  pycbio's `TsvError` is a `NoStackError`, so a missing events table in
+    `diffsplice_fishers_exact` is no longer 30 lines of Python traceback.
   * The read map's first column is named `isoform_id`, as every other FLAIR table
     names a column of isoform ids; it was `name`.  A read map of an earlier FLAIR is
     reported as such rather than read as an isoform called `name`.  `flair isoalleles`

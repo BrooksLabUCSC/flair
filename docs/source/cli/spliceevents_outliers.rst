@@ -5,7 +5,9 @@
 .. code-block:: text
 
    usage: spliceevents_outliers [-h] -i INPUT -o OUTPUT [--psi {junc,tot}]
-                                [--event_support EVENT_SUPPORT]
+                                [--event_support EVENT_SUPPORT] [--log-stderr]
+                                [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
+                                [--log-debug]
 
 .. rubric:: options
 
@@ -24,4 +26,20 @@
 .. option:: --event_support EVENT_SUPPORT
 
    minimum reads of a sample for its PSI of an event to be used, as flair spliceevents --event_support (default: 20)
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

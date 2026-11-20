@@ -4,7 +4,9 @@
 
 .. code-block:: text
 
-   usage: diff_iso_usage [-h] [--min_expression MIN_EXPRESSION]
+   usage: diff_iso_usage [-h] [--min_expression MIN_EXPRESSION] [--log-stderr]
+                         [--log-level LOG_LEVEL] [--log-conf LOG_CONF]
+                         [--log-debug]
                          counts_matrix_tsv colname1 colname2 outfile
 
 .. rubric:: positional arguments
@@ -30,4 +32,20 @@
 .. option:: --min_expression MIN_EXPRESSION
 
    an isoform with fewer than this many reads in the two samples together is not tested, its p-values NA, though its reads count toward its gene's other isoforms. Filtering on the total, not on each sample, leaves the adjusted p-values valid, and testing fewer isoforms that could never be significant gives more power (default: 0)
+
+.. option:: --log-stderr
+
+   also log to stderr, even when logging to syslog
+
+.. option:: --log-level LOG_LEVEL
+
+   Set level to integer or case-insensitive symbolic value, one of: CRITICAL, FATAL, ERROR, WARN, WARNING, INFO, DEBUG, NOTSET
+
+.. option:: --log-conf LOG_CONF
+
+   Python logging configuration file, see logging.config.fileConfig()
+
+.. option:: --log-debug
+
+   short-cut that sets --log-stderr and --log-level=DEBUG
 

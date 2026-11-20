@@ -4,12 +4,24 @@ Additional programs
 A ``conda install`` or ``pip install`` of flair puts the following programs on $PATH.
 The options of each are generated from the program itself, so they are always what the program accepts.
 
+Each reads a gzipped input and writes a gzipped output when the file name ends in
+``.gz``, reports a missing input by naming it, and takes the logging options of
+``flair`` itself, so ``--log-level`` and ``--log-debug`` work as they do there.
+
 bed_to_gtf
 ==========
 
 .. include:: cli/bed_to_gtf.rst
 
 Convert isoforms in BED12 format to a GTF, written to standard output.
+
+**Output**
+
+A GTF of a ``gene`` record per gene and a ``transcript`` and ``exon`` record per
+isoform, with ``CDS`` records from each isoform's thick range unless ``--no_cds``.
+The gene of an isoform is the BED's ``gene_id`` column, which only a FLAIR BED has:
+another BED needs ``--force``, which uses each isoform's name as its gene.  The
+isoforms converted are reported, and a BED with none of them is a warning.
 
 .. _diff-iso-usage-label:
 
@@ -75,18 +87,48 @@ fasta_seq_lengths
 
 .. include:: cli/fasta_seq_lengths.rst
 
+The length of every sequence of a FASTA, for checking a genome or a transcriptome
+against the sequence names and lengths of an alignment.
+
+**Output**
+
+A TSV of ``name`` and ``length``, a row per sequence, in file order.  Given a second
+output name, a histogram as well: a TSV of ``length`` and the number of sequences of
+that length, in order of length.  The sequences measured are reported, and a file
+with none of them is a warning.
+
 flair_partition
 ===============
 
 .. include:: cli/flair_partition.rst
 
 Defines non-overlapping regions across all of the input files, which is how FLAIR
-splits work across threads.
+splits work across threads.  A partition is a cluster of reads and annotated
+transcripts that overlap, so no read and no transcript crosses one, and what a
+partition contains does not depend on how many threads a run uses
+(dev/design/clusters-and-partitions.md).
+
+**Output**
+
+A BED4 of the partitions in position order, with the number of input items in each
+as a fifth column.  The counts of the partitions, and the distribution of their
+sizes, are logged at ``INFO``.
 
 gtf_to_bed
 ==========
 
 .. include:: cli/gtf_to_bed.rst
+
+Convert the transcripts of an annotation GTF to a BED12, one row per transcript,
+with its exons as blocks and its CDS as the thick range.
+
+**Output**
+
+A BED12 in position order, the transcript id as the name.  With ``--include_gene``,
+a thirteenth column of the gene id, which is how FLAIR writes a gene rather than
+joining it to the transcript id.  The transcripts converted are reported, and a GTF
+with none of them is a warning: a file that is not a GTF of transcript and exon
+records converts to an empty BED.
 
 Convert a GTF to a BED12 file.
 

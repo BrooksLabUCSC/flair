@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+import logging
 from flair.cli_help import FlairHelpFormatter
 from flair import FlairInputDataError
 from flair.diffsplice_fishers_tsv import diffsplice_fishers_writer
 from flair.event_quant_tsv import EventQuantReader
-from flair.pycbio.sys import cli
+from flair.pycbio.sys import cli, loggingOps
+from flair.run_checks import check_input_files
+from flair.run_logging import configure_logging
 
 def build_parser():
     desc = "Fisher's exact test of two samples' inclusion and exclusion counts for each splicing event"
@@ -14,6 +17,7 @@ def build_parser():
     parser.add_argument('colname1', help='column name of the first sample to compare')
     parser.add_argument('colname2', help='column name of the second sample to compare')
     parser.add_argument('fishers_tsv', help='output TSV of the per-event test results')
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
 
 def sample_column_index(reader, colname, events_quant_tsv):
@@ -57,8 +61,10 @@ def diffsplice_fishers_exact(events_quant_tsv, colname1, colname2, fishers_tsv):
                 writer.writeRow(list(row) + [pval])
 
 def main():
-    args = build_parser().parse_args()
+    args = cli.parseArgsWithLogging(build_parser())
+    configure_logging()
     with cli.ErrorHandler():
+        check_input_files({'events quantification TSV': args.events_quant_tsv})
         diffsplice_fishers_exact(args.events_quant_tsv, args.colname1, args.colname2,
                                  args.fishers_tsv)
 

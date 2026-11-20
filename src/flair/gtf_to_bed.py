@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 import argparse
+import logging
 from flair.cli_help import FlairHelpFormatter
 from flair.gtf_io import gtf_record_parser, GtfAttrsSet
-from flair.pycbio.sys import cli
+from flair.pycbio.sys import cli, loggingOps
 from flair.pycbio.hgdata.bed import Bed, BedBlock
 from flair.io_utils import open_sorted_bed
+from flair.run_checks import check_input_files, report_result_count
+from flair.run_logging import configure_logging
 
 # with --include_gene, the column after the twelve standard ones contains the gene
 GENE_ID_EXTRA_COL = 0
@@ -18,12 +21,17 @@ def build_parser():
     parser.add_argument('bed', type=str, help='output bed, gzipped if its name ends in .gz')
     parser.add_argument('--include_gene', action='store_true',
                         help='add a column naming the gene of each isoform')
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
 
 def main():
-    args = build_parser().parse_args()
+    args = cli.parseArgsWithLogging(build_parser())
+    configure_logging()
     with cli.ErrorHandler():
-        gtf_to_bed(args.bed, args.gtf, args.include_gene)
+        check_input_files({'annotation GTF': args.gtf})
+        report_result_count('transcript', gtf_to_bed(args.bed, args.gtf, args.include_gene),
+                            remedy='check that the GTF has transcript and exon lines, with GTF '
+                            'attributes, gene_id "GENE"; transcript_id "TRANSCRIPT";')
 
 def write_bed_row(include_gene, name_sep, iso_to_cds, prev_transcript, blockstarts, blocksizes, prev_gene, prev_chrom, prev_strand, fh):
     "one transcript's BED row, its blocks given in position order"
@@ -88,6 +96,7 @@ def iso_info_from_gtf_data(gtf_data):
 
 
 def write_bed(outputfile, iso_info, include_gene, name_sep):
+    "the transcripts, returning how many rows were written"
     with open_sorted_bed(outputfile) as outfile:
         iso_to_info, iso_to_exons, iso_to_cds = iso_info
 
@@ -98,16 +107,18 @@ def write_bed(outputfile, iso_info, include_gene, name_sep):
             blocksizes = [x[1] - x[0] for x in exons]
 
             write_bed_row(include_gene, name_sep, iso_to_cds, transcript, blockstarts, blocksizes, gene, chrom, strand, outfile)
+    return len(iso_to_exons)
 
 
 def gtf_to_bed(outputfile, gtf, include_gene=False, name_sep=None):
-    write_bed(outputfile, get_iso_info(gtf), include_gene, name_sep)
+    "the transcripts of a GTF as BED, returning how many were written"
+    return write_bed(outputfile, get_iso_info(gtf), include_gene, name_sep)
 
 
 def gtf_data_to_bed(outputfile, gtf_data, include_gene=False, name_sep=None):
     """gtf_to_bed of an already parsed GTF (GtfData) containing exon records.  Without
     CDS records, each transcript's thickStart and thickEnd are its ends"""
-    write_bed(outputfile, iso_info_from_gtf_data(gtf_data), include_gene, name_sep)
+    return write_bed(outputfile, iso_info_from_gtf_data(gtf_data), include_gene, name_sep)
 
 
 if __name__ == "__main__":

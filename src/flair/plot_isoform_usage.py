@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import argparse
+import logging
 from flair.cli_help import FlairHelpFormatter
 from flair.flair_bed import FlairBedReader
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -10,9 +11,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mplpatches  # noqa: E402
 from flair import FlairInputDataError  # noqa: E402
-from flair.pycbio.sys import cli, fileOps  # noqa: E402
+from flair.pycbio.sys import cli, fileOps, loggingOps  # noqa: E402
 from flair.counts_matrix_tsv import read_sample_columns, read_counts_rows  # noqa: E402
-from flair.run_checks import check_option_ranges  # noqa: E402
+from flair.run_checks import check_input_files, check_option_ranges  # noqa: E402
+from flair.run_logging import configure_logging  # noqa: E402
 
 def build_parser():
     desc = '''Produces two images, one of the isoform models and another of the usage proportions.
@@ -34,6 +36,7 @@ def build_parser():
     parser.add_argument('--palette',
                         help='a palette file, to plot more than 7 isoforms at once or to change the '
                              'colors used: a line of one hex color for each isoform')
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
 
 
@@ -291,9 +294,13 @@ def plot_isoform_usage(args):  # noqa: C901 - FIXME: reduce complexity
 
 
 def main():
-    args = build_parser().parse_args()
+    args = cli.parseArgsWithLogging(build_parser())
+    configure_logging()
     with cli.ErrorHandler():
         check_option_ranges(args, count=('min_reads',))
+        # before the counts are read, so a missing isoform BED is reported as the
+        # file that is missing rather than as a gene that is not in the counts
+        check_input_files({'isoform BED': args.isoforms, 'counts matrix': args.counts_matrix})
         plot_isoform_usage(args)
 
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 import argparse
+import logging
 from flair.cli_help import FlairHelpFormatter
 from flair.marked_isoforms_bed import MarkedIsoformsWriter, bed_column_count
 from flair.interval_index import IntervalIndex
 from flair.io_utils import bed_row_sort_key
-from flair.pycbio.sys import cli
+from flair.pycbio.sys import cli, loggingOps
 from flair.retained_introns_tsv import RetainedIntronsWriter
 from flair.pycbio.hgdata.bed import BedReader
+from flair.run_checks import check_input_files
+from flair.run_logging import configure_logging
 
 def build_parser():
     desc = "Mark isoforms that retain an intron of another isoform of the same locus"
@@ -14,6 +17,7 @@ def build_parser():
     parser.add_argument('isoform_bed', help='isoforms in bed format')
     parser.add_argument('marked_bed', help='output bed, with intron retention marked in an extra column')
     parser.add_argument('intron_txt', help='output text file of the retained introns')
+    loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser
 
 
@@ -102,8 +106,10 @@ def mark_intron_retention(isoform_bed, marked_bed, intron_txt):
 
 
 def main():
-    args = build_parser().parse_args()
+    args = cli.parseArgsWithLogging(build_parser())
+    configure_logging()
     with cli.ErrorHandler():
+        check_input_files({'isoform BED': args.isoform_bed})
         mark_intron_retention(args.isoform_bed, args.marked_bed, args.intron_txt)
 
 
