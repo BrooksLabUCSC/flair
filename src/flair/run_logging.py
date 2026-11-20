@@ -87,6 +87,27 @@ _tasks_done = fork_context().Value('i', 0)
 _tasks_total = fork_context().Value('i', 0)
 
 
+# the reads a run has read, counted by the workers that read them
+_reads_read = fork_context().Value('q', 0)
+
+
+def count_reads_read(count):
+    "add to the reads this run has read, from a worker or from the parent"
+    if count:
+        with _reads_read.get_lock():
+            _reads_read.value += count
+
+
+def report_reads_used(used, what):
+    """How many of the reads a run read it reported, which is otherwise only in the
+    outputs: a run that reports a quarter of its reads looks like one that reports
+    all of them, and a bad library, a bad threshold and a bad annotation look
+    alike."""
+    read = _reads_read.value
+    if read > 0:
+        logging.info('of %s read, %d %s (%.0f%%)', plural(read, 'read'), used, what, 100 * used / read)
+
+
 def start_task_progress(total):
     "the tasks of a parallel stage about to start, counted from one again"
     with _tasks_done.get_lock():

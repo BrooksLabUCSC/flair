@@ -17,9 +17,9 @@ Columns, in order:
                          against
   sample_val             this sample's PSI
   tot_not_NA_samples     how many samples had enough reads to take a PSI from
-  event_reads;total_locus_reads  this sample's reads of the alternative and the
-                         total its PSI divides by, ';' separated in the file and a
-                         pair on the row
+  alternative_reads      this sample's reads of the alternative
+  psi_total              the total its PSI divides by: the event's junction reads
+                         with --psi junc, the locus reads with --psi tot
   delta_PSI_to_med       sample_val minus medianPSI, as an absolute value
   dev_from_med           that difference in units of dev(IQR/2), or 100000 when the
                          other samples agree exactly
@@ -33,14 +33,14 @@ leaving out outliers a simpler event explains, as
 .spliceevents.outliers.filtered.tsv.
 """
 from flair.pycbio.tsv import TsvReader, TsvWriter
-from flair.tsv_column_types import commaListType, semicolonIntListType
+from flair.tsv_column_types import commaListType
 from flair.splicing_events_tsv import GENE_COLUMNS
 
-READ_COUNTS_COLUMN = 'event_reads;total_locus_reads'
-
 COLUMNS = ('event', 'alternative', 'event_type', *GENE_COLUMNS, 'sample', 'medianPSI', 'dev(IQR/2)',
-           'sample_val', 'tot_not_NA_samples', READ_COUNTS_COLUMN, 'delta_PSI_to_med', 'dev_from_med')
-TYPE_MAP = {READ_COUNTS_COLUMN: semicolonIntListType, **{col: commaListType for col in GENE_COLUMNS}}
+           'sample_val', 'tot_not_NA_samples', 'alternative_reads', 'psi_total',
+           'delta_PSI_to_med', 'dev_from_med')
+TYPE_MAP = {'alternative_reads': int, 'psi_total': int,
+            **{col: commaListType for col in GENE_COLUMNS}}
 
 class SplicingOutliersReader(TsvReader):
     def __init__(self, splicing_outliers_tsv):

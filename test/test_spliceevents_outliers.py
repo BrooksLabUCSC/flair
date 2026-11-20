@@ -18,7 +18,8 @@ def test_a_sample_far_from_the_median_is_an_outlier():
     outliers = row_outliers(_row([20, 20, 22, 18, 20, 60], [100] * 6), SAMPLES, 20)
     assert list(outliers) == ['s6']
     line = outliers['s6']
-    assert dict(zip(OUTLIER_COLUMNS, line))['event_reads;total_locus_reads'] == [60, 100]
+    named = dict(zip(OUTLIER_COLUMNS, line))
+    assert (named['alternative_reads'], named['psi_total']) == (60, 100)
     columns = dict(zip(OUTLIER_COLUMNS, line))
     assert (columns['medianPSI'], columns['sample_val'], columns['delta_PSI_to_med']) == (0.2, 0.6, 0.4)
 

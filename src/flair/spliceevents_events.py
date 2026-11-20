@@ -168,10 +168,11 @@ class SplicingEvent:
     def add(self, alternative, counts, inc_juncs, exc_juncs, outer_juncs=(), exons=(), blocks=()):
         self.rows[alternative] = EventRow(counts, set(inc_juncs), set(exc_juncs), set(outer_juncs), set(exons), list(blocks))
 
-    def keep_other(self, other, min_reads):
-        "count the reads of the event's other junctions or sites, if some sample has min_reads of them"
-        if any(n >= min_reads for n in other.values()):
-            self.other = other
+    def keep_other(self, other):
+        """count the reads of the event's other junctions or sites.  They are in the
+        event's totals, which the PSIs divide by, so a row of them is what makes the
+        rows of an event sum to the event"""
+        self.other = other
 
 
 def row_introns(event, alternative):
@@ -225,7 +226,7 @@ class EventCaller:
                              self.strand, totals)
 
     def keep_other(self, event, other):
-        event.keep_other(other, self.thresholds.feature_support)
+        event.keep_other(other)
 
     def covering(self, ref):
         "the reads per sample covering ref"

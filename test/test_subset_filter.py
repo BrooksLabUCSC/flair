@@ -148,8 +148,8 @@ def _backup_case(superset_reads, subset_reads=12, assigned=(), unique_seq=()):
     subset.gene_id, subset.ref_transcript_id = 'g', 'ENST1'
     subset.reads[:] = [_read(f'r{i}', 1000 + i, 1700 - i) for i in range(subset_reads)]
     final = {'big': big, 'sup': sup}
-    counts = {'big': [100, 100], 'sup': [superset_reads, superset_reads]}
-    gene_to_tot = {'g': [100 + superset_reads] * 3}
+    counts = {'big': 100, 'sup': superset_reads}
+    gene_to_tot = {'g': [100 + superset_reads] * 2}
     return final, counts, gene_to_tot, {'cand': (subset, [sup], list(unique_seq))}
 
 
@@ -166,8 +166,8 @@ def test_subset_promoted_when_its_superset_fails_support(tmp_path):
     # the superset's 2 of 102 reads fail frac_support 0.05
     final, counts, gene_to_tot, removed = _backup_case(2)
     (promoted,) = _promote(tmp_path, final, counts, gene_to_tot, removed)
-    assert promoted.juncs == JUNCS and promoted.gene_id == 'g' and counts[promoted.name] == [12, 12]
-    assert gene_to_tot['g'] == [114] * 3 and promoted.unpadded_ends == (promoted.start, promoted.end)
+    assert promoted.juncs == JUNCS and promoted.gene_id == 'g' and counts[promoted.name] == 12
+    assert gene_to_tot['g'] == [114] * 2 and promoted.unpadded_ends == (promoted.start, promoted.end)
 
 
 def test_promoted_subset_keeps_its_own_gene_and_reference_transcript(tmp_path):
@@ -207,7 +207,7 @@ def test_promoted_subset_gets_only_reads_covering_its_unique_sequence(tmp_path):
     subset.reads[:] = ([_read(f'r{i}', 1000, 1700) for i in range(12)]
                        + [_read(f't{i}', 1000, 1540) for i in range(8)])
     (promoted,) = _promote(tmp_path, final, counts, gene_to_tot, removed)
-    assert counts[promoted.name] == [12, 12] and {r.name for r in promoted.reads} == {f'r{i}' for i in range(12)}
+    assert counts[promoted.name] == 12 and {r.name for r in promoted.reads} == {f'r{i}' for i in range(12)}
 
 
 def test_subset_not_promoted_without_subset_backup_support_reads_covering_its_unique_sequence(tmp_path):

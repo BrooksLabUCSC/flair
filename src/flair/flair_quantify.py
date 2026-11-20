@@ -15,7 +15,8 @@ from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import GenomeFasta, make_run_temp_dir, read_manifest_rows
 from flair.run_checks import check_option_ranges, check_sample_name, precheck, report_result_count
-from flair.run_logging import plural, report_task_done, start_task_progress
+from flair.run_logging import (count_reads_read, plural, report_reads_used, report_task_done,
+                               start_task_progress)
 from flair.output_compress import compressed_path, open_seekable_output
 from flair import thread_share
 from flair.pycbio.hgdata.bed import BedBlock
@@ -451,6 +452,7 @@ def count_batch(batch, batch_beds, sample_data, temp_dir, genome_file, trust_end
                     direct, num_realign = batch_reads(bam_file, batch, _chains, genome, trust_ends, _single_exon_index,
                                                       prefix + '.reads.fasta', prefix + '.reads.genomicclipping.tsv',
                                                       _fusion_reads[i] if _fusion_reads else frozenset())
+                count_reads_read(sum(len(reads) for reads in direct.values()) + num_realign)
                 assigned = {name: (reads if generate_map else len(reads)) for name, reads in direct.items()}
                 logging.debug(f"{batch['chrom']}:{batch['start']} {sample}: "
                               f"{sum(len(r) for r in direct.values())} reads assigned without realignment, "
@@ -699,6 +701,7 @@ def quantify(*, manifest, genome, isoform_bed, output, threads,
         report_result_count('read counted', sum(totals), plural_what='reads counted',
                             remedy='check that the reads are aligned to the genome given and that the isoforms '
                             'are of the same assembly, or raise --quality')
+        report_reads_used(sum(totals), 'counted for an isoform')
         counts_tsv = compressed_path(output + '.isoforms.counts.tsv')
         write_sample_info(sample_info_path(counts_tsv),
                           [SampleInfo(sample, condition, batch)

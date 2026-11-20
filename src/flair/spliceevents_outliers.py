@@ -151,7 +151,7 @@ def row_outliers(row, samples, event_support):
         if delta >= MIN_DELTA_PSI and ((dev == 0 and psi != med) or delta > dev * MIN_DEVIATIONS):
             outliers[s] = [row['event'], row['alternative'], row['event_type'], row['gene'], row['gene_name'],
                            row['additional_genes'], row['additional_gene_names'], s, round(med, 6), round(dev, 6), round(psi, 6),
-                           len(vals), [row['counts'][s], row['totals'][s]], round(delta, 6),
+                           len(vals), row['counts'][s], row['totals'][s], round(delta, 6),
                            round(delta / dev, 6) if dev != 0 else NO_DEVIATION]
     return outliers
 

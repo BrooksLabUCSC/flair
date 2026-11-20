@@ -172,6 +172,29 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * `frac_support` is one fraction of one thing: an isoform's reads over the reads
+    of every isoform of its gene, spliced and single exon together.  A spliced
+    isoform's was its share of the gene's spliced reads and a single exon one's its
+    share of all of them, so the rows of one gene were on two scales with no column
+    stating which.  `--frac_support` filters on that one fraction.
+  * The isoforms counts file of `flair transcriptome` has one count column,
+    `full_length_reads`.  `total_reads` was incremented on the same rows, the branch
+    that would have differed raising instead, so the two were always equal.
+  * `flair diffexp --min_expression` keeps a gene or isoform when the reads of at
+    least one condition, summed over its samples, reach the threshold, which is what
+    its help states.  It kept a row only when every sample of a condition reached it,
+    so one low sample in each condition dropped a row however many reads it held.
+  * `flair transcriptome` and `flair quantify` report how many of the reads they read
+    they reported: "of 1013 reads read, 757 assigned to a reported isoform (75%)".
+  * The BED of `flair spliceevents` scores an event over the 0 to 1000 a genome
+    browser shades, where it was PSI times 100 and every event sat in the bottom
+    tenth of the range.
+  * The outliers table of `spliceevents_outliers` has two columns, `alternative_reads`
+    and `psi_total`, where one column held both numbers joined by a semicolon under
+    the name `event_reads;total_locus_reads`, which named neither of them.
+  * An event's `other` reads are counted whatever their number, so the rows of an
+    event sum to it.  They were dropped when no sample had `--feature_support` of
+    them, which left the reported rows' PSIs summing to less than 1.
   * The programs FLAIR runs as subprocesses are started with the interpreter FLAIR
     itself runs under, rather than a `python3` from `PATH`, which failed with
     `ModuleNotFoundError: No module named 'flair'` in an unactivated environment or

@@ -3,9 +3,10 @@
 Columns, in order:
 
   isoform_id          the isoform
-  full_length_reads   reads that run the whole isoform, the ones its support is
-                      judged on
-  total_reads         every read assigned to it, full length or not
+  full_length_reads   the reads assigned to it, which are the reads that run the
+                      whole isoform: a read assigned to an isoform it does not run
+                      the length of is an error of count_sam_transcripts, which
+                      calc_final_iso_support raises on
 
 Written per partition as <prefix>.isoforms.counts.tsv and joined into one file,
 whose isoform ids are then renamed to their FLT ids.
@@ -15,8 +16,8 @@ writes, which is one count per isoform; see transcript_counts_tsv.
 """
 from flair.pycbio.tsv import TsvReader, TsvWriter
 
-COLUMNS = ('isoform_id', 'full_length_reads', 'total_reads')
-TYPE_MAP = {'isoform_id': str, 'full_length_reads': int, 'total_reads': int}
+COLUMNS = ('isoform_id', 'full_length_reads')
+TYPE_MAP = {'isoform_id': str, 'full_length_reads': int}
 
 class IsoformCountsReader(TsvReader):
     def __init__(self, isoform_counts_tsv):

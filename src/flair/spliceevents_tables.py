@@ -57,10 +57,12 @@ class EventTables:
         return [counts[s] / event.totjunc[s] for s in self.samples if has_psi(event.totjunc, s, self.event_support)]
 
     def _write_beds(self, event, alternative, blocks_list, psis):
-        "a row's BED records, scored by its median PSIjunc"
+        """a row's BED records, scored by its median PSIjunc over the 0 to 1000 a
+        genome browser shades: it was PSI * 100, which left every event in the
+        bottom tenth of that range"""
         for blocks in blocks_list:
             start, end = blocks[0][0], blocks[-1][1]
-            Bed(event.chrom, start, end, row_name(event.name, alternative), score=round(median(psis) * 100),
+            Bed(event.chrom, start, end, row_name(event.name, alternative), score=round(median(psis) * 1000),
                 strand=event.strand, thickStart=start, thickEnd=end, itemRgb=EVENT_COLORS[event.eventtype],
                 blocks=[BedBlock(s, e) for s, e in blocks]).write(self.bed)
 

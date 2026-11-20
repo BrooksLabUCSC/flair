@@ -563,6 +563,22 @@ def test_an_events_gene_counts_the_introns_of_its_other_row(tmp_path):
     assert {row['gene'] for row in alt3.values()} == {'GX'}
 
 
+def test_an_events_other_reads_are_counted_however_few_they_are(tmp_path):
+    """the rows of an event sum to it: its other reads were dropped when no sample
+    had feature_support of them, so the rows' PSIs summed to less than 1"""
+    # alt3 to 300 and to 350 in both samples, and one read to 380 in each, which is
+    # below feature_support
+    s1 = [([(200, 300)], 100, 400, 30), ([(200, 350)], 100, 400, 10), ([(200, 380)], 100, 400, 1)]
+    s2 = [([(200, 300)], 100, 400, 10), ([(200, 350)], 100, 400, 30), ([(200, 380)], 100, 400, 1)]
+    tables, _ = _events(tmp_path, s1, s2, feature_support=2)
+    alt3 = _of_type(tables, 'alt3')
+    other = [name for name in alt3 if name.endswith('|other')]
+    assert len(other) == 1
+    assert [alt3[other[0]][s] for s in ('s1', 's2')] == ['1', '1']
+    psis = {name: row for name, row in tables['PSIjunc'].items() if row['event_type'] == 'alt3'}
+    assert round(sum(float(psis[name]['s1']) for name in psis), 6) == 1.0
+
+
 def test_an_events_introns_count_for_its_gene_by_their_reads(tmp_path):
     # alt3 to 300, which GX has, in 60 reads, and to 350, which GY has, in 20: each
     # gene has one intron and the other's donor, a tie but for the reads

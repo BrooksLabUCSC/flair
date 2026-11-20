@@ -228,9 +228,11 @@ def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, out_dir):
     gene_ids = np.asarray(list(genes.keys()))
     vals = np.asarray([genes[x].exp for x in gene_ids])
 
-    # genes must be expressed in all samples of at least one group; thresh is the
-    # documented minimum, so a count equal to it is kept
-    filtered_rows = (np.min(vals[:, g1_ind], axis=1) >= thresh) | (np.min(vals[:, g2_ind], axis=1) >= thresh)
+    # a row is tested when the reads of at least one condition, summed over its
+    # samples, reach the threshold, which is what --min_expression's help states.
+    # It was the minimum over the samples of a condition, so one low sample in each
+    # condition dropped the row however many reads the conditions held
+    filtered_rows = (np.sum(vals[:, g1_ind], axis=1) >= thresh) | (np.sum(vals[:, g2_ind], axis=1) >= thresh)
     filtered_gene_vals = vals[filtered_rows]
     filtered_gene_ids = gene_ids[filtered_rows]
     write_deseq2_counts(out_dir + "/filtered_gene_counts_ds2.tsv", samples,
@@ -239,7 +241,7 @@ def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, out_dir):
     # now do isoforms
     isoform_ids = np.asarray(list(isoforms.keys()))
     vals = np.asarray([isoforms[x].exp for x in isoform_ids])
-    filtered_rows = (np.min(vals[:, g1_ind], axis=1) >= thresh) | (np.min(vals[:, g2_ind], axis=1) >= thresh)
+    filtered_rows = (np.sum(vals[:, g1_ind], axis=1) >= thresh) | (np.sum(vals[:, g2_ind], axis=1) >= thresh)
     filtered_iso_vals = vals[filtered_rows]
     filtered_iso_ids = isoform_ids[filtered_rows]
 
@@ -470,8 +472,9 @@ def add_subparser(subparsers):
     parser.add_argument('-t', '--threads', type=int, default=4,
                         help='number of threads for parallel DRIMSeq (default: %(default)s)')
     parser.add_argument('--min_expression', type=int, default=10,
-                        help='read count expression threshold; isoforms in which both conditions '
-                             'contain fewer than this many reads are filtered out (default: %(default)s)')
+                        help='read count expression threshold: a gene or isoform is tested when the '
+                             'reads of at least one condition, summed over its samples, reach this many, '
+                             'and is left out when both conditions have fewer (default: %(default)s)')
     parser.add_argument('--condition_a', default='',
                         help='the reference condition, as named in the counts matrix columns; '
                              'fold changes are reported for --condition_b relative to this. '

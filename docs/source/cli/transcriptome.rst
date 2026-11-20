@@ -83,7 +83,7 @@
 
 .. option:: --frac_support FRAC_SUPPORT
 
-   minimum fraction of gene locus support for isoform to be called; only isoforms that make up more than this fraction of the gene locus are reported. Set to 0 for max recall (default: 0.05)
+   minimum share of its gene's reads for an isoform to be reported: its reads over the reads of every isoform of the gene, spliced and single exon together, which is the frac_support column. An isoform at exactly this fraction is kept. Set to 0 for max recall (default: 0.05)
 
 .. option:: --directRNA
 

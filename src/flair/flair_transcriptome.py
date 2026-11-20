@@ -33,13 +33,14 @@ from flair.pycbio.hgdata.bed import BedReader
 from flair.predictProductivity import predict_productivity
 from flair.flair_bed import FlairBed
 from flair.aaseq_tsv import write_aaseqs
-from flair.isoform_counts_tsv import IsoformCountsWriter
+from flair.isoform_counts_tsv import IsoformCountsReader, IsoformCountsWriter
 from flair.read_ends_tsv import ReadEndsReader, ReadEndsWriter
 from flair.read_map_tsv import ReadMapReader, ReadMapWriter
 from flair.output_compress import compressed_path, open_fasta_output, open_output
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
+from flair.run_logging import count_reads_read, report_reads_used
 from flair.run_checks import (check_annotation, check_option_ranges, check_sample_name, precheck, report_result_count,
                               count_records)
 
@@ -201,9 +202,10 @@ def add_subparser(subparsers):
                              'with its reads, if every isoform it is a subset of fails support and it has at '
                              'least this many reads; 0 never reports it (default: %(default)s)')
     parser.add_argument('--frac_support', type=float, default=0.05,
-                        help='minimum fraction of gene locus support for isoform to be called; only isoforms '
-                             'that make up more than this fraction of the gene locus are reported. Set to 0 for '
-                             'max recall (default: %(default)s)')
+                        help='minimum share of its gene\'s reads for an isoform to be reported: its reads '
+                             'over the reads of every isoform of the gene, spliced and single exon together, '
+                             'which is the frac_support column.  An isoform at exactly this fraction is kept.  '
+                             'Set to 0 for max recall (default: %(default)s)')
 
     parser.add_argument('--directRNA', action='store_true',
                         help='the reads are direct RNA: this implies --trust_strand, and large deletions '
@@ -1088,11 +1090,15 @@ def _iso_passes_support_filter(args, iso, gene, num_exons, iso_to_counts, gene_t
     if iso not in iso_to_counts:
         return False, 0
     else:
-        count = iso_to_counts[iso][0]
+        count = iso_to_counts[iso]
+        # one denominator for every isoform of the gene, spliced or not: the two
+        # scales this had, the gene's spliced reads for a spliced isoform and its
+        # spliced and unspliced reads for a single exon one, put the rows of one
+        # gene on two scales with no column stating which
+        frac = count / gene_to_tot[gene][1]
         if num_exons > 1:
-            return (count >= args.sjc_support) and (count / gene_to_tot[gene][0]) >= args.frac_support, (count / gene_to_tot[gene][0])
+            return (count >= args.sjc_support) and (frac >= args.frac_support), frac
         else:
-            frac = count / gene_to_tot[gene][1]
             exempt = longest_supported and gene_to_tot[gene][0] == 0
             return (count >= args.single_exon_support) and (exempt or frac >= args.frac_support), frac
 
@@ -1352,7 +1358,7 @@ def assign_single_exon_isoforms(isoforms, iso_to_counts, gene_to_tot, *, se_supp
     covering = {isoform.name: [read for read in isoform.reads if _covers_half(read, isoform)] for isoform in isoforms}
     gene_total = {}
     for isoform in isoforms:
-        gene_total[isoform.gene_id] = (gene_total.get(isoform.gene_id, gene_to_tot.get(isoform.gene_id, [0, 0, 0])[1])
+        gene_total[isoform.gene_id] = (gene_total.get(isoform.gene_id, gene_to_tot.get(isoform.gene_id, [0, 0])[1])
                                        + len(covering[isoform.name]))
 
     def passes_support(isoform, num_reads):
@@ -1375,10 +1381,11 @@ def assign_single_exon_isoforms(isoforms, iso_to_counts, gene_to_tot, *, se_supp
                 final[variant.name] = [variant]
     for isoform in (isoform for variants in final.values() for isoform in variants):
         if isoform.num_reads > 0:
-            iso_to_counts[isoform.name] = [isoform.num_reads, isoform.num_reads]
-            gene_reads = gene_to_tot.setdefault(isoform.gene_id, [0, 0, 0])
+            iso_to_counts[isoform.name] = isoform.num_reads
+            gene_reads = gene_to_tot.setdefault(isoform.gene_id, [0, 0])
+            # the gene's reads, which frac_support divides by; its spliced count is
+            # not touched, these isoforms having no junctions
             gene_reads[1] += isoform.num_reads
-            gene_reads[2] += isoform.num_reads
     return final
 
 def _with_single_exon_isoforms(final, single_exon):
@@ -1397,14 +1404,15 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs):
         start_sj_index, end_sj_index = row.start_sj_index, row.end_sj_index
         gene = final_transcript_objs[transcript].gene_id
         if gene not in gene_to_tot:
-            # total spliced full-length, total full-length spliced + unspliced, total all
-            gene_to_tot[gene] = [0, 0, 0]
+            # the gene's spliced reads, and its spliced and unspliced reads together,
+            # which is frac_support's denominator
+            gene_to_tot[gene] = [0, 0]
         if transcript not in iso_to_counts:
-            iso_to_counts[transcript] = [0, 0]
+            iso_to_counts[transcript] = 0
         # only spliced isoforms' reads have ends lines (assign_single_exon_isoforms),
         # and a read is counted for an isoform only if it is full-length on it
         if start_sj_index == 0 and end_sj_index == len(final_transcript_objs[transcript].juncs) - 1:
-            iso_to_counts[transcript][0] += 1
+            iso_to_counts[transcript] += 1
             gene_to_tot[gene][0] += 1
             gene_to_tot[gene][1] += 1
         else:  # this is only kept to catch bugs in count_sam_transcripts transcript assignment
@@ -1413,8 +1421,6 @@ def calc_final_iso_support(read_ends_file, final_transcript_objs):
             raise FlairError(f"{read_ends_file}: read '{read}' on transcript '{transcript}' is not "
                              f"full length: junctions {start_sj_index} to {end_sj_index} of "
                              f"{len(final_transcript_objs[transcript].juncs)}")
-        iso_to_counts[transcript][1] += 1
-        gene_to_tot[gene][2] += 1
     return iso_to_counts, gene_to_tot
 
 def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_counts, gene_to_tot, ends_path):
@@ -1456,9 +1462,9 @@ def promote_backup_subsets(args, removed_subsets, final_transcript_objs, iso_to_
         promoted.backup_subset = True
         logging.debug(f"subset isoform promoted, its supersets failing support: {name} ({len(reads)} reads)")
         final_transcript_objs[promoted.name] = promoted
-        iso_to_counts[promoted.name] = [len(reads), len(reads)]
-        gene_reads = gene_to_tot.setdefault(promoted.gene_id, [0, 0, 0])
-        for i in range(3):
+        iso_to_counts[promoted.name] = len(reads)
+        gene_reads = gene_to_tot.setdefault(promoted.gene_id, [0, 0])
+        for i in range(len(gene_reads)):
             gene_reads[i] += len(reads)
         passing.add((promoted.strand, promoted.juncs))
 
@@ -1502,11 +1508,11 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
 
                 thickStart, thickEnd, productivity, aaseq = predict_productivity(isoform, annots.start_codon_count,
                                                                                  annots.gene_to_cds_starts, annots.transcript_to_nmd_except, genome)
-                convert_to_flair_bed(isoform, thickStart=thickStart, thickEnd=thickEnd, read_support=iso_to_counts[tname][0],
+                convert_to_flair_bed(isoform, thickStart=thickStart, thickEnd=thickEnd, read_support=iso_to_counts[tname],
                                      frac_support=my_frac_support, productivity=productivity, samples=(args.sample_name,), aaseq_id=aaseq).write(iso_fh)
                 seq_fh.write('>' + isoform.name + '\n')
                 seq_fh.write(isoform.get_sequence(genome) + '\n')
-                counts_fh.writeRow((isoform.name, iso_to_counts[tname][0], iso_to_counts[tname][1]))
+                counts_fh.writeRow((isoform.name, iso_to_counts[tname]))
                 if generate_map:
                     # single-exon and promoted subset isoforms have their reads; other spliced ones' are in the read map
                     if isoform.juncs == () or isoform.backup_subset:
@@ -1553,7 +1559,9 @@ def _run_region_reads(*, partition, region, gtf_data, junction_corrector, args):
 
         # never zero reads here: _run_region only calls this when samtools fasta found
         # reads, and both skip secondary and supplementary alignments
-        _, clipping_file = generate_genomic_alignment_read_to_clipping_file(partition.file_prefix, bam_file, region.name, region.start, region.end)
+        reads_read, clipping_file = generate_genomic_alignment_read_to_clipping_file(
+            partition.file_prefix, bam_file, region.name, region.start, region.end)
+        count_reads_read(reads_read)
 
         # aligning to reference transcriptome, then identifying reads that match well to reference transcripts
         # with filter_transcriptome_align
@@ -1873,6 +1881,9 @@ def flair_transcriptome(*, genome_aligned_bam, genome, sample_name, output, anno
         report_result_count('isoform', count_records(compressed_path(args.output + '.isoforms.bed')),
                             remedy='lower --sjc_support, --single_exon_support or --frac_support, or check that '
                             'the reads are aligned to the genome and annotation given')
+        report_reads_used(sum(row.full_length_reads for row in
+                              IsoformCountsReader(compressed_path(args.output + '.isoforms.counts.tsv'))),
+                          'assigned to a reported isoform')
 
     finally:
         # also on failure, so runs don't leave their files in $TMPDIR

@@ -217,9 +217,9 @@ def test_splicing_outliers_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'outliers.tsv')
     with SplicingOutliersWriter(path) as writer:
         writer.writeRow(['es|chr1:201-300(+)|G1', 'inclusion', 'es', ['G1'], ['NAME1'], [], [], 's1',
-                         0.5, 0.1, 0.9, 3, [7, 20], 0.4, 4.0])
+                         0.5, 0.1, 0.9, 3, 7, 20, 0.4, 4.0])
     rows = list(SplicingOutliersReader(path))
-    assert rows[0]['event_reads;total_locus_reads'] == [7, 20]
+    assert (rows[0].alternative_reads, rows[0].psi_total) == (7, 20)
     assert (rows[0].gene, rows[0].sample) == (['G1'], 's1')
 
 def test_read_chains_round_trip(tmp_path):

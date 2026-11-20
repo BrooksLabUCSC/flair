@@ -10,9 +10,10 @@ options:
   -t, --threads THREADS
                         number of threads for parallel DRIMSeq (default: 4)
   --min_expression MIN_EXPRESSION
-                        read count expression threshold; isoforms in which
-                        both conditions contain fewer than this many reads are
-                        filtered out (default: 10)
+                        read count expression threshold: a gene or isoform is
+                        tested when the reads of at least one condition,
+                        summed over its samples, reach this many, and is left
+                        out when both conditions have fewer (default: 10)
   --condition_a CONDITION_A
                         the reference condition, as named in the counts matrix
                         columns; fold changes are reported for --condition_b

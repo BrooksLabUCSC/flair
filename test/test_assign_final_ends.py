@@ -101,7 +101,7 @@ def _se_isoform(name, start, end, read_ends, cluster=None, gene='g'):
 
 
 def _assign_se(isoforms, frac_support=0.05, spliced_reads=0):
-    iso_to_counts, gene_to_tot = {}, {'g': [spliced_reads, spliced_reads, spliced_reads]}
+    iso_to_counts, gene_to_tot = {}, {'g': [spliced_reads, spliced_reads]}
     final = assign_single_exon_isoforms(isoforms, iso_to_counts, gene_to_tot, se_support=3, frac_support=frac_support)
     return final, iso_to_counts, gene_to_tot
 
@@ -109,15 +109,15 @@ def _assign_se(isoforms, frac_support=0.05, spliced_reads=0):
 def test_single_exon_isoform_keeps_its_first_pass_ends_and_reads():
     iso = _se_isoform('se', 1010, 1990, [(1010, 1990)] * 3 + [(1100, 1700)])
     final, counts, gene_to_tot = _assign_se([iso], spliced_reads=10)
-    assert final == {'se': [iso]} and counts == {'se': [4, 4]}
+    assert final == {'se': [iso]} and counts == {'se': 4}
     # its reads are full-length reads of its gene, with the spliced ones
-    assert gene_to_tot == {'g': [10, 14, 14]}
+    assert gene_to_tot == {'g': [10, 14]}
 
 
 def test_single_exon_isoform_keeps_only_reads_covering_more_than_half_of_it():
     iso = _se_isoform('se', 1000, 2000, [(1000, 2000)] * 3 + [(1000, 1400), (1600, 3000)])
     final, counts, _ = _assign_se([iso])
-    assert [read.name for read in final['se'][0].reads] == ['se0', 'se1', 'se2'] and counts['se'] == [3, 3]
+    assert [read.name for read in final['se'][0].reads] == ['se0', 'se1', 'se2'] and counts['se'] == 3
 
 
 def test_single_exon_cluster_whose_end_variants_all_fail_is_one_isoform():
@@ -128,7 +128,7 @@ def test_single_exon_cluster_whose_end_variants_all_fail_is_one_isoform():
     ((merged,),) = final.values()
     # the longest read's ends; a's reads cover only a third of it
     assert list(final) == ['a'] and (merged.start, merged.end) == (1500, 3000)
-    assert counts == {merged.name: [4, 4]}
+    assert counts == {merged.name: 4}
 
 
 def test_single_exon_end_variants_passing_support_are_kept():
@@ -149,13 +149,13 @@ def test_single_exon_support_is_a_fraction_of_all_the_genes_spliced_reads():
 
 def test_longest_supported_single_exon_variant_needs_only_single_exon_support():
     args = SimpleNamespace(single_exon_support=3, frac_support=0.05)
-    counts, gene_to_tot = {'se': [3, 3]}, {'g': [0, 63, 63]}
+    counts, gene_to_tot = {'se': 3}, {'g': [0, 63]}
     assert _iso_passes_support_filter(args, 'se', 'g', 1, counts, gene_to_tot, longest_supported=True)[0]
     assert not _iso_passes_support_filter(args, 'se', 'g', 1, counts, gene_to_tot)[0]
-    assert not _iso_passes_support_filter(args, 'se', 'g', 1, {'se': [2, 2]}, gene_to_tot, longest_supported=True)[0]
+    assert not _iso_passes_support_filter(args, 'se', 'g', 1, {'se': 2}, gene_to_tot, longest_supported=True)[0]
 
 
 def test_longest_supported_single_exon_variant_in_a_spliced_gene_needs_frac_support():
     # 3 of the gene's 10 spliced and 63 single-exon reads
     args = SimpleNamespace(single_exon_support=3, frac_support=0.05)
-    assert not _iso_passes_support_filter(args, 'se', 'g', 1, {'se': [3, 3]}, {'g': [10, 73, 73]}, longest_supported=True)[0]
+    assert not _iso_passes_support_filter(args, 'se', 'g', 1, {'se': 3}, {'g': [10, 73]}, longest_supported=True)[0]
