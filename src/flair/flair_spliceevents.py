@@ -11,7 +11,8 @@ from flair.output_compress import compressed_path
 from flair.reuse import provenance, record_provenance, reuse_file
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.run_logging import plural
-from flair.run_checks import (check_annotation, check_bam_indexes, check_option_ranges, check_seq_names, precheck,
+from flair.run_checks import (check_annotation, check_bam_indexes, check_option_ranges,
+                              check_sample_name, check_seq_names, precheck,
                               report_result_count, count_records)
 from flair.gtf_io import gtf_data_parser, GtfAttrsSet, TRANSCRIPT_EXON_FEATURES
 from flair.annotation_data import annot_data_from_gtf
@@ -257,6 +258,8 @@ def read_manifest(path):
         raise FlairInputDataError(f'{path}: every line of a manifest has the same number of fields, and '
                                   'these have 2 and 4; give the condition and the batch of every sample '
                                   'or of none')
+    for row in rows:
+        check_sample_name(row[0], where=f'{path}: sample')
     samples = [(row[0], row[-1]) for row in rows]
     sample_infos = ([SampleInfo(row[0], row[1], row[2]) for row in rows]
                     if counts == {4} else None)

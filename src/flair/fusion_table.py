@@ -33,7 +33,7 @@ def isoform_contigs(synthetic_isoforms_bed):
 
 def isoform_read_counts(read_map):
     "isoform -> its number of reads"
-    return {row.name: len(row.reads) for row in ReadMapReader(read_map)}
+    return {row.isoform_id: len(row.reads) for row in ReadMapReader(read_map)}
 
 
 def isoform_pieces(fusion_isoforms_bed):

@@ -98,7 +98,7 @@ def _bam(tmp_path, name, reads_spec):
     pysam.index(path)
     read_map = str(tmp_path / f'{name}.read.map.tsv')
     with open(read_map, 'w') as fh:
-        fh.write('name\treads\niso1\t' + ','.join(names) + '\n')
+        fh.write('isoform_id\treads\niso1\t' + ','.join(names) + '\n')
     return path, read_map
 
 

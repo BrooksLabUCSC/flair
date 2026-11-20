@@ -172,6 +172,21 @@
   * flair combine, flair diffsplice and plot_isoform_usage report a file that is not a
     FLAIR isoform BED as flair quantify does, naming the columns it must have, rather
     than printing the pycbio exception and the row that failed.
+  * The read map's first column is named `isoform_id`, as every other FLAIR table
+    names a column of isoform ids; it was `name`.  A read map of an earlier FLAIR is
+    reported as such rather than read as an isoform called `name`.  `flair isoalleles`
+    writes an isoform and one of its allele groups there, `isoform|group`.
+  * The two DESeq2 tables of `flair diffexp` name their first column `gene_id` and
+    `isoform_id`, where both called it `sample` and it held neither.
+  * The sample columns of the DRIMSeq table of `flair diffexp` are the counts
+    matrix's own column names.  Each had an index appended, `A1_cond_batch_0`, which
+    reached the user's table and could not be matched to the matrix.
+  * A counts matrix with two columns of one sample name, or with a repeated
+    `isoform_id`, is reported.  A repeated id was renamed to `id-2`, and the results
+    were reported under an id that is in no other file.
+  * A sample name containing a comma, a tab or a slash is rejected where it is given,
+    in `--sample_name` and in a manifest.  A comma in a sample name was read back as
+    two samples by a later run, which reported a BED of two samples.
   * The message naming a program that is not on PATH points at the installing page
     of the FLAIR documentation rather than at `docs/source/installing.rst`, a path
     a user who installed FLAIR from conda or PyPI does not have.

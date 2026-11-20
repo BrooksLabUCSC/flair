@@ -40,7 +40,7 @@ from flair.output_compress import compressed_path, open_fasta_output, open_outpu
 from flair.pycbio.sys import fileOps
 from flair.terminal_exon_ends import TerminalExonEnds
 from flair.interval_index import IntervalIndex
-from flair.run_checks import (check_annotation, check_option_ranges, precheck, report_result_count,
+from flair.run_checks import (check_annotation, check_option_ranges, check_sample_name, precheck, report_result_count,
                               count_records)
 
 # the programs a run executes, checked before it starts
@@ -287,6 +287,7 @@ def add_subparser(subparsers):
 
 def transcriptome_cmd(args):
     resolve_deprecated_option(args, deprecated="junction_tab", current="junction_star")
+    check_sample_name(args.sample_name)
     parse_filter(args.filter)
     if args.trust_ends:
         raise FlairInputDataError("--trust_ends has been removed: each isoform's ends come from the ends "
@@ -1483,7 +1484,7 @@ def write_final_isoform_output(partition, args, final_transcript_objs, iso_to_co
     transcript_to_reads = {}
     if generate_map:
         for row in ReadMapReader(partition.output_path('countsam.read.map.tsv')):
-            transcript_to_reads[row.name] = row.reads
+            transcript_to_reads[row.isoform_id] = row.reads
 
     with open(partition.output_path('isoforms.bed'), 'w') as iso_fh, \
          open(partition.output_path('isoforms.fa'), 'w') as seq_fh, \

@@ -8,7 +8,7 @@ import pytest
 from flair import FlairInputDataError
 from flair.read_map_index import ReadMapIndex, is_bgzip
 
-ROWS = 'name\treads\niso1\tr1,r2\niso2\tr3\niso3\tr4,r5,r6\n'
+ROWS = 'isoform_id\treads\niso1\tr1,r2\niso2\tr3\niso3\tr4,r5,r6\n'
 
 
 def _write(path, text=ROWS):

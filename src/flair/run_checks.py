@@ -38,6 +38,24 @@ def _check_option_kind(args, kind, dests):
                                       + (f'; {hint}' if hint is not None else ''))
 
 
+# what a sample name may not contain, and what it would break: the name is written
+# into a comma separated list, into tab separated tables, and into the names of the
+# files of that sample
+_SAMPLE_NAME_REJECTED = (
+    (',', 'a comma, which separates the samples of an isoform BED and of a GTF attribute'),
+    ('\t', 'a tab, which separates the fields of every table flair writes'),
+    ('/', 'a slash, which would name a directory where a file is named for the sample'))
+
+
+def check_sample_name(sample_name, where='--sample_name'):
+    """A sample name that survives the files it is written into.  A name with a comma
+    was read back as two samples a run later, by whatever read the list it is written
+    into, and the error named the wrong cause."""
+    for char, what in _SAMPLE_NAME_REJECTED:
+        if char in sample_name:
+            raise FlairInputDataError(f'{where} {sample_name!r} contains {what}')
+
+
 def check_input_files(files):
     """every input file of a run exists; files maps what a file is, for the message,
     to its path, or to several paths of that kind.  A None path is an option that was

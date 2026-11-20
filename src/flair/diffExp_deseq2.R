@@ -18,6 +18,8 @@ parse_arguments <- function() {
   parser$add_argument("--matrix", required = TRUE, help = "Input count files.")
   parser$add_argument("--out_dir", required = TRUE, help = "Write to specified output directory.")
   parser$add_argument("--prefix", required = TRUE, help = "Specify file prefix.")
+  parser$add_argument("--id_column", required = TRUE,
+                      help = "Name of the first column of the result table, gene_id or isoform_id.")
   parser$add_argument("--formula", required = TRUE, help = "Formula design matrix.")
   parser$add_argument("--compress", action = "store_true", default = FALSE,
                       help = "Compress the output tables with gzip.")
@@ -88,7 +90,8 @@ run_deseq_analysis <- function(args) {
   
   resLFC <- na.omit(resLFC[order(resLFC$padj), ])
   resLFC <- as.data.frame(resLFC[resLFC$padj < 0.05, ])
-  outdf <- data.frame(sample = rownames(resLFC), round(resLFC[, 1:3], 2), signif(resLFC[, 4:5], 3))
+  outdf <- data.frame(rownames(resLFC), round(resLFC[, 1:3], 2), signif(resLFC[, 4:5], 3))
+  names(outdf)[1] <- args$id_column
   tsvWriteTable(outdf, cleanOut, row.names = FALSE)
   
   return(dds)

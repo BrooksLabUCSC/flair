@@ -22,7 +22,8 @@ from flair.flair_transcriptome import DEFAULT_FILTER, parse_filter
 from flair.io_utils import GenomeFasta, run_program
 from flair.pycbio.sys import fileOps
 from flair.reuse import provenance, record_provenance, reuse_file
-from flair.run_checks import (check_annotation, check_option_ranges, precheck, report_result_count,
+from flair.run_checks import (check_annotation, check_option_ranges, check_sample_name, precheck,
+                              report_result_count,
                               count_records)
 from flair.output_compress import compressed_path, open_output, open_fasta_output
 
@@ -113,6 +114,7 @@ def add_subparser(subparsers):
     parser.set_defaults(entry=fusion_cmd)
 
 def fusion_cmd(args):
+    check_sample_name(args.sample_name)
     parse_filter(args.filter)
     if args.max_dist_to_tss < -1:
         raise FlairInputDataError(f"--max_dist_to_tss is {args.max_dist_to_tss}, which is not a distance "

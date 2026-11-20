@@ -19,7 +19,7 @@ from flair.aaseq_tsv import write_aaseqs
 from flair.counts_matrix_tsv import CountsRow, counts_matrix_writer
 from flair.flair_quantify import load_isoform_data, make_batches
 from flair.io_utils import GenomeFasta, make_run_temp_dir, open_sorted_bed
-from flair.run_checks import check_option_ranges, precheck, report_result_count
+from flair.run_checks import check_option_ranges, check_sample_name, precheck, report_result_count
 from flair.isoallele_genes import GeneOutput, process_gene
 from flair.isoallele_variants import UNTAGGED, open_vcf, variant_keys
 from flair.pycbio.sys import fileOps
@@ -257,6 +257,9 @@ class Outputs:
 
 def isoalleles_cmd(args):
     "the subcommand: its own options, not flair's global ones, to isoalleles"
+    for name in (args.sample_name, args.normal_name):
+        if name is not None:
+            check_sample_name(name)
     check_option_ranges(args, fraction=('carrier_min',), count=('min_normal_depth', 'min_tagged'),
                         positive=('threads',))
     params = inspect.signature(isoalleles).parameters

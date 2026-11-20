@@ -1,4 +1,4 @@
-sample	baseMean	log2FoldChange	lfcSE	pvalue	padj
+gene_id	baseMean	log2FoldChange	lfcSE	pvalue	padj
 ENSG00000087086.15	22431.8	4.83	0.31	7.31e-55	9.65e-52
 ENSG00000160182.3	5786.73	-10.89	0.85	6.81e-40	4.49e-37
 ENSG00000196154.12	1371.2	10.97	0.97	8.39e-30	3.69e-27

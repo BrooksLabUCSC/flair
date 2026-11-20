@@ -1,4 +1,4 @@
-sample	baseMean	log2FoldChange	lfcSE	pvalue	padj
+isoform_id	baseMean	log2FoldChange	lfcSE	pvalue	padj
 ENST00000331825.11	22283.59	4.82	0.31	9.42e-57	1.39e-53
 ENST00000291527.3	5768.42	-10.91	0.84	2.48e-40	1.83e-37
 ENST00000368716.9	1360.89	10.96	0.96	2.25e-30	1.11e-27

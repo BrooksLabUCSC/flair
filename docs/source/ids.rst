@@ -41,11 +41,38 @@ One id per column
 
 No FLAIR file puts an isoform and its gene in one field. The gene is a column of its
 own: ``gene_id`` in an isoforms BED, ``gene_id`` beside ``isoform_id`` in a counts
-matrix, and the column ``gtf_to_bed --include_gene`` adds. An id is therefore read,
-never parsed.
+matrix, and the column ``gtf_to_bed --include_gene`` adds. An isoform id is
+therefore read, never parsed.
 
 The annotated gene or transcript an isoform was matched to, when it was matched to
 one, is likewise its own column rather than part of the id.
+
+Ids that are built from others
+------------------------------
+
+Three things FLAIR names are named for what they are made of, so their ids do have
+parts, with a separator that the id's own component ids cannot contain:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 30 45
+
+   * - What
+     - Form
+     - Where
+   * - an allele of an isoform
+     - ``FLT00000001|H1``
+     - the counts matrix, BED, FASTA and read map of ``flair isoalleles``
+   * - a splicing event
+     - ``es|chr1:100-200(+)|ENSG00000188243.13``
+     - the ``event`` column and the BED name of ``flair spliceevents``, whose BED
+       name adds ``|alternative``
+   * - a fusion
+     - ``ERGIC3--KRAS``
+     - the ``fusion`` and ``gene_ids`` columns of ``flair fusion``'s table
+
+A row of a ``flair spliceevents`` counts table is named ``event|alternative`` where
+a counts matrix names an isoform, since that is what the row counts.
 
 Releases before FLAIR 3 joined the two with an underscore,
 ``ENST00000225792.10_ENSG00000108654.15``. Splitting that needs a guess, since gene

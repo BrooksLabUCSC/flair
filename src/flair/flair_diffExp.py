@@ -24,7 +24,8 @@ from flair.io_utils import remove_on_failure
 from flair.run_checks import (check_option_ranges, count_records, precheck,
                               report_result_count)
 from flair.conditions import condition_column_indexes, select_condition_pair
-from flair.counts_matrix_tsv import QUANTIFY_COUNTS, CountsRow, read_grouped_counts, write_counts_matrix
+from flair.counts_matrix_tsv import (QUANTIFY_COUNTS, CountsRow, check_isoform_ids_unique,
+                                     read_grouped_counts, write_counts_matrix)
 from flair.deseq2_counts_tsv import write_deseq2_counts
 from flair.drimseq_counts_tsv import drimseq_counts_writer
 from flair.drimseq_input import check_feature_ids_unique
@@ -202,27 +203,20 @@ def get_sig_from_norm_by_gene(outname, norm_rows, ref_cols, test_cols, unreporte
                                  delta_usage=round(alldeltas[i], 3),
                                  adj_pval=corrpval[i])
 
-def add_counts_row(genes, isoforms, row, duplicate_id):
-    "add one counts row to its gene and to the isoform table"
+def add_counts_row(genes, isoforms, row):
+    """add one counts row to its gene and to the isoform table.  The ids do not
+    repeat, which check_isoform_ids_unique has reported if they do"""
     counts = np.asarray(row.counts, dtype=float)
     if row.gene_id not in genes:
         genes[row.gene_id] = Gene(row.gene_id, np.zeros(len(counts)))
     gene_obj = genes[row.gene_id]
     gene_obj.exp += counts
-
-    iso = row.isoform_id
-    if iso in isoforms:
-        duplicate_id += 1
-        iso = iso + "-" + str(duplicate_id)
-    isoforms[iso] = Isoform(iso, gene_obj, counts)
-    return duplicate_id
+    isoforms[row.isoform_id] = Isoform(row.isoform_id, gene_obj, counts)
 
 def separate_tables(counts_rows, thresh, samples, a_cols, b_cols, out_dir):
     genes, isoforms = dict(), dict()
-    duplicate_id = 1
-
     for row in counts_rows:
-        duplicate_id = add_counts_row(genes, isoforms, row, duplicate_id)
+        add_counts_row(genes, isoforms, row)
 
     # the two conditions' column indexes are chosen by name in calculate_sig; taking
     # them from the first and last column made the filter depend on column order, and
@@ -292,7 +286,7 @@ def r_compress_option():
     "the R scripts compress their tables when this run does"
     return ['--compress'] if output_compression() else []
 
-def run_deseq2(prefix, workdir, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
+def run_deseq2(prefix, id_column, workdir, condition_a, condition_b, matrix_file, out_dir, formula_matrix_file):
     # no --batch: neither R script ever read it, and one arbitrary batch label would
     # not have said anything anyway.  Both take the batch column from the formula matrix
     stderr = f"{workdir}/{prefix}.txt"
@@ -300,7 +294,8 @@ def run_deseq2(prefix, workdir, condition_a, condition_b, matrix_file, out_dir, 
         with open(stderr, "w") as stderr_fh:
             pipettor.run(["Rscript", diffExp_deseq2, "--condition_a", condition_a, "--condition_b", condition_b,
                           "--matrix", matrix_file, "--out_dir", out_dir,
-                          "--prefix", prefix, "--formula", formula_matrix_file] + r_compress_option(),
+                          "--prefix", prefix, "--id_column", id_column,
+                          "--formula", formula_matrix_file] + r_compress_option(),
                          stderr=stderr_fh)
     except pipettor.ProcessException as exc:
         raise FlairToolError(f'running {prefix} failed, please check {stderr} for details') from exc
@@ -331,14 +326,16 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
     counts_rows = grouped.rows
     if len(counts_rows) == 0:
         raise FlairInputDataError(f"counts matrix {quant_table_tsv} has no isoform rows")
+    check_isoform_ids_unique(quant_table_tsv, counts_rows)
 
     # Get sample data info
     sample_infos = read_sample_info(quant_table_tsv)
     groups = [si.condition for si in sample_infos]
     batches = [si.batch for si in sample_infos]
-    # the column number keeps these unique for R, which joins the formula matrix to
-    # the counts matrix by them
-    samples = ["%s_%s" % (si.sample_id, num) for num, si in enumerate(sample_infos)]
+    # R joins the formula matrix to the counts matrix by these, and the result
+    # tables are written with them, so they are the matrix's own column names; a
+    # matrix of two columns of one name is rejected when it is read
+    samples = [si.sample_id for si in sample_infos]
     combos = set([(groups.index(x), batches.index(y)) for x, y in zip(groups, batches)])
 
     condition_a, condition_b = select_condition_pair(groups, condition_a, condition_b,
@@ -400,8 +397,10 @@ def calculate_sig(*, counts_matrix, output, condition_a, condition_b, min_expres
         # of flair spliceevents counts only usage is tested
         expression_tested = grouped.format is QUANTIFY_COUNTS
         if expression_tested:
-            run_deseq2("genes_deseq2", workdir, condition_a, condition_b, gene_matrix_file, out_dir, formula_matrix_file)
-            run_deseq2("isoforms_deseq2", workdir, condition_a, condition_b, iso_matrix_file, out_dir, formula_matrix_file)
+            run_deseq2("genes_deseq2", 'gene_id', workdir, condition_a, condition_b, gene_matrix_file,
+                       out_dir, formula_matrix_file)
+            run_deseq2("isoforms_deseq2", 'isoform_id', workdir, condition_a, condition_b, iso_matrix_file,
+                       out_dir, formula_matrix_file)
         else:
             logging.info(f'{quant_table_tsv} is of {grouped.format.program}: testing usage only, '
                          'not expression with DESeq2')

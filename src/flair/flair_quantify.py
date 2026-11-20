@@ -14,7 +14,7 @@ from flair.read_map_tsv import ReadMapReader, ReadMapWriter, check_read_ids_uniq
 from flair.transcript_counts_tsv import TranscriptCountsReader
 from flair.sample_info_tsv import SampleInfo, sample_info_path, write_sample_info
 from flair.io_utils import GenomeFasta, make_run_temp_dir, read_manifest_rows
-from flair.run_checks import check_option_ranges, precheck, report_result_count
+from flair.run_checks import check_option_ranges, check_sample_name, precheck, report_result_count
 from flair.run_logging import plural, report_task_done, start_task_progress
 from flair.output_compress import compressed_path, open_seekable_output
 from flair import thread_share
@@ -121,6 +121,7 @@ def load_manifest(manifest):
         manifest, (4,), "a sample id, its condition, its batch, and the sample's reads aligned to the genome as a "
         'sorted, indexed BAM', {3: 'reads file'})]
     for sample, group, batch, bamfile in sample_data:
+        check_sample_name(sample, where=f'{manifest}: sample')
         with pysam.AlignmentFile(bamfile, 'rb') as bam_file:
             if not bam_file.has_index():
                 raise FlairInputDataError(f"{manifest}: sample {sample}'s BAM {bamfile} has no index; make one with "
@@ -413,7 +414,7 @@ def read_count_sam_results(counts_file, read_map_file, assigned):
     one, to assigned, isoform name -> read names (or counts)"""
     if read_map_file is not None:
         for row in ReadMapReader(read_map_file):
-            assigned.setdefault(row.name, []).extend(row.reads)
+            assigned.setdefault(row.isoform_id, []).extend(row.reads)
     else:
         for row in TranscriptCountsReader(counts_file):
             assigned[row.transcript] = assigned.get(row.transcript, 0) + row.count

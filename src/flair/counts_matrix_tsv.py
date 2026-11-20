@@ -2,8 +2,12 @@
 
 Columns, in order:
 
-  gene_id      the gene the isoform belongs to
-  isoform_id   the isoform
+  gene_id      what the rows are grouped by and tested within: the gene of the
+               isoform for flair quantify, the isoform of the allele for flair
+               isoalleles, and the event of its alternatives for the counts of
+               flair spliceevents
+  isoform_id   what the row counts within that group: an isoform, an allele of
+               one, or an alternative of an event
   <sample>     one integer column per sample, named by its sample id
 
 Each row is one isoform of one gene.  Sample column names come from the manifest
@@ -52,6 +56,24 @@ def check_sample_columns(counts_matrix_tsv, sample_columns):
             f"{counts_matrix_tsv}: sample {', '.join(taken)} cannot name a column of a counts "
             f"matrix, which already has {', '.join(RESERVED_SAMPLE_COLUMNS)}; rename the sample "
             "in the manifest")
+    repeated = sorted({col for col in sample_columns if sample_columns.count(col) > 1})
+    if repeated:
+        raise FlairInputDataError(
+            f"{counts_matrix_tsv}: sample {', '.join(repeated)} names more than one column; a "
+            "column is one sample, and the tests join the columns to the sample info beside the "
+            "matrix by name, so each must be named once")
+
+def check_isoform_ids_unique(counts_matrix_tsv, rows):
+    """Each row is one isoform of one gene, so an id appears once.  A repeated id was
+    renamed to id-2, id-3 and so on, which reported results under ids that are in no
+    other file."""
+    seen, repeated = set(), set()
+    for row in rows:
+        (repeated if row.isoform_id in seen else seen).add(row.isoform_id)
+    if repeated:
+        raise FlairInputDataError(
+            f"{counts_matrix_tsv}: {len(repeated)} repeated {ID_COLUMNS[1]}: "
+            f"{describe_ids(sorted(repeated))}; each isoform has one row of counts")
 
 class CountsRow(namedtuple('CountsRow', ('gene_id', 'isoform_id', 'counts'))):
     """One row: one isoform of one gene, and its count in each sample, in column
@@ -192,6 +214,7 @@ def read_grouped_counts(counts_tsv):
     columns = read_header_columns(counts_tsv)
     fmt = counts_format(columns, counts_tsv)
     sample_columns = columns[len(fmt.id_columns):]
+    check_sample_columns(counts_tsv, sample_columns)
     rows, unreported = [], set()
     try:
         with TsvReader(counts_tsv, defaultColType=str, typeMap={col: int for col in sample_columns}) as reader:

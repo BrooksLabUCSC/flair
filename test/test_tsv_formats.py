@@ -52,8 +52,8 @@ def test_read_map_round_trip(tmp_path):
         writer.writeReads('iso1', ['readA', 'readB'])
         writer.writeReads('iso2', [])
     rows = list(ReadMapReader(path))
-    assert [(r.name, r.reads) for r in rows] == [('iso1', ['readA', 'readB']),
-                                                 ('iso2', [])]
+    assert [(r.isoform_id, r.reads) for r in rows] == [('iso1', ['readA', 'readB']),
+                                                       ('iso2', [])]
 
 def test_aaseq_round_trip(tmp_path):
     path = tsv_path(tmp_path, 'x.aaseq.tsv')

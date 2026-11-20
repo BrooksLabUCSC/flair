@@ -88,7 +88,7 @@ def _run(tmp_path, threads, trust_ends=False):
     counts = [line.rstrip('\n').split('\t') for line in open(output + '.isoforms.counts.tsv')]
     read_map = {}
     lines = open(output + '.isoforms.s1.read.map.tsv').read().splitlines()
-    assert lines[0] == 'name\treads'
+    assert lines[0] == 'isoform_id\treads'
     for line in lines[1:]:
         name, reads = line.rstrip('\n').split('\t')
         read_map.setdefault(name, []).extend(reads.split(','))
@@ -120,7 +120,7 @@ def _subset_bam(src_bam, out_bam, read_names):
 
 def _read_map(output, sample):
     lines = open(f'{output}.isoforms.{sample}.read.map.tsv').read().splitlines()
-    assert lines[0] == 'name\treads'
+    assert lines[0] == 'isoform_id\treads'
     return {name: sorted(reads.split(','))
             for name, reads in (line.split('\t') for line in lines[1:])}
 

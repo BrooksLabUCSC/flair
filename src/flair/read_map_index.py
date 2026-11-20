@@ -13,7 +13,7 @@ import os
 import gzip
 import shutil
 from flair import FlairInputDataError
-from flair.read_map_tsv import COLUMNS
+from flair.read_map_tsv import COLUMNS, FORMER_ID_COLUMN, check_read_map_columns
 
 _GZIP_MAGIC = b'\x1f\x8b'
 _HEADER = '\t'.join(COLUMNS)
@@ -108,7 +108,8 @@ class ReadMapIndex:
                 if not line:
                     break
                 text = line.decode().rstrip('\r\n')
-                if first and text == _HEADER:
+                if first and text.startswith((_HEADER, FORMER_ID_COLUMN + '\t')):
+                    check_read_map_columns(self.read_map_tsv, text.split('\t'))
                     first = False
                 else:
                     first = False

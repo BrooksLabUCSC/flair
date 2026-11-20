@@ -531,6 +531,20 @@ and renames these files.
  - ``isoforms_sig_exp_change_norm_by_gene.tsv`` Isoforms whose usage changes, from a t-test on counts normalized by gene.
  - ``workdir`` Temporary files including unfiltered output files.
 
+The columns of the four tables, each row being one gene or one isoform of the row
+the matrix was built from:
+
+ - the two DESeq2 tables: ``gene_id`` or ``isoform_id``, ``baseMean``,
+   ``log2FoldChange`` of B against A, ``lfcSE``, ``pvalue`` and ``padj``, the
+   adjusted p-value DESeq2 filtered on.
+ - the DRIMSeq table: ``feature_id``, ``gene_id``, a column per sample of the two
+   conditions, named as the counts matrix names them, then ``lr``, DRIMSeq's
+   likelihood ratio, and ``adj_pvalue``.
+ - ``isoforms_sig_exp_change_norm_by_gene.tsv``: ``gene_id``, ``isoform_id``,
+   ``delta_usage``, the change in the isoform's share of its gene, B minus A,
+   between -1 and 1, and ``adj_pval``, Holm-Sidak adjusted; only rows below 0.05
+   are written.
+
 
 Options
 -------
