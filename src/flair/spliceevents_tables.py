@@ -6,14 +6,16 @@ from flair.partition_runner import combine_temp_files_by_suffix
 from flair.io_utils import sort_bed_file
 from statistics import median
 from flair.pycbio.hgdata.bed import Bed, BedBlock
-from flair.spliceevents_events import EVENT_COLORS, has_psi, row_introns, row_name
+from flair.spliceevents_events import EVENT_COLORS, has_psi, range_id, row_introns, row_name
 from flair.splicing_events_tsv import SplicingEventsWriter
 from flair.splicing_totals_tsv import SplicingTotalsWriter
 
 
-def junc_list(chrom, features):
-    "junctions or exons, 1-based, or end positions, each with its chromosome"
-    return [f'{chrom}:{f[0] + 1}-{f[1]}' if isinstance(f, tuple) else f'{chrom}:{f}' for f in sorted(features)]
+def junc_list(chrom, strand, features):
+    """junctions or exons, in BED coordinates, or end positions, each with its
+    chromosome, written and ordered 5' to 3'"""
+    return [f'{chrom}:{range_id(f[0], f[1], strand)}' if isinstance(f, tuple) else f'{chrom}:{f}'
+            for f in sorted(features, reverse=(strand == '-'))]
 
 
 def _names(field):
@@ -72,7 +74,7 @@ class EventTables:
         for alternative, row in event.rows.items():
             novel = {j for j in row_introns(event, alternative) if not annotated.is_annotated(j, event.strand)}
             columns = [event.name, alternative, event.eventtype, *genes,
-                       *(junc_list(event.chrom, features)
+                       *(junc_list(event.chrom, event.strand, features)
                          for features in (row.inc_juncs, row.exc_juncs, row.outer_juncs, row.exons, novel))]
             self._write_beds(event, alternative, row.blocks, self._write_row(columns, row.counts, event))
         if any(event.other[s] > 0 for s in self.samples):

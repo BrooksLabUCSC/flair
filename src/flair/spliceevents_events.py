@@ -81,11 +81,20 @@ def internal_exons(juncs):
     return [(juncs[i][1], juncs[i + 1][0]) for i in range(len(juncs) - 1)]
 
 
+def range_id(start, end, strand):
+    """a range as its BED coordinates, zero based and written 5' to 3', so the first
+    number is the larger one on the minus strand, as flair diffsplice writes a
+    junction: 25215560-25215436 on the minus strand"""
+    first, second = (start, end) if strand == '+' else (end, start)
+    return f'{first}-{second}'
+
+
 def event_name(etype, chrom, start, end, strand):
-    """an event's name as it is found: its type and outer bounds, start 0-based, written
-    1-based as a genome browser's locus.  Its gene, decided only once the event is
-    found, is added when it is (named_with_gene)"""
-    return f'{etype}|{chrom}:{start + 1}-{end}({strand})'
+    """an event's name as it is found: its type and its outer bounds, in the BED
+    coordinates of the reads and written 5' to 3', as flair diffsplice names an event.
+    Its gene, determined only once the event is found, is added when it is
+    (named_with_gene)"""
+    return f'{etype}|{chrom}:{range_id(start, end, strand)}({strand})'
 
 
 def named_with_gene(name, gene):
@@ -100,9 +109,9 @@ def row_name(ename, alternative):
     return f'{ename}|{alternative}'
 
 
-def coord_ranges(ranges):
-    "introns or exons, (start, end) with 0-based starts, written 1-based"
-    return ','.join(f'{start + 1}-{end}' for start, end in sorted(ranges))
+def coord_ranges(ranges, strand):
+    "introns or exons, (start, end), in BED coordinates and in transcription order"
+    return ','.join(range_id(start, end, strand) for start, end in sorted(ranges, reverse=(strand == '-')))
 
 
 def span(ranges):
@@ -365,7 +374,7 @@ def complex_skipping_events(caller, info, es_juncs, seen):
         event.add('exc', exc, (), inner_juncs, [outer], exons, [junction_blocks(outer)])
         for inner in rows:
             inner_exons = internal_exons(inner)
-            event.add(coord_ranges(inner_exons), inner_counts[inner], inner, inner_juncs - set(inner), [outer], inner_exons,
+            event.add(coord_ranges(inner_exons, caller.strand), inner_counts[inner], inner, inner_juncs - set(inner), [outer], inner_exons,
                       [junction_blocks(outer, inner_exons)])
             for j in inner:
                 add_counts(es_juncs.setdefault(j, {}), outer, inner_counts[inner])
@@ -418,7 +427,7 @@ def alternative_site_events(caller, eventtype, site_alternatives, es_juncs, term
         event.introns = {junc_between(site, alt) for alt in alternatives}
         for alt in rows:
             junc = junc_between(site, alt)
-            event.add(coord_ranges([junc]), alternatives[alt], [junc], juncs - {junc}, blocks=[[junc]])
+            event.add(coord_ranges([junc], caller.strand), alternatives[alt], [junc], juncs - {junc}, blocks=[[junc]])
         caller.keep_other(event, other)
         # all the alternative sites lie on the same side of the shared one
         event.totoverlap = caller.covering((site, min(rows)) if site < min(rows) else (max(rows), site))
@@ -448,7 +457,7 @@ def shared_site_events(caller, eventtype, groups):
             # 10 bases of the exon, on its side of the site: upstream of a 5' site, downstream of a 3' one
             exon_left = lies_left(eventtype == 'alt5ss', caller.strand)
             block = (site - 10, site) if exon_left else (site, site + 10)
-            event.add(coord_ranges(inc), site_totals[site], inc, juncs - inc, blocks=[[block]])
+            event.add(coord_ranges(inc, caller.strand), site_totals[site], inc, juncs - inc, blocks=[[block]])
         caller.keep_other(event, other)
         event.totoverlap = caller.covering((max(rows), min(alts)) if median(rows) < median(alts) else (max(alts), min(rows)))
     return events
@@ -576,7 +585,7 @@ def terminal_exon_events(caller, eventtype, terminal_exons, juncs, annot_sites):
         exon_left = lies_left(eventtype == 'afe', caller.strand)
         block = (site - 100, site) if exon_left else (site, site + 100)
         inc = site_juncs[site]
-        event.add(coord_ranges(inc), site_counts[site], inc, event_juncs - inc, blocks=[[block]])
+        event.add(coord_ranges(inc, caller.strand), site_counts[site], inc, event_juncs - inc, blocks=[[block]])
     caller.keep_other(event, other)
     event.totoverlap = caller.covering((max(j[0] for j in event_juncs), min(j[1] for j in event_juncs)))
     # the alternative sites' alternative junctions, as an alt5 or alt3 event's are compared
@@ -591,14 +600,14 @@ def end_events(caller, eventtype, ends):
     alt_rows, main_rows, other = caller.split(ends, tot)
     if len(alt_rows) <= 1:
         return []
-    # the 1-based position of each end's base: the reads' starts are 0-based, on +
-    # their tss and on - their tts
+    # the BED coordinate of each end's base: a read's start is that base, on + its
+    # tss and on - its tts, and a read's end is the base after the last one
     from_starts = lies_left(eventtype == 'tss', caller.strand)
-    positions = {end: end + 1 if from_starts else end for end in alt_rows + main_rows}
-    event = caller.event(eventtype, min(positions.values()) - 1, max(positions.values()), tot)
+    positions = {end: end if from_starts else end - 1 for end in alt_rows + main_rows}
+    event = caller.event(eventtype, min(positions.values()), max(positions.values()) + 1, tot)
     # all the reads of a start or end are the gene's, so its locus is the event
     event.totoverlap = tot
     for end, pos in positions.items():
-        event.add(str(pos), ends[end], {pos}, set(positions.values()) - {pos}, blocks=[[(pos - 1, pos)]])
+        event.add(str(pos), ends[end], {pos}, set(positions.values()) - {pos}, blocks=[[(pos, pos + 1)]])
     caller.keep_other(event, other)
     return [event]

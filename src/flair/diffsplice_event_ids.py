@@ -4,9 +4,9 @@ events.quant.tsv files, used in both the feature_id and the coordinate column.
 The strand is part of every id.  DRIMSeq requires feature_id to be unique and
 takes coordinate as the gene_id it groups by, and an event at the same
 coordinates on the two strands is two events, not one.  The strand is written
-(strand), as flair spliceevents and intron_support write it, but the coordinates
-are the BED junctions' as diffsplice takes them, zero based and given 5' to 3', while
-spliceevents names an event with one-based coordinates in ascending order.
+(strand), as flair spliceevents and intron_support write it, and the coordinates are
+the BED junctions' as diffsplice takes them, zero based and given 5' to 3', which is
+how flair spliceevents names an event too.
 """
 
 def site_id(chrom, strand, site):

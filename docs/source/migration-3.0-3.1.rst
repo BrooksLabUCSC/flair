@@ -273,9 +273,8 @@ flair diffsplice
 **Outputs**
 
 - Event names include the strand, so ``inclusion_chr1:500-650`` is
-  ``inclusion_chr1:500-650(+)``, the strand written as ``flair spliceevents`` writes it,
-  though its coordinates differ: spliceevents names an event with one-based coordinates
-  in ascending order. The same goes for the ``coordinate`` column. Without it, an event called on both strands at one locus
+  ``inclusion_chr1:500-650(+)``, as ``flair spliceevents`` names an event, coordinates
+  and all. The same goes for the ``coordinate`` column. Without it, an event called on both strands at one locus
   appeared twice under one name and DRIMSeq refused the file.
 - All four ``drimseq_<event>_A_v_B.tsv`` are always written. An event type that called
   nothing, or whose events DRIMSeq found nothing significant in, leaves a file of only

@@ -675,9 +675,9 @@ considered to include or exclude the each event:
 
 The ``coordinate`` column and the feature ids contain a junction's BED coordinates, the
 zero-based start and the end, written 5' to 3', so on the minus strand the first
-number is the larger: ``chr12:25215560-25215436(-)``.  ``flair spliceevents`` names
-the same events one-based and in ascending order, so a name from one does not match a
-name from the other.
+number is the larger: ``chr12:25215560-25215436(-)``.  ``flair spliceevents`` names an
+event the same way, so an event of one locus is written alike in both, though the two
+analyses are separate and an event of one is not always an event of the other.
 
 ----
 
@@ -748,23 +748,25 @@ gets the gene of most of its reads.  First and last exons and starts and ends ar
 found per gene: a read's first exon and start with the gene it starts in, its last
 exon and end with the gene it ends in.
 
-An event is named ``TYPE|CHROM:START-END(STRAND)|GENE``, its locus, 1-based, being
-its skipped exon for es, and otherwise the outer bounds of its introns, so it can be
-pasted into a genome browser, and its gene, as the ``gene`` column, the genes
+An event is named ``TYPE|CHROM:START-END(STRAND)|GENE``, its locus being its skipped
+exon for es, and otherwise the outer bounds of its introns, in BED coordinates written
+5' to 3' as ``flair diffsplice`` writes them, so on the minus strand the first number
+is the larger, and its gene, as the ``gene`` column, the genes
 comma-separated if tied, so the events of two genes of one locus, as the ends of a gene
 and a readthrough of it, are told apart.  Each row is one alternative of its event, named by
 what sets it apart from the event's other rows: ``inc`` and ``exc`` for es and
 ``exc`` for ces, the exons
 included of a ces's other rows, ``retained`` and ``spliced`` for ir, the introns of
 each alternative of alt5, alt3, alt5ss, alt3ss, afe and ale, the position of each
-end of tss and tts, and ``other``.  Introns are written as STAR writes them, from
-their first base to their last, and exons from their first base to their last.
+end of tss and tts, and ``other``.  Introns and exons are written as the junction
+columns write them, in BED coordinates, and an end as the coordinate of its base.
 For example, an exon skip and an alternative 3' splice site::
 
-   es|chr12:25215437-25215560(-)|ENSG00000133703.12    inc
-   alt3|chr1:201-350(+)|G1                             201-300
+   es|chr12:25215560-25215436(-)|ENSG00000133703.12    inc
+   alt3|chr1:200-350(+)|G1                             200-300
 
-The tables' coordinate columns use the same 1-based coordinates.  An event's PSI
+The tables' coordinate columns use the same coordinates, each list in transcription
+order.  An event's PSI
 is computed two ways: of the event's reads (PSIjunc), which is more sensitive, and of
 all reads covering the event's locus (PSItot), which favours events that are strong
 overall.  A sample needs ``--event_support`` reads of an event for a PSI.

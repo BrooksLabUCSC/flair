@@ -661,17 +661,20 @@
   * A complex exon skip's BED line of more than one included exon has the right
     number of blocks, which was always 3.  Its rows are written in the same order in
     every run.
-  * Events and rows are named consistently, and every coordinate is 1-based.  An event
-    is `TYPE|CHROM:START-END(STRAND)`, its locus being the skipped exon for es
-    and otherwise the outer bounds of its introns (was, for example,
-    `es-of-chr1:300-400`, without strand, or `alt3-relTo-chr1:200(+)-G1`).
+  * Events and rows are named consistently, and every coordinate is the BED one,
+    written 5' to 3' as `flair diffsplice` writes it, so an event of one locus is
+    named alike by the two.  An event is `TYPE|CHROM:START-END(STRAND)`, its locus
+    being the skipped exon for es and otherwise the outer bounds of its introns
+    (was, for example, `es-of-chr1:300-400`, without strand, or
+    `alt3-relTo-chr1:200(+)-G1`).
     The tables have separate `event` and `alternative` columns (were `eventname`,
     the row joined to the event, and `event`), and `event_type` (was `eventtype`); a
     row's alternative is `inc`, `exc`, `retained`, `spliced` or `other`, the exons
-    included of a ces row, or the introns, as STAR writes them, of an alternative
-    splice site or first or last exon.  The coordinate columns are 1-based too, and
-    AFE and ALE are afe and ale.  The BED lines are named `EVENT|ALTERNATIVE`.  spliceevents_outliers
-    reads and writes the new columns.  Tables of earlier versions aren't read.
+    included of a ces row, or the introns of an alternative splice site or first or
+    last exon.  The coordinate columns are in the same coordinates, each list in
+    transcription order, and AFE and ALE are afe and ale.  The BED lines are named
+    `EVENT|ALTERNATIVE`.  spliceevents_outliers reads and writes the new columns.
+    Tables of earlier versions aren't read.
   * A tss or tts taken from the reads' starts (tss on +, tts on -) was placed one
     base before them.
   * `--output_read_ends` and its OUTPUT.spliceevents.readends.bed are gone.  Each

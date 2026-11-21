@@ -1793,8 +1793,8 @@ test-spliceevents-outliers: mkdirs ${SPLICEEVENTS_MULTI_BAMS} ${SPLICEEVENTS_MUL
 # without genes, adds nothing
 test-spliceevents-region: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region_bed $I/spliceevents.kras_part.bed -o $O/$@
-	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
-	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
+	diff <(grep -F 'es|chr12:25215560-25215436(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
+	diff <(grep -F 'es|chr12:25215560-25215436(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
 	$(call cmp_expect,$@.spliceevents.regions.bed)
 	$(call cmp_expect,$@.spliceevents.bed)
 	$(call cmp_expect,$@.spliceevents.psi_tot.tsv)
@@ -1816,8 +1816,8 @@ test-spliceevents-region-extend: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFE
 # over its reads and transcripts into one cluster
 test-spliceevents-region-partition: mkdirs ${BASIC_ALIGN_BAM} ${SPLICEEVENTS_MANIFEST}
 	flair spliceevents -m $(SPLICEEVENTS_MANIFEST) -g ${GENOME_FA} -t 4 -f $(BASIC_ANNOTATION) --region=chr12:25200001-25235000 --region='chr12 60000000 60010000' --partition_items 1 -o $O/$@
-	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
-	diff <(grep -F 'es|chr12:25215437-25215560(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
+	diff <(grep -F 'es|chr12:25215560-25215436(-)' $E/test-spliceevents.spliceevents.counts.tsv) <(sed 1d $O/$@.spliceevents.counts.tsv)
+	diff <(grep -F 'es|chr12:25215560-25215436(-)' $E/test-spliceevents.spliceevents.psi_junc.tsv) <(sed 1d $O/$@.spliceevents.psi_junc.tsv)
 	$(call cmp_expect,$@.spliceevents.bed)
 	$(call cmp_expect,$@.spliceevents.psi_tot.tsv)
 	$(call cmp_expect,$@.spliceevents.regions.bed)
