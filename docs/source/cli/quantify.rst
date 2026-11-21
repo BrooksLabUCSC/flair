@@ -51,5 +51,5 @@
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   the isoforms to count, a FLAIR isoform bed (the 25 columns of flair transcriptome, flair combine and flair fusion), whose fusion isoforms are counted too
+   the isoforms to count, a FLAIR isoform BED (the 25 columns of flair transcriptome, flair combine and flair fusion), whose fusion isoforms are counted too
 

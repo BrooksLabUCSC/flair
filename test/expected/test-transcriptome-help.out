@@ -124,7 +124,7 @@ options:
   -t, --threads THREADS
                         number of threads to run with (default: 12)
   --region_bed REGION_BED
-                        bed file of the regions to build transcripts in, such
+                        BED file of the regions to build transcripts in, such
                         as the genes of interest. If no region is given, the
                         whole genome is used. A region is expanded over the
                         reads and annotated transcripts that overlap it, until
@@ -142,7 +142,7 @@ options:
                         repeated, and may be used with --region_bed, whose
                         regions are added to it
   --fusion_breakpoints FUSION_BREAKPOINTS
-                        for fusion detection only: bed file containing
+                        for fusion detection only: BED file containing
                         locations of fusion breakpoints on the synthetic
                         genome
   --temp_dir TEMP_DIR   directory for temporary files; each run makes its own
@@ -166,7 +166,7 @@ options:
 
 required named arguments:
   -b, --genome_aligned_bam GENOME_ALIGNED_BAM
-                        Sorted and indexed bam file aligned to the genome
+                        sorted and indexed BAM file aligned to the genome
   -g, --genome GENOME   FASTA of reference genome, can be minimap2 indexed; a
                         compressed genome must be bgzip and indexed with
                         samtools faidx

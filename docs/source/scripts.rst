@@ -1,8 +1,9 @@
 Additional programs
 ^^^^^^^^^^^^^^^^^^^
 
-A ``conda install`` or ``pip install`` of flair puts the following programs on $PATH.
-The options of each are generated from the program itself, so they are always what the program accepts.
+A ``conda install`` or ``pip install`` of FLAIR puts these programs on ``PATH``.
+The options of each are generated from the program itself, so they are what the
+program accepts.
 
 Each reads a gzipped input and writes a gzipped output when the file name ends in
 ``.gz``, reports a missing input by naming it, and takes the logging options of
@@ -30,14 +31,13 @@ diff_iso_usage
 
 .. include:: cli/diff_iso_usage.rst
 
-Calculates the usage of each isoform as a fraction of the total expression of the gene and compares this between samples.
+Compares the usage of each isoform, its share of its gene's reads, between two
+samples, and tests the change with Fisher's exact test: the more the usage differs
+between the first and the second sample, the lower the p-value.
+
 It also reads the counts of ``flair spliceevents``, comparing an event's alternatives
 against the rest of the event, as ``flair diffexp`` does (see :ref:`diffexp-label`).  An
 event's ``other`` row counts toward the rest but has no row of its own.
-
-Identifies and calculates significance of alternative isoform usage between two
-samples using Fisher's exact tests. The more differentially used the isoforms are
-between the first and second condition, the lower the p-value.
 
 Output file format columns are as follows, where the two sample names are the ones
 given on the command line, so the direction of ``delta_PSI`` can be read from the file:
@@ -48,7 +48,7 @@ given on the command line, so the direction of ``delta_PSI`` can be read from th
  - the p-value adjusted for the number of isoforms tested, ``fisher_adj_pval``, by
    Benjamini-Hochberg, so a cutoff on it bounds the false discovery rate.  Filter on
    this one: with thousands of isoforms tested, a raw p-value below 0.05 is expected
-   by chance alone for one in twenty of them.  An isoform that can't be tested is NA
+   by chance alone for one in twenty of them.  An isoform that cannot be tested is NA
    in both
  - this isoform's count in each of the two samples
  - the gene's other isoforms' counts in each of the two samples
@@ -74,7 +74,7 @@ diffsplice_fishers_exact
 
 Identifies and calculates the significance of alternative splicing
 events between two samples without replicates using Fisher's exact
-tests, from a flair diffsplice ``tsv`` of alternative splicing calls for
+tests, from a ``flair diffsplice`` TSV of alternative splicing calls for
 one splicing event type.
 
 **Output**
@@ -137,7 +137,7 @@ mark_intron_retention
 
 .. include:: cli/mark_intron_retention.rst
 
-Assumes the bed has the correct strand information.
+Assumes the BED has the correct strand information.
 
 **Outputs**
 
@@ -182,7 +182,7 @@ spliceevents_outliers
 
 .. include:: cli/spliceevents_outliers.rst
 
-Finds outlier samples of the splicing events from flair spliceevents: samples
+Finds outlier samples of the splicing events from ``flair spliceevents``: samples
 whose PSI of an event is far from the median of all samples', at least 0.1 from
 it and more than 3 deviations (half the interquartile range), of events where at
 least 5 samples have ``--event_support`` reads.  It reads
@@ -195,7 +195,7 @@ strong overall events.
 
  - ``OUTPUT.spliceevents.outliers.tsv``, every outlier
  - ``OUTPUT.spliceevents.outliers.filtered.tsv``, the outliers more than 6
-   deviations from the median that a simpler event of the same junctions doesn't
+   deviations from the median that a simpler event of the same junctions does not
    explain as well: a complex exon skip by an exon skip, and an alternative
    splice site by an exon skip or a complex exon skip
 

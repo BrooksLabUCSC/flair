@@ -39,8 +39,8 @@ their own gene ids, listed in transcript order.
 Derived identifiers
 -------------------
 
-Three things FLAIR names are named for what they are made of, so their ids do have
-parts, with a separator that the id's own component ids cannot contain:
+Three things FLAIR names are named for what they are made of, so their ids have
+parts, with a separator that the component ids cannot contain:
 
 .. list-table::
    :header-rows: 1
@@ -64,7 +64,7 @@ A row of a ``flair spliceevents`` counts table is named ``event|alternative`` wh
 a counts matrix names an isoform, since that is what the row counts.
 
 Releases before FLAIR 3 joined the two with an underscore,
-``ENST00000225792.10_ENSG00000108654.15``. Splitting that needs a guess, since gene
+``ENST00000225792.10_ENSG00000108654.15``. That cannot be split reliably, since gene
 ids contain underscores of their own, so FLAIR no longer writes or reads it.
 ``bed_to_gtf`` rejects a BED that FLAIR did not write, which has no gene column,
 unless given ``--force``, which uses each isoform name as its gene id too.

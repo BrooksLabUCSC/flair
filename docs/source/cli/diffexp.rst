@@ -33,7 +33,7 @@
 
 .. option:: --keep_intermediate
 
-   keep the run's own directory, which holds the tables before filtering and the R scripts' diagnostics, and whose path the run reports
+   keep the run's own directory, which contains the tables before filtering and the R scripts' diagnostics, and whose path the run reports
 
 .. rubric:: required named arguments
 

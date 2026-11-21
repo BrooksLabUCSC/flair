@@ -58,13 +58,13 @@
 
 .. option:: --keep_intermediate
 
-   keep the run's own directory, which holds the event tables DRIMSeq was given and its diagnostics, and whose path the run reports
+   keep the run's own directory, which contains the event tables DRIMSeq was given and its diagnostics, and whose path the run reports
 
 .. rubric:: required named arguments
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   isoforms in bed format
+   isoforms in BED format
 
 .. option:: --counts_matrix COUNTS_MATRIX
 

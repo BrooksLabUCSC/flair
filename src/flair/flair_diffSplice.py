@@ -41,7 +41,7 @@ def add_subparser(subparsers):
                                    description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--isoform_bed', type=str, required=True,
-                          help='isoforms in bed format')
+                          help='isoforms in BED format')
     required.add_argument('--counts_matrix', type=str, required=True,
                           help='tab-delimited isoform count matrix from flair quantify')
     required.add_argument('-o', '--output', type=str, required=True,
@@ -78,7 +78,7 @@ def add_subparser(subparsers):
     parser.add_argument('--temp_dir',
                         help='directory for temporary files; each run makes its own directory, named for the output, in it (default: $TMPDIR or the system temporary directory)')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help="keep the run's own directory, which holds the event tables DRIMSeq was given "
+                        help="keep the run's own directory, which contains the event tables DRIMSeq was given "
                              "and its diagnostics, and whose path the run reports")
     parser.set_defaults(entry=diffsplice_cmd)
 

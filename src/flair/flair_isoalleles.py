@@ -52,7 +52,7 @@ def add_subparser(subparsers):
                                    description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('--isoform_bed', required=True,
-                          help='the isoforms, the flair isoform bed the read maps were made with by flair quantify; '
+                          help='the isoforms, the FLAIR isoform BED the read maps were made with by flair quantify; '
                                'its CDS gives each isoform\'s start codon.  Fusion isoforms are left out')
     required.add_argument('-g', '--genome', required=True, help='FASTA of the genome, indexed with samtools faidx')
     required.add_argument('--bam', required=True,

@@ -130,7 +130,7 @@
 
 .. option:: --region_bed REGION_BED
 
-   bed file of the regions to build transcripts in, such as the genes of interest. If no region is given, the whole genome is used. A region is expanded over the reads and annotated transcripts that overlap it, until nothing more overlaps, so the transcripts reported are the same as a whole-genome run's. The expansion can reach a gene next to the region, which is reported too. The expanded regions are written to <output>.regions.bed. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
+   BED file of the regions to build transcripts in, such as the genes of interest. If no region is given, the whole genome is used. A region is expanded over the reads and annotated transcripts that overlap it, until nothing more overlaps, so the transcripts reported are the same as a whole-genome run's. The expansion can reach a gene next to the region, which is reported too. The expanded regions are written to <output>.regions.bed. Isoform and gene ids are numbered within a run, so they are not the ids a whole-genome run gives the same transcripts
 
 .. option:: --region REGION
 
@@ -138,7 +138,7 @@
 
 .. option:: --fusion_breakpoints FUSION_BREAKPOINTS
 
-   for fusion detection only: bed file containing locations of fusion breakpoints on the synthetic genome
+   for fusion detection only: BED file containing locations of fusion breakpoints on the synthetic genome
 
 .. option:: --temp_dir TEMP_DIR
 
@@ -160,7 +160,7 @@
 
 .. option:: -b, --genome_aligned_bam GENOME_ALIGNED_BAM
 
-   Sorted and indexed bam file aligned to the genome
+   sorted and indexed BAM file aligned to the genome
 
 .. option:: -g, --genome GENOME
 

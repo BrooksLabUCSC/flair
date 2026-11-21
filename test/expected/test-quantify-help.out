@@ -45,6 +45,6 @@ required named arguments:
                         a .fai is made beside it if missing and the directory
                         is writable)
   --isoform_bed ISOFORM_BED
-                        the isoforms to count, a FLAIR isoform bed (the 25
+                        the isoforms to count, a FLAIR isoform BED (the 25
                         columns of flair transcriptome, flair combine and
                         flair fusion), whose fusion isoforms are counted too

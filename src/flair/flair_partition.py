@@ -41,18 +41,18 @@ def build_parser():
                      "  Partitions are made across all input files")
     )
     parser.add_argument("--min_partition_items", type=int, default=0,
-                        help="Minimum number of input items in a partition")
+                        help="minimum number of input items in a partition")
     parser.add_argument("--part_merge_dist", type=int, default=0,
-                        help="Combine adjacent non-overlapping partitions separated by this distance")
+                        help="combine adjacent non-overlapping partitions separated by this distance")
     parser.add_argument("--threads", type=int, default=12,
-                        help="Number of cores for converting inputs, a BAM by chromosome, and sorting "
+                        help="number of cores for converting inputs, a BAM by chromosome, and sorting "
                         "(default: %(default)s)")
     parser.add_argument("--bed", dest="bed_files", action="append", default=[], metavar="BED",
-                        help="Input BED file, may be compressed.  May be repeated")
+                        help="input BED file, may be compressed.  May be repeated")
     parser.add_argument("--bam", dest="bam_files", action="append", default=[], metavar="BAM",
-                        help="Input SAM/BAM file.  May be repeated")
+                        help="input SAM/BAM file.  May be repeated")
     parser.add_argument("--gtf", dest="gtf_files", action="append", default=[], metavar="GTF",
-                        help="Input GTF file.  May be repeated")
+                        help="input GTF file.  May be repeated")
     parser.add_argument("--region_bed",
                         help="BED of regions to restrict the partitions to, such as the genes of "
                         "interest.  Only input items overlapping a region are read, an indexed BAM "
@@ -63,7 +63,7 @@ def build_parser():
                         help="region to restrict the partitions to.  The notes under --region_bed "
                         "apply to it as well.  " + REGION_FORMAT_HELP)
     parser.add_argument("ranges_bed",
-                        help="Output ranges BED file, compressed if its name ends in .gz.  "
+                        help="output ranges BED file, compressed if its name ends in .gz.  "
                         "It is a BED4 with the number of input items in each partition as a fifth column")
     loggingOps.addCmdOptions(parser, defaultLevel=logging.INFO)
     return parser

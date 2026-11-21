@@ -81,7 +81,7 @@
 
 .. option:: -b, --genome_aligned_bam GENOME_ALIGNED_BAM
 
-   bam file of reads aligned to the genome with minimap2 -ax splice. All reads, not only the chimeric ones: reads are also aligned to annotated transcripts, which finds partner pieces the genome alignment leaves clipped. The chimeric reads taken from it are kept as OUTPUT.genome_aligned.chim.bam and OUTPUT.transcriptome_aligned.chim.bam, and reused if they exist: with a different bam, use a new -o or remove them first
+   BAM file of reads aligned to the genome with minimap2 -ax splice. All reads, not only the chimeric ones: reads are also aligned to annotated transcripts, which finds partner pieces the genome alignment leaves clipped. The chimeric reads taken from it are kept as OUTPUT.genome_aligned.chim.bam and OUTPUT.transcriptome_aligned.chim.bam, and reused if they exist: with a different bam, use a new -o or remove them first
 
 .. option:: --sample_name SAMPLE_NAME
 

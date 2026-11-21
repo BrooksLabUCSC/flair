@@ -14,7 +14,7 @@
 
 .. option:: isoforms
 
-   isoforms in bed format
+   isoforms in BED format
 
 .. option:: counts_matrix
 
@@ -22,7 +22,7 @@
 
 .. option:: gene_name
 
-   Name of gene, must correspond with the gene names in the isoform and counts matrix files
+   name of gene, must correspond with the gene names in the isoform and counts matrix files
 
 .. rubric:: options
 

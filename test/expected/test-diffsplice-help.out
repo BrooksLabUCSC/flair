@@ -49,13 +49,13 @@ options:
   --temp_dir TEMP_DIR   directory for temporary files; each run makes its own
                         directory, named for the output, in it (default:
                         $TMPDIR or the system temporary directory)
-  --keep_intermediate   keep the run's own directory, which holds the event
+  --keep_intermediate   keep the run's own directory, which contains the event
                         tables DRIMSeq was given and its diagnostics, and
                         whose path the run reports
 
 required named arguments:
   --isoform_bed ISOFORM_BED
-                        isoforms in bed format
+                        isoforms in BED format
   --counts_matrix COUNTS_MATRIX
                         tab-delimited isoform count matrix from flair quantify
   -o, --output OUTPUT   output directory for tables and plots

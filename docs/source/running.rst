@@ -3,9 +3,10 @@
 Running FLAIR
 ^^^^^^^^^^^^^
 
-``flair`` is one program and each analysis is a sub-command, as in
+``flair`` is one program and each analysis is a subcommand, as in
 ``flair transcriptome -o sample1 ...``.  The options below are global and come
-before the sub-command.  Giving one after it is an error that reports it.
+before the subcommand.  A global option given after the subcommand is an error
+that names it.
 
 .. include:: cli/flair.rst
 
@@ -64,7 +65,7 @@ reuses and what it makes again.
 
 A run that is stopped with SIGTERM or SIGINT, as a job scheduler and the terminal
 send, removes its temporary directory as a failed run does.  SIGKILL cannot be
-taken, so a run stopped with it leaves its temporary directory in ``--temp_dir`` or
+caught, so a run stopped with it leaves its temporary directory in ``--temp_dir`` or
 ``$TMPDIR``, named for the output prefix, to be removed by hand.
 
 .. _compression-label:
@@ -72,7 +73,7 @@ taken, so a run stopped with it leaves its temporary directory in ``--temp_dir``
 Compression
 ===========
 
-Any text file FLAIR reads may be gzipped, in any sub-command, decided by the file
+Any text file FLAIR reads may be gzipped, in any subcommand, determined by the file
 name extension.  The genome needs random access, so a compressed genome must be
 bgzip compressed and indexed::
 

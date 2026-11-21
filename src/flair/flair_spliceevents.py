@@ -94,7 +94,7 @@ def add_subparser(subparsers):
                              'and a cluster is corrected and searched for events on its own, so this sets how '
                              'much work a task is and changes no result')
     parser.add_argument('--region_bed',
-                        help='bed file of the regions to report events in, such as the genes of '
+                        help='BED file of the regions to report events in, such as the genes of '
                              'interest.  ' + REGION_RESTRICT_HELP)
     parser.add_argument('--region', dest='regions', action='append', default=[], metavar='REGION',
                         help='region to report events in.  The notes under --region_bed apply to it '

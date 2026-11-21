@@ -157,7 +157,7 @@ def add_subparser(subparsers):
                                    description=desc)
     required = parser.add_argument_group('required named arguments')
     required.add_argument('-b', '--genome_aligned_bam', required=True,
-                          help='Sorted and indexed bam file aligned to the genome')
+                          help='sorted and indexed BAM file aligned to the genome')
     required.add_argument('-g', '--genome', type=str, required=True,
                           help='FASTA of reference genome, can be minimap2 indexed; a compressed genome '
                                'must be bgzip and indexed with samtools faidx')
@@ -256,14 +256,14 @@ def add_subparser(subparsers):
                         help='number of threads to run with (default: %(default)s)')
 
     parser.add_argument('--region_bed',
-                        help='bed file of the regions to build transcripts in, such as the genes of '
+                        help='BED file of the regions to build transcripts in, such as the genes of '
                              'interest.  ' + REGION_RESTRICT_HELP)
     parser.add_argument('--region', dest='regions', action='append', default=[], metavar='REGION',
                         help='region to build transcripts in.  The notes under --region_bed apply to '
                              'it as well.  ' + REGION_FORMAT_HELP)
 
     parser.add_argument('--fusion_breakpoints',
-                        help='for fusion detection only: bed file containing locations of fusion breakpoints '
+                        help='for fusion detection only: BED file containing locations of fusion breakpoints '
                              'on the synthetic genome')
 
     parser.add_argument('--temp_dir',

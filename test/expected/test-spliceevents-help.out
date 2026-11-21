@@ -59,7 +59,7 @@ options:
                         for events on its own, so this sets how much work a
                         task is and changes no result
   --region_bed REGION_BED
-                        bed file of the regions to report events in, such as
+                        BED file of the regions to report events in, such as
                         the genes of interest. If no region is given, all
                         chromosomes are used. A region is expanded over the
                         reads and annotated transcripts that overlap it, until

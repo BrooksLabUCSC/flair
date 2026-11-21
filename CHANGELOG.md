@@ -139,7 +139,7 @@
     `contrasts can be applied only to factors with 2 or more levels`.
   * `flair fusion --max_dist_to_tss` rejects a value below -1.  Such a value was
     taken as a real distance, which no fusion can be under, so the run reported no
-    fusions and said nothing; -1 remains the way to leave the distance unchecked.
+    fusions and reported nothing; -1 remains the way to leave the distance unchecked.
   * Bad input is reported as one line rather than a Python traceback: every
     installed command now reports errors this way, and the errors for mismatched
     annotation fasta and isoform names, alignments without AS or MD tags, and the
@@ -210,14 +210,14 @@
   * `flair diffexp --min_expression` keeps a gene or isoform when the reads of at
     least one condition, summed over its samples, reach the threshold, which is what
     its help states.  It kept a row only when every sample of a condition reached it,
-    so one low sample in each condition dropped a row however many reads it held.
+    so one low sample in each condition dropped a row however many reads it had.
   * `flair transcriptome` and `flair quantify` report how many of the reads they read
     they reported: "of 1013 reads read, 757 assigned to a reported isoform (75%)".
   * The BED of `flair spliceevents` scores an event over the 0 to 1000 a genome
     browser shades, where it was PSI times 100 and every event sat in the bottom
     tenth of the range.
   * The outliers table of `spliceevents_outliers` has two columns, `alternative_reads`
-    and `psi_total`, where one column held both numbers joined by a semicolon under
+    and `psi_total`, where one column had both numbers joined by a semicolon under
     the name `event_reads;total_locus_reads`, which named neither of them.
   * An event's `other` reads are counted whatever their number, so the rows of an
     event sum to it.  They were dropped when no sample had `--feature_support` of
@@ -229,7 +229,7 @@
   * The programs an install puts on PATH beside `flair` report a missing input by
     naming it, as a subcommand does, take the logging options of `flair` itself, and
     report what they produced.  `gtf_to_bed` given a BED, and `fasta_seq_lengths`
-    given a GTF, wrote an empty output and said nothing; both now warn.
+    given a GTF, wrote an empty output and reported nothing; both now warn.
   * A TSV that cannot be opened or read is reported in two lines wherever it is
     read.  pycbio's `TsvError` is a `NoStackError`, so a missing events table in
     `diffsplice_fishers_exact` is no longer 30 lines of Python traceback.
@@ -238,7 +238,7 @@
     reported as such rather than read as an isoform called `name`.  `flair isoalleles`
     writes an isoform and one of its allele groups there, `isoform|group`.
   * The two DESeq2 tables of `flair diffexp` name their first column `gene_id` and
-    `isoform_id`, where both called it `sample` and it held neither.
+    `isoform_id`, where both called it `sample` and it contained neither.
   * The sample columns of the DRIMSeq table of `flair diffexp` are the counts
     matrix's own column names.  Each had an index appended, `A1_cond_batch_0`, which
     reached the user's table and could not be matched to the matrix.
@@ -259,7 +259,7 @@
     nothing at all.
   * `flair diffsplice` states that no statistical test was run when neither the
     conditions nor `--test` were given, where it used to write the four event tables
-    and say nothing.
+    and report nothing.
   * A `flair diffexp` or `flair diffsplice` run that fails before writing a result
     removes the output directory it made, so the rerun under the same `-o` is not
     rejected for the directory being there.  A directory given with
@@ -380,7 +380,7 @@
     fragmented or 5' truncated reads: with -1, SeraCare finds all 16 spike-in
     fusions, ETV6--NTRK3 and EGFR--SEPTIN14 included.
   * `flair fusion --max_dist_to_tss` takes the nearer of two 5' ends of a fusion's
-    reads: the most upstream one held by 2 or more reads, which with 5' truncated
+    reads: the most upstream one with 2 or more reads, which with 5' truncated
     reads is the one near the promoter, and now also the median one.  In MCF7,
     ESR1--CCDC170's reads mostly start at an annotated ESR1 TSS, but 3 start 14 kb
     upstream, 19 kb from the nearest annotated start upstream of them.
@@ -464,7 +464,7 @@
   * `flair fusion` groups chimeric reads into preliminary fusions by their loci as
     well as their genes.  Reads of one fusion whose pieces were given different
     genes, by where the reads ended, were split into several preliminary fusions,
-    whose synthetic contigs held the same sequence, and realigning divided the reads
+    whose synthetic contigs had the same sequence, and realigning divided the reads
     between them at random: 87 reads at MAPQ 0 in MCF7, now 22.  Preliminary fusions
     whose loci overlap, padded as their synthetic contigs are, are now one, named by
     the genes most of its reads were given.  The chimeric reads of the genome
@@ -842,13 +842,13 @@
     position in a fusion in its `pos_in_fusion` column.
   * The counts matrix now starts with two id columns, `gene_id` then `isoform_id`,
     in place of the single `isoform_gene` column.  `flair quantify --with_gene` is
-    gone, the gene is always named.  A matrix from an earlier FLAIR is refused
+    gone, the gene is always named.  A matrix from an earlier FLAIR is rejected
     rather than split on an underscore, which was wrong for some gene ids.
     `flair combine` writes its counts file the same way.
   * `flair diffsplice` event ids now include the strand, as
     `chr1:100-200(+)` and `chr1:35556271(+)`, matching the event names
     `flair spliceevents` writes. Without it, an event at the same coordinates on
-    both strands produced one feature_id twice and DRIMSeq refused the whole
+    both strands produced one feature_id twice and DRIMSeq rejected the whole
     file (#689). This changes the feature_id and coordinate columns of
     `diffsplice.alt3`, `diffsplice.alt5` and `diffsplice.ir` events.quant.tsv
     and the drimseq results made from them.  The es event ids gain the strand in
@@ -937,11 +937,11 @@
   * `count_sam_transcripts` no longer takes `--quality`, `--fusion_dist` or
     `--end_norm_dist`.
   * `flair quantify --tpm` is gone, and `<output>.isoforms.cpm.tsv` is written by
-    every run.  The option wrote `<output>.isoforms.tpm.tsv`, which held counts per
+    every run.  The option wrote `<output>.isoforms.tpm.tsv`, which had counts per
     million, never transcripts per million: the counts were scaled to a million and
     not divided by the isoform's length.  That is what was intended, since a long
     read is not one transcript when reads are fragmented, so the file is now named
-    for what it holds.  The `counts_to_tpm` program is gone: quantify writes the
+    for what it contains.  The `counts_to_tpm` program is gone: quantify writes the
     table itself (#718).
     
 ## [v3.0.0] 2025-11-31
@@ -1041,6 +1041,6 @@
 * Compatibility with Python 3.12 
 * Compatibility with Apple ARM64 systems.
 * Deprecated `diffExp` and `diffSplice`, they will be removed in a future release.
-  Lets us know if you use this functionality.  Their dependencies are no longer
+  Let us know if you use this functionality.  Their dependencies are no longer
   part of the conda package, they can be added the conda environment with
   `misc/flair_diffexp_conda_env.yaml`.

@@ -49,7 +49,7 @@ options:
 
 required named arguments:
   --isoform_bed ISOFORM_BED
-                        the isoforms, the flair isoform bed the read maps were
+                        the isoforms, the FLAIR isoform BED the read maps were
                         made with by flair quantify; its CDS gives each
                         isoform's start codon. Fusion isoforms are left out
   -g, --genome GENOME   FASTA of the genome, indexed with samtools faidx

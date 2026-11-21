@@ -10,9 +10,9 @@ samples; the minor ones are aggregated into a gray bar. --min_reads and
 --palette plot more of them.
 
 positional arguments:
-  isoforms              isoforms in bed format
+  isoforms              isoforms in BED format
   counts_matrix         isoform counts
-  gene_name             Name of gene, must correspond with the gene names in
+  gene_name             name of gene, must correspond with the gene names in
                         the isoform and counts matrix files
 
 options:

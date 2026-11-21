@@ -44,7 +44,7 @@ def add_subparser(subparsers):
     required.add_argument('-f', '--gtf', type=str, required=True,
                           help='GTF annotation file, used for renaming FLAIR isoforms to annotated isoforms and adjusting TSS/TESs')
     required.add_argument('-b', '--genome_aligned_bam', type=str, required=True,
-                          help='bam file of reads aligned to the genome with minimap2 -ax splice.  All reads, '
+                          help='BAM file of reads aligned to the genome with minimap2 -ax splice.  All reads, '
                                'not only the chimeric ones: reads are also aligned to annotated transcripts, which '
                                'finds partner pieces the genome alignment leaves clipped.  The chimeric reads taken '
                                'from it are kept as OUTPUT.genome_aligned.chim.bam and '

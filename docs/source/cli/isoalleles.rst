@@ -58,7 +58,7 @@
 
 .. option:: --isoform_bed ISOFORM_BED
 
-   the isoforms, the flair isoform bed the read maps were made with by flair quantify; its CDS gives each isoform's start codon. Fusion isoforms are left out
+   the isoforms, the FLAIR isoform BED the read maps were made with by flair quantify; its CDS gives each isoform's start codon. Fusion isoforms are left out
 
 .. option:: -g, --genome GENOME
 

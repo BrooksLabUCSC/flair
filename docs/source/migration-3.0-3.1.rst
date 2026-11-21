@@ -68,7 +68,7 @@ flair transcriptome
 **Defaults flipped**
 
 - ``--stringent`` and ``--check_splice`` always apply, and ``--no_stringent`` and
-  ``--no_check_splice`` are gone: they counted reads that don't support an isoform
+  ``--no_check_splice`` are gone: they counted reads that do not support an isoform
   toward it
 
 **Split**
@@ -95,7 +95,8 @@ flair transcriptome
 - ``--promoters``, ``--3prime_regions``, ``--gene_tss``, ``--no_gtf_end_adjustment``:
   an isoform's ends come from the ends of the reads assigned to it, clustered within
   ``--end_window``, at most ``--max_ends`` of them, or ``--normalize_ends``.  No
-  promoter or TES file, no gene-level ends, and the annotation's ends are used to
+  promoter or transcription end site file, no gene-level ends, and the annotation's
+  ends are used to
   keep subset isoforms rather than to move an isoform's ends
 - ``--mm2_args``: the minimap2 runs are internal
 - ``--longshot_bam``, ``--longshot_vcf``: haplotypes come from ``flair isoalleles``
@@ -274,8 +275,9 @@ flair diffsplice
 
 - Event names include the strand, so ``inclusion_chr1:500-650`` is
   ``inclusion_chr1:500-650(+)``, as ``flair spliceevents`` names an event, coordinates
-  and all. The same goes for the ``coordinate`` column. Without it, an event called on both strands at one locus
-  appeared twice under one name and DRIMSeq refused the file.
+  and all. The same goes for the ``coordinate`` column. Without the strand, an event
+  called on both strands at one locus appeared twice under one name, and DRIMSeq
+  rejected the file.
 - All four ``drimseq_<event>_A_v_B.tsv`` are always written. An event type that called
   nothing, or whose events DRIMSeq found nothing significant in, leaves a file of only
   its header.

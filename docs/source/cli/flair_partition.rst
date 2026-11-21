@@ -16,33 +16,33 @@
 
 .. option:: ranges_bed
 
-   Output ranges BED file, compressed if its name ends in .gz. It is a BED4 with the number of input items in each partition as a fifth column
+   output ranges BED file, compressed if its name ends in .gz. It is a BED4 with the number of input items in each partition as a fifth column
 
 .. rubric:: options
 
 .. option:: --min_partition_items MIN_PARTITION_ITEMS
 
-   Minimum number of input items in a partition
+   minimum number of input items in a partition
 
 .. option:: --part_merge_dist PART_MERGE_DIST
 
-   Combine adjacent non-overlapping partitions separated by this distance
+   combine adjacent non-overlapping partitions separated by this distance
 
 .. option:: --threads THREADS
 
-   Number of cores for converting inputs, a BAM by chromosome, and sorting (default: 12)
+   number of cores for converting inputs, a BAM by chromosome, and sorting (default: 12)
 
 .. option:: --bed BED
 
-   Input BED file, may be compressed. May be repeated
+   input BED file, may be compressed. May be repeated
 
 .. option:: --bam BAM
 
-   Input SAM/BAM file. May be repeated
+   input SAM/BAM file. May be repeated
 
 .. option:: --gtf GTF
 
-   Input GTF file. May be repeated
+   input GTF file. May be repeated
 
 .. option:: --region_bed REGION_BED
 

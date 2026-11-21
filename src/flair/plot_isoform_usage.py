@@ -22,11 +22,11 @@ def build_parser():
     are aggregated into a gray bar.  --min_reads and --palette plot more of them.'''
     parser = RetiredCheckParser(prog='plot_isoform_usage', formatter_class=FlairHelpFormatter, description=desc)
     parser.add_argument('isoforms', type=str, action='store',
-                        help='isoforms in bed format')
+                        help='isoforms in BED format')
     parser.add_argument('counts_matrix', type=str, action='store',
                         help='isoform counts')
     parser.add_argument('gene_name', type=str, action='store',
-                        help='''Name of gene, must correspond with the gene names in the
+                        help='''name of gene, must correspond with the gene names in the
     isoform and counts matrix files''')
     parser.add_argument('-o', '--output', type=str,
                         help='prefix used for output files (default: the gene name)')

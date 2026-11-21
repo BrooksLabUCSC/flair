@@ -69,7 +69,7 @@ def add_subparser(subparsers):
                                'faidx (for a plain FASTA, a .fai is made beside it if missing and the directory is '
                                'writable)')
     required.add_argument('--isoform_bed', type=str, required=True,
-                          help='the isoforms to count, a FLAIR isoform bed (the 25 columns of flair transcriptome, '
+                          help='the isoforms to count, a FLAIR isoform BED (the 25 columns of flair transcriptome, '
                                'flair combine and flair fusion), whose fusion isoforms are counted too')
     parser.add_argument('-o', '--output', type=str, default='flair.quantify',
                         help='output file name base for FLAIR quantify (default: %(default)s)')

@@ -469,7 +469,7 @@ def add_subparser(subparsers):
     parser.add_argument('--temp_dir',
                         help='directory for temporary files; each run makes its own directory, named for the output, in it (default: $TMPDIR or the system temporary directory)')
     parser.add_argument('--keep_intermediate', action='store_true',
-                        help="keep the run's own directory, which holds the tables before filtering and the "
+                        help="keep the run's own directory, which contains the tables before filtering and the "
                              "R scripts' diagnostics, and whose path the run reports")
     parser.set_defaults(entry=diffexp_cmd)
 
