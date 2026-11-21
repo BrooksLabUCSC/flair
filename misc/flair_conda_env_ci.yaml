@@ -19,9 +19,9 @@ dependencies:
   # test-base runs both
   - minimap2 =2.30
   - bedtools =2.31.1
-  - samtools =1.22.1
+  - samtools =1.25
   - ucsc-bedtobigbed
-  - intron-prospector >=1.5
+  - intron-prospector >=1.6,<2.0
   # longshot calls the variants the isoalleles test inputs are phased from; whatshap is
   # not needed, as FLAIR does not run it and its isoalleles output is committed under
   # test/input

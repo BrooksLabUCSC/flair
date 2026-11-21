@@ -320,6 +320,9 @@
     `conda install` command to add them.
   * FLAIR requires python 3.13 through 3.14, dropping 3.12.
   * The conda `pysam` is now 0.24, matching what FLAIR requires.
+  * FLAIR requires `intron-prospector` 1.6.  The conda `samtools` moves to
+    1.25 with it: intron-prospector 1.6 links htslib 1.25, and samtools
+    1.22.1 requires an htslib below that.
   * Reverse complement takes every IUPAC nucleotide code, with U and the gap
     characters, so a genome with degenerate bases no longer stops FLAIR
     with `KeyError: 'R'` (#715).  A character that is not a nucleotide now

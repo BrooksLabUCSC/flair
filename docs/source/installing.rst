@@ -83,8 +83,8 @@ or by downloading and compiling them:
 - bedToBigBed, from the `UCSC tools <https://hgdownload.soe.ucsc.edu/admin/exe/>`_,
   which writes the bigBed of ``flair transcriptome``, ``flair combine`` and
   ``flair fusion``
-- `intron-prospector <https://github.com/diekhans/intron-prospector>`_, for flair
-  fusion and for junctions from long reads
+- `intron-prospector <https://github.com/diekhans/intron-prospector>`_, 1.6 or
+  later, for ``flair fusion`` and for junctions from long reads
 
 The conda environment also has `longshot <https://github.com/pjedge/longshot>`_,
 which calls the variants of FLAIR's tests.  FLAIR does not run it itself.

@@ -68,7 +68,7 @@ RUN \
     tar -xj -C /usr/local/bin --strip-components=1 -f /tmp/micromamba.tar.bz2 bin/micromamba && \
     rm -f /tmp/micromamba.tar.bz2 && \
     micromamba create -y -p /opt/bioconda-tools -c conda-forge -c bioconda \
-        ucsc-bedtobigbed 'intron-prospector>=1.5' 'longshot>=1.0' && \
+        ucsc-bedtobigbed 'intron-prospector>=1.6,<2.0' 'longshot>=1.0' && \
     micromamba clean -ay && \
     ln -s /opt/bioconda-tools/bin/bedToBigBed /usr/local/bin/bedToBigBed && \
     ln -s /opt/bioconda-tools/bin/intron-prospector /usr/local/bin/intron-prospector && \
