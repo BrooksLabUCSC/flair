@@ -1,8 +1,12 @@
 name: flair-dev
 
+# conda-forge before bioconda, as both projects document: under strict channel
+# priority a name is taken only from the highest channel that has it, and
+# bioconda's newest r-ggplot2, r-argparse and bioconductor-deseq2 builds are from
+# 2016, against an r that no longer exists
 channels:
-  - bioconda
   - conda-forge
+  - bioconda
 
 # python as pyproject.toml requires.  The --help test comparisons need 3.13 or
 # later: argparse changed its help layout there and the expected files are in the
