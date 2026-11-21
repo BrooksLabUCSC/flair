@@ -1,25 +1,34 @@
-name: flair_conda_env
+# the environment the master branch is tested in: the released environment
+# without the R packages, so the tests of flair diffexp and flair diffsplice do
+# not run there, and with FLAIR installed from the tree rather than from pip
+name: flair-ci
+
+# conda-forge before bioconda, the order both projects document: under strict
+# channel priority a package comes only from the highest channel that has it, and
+# bioconda's newest r-ggplot2, r-argparse and bioconductor-deseq2 builds are from
+# 2016, against an r that no longer exists
 channels:
   - conda-forge
   - bioconda
-  - conda
 
-# python as pyproject.toml requires, or pip install -e . fails
 dependencies:
+  # python as pyproject.toml requires, or pip install -e . fails
   - python >=3.13,<3.15
+  # the programs FLAIR runs.  bedToBigBed writes transcriptome's .bb output and
+  # intron-prospector is used by flair fusion and the junction tests; make
+  # test-base runs both
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1
-  - pysam >=0.24.1,<0.25.0
-  - pipettor >=1.2.1
-  # bedToBigBed writes transcriptome's .bb output; intron-prospector is used by
-  # flair fusion and the junction tests; make test-base runs both
   - ucsc-bedtobigbed
   - intron-prospector >=1.5
   # longshot calls the variants the isoalleles test inputs are phased from; whatshap is
   # not needed, as FLAIR does not run it and its isoalleles output is committed under
   # test/input
   - longshot >=1.0
+  # flair's own ranges, so that conda does not pick a version flair does not accept
+  - pysam >=0.24.1,<0.25.0
+  - pipettor >=1.2.1
   - pip
   - pip:
-      - matplotlib>=3.10.0,<4.0.0
+      - matplotlib>=3.11.2,<4.0.0

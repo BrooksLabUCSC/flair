@@ -1,26 +1,35 @@
-name: flair_conda_env
+# the released environment: attached to each GitHub release and installed by the
+# command in docs/source/installing.rst, which names the environment itself
+name: flair
+
+# conda-forge before bioconda, the order both projects document: under strict
+# channel priority a package comes only from the highest channel that has it, and
+# bioconda's newest r-ggplot2, r-argparse and bioconductor-deseq2 builds are from
+# 2016, against an r that no longer exists
 channels:
   - conda-forge
   - bioconda
-  - conda
 
 dependencies:
+  # python as pyproject.toml requires
   - python >=3.13,<3.15
+  # the programs FLAIR runs
   - minimap2 =2.30
   - bedtools =2.31.1
   - samtools =1.22.1
-  # flair's own range, so that conda does not pick a newer pysam than flair accepts
-  - pysam >=0.24.1,<0.25.0
-  - intron-prospector >=1.5
   - ucsc-bedtobigbed
+  - intron-prospector >=1.5
   # longshot calls the variants the isoalleles test inputs are phased from.  whatshap,
   # which phases them and haplotags reads before flair isoalleles, is not here: FLAIR
   # does not run it, and bioconda builds it through python 3.13, which would hold this
   # whole environment at that version.  Install it on its own when you need it, see
   # docs/source/installing.rst
   - longshot >=1.0
+  # flair's own ranges, so that conda does not pick a version flair does not accept
+  - pysam >=0.24.1,<0.25.0
+  - pipettor >=1.2.1
   - pip
-  # R dependencies of flair diffexp and diffsplice
+  # R dependencies of flair diffexp and flair diffsplice
   - r-argparse
   - r-ggplot2
   - r-qqman
