@@ -4,7 +4,7 @@ FLAIR gene and isoform identifiers
 ==================================
 
 FLAIR assigns its own identifiers to the genes, isoforms and protein sequences it
-defines.
+defines.  :ref:`file-formats-label` gives the files they are written in.
 
 .. list-table::
    :header-rows: 1

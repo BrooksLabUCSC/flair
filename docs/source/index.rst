@@ -65,6 +65,7 @@ analyses.
    running.rst
    modules.rst
    ids.rst
+   file-formats.rst
    scripts.rst
    migration-3.0-3.1.rst
    faqs.rst

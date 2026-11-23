@@ -22,7 +22,8 @@ The four gene columns and the five coordinate columns contain several values, co
 separated in the file and a list on the row.  The 'other' row's coordinate
 columns are empty.
 
-Coordinates are one based and inclusive, as the event names are.
+Coordinates are BED coordinates written 5' to 3', as the event names are, so the
+first number is the larger one on the minus strand; see spliceevents_events.range_id.
 
 Three files share these columns and differ only in what the sample columns contain:
 
