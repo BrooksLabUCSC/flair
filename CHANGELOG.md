@@ -25,6 +25,8 @@
     run of 191,988 candidates lost 1,430 of them, and filtering gave 111,979
     isoforms where unique names give 112,655 (#732).  The name now comes from
     column 4, as the single-exon path in the same file already read it
+  * two isoforms of one name in the first pass BED stop the run, naming both of
+    them, rather than one replacing the other
 * FLAIR fusion
   * keep the 500 base gene padding inside the sequence.  A gene starting within
     500 bases of a sequence start failed with `ValueError: start out of range`,

@@ -119,6 +119,14 @@ def filter_collapsed_isoforms(queryfile, mode, tol, outfile, keep_extra_column=F
             allevents[chrom]['allexons'] = set()
             jcn_to_name[chrom] = {}
             allevents[chrom]['all_se_exons'] = set()
+        if name in isoforms[chrom]:
+            # a candidate is stored under its name, so a repeated name dropped the
+            # candidate already stored before any filter ran: #732
+            other = isoforms[chrom][name]['line']
+            raise FlairInputDataError(
+                "%s has two isoforms named %s, %s:%s-%s and %s:%s-%s; the name of an isoform "
+                "must be its own, as what is read here replaces what was read before it"
+                % (queryfile, name, chrom, line[1], line[2], other[0], other[1], other[2]))
         isoforms[chrom][name] = {}
         line[8] = '27,158,119' if line[5] == '+' else '217,95,2'
         if line[9] == '1': line[8] = "242,208,17"  # yellow if monoexon
