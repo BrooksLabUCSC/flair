@@ -16,5 +16,5 @@ dependencies:
   - zlib
   - pip
   - pip:
-      - flair-brookslab==v3.0.1+master
+      - flair-brookslab==v3.0.1
       - matplotlib>=3.10.0,<4.0.0
