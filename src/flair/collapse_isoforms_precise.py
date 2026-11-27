@@ -460,7 +460,7 @@ def run_find_best_sites(chrom):
             continue  # 1 isoform per unique set of junctions
 
         i = 0
-        name = line[9]
+        name = line[3]  # the isoform's name; line[9] is the block count
         for tss, tes, support, tsscount, tescount in jset_ends:
             edited_line = edit_line_bed12(line, tss, tes)
             if not clean:

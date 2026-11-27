@@ -16,6 +16,15 @@
   * the conda environments carry `zlib`.  mappy and ncls publish no linux wheel
     above python 3.12, so pip builds them from source, and mappy needs the zlib
     headers, which the `libzlib` that came in by itself does not have
+* FLAIR collapse
+  * alternative end isoforms of unrelated junction chains no longer take the same
+    name and replace one another.  `collapse_isoforms_precise.py` named them after
+    column 10 of the BED, the block count, so every second end variant of an
+    eight-exon chain was named `8-1`, and `filter_collapsed_isoforms.py`, which
+    stores a candidate under its name, kept only the last of them.  A chromosome 3
+    run of 191,988 candidates lost 1,430 of them, and filtering gave 111,979
+    isoforms where unique names give 112,655 (#732).  The name now comes from
+    column 4, as the single-exon path in the same file already read it
 * FLAIR fusion
   * keep the 500 base gene padding inside the sequence.  A gene starting within
     500 bases of a sequence start failed with `ValueError: start out of range`,
